@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>Completar Mapeo Global de Acciones</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css">
+    <style>
+        body { padding: 20px; }
+        .isin-block { border: 1px solid #ccc; border-radius: 5px; padding: 15px; margin-bottom: 15px; background-color: #f9f9f9; }
+        .form-label { font-weight: bold; }
+    </style>
+</head>
+<body>
+    {% extends "base.html" %} {# Asumiendo que heredas de base.html #}
+
+    {% block content %} {# Inicio del bloque de contenido específico #}
+    <div class="container">
+        <h1>Completar Información Global de Acciones Nuevas</h1>
+        <p>Hemos encontrado las siguientes acciones en tu portfolio para las que falta información en el mapeo global (Ticker, Google Exchange, Sufijo Yahoo). Por favor, complétala para continuar.</p>
+        <p>Puedes buscar la acción por su ISIN o nombre en Google Finance o Yahoo Finance para encontrar los códigos y sufijos correctos.</p>
+
+        {# Quitar bloque de mensajes flash si ya está en base.html #}
+
+        <form method="post" action="{{ url_for('save_mapping_route') }}" class="mt-4">
+            {# Loop through items needing mapping #}
+            {% for item in missing_items %}
+            <div class="isin-block">
+                <h4>{{ item.name }}</h4>
+                <p><strong>ISIN:</strong> {{ item.isin }}</p>
+                {# Usamos item.isin en el name para poder identificarlo en el backend #}
+
+                <div class="mb-3">
+                    <label for="ticker_{{ item.isin }}" class="form-label">Ticker Base*:</label>
+                    <input type="text" class="form-control form-control-sm" id="ticker_{{ item.isin }}" name="ticker_{{ item.isin }}" placeholder="Ej: TEF, AAPL, PHIA" required>
+                    <div class="form-text">Símbolo principal de la acción en la bolsa.</div>
+                </div>
+                <div class="mb-3">
+                    <label for="google_ex_{{ item.isin }}" class="form-label">Código Google Exchange*:</label>
+                    <input type="text" class="form-control form-control-sm" id="google_ex_{{ item.isin }}" name="google_ex_{{ item.isin }}" placeholder="Ej: BME, NASDAQ, AMS, EPA, LON" required>
+                    <div class="form-text">El código de mercado que usa Google Finance.</div>
+                </div>
+                 <div class="mb-3">
+                    <label for="yahoo_suffix_{{ item.isin }}" class="form-label">Sufijo Yahoo Exchange:</label>
+                    {# Usar la sugerencia en el atributo value #}
+                    <input type="text" class="form-control form-control-sm" id="yahoo_suffix_{{ item.isin }}" name="yahoo_suffix_{{ item.isin }}" placeholder="Ej: .MC, .AS, .L (vacío US)" value="{{ item.get('suggested_yahoo_suffix', '') }}">
+                    <div class="form-text">El sufijo que usa Yahoo Finance (puede estar vacío para US). Modifícalo si la sugerencia no es correcta.</div>
+                </div>
+                <div class="mb-3">
+                    <label for="name_{{ item.isin }}" class="form-label">Nombre Empresa (Opcional):</label>
+                    {# Pre-rellenar con el nombre detectado #}
+                    <input type="text" class="form-control form-control-sm" id="name_{{ item.isin }}" name="name_{{ item.isin }}" value="{{ item.name }}">
+                     <div class="form-text">Puedes corregir o completar el nombre mostrado si lo deseas.</div>
+                </div>
+            </div> {# Fin isin-block #}
+            {% endfor %}
+
+            <button type="submit" class="btn btn-primary mt-3">Guardar Mapeos y Ver Portfolio</button>
+
+        </form>
+    </div> {# Fin container #}
+    {% endblock content %} {# Fin del bloque de contenido específico #}
+
+    {% block scripts %}
+    {# Scripts específicos si los hubiera #}
+    {% endblock scripts %}
+
+</body> {# Necesario si no heredas de base.html #}
+</html> {# Necesario si no heredas de base.html #}

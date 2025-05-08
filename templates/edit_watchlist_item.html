@@ -1,0 +1,428 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    {# Mostrar Título con el nombre del item que se edita #}
+    <h1 class="mt-4">Editar Datos Manuales: {{ item.item_name }}</h1>
+    <p>Modifica los campos opcionales que desees para esta acción en tu watchlist.</p>
+    <p>
+        <strong>ISIN:</strong> {{ item.isin or '---' }} |
+        <strong>Ticker:</strong> {{ item.ticker or '---' }}{{ item.yahoo_suffix or '' }} |
+        <strong>Google Ex:</strong> {{ item.google_ex or '---' }}
+    </p>
+
+    {% if item.yahoo_last_updated %}
+    <div class="alert alert-info">
+        <small>Datos de Yahoo Finance actualizados por última vez: {{ item.yahoo_last_updated.strftime('%d/%m/%Y %H:%M') }}</small>
+    </div>
+    {% endif %}
+
+    <hr>
+
+    {# Los mensajes Flash se muestran en base.html #}
+
+    {# Formulario que envía los datos a la misma ruta pero con método POST #}
+    <form method="POST" action="{{ url_for('edit_watchlist_item', item_id=item.id) }}">
+        <div class="row g-3 mb-3">
+            {# --- Campos Sin Categoría (Inicio) --- #}
+            <div class="col-md-3">
+                <label for="fecha_resultados" class="form-label">Fecha Próx. Resultados:</label>
+                {# Input de tipo fecha para selector de calendario - sin checkbox #}
+                <input type="date" class="form-control form-control-sm" id="fecha_resultados" name="fecha_resultados" value="{{ item.fecha_resultados if item.fecha_resultados }}">
+            </div>
+        </div>
+
+        {# --- Categoría: Perfil Empresa --- #}
+        <fieldset class="border p-3 mb-3">
+            <legend class="w-auto px-2 fs-6">Perfil Empresa</legend>
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <div class="mb-1">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input auto-update-toggle" 
+                                   name="auto_update_pais" id="auto_update_pais" 
+                                   {% if item.auto_update_pais %}checked{% endif %}>
+                            <label for="auto_update_pais" class="form-check-label">País (Auto)</label>
+                        </div>
+                    </div>
+                    <input type="text" class="form-control form-control-sm {% if item.auto_update_pais %}bg-light{% endif %}" 
+                           id="pais" name="pais" value="{{ item.pais or '' }}"
+                           {% if item.auto_update_pais %}readonly{% endif %}>
+                </div>
+                <div class="col-md-3">
+                    <div class="mb-1">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input auto-update-toggle" 
+                                   name="auto_update_sector" id="auto_update_sector" 
+                                   {% if item.auto_update_sector %}checked{% endif %}>
+                            <label for="auto_update_sector" class="form-check-label">Sector (Auto)</label>
+                        </div>
+                    </div>
+                    <input type="text" class="form-control form-control-sm {% if item.auto_update_sector %}bg-light{% endif %}" 
+                           id="sector" name="sector" value="{{ item.sector or '' }}"
+                           {% if item.auto_update_sector %}readonly{% endif %}>
+                </div>
+                <div class="col-md-3">
+                    <div class="mb-1">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input auto-update-toggle" 
+                                   name="auto_update_industria" id="auto_update_industria" 
+                                   {% if item.auto_update_industria %}checked{% endif %}>
+                            <label for="auto_update_industria" class="form-check-label">Industria (Auto)</label>
+                        </div>
+                    </div>
+                    <input type="text" class="form-control form-control-sm {% if item.auto_update_industria %}bg-light{% endif %}" 
+                           id="industria" name="industria" value="{{ item.industria or '' }}"
+                           {% if item.auto_update_industria %}readonly{% endif %}>
+                </div>
+                <div class="col-md-3">
+                    <div class="mb-1">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input auto-update-toggle" 
+                                   name="auto_update_market_cap" id="auto_update_market_cap" 
+                                   {% if item.auto_update_market_cap %}checked{% endif %}>
+                            <label for="auto_update_market_cap" class="form-check-label">Market Cap (M) (Auto)</label>
+                        </div>
+                    </div>
+                    <input type="number" step="0.01" class="form-control form-control-sm {% if item.auto_update_market_cap %}bg-light{% endif %}" 
+                           id="market_cap" name="market_cap" value="{{ item.market_cap if item.market_cap is not none else '' }}"
+                           {% if item.auto_update_market_cap %}readonly{% endif %}>
+                </div>
+            </div>
+        </fieldset>
+
+        {# --- Categoría: Gobierno --- #}
+        <fieldset class="border p-3 mb-3">
+            <legend class="w-auto px-2 fs-6">Gobierno</legend>
+             <div class="row g-3">
+                 <div class="col-md-6">
+                     <label for="ceo_salary" class="form-label">Salario CEO:</label>
+                     <select class="form-select form-select-sm" id="ceo_salary" name="ceo_salary">
+                         <option value="" {% if not item.ceo_salary %}selected{% endif %}>-- Selecciona --</option>
+                         <option value="OK" {% if item.ceo_salary == 'OK' %}selected{% endif %}>OK</option>
+                         <option value="NA" {% if item.ceo_salary == 'NA' %}selected{% endif %}>NA (No Aplica/No Info)</option>
+                         <option value="NoOK" {% if item.ceo_salary == 'NOOK' %}selected{% endif %}>No OK (Excesivo)</option>
+                     </select>
+                 </div>
+                 <div class="col-md-6">
+                    <label for="dilucion_shares" class="form-label">Dilución Accionista (% anual):</label>
+                    <input type="number" step="0.01" class="form-control form-control-sm" id="dilucion_shares" name="dilucion_shares" value="{{ item.dilucion_shares if item.dilucion_shares is not none else '' }}" placeholder="Ej: -2.5">
+                    <div class="form-text">Negativo = Recompra, Positivo = Dilución.</div>
+                 </div>
+             </div>
+        </fieldset>
+
+        {# --- Categoría: Valuation --- #}
+        <fieldset class="border p-3 mb-3">
+            <legend class="w-auto px-2 fs-6">Valoración (Valuation)</legend>
+             <div class="row g-3">
+                <div class="col-md-3 col-lg-2">
+                    <label for="ntm_ps" class="form-label">NTM P/S:</label>
+                    <input type="number" step="0.01" class="form-control form-control-sm" id="ntm_ps" name="ntm_ps" value="{{ item.ntm_ps|round(2) if item.ntm_ps is not none else '' }}">
+                </div>
+                <div class="col-md-3 col-lg-2">
+                    <label for="ntm_tev_ebitda" class="form-label">NTM EV/EBITDA:</label>
+                    <input type="number" step="0.01" class="form-control form-control-sm" id="ntm_tev_ebitda" name="ntm_tev_ebitda" value="{{ item.ntm_tev_ebitda|round(2) if item.ntm_tev_ebitda is not none else '' }}">
+                </div>
+                <div class="col-md-3 col-lg-2">
+                    <div class="mb-1">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input auto-update-toggle" 
+                                   name="auto_update_pe" id="auto_update_pe" 
+                                   {% if item.auto_update_pe %}checked{% endif %}>
+                            <label for="auto_update_pe" class="form-check-label">NTM P/E Norm. (Auto)</label>
+                        </div>
+                    </div>
+                    <input type="number" step="0.01" class="form-control form-control-sm {% if item.auto_update_pe %}bg-light{% endif %}" 
+                           id="ntm_pe" name="ntm_pe" value="{{ item.ntm_pe|round(2) if item.ntm_pe is not none else '' }}"
+                           {% if item.auto_update_pe %}readonly{% endif %}>
+                </div>
+                <div class="col-md-3 col-lg-2">
+                    <div class="mb-1">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input auto-update-toggle" 
+                                   name="auto_update_div_yield" id="auto_update_div_yield" 
+                                   {% if item.auto_update_div_yield %}checked{% endif %}>
+                            <label for="auto_update_div_yield" class="form-check-label">NTM Div Yield (%) (Auto)</label>
+                        </div>
+                    </div>
+                    <input type="number" step="0.01" class="form-control form-control-sm {% if item.auto_update_div_yield %}bg-light{% endif %}" 
+                           id="ntm_div_yield" name="ntm_div_yield" value="{{ item.ntm_div_yield|round(2) if item.ntm_div_yield is not none else '' }}"
+                           {% if item.auto_update_div_yield %}readonly{% endif %}>
+                </div>
+                <div class="col-md-3 col-lg-2">
+                    <div class="mb-1">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input auto-update-toggle" 
+                                   name="auto_update_pbv" id="auto_update_pbv" 
+                                   {% if item.auto_update_pbv %}checked{% endif %}>
+                            <label for="auto_update_pbv" class="form-check-label">LTM P/BV (Auto)</label>
+                        </div>
+                    </div>
+                    <input type="number" step="0.01" class="form-control form-control-sm {% if item.auto_update_pbv %}bg-light{% endif %}" 
+                           id="ltm_pbv" name="ltm_pbv" value="{{ item.ltm_pbv|round(2) if item.ltm_pbv is not none else '' }}"
+                           {% if item.auto_update_pbv %}readonly{% endif %}>
+                </div>
+             </div>
+        </fieldset>
+
+        {# --- Categoría: Métricas --- #}
+        <fieldset class="border p-3 mb-3">
+             <legend class="w-auto px-2 fs-6">Métricas</legend>
+             <div class="row g-3">
+                <div class="col-md-3 col-lg-2">
+                    <label for="revenue_cagr" class="form-label">Rev CAGR 5Y(%):</label>
+                    <input type="number" step="0.01" class="form-control form-control-sm" id="revenue_cagr" name="revenue_cagr" value="{{ item.revenue_cagr|round(2) if item.revenue_cagr is not none else '' }}">
+                </div>
+                <div class="col-md-3 col-lg-2">
+                    <label for="ebitda_margins" class="form-label">EBITDA M(%):</label>
+                    <input type="number" step="0.01" class="form-control form-control-sm" id="ebitda_margins" name="ebitda_margins" value="{{ item.ebitda_margins|round(2) if item.ebitda_margins is not none else '' }}">
+                </div>
+                <div class="col-md-3 col-lg-2">
+                    <label for="eps_normalized" class="form-label">EPS Norm.:</label>
+                    <input type="number" step="0.01" class="form-control form-control-sm" id="eps_normalized" name="eps_normalized" value="{{ item.eps_normalized|round(2) if item.eps_normalized is not none else '' }}">
+                </div>
+                <div class="col-md-3 col-lg-2">
+                    <label for="fcf_margins" class="form-label">FCF M(%):</label>
+                    <input type="number" step="0.01" class="form-control form-control-sm" id="fcf_margins" name="fcf_margins" value="{{ item.fcf_margins|round(2) if item.fcf_margins is not none else '' }}">
+                </div>
+                <div class="col-md-3 col-lg-2">
+                    <label for="cfo" class="form-label">Cash From Op:</label>
+                    <select class="form-select form-select-sm" id="cfo" name="cfo">
+                        <option value="" {% if item.cfo is none %}selected{% endif %}>-- Selecciona --</option>
+                        <option value="1" {% if item.cfo == 1 %}selected{% endif %}>Positivo</option>
+                        <option value="0" {% if item.cfo == 0 %}selected{% endif %}>Neutral</option>
+                        <option value="-1" {% if item.cfo == -1 %}selected{% endif %}>Negativo</option>
+                    </select>
+                </div>
+                <div class="col-md-3 col-lg-2">
+                    <label for="net_debt_ebitda" class="form-label">NDeb/EBITDA:</label>
+                    <input type="number" step="0.01" class="form-control form-control-sm" id="net_debt_ebitda" name="net_debt_ebitda" value="{{ item.net_debt_ebitda|round(2) if item.net_debt_ebitda is not none else '' }}">
+                </div>
+                <div class="col-md-3 col-lg-2">
+                    <div class="mb-1">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input auto-update-toggle" 
+                                   name="auto_update_roe" id="auto_update_roe" 
+                                   {% if item.auto_update_roe %}checked{% endif %}>
+                            <label for="auto_update_roe" class="form-check-label">ROE (%) (Auto)</label>
+                        </div>
+                    </div>
+                    <input type="number" step="0.01" class="form-control form-control-sm {% if item.auto_update_roe %}bg-light{% endif %}" 
+                           id="roe" name="roe" value="{{ item.roe|round(2) if item.roe is not none else '' }}"
+                           {% if item.auto_update_roe %}readonly{% endif %}>
+                </div>
+             </div>
+        </fieldset>
+
+        {# --- Categoría: Estimates --- #}
+        <fieldset class="border p-3 mb-3">
+             <legend class="w-auto px-2 fs-6">Estimaciones</legend>
+             <div class="row g-3">
+                  <div class="col-md-4">
+                    <label for="pe_objetivo" class="form-label">PE Objetivo:</label>
+                    <input type="number" step="0.01" class="form-control form-control-sm" id="pe_objetivo" name="pe_objetivo" value="{{ item.pe_objetivo|round(2) if item.pe_objetivo is not none else '' }}">
+                 </div>
+                 <div class="col-md-4">
+                    <label for="eps_5y" class="form-label">EPS Estimado 5A:</label>
+                    <input type="number" step="0.01" class="form-control form-control-sm" id="eps_5y" name="eps_5y" value="{{ item.eps_5y|round(2) if item.eps_5y is not none else '' }}">
+                 </div>
+                 
+                 {# Campo Price 5Y oculto pero que se autocompletará con JavaScript #}
+                 <input type="hidden" id="price_5y" name="price_5y" value="{{ item.price_5y|round(2) if item.price_5y is not none else '' }}">
+                 
+                 <div class="col-md-4">
+                    <label class="form-label">Precio Estimado 5A (Calculado):</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control form-control-sm" id="price_5y_display" readonly>
+                        <span class="input-group-text">Calculado automáticamente</span>
+                    </div>
+                 </div>
+             </div>
+        </fieldset>
+
+         {# --- Campos Sin Categoría (Final) - Cambiado Riesgo a Upside AHORA SOLO LECTURA --- #}
+         <div class="row g-3 mb-3">
+              <div class="col-md-3">
+                <label for="upside" class="form-label">Upside(%) <small>(Calculado)</small>:</label>
+                <div id="upside_container">
+                    <span id="upside_value" class="badge bg-secondary">Calculando...</span>
+                    <input type="hidden" id="riesgo" name="riesgo" value="{{ item.riesgo|round(2) if item.riesgo is not none else '' }}">
+                </div>
+                <div class="form-text">Calculo: ((DivYld + CAGR + Dilución) / P/E - 1) * 100</div>
+              </div>
+              <div class="col-md-3">
+                 <label for="stake" class="form-label">Stake:</label>
+                 <select class="form-select form-select-sm" id="stake" name="stake">
+                     <option value="" {% if item.stake is none %}selected{% endif %}>-- Selecciona --</option>
+                     {# Generar opciones de 1 a 10 en incrementos de 0.5 #}
+                     {% for i in range(10, 105, 5) %}
+                       {% set stake_val = i / 10.0 %}
+                       <option value="{{ stake_val }}" {% if item.stake == stake_val %}selected{% endif %}>Stake {{ stake_val }}</option>
+                     {% endfor %}
+                 </select>
+              </div>
+               <div class="col-md-3">
+                 <label for="movimiento" class="form-label">Movimiento:</label>
+                 <select class="form-select form-select-sm" id="movimiento" name="movimiento">
+                     <option value="" {% if not item.movimiento %}selected{% endif %}>-- Selecciona --</option>
+                     <option value="Buy" {% if item.movimiento == 'Buy' %}selected{% endif %}>Buy</option>
+                     <option value="Hold" {% if item.movimiento == 'Hold' %}selected{% endif %}>Hold</option>
+                     <option value="Sell" {% if item.movimiento == 'Sell' %}selected{% endif %}>Sell</option>
+                 </select>
+              </div>
+              <div class="col-md-3">
+                 <label for="update_yahoo" class="form-label">Datos Yahoo:</label>
+                 <a href="{{ url_for('update_watchlist_yahoo_data', item_id=item.id) }}" class="btn btn-primary btn-sm d-block">
+                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-repeat" viewBox="0 0 16 16">
+                        <path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41zm-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9z"/>
+                        <path fill-rule="evenodd" d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3zM3.1 9a5.002 5.002 0 0 0 8.757 2.182a.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9H3.1z"/>
+                     </svg>
+                     Actualizar Datos Yahoo
+                 </a>
+              </div>
+         </div>
+         <div class="row g-3 mb-3">
+              <div class="col-12">
+                 <label for="comentario" class="form-label">Comentario:</label>
+                 <textarea class="form-control form-control-sm" id="comentario" name="comentario" rows="3">{{ item.comentario or '' }}</textarea>
+              </div>
+         </div>
+
+
+        {# Botones de Acción #}
+        <div class="mt-4">
+            <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+            {# Botón para cancelar y volver a la watchlist #}
+            <a href="{{ url_for('show_watchlist') }}" class="btn btn-secondary">Cancelar</a>
+        </div>
+
+    </form> {# Fin del formulario principal #}
+
+</div> {# Fin container #}
+{% endblock content %}
+
+{% block scripts %}
+<script>
+// Función para calcular el precio a 5 años basado en PE Objetivo y EPS 5Y
+function calculatePrice5Y() {
+    const peObjetivo = document.getElementById('pe_objetivo').value;
+    const eps5y = document.getElementById('eps_5y').value;
+    
+    // Convertir a números y verificar que ambos son válidos
+    const peValue = parseFloat(peObjetivo);
+    const epsValue = parseFloat(eps5y);
+    
+    if (!isNaN(peValue) && !isNaN(epsValue)) {
+        // Calcular el precio a 5 años
+        const price5y = peValue * epsValue;
+        
+        // Actualizar tanto el campo oculto como el de visualización
+        document.getElementById('price_5y').value = price5y.toFixed(2);
+        document.getElementById('price_5y_display').value = price5y.toFixed(2);
+    } else {
+        // Si algún valor no es válido, limpiar los campos
+        document.getElementById('price_5y').value = '';
+        document.getElementById('price_5y_display').value = '';
+    }
+}
+
+// Función para calcular el Upside (antes Riesgo)
+function calculateUpside() {
+    const divYield = parseFloat(document.getElementById('ntm_div_yield').value) || 0;
+    const cagr = parseFloat(document.getElementById('revenue_cagr').value) || 0;
+    const dilucion = -1 * (parseFloat(document.getElementById('dilucion_shares').value) || 0);
+    const pe = parseFloat(document.getElementById('ntm_pe').value);
+    
+    const upsideElement = document.getElementById('upside_value');
+    const inputElement = document.getElementById('riesgo');
+    
+    // Verificar que PE sea válido y distinto de cero
+    if (isNaN(pe) || pe === 0) {
+        upsideElement.textContent = 'N/A (P/E faltante)';
+        upsideElement.className = 'badge bg-secondary';
+        inputElement.value = '';
+        return;
+    }
+    
+    // Calcular upside según la fórmula: ((divYield + cagr + dilucion) / pe - 1) * 100
+    const upside = ((divYield + cagr + dilucion) / pe - 1) * 100;
+    
+    // Formatear a 2 decimales
+    const formattedUpside = upside.toFixed(2);
+    
+    // Actualizar valor y color
+    upsideElement.textContent = formattedUpside + '%';
+    inputElement.value = upside;
+    
+    // Determinar la clase de color
+    if (upside >= 10) {
+        upsideElement.className = 'badge bg-success';
+    } else if (upside <= -10) {
+        upsideElement.className = 'badge bg-danger';
+    } else {
+        upsideElement.className = 'badge bg-secondary';
+    }
+}
+
+// Manejar los checkboxes de actualización automática
+function handleAutoUpdateToggle() {
+    document.querySelectorAll('.auto-update-toggle').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            // Obtener el ID del checkbox (auto_update_XXX)
+            const fieldName = this.id.replace('auto_update_', '');
+            // Obtener el campo de entrada correspondiente
+            const inputField = document.getElementById(fieldName);
+            
+            if (inputField) {
+                if (this.checked) {
+                    // Si está marcado, hacer el campo de solo lectura y cambiar estilo
+                    inputField.readOnly = true;
+                    inputField.classList.add('bg-light');
+                } else {
+                    // Si está desmarcado, hacer el campo editable y restaurar estilo
+                    inputField.readOnly = false;
+                    inputField.classList.remove('bg-light');
+                }
+            }
+        });
+        
+        // Aplicar el estado actual del checkbox al cargar la página
+        const fieldName = checkbox.id.replace('auto_update_', '');
+        const inputField = document.getElementById(fieldName);
+        
+        if (inputField) {
+            if (checkbox.checked) {
+                inputField.readOnly = true;
+                inputField.classList.add('bg-light');
+            } else {
+                inputField.readOnly = false;
+                inputField.classList.remove('bg-light');
+            }
+        }
+    });
+}
+
+// Configurar funciones y eventos al cargar la página
+document.addEventListener('DOMContentLoaded', function() {
+    // Calcular precio a 5 años inicial
+    calculatePrice5Y();
+    
+    // Calcular upside inicial
+    calculateUpside();
+    
+    // Configurar eventos para recalcular el precio cuando cambien los inputs
+    document.getElementById('pe_objetivo').addEventListener('input', calculatePrice5Y);
+    document.getElementById('eps_5y').addEventListener('input', calculatePrice5Y);
+    
+    // Configurar eventos para recalcular upside cuando cambien los inputs relevantes
+    document.getElementById('ntm_div_yield').addEventListener('input', calculateUpside);
+    document.getElementById('revenue_cagr').addEventListener('input', calculateUpside);
+    document.getElementById('dilucion_shares').addEventListener('input', calculateUpside);
+    document.getElementById('ntm_pe').addEventListener('input', calculateUpside);
+    
+    // Configurar manejo de checkboxes
+    handleAutoUpdateToggle();
+});
+</script>
+{% endblock scripts %}

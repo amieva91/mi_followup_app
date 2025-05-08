@@ -1,0 +1,264 @@
+{
+  "NL0000009538": {
+    "ticker": "PHIA",
+    "google_ex": "AMS",
+    "name": "KONINKLIJKE PHILIPS NV"
+  },
+  "AU0000180499": {
+    "ticker": "GQG",
+    "google_ex": "ASX",
+    "name": "GQG PARTNERS CDI",
+    "yahoo_suffix": ".AX"
+  },
+  "BMG0400Q1197": {
+    "ticker": "0922",
+    "google_ex": "HKG",
+    "name": "ANXIAN YUAN CHINA HOLDINGS LTD",
+    "yahoo_suffix": ".HK"
+  },
+  "ES0105200002": {
+    "ticker": "ABGOF",
+    "google_ex": "OTCMKTS",
+    "name": "ABENGOA SA- B SHARES",
+    "yahoo_suffix": ".MC"
+  },
+  "ES0105223004": {
+    "ticker": "GEST",
+    "google_ex": "BME",
+    "name": "GESTAMP AUTOMOCION SA",
+    "yahoo_suffix": ".MC"
+  },
+  "ES0112501012": {
+    "ticker": "EBRO",
+    "google_ex": "BME",
+    "name": "EBRO FOODS",
+    "yahoo_suffix": ".MC"
+  },
+  "ES0171996087": {
+    "ticker": "GRF",
+    "google_ex": "BME",
+    "name": "GRIFOLS SA",
+    "yahoo_suffix": ".MC"
+  },
+  "ES0173516115": {
+    "ticker": "REP",
+    "google_ex": "BME",
+    "name": "REPSOL SA",
+    "yahoo_suffix": ".MC"
+  },
+  "ES0175438003": {
+    "ticker": "PSG",
+    "google_ex": "BME",
+    "name": "PROSEGUR",
+    "yahoo_suffix": ".MC"
+  },
+  "GB0002875804": {
+    "ticker": "BATS",
+    "google_ex": "LON",
+    "name": "BR.AMER.TOB.",
+    "yahoo_suffix": ".L"
+  },
+  "GB0009390070": {
+    "ticker": "VLX",
+    "google_ex": "LON",
+    "name": "VOLEX",
+    "yahoo_suffix": ".L"
+  },
+  "IE00BJ38QD84": {
+    "ticker": "ZPRR",
+    "google_ex": "ETR",
+    "name": "SPDR RUSSELL 2000 US SMALL CAP UCITS ETF",
+    "yahoo_suffix": ".DE"
+  },
+  "IT0005037210": {
+    "ticker": "TNXT",
+    "google_ex": "BIT",
+    "name": "TECNOINVESTIMENTI",
+    "yahoo_suffix": ".MI"
+  },
+  "IT0005527616": {
+    "ticker": "EGLA",
+    "google_ex": "BIT",
+    "name": "EUROGROUP LAMINATIONS",
+    "yahoo_suffix": ".MI"
+  },
+  "KYG3235S1021": {
+    "ticker": "6989",
+    "google_ex": "HKG",
+    "name": "EXCELLENCE COMMERCIAL PROPERTY & FACILITIES MANAGEMENT GROUP LTD",
+    "yahoo_suffix": ".HK"
+  },
+  "KYG522441032": {
+    "ticker": "2168",
+    "google_ex": "HKG",
+    "name": "KAISA PROSPERITY HOLDINGS LT"
+  },
+  "KYG876031090": {
+    "ticker": "1979",
+    "google_ex": "HKG",
+    "name": "TEN PAO GROUP HOLDINGS LTD",
+    "yahoo_suffix": ".HK"
+  },
+  "PLATPRT00018": {
+    "ticker": "APR",
+    "google_ex": "WSE",
+    "name": "AUTO PARTNER SA",
+    "yahoo_suffix": ".WA"
+  },
+  "US01609W1027": {
+    "ticker": "BABA",
+    "google_ex": "NYSE",
+    "name": "ADR ON ALIBABA GROUP HOLDING",
+    "yahoo_suffix": ""
+  },
+  "US02079K3059": {
+    "ticker": "GOOGL",
+    "google_ex": "NASDAQ",
+    "name": "ALPHABET INC. - CLASS A",
+    "yahoo_suffix": ""
+  },
+  "US1462805086": {
+    "ticker": "SILA",
+    "google_ex": "NYSE",
+    "name": "SILA REALTY TRUST INC",
+    "yahoo_suffix": ""
+  },
+  "US48581R2058": {
+    "ticker": "KSPI",
+    "google_ex": "NASDAQ",
+    "name": "ADR ON KASPI BANK",
+    "yahoo_suffix": ""
+  },
+  "US87427V1035": {
+    "ticker": "TALK",
+    "google_ex": "NASDAQ",
+    "name": "TALKSPACE INC",
+    "yahoo_suffix": ""
+  },
+  "MHY271836006": {
+    "ticker": "GSL",
+    "google_ex": "NYSE",
+    "yahoo_suffix": "",
+    "name": "GLOBAL SHIP LEASE INC-CL A"
+  },
+  "FR0010259150": {
+    "ticker": "IPN",
+    "google_ex": "EPA",
+    "yahoo_suffix": ".PA",
+    "name": "IPSEN"
+  },
+  "IE00B4BNMY34": {
+    "ticker": "ACN",
+    "google_ex": "NYSE",
+    "yahoo_suffix": "",
+    "name": "ACCENTURE PLC. CLASS A"
+  },
+  "KYG9830T1067": {
+    "ticker": "1810",
+    "google_ex": "HKG",
+    "yahoo_suffix": ".HK",
+    "name": "XIAOMI CORP-CLASS B"
+  },
+  "US30303M1027": {
+    "ticker": "META",
+    "google_ex": "NASDAQ",
+    "yahoo_suffix": "",
+    "name": "META PLATFORMS INC"
+  },
+  "US88160R1014": {
+    "ticker": "TSLA",
+    "google_ex": "NASDAQ",
+    "yahoo_suffix": "",
+    "name": "TESLA MOTORS INC. - C"
+  },
+  "CA68620P1018": {
+    "ticker": "OGI",
+    "google_ex": "NASDAQ",
+    "yahoo_suffix": "",
+    "name": "ORGANIGRAM HOLDINGS INC. - COMMON SHARES"
+  },
+  "FR0000120073": {
+    "ticker": "AI",
+    "google_ex": "EPA",
+    "yahoo_suffix": ".PA",
+    "name": "AIR LIQUIDE"
+  },
+  "CA82509L1076": {
+    "ticker": "SHOP",
+    "google_ex": "NASDAQ",
+    "yahoo_suffix": "",
+    "name": "SHOPIFY INC. CLASS A S"
+  },
+  "DE000A0TGJ55": {
+    "ticker": "VAR1",
+    "google_ex": "XETRA",
+    "yahoo_suffix": ".DE",
+    "name": "VARTA AG"
+  },
+  "ES0105066007": {
+    "ticker": "CLNX",
+    "google_ex": "BME",
+    "yahoo_suffix": ".MC",
+    "name": "CELLNEX TELECOM SAU"
+  },
+  "ES0177542018": {
+    "ticker": "IAG",
+    "google_ex": "BME",
+    "yahoo_suffix": ".MC",
+    "name": "INT.AIRL.GRP"
+  },
+  "IL0011336851": {
+    "ticker": "CHEK",
+    "google_ex": "NASDAQ",
+    "yahoo_suffix": "",
+    "name": "CHECK-CAP LTD. - ORDIN"
+  },
+  "US1729081059": {
+    "ticker": "CTAS",
+    "google_ex": "NASDAQ",
+    "yahoo_suffix": "",
+    "name": "CINTAS CORPORATION - C"
+  },
+  "US2681501092": {
+    "ticker": "DT",
+    "google_ex": "NYSE",
+    "yahoo_suffix": "",
+    "name": "DYNATRACE INC. COMMON STOCK"
+  },
+  "US3580391056": {
+    "ticker": "FRPT",
+    "google_ex": "NASDAQ",
+    "yahoo_suffix": "",
+    "name": "FRESHPET INC. - COMMO"
+  },
+  "US8522341036": {
+    "ticker": "XYZ",
+    "google_ex": "NYSE",
+    "yahoo_suffix": "",
+    "name": "BLOCK INC."
+  },
+  "KYG2524A1031": {
+    "ticker": "1681",
+    "google_ex": "HKG",
+    "yahoo_suffix": ".HK",
+    "name": "CONSUN PHARMACEUTICAL GROUP"
+  },
+  "US00217D1000": {
+    "ticker": "ASTS",
+    "name": "AST SpaceMobile Inc",
+    "yahoo_suffix": "",
+    "google_ex": "NASDAQ"
+  },
+  "ES0178430E18": {
+    "ticker": "TEF",
+    "name": "Telefónica S.A.",
+    "yahoo_suffix": ".MC",
+    "google_ex": "BME"
+  },
+  "BMG6955J1036": {
+    "ticker": "0327",
+    "google_ex": "HKG",
+    "yahoo_suffix": ".HK",
+    "name": "PAX GLOBAL TECHNOLOGY LTD"
+  }
+}

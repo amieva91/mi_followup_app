@@ -1,0 +1,377 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mt-4">Gestión de Gastos</h1>
+    <p>Aquí puedes gestionar tus gastos fijos, puntuales y ver el historial unificado (incluye gastos de deudas).</p>
+    
+    <!-- Resumen de la Situación Actual -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Resumen de Gastos Mensuales</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <!-- Gastos Fijos -->
+                <div class="col-md-3">
+                    <div class="card h-100">
+                        <div class="card-body text-center">
+                            <h6>Gastos Fijos</h6>
+                            <h3 class="text-primary">{{ fixed_expenses_sum|round(2) }} €</h3>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Gastos Puntuales -->
+                <div class="col-md-3">
+                    <div class="card h-100">
+                        <div class="card-body text-center">
+                            <h6>Gastos Puntuales</h6>
+                            <h3 class="text-warning">{{ punctual_expenses_sum|round(2) }} €</h3>
+                            <small class="text-muted">Último mes</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Gastos de Deuda -->
+                <div class="col-md-3">
+                    <div class="card h-100">
+                        <div class="card-body text-center">
+                            <h6>Gastos de Deuda</h6>
+                            <h3 class="text-danger">{{ debt_monthly_sum|round(2) }} €</h3>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Total Mensual -->
+                <div class="col-md-3">
+                    <div class="card h-100">
+                        <div class="card-body text-center">
+                            <h6>Total Mensual</h6>
+                            <h3 class="text-success">{{ total_monthly_expenses|round(2) }} €</h3>
+                            <small class="text-muted">Fijos + Deudas</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Comparativa vs Media -->
+    <div class="card mb-4">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0">Comparativa de Gasto Mensual</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <h6>Este Mes</h6>
+                            <h3 class="text-primary">{{ current_month_expenses|round(2) }} €</h3>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <h6>Media (6 meses)</h6>
+                            <h3 class="text-secondary">{{ avg_monthly_expenses|round(2) }} €</h3>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <h6>Variación</h6>
+                            <h3 class="{% if current_vs_avg_pct > 0 %}text-danger{% elif current_vs_avg_pct < 0 %}text-success{% else %}text-secondary{% endif %}">
+                                {{ current_vs_avg_pct|round(2) }}%
+                            </h3>
+                            <small class="text-muted">
+                                {% if current_vs_avg_pct > 0 %}
+                                    Por encima de la media
+                                {% elif current_vs_avg_pct < 0 %}
+                                    Por debajo de la media
+                                {% else %}
+                                    Igual que la media
+                                {% endif %}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <!-- Columna izquierda: Formularios -->
+        <div class="col-md-4">
+            <!-- Formulario para añadir categoría -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>Crear Categoría de Gasto</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('expenses') }}">
+                        {{ category_form.hidden_tag() }}
+                        <input type="hidden" name="add_category" value="1">
+                        
+                        <div class="mb-3">
+                            {{ category_form.name.label(class="form-label") }}
+                            {{ category_form.name(class="form-control") }}
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ category_form.description.label(class="form-label") }}
+                            {{ category_form.description(class="form-control") }}
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ category_form.parent_id.label(class="form-label") }}
+                            {{ category_form.parent_id(class="form-select") }}
+                            <div class="form-text">Selecciona una categoría padre para crear una subcategoría.</div>
+                        </div>
+                        
+                        {{ category_form.submit(class="btn btn-primary") }}
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Formulario para añadir gasto -->
+            <div class="card">
+                <div class="card-header">
+                    <h5>Registrar Gasto</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('expenses') }}">
+                        {{ expense_form.hidden_tag() }}
+                        <input type="hidden" name="add_expense" value="1">
+                        
+                        <div class="mb-3">
+                            {{ expense_form.description.label(class="form-label") }}
+                            {{ expense_form.description(class="form-control") }}
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ expense_form.amount.label(class="form-label") }}
+                            {{ expense_form.amount(class="form-control") }}
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ expense_form.date.label(class="form-label") }}
+                            {{ expense_form.date(class="form-control") }}
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ expense_form.category_id.label(class="form-label") }}
+                            {{ expense_form.category_id(class="form-select") }}
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ expense_form.expense_type.label(class="form-label") }}
+                            {{ expense_form.expense_type(class="form-select") }}
+                        </div>
+                        
+                        <div class="mb-3 form-check">
+                            {{ expense_form.is_recurring(class="form-check-input") }}
+                            {{ expense_form.is_recurring.label(class="form-check-label") }}
+                        </div>
+                        
+                        <div id="recurring-options" style="display: none;">
+                            <div class="mb-3">
+                                {{ expense_form.recurrence_months.label(class="form-label") }}
+                                {{ expense_form.recurrence_months(class="form-select") }}
+                            </div>
+                            
+                            <div class="mb-3">
+                                {{ expense_form.start_date.label(class="form-label") }}
+                                {{ expense_form.start_date(class="form-control") }}
+                                <div class="form-text">Si no se especifica, se usará la fecha del gasto.</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                {{ expense_form.end_date.label(class="form-label") }}
+                                {{ expense_form.end_date(class="form-control") }}
+                                <div class="form-text">Opcional. Si no se especifica, el gasto no tiene fecha de finalización.</div>
+                            </div>
+                        </div>
+                        
+                        {{ expense_form.submit(class="btn btn-primary") }}
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Columna derecha: Historial y análisis -->
+        <div class="col-md-8">
+            <!-- Historial de Gastos Unificado -->
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Historial de Gastos Unificado</h5>
+                </div>
+                <div class="card-body">
+                    {% if unified_expenses %}
+                        <div class="table-responsive">
+                            <table class="table table-striped table-bordered table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Descripción</th>
+                                        <th>Categoría</th>
+                                        <th>Tipo</th>
+                                        <th class="text-end">Importe (€)</th>
+                                        <th class="text-center">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for expense in unified_expenses %}
+                                    <tr {% if expense.from_debt %}class="table-danger"{% endif %}>
+                                        <td>{{ expense.date.strftime('%d/%m/%Y') }}</td>
+                                        <td>{{ expense.description }}</td>
+                                        <td>{{ expense.category_name }}</td>
+                                        <td>
+                                            {% if expense.from_debt %}
+                                                <span class="badge bg-danger">Deuda</span>
+                                            {% elif expense.is_recurring %}
+                                                <span class="badge bg-primary">Recurrente</span>
+                                            {% elif expense.expense_type == 'fixed' %}
+                                                <span class="badge bg-info">Fijo</span>
+                                            {% else %}
+                                                <span class="badge bg-warning">Puntual</span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-end">{{ expense.amount|round(2) }}</td>
+                                        <td class="text-center">
+                                            {% if not expense.from_debt %}
+                                                <div class="btn-group">
+                                                    <a href="{{ url_for('edit_expense', expense_id=expense.id) }}" class="btn btn-primary btn-sm" title="Editar gasto">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pencil" viewBox="0 0 16 16">
+                                                            <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/>
+                                                        </svg>
+                                                    </a>
+                                                    <form method="POST" action="{{ url_for('delete_expense', expense_id=expense.id) }}" class="d-inline" onsubmit="return confirm('¿Estás seguro de que deseas eliminar este gasto?');">
+                                                        <button type="submit" class="btn btn-danger btn-sm" title="Eliminar gasto">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
+                                                                <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                                                                <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                                                            </svg>
+                                                        </button>
+                                                    </form>
+                                                </div>
+                                            {% else %}
+                                                <a href="{{ url_for('debt_management') }}" class="btn btn-outline-secondary btn-sm">Gestionar en Deudas</a>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info">
+                            No hay gastos registrados. Utiliza el formulario para añadir tu primer gasto.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Análisis por Categoría -->
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">Análisis por Categoría (Últimos 6 meses)</h5>
+                </div>
+                <div class="card-body">
+                    {% if sorted_categories %}
+                        <div class="table-responsive">
+                            <table class="table table-striped table-bordered table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Categoría</th>
+                                        <th class="text-end">Total (€)</th>
+                                        <th class="text-end">Media Mensual (€)</th>
+                                        <th class="text-end">% del Total</th>
+                                        <th>Proporción</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% set total_all_categories = 0 %}
+                                    {% for category, data in sorted_categories %}
+                                        {% set total_all_categories = total_all_categories + data.total %}
+                                    {% endfor %}
+                                    
+                                    {% for category, data in sorted_categories %}
+                                    <tr>
+                                        <td>{{ category }}</td>
+                                        <td class="text-end">{{ data.total|round(2) }}</td>
+                                        <td class="text-end">{{ data.monthly_avg|round(2) }}</td>
+                                        <td class="text-end">
+                                            {% if total_all_categories > 0 %}
+                                                {{ ((data.total / total_all_categories) * 100)|round(2) }}%
+                                            {% else %}
+                                                0%
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <div class="progress">
+					        <div 
+                                                    class="progress-bar bg-success" 
+                                                    role="progressbar" 
+                                                    style="width: {% if total_all_categories > 0 %}{{ ((data.total / total_all_categories) * 100)|round(0) }}{% else %}0{% endif %}%;" 
+                                                    aria-valuenow="{% if total_all_categories > 0 %}{{ ((data.total / total_all_categories) * 100)|round(0) }}{% else %}0{% endif %}"
+                                                    aria-valuemin="0" 
+                                                    aria-valuemax="100">
+                                                    {% if total_all_categories > 0 %}{{ ((data.total / total_all_categories) * 100)|round(0) }}%{% else %}0%{% endif %}
+                                                </div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info">
+                            No hay suficientes datos para mostrar un análisis por categoría.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript para mostrar/ocultar opciones de recurrencia -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Mostrar/ocultar opciones de recurrencia según el checkbox
+    const recurringCheck = document.getElementById('is_recurring');
+    const recurringOptions = document.getElementById('recurring-options');
+    
+    if (recurringCheck && recurringOptions) {
+        // Función para mostrar/ocultar opciones
+        function toggleRecurringOptions() {
+            recurringOptions.style.display = recurringCheck.checked ? 'block' : 'none';
+        }
+        
+        // Llamar al inicio para establecer estado correcto
+        toggleRecurringOptions();
+        
+        // Escuchar cambios en el checkbox
+        recurringCheck.addEventListener('change', toggleRecurringOptions);
+    }
+    
+    // Establecer la fecha actual en el campo de fecha por defecto
+    const dateInput = document.getElementById('date');
+    if (dateInput) {
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = (today.getMonth() + 1).toString().padStart(2, '0');
+        const day = today.getDate().toString().padStart(2, '0');
+        
+        dateInput.value = `${year}-${month}-${day}`;
+    }
+});
+</script>
+{% endblock content %}

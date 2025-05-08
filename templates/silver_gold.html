@@ -1,0 +1,323 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mt-4">Oro y Plata</h1>
+    <p>Gestiona tus operaciones con metales preciosos y sigue su valor actual.</p>
+    
+    <div class="row mt-4">
+        <!-- Columna izquierda: Formulario y precios actuales -->
+        <div class="col-md-4">
+            <!-- Precios actuales -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5>Precios Actuales</h5>
+                    <a href="{{ url_for('update_metal_prices') }}" class="btn btn-primary btn-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-repeat" viewBox="0 0 16 16">
+                            <path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41zm-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9z"/>
+                            <path fill-rule="evenodd" d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3zM3.1 9a5.002 5.002 0 0 0 8.757 2.182a.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9H3.1z"/>
+                        </svg>
+                        Actualizar
+                    </a>
+                </div>
+                <div class="card-body">
+                    <table class="table table-bordered">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Metal</th>
+                                <th class="text-end">Precio (€/oz)</th>
+                                <th class="text-end">Actualizado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Oro</td>
+                                <td class="text-end">
+                                    {% if gold_price %}
+                                        {{ gold_price|round(2) }}
+                                    {% else %}
+                                        N/A
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">
+                                    {% if gold_last_updated %}
+                                        {{ gold_last_updated.strftime('%d/%m/%Y %H:%M') }}
+                                    {% else %}
+                                        Nunca
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Plata</td>
+                                <td class="text-end">
+                                    {% if silver_price %}
+                                        {{ silver_price|round(2) }}
+                                    {% else %}
+                                        N/A
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">
+                                    {% if silver_last_updated %}
+                                        {{ silver_last_updated.strftime('%d/%m/%Y %H:%M') }}
+                                    {% else %}
+                                        Nunca
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <p class="small text-muted mt-2 mb-0">Fuente: Yahoo Finance (XAUEUR=X, XAGEUR=X)</p>
+                </div>
+            </div>
+            
+            <!-- Formulario para añadir transacción -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>Registrar Operación</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('silver_gold') }}">
+                        {{ transaction_form.hidden_tag() }}
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                {{ transaction_form.metal_type.label(class="form-label") }}
+                                {{ transaction_form.metal_type(class="form-select") }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ transaction_form.transaction_type.label(class="form-label") }}
+                                {{ transaction_form.transaction_type(class="form-select") }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ transaction_form.date.label(class="form-label") }}
+                                {{ transaction_form.date(class="form-control") }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ transaction_form.price_per_unit.label(class="form-label") }}
+                                {{ transaction_form.price_per_unit(class="form-control") }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ transaction_form.quantity.label(class="form-label") }}
+                                {{ transaction_form.quantity(class="form-control") }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ transaction_form.unit_type.label(class="form-label") }}
+                                {{ transaction_form.unit_type(class="form-select") }}
+                            </div>
+                            <div class="col-md-12">
+                                {{ transaction_form.taxes_fees.label(class="form-label") }}
+                                {{ transaction_form.taxes_fees(class="form-control") }}
+                            </div>
+                            <div class="col-md-12">
+                                {{ transaction_form.description.label(class="form-label") }}
+                                {{ transaction_form.description(class="form-control") }}
+                            </div>
+                            <div class="col-md-12">
+                                {{ transaction_form.submit(class="btn btn-primary") }}
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Columna derecha: Resumen y transacciones -->
+        <div class="col-md-8">
+            <!-- Resumen por tipo de metal -->
+            <div class="row mb-4">
+                <!-- Resumen Oro -->
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header bg-warning text-dark">
+                            <h5>Resumen Oro</h5>
+                        </div>
+                        <div class="card-body">
+                            <table class="table table-sm">
+                                <tbody>
+                                    <tr>
+                                        <th>Cantidad Total:</th>
+                                        <td class="text-end">{{ gold_summary.total_g|round(2) }} g ({{ gold_summary.total_oz|round(2) }} oz)</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Inversión Total:</th>
+                                        <td class="text-end">{{ gold_summary.total_investment|round(2) }} €</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Costes/Impuestos:</th>
+                                        <td class="text-end">{{ gold_summary.total_taxes_fees|round(2) }} €</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Coste Total:</th>
+                                        <td class="text-end">{{ (gold_summary.total_investment + gold_summary.total_taxes_fees)|round(2) }} €</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Valor Actual:</th>
+                                        <td class="text-end">{{ gold_summary.current_value|round(2) }} €</td>
+                                    </tr>
+                                    <tr class="{% if gold_summary.profit_loss >= 0 %}table-success{% else %}table-danger{% endif %}">
+                                        <th>Ganancia/Pérdida:</th>
+                                        <td class="text-end">
+                                            {{ gold_summary.profit_loss|round(2) }} €
+                                            {% if gold_summary.total_investment != 0 %}
+					    	({{ (gold_summary.profit_loss / (gold_summary.total_investment + gold_summary.total_taxes_fees) * 100)|round(2) }}%)
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Resumen Plata -->
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header bg-light">
+                            <h5>Resumen Plata</h5>
+                        </div>
+                        <div class="card-body">
+                            <table class="table table-sm">
+                                <tbody>
+                                    <tr>
+                                        <th>Cantidad Total:</th>
+                                        <td class="text-end">{{ silver_summary.total_g|round(2) }} g ({{ silver_summary.total_oz|round(2) }} oz)</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Inversión Total:</th>
+                                        <td class="text-end">{{ silver_summary.total_investment|round(2) }} €</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Costes/Impuestos:</th>
+                                        <td class="text-end">{{ silver_summary.total_taxes_fees|round(2) }} €</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Coste Total:</th>
+                                        <td class="text-end">{{ (silver_summary.total_investment + silver_summary.total_taxes_fees)|round(2) }} €</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Valor Actual:</th>
+                                        <td class="text-end">{{ silver_summary.current_value|round(2) }} €</td>
+                                    </tr>
+                                    <tr class="{% if silver_summary.profit_loss >= 0 %}table-success{% else %}table-danger{% endif %}">
+                                        <th>Ganancia/Pérdida:</th>
+                                        <td class="text-end">
+                                            {{ silver_summary.profit_loss|round(2) }} €
+                                            {% if silver_summary.total_investment != 0 %}
+                                                ({{ (silver_summary.profit_loss / (silver_summary.total_investment + silver_summary.total_taxes_fees) * 100)|round(2) }}%)
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabla de transacciones -->
+            <div class="card">
+                <div class="card-header">
+                    <h5>Historial de Operaciones</h5>
+                </div>
+                <div class="card-body">
+                    {% if transactions %}
+                        <div class="table-responsive">
+                            <table class="table table-striped table-bordered table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Metal</th>
+                                        <th>Tipo</th>
+                                        <th class="text-end">Cantidad</th>
+                                        <th class="text-end">Precio/Unidad</th>
+                                        <th class="text-end">Total</th>
+                                        <th class="text-end">Impuestos</th>
+                                        <th>Descripción</th>
+                                        <th class="text-center">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for t in transactions %}
+                                    <tr>
+                                        <td>{{ t.date.strftime('%d/%m/%Y') }}</td>
+                                        <td>
+                                            {% if t.metal_type == 'gold' %}
+                                                <span class="badge bg-warning text-dark">Oro</span>
+                                            {% else %}
+                                                <span class="badge bg-light text-dark">Plata</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if t.transaction_type == 'buy' %}
+                                                <span class="badge bg-primary">Compra</span>
+                                            {% else %}
+                                                <span class="badge bg-success">Venta</span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-end">{{ t.quantity|round(2) }} {{ t.unit_type }}</td>
+                                        <td class="text-end">{{ t.price_per_unit|round(2) }} €</td>
+                                        <td class="text-end">
+                                            {% set total = t.price_per_unit * t.quantity %}
+                                            {% if t.unit_type == 'g' %}
+                                                {% set total = t.price_per_unit * t.quantity * g_to_oz %}
+                                            {% endif %}
+                                            {{ total|round(2) }} €
+                                        </td>
+                                        <td class="text-end">
+                                            {% if t.taxes_fees %}
+                                                {{ t.taxes_fees|round(2) }} €
+                                            {% else %}
+                                                ---
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ t.description or '---' }}</td>
+                                        <td class="text-center">
+                                            <div class="btn-group btn-group-sm">
+                                                <a href="{{ url_for('edit_metal_transaction', transaction_id=t.id) }}" class="btn btn-warning" title="Editar operación">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pencil-square" viewBox="0 0 16 16">
+                                                        <path d="M15.502 1.94a.5.5 0 0 1 0 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 0 1 .707 0l1.293 1.293zm-1.75 2.456-2-2L4.939 9.21a.5.5 0 0 0-.121.196l-.805 2.414a.25.25 0 0 0 .316.316l2.414-.805a.5.5 0 0 0 .196-.12l6.813-6.814z"/>
+                                                        <path fill-rule="evenodd" d="M1 13.5A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-6a.5.5 0 0 0-1 0v6a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5H9a.5.5 0 0 0 0-1H2.5A1.5 1.5 0 0 0 1 2.5v11z"/>
+                                                    </svg>
+                                                </a>
+                                                <form method="POST" action="{{ url_for('delete_metal_transaction', transaction_id=t.id) }}" class="d-inline" onsubmit="return confirm('¿Estás seguro de que deseas eliminar esta operación?');">
+                                                    <button type="submit" class="btn btn-danger" title="Eliminar operación">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
+                                                            <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                                                            <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                                                        </svg>
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info">
+                            No hay operaciones registradas. Usa el formulario para registrar tu primera operación.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Configurar la fecha con el día actual
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = (today.getMonth() + 1).toString().padStart(2, '0');
+    const day = today.getDate().toString().padStart(2, '0');
+
+    const dateInput = document.getElementById('date');
+    if (dateInput) {
+        dateInput.value = `${year}-${month}-${day}`;
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,49 @@
+{% extends "base.html" %} {# Heredar de base.html #}
+
+{% block content %}
+     <div class="row justify-content-center">
+        <div class="col-md-6">
+            <h2 class="mt-4 mb-4">Iniciar Sesión</h2>
+            <form method="POST" action="">
+                {{ form.hidden_tag() }} {# Importante para protección CSRF #}
+                <fieldset class="form-group">
+                    <div class="mb-3">
+                        {{ form.username.label(class="form-label") }}
+                        {% if form.username.errors %}
+                            {{ form.username(class="form-control is-invalid") }}
+                            <div class="invalid-feedback">
+                                {% for error in form.username.errors %}<span>{{ error }}</span>{% endfor %}
+                            </div>
+                        {% else %}
+                            {{ form.username(class="form-control") }}
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.password.label(class="form-label") }}
+                        {% if form.password.errors %}
+                            {{ form.password(class="form-control is-invalid") }}
+                            <div class="invalid-feedback">
+                                {% for error in form.password.errors %}<span>{{ error }}</span>{% endfor %}
+                            </div>
+                        {% else %}
+                            {{ form.password(class="form-control") }}
+                        {% endif %}
+                    </div>
+                    <div class="form-check mb-3">
+                        {{ form.remember_me(class="form-check-input") }}
+                        {{ form.remember_me.label(class="form-check-label") }}
+                    </div>
+                </fieldset>
+                <div class="form-group mt-3">
+                    {{ form.submit(class="btn btn-primary") }}
+                </div>
+            </form>
+             <div class="border-top pt-3 mt-3">
+                <small class="text-muted">
+                    ¿Necesitas una cuenta? <a class="ms-2" href="{{ url_for('register') }}">Regístrate Ahora</a>
+                </small>
+                {# Añadir enlace para reseteo de contraseña si se implementa #}
+            </div>
+        </div>
+    </div>
+{% endblock content %}

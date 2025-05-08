@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mt-4">Editar Operación de Metal Precioso</h1>
+    <p>Modifica los detalles de la operación seleccionada.</p>
+    
+    <div class="row">
+        <div class="col-md-6 mx-auto">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Editar Operación</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('edit_metal_transaction', transaction_id=transaction.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="metal_type" class="form-label">Tipo de Metal</label>
+                                <select class="form-select" id="metal_type" name="metal_type" required>
+                                    <option value="gold" {% if transaction.metal_type == 'gold' %}selected{% endif %}>Oro</option>
+                                    <option value="silver" {% if transaction.metal_type == 'silver' %}selected{% endif %}>Plata</option>
+                                </select>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <label for="transaction_type" class="form-label">Tipo de Operación</label>
+                                <select class="form-select" id="transaction_type" name="transaction_type" required>
+                                    <option value="buy" {% if transaction.transaction_type == 'buy' %}selected{% endif %}>Compra</option>
+                                    <option value="sell" {% if transaction.transaction_type == 'sell' %}selected{% endif %}>Venta</option>
+                                </select>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <label for="date" class="form-label">Fecha</label>
+                                <input type="date" class="form-control" id="date" name="date" value="{{ transaction.date.strftime('%Y-%m-%d') }}" required>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <label for="price_per_unit" class="form-label">Precio por Unidad (€)</label>
+                                <input type="text" class="form-control" id="price_per_unit" name="price_per_unit" value="{{ transaction.price_per_unit|round(2) }}" required>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <label for="quantity" class="form-label">Cantidad</label>
+                                <input type="text" class="form-control" id="quantity" name="quantity" value="{{ transaction.quantity|round(2) }}" required>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <label for="unit_type" class="form-label">Unidad</label>
+                                <select class="form-select" id="unit_type" name="unit_type" required>
+                                    <option value="g" {% if transaction.unit_type == 'g' %}selected{% endif %}>Gramos</option>
+                                    <option value="oz" {% if transaction.unit_type == 'oz' %}selected{% endif %}>Onzas Troy</option>
+                                </select>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <label for="taxes_fees" class="form-label">Impuestos/Comisiones (€)</label>
+                                <input type="text" class="form-control" id="taxes_fees" name="taxes_fees" value="{{ transaction.taxes_fees|round(2) if transaction.taxes_fees else '' }}">
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <label for="description" class="form-label">Descripción</label>
+                                <input type="text" class="form-control" id="description" name="description" value="{{ transaction.description or '' }}">
+                            </div>
+                            
+                            <div class="col-12 d-flex justify-content-between">
+                                <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+                                <a href="{{ url_for('silver_gold') }}" class="btn btn-secondary">Cancelar</a>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

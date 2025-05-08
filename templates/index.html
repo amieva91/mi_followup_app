@@ -1,0 +1,77 @@
+{% extends "base.html" %} {# Hereda la estructura y navbar de base.html #}
+
+{% block content %} {# Inicio del bloque de contenido específico #}
+    {# Mantener container si se quiere el padding/layout de base, o quitarlo si se prefiere ancho completo #}
+    <div class="container">
+        <h1>Subir o Cargar CSVs Anuales de DeGiro</h1>
+        <p>Selecciona el método para cargar tus archivos <code>AAAA.csv</code>.</p>
+
+        {# Los mensajes Flash se mostrarán en el bloque de base.html #}
+
+        <form method="post" enctype="multipart/form-data">
+
+            <div class="mb-3">
+                <label class="form-label">Método de Carga:</label>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="input_method" id="method_upload" value="upload" checked onchange="toggleInputMethod()">
+                    <label class="form-check-label" for="method_upload">
+                        Subir Archivos desde mi PC
+                    </label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="input_method" id="method_path" value="path" onchange="toggleInputMethod()">
+                    <label class="form-check-label" for="method_path">
+                        Cargar desde Ruta en Servidor
+                    </label>
+                </div>
+            </div>
+
+            <div id="subida-archivos-group" class="mb-3">
+                <label for="csv_files" class="form-label">Selecciona los archivos CSV:</label>
+                <input class="form-control" type="file" id="csv_files" name="csv_files[]" multiple>
+                 <div class="form-text">Puedes seleccionar múltiples archivos (AAAA.csv).</div>
+            </div>
+
+            <div id="ruta-servidor-group" class="mb-3">
+                <label for="server_path" class="form-label">Ruta Completa en Servidor:</label>
+                <input class="form-control" type="text" id="server_path" name="server_path" placeholder="/ruta/absoluta/a/la/carpeta/con/csvs">
+                <div class="form-text">El programa buscará archivos AAAA.csv dentro de esta carpeta.</div>
+                <div class="form-text form-text-danger"><strong>¡Atención!</strong> Usar solo rutas dentro del directorio base seguro configurado en el servidor. Funcionalidad de riesgo si la aplicación es accesible externamente.</div>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Procesar Archivos</button>
+        </form>
+
+        {# Quitar bloque de mensajes si ya está en base.html #}
+
+    </div> {# Fin container #}
+{% endblock content %} {# Fin del bloque de contenido específico #}
+
+
+{% block scripts %} {# Inicio del bloque para scripts específicos #}
+    {# Poner aquí el script específico de esta página si lo hay #}
+    <script>
+        // Simple JS para mostrar/ocultar campos según el método elegido
+        function toggleInputMethod() {
+            if (document.getElementById('method_upload').checked) {
+                document.getElementById('subida-archivos-group').style.display = 'block';
+                document.getElementById('ruta-servidor-group').style.display = 'none';
+                // Hacer que el input de archivo sea requerido y el de ruta no
+                // Opcional: ajustar 'required' dinámicamente
+                document.getElementById('csv_files').required = true;
+                document.getElementById('server_path').required = false;
+            } else {
+                document.getElementById('subida-archivos-group').style.display = 'none';
+                document.getElementById('ruta-servidor-group').style.display = 'block';
+                 // Hacer que el input de ruta sea requerido y el de archivo no
+                document.getElementById('csv_files').required = false;
+                document.getElementById('server_path').required = true;
+            }
+        }
+        // Llamar al inicio para establecer el estado inicial correcto
+        // Asegurarse que esto se llama después de que el DOM esté listo
+        document.addEventListener('DOMContentLoaded', function() {
+            toggleInputMethod();
+        });
+    </script>
+{% endblock scripts %} {# Fin del bloque de scripts #}

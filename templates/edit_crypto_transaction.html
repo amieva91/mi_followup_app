@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mt-4">Editar Operación de Criptomoneda</h1>
+    <p>Modifica los detalles de la operación seleccionada.</p>
+    
+    <div class="row">
+        <div class="col-md-6 mx-auto">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Editar Operación</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('edit_crypto_transaction', transaction_id=transaction.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        
+                        <div class="mb-3">
+                            <label for="exchange_id" class="form-label">Exchange</label>
+                            <input type="text" class="form-control" value="{{ transaction.exchange.exchange_name }}" readonly>
+                            <input type="hidden" name="exchange_id" value="{{ transaction.exchange_id }}">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="transaction_type" class="form-label">Tipo de Operación</label>
+                            <select class="form-select" id="transaction_type" name="transaction_type" required>
+                                <option value="buy" {% if transaction.transaction_type == 'buy' %}selected{% endif %}>Compra</option>
+                                <option value="sell" {% if transaction.transaction_type == 'sell' %}selected{% endif %}>Venta</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="crypto_name" class="form-label">Nombre de la Criptomoneda</label>
+                            <input type="text" class="form-control" id="crypto_name" name="crypto_name" value="{{ transaction.crypto_name }}" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="ticker_symbol" class="form-label">Símbolo Ticker</label>
+                            <input type="text" class="form-control" id="ticker_symbol" name="ticker_symbol" value="{{ transaction.ticker_symbol }}" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="date" class="form-label">Fecha</label>
+                            <input type="date" class="form-control" id="date" name="date" value="{{ transaction.date.strftime('%Y-%m-%d') }}" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="quantity" class="form-label">Cantidad</label>
+                            <input type="text" class="form-control" id="quantity" name="quantity" value="{{ transaction.quantity }}" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="price_per_unit" class="form-label">Precio por Unidad (€)</label>
+                            <input type="text" class="form-control" id="price_per_unit" name="price_per_unit" value="{{ transaction.price_per_unit }}" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="fees" class="form-label">Comisiones (€)</label>
+                            <input type="text" class="form-control" id="fees" name="fees" value="{{ transaction.fees or '' }}">
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+                            <a href="{{ url_for('crypto') }}" class="btn btn-secondary">Cancelar</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

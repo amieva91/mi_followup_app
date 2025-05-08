@@ -1,0 +1,332 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mt-4">Ingreso/Retirada Broker</h1>
+    <p>Aquí puedes registrar y gestionar los ingresos, retiradas y comisiones de tu broker.</p>
+    
+    <div class="row">
+        <!-- Formulario de Registro de Operaciones -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Registrar Nueva Operación</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('broker_operations') }}" id="broker-form">
+                        {{ form.hidden_tag() }}
+                        <div class="mb-3">
+                            {{ form.date.label(class="form-label") }}
+                            {{ form.date(class="form-control", value=now.strftime('%Y-%m-%d')) }}
+                        </div>
+                        <div class="mb-3">
+                            {{ form.operation_type.label(class="form-label") }}
+                            {{ form.operation_type(class="form-select") }}
+                        </div>
+                        <div class="mb-3">
+                            {{ form.concept.label(class="form-label") }}
+                            {{ form.concept(class="form-select") }}
+                        </div>
+                        <div class="mb-3">
+                            {{ form.amount.label(class="form-label") }}
+                            {{ form.amount(class="form-control") }}
+                            <div class="form-text">Introduce la cantidad en positivo. El sistema aplicará automáticamente el signo según el tipo de operación.</div>
+                        </div>
+                        <div class="mb-3">
+                            {{ form.description.label(class="form-label") }}
+                            {{ form.description(class="form-control") }}
+                        </div>
+                        {{ form.submit(class="btn btn-primary") }}
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Resumen de Operaciones -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Resumen de Operaciones</h5>
+                </div>
+                <div class="card-body">
+                    <!-- Totales por Concepto -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h6>Ingresos y Retiradas</h6>
+                            <table class="table table-sm table-bordered">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Concepto</th>
+                                        <th class="text-end">Total (€)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="{% if totals.Inversión > 0 %}table-warning{% else %}table-secondary{% endif %}">
+                                        <td>Inversión</td>
+                                        <!-- Mostrar inversión como negativa -->
+                                        <td class="text-end">-{{ totals.Inversión|abs|round(2) }}</td>
+                                    </tr>
+                                    <tr class="{% if totals.Dividendos < 0 %}table-success{% else %}table-secondary{% endif %}">
+                                        <td>Dividendos</td>
+                                        <!-- Mostrar dividendos como positivos -->
+                                        <td class="text-end">{{ totals.Dividendos|abs|round(2) }}</td>
+                                    </tr>
+                                    <tr class="{% if totals.Desinversión < 0 %}table-success{% else %}table-secondary{% endif %}">
+                                        <td>Desinversión</td>
+                                        <!-- Mostrar desinversión como positiva -->
+                                        <td class="text-end">{{ totals.Desinversión|abs|round(2) }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Comisiones</h6>
+                            <table class="table table-sm table-bordered">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Concepto</th>
+                                        <th class="text-end">Total (€)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="{% if totals['Compra/Venta'] < 0 %}table-danger{% else %}table-secondary{% endif %}">
+                                        <td>Compra/Venta</td>
+                                        <td class="text-end">{{ totals['Compra/Venta']|round(2) }}</td>
+                                    </tr>
+                                    <tr class="{% if totals.Apalancamiento < 0 %}table-danger{% else %}table-secondary{% endif %}">
+                                        <td>Apalancamiento</td>
+                                        <td class="text-end">{{ totals.Apalancamiento|round(2) }}</td>
+                                    </tr>
+                                    <tr class="{% if totals.Otras < 0 %}table-danger{% else %}table-secondary{% endif %}">
+                                        <td>Otras Comisiones</td>
+                                        <td class="text-end">{{ totals.Otras|round(2) }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- Total General con interpretación -->
+                    {% set retiradas_total = totals.Dividendos + totals.Desinversión %}
+                    {% set inversiones_total = totals.Inversión %}
+		    {% set comisiones_total = totals['Compra/Venta'] + totals.Apalancamiento + totals.Otras %}	
+		    {% set balance_positivo = retiradas_total > (totals.Inversión + comisiones_total)|abs %}
+                    
+                    <div class="alert {% if balance_positivo %}alert-success{% else %}alert-danger{% endif %} mb-4">
+                        <h6>Balance Total del Broker</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <strong>Total: {{ (retiradas_total + inversiones_total + comisiones_total)|round(2) }} €</strong>
+                            </div>
+                            <div class="col-md-6">
+                                {% if balance_positivo %}
+                                    <span class="text-success">Has retirado más dinero del que has ingresado (considerando comisiones).</span>
+                                {% else %}
+                                    <span class="text-danger">Has ingresado más dinero del que has retirado (considerando comisiones).</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Listado de Operaciones -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5>Historial de Operaciones</h5>
+                </div>
+                <div class="card-body">
+                    {% if operations %}
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover table-sm">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Tipo</th>
+                                        <th>Concepto</th>
+                                        <th class="text-end">Cantidad (€)</th>
+                                        <th>Descripción</th>
+                                        <th class="text-center">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for op in operations %}
+                                    <tr>
+                                        <td>{{ op.date.strftime('%d/%m/%Y') }}</td>
+                                        <td>
+                                            <span class="badge 
+                                                {% if op.operation_type == 'Ingreso' %}bg-warning
+                                                {% elif op.operation_type == 'Retirada' %}bg-success
+                                                {% else %}bg-danger{% endif %}">
+                                                {{ op.operation_type }}
+                                            </span>
+                                        </td>
+                                        <td>{{ op.concept }}</td>
+                                        <td class="text-end {% if op.operation_type == 'Ingreso' %}text-warning{% elif op.operation_type == 'Retirada' %}text-success{% else %}text-danger{% endif %}">
+                                            {% if op.operation_type == 'Ingreso' %}
+                                                -{{ op.amount|abs|round(2) }}
+                                            {% elif op.operation_type == 'Retirada' %}
+                                                {{ op.amount|abs|round(2) }}
+                                            {% else %}
+                                                {{ op.amount|round(2) }}
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ op.description or '---' }}</td>
+                                        <td class="text-center">
+                                            <div class="btn-group btn-group-sm">
+                                                <a href="{{ url_for('edit_broker_operation', operation_id=op.id) }}" class="btn btn-outline-primary">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pencil-square" viewBox="0 0 16 16">
+                                                        <path d="M15.502 1.94a.5.5 0 0 1 0 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 0 1 .707 0l1.293 1.293zm-1.75 2.456-2-2L4.939 9.21a.5.5 0 0 0-.121.196l-.805 2.414a.25.25 0 0 0 .316.316l2.414-.805a.5.5 0 0 0 .196-.12l6.813-6.814z"/>
+                                                        <path fill-rule="evenodd" d="M1 13.5A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-6a.5.5 0 0 0-1 0v6a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5H9a.5.5 0 0 0 0-1H2.5A1.5 1.5 0 0 0 1 2.5v11z"/>
+                                                    </svg>
+                                                </a>
+                                                <form method="POST" action="{{ url_for('delete_broker_operation', operation_id=op.id) }}" class="d-inline" onsubmit="return confirm('¿Estás seguro de eliminar esta operación?');">
+                                                    <button type="submit" class="btn btn-outline-danger">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
+                                                            <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                                                            <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                                                        </svg>
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info">
+                            No hay operaciones registradas. Utiliza el formulario para comenzar a registrar tus movimientos.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("DOM completamente cargado, configurando eventos...");
+    
+    // Configurar el selector de mes/año con la fecha actual
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = (today.getMonth() + 1).toString().padStart(2, '0');
+    const dateInput = document.getElementById('month_year');
+    if (dateInput) {
+        dateInput.value = `${year}-${month}`;
+    }
+    
+    // Inicializar opciones de concepto al cargar la página
+    updateConceptOptions();
+    console.log("Opciones iniciales configuradas");
+    
+    // Actualizar al cambiar el tipo de operación
+    const operationTypeSelect = document.getElementById('operation_type');
+    if (operationTypeSelect) {
+        operationTypeSelect.addEventListener('change', function() {
+            console.log("Cambio detectado en operation_type:", this.value);
+            updateConceptOptions();
+        });
+        console.log("Evento change registrado correctamente en #operation_type");
+    } else {
+        console.error("No se encontró el elemento #operation_type");
+    }
+    
+    // Validación de formato de cantidades
+    const brokerForm = document.getElementById('broker-form');
+    if (brokerForm) {
+        brokerForm.addEventListener('submit', function(event) {
+            const amountField = document.getElementById('amount');
+            if (!amountField) {
+                console.error("No se encontró el campo #amount");
+                return;
+            }
+            
+            const amountValue = amountField.value.replace(',', '.');
+            
+            // Convertir a número para validar
+            const amount = parseFloat(amountValue);
+            
+            if (isNaN(amount) || amount <= 0) {
+                event.preventDefault();
+                alert('Por favor, introduce una cantidad positiva válida.');
+                amountField.focus();
+            } else {
+                // Asegurar formato con punto decimal para el backend
+                amountField.value = amountValue;
+                console.log("Formulario válido, enviando con cantidad:", amountValue);
+            }
+        });
+        console.log("Validación de formulario configurada");
+    }
+});
+
+// Función para actualizar las opciones del campo 'concept' basado en el tipo de operación
+function updateConceptOptions() {
+    console.log("Ejecutando updateConceptOptions()");
+    const operationType = document.getElementById('operation_type');
+    const conceptSelect = document.getElementById('concept');
+    
+    if (!operationType || !conceptSelect) {
+        console.error("No se encontraron los elementos necesarios:", 
+                     !operationType ? "#operation_type no encontrado" : "",
+                     !conceptSelect ? "#concept no encontrado" : "");
+        return;
+    }
+    
+    const selectedType = operationType.value;
+    console.log("Tipo de operación seleccionado:", selectedType);
+    
+    // Guardar selección actual si existe
+    const currentSelection = conceptSelect.value;
+    
+    // Limpiar opciones actuales
+    conceptSelect.innerHTML = '';
+    
+    // Opciones por defecto según tipo de operación
+    let options = [];
+    
+    if (selectedType === 'Ingreso') {
+        options = [['Inversión', 'Inversión']];
+    } else if (selectedType === 'Retirada') {
+        options = [
+            ['Dividendos', 'Dividendos'],
+            ['Desinversión', 'Desinversión']
+        ];
+    } else if (selectedType === 'Comisión') {
+        options = [
+            ['Compra/Venta', 'Comisión de Compra/Venta'],
+            ['Apalancamiento', 'Comisión de Apalancamiento'],
+            ['Otras', 'Otras Comisiones']
+        ];
+    }
+    
+    console.log(`Añadiendo ${options.length} opciones para ${selectedType}`);
+    
+    // Añadir nuevas opciones
+    options.forEach(function(option) {
+        const optElement = document.createElement('option');
+        optElement.value = option[0];
+        optElement.textContent = option[1];
+        conceptSelect.appendChild(optElement);
+        console.log(`Añadida opción: ${option[0]} - ${option[1]}`);
+    });
+    
+    // Intentar restaurar selección previa si aún está disponible
+    if (currentSelection) {
+        const optionExists = Array.from(conceptSelect.options).some(opt => opt.value === currentSelection);
+        if (optionExists) {
+            conceptSelect.value = currentSelection;
+            console.log(`Restaurada selección previa: ${currentSelection}`);
+        } else {
+            console.log(`No se pudo restaurar selección previa: ${currentSelection} (no disponible para ${selectedType})`);
+        }
+    }
+}
+</script>
+{% endblock scripts %}

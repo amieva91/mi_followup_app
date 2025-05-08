@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+
+{% block head_extra %}
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+    <style>
+        /* Estilos generales y para botones/tabla como antes */
+        body { padding: 20px; }
+        .table th, .table td { vertical-align: middle; text-align: right; }
+        .table th:nth-child(1), .table td:nth-child(1), /* ISIN */
+        .table th:nth-child(2), .table td:nth-child(2), /* Ticker */
+        .table th:nth-child(3), .table td:nth-child(3)  /* Nombre */
+        { text-align: left; } /* Alinear estas columnas a la izquierda */
+        .table th:nth-child(4), .table td:nth-child(4), /* Sufijo Yahoo */
+        .table th:nth-child(5), .table td:nth-child(5)  /* Google Ex */
+        { text-align: left; } /* También a la izquierda */
+
+        .pl-positive { color: #198754; font-weight: bold; }
+        .pl-negative { color: #dc3545; font-weight: bold; }
+        .action-buttons a, .action-buttons form button, .action-buttons button { margin-right: 2px; margin-bottom: 2px; }
+        .action-buttons .edit-mode { margin-left: 2px; }
+        .table-sm th, .table-sm td { padding: 0.4rem; }
+        .add-form-card { background-color: #f8f9fa; border-color: #dee2e6; }
+    </style>
+{% endblock head_extra %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mt-4">Gestionar Mapeo Global ISIN</h1>
+    <p>Esta tabla muestra el contenido actual del archivo de mapeo global (`mapping_db.json`).</p>
+    <p class="text-danger"><strong>Advertencia:</strong> ¡Editar o borrar entradas aquí modifica el mapeo para TODOS los usuarios!</p>
+
+    {# --- Botón para MOSTRAR el formulario de añadir --- #}
+    <div class="mb-3" id="show-add-form-button-container">
+        <button type="button" class="btn btn-success btn-sm" onclick="toggleAddForm(true)">
+             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-plus-circle-fill" viewBox="0 0 16 16"><path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM8.5 4.5a.5.5 0 0 0-1 0v3h-3a.5.5 0 0 0 0 1h3v3a.5.5 0 0 0 1 0v-3h3a.5.5 0 0 0 0-1h-3v-3z"/></svg>
+             Añadir Nuevo Mapeo
+        </button>
+    </div>
+
+    {# --- Formulario para Añadir Nuevo Mapeo (Oculto inicialmente) --- #}
+    <div class="card mt-2 mb-4 add-form-card" id="add-mapping-form-container" style="display: none;">
+        <div class="card-header">Añadir Nueva Entrada al Mapeo Global</div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('add_mapping_entry') }}" class="row g-3">
+                <div class="col-md-4">
+                    <label for="new_isin" class="form-label">ISIN*:</label>
+                    <input type="text" class="form-control form-control-sm" id="new_isin" name="new_isin" placeholder="Ej: ES0178430E18" required maxlength="12">
+                </div>
+                 <div class="col-md-4">
+                    <label for="new_ticker" class="form-label">Ticker Base*:</label>
+                    <input type="text" class="form-control form-control-sm" id="new_ticker" name="new_ticker" placeholder="Ej: TEF, AAPL" required>
+                </div>
+                 <div class="col-md-4">
+                    <label for="new_name" class="form-label">Nombre Empresa:</label>
+                    <input type="text" class="form-control form-control-sm" id="new_name" name="new_name" placeholder="Ej: Telefonica S.A.">
+                </div>
+                 <div class="col-md-4">
+                    <label for="new_yahoo_suffix" class="form-label">Sufijo Yahoo:</label>
+                    <input type="text" class="form-control form-control-sm" id="new_yahoo_suffix" name="new_yahoo_suffix" placeholder="Ej: .MC, .L (vacío US)">
+                </div>
+                 <div class="col-md-4">
+                    <label for="new_google_ex" class="form-label">Google Exchange*:</label>
+                    <input type="text" class="form-control form-control-sm" id="new_google_ex" name="new_google_ex" placeholder="Ej: BME, NASDAQ" required>
+                </div>
+                <div class="col-md-4 align-self-end d-flex justify-content-end">
+                    {# Botón para enviar el formulario #}
+                    <button type="submit" class="btn btn-primary btn-sm me-2">Guardar Nuevo Mapeo</button>
+                    {# Botón para ocultar el formulario #}
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="toggleAddForm(false)">Cancelar</button>
+                </div>
+                 <div class="col-12">
+                     <small class="text-muted">Los campos marcados con * son obligatorios.</small>
+                 </div>
+            </form>
+        </div>
+    </div>
+    {# --- FIN: Formulario Añadir --- #}
+
+
+    <h2 class="mt-4">Mapeos Actuales</h2>
+    {% if mappings %}
+        <div class="table-responsive">
+            <table id="mapping-table" class="table table-striped table-hover table-bordered table-sm" style="width:100%">
+                <thead class="table-dark">
+                     {# ... Cabeceras de tabla como antes ... #}
+                     <tr>
+                        <th>ISIN</th>
+                        <th>Ticker Base</th>
+                        <th>Nombre Empresa</th>
+                        <th>Sufijo Yahoo</th>
+                        <th>Google Exchange</th>
+                        <th style="min-width: 160px;">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {# ... Bucle y celdas con modo display/edit como antes ... #}
+                    {% for item in mappings %}
+                    {% set row_id = item.isin | replace('.', '_') | replace('-', '_') %}
+                    <tr id="row-{{ row_id }}">
+                        <td style="text-align: left;">{{ item.get('isin', '---') }}</td>
+                        <td style="text-align: left;">
+                            <span class="display-mode">{{ item.get('ticker', '---') }}</span>
+                            <input type="text" name="ticker_{{ item.isin }}" value="{{ item.get('ticker', '') }}" class="form-control form-control-sm edit-mode" style="display: none;" form="form-{{ row_id }}">
+                        </td>
+                        <td style="text-align: left;">
+                             <span class="display-mode">{{ item.get('name', '---') }}</span>
+                             <input type="text" name="name_{{ item.isin }}" value="{{ item.get('name', '') }}" class="form-control form-control-sm edit-mode" style="display: none;" form="form-{{ row_id }}">
+                        </td>
+                        <td style="text-align: left;">
+                            <span class="display-mode">{{ item.get('yahoo_suffix', '---') }}</span>
+                            <input type="text" name="yahoo_suffix_{{ item.isin }}" value="{{ item.get('yahoo_suffix', '') }}" class="form-control form-control-sm edit-mode" style="display: none;" form="form-{{ row_id }}">
+                        </td>
+                        <td style="text-align: left;">
+                             <span class="display-mode">{{ item.get('google_ex', '---') }}</span>
+                             <input type="text" name="google_ex_{{ item.isin }}" value="{{ item.get('google_ex', '') }}" class="form-control form-control-sm edit-mode" style="display: none;" form="form-{{ row_id }}">
+                        </td>
+                        <td class="action-buttons" style="text-align: center;">
+                            {# Botón Editar (Visible por defecto) #}
+                            <button type="button" class="btn btn-warning btn-sm display-mode" onclick="toggleEdit('{{ row_id }}', true)" title="Editar esta fila">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pencil-square" viewBox="0 0 16 16"><path d="M15.502 1.94a.5.5 0 0 1 0 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 0 1 .707 0l1.293 1.293zm-1.75 2.456-2-2L4.939 9.21a.5.5 0 0 0-.121.196l-.805 2.414a.25.25 0 0 0 .316.316l2.414-.805a.5.5 0 0 0 .196-.12l6.813-6.814z"/><path fill-rule="evenodd" d="M1 13.5A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-6a.5.5 0 0 0-1 0v6a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5H9a.5.5 0 0 0 0-1H2.5A1.5 1.5 0 0 0 1 2.5v11z"/></svg>
+                            </button>
+                            {# Formulario Guardar con botón (Oculto inicialmente) #}
+                             <form method="POST" action="{{ url_for('update_mapping_entry') }}" id="form-{{ row_id }}" class="d-inline">
+                                <input type="hidden" name="isin" value="{{ item.isin }}">
+                                <button type="submit" class="btn btn-success btn-sm edit-mode" style="display: none;" title="Guardar Cambios">
+                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-check-lg" viewBox="0 0 16 16"><path d="M12.736 3.97a.733.733 0 0 1 1.047 0c.286.289.29.756.01 1.05L7.88 12.01a.733.733 0 0 1-1.065.02L3.217 8.384a.757.757 0 0 1 0-1.06.733.733 0 0 1 1.047 0l3.052 3.093 5.4-6.425a.247.247 0 0 1 .02-.022Z"/></svg>
+                                </button>
+                            </form>
+                            {# Botón Cancelar (Oculto inicialmente) #}
+                            <button type="button" class="btn btn-secondary btn-sm edit-mode" style="display: none;" onclick="toggleEdit('{{ row_id }}', false)" title="Cancelar Edición">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-x-lg" viewBox="0 0 16 16"><path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8 2.146 2.854Z"/></svg>
+                            </button>
+                            {# Formulario Borrar con botón (Oculto inicialmente) #}
+                            <form method="POST" action="{{ url_for('delete_mapping_entry') }}" class="d-inline">
+                                <input type="hidden" name="isin_to_delete" value="{{ item.isin }}">
+                                <button type="submit" class="btn btn-danger btn-sm edit-mode" style="display: none;" title="Borrar este Mapeo" onclick="return confirm('¿Estás MUY seguro de que quieres BORRAR este mapeo global para {{ item.isin }}?');">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash-fill" viewBox="0 0 16 16"><path d="M2.5 1a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1H3v9a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V4h.5a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H10a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1H2.5zm3 4a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7a.5.5 0 0 1 .5-.5zM8 5a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7A.5.5 0 0 1 8 5zm3 .5v7a.5.5 0 0 1-1 0v-7a.5.5 0 0 1 1 0z"/></svg>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+         {# ... (mensaje si mapeo vacío) ... #}
+    {% endif %}
+
+</div> {# Fin container #}
+{% endblock content %}
+
+{% block scripts %}
+{# Scripts de jQuery y DataTables como antes #}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+
+{# Script toggleEdit como antes #}
+<script>
+function toggleEdit(rowIdSafe, enterEditMode) {
+  const row = document.getElementById(`row-${rowIdSafe}`);
+  if (!row) return;
+  const displayElements = row.querySelectorAll('.display-mode');
+  const editElements = row.querySelectorAll('.edit-mode');
+  displayElements.forEach(el => el.style.display = enterEditMode ? 'none' : (el.tagName === 'BUTTON' ? 'inline-block' : 'block'));
+  editElements.forEach(el => el.style.display = enterEditMode ? 'inline-block' : 'none');
+}
+</script>
+
+{# NUEVO Script para mostrar/ocultar el formulario de añadir #}
+<script>
+function toggleAddForm(show) {
+    const formContainer = document.getElementById('add-mapping-form-container');
+    const showButtonContainer = document.getElementById('show-add-form-button-container');
+    if (formContainer && showButtonContainer) {
+        formContainer.style.display = show ? 'block' : 'none';
+        showButtonContainer.style.display = show ? 'none' : 'block';
+    }
+}
+// Opcional: asegurar estado inicial por si acaso
+document.addEventListener('DOMContentLoaded', function() {
+   const formContainer = document.getElementById('add-mapping-form-container');
+   if (formContainer) {
+       formContainer.style.display = 'none';
+   }
+    const showButtonContainer = document.getElementById('show-add-form-button-container');
+    if (showButtonContainer) {
+        showButtonContainer.style.display = 'block';
+    }
+});
+</script>
+
+{# Script de inicialización de DataTables como antes #}
+<script>
+  $(document).ready(function() {
+    $('#mapping-table').DataTable({
+        "language": { "url": "//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json" },
+        "paging": false,
+        "info": false,
+        "columnDefs": [ { "orderable": false, "targets": 5 } ], // No ordenar por Acciones
+        "order": [[ 1, "asc" ]] // Ordenar por Ticker por defecto
+    });
+  });
+</script>
+{% endblock scripts %}

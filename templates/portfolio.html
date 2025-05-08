@@ -1,0 +1,132 @@
+{% extends "base.html" %} {# Hereda la estructura y navbar #}
+
+{% block content %} {# Inicio del bloque de contenido específico #}
+<div class="container"> {# Mantener container si se quiere el padding/layout de base #}
+    <h1>Resumen de Cartera Actual</h1>
+
+    {# Mostrar la fecha de última actualización si está disponible #}
+    {% if last_updated %}
+    <div class="alert alert-secondary">
+        <small>Datos actualizados: {{ last_updated }}</small>
+    </div>
+    {% endif %}
+
+    {# Quitar bloque de mensajes flash si ya está en base.html #}
+
+    {% if portfolio %}
+        <h2 class="mt-4">Posiciones Actuales</h2>
+        {# Mostrar Valor Total y G/P Total en EUR #}
+        <div class="alert alert-info total-value">
+             <strong>Valor Total Estimado de Mercado: {{ total_value_eur | round(2) }} €</strong>
+             <small class="d-block">(Convertido a EUR usando tipos de cambio recientes)</small>
+        </div>
+        <div class="alert {% if total_pl_eur is not none and total_pl_eur >= 0 %}alert-success{% elif total_pl_eur is not none and total_pl_eur < 0 %}alert-danger{% else %}alert-secondary{% endif %} total-pl">
+              <strong>Ganancia/Pérdida Total Estimada: {% if total_pl_eur is not none %}{{ total_pl_eur | round(2) }} €{% else %}N/A{% endif %}</strong>
+              <small class="d-block">(Estimación basada en coste medio y tipos de cambio actuales)</small>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-striped table-hover table-bordered table-sm">
+                <thead class="table-dark">
+                    <tr>
+                        <th style="text-align: left;">ISIN</th>
+                        <th style="text-align: left;">Ticker</th>
+                        <th style="text-align: left;">Nombre / Producto</th>
+                        <th style="text-align: right;">Cantidad</th>
+                        <th style="text-align: right;">Precio Medio</th>
+                        <th style="text-align: right;">Precio Actual</th>
+                        <th style="text-align: left;">Divisa</th>
+                        <th style="text-align: right;">Valor Mercado (€)</th>
+                        <th style="text-align: right;">G/P Estimada (€)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in portfolio %}
+                    <tr>
+                        <td>{{ item.ISIN }}</td>
+                        <td>{{ item.get('ticker', '---') }}</td>
+                        <td>{{ item.get('name', item.get('Producto', '---')) }}</td>
+                        <td>{{ item.get('Cantidad Actual', 0) | round(4) }}</td>
+                        <td>{{ item.get('Precio Medio Compra', 0) | round(4) }}</td>
+                        <td>
+                            {% if item.get('current_price_local') is not none %}
+                                {{ item.get('current_price_local') | round(4) }}
+                            {% else %} N/A {% endif %}
+                        </td>
+                        <td>{{ item.get('currency', '---') }}</td>
+                        <td>
+                            {% if item.get('market_value_eur') is not none %}
+                                {{ item.get('market_value_eur') | round(2) }}
+                            {% else %} N/A {% endif %}
+                        </td>
+                        <td class="{% if item.get('pl_eur_est') is not none and item.get('pl_eur_est') >= 0 %}pl-positive{% elif item.get('pl_eur_est') is not none and item.get('pl_eur_est') < 0 %}pl-negative{% endif %}">
+                            {% if item.get('pl_eur_est') is not none %}
+                                {{ item.get('pl_eur_est') | round(2) }}
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="table-secondary fw-bold">
+                        <td colspan="7" style="text-align: right;">Totales Estimados EUR:</td>
+                        <td style="text-align: right;">{% if total_value_eur is not none %}{{ total_value_eur | round(2) }}{% else %}N/A{% endif %}</td>
+                        <td style="text-align: right;" class="{% if total_pl_eur is not none and total_pl_eur >= 0 %}pl-positive{% elif total_pl_eur is not none and total_pl_eur < 0 %}pl-negative{% endif %}">
+                            {% if total_pl_eur is not none %}{{ total_pl_eur | round(2) }}{% else %}N/A{% endif %}
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        <hr>
+    {% else %}
+        {% if not get_flashed_messages() %}
+            <div class="alert alert-info mt-4" role="alert">
+                No hay datos de portfolio para mostrar o la cartera calculada está vacía. Sube archivos para empezar.
+            </div>
+        {% endif %}
+    {% endif %}
+
+    <div class="action-buttons mt-3 mb-3">
+        {# NUEVO CONJUNTO DE BOTONES #}
+        <div class="btn-group me-2" role="group">
+            {# Botón para actualizar solo precios #}
+	    <a href="{{ url_for('update_portfolio_prices') }}" class="btn btn-primary">
+		<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-repeat" viewBox="0 0 16 16">
+                    <path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41zm-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9z"/>
+		    <path fill-rule="evenodd" d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3zM3.1 9a5.002 5.002 0 0 0 8.757 2.182a.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9H3.1z"/>
+                </svg>
+                Actualizar Precios
+            </a>
+            
+            {# Botón para ir a carga de CSVs #}
+            <a href="{{ url_for('index') }}" class="btn btn-secondary">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-file-earmark-arrow-up" viewBox="0 0 16 16">
+                    <path d="M8.5 11.5a.5.5 0 0 1-1 0V7.707L6.354 8.854a.5.5 0 1 1-.708-.708l2-2a.5.5 0 0 1 .708 0l2 2a.5.5 0 0 1-.708.708L8.5 7.707V11.5z"/>
+                    <path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5v2z"/>
+                </svg>
+                Cargar CSVs
+            </a>
+        </div>
+
+        {% if temp_csv_file_exists %}
+            <a href="{{ url_for('download_csv') }}" class="btn btn-success me-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-download" viewBox="0 0 16 16">
+                    <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+                    <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
+                </svg>
+                Descargar CSV Unificado
+            </a>
+        {% else %}
+            <p><em class="text-muted me-3">No hay archivo CSV unificado disponible para descargar.</em></p>
+        {% endif %}
+    </div>
+
+</div> {# Fin container #}
+{% endblock content %} {# Fin del bloque de contenido específico #}
+
+{% block scripts %}
+{# Scripts específicos para esta página si los hubiera #}
+{% endblock scripts %}

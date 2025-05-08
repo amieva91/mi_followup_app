@@ -1,0 +1,486 @@
+{% extends "base.html" %}
+
+{% block head_extra %}
+    <style>
+        /* Estilos generales */
+        body { padding: 20px; }
+        .table th, .table td { vertical-align: middle; font-size: 0.8rem; }
+        /* Alineación por defecto (DERECHA para números) */
+        .table th, #watchlist-table tbody td { /* Aplicar default right solo a TD del body y TH */
+            text-align: right;
+        }
+
+        /* --- Alineación Cabeceras --- */
+        #watchlist-table thead tr:first-child th { text-align: center !important; font-weight: bold; background-color: #e9ecef; vertical-align: middle; }
+        #watchlist-table thead tr:nth-child(2) th { text-align: left !important; font-size: 0.75rem; font-weight: normal; vertical-align: bottom; white-space: normal !important; }
+
+        /* --- Alineación Celdas TD (Texto a la Izquierda) --- */
+        /* Indices basados en el orden NUEVO con "Yahoo Synch" */
+        #watchlist-table td:nth-child(1),  /* Nombre */
+        #watchlist-table td:nth-child(2),  /* Estado */
+        #watchlist-table td:nth-child(3),  /* Fecha Res */
+        #watchlist-table td:nth-child(6),  /* Stake */
+        #watchlist-table td:nth-child(7),  /* Movimiento */
+        #watchlist-table td:nth-child(8),  /* País */
+        #watchlist-table td:nth-child(9),  /* Sector */
+        #watchlist-table td:nth-child(10), /* Industria */
+        #watchlist-table td:nth-child(11), /* CEO Sal */
+        #watchlist-table td:nth-child(30)  /* Comentario */
+        /* #watchlist-table td:nth-child(31) /* Yahoo Synch (centrado por defecto o con JS) */
+        /* #watchlist-table td:nth-child(32) /* Acción (centrado) */
+        { text-align: left; }
+
+        /* Centrar Texto en Cabeceras Específicas (Fila 2) */
+        /* Indices basados en el orden NUEVO */
+        #watchlist-table thead tr:nth-child(2) th:nth-child(31), /* Yahoo Synch */
+        #watchlist-table thead tr:nth-child(2) th:nth-child(32)  /* Accion */
+        { text-align: center !important; }
+
+        /* Centrar contenido de las celdas de Yahoo Synch y Acción */
+        #watchlist-table td:nth-child(31), /* Yahoo Synch */
+        #watchlist-table td:nth-child(32)  /* Acción */
+        {
+            text-align: center !important;
+            vertical-align: middle; /* Asegurar alineación vertical */
+        }
+
+        /* Comentario: */
+        #watchlist-table td:nth-child(30) {
+            white-space: normal;
+            min-width: 80px;
+            text-align: center !important; /* Centrar botón comentario */
+        }
+
+        /* Columna Nombre: NOWRAP + ELLIPSIS y MAX-WIDTH */
+        .col-nombre { max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left !important; }
+        #watchlist-table th.col-nombre-header { text-align: left !important; width: 150px; white-space: normal !important; }
+
+        /* Badges */
+        .badge.bg-light { color: #212529 !important; }
+        .badge.bg-success, .badge.bg-warning, .badge.bg-danger { color: white !important; }
+
+        /* Estilo para datos automáticos de Yahoo */
+        .yahoo-data {
+            position: relative;
+        }
+        .yahoo-data::after {
+            content: "*";
+            color: #0d6efd;
+            font-weight: bold;
+            position: absolute;
+            top: 0;
+            right: -2px;
+        }
+
+        /* Otros estilos */
+        .action-buttons form, .action-buttons button, .action-buttons a { margin: 0 1px; display: inline-block; vertical-align: middle;}
+        .table-sm th, .table-sm td { padding: 0.3rem; }
+        .add-form-card { background-color: #f8f9fa; border-color: #dee2e6; }
+        .total-value, .total-pl { font-size: 1.1em; }
+        .total-pl { margin-top: -10px; }
+        /* Asegurar que textarea en modal ocupa ancho */
+        #commentModalTextarea { width: 100%; }
+
+        /* Estilo para centrar el checkbox */
+        .yahoo-sync-cell {
+             display: flex;
+             justify-content: center;
+             align-items: center;
+             height: 100%;
+        }
+        .action-cell {
+           display: flex;
+           flex-wrap: wrap;
+           justify-content: center;
+           align-items: center;
+           gap: 3px; /* Espacio entre botones de acción */
+           padding: 0.3rem;
+           height: 100%;
+        }
+	    /* PROBLEMA #1: Configurar correctamente el contenedor */
+    	.table-responsive {
+           height: 60vh; /* Definir una altura explícita */
+           max-height: 70vh;
+           overflow-y: auto;
+           overflow-x: auto;
+           position: relative;
+           border-collapse: separate;
+    	}
+
+    	/* PROBLEMA #2: Aplicar position:sticky a los elementos th individuales, no a thead */
+    	#watchlist-table th {
+           position: -webkit-sticky; /* Para Safari */
+           position: sticky;
+           top: 0; /* Importante: define dónde se pegará */
+           z-index: 100;
+           /* Asegurarse de que tiene un color de fondo sólido */
+           background-color: #212529;
+           /* Añadir una sombra sutil para distinguir del contenido */
+           box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.4);
+    	}
+
+    	/* PROBLEMA #3: Asegurar que border-collapse no sea collapse */
+    	#watchlist-table {
+           border-collapse: separate;
+           border-spacing: 0;
+    	}
+
+    	/* PROBLEMA #4: Asegurar que las cabeceras de múltiples filas están correctamente posicionadas */
+    	/* Para la primera fila de cabeceras */
+    	#watchlist-table thead tr:first-child th {
+           background-color: #212529;
+           z-index: 102; /* Más alto que la segunda fila */
+    	}
+
+    	/* Para la segunda fila de cabeceras */
+    	#watchlist-table thead tr:nth-child(2) th {
+           background-color: #212529;
+           top: 38px; /* Ajusta este valor según la altura de tu primera fila */
+           z-index: 101;
+    	}
+
+    	/* Estilos para asegurarse de que los bordes se muestran correctamente */
+    	#watchlist-table th:after {
+           content: '';
+           position: absolute;
+           left: 0;
+           right: 0;
+           bottom: 0;
+           height: 1px;
+           background-color: rgba(255, 255, 255, 0.2);
+    	}
+    </style>
+{% endblock head_extra %}
+
+
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mt-4">Watchlist de Acciones</h1>
+    <p>Aquí puedes ver las acciones de tu portfolio actual y las que has añadido manualmente para seguimiento.</p>
+
+    {# Formulario Añadir (Colapsable) #}
+    <div class="row mb-3">
+        <div class="col-md-6">
+            <div id="show-add-form-button-container" style="display: block;">
+                <button type="button" class="btn btn-success btn-sm" onclick="toggleAddForm(true)">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-plus-circle-fill" viewBox="0 0 16 16"><path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM8.5 4.5a.5.5 0 0 0-1 0v3h-3a.5.5 0 0 0 0 1h3v3a.5.5 0 0 0 1 0v-3h3a.5.5 0 0 0 0-1h-3v-3z"/></svg>
+                    Añadir Acción Manualmente
+                </button>
+            </div>
+        </div>
+        <div class="col-md-6 text-end">
+            <a href="{{ url_for('update_watchlist_yahoo_data') }}" class="btn btn-primary btn-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-repeat" viewBox="0 0 16 16">
+                    <path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41zm-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9z"/>
+                    <path fill-rule="evenodd" d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3zM3.1 9a5.002 5.002 0 0 0 8.757 2.182.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9H3.1z"/>
+                </svg>
+                Actualizar Datos Yahoo
+            </a>
+        </div>
+    </div>
+
+    <div class="card mt-2 mb-4 add-form-card" id="add-watchlist-form-container" style="display: none;"> {# ID Corregido #}
+         <div class="card-header">Añadir Nueva Acción a Watchlist</div>
+         <div class="card-body">
+            <form method="POST" action="{{ url_for('add_watchlist_item') }}" class="row g-3">
+                 <div class="col-md-6"><label for="item_name" class="form-label">Nombre*</label><input type="text" class="form-control form-control-sm" id="item_name" name="item_name" required></div>
+                 <div class="col-md-6"><label for="isin" class="form-label">ISIN</label><input type="text" class="form-control form-control-sm" id="isin" name="isin"></div>
+                 <div class="col-md-3"><label for="ticker" class="form-label">Ticker*</label><input type="text" class="form-control form-control-sm" id="ticker" name="ticker" placeholder="Ej: TEF" required></div>
+                 <div class="col-md-3"><label for="yahoo_suffix" class="form-label">Sufijo Yahoo</label><input type="text" class="form-control form-control-sm" id="yahoo_suffix" name="yahoo_suffix" placeholder="Ej: .MC"></div>
+                 <div class="col-md-3"><label for="google_ex" class="form-label">Google Ex</label><input type="text" class="form-control form-control-sm" id="google_ex" name="google_ex" placeholder="Ej: BME"></div>
+                 <div class="col-md-3 align-self-end d-flex justify-content-end"><button type="submit" class="btn btn-primary btn-sm me-2">Añadir</button><button type="button" class="btn btn-secondary btn-sm" onclick="toggleAddForm(false)">Cancelar</button></div>
+            </form>
+         </div>
+    </div>
+
+    {# Tabla de Watchlist #}
+    <h2 class="mt-4">Acciones en Seguimiento</h2>
+    {% if watchlist_items and watchlist_items[0].get('yahoo_last_updated') %}
+    <div class="alert alert-light py-1 small">
+        <i class="bi bi-info-circle"></i> 
+        Última actualización de datos: {{ watchlist_items[0].get('yahoo_last_updated').strftime('%d/%m/%Y %H:%M') }}
+    </div>
+    {% endif %}
+
+    {% if watchlist_items %}
+        <div class="table-responsive">
+            <table id="watchlist-table" class="table table-watchlist table-striped table-hover table-bordered table-sm" style="width:100%;">
+                 <thead class="table-dark">
+                    {# Fila 1: Categorías #}
+                    <tr>
+                        <th rowspan="2" class="text-start col-nombre-header" style="width: 12%;">Nombre</th>
+                        <th rowspan="2" class="text-start" style="width: 6%;">Estado</th>
+                        <th rowspan="2" class="text-start" style="width: 6%;">Fecha Res.</th>
+                        <th rowspan="2" class="text-end" style="width: 6%;">Profitability (%)</th>
+                        <th rowspan="2" class="text-end" style="width: 5%;">Upside (%)</th>
+                        <th rowspan="2" class="text-start" style="width: 5%;">Stake</th>
+                        <th rowspan="2" class="text-start" style="width: 5%;">Movimiento</th>
+                        <th colspan="4" class="text-center">Perfil Empresa</th>
+                        <th colspan="2" class="text-center">Gobierno</th>
+                        <th colspan="5" class="text-center">Valuation</th>
+                        <th colspan="7" class="text-center">Métricas</th>
+                        <th colspan="4" class="text-center">Estimates</th>
+                        <th rowspan="2" class="text-center" style="width: 6%;">Comentario</th>
+                        <th rowspan="2" class="text-center" style="width: 4%;">Yahoo Synch</th>
+                        <th rowspan="2" class="text-center" style="width: 6%;">Acción</th>
+                    </tr>
+                    {# Fila 2: Cabeceras Individuales #}
+                    <tr>
+                        <th class="text-start">País</th> <th class="text-start">Sector</th> <th class="text-start">Industria</th> <th class="text-end">MCap(M)</th>
+                        <th class="text-start">CEO Sal.</th> <th class="text-end">Dilución(%)</th>
+                        <th class="text-end">P/S</th> <th class="text-end">EV/EBITDA</th> <th class="text-end">P/E</th> <th class="text-end">DivYld (%)</th> <th class="text-end">P/BV</th>
+                        <th class="text-end">CAGR(%)</th> <th class="text-end">EBITDA M(%)</th> <th class="text-end">EPS N.</th> <th class="text-end">FCF M(%)</th> <th class="text-end">CFO</th> <th class="text-end">ND/EBITDA</th> <th class="text-end">ROE(%)</th>
+                        <th class="text-end">PE Obj.</th> <th class="text-end">5Y EPS</th> <th class="text-end">5Y Price</th> <th class="text-end">EPS Yld 5Y(%)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in watchlist_items %}
+                    <tr>
+                        {# Celdas de datos #}
+                        <td class="col-nombre text-start" title="{{ item.get('item_name', '') }}">{{ item.get('item_name', 'N/A') }}</td>
+                        <td class="text-start">
+                             {% if item.get('is_in_portfolio') %}<span class="badge bg-success">Portfolio</span>{% endif %}
+                             {% if item.get('is_in_followup') %}{% if item.get('is_in_portfolio') %} {% endif %}<span class="badge bg-secondary">Seguimiento</span>{% endif %}
+                        </td>
+                        <td class="text-start">
+                            {% if item.get('fecha_resultados') %}
+                                <span class="badge {{ item.get('fecha_res_bg_class', 'bg-light') }} text-white">
+                                    {{ item.get('fecha_resultados') }}
+                                </span>
+                            {% else %} --- {% endif %}
+                        </td>
+                        <td class="text-end">
+                            {% if item.get('profitability_calc') is not none %}
+                                <span class="badge {{ item.get('profit_bg_class', 'bg-light') }} text-white">
+                                    {{ item.get('profitability_calc') | round(2) }}%
+                                </span>
+                            {% else %} N/A {% endif %}
+                        </td>
+                        <td class="text-end">
+                            {% if item.get('riesgo') is not none %}
+                                {% set upside_value = item.get('riesgo') %}
+                                {% set upside_class = 'bg-secondary' %}
+                                {% if upside_value >= 10 %}
+                                    {% set upside_class = 'bg-success' %}
+                                {% elif upside_value <= -10 %}
+                                    {% set upside_class = 'bg-danger' %}
+                                {% endif %}
+                                <span class="badge {{ upside_class }} text-white">
+                                    {{ upside_value | round(2) }}%
+                                </span>
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </td>
+                        <td class="text-start">{{ item.get('stake', '---') }}</td>
+                        <td class="text-start">{{ item.get('movimiento', '---') }}</td>
+                        <td class="text-start {% if item.get('auto_update_pais') %}yahoo-data{% endif %}">{{ item.get('pais', '---') }}</td>
+                        <td class="text-start {% if item.get('auto_update_sector') %}yahoo-data{% endif %}">{{ item.get('sector', '---') }}</td>
+                        <td class="text-start {% if item.get('auto_update_industria') %}yahoo-data{% endif %}">{{ item.get('industria', '---') }}</td>
+                        <td class="text-end {% if item.get('auto_update_market_cap') %}yahoo-data{% endif %}">{% if item.get('market_cap') is not none %}{{ item.get('market_cap') | round(0) }}{% else %}---{% endif %}</td>
+                        <td class="text-start">{{ item.get('ceo_salary', '---') }}</td>
+                        <td class="text-end">{% if item.get('dilucion_shares') is not none %}{{ item.get('dilucion_shares') | round(2) }}{% else %}---{% endif %}</td>
+                        <td class="text-end">{% if item.get('ntm_ps') is not none %}{{ item.get('ntm_ps') | round(2) }}{% else %}---{% endif %}</td>
+                        <td class="text-end">{% if item.get('ntm_tev_ebitda') is not none %}{{ item.get('ntm_tev_ebitda') | round(2) }}{% else %}---{% endif %}</td>
+                        <td class="text-end {% if item.get('auto_update_pe') %}yahoo-data{% endif %}">{% if item.get('ntm_pe') is not none %}{{ item.get('ntm_pe') | round(2) }}{% else %}---{% endif %}</td>
+                        <td class="text-end {% if item.get('auto_update_div_yield') %}yahoo-data{% endif %}">
+                            {% if item.get('ntm_div_yield') is not none %}
+                                {{ item.get('ntm_div_yield') | round(2) }}
+                            {% else %}
+                                ---
+                            {% endif %}
+                        </td>
+                        <td class="text-end {% if item.get('auto_update_pbv') %}yahoo-data{% endif %}">{% if item.get('ltm_pbv') is not none %}{{ item.get('ltm_pbv') | round(2) }}{% else %}---{% endif %}</td>
+                        <td class="text-end">{% if item.get('revenue_cagr') is not none %}{{ item.get('revenue_cagr') | round(2) }}{% else %}---{% endif %}</td>
+                        <td class="text-end">{% if item.get('ebitda_margins') is not none %}{{ item.get('ebitda_margins') | round(2) }}{% else %}---{% endif %}</td>
+                        <td class="text-end">{% if item.get('eps_normalized') is not none %}{{ item.get('eps_normalized') | round(2) }}{% else %}---{% endif %}</td>
+                        <td class="text-end">{% if item.get('fcf_margins') is not none %}{{ item.get('fcf_margins') | round(2) }}{% else %}---{% endif %}</td>
+                        <td class="text-end">
+                            {% if item.get('cfo') == 1 %}
+                                <span class="badge bg-success">Positivo</span>
+                            {% elif item.get('cfo') == 0 %}
+                                <span class="badge bg-secondary">Neutral</span>
+                            {% elif item.get('cfo') == -1 %}
+                                <span class="badge bg-danger">Negativo</span>
+                            {% else %}
+                                ---
+                            {% endif %}
+                        </td>
+                        <td class="text-end">{% if item.get('net_debt_ebitda') is not none %}{{ item.get('net_debt_ebitda') | round(2) }}{% else %}---{% endif %}</td>
+
+                        {# Celda para ROE #}
+                        <td class="text-end {% if item.get('auto_update_roe') %}yahoo-data{% endif %}">
+                            {% if item.get('roe') is not none %}
+                                {{ item.get('roe') | round(2) }}
+                            {% else %}
+                                ---
+                            {% endif %}
+                        </td>
+
+                        {# Celda para PE Objetivo #}
+                        <td class="text-end">
+                            {% if item.get('pe_objetivo') is not none %}
+                                {{ item.get('pe_objetivo') | round(2) }}
+                            {% else %}
+                                ---
+                            {% endif %}
+                        </td>
+
+                        {# Celdas restantes para Estimates #}
+                        <td class="text-end">{% if item.get('eps_5y') is not none %}{{ item.get('eps_5y') | round(2) }}{% else %}---{% endif %}</td>
+                        <td class="text-end">{% if item.get('price_5y') is not none %}{{ item.get('price_5y') | round(2) }}{% else %}---{% endif %}</td>
+                        <td class="text-end">{% if item.get('eps_yield_calc') is not none %}{{ item.get('eps_yield_calc') | round(2) }}{% else %}N/A{% endif %}</td>
+
+                        {# --- Columna Comentario --- #}
+                        <td class="text-center">
+                            <button type="button" class="btn btn-outline-secondary btn-sm comment-btn"
+                                    data-bs-toggle="modal" data-bs-target="#commentModal"
+                                    data-item-id="{{ item.id }}"
+                                    data-item-name="{{ item.get('item_name', '') }}"
+                                    data-comment="{{ item.get('comentario', '') }}"
+                                    title="Ver/Editar Comentario">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-chat-left-text" viewBox="0 0 16 16"><path d="M14 1a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H4.414A2 2 0 0 0 3 11.586l-2 2V2a1 1 0 0 1 1-1h12zM2 0a2 2 0 0 0-2 2v12.793a.5.5 0 0 0 .854.353l2.853-2.853A1 1 0 0 1 4.414 12H14a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2z"/><path d="M3 3.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5zM3 6a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9A.5.5 0 0 1 3 6zm0 2.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5z"/></svg>
+                            </button>
+                        </td>
+
+                        {# --- Columna Yahoo Synch --- #}
+                        <td class="text-center yahoo-sync-cell">
+                             <input type="checkbox" class="form-check-input toggle-all-checkbox m-0"
+                                    name="toggle_all_auto_updates" id="toggle_all_{{ item.id }}"
+                                    {% if item.all_auto_updates_enabled %}checked{% endif %}
+                                    data-item-id="{{ item.id }}"
+                                    title="Activar/Desactivar todos los campos para actualización automática">
+                        </td>
+
+                        {# --- Columna Acción --- #}
+                        <td class="action-cell">
+                             <a href="{{ url_for('edit_watchlist_item', item_id=item.id) }}" class="btn btn-warning btn-sm" title="Editar Datos Manuales">
+                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pencil-square" viewBox="0 0 16 16"><path d="M15.502 1.94a.5.5 0 0 1 0 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 0 1 .707 0l1.293 1.293zm-1.75 2.456-2-2L4.939 9.21a.5.5 0 0 0-.121.196l-.805 2.414a.25.25 0 0 0 .316.316l2.414-.805a.5.5 0 0 0 .196-.12l6.813-6.814z"/><path fill-rule="evenodd" d="M1 13.5A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-6a.5.5 0 0 0-1 0v6a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5H9a.5.5 0 0 0 0-1H2.5A1.5 1.5 0 0 0 1 2.5v11z"/></svg>
+                             </a>
+                             {% if item.get('is_in_followup') %}
+                             <form method="POST" action="{{ url_for('delete_watchlist_item') }}" class="d-inline-block m-0">
+                                 <input type="hidden" name="item_id" value="{{ item.id }}">
+                                 <button type="submit" class="btn btn-danger btn-sm" title="Borrar item en seguimiento" onclick="return confirm('¿Borrar {{ item.get('item_name', 'este item') }} del seguimiento?');">
+                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/><path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/></svg>
+                                 </button>
+                             </form>
+                             {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="mt-2">
+            <small class="text-muted">* Los campos marcados con asterisco se actualizan automáticamente desde Yahoo Finance</small>
+        </div>
+    {% else %}
+        <p class="mt-3">Tu watchlist está vacía...</p>
+    {% endif %}
+
+    {# --- Modal para Comentarios (sin cambios) --- #}
+    <div class="modal fade" id="commentModal" tabindex="-1" aria-labelledby="commentModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-lg"> <div class="modal-content"> <div class="modal-header"><h5 class="modal-title" id="commentModalLabel">Comentario para: <span id="commentModalItemName"></span></h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div> <form method="POST" action="{{ url_for('update_watchlist_comment') }}" id="commentForm"> <div class="modal-body"><input type="hidden" name="item_id" id="commentModalItemId"><div class="mb-3"><label for="commentModalTextarea" class="form-label">Editar Comentario:</label><textarea class="form-control" id="commentModalTextarea" name="comentario" rows="8"></textarea></div></div> <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-primary">Guardar Comentario</button></div> </form> </div> </div>
+    </div>
+
+</div> {# Fin container-fluid #}
+{% endblock content %}
+
+{% block scripts %}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+{# Script para mostrar/ocultar formulario de añadir (sin cambios) #}
+<script>
+function toggleAddForm(show) {
+    console.log("toggleAddForm llamado con:", show);
+    
+    // Selección de elementos más robusta
+    const formContainer = document.getElementById('add-watchlist-form-container');
+    const showButtonContainer = document.getElementById('show-add-form-button-container');
+    
+    // Verificar que los elementos existen antes de manipularlos
+    if (formContainer && showButtonContainer) {
+        formContainer.style.display = show ? 'block' : 'none';
+        showButtonContainer.style.display = show ? 'none' : 'block';
+    } else {
+        console.error("No se encontraron los elementos necesarios para toggleAddForm");
+    }
+}
+
+// Listener para rellenar Modal Comentario y estado inicial form añadir
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("DOM completamente cargado");
+    
+    // Establecer estado inicial por seguridad
+    const formContainer = document.getElementById('add-watchlist-form-container');
+    const showButtonContainer = document.getElementById('show-add-form-button-container');
+    
+    if (formContainer) {
+        formContainer.style.display = 'none';
+    }
+    if (showButtonContainer) {
+        showButtonContainer.style.display = 'block';
+    }
+
+    var commentModal = document.getElementById('commentModal');
+    if (commentModal) {
+        commentModal.addEventListener('show.bs.modal', function (event) {
+            var button = event.relatedTarget;
+            var itemId = button.getAttribute('data-item-id');
+            var itemName = button.getAttribute('data-item-name');
+            var commentText = button.getAttribute('data-comment');
+            var modalTitleSpan = commentModal.querySelector('#commentModalItemName');
+            var modalItemIdInput = commentModal.querySelector('#commentModalItemId');
+            var modalTextarea = commentModal.querySelector('#commentModalTextarea');
+            if(modalTitleSpan) modalTitleSpan.textContent = itemName || '???';
+            if(modalItemIdInput) modalItemIdInput.value = itemId;
+            if(modalTextarea) modalTextarea.value = commentText || '';
+        });
+    }
+    
+    // Manejar los checkboxes de "Activar/Desactivar todos"
+    document.querySelectorAll('.toggle-all-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const itemId = this.getAttribute('data-item-id');
+            const isChecked = this.checked; // Estado actual (después del clic)
+            this.disabled = true;
+
+            fetch(`/toggle_all_auto_updates/${itemId}?enabled=${isChecked}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                     return response.json().then(errData => {
+                         throw new Error(errData.message || `Error ${response.status}`);
+                     }).catch(() => {
+                       throw new Error(`Error en la respuesta del servidor: ${response.status}`);
+                     });
+                 }
+                 return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    console.log(`Auto-updates para item ${itemId} ${isChecked ? 'activados' : 'desactivados'}`);
+                } else {
+                    console.error('Error al actualizar checkbox master (backend):', data.message);
+                    alert('Error al actualizar configuración: ' + data.message);
+                    this.checked = !isChecked;
+                }
+            })
+            .catch(error => {
+                console.error('Error en la petición fetch:', error);
+                alert('Error de conexión o respuesta inesperada. Por favor, inténtalo de nuevo.\nDetalle: ' + error.message);
+                this.checked = !isChecked;
+            })
+            .finally(() => {
+                 this.disabled = false;
+            });
+        });
+    });
+});
+</script>
+{% endblock scripts %}

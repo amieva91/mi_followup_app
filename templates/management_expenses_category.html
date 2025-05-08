@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mt-4">Gestionar Categorías de Gastos</h1>
+    
+    <div class="row">
+        <!-- Columna izquierda: Formulario -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Añadir Nueva Categoría</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('expenses') }}">
+                        {{ form.hidden_tag() }}
+                        <input type="hidden" name="add_category" value="1">
+                        
+                        <div class="mb-3">
+                            {{ form.name.label(class="form-label") }}
+                            {{ form.name(class="form-control") }}
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ form.description.label(class="form-label") }}
+                            {{ form.description(class="form-control") }}
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ form.parent_id.label(class="form-label") }}
+                            {{ form.parent_id(class="form-select") }}
+                            <div class="form-text">Selecciona una categoría padre para crear una subcategoría.</div>
+                        </div>
+                        
+                        {{ form.submit(class="btn btn-primary") }}
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Columna derecha: Lista de categorías -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Categorías Existentes</h5>
+                </div>
+                <div class="card-body">
+                    {% if categories %}
+                        <div class="accordion" id="categoryAccordion">
+                            {% for category in categories %}
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header" id="heading{{ category.id }}">
+                                        <button class="accordion-button {% if loop.index > 1 %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ category.id }}" aria-expanded="{% if loop.index == 1 %}true{% else %}false{% endif %}" aria-controls="collapse{{ category.id }}">
+                                            {{ category.name }}
+                                            <span class="badge bg-info ms-2">{{ category.expenses_count }} gastos</span>
+                                            {% if category.subcategories %}
+                                                <span class="badge bg-secondary ms-2">{{ category.subcategories|length }} subcategorías</span>
+                                            {% endif %}
+                                        </button>
+                                    </h2>
+                                    <div id="collapse{{ category.id }}" class="accordion-collapse collapse {% if loop.index == 1 %}show{% endif %}" aria-labelledby="heading{{ category.id }}" data-bs-parent="#categoryAccordion">
+                                        <div class="accordion-body">
+                                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                                <div>
+                                                    {% if category.description %}
+                                                        <p><strong>Descripción:</strong> {{ category.description }}</p>
+                                                    {% else %}
+                                                        <p class="text-muted">Sin descripción</p>
+                                                    {% endif %}
+                                                </div>
+                                                <div>
+                                                    <a href="{{ url_for('edit_expense_category', category_id=category.id) }}" class="btn btn-outline-primary btn-sm">
+                                                        <i class="bi bi-pencil"></i> Editar
+                                                    </a>
+                                                    <form method="POST" action="{{ url_for('delete_expense_category', category_id=category.id) }}" class="d-inline" onsubmit="return confirm('¿Estás seguro de eliminar esta categoría? No se puede eliminar si tiene gastos asociados o subcategorías.');">
+                                                        <button type="submit" class="btn btn-outline-danger btn-sm">
+                                                            <i class="bi bi-trash"></i> Eliminar
+                                                        </button>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                            
+                                            {% if category.subcategories %}
+                                                <h6 class="mt-3">Subcategorías:</h6>
+                                                <div class="table-responsive">
+                                                    <table class="table table-sm table-striped">
+                                                        <thead>
+                                                            <tr>
+                                                                <th>Nombre</th>
+                                                                <th>Descripción</th>
+                                                                <th class="text-center">Gastos</th>
+                                                                <th class="text-center">Acciones</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {% for subcat in category.subcategories %}
+                                                                <tr>
+                                                                    <td>{{ subcat.name }}</td>
+                                                                    <td>{{ subcat.description }}</td>
+                                                                    <td class="text-center">{{ subcat.expenses_count }}</td>
+                                                                    <td class="text-center">
+                                                                        <a href="{{ url_for('edit_expense_category', category_id=subcat.id) }}" class="btn btn-outline-primary btn-sm">
+                                                                            <i class="bi bi-pencil"></i>
+                                                                        </a>
+                                                                        <form method="POST" action="{{ url_for('delete_expense_category', category_id=subcat.id) }}" class="d-inline" onsubmit="return confirm('¿Estás seguro de eliminar esta subcategoría? No se puede eliminar si tiene gastos asociados.');">
+                                                                            <button type="submit" class="btn btn-outline-danger btn-sm">
+                                                                                <i class="bi bi-trash"></i>
+                                                                            </button>
+                                                                        </form>
+                                                                    </td>
+                                                                </tr>
+                                                            {% endfor %}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info">
+                            No hay categorías definidas. Utiliza el formulario para añadir tu primera categoría.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %}
