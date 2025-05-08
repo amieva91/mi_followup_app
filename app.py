@@ -5951,7 +5951,37 @@ def broker_operations():
         now=datetime.now()
     )
 
-
+@app.route('/renegociate_debt_plan/<int:plan_id>', methods=['POST'])
+@login_required
+def renegociate_debt_plan(plan_id):
+    """Renegocia un plan de deuda, modificando la duración y la cuota mensual."""
+    plan = DebtInstallmentPlan.query.filter_by(id=plan_id, user_id=current_user.id).first_or_404()
+    
+    try:
+        # Obtener nueva duración del formulario
+        new_duration = int(request.form.get('new_duration_months', 1))
+        
+        # Validar datos
+        if new_duration < 1:
+            flash('La duración debe ser de al menos 1 mes.', 'warning')
+            return redirect(url_for('debt_management'))
+        
+        # Calcular el monto pendiente basado en cuotas restantes
+        remaining_amount = plan.remaining_amount
+        
+        # Actualizar duración y cuota mensual
+        plan.duration_months = new_duration
+        plan.monthly_payment = remaining_amount / new_duration
+        
+        db.session.commit()
+        flash(f'Plan de pago "{plan.description}" renegociado correctamente.', 'success')
+    except ValueError:
+        flash('Por favor, introduce un número válido de meses.', 'danger')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error al renegociar plan: {e}', 'danger')
+    
+    return redirect(url_for('debt_management'))
 
 @app.route('/edit_broker_operation/<int:operation_id>', methods=['GET', 'POST'])
 @login_required
@@ -6065,4 +6095,4 @@ if __name__ == '__main__':
         print("Verificando/Creando tablas de la base de datos...")
         db.create_all()
         print("Tablas verificadas/creadas.")
-    app.run(debug=True, host='127.0.0.1', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=5000)
