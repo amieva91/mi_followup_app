@@ -1,9 +1,10 @@
 {% extends "base.html" %}
 
 {% block content %}
+{% set today = now.date() %}
 <div class="container">
     <h1 class="mt-4">Gestión de Deudas</h1>
-    <p>Aquí puedes definir tu techo de deuda y registrar tus planes de pago.</p>
+    <p>Aquí puedes definir tu techo de deuda y registrar tus planes de pago. Los pagos se efectúan el día 1 de cada mes.</p>
     
     <!-- Resumen de la Situación Actual -->
     <div class="card mb-4">
@@ -131,14 +132,14 @@
                         <div class="mb-3">
                             {{ plan_form.start_date.label(class="form-label") }}
                             {{ plan_form.start_date(class="form-control") }}
-                            <div class="form-text">Primer mes en que se realizará el pago.</div>
+                            <div class="form-text">Primer mes en que se realizará el pago. El pago se efectúa el día 1 de cada mes.</div>
                         </div>
                         <div class="mb-3">
                             {{ plan_form.duration_months.label(class="form-label") }}
                             {{ plan_form.duration_months(class="form-control") }}
                             <div class="form-text">Número de meses en que se pagará la deuda.</div>
                         </div>
-                        
+                        <input type="hidden" name="add_plan" value="1">
                         {{ plan_form.submit(class="btn btn-primary") }}
                     </form>
                 </div>
@@ -168,11 +169,19 @@
                                 </thead>
                                 <tbody>
                                     {% for plan in active_debt_plans %}
+                                    {% if not (plan.id in plan_end_dates and plan_end_dates[plan.id] < today) %}
                                     <tr>
                                         <td>
                                             {{ plan.description }}
                                             <small class="d-block text-muted">
-                                                Inicio: {{ plan.start_date.strftime('%m/%Y') }} | Fin: {{ plan.end_date.strftime('%m/%Y') if plan.end_date else 'N/A' }}
+                                                Inicio: {{ plan.start_date.strftime('%m/%Y') }} | 
+                                                Fin: {% set end_month = plan.start_date.month + plan.duration_months - 1 %}
+                                                     {% set end_year = plan.start_date.year %}
+                                                     {% if end_month > 12 %}
+                                                         {% set end_year = end_year + ((end_month - 1) // 12) %}
+                                                         {% set end_month = ((end_month - 1) % 12) + 1 %}
+                                                     {% endif %}
+                                                     {{ "%02d/%d"|format(end_month, end_year) }}
                                             </small>
                                         </td>
                                         <td class="text-end">{{ plan.monthly_payment|round(2) }} €</td>
@@ -249,6 +258,7 @@
                                             </div>
                                         </td>
                                     </tr>
+                                    {% endif %}
                                     {% endfor %}
                                 </tbody>
                             </table>
@@ -288,13 +298,19 @@
                                         <td class="text-end">{{ plan.monthly_payment|round(2) }} €</td>
                                         <td>
                                             {{ plan.start_date.strftime('%m/%Y') }} - 
-                                            {{ plan.end_date.strftime('%m/%Y') if plan.end_date else 'N/A' }}
+                                            {% set end_month = plan.start_date.month + plan.duration_months - 1 %}
+                                            {% set end_year = plan.start_date.year %}
+                                            {% if end_month > 12 %}
+                                                {% set end_year = end_year + ((end_month - 1) // 12) %}
+                                                {% set end_month = ((end_month - 1) % 12) + 1 %}
+                                            {% endif %}
+                                            {{ "%02d/%d"|format(end_month, end_year) }}
                                             <small class="d-block text-muted">
                                                 {{ plan.duration_months }} meses
                                             </small>
                                         </td>
                                         <td>
-                                            {% if plan.is_active %}
+                                            {% if plan.is_active and plan.id in plan_end_dates and plan_end_dates[plan.id] >= today %}
                                                 <span class="badge bg-success">Activo</span>
                                             {% else %}
                                                 <span class="badge bg-secondary">Inactivo</span>

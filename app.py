@@ -429,20 +429,28 @@ class DebtInstallmentPlan(db.Model):
     
     @property
     def remaining_installments(self):
-        """Calculate the number of remaining installments from today."""
+        """Calculate the number of remaining installments assuming payments on the 1st of each month."""
         if not self.is_active:
             return 0
-            
+        
         today = date.today()
+    
+        # Si estamos antes del inicio, todas las cuotas están pendientes
         if today < self.start_date:
             return self.duration_months
-            
-        # Calculate months between today and start_date
-        months_passed = (today.year - self.start_date.year) * 12 + today.month - self.start_date.month
-        
-        remaining = self.duration_months - months_passed
-        return max(0, remaining)
     
+        # Calcular el número total de meses entre la fecha de inicio y hoy
+        # Incluyendo el mes actual solo si hoy es día 1 o anterior
+        months_since_start = (today.year - self.start_date.year) * 12 + (today.month - self.start_date.month)
+    
+        # Si ya pasó el día 1 del mes actual, ese pago ya está hecho
+        if today.day > 1:
+            months_since_start += 1
+    
+        # Calcular cuotas restantes
+        remaining = self.duration_months - months_since_start
+        return max(0, remaining) 
+   
     @property
     def remaining_amount(self):
         """Calculate the remaining amount to be paid."""
@@ -611,6 +619,33 @@ class FinancialSummaryConfigForm(FlaskForm):
     include_pension_plans = BooleanField('Incluir Planes de Pensiones', default=True)
     submit = SubmitField('Guardar Configuración')
 
+
+# Función correcta para calcular la fecha de fin de un plan
+
+def calculate_end_date(start_date, duration_months):
+    """
+    Calcula la fecha de finalización correcta basada en la fecha de inicio y la duración.
+    Esta fecha representa el último mes en que se realiza un pago.
+    
+    Args:
+        start_date: date, fecha de inicio (siempre día 1)
+        duration_months: int, número de meses de duración
+    
+    Returns:
+        date: fecha de finalización (último mes de pago)
+    """
+    # Para 4 meses iniciando en abril (4/2025), el último pago debe ser en julio (7/2025)
+    # Por tanto, mes final = mes inicial + duración - 1
+    end_month = start_date.month + duration_months - 1
+    end_year = start_date.year
+    
+    # Ajustar el año si el mes sobrepasa 12
+    if end_month > 12:
+        end_year += (end_month - 1) // 12
+        end_month = ((end_month - 1) % 12) + 1
+    
+    # Crear fecha de finalización (siempre día 1)
+    return date(end_year, end_month, 1)
 
 def get_crypto_price(ticker_symbol):
     """
@@ -2313,7 +2348,7 @@ def debt_management():
     plan_form = DebtInstallmentPlanForm()
     
     # Process debt plan form
-    if plan_form.validate_on_submit():
+    if plan_form.validate_on_submit() and ('add_plan' in request.form):
         try:
             # Parse the start date
             start_month_year = plan_form.start_date.data  # Format: "YYYY-MM"
@@ -2326,8 +2361,17 @@ def debt_management():
             year = int(date_parts[0])
             month = int(date_parts[1])
             
-            # Create date with the first day of the month
+            # Create date with the first day of the month (siempre día 1)
             start_date = date(year, month, 1)
+            
+            # Verificar si la fecha de inicio es posterior a hoy (si está en el pasado, mostrar advertencia)
+            today = date.today()
+            if start_date < today and (today.year != start_date.year or today.month != start_date.month):
+                flash(f'Advertencia: La fecha de inicio {start_date.strftime("%m/%Y")} está en el pasado.', 'warning')
+                
+            # Si estamos en el mismo mes pero después del día 1, advertir que el primer pago será el próximo mes
+            elif start_date.year == today.year and start_date.month == today.month and today.day > 1:
+                flash(f'Advertencia: Ya ha pasado el día 1 de este mes. El primer pago contará a partir del {start_date.strftime("%d/%m/%Y")}.', 'warning')
             
             # Convert numeric values
             total_amount = float(plan_form.total_amount.data.replace(',', '.'))
@@ -2335,6 +2379,19 @@ def debt_management():
             
             # Calculate monthly payment
             monthly_payment = total_amount / duration_months if duration_months > 0 else total_amount
+            
+            # Calcular fecha de fin correctamente
+            end_date = calculate_end_date(start_date, duration_months)
+            
+            # Calculate end date manually (don't try to set it as an attribute)
+            month_end = month + duration_months
+            year_end = year + (month_end - 1) // 12
+            month_end = ((month_end - 1) % 12) + 1
+            end_date = date(year_end, month_end, 1)
+            
+            # Check if the plan is already expired
+            today = date.today()
+            is_active = end_date >= today
             
             # Create new debt plan
             new_plan = DebtInstallmentPlan(
@@ -2344,18 +2401,24 @@ def debt_management():
                 start_date=start_date,
                 duration_months=duration_months,
                 monthly_payment=monthly_payment,
-                is_active=True
+                is_active=is_active  # Set active status based on end date
             )
             
             db.session.add(new_plan)
             db.session.commit()
             
-            flash('Plan de pago de deuda añadido correctamente.', 'success')
+            if is_active:
+                flash('Plan de pago añadido correctamente.', 'success')
+            else:
+                flash('Plan de pago añadido como Inactivo porque la fecha de finalización ya pasó.', 'info')
             return redirect(url_for('debt_management'))
             
         except Exception as e:
             db.session.rollback()
             flash(f'Error al crear plan de pago: {e}', 'danger')
+            print(f"Error al crear plan de pago: {e}")
+            import traceback
+            traceback.print_exc()
     
     # Get all debt plans for current user
     all_debt_plans = DebtInstallmentPlan.query.filter_by(user_id=current_user.id).order_by(
@@ -2363,14 +2426,44 @@ def debt_management():
         DebtInstallmentPlan.start_date.desc()   # Most recent first
     ).all()
     
+    # Calculate today's date for filtering
+    today = date.today()
+    
+    # Create a dictionary to store calculated end dates for use in the template
+    plan_end_dates = {}
+    
     # Get only active debt plans
-    active_debt_plans = [plan for plan in all_debt_plans if plan.is_active and plan.remaining_installments > 0]
+    active_debt_plans = []
+    for plan in all_debt_plans:
+        if plan.is_active:
+            # Calculate end_date manually
+            month_end = plan.start_date.month + plan.duration_months
+            year_end = plan.start_date.year + (month_end - 1) // 12
+            month_end = ((month_end - 1) % 12) + 1
+            plan_end_date = date(year_end, month_end, 1)
+            
+            # Store in dictionary instead of trying to set as attribute
+            plan_end_dates[plan.id] = plan_end_date
+            
+            # Include only if not expired
+            if plan_end_date >= today:
+                active_debt_plans.append(plan)
+    
+    # Calculate end dates for all plans and store in the dictionary
+    for plan in all_debt_plans:
+        if plan.id not in plan_end_dates:
+            month_end = plan.start_date.month + plan.duration_months
+            year_end = plan.start_date.year + (month_end - 1) // 12
+            month_end = ((month_end - 1) % 12) + 1
+            plan_end_dates[plan.id] = date(year_end, month_end, 1)
     
     # Sort active debt plans by end_date (ascending - soonest to expire first)
-    active_debt_plans.sort(key=lambda x: x.end_date if x.end_date else date(9999, 12, 31))
+    active_debt_plans.sort(key=lambda x: plan_end_dates[x.id])
+    
+    # Sort all_debt_plans by end_date for the history view
+    all_debt_plans.sort(key=lambda x: plan_end_dates[x.id], reverse=True)
     
     # Calculate current month and next month for payment summaries
-    today = date.today()
     current_month = date(today.year, today.month, 1)
     
     # Calculate next month
@@ -2385,15 +2478,13 @@ def debt_management():
     # Calculate current month payment
     current_month_payment = sum(
         plan.monthly_payment for plan in active_debt_plans 
-        if plan.start_date <= current_month and 
-        (plan.end_date is None or plan.end_date > current_month)
+        if plan.start_date <= current_month and plan_end_dates[plan.id] > current_month
     )
     
     # Calculate next month payment
     next_month_payment = sum(
         plan.monthly_payment for plan in active_debt_plans 
-        if plan.start_date <= next_month and 
-        (plan.end_date is None or plan.end_date > next_month)
+        if plan.start_date <= next_month and plan_end_dates[plan.id] > next_month
     )
     
     # Calculate debt percentage of ceiling
@@ -2418,30 +2509,119 @@ def debt_management():
         debt_margin=debt_margin,
         current_month=current_month,
         next_month=next_month,
-        monthly_salary=monthly_salary
+        monthly_salary=monthly_salary,
+        now=datetime.now(),  # Added to provide current date for template
+        plan_end_dates=plan_end_dates  # Pass the end dates dictionary to the template
     )
-
 
 @app.route('/toggle_debt_plan/<int:plan_id>', methods=['POST'])
 @login_required
 def toggle_debt_plan(plan_id):
-    """Toggles a debt plan between active and inactive states."""
+    """Marca un plan de deuda como liquidado (inactivo) y actualiza la fecha de fin al mes actual."""
     plan = DebtInstallmentPlan.query.filter_by(id=plan_id, user_id=current_user.id).first_or_404()
     
     try:
-        # Toggle the active state
-        plan.is_active = not plan.is_active
+        # Si el plan está activo, marcarlo como inactivo (liquidado)
+        if plan.is_active:
+            # Obtener la fecha actual para usarla como fecha de fin
+            today = date.today()
+            
+            # Calcular la nueva duración en meses desde la fecha de inicio hasta el mes actual
+            start_month = plan.start_date.month + (plan.start_date.year * 12)
+            end_month = today.month + (today.year * 12)
+            new_duration = end_month - start_month
+            
+            # Asegurar que la duración es de al menos 1 mes
+            if new_duration < 1:
+                new_duration = 1
+            
+            # Calcular la nueva cuota mensual basada en la cantidad total y la duración real
+            # Esto asegura que en el historial, la cuota mensual refleje el valor correcto
+            new_monthly_payment = plan.total_amount / new_duration
+            
+            # Actualizar la duración y la cuota mensual del plan
+            plan.duration_months = new_duration
+            plan.monthly_payment = new_monthly_payment
+            
+            # Actualizar el estado a inactivo
+            plan.is_active = False
+            
+            db.session.commit()
+            flash(f'Plan de pago "{plan.description}" marcado como liquidado en {today.strftime("%m/%Y")}.', 'success')
+        # No incluimos la opción de reactivar planes desde el historial
         
-        # Update the database
-        db.session.commit()
-        
-        status = "activado" if plan.is_active else "desactivado"
-        flash(f'Plan de pago "{plan.description}" {status} correctamente.', 'success')
     except Exception as e:
         db.session.rollback()
         flash(f'Error al cambiar estado del plan: {e}', 'danger')
+        print(f"Error al cambiar estado del plan: {e}")
+        import traceback
+        traceback.print_exc()
     
     return redirect(url_for('debt_management'))
+
+
+
+@app.route('/debug_form', methods=['POST'])
+@login_required
+def debug_form():
+    """Ruta de debugging para ver por qué el formulario no se está validando."""
+    print("=== DEBUG INFORMACIÓN DEL FORMULARIO ===")
+    print(f"Método de solicitud: {request.method}")
+    print(f"Contenido del formulario: {request.form}")
+
+    # Crear el formulario
+    plan_form = DebtInstallmentPlanForm()
+
+    # Verificar si el token CSRF está presente y es válido
+    print(f"Token CSRF presente: {'csrf_token' in request.form}")
+    if hasattr(plan_form, 'csrf_token'):
+        print(f"Validación CSRF: {plan_form.csrf_token.validate(plan_form)}")
+
+    # Intentar validar el formulario
+    is_valid = plan_form.validate_on_submit()
+    print(f"Formulario válido: {is_valid}")
+
+    # Verificar cada campo individual
+    print("Errores de validación por campo:")
+    for field_name, field in plan_form._fields.items():
+        if field.errors:
+            print(f"  Campo '{field_name}': {field.errors}")
+
+    # Verificar si 'add_plan' está en el formulario
+    print(f"'add_plan' presente en el formulario: {'add_plan' in request.form}")
+
+    # Devolver esta información como JSON
+    return {
+        "method": request.method,
+        "form_data": {k: v for k, v in request.form.items()},
+        "is_valid": is_valid,
+        "errors": {name: field.errors for name, field in plan_form._fields.items() if field.errors}
+    }
+
+# Luego modifica el formulario en la plantilla para incluir un botón adicional de debugging
+# <button type="button" onclick="debugForm()" class="btn btn-info">Debug Form</button>
+
+# Y añade este JavaScript a la plantilla:
+# <script>
+# function debugForm() {
+#     // Crear una copia del formulario
+#     var form = document.querySelector('form:has(input[name="add_plan"])');
+#     var formData = new FormData(form);
+#
+#     // Enviar a la ruta de debugging
+#     fetch('/debug_form', {
+#         method: 'POST',
+#         body: formData
+#     })
+#     .then(response => response.json())
+#     .then(data => {
+#         console.log('DEBUG INFO:', data);
+#         alert('Información de debugging en la consola');
+#     })
+#     .catch(error => console.error('Error:', error));
+# }
+# </script>
+
 
 @app.route('/delete_debt_plan/<int:plan_id>', methods=['POST'])
 @login_required
@@ -5951,6 +6131,7 @@ def broker_operations():
         now=datetime.now()
     )
 
+
 @app.route('/renegociate_debt_plan/<int:plan_id>', methods=['POST'])
 @login_required
 def renegociate_debt_plan(plan_id):
@@ -5969,17 +6150,41 @@ def renegociate_debt_plan(plan_id):
         # Calcular el monto pendiente basado en cuotas restantes
         remaining_amount = plan.remaining_amount
         
-        # Actualizar duración y cuota mensual
+        # Obtener fecha actual para el reinicio del plazo
+        today = date.today()
+        
+        # Determinar la nueva fecha de inicio (primer día del próximo mes)
+        if today.month == 12:
+            new_start_year = today.year + 1
+            new_start_month = 1
+        else:
+            new_start_year = today.year
+            new_start_month = today.month + 1
+        
+        new_start_date = date(new_start_year, new_start_month, 1)
+        
+        # Calcular fecha de fin correctamente
+        end_date = calculate_end_date(new_start_date, new_duration)
+        
+        # Actualizar plan con nuevos valores
+        plan.start_date = new_start_date
         plan.duration_months = new_duration
         plan.monthly_payment = remaining_amount / new_duration
         
+        # Asegurar que el plan siga activo
+        plan.is_active = True
+        
         db.session.commit()
-        flash(f'Plan de pago "{plan.description}" renegociado correctamente.', 'success')
+        
+        flash(f'Plan de pago "{plan.description}" renegociado correctamente. Próximos pagos: del {new_start_date.strftime("%d/%m/%Y")} al {end_date.strftime("%d/%m/%Y")}', 'success')
     except ValueError:
         flash('Por favor, introduce un número válido de meses.', 'danger')
     except Exception as e:
         db.session.rollback()
         flash(f'Error al renegociar plan: {e}', 'danger')
+        print(f"Error al renegociar plan: {e}")
+        import traceback
+        traceback.print_exc()
     
     return redirect(url_for('debt_management'))
 
