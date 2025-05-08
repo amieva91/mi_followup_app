@@ -552,6 +552,7 @@ class Expense(db.Model):
         return f'<Expense {self.description} ({self.amount}€)>'
 
 # --- Formularios para la gestión de gastos ---
+# --- Formularios para la gestión de gastos (MODIFICADO) ---
 class ExpenseCategoryForm(FlaskForm):
     name = StringField('Nombre de la Categoría', validators=[DataRequired()],
                     render_kw={"placeholder": "Ej: Alquiler, Alimentación, Transporte..."})
@@ -568,12 +569,14 @@ class ExpenseForm(FlaskForm):
     date = StringField('Fecha', validators=[DataRequired()],
                      render_kw={"type": "date"})
     category_id = SelectField('Categoría', coerce=int, validators=[Optional()])
+    # Modificar las opciones para que sean solo Gasto Puntual y Gasto Recurrente
     expense_type = SelectField('Tipo de Gasto',
                             choices=[
-                                ('fixed', 'Gasto Fijo/Recurrente'),
-                                ('punctual', 'Gasto Puntual')
+                                ('punctual', 'Gasto Puntual'),
+                                ('fixed', 'Gasto Recurrente')
                             ],
                             validators=[DataRequired()])
+    # Se mantiene este campo, pero se controlará por JavaScript
     is_recurring = BooleanField('Es Recurrente')
     recurrence_months = SelectField('Recurrencia',
                                  choices=[
@@ -583,11 +586,104 @@ class ExpenseForm(FlaskForm):
                                      (6, 'Semestral'),
                                      (12, 'Anual')
                                  ], coerce=int, validators=[Optional()])
+    # El campo start_date se mantiene, pero no se mostrará en el formulario
     start_date = StringField('Fecha Inicio (Para recurrentes)',
                           render_kw={"type": "date"}, validators=[Optional()])
     end_date = StringField('Fecha Fin (Opcional)',
                         render_kw={"type": "date"}, validators=[Optional()])
     submit = SubmitField('Registrar Gasto')
+
+
+
+@app.route('/edit_expense/<int:expense_id>', methods=['GET', 'POST'])
+@login_required
+def edit_expense(expense_id):
+    """Edita un gasto existente."""
+    # Buscar el gasto por ID y verificar que pertenece al usuario
+    expense = Expense.query.filter_by(id=expense_id, user_id=current_user.id).first_or_404()
+    
+    # Crear formulario y prellenarlo con los datos del gasto
+    form = ExpenseForm()
+    
+    # Cargar categorías para el dropdown
+    all_categories = ExpenseCategory.query.filter_by(user_id=current_user.id).all()
+    
+    # Crear lista de opciones con indentación para mostrar jerarquía
+    category_choices = []
+    for cat in all_categories:
+        if cat.parent_id is None:
+            category_choices.append((cat.id, cat.name))
+            # Añadir subcategorías con indentación
+            subcats = ExpenseCategory.query.filter_by(parent_id=cat.id).all()
+            for subcat in subcats:
+                category_choices.append((subcat.id, f"-- {subcat.name}"))
+    
+    form.category_id.choices = [(0, 'Sin categoría')] + category_choices
+    
+    if request.method == 'GET':
+        # Precargar datos del gasto en el formulario
+        form.description.data = expense.description
+        form.amount.data = str(expense.amount)
+        form.date.data = expense.date.strftime('%Y-%m-%d')
+        form.category_id.data = expense.category_id if expense.category_id else 0
+        form.expense_type.data = expense.expense_type
+        form.is_recurring.data = expense.is_recurring
+        
+        if expense.is_recurring:
+            form.recurrence_months.data = expense.recurrence_months if expense.recurrence_months else 1
+            if expense.start_date:
+                form.start_date.data = expense.start_date.strftime('%Y-%m-%d')
+            if expense.end_date:
+                form.end_date.data = expense.end_date.strftime('%Y-%m-%d')
+    
+    if form.validate_on_submit():
+        try:
+            # Convertir valores
+            amount = float(form.amount.data.replace(',', '.'))
+            date_obj = datetime.strptime(form.date.data, '%Y-%m-%d').date()
+            
+            # Determinar categoría
+            category_id = form.category_id.data
+            if category_id == 0:
+                category_id = None  # Sin categoría
+                
+            # Verificar campos para gastos recurrentes
+            is_recurring = form.is_recurring.data
+            recurrence_months = None
+            start_date = None
+            end_date = None
+            
+            if is_recurring:
+                recurrence_months = form.recurrence_months.data
+                
+                # CAMBIO: Para edición también usamos la fecha del gasto como inicio
+                start_date = date_obj
+                    
+                if form.end_date.data:
+                    end_date = datetime.strptime(form.end_date.data, '%Y-%m-%d').date()
+            
+            # Actualizar el gasto
+            expense.description = form.description.data
+            expense.amount = amount
+            expense.date = date_obj
+            expense.category_id = category_id
+            expense.expense_type = form.expense_type.data
+            expense.is_recurring = is_recurring
+            expense.recurrence_months = recurrence_months
+            expense.start_date = start_date
+            expense.end_date = end_date
+            expense.updated_at = datetime.utcnow()
+            
+            db.session.commit()
+            
+            flash('Gasto actualizado correctamente.', 'success')
+            return redirect(url_for('expenses'))
+            
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error al actualizar gasto: {e}', 'danger')
+    
+    return render_template('edit_expense.html', form=form, expense=expense)
 
 
 # --- Modelo para guardar la configuración del Resumen Financiero ---
@@ -1304,6 +1400,49 @@ def manage_expense_categories():
         form=form
     )
 
+
+# --- Formularios para la gestión de gastos (MODIFICADO) ---
+class ExpenseCategoryForm(FlaskForm):
+    name = StringField('Nombre de la Categoría', validators=[DataRequired()],
+                    render_kw={"placeholder": "Ej: Alquiler, Alimentación, Transporte..."})
+    description = TextAreaField('Descripción (Opcional)',
+                             render_kw={"placeholder": "Descripción opcional", "rows": 2})
+    parent_id = SelectField('Categoría Padre (Opcional)', coerce=int, choices=[], validators=[Optional()])
+    submit = SubmitField('Guardar Categoría')
+
+class ExpenseForm(FlaskForm):
+    description = StringField('Descripción', validators=[DataRequired()],
+                           render_kw={"placeholder": "Ej: Alquiler Mayo, Compra Supermercado..."})
+    amount = StringField('Importe (€)', validators=[DataRequired()],
+                       render_kw={"placeholder": "Ej: 500.50"})
+    date = StringField('Fecha', validators=[DataRequired()],
+                     render_kw={"type": "date"})
+    category_id = SelectField('Categoría', coerce=int, validators=[Optional()])
+    # Modificar las opciones para que sean solo Gasto Puntual y Gasto Recurrente
+    expense_type = SelectField('Tipo de Gasto',
+                            choices=[
+                                ('punctual', 'Gasto Puntual'),
+                                ('fixed', 'Gasto Recurrente')
+                            ],
+                            validators=[DataRequired()])
+    # Se mantiene este campo, pero se controlará por JavaScript
+    is_recurring = BooleanField('Es Recurrente')
+    recurrence_months = SelectField('Recurrencia',
+                                 choices=[
+                                     (1, 'Mensual'),
+                                     (2, 'Bimestral'),
+                                     (3, 'Trimestral'),
+                                     (6, 'Semestral'),
+                                     (12, 'Anual')
+                                 ], coerce=int, validators=[Optional()])
+    # El campo start_date se mantiene, pero no se mostrará en el formulario
+    start_date = StringField('Fecha Inicio (Para recurrentes)',
+                          render_kw={"type": "date"}, validators=[Optional()])
+    end_date = StringField('Fecha Fin (Opcional)',
+                        render_kw={"type": "date"}, validators=[Optional()])
+    submit = SubmitField('Registrar Gasto')
+
+
 @app.route('/expenses', methods=['GET', 'POST'])
 @login_required
 def expenses():
@@ -1384,12 +1523,10 @@ def expenses():
 
             if is_recurring:
                 recurrence_months = expense_form.recurrence_months.data
-
-                if expense_form.start_date.data:
-                    start_date = datetime.strptime(expense_form.start_date.data, '%Y-%m-%d').date()
-                else:
-                    start_date = date_obj  # Usar la fecha del gasto como inicio
-
+                
+                # CAMBIO: Para gastos recurrentes, la fecha de inicio siempre es igual a la fecha del gasto
+                start_date = date_obj
+                    
                 if expense_form.end_date.data:
                     end_date = datetime.strptime(expense_form.end_date.data, '%Y-%m-%d').date()
 
@@ -1479,36 +1616,101 @@ def expenses():
     # 4. Total gastos mensuales
     total_monthly_expenses = fixed_expenses_sum + debt_monthly_sum
 
-    # 5. Gastos por categoría (últimos 6 meses)
+    # 5. Gastos por categoría (últimos 6 meses) - ACTUALIZADO
     six_months_ago = date.today() - timedelta(days=180)
+    end_date = date.today()
     expenses_by_category = {}
 
+    # Lista para almacenar todos los gastos procesados (incluyendo recurrentes expandidos)
+    expenses_in_range = []
+    
+    # Procesar cada gasto
     for expense in user_expenses:
-        if expense.date >= six_months_ago:
-            category_name = "Sin categoría"
-            if expense.category_id:
-                category = ExpenseCategory.query.get(expense.category_id)
-                if category:
-                    category_name = category.name
+        # Para gastos recurrentes, generar entradas para cada mes
+        if expense.is_recurring and expense.expense_type == 'fixed':
+            # Determinar fecha de inicio y fin
+            expense_start = expense.start_date or expense.date
+            expense_end = expense.end_date or end_date
+            
+            # Ajustar si está fuera del rango de análisis
+            if expense_end < six_months_ago:
+                # El gasto terminó antes del período de análisis
+                continue
+                
+            if expense_start > end_date:
+                # El gasto comienza después del período de análisis
+                continue
+                
+            # Ajustar inicio al período de análisis si es necesario
+            actual_start = max(expense_start, six_months_ago)
+            # Ajustar fin al período de análisis si es necesario
+            actual_end = min(expense_end, end_date)
+            
+            # Calcular meses entre start_date y end_date
+            current_date = actual_start
+            recurrence = expense.recurrence_months or 1  # Por defecto mensual
+            
+            while current_date <= actual_end:
+                # Crear una copia del gasto para este mes
+                expenses_in_range.append({
+                    'description': expense.description,
+                    'amount': expense.amount,
+                    'date': current_date,
+                    'category_id': expense.category_id,
+                    'expense_type': expense.expense_type,
+                    'is_recurring': expense.is_recurring
+                })
+                
+                # Avanzar al siguiente período según la recurrencia
+                year = current_date.year
+                month = current_date.month + recurrence
+                
+                # Ajustar si nos pasamos de diciembre
+                while month > 12:
+                    month -= 12
+                    year += 1
+                
+                # Crear nueva fecha
+                try:
+                    current_date = date(year, month, 1)
+                except ValueError:
+                    # Por si hay algún problema con la fecha
+                    break
+                    
+        else:
+            # Para gastos puntuales, solo incluir si están en el rango
+            if six_months_ago <= expense.date <= end_date:
+                expenses_in_range.append({
+                    'description': expense.description,
+                    'amount': expense.amount,
+                    'date': expense.date,
+                    'category_id': expense.category_id,
+                    'expense_type': expense.expense_type,
+                    'is_recurring': expense.is_recurring
+                })
 
-            if category_name not in expenses_by_category:
-                expenses_by_category[category_name] = {
-                    'total': 0,
-                    'count': 0,
-                    'monthly_avg': 0
-                }
+    for expense in expenses_in_range:
+        category_name = "Sin categoría"
+        if expense['category_id']:
+            category = ExpenseCategory.query.get(expense['category_id'])
+            if category:
+                category_name = category.name
 
-            expenses_by_category[category_name]['total'] += expense.amount
-            expenses_by_category[category_name]['count'] += 1
+        if category_name not in expenses_by_category:
+            expenses_by_category[category_name] = {
+                'total': 0,
+                'count': 0,
+                'monthly_avg': 0
+            }
 
-    # Calcular promedio mensual por categoría
+        expenses_by_category[category_name]['total'] += expense['amount']
+        expenses_by_category[category_name]['count'] += 1
+
+    # Calcular promedio mensual por categoría (dividir entre 6 meses)
     for category_name, data in expenses_by_category.items():
         # Dividir entre 6 (meses) o el número de gastos si es menor
-        months = min(6, data['count'])
-        if months > 0:
-            data['monthly_avg'] = data['total'] / months
-        else:
-            data['monthly_avg'] = 0
+        months = 6
+        data['monthly_avg'] = data['total'] / months
 
     # Ordenar categorías por gasto total (de mayor a menor)
     sorted_categories = sorted(
@@ -1564,16 +1766,62 @@ def expenses():
             if category:
                 category_name = category.name
 
-        unified_expenses.append({
-            'id': expense.id,
-            'description': expense.description,
-            'amount': expense.amount,
-            'date': expense.date,
-            'expense_type': expense.expense_type,
-            'is_recurring': expense.is_recurring,
-            'category_name': category_name,
-            'from_debt': False
-        })
+        # Si es un gasto recurrente, generar entradas para cada mes
+        if expense.is_recurring and expense.expense_type == 'fixed':
+            # Determinar fecha de inicio y fin
+            start_date = expense.start_date or expense.date
+            end_date = expense.end_date or date.today()
+            
+            # Si la fecha de fin es futura, usar la fecha actual como límite
+            if end_date > date.today():
+                end_date = date.today()
+            
+            # Calcular meses entre start_date y end_date
+            current_date = start_date
+            recurrence = expense.recurrence_months or 1  # Por defecto mensual
+            
+            while current_date <= end_date:
+                # Crear entrada para este mes
+                monthly_entry = {
+                    'id': expense.id,
+                    'description': f"{expense.description} ({current_date.strftime('%b %Y')})",
+                    'amount': expense.amount,
+                    'date': current_date,
+                    'expense_type': expense.expense_type,
+                    'is_recurring': expense.is_recurring,
+                    'category_name': category_name,
+                    'from_debt': False
+                }
+                unified_expenses.append(monthly_entry)
+                
+                # Avanzar al siguiente período según la recurrencia
+                # Calcular el siguiente mes
+                year = current_date.year
+                month = current_date.month + recurrence
+                
+                # Ajustar si nos pasamos de diciembre
+                while month > 12:
+                    month -= 12
+                    year += 1
+                
+                # Crear nueva fecha
+                try:
+                    current_date = date(year, month, 1)
+                except ValueError:
+                    # Por si hay algún problema con la fecha
+                    break
+        else:
+            # Para gastos puntuales, solo añadir una entrada
+            unified_expenses.append({
+                'id': expense.id,
+                'description': expense.description,
+                'amount': expense.amount,
+                'date': expense.date,
+                'expense_type': expense.expense_type,
+                'is_recurring': expense.is_recurring,
+                'category_name': category_name,
+                'from_debt': False
+            })
 
     # Añadir gastos de deuda
     unified_expenses.extend(debt_expenses)
@@ -1594,99 +1842,222 @@ def expenses():
                          current_month_expenses=current_month_expenses,
                          avg_monthly_expenses=avg_monthly_expenses,
                          current_vs_avg_pct=current_vs_avg_pct)
+# Modificar la función get_category_analysis en app.py
 
 
-@app.route('/edit_expense/<int:expense_id>', methods=['GET', 'POST'])
+
+# --- Nuevas rutas a añadir en app.py para las funcionalidades solicitadas ---
+
+# 1. Ruta para finalizar un gasto recurrente
+@app.route('/end_recurring_expense/<int:expense_id>', methods=['POST'])
 @login_required
-def edit_expense(expense_id):
-    """Edita un gasto existente."""
+def end_recurring_expense(expense_id):
+    """Finaliza un gasto recurrente estableciendo su fecha de fin a la fecha actual."""
     # Buscar el gasto por ID y verificar que pertenece al usuario
     expense = Expense.query.filter_by(id=expense_id, user_id=current_user.id).first_or_404()
     
-    # Crear formulario y prellenarlo con los datos del gasto
-    form = ExpenseForm()
+    # Verificar que es un gasto recurrente
+    if not expense.is_recurring or expense.expense_type != 'fixed':
+        flash('Solo se pueden finalizar gastos recurrentes.', 'warning')
+        return redirect(url_for('expenses'))
     
-    # Cargar categorías para el dropdown
-    all_categories = ExpenseCategory.query.filter_by(user_id=current_user.id).all()
-    
-    # Crear lista de opciones con indentación para mostrar jerarquía
-    category_choices = []
-    for cat in all_categories:
-        if cat.parent_id is None:
-            category_choices.append((cat.id, cat.name))
-            # Añadir subcategorías con indentación
-            subcats = ExpenseCategory.query.filter_by(parent_id=cat.id).all()
-            for subcat in subcats:
-                category_choices.append((subcat.id, f"-- {subcat.name}"))
-    
-    form.category_id.choices = [(0, 'Sin categoría')] + category_choices
-    
-    if request.method == 'GET':
-        # Precargar datos del gasto en el formulario
-        form.description.data = expense.description
-        form.amount.data = str(expense.amount)
-        form.date.data = expense.date.strftime('%Y-%m-%d')
-        form.category_id.data = expense.category_id if expense.category_id else 0
-        form.expense_type.data = expense.expense_type
-        form.is_recurring.data = expense.is_recurring
+    try:
+        # Establecer la fecha de fin al mes actual (primer día)
+        today = date.today()
+        current_month_start = date(today.year, today.month, 1)
         
-        if expense.is_recurring:
-            form.recurrence_months.data = expense.recurrence_months if expense.recurrence_months else 1
-            if expense.start_date:
-                form.start_date.data = expense.start_date.strftime('%Y-%m-%d')
-            if expense.end_date:
-                form.end_date.data = expense.end_date.strftime('%Y-%m-%d')
+        expense.end_date = current_month_start
+        db.session.commit()
+        
+        flash(f'El gasto recurrente "{expense.description}" ha sido finalizado. No se generarán más pagos a partir del próximo mes.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error al finalizar el gasto recurrente: {e}', 'danger')
     
-    if form.validate_on_submit():
+    return redirect(url_for('expenses'))
+
+
+# 2. Ruta para obtener análisis por categoría según rango temporal
+@app.route('/get_category_analysis')
+@login_required
+def get_category_analysis():
+    """
+    Endpoint AJAX para obtener el análisis por categoría según un rango temporal.
+    
+    Parámetros Query:
+    - months: número de meses hacia atrás (1, 3, 6, 12, 36, 60, 120)
+    - start_date: fecha de inicio para rango personalizado (formato YYYY-MM-DD)
+    - end_date: fecha de fin para rango personalizado (formato YYYY-MM-DD)
+    """
+    # Obtener parámetros
+    months = request.args.get('months', type=int)
+    start_date_str = request.args.get('start_date')
+    end_date_str = request.args.get('end_date')
+    
+    # Calcular fechas de inicio y fin
+    end_date = date.today()
+    
+    if start_date_str and end_date_str:
+        # Usar rango personalizado
         try:
-            # Convertir valores
-            amount = float(form.amount.data.replace(',', '.'))
-            date_obj = datetime.strptime(form.date.data, '%Y-%m-%d').date()
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
             
-            # Determinar categoría
-            category_id = form.category_id.data
-            if category_id == 0:
-                category_id = None  # Sin categoría
-                
-            # Verificar campos para gastos recurrentes
-            is_recurring = form.is_recurring.data
-            recurrence_months = None
-            start_date = None
-            end_date = None
+            # Validar fechas
+            if start_date > end_date:
+                return '<div class="alert alert-danger">La fecha de inicio no puede ser posterior a la fecha de fin.</div>'
             
-            if is_recurring:
-                recurrence_months = form.recurrence_months.data
-                
-                if form.start_date.data:
-                    start_date = datetime.strptime(form.start_date.data, '%Y-%m-%d').date()
-                else:
-                    start_date = date_obj  # Usar la fecha del gasto como inicio
-                    
-                if form.end_date.data:
-                    end_date = datetime.strptime(form.end_date.data, '%Y-%m-%d').date()
-            
-            # Actualizar el gasto
-            expense.description = form.description.data
-            expense.amount = amount
-            expense.date = date_obj
-            expense.category_id = category_id
-            expense.expense_type = form.expense_type.data
-            expense.is_recurring = is_recurring
-            expense.recurrence_months = recurrence_months
-            expense.start_date = start_date
-            expense.end_date = end_date
-            expense.updated_at = datetime.utcnow()
-            
-            db.session.commit()
-            
-            flash('Gasto actualizado correctamente.', 'success')
-            return redirect(url_for('expenses'))
-            
-        except Exception as e:
-            db.session.rollback()
-            flash(f'Error al actualizar gasto: {e}', 'danger')
+            range_description = f"{start_date.strftime('%d/%m/%Y')} - {end_date.strftime('%d/%m/%Y')}"
+        except ValueError:
+            return '<div class="alert alert-danger">Formato de fecha inválido.</div>'
+    else:
+        # Usar número de meses
+        if not months:
+            months = 6  # Por defecto, 6 meses
+        
+        start_date = end_date - timedelta(days=30 * months)
+        
+        # Determinar descripción del rango según meses
+        if months == 1:
+            range_description = "Último mes"
+        elif months == 3:
+            range_description = "Últimos 3 meses"
+        elif months == 6:
+            range_description = "Últimos 6 meses"
+        elif months == 12:
+            range_description = "Último año"
+        elif months == 36:
+            range_description = "Últimos 3 años"
+        elif months == 60:
+            range_description = "Últimos 5 años"
+        elif months == 120:
+            range_description = "Últimos 10 años"
+        else:
+            range_description = f"Últimos {months} meses"
     
-    return render_template('edit_expense.html', form=form, expense=expense)
+    # Obtener todos los gastos
+    all_expenses = Expense.query.filter_by(user_id=current_user.id).all()
+    
+    # Lista para almacenar todos los gastos procesados (incluyendo recurrentes expandidos)
+    expenses_in_range = []
+    
+    # Procesar cada gasto
+    for expense in all_expenses:
+        # Para gastos recurrentes, generar entradas para cada mes
+        if expense.is_recurring and expense.expense_type == 'fixed':
+            # Determinar fecha de inicio y fin
+            expense_start = expense.start_date or expense.date
+            expense_end = expense.end_date or end_date
+            
+            # Ajustar si está fuera del rango de análisis
+            if expense_end < start_date:
+                # El gasto terminó antes del período de análisis
+                continue
+                
+            if expense_start > end_date:
+                # El gasto comienza después del período de análisis
+                continue
+                
+            # Ajustar inicio al período de análisis si es necesario
+            actual_start = max(expense_start, start_date)
+            # Ajustar fin al período de análisis si es necesario
+            actual_end = min(expense_end, end_date)
+            
+            # Calcular meses entre start_date y end_date
+            current_date = actual_start
+            recurrence = expense.recurrence_months or 1  # Por defecto mensual
+            
+            while current_date <= actual_end:
+                # Crear una copia del gasto para este mes
+                expenses_in_range.append({
+                    'description': expense.description,
+                    'amount': expense.amount,
+                    'date': current_date,
+                    'category_id': expense.category_id,
+                    'expense_type': expense.expense_type,
+                    'is_recurring': expense.is_recurring
+                })
+                
+                # Avanzar al siguiente período según la recurrencia
+                year = current_date.year
+                month = current_date.month + recurrence
+                
+                # Ajustar si nos pasamos de diciembre
+                while month > 12:
+                    month -= 12
+                    year += 1
+                
+                # Crear nueva fecha
+                try:
+                    current_date = date(year, month, 1)
+                except ValueError:
+                    # Por si hay algún problema con la fecha
+                    break
+                    
+        else:
+            # Para gastos puntuales, solo incluir si están en el rango
+            if start_date <= expense.date <= end_date:
+                expenses_in_range.append({
+                    'description': expense.description,
+                    'amount': expense.amount,
+                    'date': expense.date,
+                    'category_id': expense.category_id,
+                    'expense_type': expense.expense_type,
+                    'is_recurring': expense.is_recurring
+                })
+    
+    # Calcular gastos por categoría
+    expenses_by_category = {}
+    
+    for expense in expenses_in_range:
+        category_name = "Sin categoría"
+        if expense['category_id']:
+            category = ExpenseCategory.query.get(expense['category_id'])
+            if category:
+                category_name = category.name
+                
+        if category_name not in expenses_by_category:
+            expenses_by_category[category_name] = {
+                'total': 0,
+                'count': 0,
+                'monthly_avg': 0
+            }
+        
+        expenses_by_category[category_name]['total'] += expense['amount']
+        expenses_by_category[category_name]['count'] += 1
+    
+    # Calcular promedio mensual por categoría
+    # Calcular número de meses en el rango
+    if start_date_str and end_date_str:
+        # Para rangos personalizados, calcular número de meses
+        months_diff = (end_date.year - start_date.year) * 12 + (end_date.month - start_date.month) + 1
+    else:
+        # Para rangos predefinidos, usar el valor de meses
+        months_diff = months
+    
+    for category_name, data in expenses_by_category.items():
+        if months_diff > 0:
+            data['monthly_avg'] = data['total'] / months_diff
+        else:
+            data['monthly_avg'] = 0
+    
+    # Ordenar categorías por gasto total (de mayor a menor)
+    sorted_categories = sorted(
+        expenses_by_category.items(),
+        key=lambda x: x[1]['total'],
+        reverse=True
+    )
+    
+    # Calcular el total de todos los gastos para los porcentajes
+    total_sum = sum(data['total'] for _, data in sorted_categories)
+    
+    # Renderizar solo la parte de la tabla de análisis
+    return render_template(
+        'category_analysis_table.html',
+        sorted_categories=sorted_categories,
+        total_sum=total_sum,
+        range_description=range_description
+    )
 
 @app.route('/delete_expense/<int:expense_id>', methods=['POST'])
 @login_required

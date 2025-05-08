@@ -36,10 +36,13 @@
                         
                         <div class="mb-3">
                             {{ form.expense_type.label(class="form-label") }}
-                            {{ form.expense_type(class="form-select") }}
+                            <select id="expense_type" name="expense_type" class="form-select" onchange="handleExpenseTypeChange()">
+                                <option value="punctual" {% if expense.expense_type == 'punctual' %}selected{% endif %}>Gasto Puntual</option>
+                                <option value="fixed" {% if expense.expense_type == 'fixed' %}selected{% endif %}>Gasto Recurrente</option>
+                            </select>
                         </div>
                         
-                        <div class="mb-3 form-check">
+                        <div class="mb-3 form-check d-none">
                             {{ form.is_recurring(class="form-check-input") }}
                             {{ form.is_recurring.label(class="form-check-label") }}
                         </div>
@@ -50,11 +53,7 @@
                                 {{ form.recurrence_months(class="form-select") }}
                             </div>
                             
-                            <div class="mb-3">
-                                {{ form.start_date.label(class="form-label") }}
-                                {{ form.start_date(class="form-control") }}
-                                <div class="form-text">Si no se especifica, se usará la fecha del gasto.</div>
-                            </div>
+                            <!-- Eliminado el campo Fecha Inicio -->
                             
                             <div class="mb-3">
                                 {{ form.end_date.label(class="form-label") }}
@@ -77,22 +76,44 @@
 <!-- JavaScript para mostrar/ocultar opciones de recurrencia -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Mostrar/ocultar opciones de recurrencia según el checkbox
+    // Referencias a elementos del DOM
+    const expenseTypeSelect = document.getElementById('expense_type');
     const recurringCheck = document.getElementById('is_recurring');
     const recurringOptions = document.getElementById('recurring-options');
     
-    if (recurringCheck && recurringOptions) {
-        // Función para mostrar/ocultar opciones
-        function toggleRecurringOptions() {
-            recurringOptions.style.display = recurringCheck.checked ? 'block' : 'none';
-        }
+    // Función para manejar cambios en el tipo de gasto
+    function handleExpenseTypeChange() {
+        const isRecurrent = expenseTypeSelect.value === 'fixed';
         
-        // Llamar al inicio para establecer estado correcto
-        toggleRecurringOptions();
+        // Marcar/desmarcar checkbox de recurrencia automáticamente
+        recurringCheck.checked = isRecurrent;
         
-        // Escuchar cambios en el checkbox
-        recurringCheck.addEventListener('change', toggleRecurringOptions);
+        // Mostrar/ocultar opciones de recurrencia
+        recurringOptions.style.display = isRecurrent ? 'block' : 'none';
+    }
+    
+    // Asignar la función al evento change
+    if (expenseTypeSelect) {
+        expenseTypeSelect.addEventListener('change', handleExpenseTypeChange);
+        
+        // Ejecutar una vez al cargar para establecer el estado inicial
+        handleExpenseTypeChange();
     }
 });
+
+// Función global para manejar cambios en el tipo de gasto (usada en el HTML)
+function handleExpenseTypeChange() {
+    const expenseTypeSelect = document.getElementById('expense_type');
+    const recurringCheck = document.getElementById('is_recurring');
+    const recurringOptions = document.getElementById('recurring-options');
+    
+    const isRecurrent = expenseTypeSelect.value === 'fixed';
+    
+    // Marcar/desmarcar checkbox de recurrencia automáticamente
+    recurringCheck.checked = isRecurrent;
+    
+    // Mostrar/ocultar opciones de recurrencia
+    recurringOptions.style.display = isRecurrent ? 'block' : 'none';
+}
 </script>
 {% endblock content %}
