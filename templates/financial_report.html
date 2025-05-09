@@ -1,0 +1,718 @@
+{% extends "base.html" %}
+
+{% block head %}
+{{ super() }}
+<!-- Incluir Chart.js para los gráficos -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    .recommendation-high {
+        border-left: 4px solid #dc3545;
+    }
+    .recommendation-medium {
+        border-left: 4px solid #ffc107;
+    }
+    .recommendation-low {
+        border-left: 4px solid #28a745;
+    }
+    .report-section {
+        margin-bottom: 2rem;
+    }
+    .metric-card {
+        border-radius: 10px;
+        transition: transform 0.3s;
+    }
+    .metric-card:hover {
+        transform: translateY(-5px);
+    }
+    .recommendations-container {
+        max-height: 600px;
+        overflow-y: auto;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1>Informe Financiero Personal</h1>
+            <p class="text-muted">Generado el {{ report.general.date }}</p>
+        </div>
+        <div>
+            <a href="{{ url_for('financial_summary') }}" class="btn btn-outline-primary">
+                <i class="bi bi-arrow-left"></i> Volver al Resumen
+            </a>
+            <a href="{{ url_for('export_financial_summary', format='xlsx') }}" class="btn btn-success ms-2">
+                <i class="bi bi-file-earmark-excel"></i> Exportar a Excel
+            </a>
+        </div>
+    </div>
+
+    <!-- Dashboard de KPIs principales -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card h-100 bg-primary text-white metric-card">
+                <div class="card-body text-center">
+                    <h6>Patrimonio Neto</h6>
+                    <h3>{{ report.metrics.net_worth|round(2) }} €</h3>
+                    <small>Activos - Pasivos</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card h-100 {% if report.metrics.savings_rate >= 20 %}bg-success{% elif report.metrics.savings_rate > 0 %}bg-warning{% else %}bg-danger{% endif %} text-white metric-card">
+                <div class="card-body text-center">
+                    <h6>Tasa de Ahorro</h6>
+                    <h3>{{ report.metrics.savings_rate|round(1) }}%</h3>
+                    <small>Ahorro / Ingresos</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card h-100 {% if report.metrics.debt_to_income_ratio <= 30 %}bg-success{% elif report.metrics.debt_to_income_ratio <= 40 %}bg-warning{% else %}bg-danger{% endif %} text-white metric-card">
+                <div class="card-body text-center">
+                    <h6>Deuda/Ingresos</h6>
+                    <h3>{{ report.metrics.debt_to_income_ratio|round(1) }}%</h3>
+                    <small>Pagos deuda / Ingresos mensuales</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card h-100 {% if report.metrics.months_to_fi > 0 %}bg-info{% else %}bg-secondary{% endif %} text-white metric-card">
+                <div class="card-body text-center">
+                    <h6>Independencia Financiera</h6>
+                    {% if report.metrics.months_to_fi > 0 %}
+                        {% set years = (report.metrics.months_to_fi / 12)|round(1) %}
+                        <h3>{{ years }} años</h3>
+                    {% else %}
+                        <h3>N/A</h3>
+                    {% endif %}
+                    <small>A ritmo de ahorro actual</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Columna izquierda: Composición activos, detalles ingresos/gastos -->
+        <div class="col-md-8">
+            <!-- Sección Activos y Pasivos -->
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Composición del Patrimonio</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-5">
+                            <h6 class="text-center mb-3">Distribución de Activos</h6>
+                            <div class="chart-container" style="position: relative; height:250px;">
+                                <canvas id="assetsChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="col-md-7">
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Activos</th>
+                                            <th class="text-end">Importe</th>
+                                            <th class="text-end">%</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for category, amount in report.assets.composition.items() %}
+                                        <tr>
+                                            <td>{{ category }}</td>
+                                            <td class="text-end">{{ amount|round(2) }} €</td>
+                                            <td class="text-end">{{ (amount / report.assets.total * 100)|round(1) }}%</td>
+                                        </tr>
+                                        {% endfor %}
+                                        <tr class="table-success fw-bold">
+                                            <td>Total Activos</td>
+                                            <td class="text-end">{{ report.assets.total|round(2) }} €</td>
+                                            <td class="text-end">100%</td>
+                                        </tr>
+                                        
+                                        {% if report.liabilities and report.liabilities.total > 0 %}
+                                        <tr class="table-danger">
+                                            <td>Total Pasivos</td>
+                                            <td class="text-end">{{ report.liabilities.total|round(2) }} €</td>
+                                            <td class="text-end">{{ (report.liabilities.total / report.assets.total * 100)|round(1) }}%</td>
+                                        </tr>
+                                        <tr class="table-primary fw-bold">
+                                            <td>Patrimonio Neto</td>
+                                            <td class="text-end">{{ report.metrics.net_worth|round(2) }} €</td>
+                                            <td class="text-end">{{ ((report.metrics.net_worth / report.assets.total) * 100)|round(1) }}%</td>
+                                        </tr>
+                                        {% endif %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sección Flujo de Caja Mensual -->
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Flujo de Caja Mensual</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-5">
+                            <div class="chart-container" style="position: relative; height:220px;">
+                                <canvas id="cashFlowChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="col-md-7">
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th colspan="2">Ingresos Mensuales</th>
+                                            <th class="text-end">Importe</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% if report.income.salary %}
+                                        <tr>
+                                            <td colspan="2">Salario (mensual)</td>
+                                            <td class="text-end">{{ report.income.salary.monthly|round(2) }} €</td>
+                                        </tr>
+                                        {% endif %}
+                                        
+                                        {% if report.income.variable %}
+                                        <tr>
+                                            <td colspan="2">Ingresos variables (promedio)</td>
+                                            <td class="text-end">{{ report.income.variable.monthly_avg|round(2) }} €</td>
+                                        </tr>
+                                        {% endif %}
+                                        
+                                        <tr class="table-success fw-bold">
+                                            <td colspan="2">Total Ingresos</td>
+                                            <td class="text-end">{{ report.income.total_monthly|round(2) }} €</td>
+                                        </tr>
+                                        
+                                        <tr>
+                                            <td colspan="3" class="table-light"><strong>Gastos Mensuales</strong></td>
+                                        </tr>
+                                        
+                                        <tr>
+                                            <td colspan="2">Gastos fijos</td>
+                                            <td class="text-end">{{ report.expenses.fixed_monthly|round(2) }} €</td>
+                                        </tr>
+                                        
+                                        <tr>
+                                            <td colspan="2">Gastos variables (promedio)</td>
+                                            <td class="text-end">{{ report.expenses.variable_monthly_avg|round(2) }} €</td>
+                                        </tr>
+                                        
+                                        {% if report.liabilities and report.liabilities.monthly_payment > 0 %}
+                                        <tr>
+                                            <td colspan="2">Pago de deudas</td>
+                                            <td class="text-end">{{ report.liabilities.monthly_payment|round(2) }} €</td>
+                                        </tr>
+                                        {% endif %}
+                                        
+                                        <tr class="table-danger fw-bold">
+                                            <td colspan="2">Total Gastos</td>
+                                            <td class="text-end">{{ report.expenses.total_monthly|round(2) }} €</td>
+                                        </tr>
+                                        
+                                        <tr class="fw-bold {% if report.metrics.monthly_savings > 0 %}table-success{% else %}table-danger{% endif %}">
+                                            <td colspan="2">Balance Mensual</td>
+                                            <td class="text-end">{{ report.metrics.monthly_savings|round(2) }} €</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Categorías de Gasto -->
+            {% if report.expenses.by_category %}
+            <div class="card mb-4">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0">Análisis de Gastos por Categoría</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="chart-container" style="position: relative; height:250px;">
+                                <canvas id="expensesChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Categoría</th>
+                                            <th class="text-end">Total (6m)</th>
+                                            <th class="text-end">% Gastos</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for category, amount in report.expenses.by_category.items() %}
+                                        <tr>
+                                            <td>{{ category }}</td>
+                                            <td class="text-end">{{ amount|round(2) }} €</td>
+                                            <td class="text-end">{{ (amount / report.expenses.total_6m * 100)|round(1) }}%</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Detalles de Deudas -->
+            {% if report.liabilities and report.liabilities.details %}
+            <div class="card mb-4">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0">Detalle de Deudas</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Descripción</th>
+                                    <th class="text-end">Pendiente</th>
+                                    <th class="text-end">Cuota Mensual</th>
+                                    <th class="text-end">Progreso</th>
+                                    <th class="text-end">Meses Restantes</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for debt in report.liabilities.details %}
+                                <tr>
+                                    <td>{{ debt.description }}</td>
+                                    <td class="text-end">{{ debt.remaining|round(2) }} €</td>
+                                    <td class="text-end">{{ debt.monthly_payment|round(2) }} €</td>
+                                    <td class="text-end">
+                                        <div class="progress" style="height: 8px;">
+                                            <div class="progress-bar bg-success" role="progressbar" 
+                                                 style="width: {{ debt.progress_pct|round(0) }}%;" 
+                                                 aria-valuenow="{{ debt.progress_pct|round(0) }}" 
+                                                 aria-valuemin="0" aria-valuemax="100"></div>
+                                        </div>
+                                        {{ debt.progress_pct|round(0) }}%
+                                    </td>
+                                    <td class="text-end">{{ debt.remaining_months }}</td>
+                                </tr>
+                                {% endfor %}
+                                <tr class="fw-bold">
+                                    <td>Total</td>
+                                    <td class="text-end">{{ report.liabilities.total|round(2) }} €</td>
+                                    <td class="text-end">{{ report.liabilities.monthly_payment|round(2) }} €</td>
+                                    <td colspan="2"></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Columna derecha: Recomendaciones y oportunidades de mejora -->
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0">Recomendaciones Personalizadas</h5>
+                </div>
+                <div class="card-body recommendations-container">
+                    {% if report.recommendations %}
+                        {% for recommendation in report.recommendations %}
+                            <div class="card mb-3 recommendation-{{ recommendation.severity }}">
+                                <div class="card-header 
+                                {% if recommendation.severity == 'high' %}
+                                    bg-danger text-white
+                                {% elif recommendation.severity == 'medium' %}
+                                    bg-warning text-dark
+                                {% else %}
+                                    bg-success text-white
+                                {% endif %}">
+                                    <h6 class="mb-0">
+                                        {% if recommendation.severity == 'high' %}
+                                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                        {% elif recommendation.severity == 'medium' %}
+                                            <i class="bi bi-exclamation-circle me-2"></i>
+                                        {% else %}
+                                            <i class="bi bi-check-circle me-2"></i>
+                                        {% endif %}
+                                        {{ recommendation.title }}
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <p>{{ recommendation.description }}</p>
+                                    {% if recommendation.actions %}
+                                        <strong>Acciones recomendadas:</strong>
+                                        <ul class="mb-0">
+                                            {% for action in recommendation.actions %}
+                                                <li>{{ action }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="alert alert-info">
+                            No hay recomendaciones específicas en este momento.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            {% if report.income.variable and report.income.variable.by_category %}
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Ingresos Variables</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container" style="position: relative; height:200px;">
+                        <canvas id="variableIncomeChart"></canvas>
+                    </div>
+                    <div class="table-responsive mt-3">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Categoría</th>
+                                    <th class="text-end">Importe (3m)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for category, amount in report.income.variable.by_category.items() %}
+                                <tr>
+                                    <td>{{ category }}</td>
+                                    <td class="text-end">{{ amount|round(2) }} €</td>
+                                </tr>
+                                {% endfor %}
+                                <tr class="fw-bold">
+                                    <td>Total</td>
+                                    <td class="text-end">{{ report.income.variable.total_3m|round(2) }} €</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            {% if report.income.salary_trend and report.income.salary_trend.history %}
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">Evolución Salarial</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container" style="position: relative; height:200px;">
+                        <canvas id="salaryTrendChart"></canvas>
+                    </div>
+                    <div class="text-center mt-2">
+                        <p>Crecimiento anual promedio: 
+                            <span class="{% if report.income.salary_trend.avg_growth >= 3 %}text-success{% elif report.income.salary_trend.avg_growth > 0 %}text-warning{% else %}text-danger{% endif %}">
+                                {{ report.income.salary_trend.avg_growth|round(1) }}%
+                            </span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Opciones del Informe</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('export_financial_summary', format='csv') }}" class="btn btn-outline-primary">
+                            <i class="bi bi-file-earmark-text"></i> Exportar a CSV
+                        </a>
+                        <a href="{{ url_for('export_financial_summary', format='xlsx') }}" class="btn btn-outline-success">
+                            <i class="bi bi-file-earmark-excel"></i> Exportar a Excel
+                        </a>
+                        <a href="#" class="btn btn-outline-secondary" onclick="window.print(); return false;">
+                            <i class="bi bi-printer"></i> Imprimir Informe
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Scripts para los gráficos -->
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    // Gráfico de activos (pie chart)
+    const assetsCtx = document.getElementById('assetsChart').getContext('2d');
+    
+    // Preparar datos para el gráfico de activos
+    const assetsData = [];
+    const assetsLabels = [];
+    const assetsColors = ['#17a2b8', '#28a745', '#ffc107', '#dc3545', '#6c757d', '#6610f2'];
+    
+    {% for category, amount in report.assets.composition.items() %}
+    assetsData.push({{ amount }});
+    assetsLabels.push('{{ category }}');
+    {% endfor %}
+    
+    new Chart(assetsCtx, {
+        type: 'doughnut',
+        data: {
+            labels: assetsLabels,
+            datasets: [{
+                data: assetsData,
+                backgroundColor: assetsColors.slice(0, assetsData.length),
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'right',
+                    labels: {
+                        boxWidth: 12,
+                        font: {
+                            size: 11
+                        }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const value = context.raw;
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = Math.round((value / total) * 100);
+                            return `${context.label}: ${value.toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})} € (${percentage}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+    
+    // Gráfico de Flujo de Caja
+    const cashFlowCtx = document.getElementById('cashFlowChart').getContext('2d');
+    
+    new Chart(cashFlowCtx, {
+        type: 'bar',
+        data: {
+            labels: ['Ingresos', 'Gastos', 'Balance'],
+            datasets: [{
+                label: 'Flujo de Caja Mensual',
+                data: [
+                    {{ report.income.total_monthly }},
+                    {{ report.expenses.total_monthly }},
+                    {{ report.metrics.monthly_savings }}
+                ],
+                backgroundColor: [
+                    'rgba(40, 167, 69, 0.7)',
+                    'rgba(220, 53, 69, 0.7)',
+                    {% if report.metrics.monthly_savings >= 0 %}
+                    'rgba(40, 167, 69, 0.7)'
+                    {% else %}
+                    'rgba(220, 53, 69, 0.7)'
+                    {% endif %}
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return value.toLocaleString('es-ES') + ' €';
+                        }
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+    
+    // Gráfico de gastos por categoría
+    {% if report.expenses.by_category %}
+    const expensesCtx = document.getElementById('expensesChart').getContext('2d');
+    
+    const expensesCategories = [];
+    const expensesAmounts = [];
+    const expensesColors = [
+        'rgba(220, 53, 69, 0.7)',
+        'rgba(253, 126, 20, 0.7)',
+        'rgba(255, 193, 7, 0.7)',
+        'rgba(40, 167, 69, 0.7)',
+        'rgba(23, 162, 184, 0.7)',
+        'rgba(102, 16, 242, 0.7)',
+        'rgba(108, 117, 125, 0.7)'
+    ];
+    
+    {% for category, amount in report.expenses.by_category.items() %}
+    expensesCategories.push('{{ category }}');
+    expensesAmounts.push({{ amount }});
+    {% endfor %}
+    
+    // Limitar a las 7 categorías principales para el gráfico
+    if (expensesCategories.length > 7) {
+        const topCategories = expensesCategories.slice(0, 6);
+        const topAmounts = expensesAmounts.slice(0, 6);
+        
+        // Sumar el resto en "Otros"
+        const otherAmount = expensesAmounts.slice(6).reduce((a, b) => a + b, 0);
+        
+        expensesCategories = [...topCategories, 'Otros'];
+        expensesAmounts = [...topAmounts, otherAmount];
+    }
+    
+    new Chart(expensesCtx, {
+        type: 'pie',
+        data: {
+            labels: expensesCategories,
+            datasets: [{
+                data: expensesAmounts,
+                backgroundColor: expensesColors.slice(0, expensesCategories.length),
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'right',
+                    labels: {
+                        boxWidth: 12,
+                        font: {
+                            size: 11
+                        }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const value = context.raw;
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = Math.round((value / total) * 100);
+                            return `${context.label}: ${value.toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})} € (${percentage}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+    {% endif %}
+    
+    // Gráfico de ingresos variables por categoría
+    {% if report.income.variable and report.income.variable.by_category %}
+    const variableIncomeCtx = document.getElementById('variableIncomeChart').getContext('2d');
+    
+    const incomeCategories = [];
+    const incomeAmounts = [];
+    const incomeColors = [
+        'rgba(40, 167, 69, 0.7)',
+        'rgba(23, 162, 184, 0.7)',
+        'rgba(255, 193, 7, 0.7)',
+        'rgba(253, 126, 20, 0.7)',
+        'rgba(102, 16, 242, 0.7)'
+    ];
+    
+    {% for category, amount in report.income.variable.by_category.items() %}
+    incomeCategories.push('{{ category }}');
+    incomeAmounts.push({{ amount }});
+    {% endfor %}
+    
+    new Chart(variableIncomeCtx, {
+        type: 'pie',
+        data: {
+            labels: incomeCategories,
+            datasets: [{
+                data: incomeAmounts,
+                backgroundColor: incomeColors.slice(0, incomeCategories.length),
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'right',
+                    labels: {
+                        boxWidth: 12,
+                        font: {
+                            size: 11
+                        }
+                    }
+                }
+            }
+        }
+    });
+    {% endif %}
+    
+    // Gráfico de evolución salarial
+    {% if report.income.salary_trend and report.income.salary_trend.history %}
+    const salaryTrendCtx = document.getElementById('salaryTrendChart').getContext('2d');
+    
+    const years = [];
+    const salaries = [];
+    
+    {% for year, salary in report.income.salary_trend.history %}
+    years.push('{{ year }}');
+    salaries.push({{ salary }});
+    {% endfor %}
+    
+    new Chart(salaryTrendCtx, {
+        type: 'line',
+        data: {
+            labels: years,
+            datasets: [{
+                label: 'Salario Anual',
+                data: salaries,
+                borderColor: '#17a2b8',
+                backgroundColor: 'rgba(23, 162, 184, 0.1)',
+                fill: true,
+                tension: 0.1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: false,
+                    ticks: {
+                        callback: function(value) {
+                            return value.toLocaleString('es-ES') + ' €';
+                        }
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+    {% endif %}
+});
+</script>
+{% endblock content %}

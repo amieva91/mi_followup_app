@@ -1140,11 +1140,841 @@ def create_default_expense_categories(user_id):
         return False
 
 
+
+@app.route('/financial_summary', methods=['GET', 'POST'])
+@login_required
+def financial_summary():
+    """Muestra un resumen financiero global con datos de todas las secciones."""
+    # Obtener o crear configuración
+    config = FinancialSummaryConfig.query.filter_by(user_id=current_user.id).first()
+    if not config:
+        config = FinancialSummaryConfig(user_id=current_user.id)
+        db.session.add(config)
+        db.session.commit()
+
+    # Crear formulario de configuración
+    config_form = FinancialSummaryConfigForm()
+
+    # Precargar datos si es GET
+    if request.method == 'GET':
+        config_form.include_income.data = config.include_income
+        config_form.include_expenses.data = config.include_expenses
+        config_form.include_debts.data = config.include_debts
+        config_form.include_investments.data = config.include_investments
+        config_form.include_crypto.data = config.include_crypto
+        config_form.include_metals.data = config.include_metals
+        config_form.include_bank_accounts.data = config.include_bank_accounts
+        config_form.include_pension_plans.data = config.include_pension_plans
+
+    # Procesar formulario
+    if config_form.validate_on_submit():
+        try:
+            config.include_income = config_form.include_income.data
+            config.include_expenses = config_form.include_expenses.data
+            config.include_debts = config_form.include_debts.data
+            config.include_investments = config_form.include_investments.data
+            config.include_crypto = config_form.include_crypto.data
+            config.include_metals = config_form.include_metals.data
+            config.include_bank_accounts = config_form.include_bank_accounts.data
+            config.include_pension_plans = config_form.include_pension_plans.data
+
+            db.session.commit()
+            flash('Configuración del resumen guardada correctamente.', 'success')
+            return redirect(url_for('financial_summary'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error al guardar configuración: {e}', 'danger')
+
+    # Inicializar datos del resumen
+    summary_data = {
+        'income': {'available': False, 'data': {}},
+        'variable_income': {'available': False, 'data': {}},  # Nueva sección para ingresos variables
+        'expenses': {'available': False, 'data': {}},
+        'debts': {'available': False, 'data': {}},
+        'investments': {'available': False, 'data': {}},
+        'crypto': {'available': False, 'data': {}},
+        'metals': {'available': False, 'data': {}},
+        'bank_accounts': {'available': False, 'data': {}},
+        'pension_plans': {'available': False, 'data': {}},
+        'net_worth': {'available': False, 'data': {}},
+        'kpis': {'available': False, 'data': {}}  # Nueva sección para KPIs financieros
+    }
+
+    # Recopilar datos según la configuración
+    try:
+        # 1. Ingresos Fijos
+        if config.include_income:
+            income_data = FixedIncome.query.filter_by(user_id=current_user.id).first()
+            if income_data:
+                summary_data['income']['available'] = True
+                summary_data['income']['data'] = {
+                    'annual_net_salary': income_data.annual_net_salary,
+                    'monthly_salary_12': income_data.annual_net_salary / 12 if income_data.annual_net_salary else 0,
+                    'monthly_salary_14': income_data.annual_net_salary / 14 if income_data.annual_net_salary else 0,
+                    'last_updated': income_data.last_updated
+                }
+
+                # Historial de salarios
+                salary_history = SalaryHistory.query.filter_by(user_id=current_user.id).order_by(SalaryHistory.year.desc()).all()
+                if salary_history:
+                    summary_data['income']['data']['history'] = []
+                    prev_salary = None
+
+                    for entry in salary_history:
+                        variation = None
+                        if prev_salary and prev_salary > 0:
+                            variation = ((entry.annual_net_salary - prev_salary) / prev_salary) * 100
+
+                        summary_data['income']['data']['history'].append({
+                            'year': entry.year,
+                            'salary': entry.annual_net_salary,
+                            'variation': variation
+                        })
+
+                        prev_salary = entry.annual_net_salary
+        
+        # 1.1 Ingresos Variables (NUEVO)
+        if config.include_income:
+            # Obtener ingresos variables para el período actual (últimos 3 meses)
+            three_months_ago = date.today() - timedelta(days=90)
+            
+            # Ingresos variables puntuales
+            punctual_incomes = VariableIncome.query.filter_by(
+                user_id=current_user.id,
+                income_type='punctual'
+            ).filter(VariableIncome.date >= three_months_ago).all()
+            
+            # Ingresos fijos recurrentes (expandidos para incluir todos los pagos en el período)
+            fixed_incomes = VariableIncome.query.filter_by(
+                user_id=current_user.id,
+                income_type='fixed',
+                is_recurring=True
+            ).all()
+            
+            # Procesar ingresos recurrentes para el período
+            recurring_income_entries = []
+            for income in fixed_incomes:
+                # Determinar fecha de inicio y fin para el período a considerar
+                start_date = max(income.start_date or income.date, three_months_ago)
+                end_date = income.end_date or date.today()
+                
+                if end_date < three_months_ago:
+                    continue  # Omitir ingresos que terminaron antes del período
+                
+                # Ajustar fin al período actual
+                end_date = min(end_date, date.today())
+                
+                # Generar entradas para cada mes según recurrencia
+                current_date = start_date
+                recurrence = income.recurrence_months or 1
+                
+                while current_date <= end_date:
+                    recurring_income_entries.append({
+                        'date': current_date,
+                        'amount': income.amount,
+                        'description': income.description
+                    })
+                    
+                    # Avanzar al siguiente período
+                    month = current_date.month + recurrence
+                    year = current_date.year + (month - 1) // 12
+                    month = ((month - 1) % 12) + 1
+                    current_date = date(year, month, 1)
+            
+            # Calcular totales
+            total_punctual = sum(income.amount for income in punctual_incomes)
+            total_recurring = sum(entry['amount'] for entry in recurring_income_entries)
+            total_variable_income = total_punctual + total_recurring
+            
+            # Agregar a summary_data
+            if punctual_incomes or recurring_income_entries:
+                summary_data['variable_income']['available'] = True
+                summary_data['variable_income']['data'] = {
+                    'total_punctual': total_punctual,
+                    'total_recurring': total_recurring,
+                    'total': total_variable_income,
+                    'monthly_avg': total_variable_income / 3  # Promedio mensual (3 meses)
+                }
+
+        # 2. Gastos
+        if config.include_expenses:
+            # Obtener gastos
+            expenses = Expense.query.filter_by(user_id=current_user.id).all()
+
+            if expenses:
+                summary_data['expenses']['available'] = True
+
+                # Gastos fijos mensuales
+                fixed_expenses = [e for e in expenses if e.expense_type == 'fixed' and e.is_recurring]
+                fixed_sum = sum(e.amount for e in fixed_expenses)
+
+                # Gastos puntuales último mes
+                one_month_ago = date.today() - timedelta(days=30)
+                punctual_expenses = [e for e in expenses if e.expense_type == 'punctual' and e.date >= one_month_ago]
+                punctual_sum = sum(e.amount for e in punctual_expenses)
+                
+                # Gastos totales últimos 3 meses (para cálculos comparativos)
+                three_months_ago = date.today() - timedelta(days=90)
+                expenses_last_3_months = []
+                
+                # 1. Añadir gastos puntuales de los últimos 3 meses
+                punctual_3m = [e for e in expenses if e.expense_type == 'punctual' and e.date >= three_months_ago]
+                expenses_last_3_months.extend([{'date': e.date, 'amount': e.amount} for e in punctual_3m])
+                
+                # 2. Añadir gastos recurrentes expandidos
+                for expense in fixed_expenses:
+                    start_date = max(expense.start_date or expense.date, three_months_ago)
+                    end_date = expense.end_date or date.today()
+                    
+                    if end_date < three_months_ago:
+                        continue  # Omitir gastos que terminaron antes del período
+                    
+                    # Ajustar fin al período actual
+                    end_date = min(end_date, date.today())
+                    
+                    # Generar entradas para cada mes según recurrencia
+                    current_date = start_date
+                    recurrence = expense.recurrence_months or 1
+                    
+                    while current_date <= end_date:
+                        expenses_last_3_months.append({
+                            'date': current_date,
+                            'amount': expense.amount
+                        })
+                        
+                        # Avanzar al siguiente período
+                        month = current_date.month + recurrence
+                        year = current_date.year + (month - 1) // 12
+                        month = ((month - 1) % 12) + 1
+                        current_date = date(year, month, 1)
+                
+                total_expenses_3m = sum(entry['amount'] for entry in expenses_last_3_months)
+                monthly_avg_expenses = total_expenses_3m / 3  # Promedio mensual
+
+                # Análisis por categoría
+                expenses_by_category = {}
+                six_months_ago = date.today() - timedelta(days=180)
+                recent_expenses = [e for e in expenses if e.date >= six_months_ago]
+
+                for expense in recent_expenses:
+                    category_name = "Sin categoría"
+                    if expense.category_id:
+                        category = ExpenseCategory.query.get(expense.category_id)
+                        if category:
+                            category_name = category.name
+
+                    if category_name not in expenses_by_category:
+                        expenses_by_category[category_name] = 0
+
+                    expenses_by_category[category_name] += expense.amount
+
+                # Ordenar categorías por gasto
+                sorted_categories = sorted(
+                    expenses_by_category.items(),
+                    key=lambda x: x[1],
+                    reverse=True
+                )
+
+                summary_data['expenses']['data'] = {
+                    'fixed_monthly': fixed_sum,
+                    'punctual_last_month': punctual_sum,
+                    'monthly_avg_expenses': monthly_avg_expenses,
+                    'by_category': sorted_categories
+                }
+
+        # 3. Deudas
+        if config.include_debts:
+            debt_plans = DebtInstallmentPlan.query.filter_by(user_id=current_user.id, is_active=True).all()
+
+            if debt_plans:
+                summary_data['debts']['available'] = True
+
+                # Total deuda pendiente
+                total_debt = sum(plan.remaining_amount for plan in debt_plans)
+
+                # Pago mensual actual
+                today = date.today()
+                current_month = date(today.year, today.month, 1)
+                current_payment = sum(
+                    plan.monthly_payment for plan in debt_plans
+                    if plan.start_date <= current_month and
+                    (plan.end_date is None or plan.end_date > current_month)
+                )
+
+                # Deudas individuales
+                debt_list = []
+                for plan in debt_plans:
+                    debt_list.append({
+                        'description': plan.description,
+                        'total_amount': plan.total_amount,
+                        'remaining': plan.remaining_amount,
+                        'monthly_payment': plan.monthly_payment,
+                        'progress_pct': plan.progress_percentage,
+                        'remaining_months': plan.remaining_installments
+                    })
+
+                summary_data['debts']['data'] = {
+                    'total_debt': total_debt,
+                    'monthly_payment': current_payment,
+                    'debt_list': debt_list
+                }
+
+        # 4. Cuentas Bancarias
+        if config.include_bank_accounts:
+            bank_accounts = BankAccount.query.filter_by(user_id=current_user.id).all()
+
+            if bank_accounts:
+                summary_data['bank_accounts']['available'] = True
+
+                # Total en cuentas
+                total_cash = sum(account.current_balance for account in bank_accounts)
+
+                # Lista de cuentas
+                account_list = []
+                for account in bank_accounts:
+                    account_list.append({
+                        'bank_name': account.bank_name,
+                        'account_name': account.account_name,
+                        'balance': account.current_balance,
+                        'last_updated': account.last_updated
+                    })
+
+                # Historial de efectivo
+                cash_history = CashHistoryRecord.query.filter_by(user_id=current_user.id).order_by(CashHistoryRecord.date.desc()).all()
+                history_data = []
+                
+                # Listas para el gráfico
+                dates_list = []
+                values_list = []
+
+                if cash_history:
+                    prev_amount = None
+                    for record in cash_history:
+                        variation = None
+                        if prev_amount and prev_amount > 0:
+                            variation = ((record.total_cash - prev_amount) / prev_amount) * 100
+
+                        # Añadir a la lista de historial
+                        history_data.append({
+                            'date': record.date,
+                            'amount': record.total_cash,
+                            'variation': variation
+                        })
+                        
+                        # Añadir a las listas para el gráfico
+                        dates_list.append(record.date.strftime('%Y-%m-%d'))
+                        values_list.append(record.total_cash)
+
+                        prev_amount = record.total_cash
+
+                summary_data['bank_accounts']['data'] = {
+                    'total_cash': total_cash,
+                    'accounts': account_list,
+                    'history': history_data
+                }
+                
+                # Añadir datos para el gráfico si tenemos historial
+                if cash_history:
+                    if 'charts' not in summary_data:
+                        summary_data['charts'] = {'available': True, 'data': {}}
+                    
+                    summary_data['charts']['data']['cash_history'] = {
+                        'dates': dates_list,
+                        'values_list': values_list  # Usar values_list en lugar de values
+                    }
+
+        # 5. Planes de Pensiones
+        if config.include_pension_plans:
+            pension_plans = PensionPlan.query.filter_by(user_id=current_user.id).all()
+
+            if pension_plans:
+                summary_data['pension_plans']['available'] = True
+
+                # Total en planes
+                total_pension = sum(plan.current_balance for plan in pension_plans)
+
+                # Lista de planes
+                plan_list = []
+                for plan in pension_plans:
+                    plan_list.append({
+                        'entity_name': plan.entity_name,
+                        'plan_name': plan.plan_name,
+                        'balance': plan.current_balance,
+                        'last_updated': plan.last_updated
+                    })
+
+                # Historial de pensiones
+                pension_history = PensionPlanHistory.query.filter_by(user_id=current_user.id).order_by(PensionPlanHistory.date.desc()).all()
+                history_data = []
+
+                if pension_history:
+                    prev_amount = None
+                    for record in pension_history:
+                        variation = None
+                        if prev_amount and prev_amount > 0:
+                            variation = ((record.total_amount - prev_amount) / prev_amount) * 100
+
+                        history_data.append({
+                            'date': record.date,
+                            'amount': record.total_amount,
+                            'variation': variation
+                        })
+
+                        prev_amount = record.total_amount
+
+                summary_data['pension_plans']['data'] = {
+                    'total_pension': total_pension,
+                    'plans': plan_list,
+                    'history': history_data
+                }
+        
+        # 6. Inversiones (Portfolio)
+        if config.include_investments:
+            # Intentar obtener datos del portfolio desde la base de datos
+            portfolio_record = UserPortfolio.query.filter_by(user_id=current_user.id).first()
+            
+            if portfolio_record and portfolio_record.portfolio_data:
+                summary_data['investments']['available'] = True
+                
+                # Convertir JSON a dict
+                portfolio_data = json.loads(portfolio_record.portfolio_data)
+                
+                # Calcular valor total del portfolio
+                total_market_value = 0
+                total_cost_basis = 0
+                
+                for item in portfolio_data:
+                    if 'market_value_eur' in item and item['market_value_eur'] is not None:
+                        total_market_value += float(item['market_value_eur'])
+                    
+                    if 'cost_basis_eur_est' in item and item['cost_basis_eur_est'] is not None:
+                        total_cost_basis += float(item['cost_basis_eur_est'])
+                
+                # Calcular ganancia/pérdida
+                total_pl = total_market_value - total_cost_basis
+                
+                summary_data['investments']['data'] = {
+                    'total_market_value': total_market_value,
+                    'total_cost_basis': total_cost_basis,
+                    'total_pl': total_pl,
+                    'last_updated': portfolio_record.last_updated,
+                    'top_positions': []
+                }
+                
+                # Añadir top posiciones (las 5 mayores)
+                sorted_items = sorted(
+                    [item for item in portfolio_data if 'market_value_eur' in item and item['market_value_eur'] is not None], 
+                    key=lambda x: float(x['market_value_eur']), 
+                    reverse=True
+                )
+                
+                for i, item in enumerate(sorted_items[:5]):
+                    position = {
+                        'name': item.get('item_name') or item.get('Producto', 'Desconocido'),
+                        'ticker': item.get('ticker', ''),
+                        'market_value': item.get('market_value_eur', 0),
+                        'pl': item.get('pl_eur_est', 0)
+                    }
+                    summary_data['investments']['data']['top_positions'].append(position)
+        
+        # 7. Criptomonedas
+        if config.include_crypto:
+            # Obtener exchanges y transacciones
+            crypto_exchanges = CryptoExchange.query.filter_by(user_id=current_user.id).all()
+            crypto_transactions = CryptoTransaction.query.filter_by(user_id=current_user.id).all()
+            
+            if crypto_transactions:
+                summary_data['crypto']['available'] = True
+                
+                # Calcular valor total actual
+                total_investment = 0
+                total_value = 0
+                crypto_holdings = {}
+                
+                for transaction in crypto_transactions:
+                    crypto_key = transaction.ticker_symbol
+                    
+                    if crypto_key not in crypto_holdings:
+                        crypto_holdings[crypto_key] = {
+                            'name': transaction.crypto_name,
+                            'ticker': transaction.ticker_symbol,
+                            'quantity': 0,
+                            'investment': 0,
+                            'current_price': transaction.current_price,
+                            'current_value': 0
+                        }
+                    
+                    # Actualizar cantidades
+                    if transaction.transaction_type == 'buy':
+                        crypto_holdings[crypto_key]['quantity'] += transaction.quantity
+                        crypto_holdings[crypto_key]['investment'] += (transaction.quantity * transaction.price_per_unit)
+                    else:  # 'sell'
+                        crypto_holdings[crypto_key]['quantity'] -= transaction.quantity
+                        crypto_holdings[crypto_key]['investment'] -= (transaction.quantity * transaction.price_per_unit)
+                    
+                    # Usar precio más actualizado
+                    if transaction.current_price is not None and (
+                        crypto_holdings[crypto_key]['current_price'] is None or 
+                        (transaction.price_updated_at and 
+                         (crypto_holdings[crypto_key].get('price_updated_at') is None or 
+                          transaction.price_updated_at > crypto_holdings[crypto_key]['price_updated_at'])
+                        )
+                    ):
+                        crypto_holdings[crypto_key]['current_price'] = transaction.current_price
+                        crypto_holdings[crypto_key]['price_updated_at'] = transaction.price_updated_at
+                
+                # Calcular valores actuales y filtrar solo posiciones con cantidad > 0
+                active_holdings = []
+                for key, crypto in crypto_holdings.items():
+                    if crypto['quantity'] > 0 and crypto['current_price'] is not None:
+                        current_value = crypto['quantity'] * crypto['current_price']
+                        crypto['current_value'] = current_value
+                        
+                        total_investment += crypto['investment']
+                        total_value += current_value
+                        
+                        active_holdings.append(crypto)
+                
+                # Ordenar por valor actual
+                active_holdings.sort(key=lambda x: x['current_value'], reverse=True)
+                
+                # Calcular ganancia/pérdida
+                total_pl = total_value - total_investment
+                
+                summary_data['crypto']['data'] = {
+                    'total_investment': total_investment,
+                    'total_value': total_value,
+                    'total_pl': total_pl,
+                    'top_holdings': active_holdings[:5]  # Top 5 posiciones
+                }
+        
+        # 8. Metales Preciosos
+        if config.include_metals:
+            metal_transactions = PreciousMetalTransaction.query.filter_by(user_id=current_user.id).all()
+            
+            if metal_transactions:
+                summary_data['metals']['available'] = True
+                
+                # Obtener precios actuales
+                gold_price = None
+                silver_price = None
+                
+                gold_record = PreciousMetalPrice.query.filter_by(metal_type='gold').first()
+                if gold_record:
+                    gold_price = gold_record.price_eur_per_oz
+                
+                silver_record = PreciousMetalPrice.query.filter_by(metal_type='silver').first()
+                if silver_record:
+                    silver_price = silver_record.price_eur_per_oz
+                
+                # Calcular resumen por tipo de metal
+                gold_summary = {
+                    'total_g': 0,
+                    'total_oz': 0,
+                    'total_investment': 0,
+                    'total_taxes_fees': 0,
+                    'current_value': 0,
+                    'profit_loss': 0
+                }
+                
+                silver_summary = {
+                    'total_g': 0,
+                    'total_oz': 0,
+                    'total_investment': 0,
+                    'total_taxes_fees': 0,
+                    'current_value': 0,
+                    'profit_loss': 0
+                }
+                
+                # Factor de conversión gramos a onzas troy
+                g_to_oz = 0.0321507466
+                
+                for t in metal_transactions:
+                    # Determinar el resumen a actualizar
+                    summary = gold_summary if t.metal_type == 'gold' else silver_summary
+                    
+                    # Conversión a onzas troy si es necesario
+                    quantity_oz = t.quantity if t.unit_type == 'oz' else t.quantity * g_to_oz
+                    
+                    # Actualizar totales en función del tipo de transacción
+                    if t.transaction_type == 'buy':
+                        summary['total_investment'] += (t.price_per_unit * quantity_oz)
+                        if t.taxes_fees:
+                            summary['total_taxes_fees'] += t.taxes_fees
+                            
+                        # Actualizar cantidad total
+                        if t.unit_type == 'g':
+                            summary['total_g'] += t.quantity
+                        else:
+                            summary['total_oz'] += t.quantity
+                            summary['total_g'] += t.quantity / g_to_oz
+                            
+                    elif t.transaction_type == 'sell':
+                        summary['total_investment'] -= (t.price_per_unit * quantity_oz)
+                        if t.taxes_fees:
+                            summary['total_taxes_fees'] += t.taxes_fees
+                            
+                        # Actualizar cantidad total
+                        if t.unit_type == 'g':
+                            summary['total_g'] -= t.quantity
+                        else:
+                            summary['total_oz'] -= t.quantity
+                            summary['total_g'] -= t.quantity / g_to_oz
+                
+                # Calcular valores actuales y rentabilidad
+                if gold_price:
+                    gold_summary['total_oz'] = gold_summary['total_g'] * g_to_oz
+                    gold_summary['current_value'] = gold_summary['total_oz'] * gold_price
+                    gold_summary['profit_loss'] = gold_summary['current_value'] - gold_summary['total_investment'] - gold_summary['total_taxes_fees']
+                    
+                if silver_price:
+                    silver_summary['total_oz'] = silver_summary['total_g'] * g_to_oz
+                    silver_summary['current_value'] = silver_summary['total_oz'] * silver_price
+                    silver_summary['profit_loss'] = silver_summary['current_value'] - silver_summary['total_investment'] - silver_summary['total_taxes_fees']
+                
+                # Calcular totales
+                total_investment = gold_summary['total_investment'] + silver_summary['total_investment']
+                total_value = gold_summary['current_value'] + silver_summary['current_value']
+                total_pl = total_value - total_investment
+                
+                summary_data['metals']['data'] = {
+                    'gold': gold_summary,
+                    'silver': silver_summary,
+                    'total_investment': total_investment,
+                    'total_value': total_value,
+                    'total_pl': total_pl
+                }
+        
+        # 9. Cálculo del Patrimonio Neto
+        assets = 0
+        liabilities = 0
+        
+        # Activos
+        if summary_data['bank_accounts']['available']:
+            assets += summary_data['bank_accounts']['data']['total_cash']
+        
+        if summary_data['investments']['available']:
+            assets += summary_data['investments']['data']['total_market_value']
+        
+        if summary_data['crypto']['available']:
+            assets += summary_data['crypto']['data']['total_value']
+        
+        if summary_data['metals']['available']:
+            assets += summary_data['metals']['data']['total_value']
+        
+        if summary_data['pension_plans']['available']:
+            assets += summary_data['pension_plans']['data']['total_pension']
+        
+        # Pasivos
+        if summary_data['debts']['available']:
+            liabilities += summary_data['debts']['data']['total_debt']
+        
+        # Patrimonio Neto
+        net_worth = assets - liabilities
+        
+        summary_data['net_worth']['available'] = True
+        summary_data['net_worth']['data'] = {
+            'total_assets': assets,
+            'total_liabilities': liabilities,
+            'net_worth': net_worth
+        }
+        
+        # 10. Cálculo de KPIs financieros (NUEVO)
+        # Calcular KPIs solo si tenemos datos suficientes
+        total_monthly_income = 0
+        if summary_data['income']['available']:
+            total_monthly_income += summary_data['income']['data']['monthly_salary_12']
+        
+        if summary_data['variable_income']['available']:
+            total_monthly_income += summary_data['variable_income']['data']['monthly_avg']
+        
+        total_monthly_expenses = 0
+        if summary_data['expenses']['available']:
+            total_monthly_expenses += summary_data['expenses']['data']['monthly_avg_expenses']
+        
+        if summary_data['debts']['available']:
+            total_monthly_expenses += summary_data['debts']['data']['monthly_payment']
+        
+        # Calcular KPIs si tenemos ingresos y gastos
+        if total_monthly_income > 0:
+            summary_data['kpis']['available'] = True
+            
+            # Tasa de ahorro mensual
+            monthly_savings = total_monthly_income - total_monthly_expenses
+            savings_rate = (monthly_savings / total_monthly_income) * 100 if total_monthly_income > 0 else 0
+            
+            # Ratio deuda/ingresos
+            debt_to_income = 0
+            if summary_data['debts']['available'] and summary_data['debts']['data']['monthly_payment'] > 0:
+                debt_to_income = (summary_data['debts']['data']['monthly_payment'] / total_monthly_income) * 100
+            
+            # Ratio deuda/patrimonio
+            debt_to_assets = 0
+            if assets > 0 and summary_data['debts']['available']:
+                debt_to_assets = (summary_data['debts']['data']['total_debt'] / assets) * 100
+            
+            # Meses para independencia financiera (estimación)
+            months_to_fi = 0
+            if monthly_savings > 0:
+                # Suponiendo que la independencia financiera se logra con 25 veces los gastos anuales
+                annual_expenses = total_monthly_expenses * 12
+                fi_target = annual_expenses * 25
+                
+                # Estimación sencilla sin considerar rendimientos de inversiones
+                if net_worth < fi_target:
+                    months_to_fi = (fi_target - net_worth) / monthly_savings
+            
+            summary_data['kpis']['data'] = {
+                'monthly_income': total_monthly_income,
+                'monthly_expenses': total_monthly_expenses,
+                'monthly_savings': monthly_savings,
+                'savings_rate': savings_rate,
+                'debt_to_income': debt_to_income,
+                'debt_to_assets': debt_to_assets,
+                'months_to_fi': months_to_fi
+            }
+        
+        # 11. Calcular datos históricos para gráficos
+        # Obtener los registros históricos de patrimonio neto
+        if summary_data['bank_accounts']['available'] and 'history' in summary_data['bank_accounts']['data']:
+            cash_history = summary_data['bank_accounts']['data']['history']
+            
+            # Crear una estructura de fechas para el gráfico
+            chart_dates = [record['date'].strftime('%Y-%m-%d') for record in cash_history[:12]]
+            chart_values = [record['amount'] for record in cash_history[:12]]
+            
+            # Añadir datos de gráfico al summary_data
+            if 'charts' not in summary_data:
+                summary_data['charts'] = {'available': True, 'data': {}}
+            
+            # No es necesario esto si ya añadimos los datos del gráfico de cash_history antes
+            # summary_data['charts']['data']['cash_history'] = {
+            #    'dates': chart_dates,
+            #    'values_list': chart_values
+            # }
+        
+        # Calcular histórico de patrimonio neto si tenemos datos suficientes
+        if summary_data['net_worth']['available']:
+            # Intentar construir un gráfico de evolución del patrimonio
+            # basado en registros históricos disponibles
+            
+            # Primero obtener todos los registros históricos
+            all_history_records = []
+            
+            # Añadir histórico de efectivo
+            if summary_data['bank_accounts']['available'] and 'history' in summary_data['bank_accounts']['data']:
+                for record in summary_data['bank_accounts']['data']['history']:
+                    all_history_records.append({
+                        'date': record['date'],
+                        'type': 'cash',
+                        'amount': record['amount']
+                    })
+            
+            # Añadir histórico de planes de pensiones
+            if summary_data['pension_plans']['available'] and 'history' in summary_data['pension_plans']['data']:
+                for record in summary_data['pension_plans']['data']['history']:
+                    all_history_records.append({
+                        'date': record['date'],
+                        'type': 'pension',
+                        'amount': record['amount']
+                    })
+            
+            # Ordenar por fecha (más reciente primero)
+            all_history_records.sort(key=lambda x: x['date'], reverse=True)
+            
+            # Si tenemos registros históricos, crear datos para gráfico
+            if all_history_records:
+                # Agrupar por fecha para crear un chart de patrimonio neto
+                net_worth_by_date = {}
+                
+                for record in all_history_records:
+                    date_str = record['date'].strftime('%Y-%m')
+                    if date_str not in net_worth_by_date:
+                        net_worth_by_date[date_str] = {
+                            'cash': 0,
+                            'pension': 0,
+                            'date': record['date']
+                        }
+                    
+                    net_worth_by_date[date_str][record['type']] = record['amount']
+                
+                # Convertir a lista y calcular patrimonio neto para cada fecha
+                net_worth_chart = []
+                
+                for date_str, values in net_worth_by_date.items():
+                    net_worth_chart.append({
+                        'date': date_str,
+                        'net_worth': values['cash'] + values['pension'],
+                        'cash': values['cash'],
+                        'pension': values['pension']
+                    })
+                
+                # Ordenar por fecha (más antigua primero para el gráfico)
+                net_worth_chart.sort(key=lambda x: x['date'])
+                
+                # Limitar a los últimos 12 meses
+                net_worth_chart = net_worth_chart[-12:]
+                
+                # Añadir datos para el gráfico
+                if 'charts' not in summary_data:
+                    summary_data['charts'] = {'available': True, 'data': {}}
+                
+                # Crear listas para el gráfico
+                dates_list = [entry['date'] for entry in net_worth_chart]
+                values_list = [entry['net_worth'] for entry in net_worth_chart]
+                
+                summary_data['charts']['data']['net_worth_history'] = {
+                    'dates': dates_list,
+                    'values_list': values_list
+                }
+        
+        # 12. Calcular flujo de caja (cash flow)
+        if summary_data['income']['available'] or summary_data['variable_income']['available'] or summary_data['expenses']['available']:
+            total_income = 0
+            if summary_data['income']['available']:
+                total_income += summary_data['income']['data']['monthly_salary_12']
+            
+            if summary_data['variable_income']['available']:
+                total_income += summary_data['variable_income']['data']['monthly_avg']
+            
+            total_expenses = 0
+            if summary_data['expenses']['available']:
+                total_expenses += summary_data['expenses']['data']['monthly_avg_expenses']
+            
+            cash_flow = total_income - total_expenses
+            
+            # Añadir a los datos del resumen
+            if 'cash_flow' not in summary_data:
+                summary_data['cash_flow'] = {'available': True, 'data': {}}
+            
+            summary_data['cash_flow']['data'] = {
+                'total_income': total_income,
+                'total_expenses': total_expenses,
+                'net_cash_flow': cash_flow
+            }
+    
+    except Exception as e:
+        print(f"Error calculando resumen financiero: {e}")
+        flash(f"Se produjo un error al calcular algunos datos del resumen: {e}", "warning")
+        import traceback
+        traceback.print_exc()
+    
+    return render_template('financial_summary.html',
+                          config_form=config_form,
+                          summary=summary_data,
+                          config=config)
+
+
 @app.route('/export_financial_summary', methods=['GET'])
 @login_required
 def export_financial_summary():
-    """Exporta el resumen financiero a un archivo CSV."""
+    """Exporta el resumen financiero a un archivo CSV o XLSX."""
     try:
+        # Obtener el formato solicitado (por defecto CSV)
+        export_format = request.args.get('format', 'csv').lower()
+        if export_format not in ['csv', 'xlsx']:
+            export_format = 'csv'  # Formato por defecto si no es válido
+        
         # Obtener configuración
         config = FinancialSummaryConfig.query.filter_by(user_id=current_user.id).first()
         if not config:
@@ -1180,6 +2010,18 @@ def export_financial_summary():
                 total_market_value = sum(float(item.get('market_value_eur', 0)) for item in portfolio_data if 'market_value_eur' in item and item['market_value_eur'] is not None)
                 assets += total_market_value
                 export_data.append(["Inversiones", f"{total_market_value:.2f} €", ""])
+                
+                # Añadir detalle de las top inversiones
+                sorted_items = sorted(
+                    [item for item in portfolio_data if 'market_value_eur' in item and item['market_value_eur'] is not None], 
+                    key=lambda x: float(x['market_value_eur']), 
+                    reverse=True
+                )
+                
+                for i, item in enumerate(sorted_items[:5]):
+                    name = item.get('item_name') or item.get('Producto', 'Desconocido')
+                    value = item.get('market_value_eur', 0)
+                    export_data.append([f"  - {name}", f"{value:.2f} €", ""])
         
         if config.include_crypto:
             crypto_transactions = CryptoTransaction.query.filter_by(user_id=current_user.id).all()
@@ -1189,6 +2031,7 @@ def export_financial_summary():
                     crypto_key = transaction.ticker_symbol
                     if crypto_key not in crypto_holdings:
                         crypto_holdings[crypto_key] = {
+                            'name': transaction.crypto_name,
                             'quantity': 0,
                             'current_price': transaction.current_price
                         }
@@ -1205,6 +2048,20 @@ def export_financial_summary():
                                  if crypto['quantity'] > 0 and crypto['current_price'] is not None)
                 assets += crypto_value
                 export_data.append(["Criptomonedas", f"{crypto_value:.2f} €", ""])
+                
+                # Añadir detalle de criptomonedas
+                active_holdings = []
+                for key, crypto in crypto_holdings.items():
+                    if crypto['quantity'] > 0 and crypto['current_price'] is not None:
+                        current_value = crypto['quantity'] * crypto['current_price']
+                        crypto['current_value'] = current_value
+                        active_holdings.append(crypto)
+                
+                # Ordenar por valor
+                active_holdings.sort(key=lambda x: x['current_value'], reverse=True)
+                
+                for crypto in active_holdings[:5]:
+                    export_data.append([f"  - {crypto['name']}", f"{crypto['current_value']:.2f} €", f"{crypto['quantity']:.6f} {crypto.get('ticker', '')}"])
         
         if config.include_metals:
             gold_record = PreciousMetalPrice.query.filter_by(metal_type='gold').first()
@@ -1245,6 +2102,11 @@ def export_financial_summary():
             pension_total = sum(plan.current_balance for plan in pension_plans) if pension_plans else 0
             assets += pension_total
             export_data.append(["Planes de pensiones", f"{pension_total:.2f} €", ""])
+            
+            # Añadir detalle de planes de pensiones
+            if pension_plans:
+                for plan in pension_plans:
+                    export_data.append([f"  - {plan.entity_name} ({plan.plan_name})", f"{plan.current_balance:.2f} €", ""])
         
         export_data.append(["Total Activos", f"{assets:.2f} €", ""])
         export_data.append(["", "", ""])
@@ -1255,6 +2117,11 @@ def export_financial_summary():
             debt_total = sum(plan.remaining_amount for plan in debt_plans) if debt_plans else 0
             liabilities += debt_total
             export_data.append(["Total Deudas", f"{debt_total:.2f} €", ""])
+            
+            # Añadir detalle de deudas
+            if debt_plans:
+                for plan in debt_plans:
+                    export_data.append([f"  - {plan.description}", f"{plan.remaining_amount:.2f} €", f"{plan.progress_percentage:.1f}% completado"])
         
         export_data.append(["Total Pasivos", f"{liabilities:.2f} €", ""])
         export_data.append(["", "", ""])
@@ -1264,82 +2131,751 @@ def export_financial_summary():
         export_data.append(["PATRIMONIO NETO", f"{net_worth:.2f} €", ""])
         export_data.append(["", "", ""])
         
-        # 3. Detalles específicos
+        # 3. KPIs Financieros (NUEVO)
+        # Calcular KPIs
+        total_monthly_income = 0
+        income_data = FixedIncome.query.filter_by(user_id=current_user.id).first()
+        if income_data and income_data.annual_net_salary:
+            monthly_salary = income_data.annual_net_salary / 12
+            total_monthly_income += monthly_salary
         
-        # Ingresos
+        # Obtener ingresos variables promedio (últimos 3 meses)
+        three_months_ago = date.today() - timedelta(days=90)
+        variable_incomes = VariableIncome.query.filter_by(user_id=current_user.id).filter(VariableIncome.date >= three_months_ago).all()
+        variable_income_total = sum(income.amount for income in variable_incomes)
+        monthly_variable_income = variable_income_total / 3 if variable_incomes else 0
+        total_monthly_income += monthly_variable_income
+        
+        # Calcular gastos mensuales (fijos + promedio variables)
+        total_monthly_expenses = 0
+        fixed_expenses = Expense.query.filter_by(user_id=current_user.id, expense_type='fixed', is_recurring=True).all()
+        fixed_expenses_sum = sum(expense.amount for expense in fixed_expenses)
+        
+        # Gastos variables (promedio últimos 3 meses)
+        variable_expenses = Expense.query.filter_by(user_id=current_user.id, expense_type='punctual').filter(Expense.date >= three_months_ago).all()
+        variable_expenses_sum = sum(expense.amount for expense in variable_expenses)
+        monthly_variable_expenses = variable_expenses_sum / 3 if variable_expenses else 0
+        
+        # Pagos mensuales de deuda
+        monthly_debt_payment = 0
+        if debt_plans:
+            today = date.today()
+            current_month = date(today.year, today.month, 1)
+            monthly_debt_payment = sum(
+                plan.monthly_payment for plan in debt_plans
+                if plan.start_date <= current_month and
+                (plan.end_date is None or plan.end_date > current_month)
+            )
+        
+        total_monthly_expenses = fixed_expenses_sum + monthly_variable_expenses + monthly_debt_payment
+        
+        # Calcular KPIs
+        monthly_savings = total_monthly_income - total_monthly_expenses
+        savings_rate = (monthly_savings / total_monthly_income * 100) if total_monthly_income > 0 else 0
+        debt_to_income_ratio = (monthly_debt_payment / total_monthly_income * 100) if total_monthly_income > 0 else 0
+        debt_to_assets_ratio = (liabilities / assets * 100) if assets > 0 else 0
+        
+        # Añadir KPIs al reporte
+        export_data.append(["INDICADORES FINANCIEROS", "", ""])
+        export_data.append(["Ingresos mensuales", f"{total_monthly_income:.2f} €", ""])
+        export_data.append(["  - Salario", f"{monthly_salary:.2f} €", ""])
+        export_data.append(["  - Ingresos variables", f"{monthly_variable_income:.2f} €", ""])
+        export_data.append(["Gastos mensuales", f"{total_monthly_expenses:.2f} €", ""])
+        export_data.append(["  - Gastos fijos", f"{fixed_expenses_sum:.2f} €", ""])
+        export_data.append(["  - Gastos variables", f"{monthly_variable_expenses:.2f} €", ""])
+        export_data.append(["  - Pago de deudas", f"{monthly_debt_payment:.2f} €", ""])
+        export_data.append(["Ahorro mensual", f"{monthly_savings:.2f} €", ""])
+        export_data.append(["Tasa de ahorro", f"{savings_rate:.1f}%", ""])
+        export_data.append(["Ratio deuda/ingresos", f"{debt_to_income_ratio:.1f}%", ""])
+        export_data.append(["Ratio deuda/activos", f"{debt_to_assets_ratio:.1f}%", ""])
+        export_data.append(["", "", ""])
+        
+        # 4. Ingresos y Gastos detallados
         if config.include_income:
-            income_data = FixedIncome.query.filter_by(user_id=current_user.id).first()
+            export_data.append(["INGRESOS DETALLADOS", "", ""])
+            
+            # Salario
             if income_data:
-                export_data.append(["INGRESOS", "", ""])
-                export_data.append(["Salario Neto Anual", f"{income_data.annual_net_salary:.2f} €", ""])
+                export_data.append(["Salario Anual Neto", f"{income_data.annual_net_salary:.2f} €", ""])
                 export_data.append(["Salario Mensual (12 pagas)", f"{income_data.annual_net_salary / 12:.2f} €", ""])
                 export_data.append(["Salario Mensual (14 pagas)", f"{income_data.annual_net_salary / 14:.2f} €", ""])
-                export_data.append(["", "", ""])
-        
-        # Gastos
-        if config.include_expenses:
-            expenses = Expense.query.filter_by(user_id=current_user.id).all()
-            if expenses:
-                export_data.append(["GASTOS", "", ""])
                 
-                # Gastos fijos
-                fixed_expenses = [e for e in expenses if e.expense_type == 'fixed' and e.is_recurring]
-                fixed_sum = sum(e.amount for e in fixed_expenses)
-                export_data.append(["Gastos Fijos Mensuales", f"{fixed_sum:.2f} €", ""])
-                
-                # Gastos por categoría
-                export_data.append(["", "", ""])
-                export_data.append(["Gastos por Categoría (Últimos 6 meses)", "", ""])
-                
-                six_months_ago = date.today() - timedelta(days=180)
-                expenses_by_category = {}
-                
-                for expense in expenses:
-                    if expense.date >= six_months_ago:
-                        category_name = "Sin categoría"
-                        if expense.category_id:
-                            category = ExpenseCategory.query.get(expense.category_id)
-                            if category:
-                                category_name = category.name
-                                
-                        if category_name not in expenses_by_category:
-                            expenses_by_category[category_name] = 0
+                # Historial de salarios
+                salary_history = SalaryHistory.query.filter_by(user_id=current_user.id).order_by(SalaryHistory.year.desc()).all()
+                if salary_history:
+                    export_data.append(["", "", ""])
+                    export_data.append(["Evolución Salarial", "", ""])
+                    
+                    prev_salary = None
+                    for entry in salary_history:
+                        variation = None
+                        if prev_salary and prev_salary > 0:
+                            variation = ((entry.annual_net_salary - prev_salary) / prev_salary) * 100
+                            variation_str = f"{variation:.1f}%"
+                        else:
+                            variation_str = ""
                         
-                        expenses_by_category[category_name] += expense.amount
-                
-                # Ordenar categorías por gasto
-                sorted_categories = sorted(
-                    expenses_by_category.items(), 
-                    key=lambda x: x[1], 
-                    reverse=True
-                )
-                
-                for category, amount in sorted_categories:
-                    export_data.append([category, f"{amount:.2f} €", ""])
-                
+                        export_data.append([str(entry.year), f"{entry.annual_net_salary:.2f} €", variation_str])
+                        prev_salary = entry.annual_net_salary
+            
+            # Ingresos variables
+            if variable_incomes:
                 export_data.append(["", "", ""])
+                export_data.append(["Ingresos Variables (últimos 3 meses)", "", ""])
+                export_data.append(["Fecha", "Descripción", "Importe"])
+                
+                # Ordenar por fecha descendente
+                variable_incomes.sort(key=lambda x: x.date, reverse=True)
+                
+                for income in variable_incomes:
+                    category_name = "Sin categoría"
+                    if income.category_id:
+                        category = VariableIncomeCategory.query.get(income.category_id)
+                        if category:
+                            category_name = category.name
+                    
+                    export_data.append([
+                        income.date.strftime("%d/%m/%Y"),
+                        f"{income.description} ({category_name})",
+                        f"{income.amount:.2f} €"
+                    ])
+                    
+                export_data.append(["Total", "", f"{variable_income_total:.2f} €"])
+                export_data.append(["Promedio Mensual", "", f"{monthly_variable_income:.2f} €"])
+            
+            export_data.append(["", "", ""])
         
-        # Crear buffer para el CSV
-        output = io.StringIO()
-        writer = csv.writer(output, delimiter=';')
+        if config.include_expenses:
+            export_data.append(["GASTOS DETALLADOS", "", ""])
+            
+            # Gastos por categoría
+            expenses_by_category = {}
+            six_months_ago = date.today() - timedelta(days=180)
+            recent_expenses = Expense.query.filter_by(user_id=current_user.id).filter(Expense.date >= six_months_ago).all()
+            
+            for expense in recent_expenses:
+                category_name = "Sin categoría"
+                if expense.category_id:
+                    category = ExpenseCategory.query.get(expense.category_id)
+                    if category:
+                        category_name = category.name
+                
+                if category_name not in expenses_by_category:
+                    expenses_by_category[category_name] = 0
+                
+                expenses_by_category[category_name] += expense.amount
+            
+            # Ordenar categorías por gasto (mayor a menor)
+            sorted_categories = sorted(
+                expenses_by_category.items(),
+                key=lambda x: x[1],
+                reverse=True
+            )
+            
+            export_data.append(["Gastos por Categoría (últimos 6 meses)", "", ""])
+            total_expenses_6m = sum(amount for _, amount in sorted_categories)
+            
+            for category, amount in sorted_categories:
+                percentage = (amount / total_expenses_6m * 100) if total_expenses_6m > 0 else 0
+                export_data.append([category, f"{amount:.2f} €", f"{percentage:.1f}%"])
+            
+            export_data.append(["Total", f"{total_expenses_6m:.2f} €", "100%"])
+            export_data.append(["Promedio Mensual", f"{total_expenses_6m / 6:.2f} €", ""])
+            export_data.append(["", "", ""])
         
-        # Escribir datos
-        for row in export_data:
-            writer.writerow(row)
-        
-        # Preparar respuesta
-        output.seek(0)
+        # Preparar respuesta según formato solicitado
         today_str = datetime.now().strftime('%Y%m%d')
-        filename = f"resumen_financiero_{today_str}.csv"
         
-        return Response(
-            output.getvalue(),
-            mimetype="text/csv",
-            headers={"Content-Disposition": f"attachment;filename={filename}"}
-        )
+        if export_format == 'csv':
+            # Crear buffer para el CSV
+            output = io.StringIO()
+            writer = csv.writer(output, delimiter=';')
+            
+            # Escribir datos
+            for row in export_data:
+                writer.writerow(row)
+            
+            # Preparar respuesta
+            output.seek(0)
+            filename = f"resumen_financiero_{today_str}.csv"
+            
+            return Response(
+                output.getvalue(),
+                mimetype="text/csv",
+                headers={"Content-Disposition": f"attachment;filename={filename}"}
+            )
+        
+        elif export_format == 'xlsx':
+            # Usar pandas para crear un Excel
+            import pandas as pd
+            from io import BytesIO
+            
+            # Crear un DataFrame con los datos
+            df = pd.DataFrame(export_data)
+            
+            # Crear un BytesIO para guardar el Excel
+            output = BytesIO()
+            
+            # Crear un writer de Excel
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                # Escribir el DataFrame sin encabezados
+                df.to_excel(writer, sheet_name='Resumen Financiero', header=False, index=False)
+                
+                # Obtener el objeto workbook y la hoja
+                workbook = writer.book
+                worksheet = writer.sheets['Resumen Financiero']
+                
+                # Definir formato para encabezados
+                header_format = workbook.add_format({
+                    'bold': True,
+                    'font_size': 12,
+                    'bg_color': '#4F81BD',
+                    'font_color': 'white'
+                })
+                
+                # Definir formato para subtítulos
+                subtitle_format = workbook.add_format({
+                    'bold': True,
+                    'font_size': 11,
+                    'bg_color': '#DCE6F1'
+                })
+                
+                # Aplicar formato a encabezados y celdas específicas
+                for i, row_data in enumerate(export_data):
+                    if row_data[0].strip() and row_data[0].isupper() and not row_data[0].startswith('  -'):
+                        # Es un encabezado
+                        worksheet.set_row(i, None, header_format)
+                    elif row_data[0].strip() and not row_data[0].startswith('  -'):
+                        # Es un subtítulo
+                        worksheet.set_row(i, None, subtitle_format)
+                
+                # Ajustar anchos de columna
+                worksheet.set_column('A:A', 40)
+                worksheet.set_column('B:B', 20)
+                worksheet.set_column('C:C', 20)
+            
+            # Preparar respuesta
+            output.seek(0)
+            filename = f"resumen_financiero_{today_str}.xlsx"
+            
+            return Response(
+                output.getvalue(),
+                mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                headers={"Content-Disposition": f"attachment;filename={filename}"}
+            )
     
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         flash(f"Error al exportar resumen financiero: {e}", "danger")
+        return redirect(url_for('financial_summary'))
+
+
+@app.route('/generate_financial_report', methods=['GET'])
+@login_required
+def generate_financial_report():
+    """
+    Genera un informe financiero detallado con recomendaciones 
+    personalizadas basadas en los datos del usuario.
+    """
+    try:
+        # Obtener configuración
+        config = FinancialSummaryConfig.query.filter_by(user_id=current_user.id).first()
+        if not config:
+            flash("No se encontró configuración para el resumen financiero.", "warning")
+            return redirect(url_for('financial_summary'))
+
+        # Recopilar todos los datos necesarios (similar a financial_summary)
+        report_data = {
+            'general': {
+                'date': datetime.now().strftime('%d/%m/%Y'),
+                'user': current_user.username
+            },
+            'income': {},
+            'expenses': {},
+            'assets': {},
+            'liabilities': {},
+            'metrics': {},
+            'recommendations': []
+        }
+
+        # --- INGRESOS ---
+        total_monthly_income = 0
+        
+        # Salario fijo
+        income_data = FixedIncome.query.filter_by(user_id=current_user.id).first()
+        if income_data and income_data.annual_net_salary:
+            monthly_salary = income_data.annual_net_salary / 12
+            total_monthly_income += monthly_salary
+            report_data['income']['salary'] = {
+                'annual': income_data.annual_net_salary,
+                'monthly': monthly_salary
+            }
+            
+            # Evaluar tendencia salarial
+            salary_history = SalaryHistory.query.filter_by(user_id=current_user.id).order_by(SalaryHistory.year.desc()).all()
+            if len(salary_history) >= 2:
+                # Calcular crecimiento promedio anual
+                salary_growth = []
+                for i in range(len(salary_history) - 1):
+                    current = salary_history[i].annual_net_salary
+                    previous = salary_history[i + 1].annual_net_salary
+                    if previous > 0:
+                        growth = ((current - previous) / previous) * 100
+                        salary_growth.append(growth)
+                
+                if salary_growth:
+                    avg_growth = sum(salary_growth) / len(salary_growth)
+                    report_data['income']['salary_trend'] = {
+                        'avg_growth': avg_growth,
+                        'history': [(h.year, h.annual_net_salary) for h in salary_history]
+                    }
+        
+        # Ingresos variables
+        three_months_ago = date.today() - timedelta(days=90)
+        variable_incomes = VariableIncome.query.filter_by(user_id=current_user.id).filter(VariableIncome.date >= three_months_ago).all()
+        
+        if variable_incomes:
+            variable_income_total = sum(income.amount for income in variable_incomes)
+            monthly_variable_income = variable_income_total / 3
+            total_monthly_income += monthly_variable_income
+            
+            # Categorizar ingresos variables
+            income_by_category = {}
+            for income in variable_incomes:
+                category_name = "Sin categoría"
+                if income.category_id:
+                    category = VariableIncomeCategory.query.get(income.category_id)
+                    if category:
+                        category_name = category.name
+                
+                if category_name not in income_by_category:
+                    income_by_category[category_name] = 0
+                
+                income_by_category[category_name] += income.amount
+            
+            report_data['income']['variable'] = {
+                'monthly_avg': monthly_variable_income,
+                'total_3m': variable_income_total,
+                'by_category': income_by_category
+            }
+        
+        report_data['income']['total_monthly'] = total_monthly_income
+
+        # --- GASTOS ---
+        total_monthly_expenses = 0
+        
+        # Gastos fijos
+        fixed_expenses = Expense.query.filter_by(user_id=current_user.id, expense_type='fixed', is_recurring=True).all()
+        fixed_expenses_sum = sum(expense.amount for expense in fixed_expenses)
+        total_monthly_expenses += fixed_expenses_sum
+        
+        # Gastos variables (promedio últimos 3 meses)
+        variable_expenses = Expense.query.filter_by(user_id=current_user.id, expense_type='punctual').filter(Expense.date >= three_months_ago).all()
+        variable_expenses_sum = sum(expense.amount for expense in variable_expenses)
+        monthly_variable_expenses = variable_expenses_sum / 3 if variable_expenses else 0
+        total_monthly_expenses += monthly_variable_expenses
+        
+        # Gastos por categoría (últimos 6 meses)
+        six_months_ago = date.today() - timedelta(days=180)
+        recent_expenses = Expense.query.filter_by(user_id=current_user.id).filter(Expense.date >= six_months_ago).all()
+        
+        expenses_by_category = {}
+        for expense in recent_expenses:
+            category_name = "Sin categoría"
+            if expense.category_id:
+                category = ExpenseCategory.query.get(expense.category_id)
+                if category:
+                    category_name = category.name
+            
+            if category_name not in expenses_by_category:
+                expenses_by_category[category_name] = 0
+            
+            expenses_by_category[category_name] += expense.amount
+        
+        # Ordenar categorías por gasto (mayor a menor)
+        sorted_categories = sorted(
+            expenses_by_category.items(),
+            key=lambda x: x[1],
+            reverse=True
+        )
+        
+        report_data['expenses'] = {
+            'fixed_monthly': fixed_expenses_sum,
+            'variable_monthly_avg': monthly_variable_expenses,
+            'total_monthly': total_monthly_expenses,
+            'by_category': dict(sorted_categories),
+            'total_6m': sum(amount for _, amount in sorted_categories)
+        }
+
+        # --- ACTIVOS ---
+        total_assets = 0
+        assets_composition = {}
+        
+        # Efectivo
+        bank_accounts = BankAccount.query.filter_by(user_id=current_user.id).all()
+        if bank_accounts:
+            cash_total = sum(account.current_balance for account in bank_accounts)
+            total_assets += cash_total
+            assets_composition['Efectivo'] = cash_total
+        
+        # Inversiones
+        portfolio_record = UserPortfolio.query.filter_by(user_id=current_user.id).first()
+        if portfolio_record and portfolio_record.portfolio_data:
+            portfolio_data = json.loads(portfolio_record.portfolio_data)
+            total_market_value = sum(float(item.get('market_value_eur', 0)) for item in portfolio_data if 'market_value_eur' in item and item['market_value_eur'] is not None)
+            total_assets += total_market_value
+            assets_composition['Inversiones'] = total_market_value
+        
+        # Criptomonedas
+        crypto_transactions = CryptoTransaction.query.filter_by(user_id=current_user.id).all()
+        if crypto_transactions:
+            crypto_holdings = {}
+            for transaction in crypto_transactions:
+                crypto_key = transaction.ticker_symbol
+                if crypto_key not in crypto_holdings:
+                    crypto_holdings[crypto_key] = {
+                        'quantity': 0,
+                        'current_price': transaction.current_price
+                    }
+                
+                if transaction.transaction_type == 'buy':
+                    crypto_holdings[crypto_key]['quantity'] += transaction.quantity
+                else:
+                    crypto_holdings[crypto_key]['quantity'] -= transaction.quantity
+                
+                if transaction.current_price is not None:
+                    crypto_holdings[crypto_key]['current_price'] = transaction.current_price
+            
+            crypto_value = sum(crypto['quantity'] * crypto['current_price'] for crypto in crypto_holdings.values() 
+                             if crypto['quantity'] > 0 and crypto['current_price'] is not None)
+            total_assets += crypto_value
+            assets_composition['Criptomonedas'] = crypto_value
+        
+        # Metales preciosos
+        gold_record = PreciousMetalPrice.query.filter_by(metal_type='gold').first()
+        silver_record = PreciousMetalPrice.query.filter_by(metal_type='silver').first()
+        gold_price = gold_record.price_eur_per_oz if gold_record else 0
+        silver_price = silver_record.price_eur_per_oz if silver_record else 0
+        
+        metal_transactions = PreciousMetalTransaction.query.filter_by(user_id=current_user.id).all()
+        if metal_transactions:
+            g_to_oz = 0.0321507466
+            gold_oz = 0
+            silver_oz = 0
+            
+            for transaction in metal_transactions:
+                quantity_oz = transaction.quantity if transaction.unit_type == 'oz' else transaction.quantity * g_to_oz
+                
+                if transaction.metal_type == 'gold':
+                    if transaction.transaction_type == 'buy':
+                        gold_oz += quantity_oz
+                    else:
+                        gold_oz -= quantity_oz
+                else:
+                    if transaction.transaction_type == 'buy':
+                        silver_oz += quantity_oz
+                    else:
+                        silver_oz -= quantity_oz
+            
+            gold_value = gold_oz * gold_price
+            silver_value = silver_oz * silver_price
+            metals_value = gold_value + silver_value
+            total_assets += metals_value
+            assets_composition['Metales'] = metals_value
+        
+        # Planes de pensiones
+        pension_plans = PensionPlan.query.filter_by(user_id=current_user.id).all()
+        if pension_plans:
+            pension_total = sum(plan.current_balance for plan in pension_plans)
+            total_assets += pension_total
+            assets_composition['Pensiones'] = pension_total
+        
+        report_data['assets'] = {
+            'total': total_assets,
+            'composition': assets_composition
+        }
+
+        # --- PASIVOS ---
+        total_liabilities = 0
+        monthly_debt_payment = 0
+        
+        # Deudas
+        debt_plans = DebtInstallmentPlan.query.filter_by(user_id=current_user.id, is_active=True).all()
+        if debt_plans:
+            total_liabilities = sum(plan.remaining_amount for plan in debt_plans)
+            
+            # Pago mensual de deudas
+            today = date.today()
+            current_month = date(today.year, today.month, 1)
+            monthly_debt_payment = sum(
+                plan.monthly_payment for plan in debt_plans
+                if plan.start_date <= current_month and
+                (plan.end_date is None or plan.end_date > current_month)
+            )
+            
+            # Añadir detalle de deudas
+            debt_details = []
+            for plan in debt_plans:
+                debt_details.append({
+                    'description': plan.description,
+                    'total_amount': plan.total_amount,
+                    'remaining': plan.remaining_amount,
+                    'monthly_payment': plan.monthly_payment,
+                    'progress_pct': plan.progress_percentage,
+                    'remaining_months': plan.remaining_installments
+                })
+            
+            report_data['liabilities'] = {
+                'total': total_liabilities,
+                'monthly_payment': monthly_debt_payment,
+                'details': debt_details
+            }
+        
+        # --- MÉTRICAS FINANCIERAS ---
+        # Total gastos mensuales incluyendo deuda
+        total_monthly_expenses += monthly_debt_payment
+        
+        # Ahorro mensual
+        monthly_savings = total_monthly_income - total_monthly_expenses
+        savings_rate = (monthly_savings / total_monthly_income * 100) if total_monthly_income > 0 else 0
+        
+        # Ratio deuda/ingresos
+        debt_to_income_ratio = (monthly_debt_payment / total_monthly_income * 100) if total_monthly_income > 0 else 0
+        
+        # Ratio deuda/activos
+        debt_to_assets_ratio = (total_liabilities / total_assets * 100) if total_assets > 0 else 0
+        
+        # Patrimonio neto
+        net_worth = total_assets - total_liabilities
+        
+        # Meses para independencia financiera (estimación)
+        months_to_fi = 0
+        fi_target = 0
+        if monthly_savings > 0:
+            # Suponiendo que la independencia financiera se logra con 25 veces los gastos anuales
+            annual_expenses = total_monthly_expenses * 12
+            fi_target = annual_expenses * 25
+            
+            # Estimación sin considerar rendimientos de inversiones
+            if net_worth < fi_target:
+                months_to_fi = (fi_target - net_worth) / monthly_savings
+        
+        report_data['metrics'] = {
+            'net_worth': net_worth,
+            'monthly_savings': monthly_savings,
+            'savings_rate': savings_rate,
+            'debt_to_income_ratio': debt_to_income_ratio,
+            'debt_to_assets_ratio': debt_to_assets_ratio,
+            'months_to_fi': months_to_fi,
+            'fi_target': fi_target
+        }
+        
+        # --- RECOMENDACIONES PERSONALIZADAS ---
+        recommendations = []
+        
+        # 1. Tasa de ahorro
+        if savings_rate < 0:
+            recommendations.append({
+                'category': 'savings',
+                'severity': 'high',
+                'title': 'Balance mensual negativo',
+                'description': 'Estás gastando más de lo que ingresas. Considera reducir gastos o aumentar ingresos para evitar endeudamiento.',
+                'actions': [
+                    'Revisa tus gastos fijos para identificar posibles reducciones',
+                    'Considera fuentes adicionales de ingresos'
+                ]
+            })
+        elif savings_rate < 10:
+            recommendations.append({
+                'category': 'savings',
+                'severity': 'medium',
+                'title': 'Baja tasa de ahorro',
+                'description': f'Tu tasa de ahorro es del {savings_rate:.1f}%. Se recomienda ahorrar al menos el 15-20% de los ingresos.',
+                'actions': [
+                    'Establece un presupuesto mensual',
+                    'Automatiza tus ahorros'
+                ]
+            })
+        elif savings_rate > 50:
+            recommendations.append({
+                'category': 'savings',
+                'severity': 'low',
+                'title': 'Excelente tasa de ahorro',
+                'description': f'Tu tasa de ahorro del {savings_rate:.1f}% es extraordinaria. Considera optimizar la inversión de estos ahorros.',
+                'actions': [
+                    'Revisa tu estrategia de inversión para maximizar retornos',
+                    'Considera diversificar en diferentes clases de activos'
+                ]
+            })
+        
+        # 2. Deuda
+        if debt_to_income_ratio > 40:
+            recommendations.append({
+                'category': 'debt',
+                'severity': 'high',
+                'title': 'Ratio deuda/ingresos elevado',
+                'description': f'Tu ratio de pago de deuda mensual respecto a ingresos es del {debt_to_income_ratio:.1f}%. Se recomienda mantenerlo por debajo del 35%.',
+                'actions': [
+                    'Prioriza el pago de deudas con mayor interés',
+                    'Considera opciones de refinanciación',
+                    'Evita asumir nuevas deudas hasta reducir las actuales'
+                ]
+            })
+        elif debt_to_income_ratio > 0 and debt_to_income_ratio < 20:
+            recommendations.append({
+                'category': 'debt',
+                'severity': 'low',
+                'title': 'Buen manejo de deuda',
+                'description': f'Tu ratio de deuda/ingresos es del {debt_to_income_ratio:.1f}%, lo cual es saludable.',
+                'actions': [
+                    'Mantén este nivel de endeudamiento',
+                    'Considera realizar pagos adicionales para reducir el plazo'
+                ]
+            })
+        
+        # 3. Diversificación de activos
+        if total_assets > 0:
+            # Calcular porcentajes de diversificación
+            asset_percentages = {k: (v / total_assets * 100) for k, v in assets_composition.items()}
+            
+            # Verificar si hay alguna categoría que represente más del 50%
+            concentrated_assets = [(k, v) for k, v in asset_percentages.items() if v > 50]
+            
+            if concentrated_assets:
+                asset_name, percentage = concentrated_assets[0]
+                recommendations.append({
+                    'category': 'diversification',
+                    'severity': 'medium',
+                    'title': 'Concentración de activos',
+                    'description': f'El {percentage:.1f}% de tus activos está en {asset_name}. Considera diversificar para reducir riesgos.',
+                    'actions': [
+                        'Diversifica gradualmente hacia otras clases de activos',
+                        'Establece objetivos de asignación de activos'
+                    ]
+                })
+            
+            # Verificar si tiene efectivo suficiente para emergencias
+            if 'Efectivo' in asset_percentages:
+                cash_percentage = asset_percentages.get('Efectivo', 0)
+                monthly_expenses_x3 = total_monthly_expenses * 3
+                cash_total = assets_composition.get('Efectivo', 0)
+                
+                if cash_total < monthly_expenses_x3:
+                    recommendations.append({
+                        'category': 'emergency_fund',
+                        'severity': 'medium',
+                        'title': 'Fondo de emergencia insuficiente',
+                        'description': f'Tu efectivo ({cash_total:.2f} €) es menor que 3 meses de gastos ({monthly_expenses_x3:.2f} €).',
+                        'actions': [
+                            'Prioriza acumular un fondo de emergencia de 3-6 meses de gastos',
+                            'Considera una cuenta de ahorro de alta rentabilidad para este fondo'
+                        ]
+                    })
+                elif cash_percentage > 30 and cash_total > monthly_expenses_x6:
+                    # Si tiene más de 6 meses de gastos en efectivo
+                    monthly_expenses_x6 = total_monthly_expenses * 6
+                    excess_cash = cash_total - monthly_expenses_x6
+                    
+                    recommendations.append({
+                        'category': 'cash_optimization',
+                        'severity': 'low',
+                        'title': 'Exceso de efectivo',
+                        'description': f'Tienes {excess_cash:.2f} € por encima de un fondo de emergencia de 6 meses.',
+                        'actions': [
+                            'Considera invertir el exceso de efectivo para obtener mejores rendimientos',
+                            'Mantén 3-6 meses de gastos como fondo de emergencia'
+                        ]
+                    })
+        
+        # 4. Ingresos y Gastos
+        if 'income' in report_data and 'salary_trend' in report_data['income']:
+            avg_growth = report_data['income']['salary_trend']['avg_growth']
+            
+            if avg_growth < 2:
+                recommendations.append({
+                    'category': 'income',
+                    'severity': 'medium',
+                    'title': 'Bajo crecimiento salarial',
+                    'description': f'Tu salario ha crecido un promedio de {avg_growth:.1f}% anual, por debajo de la inflación.',
+                    'actions': [
+                        'Considera negociar un aumento salarial',
+                        'Evalúa oportunidades para desarrollo profesional',
+                        'Explora fuentes de ingresos adicionales'
+                    ]
+                })
+        
+        if 'variable' in report_data.get('income', {}):
+            variable_income_pct = (report_data['income']['variable']['monthly_avg'] / report_data['income']['total_monthly'] * 100)
+            
+            if variable_income_pct > 30:
+                recommendations.append({
+                    'category': 'income_stability',
+                    'severity': 'medium',
+                    'title': 'Alta dependencia de ingresos variables',
+                    'description': f'El {variable_income_pct:.1f}% de tus ingresos son variables, lo que puede generar inestabilidad financiera.',
+                    'actions': [
+                        'Mantén un fondo de emergencia más amplio',
+                        'Busca formas de estabilizar tus fuentes de ingresos',
+                        'Adapta tus gastos fijos a tu ingreso fijo'
+                    ]
+                })
+        
+        # 5. Categorías de gasto
+        if 'expenses' in report_data and 'by_category' in report_data['expenses']:
+            # Calcular porcentajes de categorías
+            total_6m = report_data['expenses']['total_6m']
+            expense_percentages = {k: (v / total_6m * 100) for k, v in report_data['expenses']['by_category'].items()}
+            
+            # Identificar categorías con gasto elevado
+            high_expense_categories = []
+            for category, percentage in expense_percentages.items():
+                # Umbrales por categoría
+                threshold = 30  # Umbral genérico por defecto
+                
+                if category.lower() in ['vivienda', 'hipoteca', 'alquiler']:
+                    threshold = 35  # Máximo recomendado para vivienda
+                elif category.lower() in ['alimentación', 'comida', 'supermercado']:
+                    threshold = 15  # Máximo para alimentación
+                elif category.lower() in ['transporte', 'coche', 'vehículo']:
+                    threshold = 15  # Máximo para transporte
+                elif category.lower() in ['ocio', 'entretenimiento', 'restaurantes']:
+                    threshold = 10  # Máximo para ocio
+                
+                if percentage > threshold:
+                    high_expense_categories.append({
+                        'category': category,
+                        'percentage': percentage,
+                        'threshold': threshold
+                    })
+            
+            # Generar recomendaciones para categorías de gasto elevado
+            for category_info in high_expense_categories:
+                recommendations.append({
+                    'category': 'expenses',
+                    'severity': 'medium',
+                    'title': f'Gasto elevado en {category_info["category"]}',
+                    'description': f'Gastas el {category_info["percentage"]:.1f}% en {category_info["category"]}, por encima del {category_info["threshold"]}% recomendado.',
+                    'actions': [
+                        f'Revisa detalladamente tus gastos en {category_info["category"]}',
+                        'Identifica áreas específicas de reducción',
+                        'Establece un presupuesto máximo mensual para esta categoría'
+                    ]
+                })
+        
+        # Añadir recomendaciones al informe
+        report_data['recommendations'] = recommendations
+        
+        # Renderizar la plantilla con los datos del informe
+        return render_template(
+            'financial_report.html',
+            report=report_data
+        )
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        flash(f"Error al generar el informe financiero: {e}", "danger")
         return redirect(url_for('financial_summary'))
 
 
@@ -2262,519 +3798,6 @@ def delete_expense_category(category_id):
     
     return redirect(url_for('expenses'))
 
-@app.route('/financial_summary', methods=['GET', 'POST'])
-@login_required
-def financial_summary():
-    """Muestra un resumen financiero global con datos de todas las secciones."""
-    # Obtener o crear configuración
-    config = FinancialSummaryConfig.query.filter_by(user_id=current_user.id).first()
-    if not config:
-        config = FinancialSummaryConfig(user_id=current_user.id)
-        db.session.add(config)
-        db.session.commit()
-
-    # Crear formulario de configuración
-    config_form = FinancialSummaryConfigForm()
-
-    # Precargar datos si es GET
-    if request.method == 'GET':
-        config_form.include_income.data = config.include_income
-        config_form.include_expenses.data = config.include_expenses
-        config_form.include_debts.data = config.include_debts
-        config_form.include_investments.data = config.include_investments
-        config_form.include_crypto.data = config.include_crypto
-        config_form.include_metals.data = config.include_metals
-        config_form.include_bank_accounts.data = config.include_bank_accounts
-        config_form.include_pension_plans.data = config.include_pension_plans
-
-    # Procesar formulario
-    if config_form.validate_on_submit():
-        try:
-            config.include_income = config_form.include_income.data
-            config.include_expenses = config_form.include_expenses.data
-            config.include_debts = config_form.include_debts.data
-            config.include_investments = config_form.include_investments.data
-            config.include_crypto = config_form.include_crypto.data
-            config.include_metals = config_form.include_metals.data
-            config.include_bank_accounts = config_form.include_bank_accounts.data
-            config.include_pension_plans = config_form.include_pension_plans.data
-
-            db.session.commit()
-            flash('Configuración del resumen guardada correctamente.', 'success')
-            return redirect(url_for('financial_summary'))
-        except Exception as e:
-            db.session.rollback()
-            flash(f'Error al guardar configuración: {e}', 'danger')
-
-    # Inicializar datos del resumen
-    summary_data = {
-        'income': {'available': False, 'data': {}},
-        'expenses': {'available': False, 'data': {}},
-        'debts': {'available': False, 'data': {}},
-        'investments': {'available': False, 'data': {}},
-        'crypto': {'available': False, 'data': {}},
-        'metals': {'available': False, 'data': {}},
-        'bank_accounts': {'available': False, 'data': {}},
-        'pension_plans': {'available': False, 'data': {}},
-        'net_worth': {'available': False, 'data': {}}
-    }
-
-    # Recopilar datos según la configuración
-    try:
-        # 1. Ingresos Fijos
-        if config.include_income:
-            income_data = FixedIncome.query.filter_by(user_id=current_user.id).first()
-            if income_data:
-                summary_data['income']['available'] = True
-                summary_data['income']['data'] = {
-                    'annual_net_salary': income_data.annual_net_salary,
-                    'monthly_salary_12': income_data.annual_net_salary / 12 if income_data.annual_net_salary else 0,
-                    'monthly_salary_14': income_data.annual_net_salary / 14 if income_data.annual_net_salary else 0,
-                    'last_updated': income_data.last_updated
-                }
-
-                # Historial de salarios
-                salary_history = SalaryHistory.query.filter_by(user_id=current_user.id).order_by(SalaryHistory.year.desc()).all()
-                if salary_history:
-                    summary_data['income']['data']['history'] = []
-                    prev_salary = None
-
-                    for entry in salary_history:
-                        variation = None
-                        if prev_salary and prev_salary > 0:
-                            variation = ((entry.annual_net_salary - prev_salary) / prev_salary) * 100
-
-                        summary_data['income']['data']['history'].append({
-                            'year': entry.year,
-                            'salary': entry.annual_net_salary,
-                            'variation': variation
-                        })
-
-                        prev_salary = entry.annual_net_salary
-
-        # 2. Gastos
-        if config.include_expenses:
-            # Obtener gastos
-            expenses = Expense.query.filter_by(user_id=current_user.id).all()
-
-            if expenses:
-                summary_data['expenses']['available'] = True
-
-                # Gastos fijos mensuales
-                fixed_expenses = [e for e in expenses if e.expense_type == 'fixed' and e.is_recurring]
-                fixed_sum = sum(e.amount for e in fixed_expenses)
-
-                # Gastos puntuales último mes
-                one_month_ago = date.today() - timedelta(days=30)
-                punctual_expenses = [e for e in expenses if e.expense_type == 'punctual' and e.date >= one_month_ago]
-                punctual_sum = sum(e.amount for e in punctual_expenses)
-
-                # Análisis por categoría
-                expenses_by_category = {}
-                six_months_ago = date.today() - timedelta(days=180)
-                recent_expenses = [e for e in expenses if e.date >= six_months_ago]
-
-                for expense in recent_expenses:
-                    category_name = "Sin categoría"
-                    if expense.category_id:
-                        category = ExpenseCategory.query.get(expense.category_id)
-                        if category:
-                            category_name = category.name
-
-                    if category_name not in expenses_by_category:
-                        expenses_by_category[category_name] = 0
-
-                    expenses_by_category[category_name] += expense.amount
-
-                # Ordenar categorías por gasto
-                sorted_categories = sorted(
-                    expenses_by_category.items(),
-                    key=lambda x: x[1],
-                    reverse=True
-                )
-
-                summary_data['expenses']['data'] = {
-                    'fixed_monthly': fixed_sum,
-                    'punctual_last_month': punctual_sum,
-                    'by_category': sorted_categories
-                }
-
-        # 3. Deudas
-        if config.include_debts:
-            debt_plans = DebtInstallmentPlan.query.filter_by(user_id=current_user.id, is_active=True).all()
-
-            if debt_plans:
-                summary_data['debts']['available'] = True
-
-                # Total deuda pendiente
-                total_debt = sum(plan.remaining_amount for plan in debt_plans)
-
-                # Pago mensual actual
-                today = date.today()
-                current_month = date(today.year, today.month, 1)
-                current_payment = sum(
-                    plan.monthly_payment for plan in debt_plans
-                    if plan.start_date <= current_month and
-                    (plan.end_date is None or plan.end_date > current_month)
-                )
-
-                # Deudas individuales
-                debt_list = []
-                for plan in debt_plans:
-                    debt_list.append({
-                        'description': plan.description,
-                        'total_amount': plan.total_amount,
-                        'remaining': plan.remaining_amount,
-                        'monthly_payment': plan.monthly_payment,
-                        'progress_pct': plan.progress_percentage,
-                        'remaining_months': plan.remaining_installments
-                    })
-
-                summary_data['debts']['data'] = {
-                    'total_debt': total_debt,
-                    'monthly_payment': current_payment,
-                    'debt_list': debt_list
-                }
-
-        # 4. Cuentas Bancarias
-        if config.include_bank_accounts:
-            bank_accounts = BankAccount.query.filter_by(user_id=current_user.id).all()
-
-            if bank_accounts:
-                summary_data['bank_accounts']['available'] = True
-
-                # Total en cuentas
-                total_cash = sum(account.current_balance for account in bank_accounts)
-
-                # Lista de cuentas
-                account_list = []
-                for account in bank_accounts:
-                    account_list.append({
-                        'bank_name': account.bank_name,
-                        'account_name': account.account_name,
-                        'balance': account.current_balance,
-                        'last_updated': account.last_updated
-                    })
-
-                # Historial de efectivo
-                cash_history = CashHistoryRecord.query.filter_by(user_id=current_user.id).order_by(CashHistoryRecord.date.desc()).all()
-                history_data = []
-
-                if cash_history:
-                    prev_amount = None
-                    for record in cash_history:
-                        variation = None
-                        if prev_amount and prev_amount > 0:
-                            variation = ((record.total_cash - prev_amount) / prev_amount) * 100
-
-                        history_data.append({
-                            'date': record.date,
-                            'amount': record.total_cash,
-                            'variation': variation
-                        })
-
-                        prev_amount = record.total_cash
-
-                summary_data['bank_accounts']['data'] = {
-                    'total_cash': total_cash,
-                    'accounts': account_list,
-                    'history': history_data
-                }
-
-        # 5. Planes de Pensiones
-        if config.include_pension_plans:
-            pension_plans = PensionPlan.query.filter_by(user_id=current_user.id).all()
-
-            if pension_plans:
-                summary_data['pension_plans']['available'] = True
-
-                # Total en planes
-                total_pension = sum(plan.current_balance for plan in pension_plans)
-
-                # Lista de planes
-                plan_list = []
-                for plan in pension_plans:
-                    plan_list.append({
-                        'entity_name': plan.entity_name,
-                        'plan_name': plan.plan_name,
-                        'balance': plan.current_balance,
-                        'last_updated': plan.last_updated
-                    })
-
-                # Historial de pensiones
-                pension_history = PensionPlanHistory.query.filter_by(user_id=current_user.id).order_by(PensionPlanHistory.date.desc()).all()
-                history_data = []
-
-                if pension_history:
-                    prev_amount = None
-                    for record in pension_history:
-                        variation = None
-                        if prev_amount and prev_amount > 0:
-                            variation = ((record.total_amount - prev_amount) / prev_amount) * 100
-
-                        history_data.append({
-                            'date': record.date,
-                            'amount': record.total_amount,
-                            'variation': variation
-                        })
-
-                        prev_amount = record.total_amount
-
-                summary_data['pension_plans']['data'] = {
-                    'total_pension': total_pension,
-                    'plans': plan_list,
-                    'history': history_data
-                }
-        
-        # 6. Inversiones (Portfolio)
-        if config.include_investments:
-            # Intentar obtener datos del portfolio desde la base de datos
-            portfolio_record = UserPortfolio.query.filter_by(user_id=current_user.id).first()
-            
-            if portfolio_record and portfolio_record.portfolio_data:
-                summary_data['investments']['available'] = True
-                
-                # Convertir JSON a dict
-                portfolio_data = json.loads(portfolio_record.portfolio_data)
-                
-                # Calcular valor total del portfolio
-                total_market_value = 0
-                total_cost_basis = 0
-                
-                for item in portfolio_data:
-                    if 'market_value_eur' in item and item['market_value_eur'] is not None:
-                        total_market_value += float(item['market_value_eur'])
-                    
-                    if 'cost_basis_eur_est' in item and item['cost_basis_eur_est'] is not None:
-                        total_cost_basis += float(item['cost_basis_eur_est'])
-                
-                # Calcular ganancia/pérdida
-                total_pl = total_market_value - total_cost_basis
-                
-                summary_data['investments']['data'] = {
-                    'total_market_value': total_market_value,
-                    'total_cost_basis': total_cost_basis,
-                    'total_pl': total_pl,
-                    'last_updated': portfolio_record.last_updated,
-                    'top_positions': []
-                }
-                
-                # Añadir top posiciones (las 5 mayores)
-                sorted_items = sorted(
-                    [item for item in portfolio_data if 'market_value_eur' in item and item['market_value_eur'] is not None], 
-                    key=lambda x: float(x['market_value_eur']), 
-                    reverse=True
-                )
-                
-                for i, item in enumerate(sorted_items[:5]):
-                    position = {
-                        'name': item.get('item_name') or item.get('Producto', 'Desconocido'),
-                        'ticker': item.get('ticker', ''),
-                        'market_value': item.get('market_value_eur', 0),
-                        'pl': item.get('pl_eur_est', 0)
-                    }
-                    summary_data['investments']['data']['top_positions'].append(position)
-        
-        # 7. Criptomonedas
-        if config.include_crypto:
-            # Obtener exchanges y transacciones
-            crypto_exchanges = CryptoExchange.query.filter_by(user_id=current_user.id).all()
-            crypto_transactions = CryptoTransaction.query.filter_by(user_id=current_user.id).all()
-            
-            if crypto_transactions:
-                summary_data['crypto']['available'] = True
-                
-                # Calcular valor total actual
-                total_investment = 0
-                total_value = 0
-                crypto_holdings = {}
-                
-                for transaction in crypto_transactions:
-                    crypto_key = transaction.ticker_symbol
-                    
-                    if crypto_key not in crypto_holdings:
-                        crypto_holdings[crypto_key] = {
-                            'name': transaction.crypto_name,
-                            'ticker': transaction.ticker_symbol,
-                            'quantity': 0,
-                            'investment': 0,
-                            'current_price': transaction.current_price,
-                            'current_value': 0
-                        }
-                    
-                    # Actualizar cantidades
-                    if transaction.transaction_type == 'buy':
-                        crypto_holdings[crypto_key]['quantity'] += transaction.quantity
-                        crypto_holdings[crypto_key]['investment'] += (transaction.quantity * transaction.price_per_unit)
-                    else:  # 'sell'
-                        crypto_holdings[crypto_key]['quantity'] -= transaction.quantity
-                        crypto_holdings[crypto_key]['investment'] -= (transaction.quantity * transaction.price_per_unit)
-                    
-                    # Usar precio más actualizado
-                    if transaction.current_price is not None and (
-                        crypto_holdings[crypto_key]['current_price'] is None or 
-                        (transaction.price_updated_at and 
-                         (crypto_holdings[crypto_key].get('price_updated_at') is None or 
-                          transaction.price_updated_at > crypto_holdings[crypto_key]['price_updated_at'])
-                        )
-                    ):
-                        crypto_holdings[crypto_key]['current_price'] = transaction.current_price
-                        crypto_holdings[crypto_key]['price_updated_at'] = transaction.price_updated_at
-                
-                # Calcular valores actuales y filtrar solo posiciones con cantidad > 0
-                active_holdings = []
-                for key, crypto in crypto_holdings.items():
-                    if crypto['quantity'] > 0 and crypto['current_price'] is not None:
-                        current_value = crypto['quantity'] * crypto['current_price']
-                        crypto['current_value'] = current_value
-                        
-                        total_investment += crypto['investment']
-                        total_value += current_value
-                        
-                        active_holdings.append(crypto)
-                
-                # Ordenar por valor actual
-                active_holdings.sort(key=lambda x: x['current_value'], reverse=True)
-                
-                # Calcular ganancia/pérdida
-                total_pl = total_value - total_investment
-                
-                summary_data['crypto']['data'] = {
-                    'total_investment': total_investment,
-                    'total_value': total_value,
-                    'total_pl': total_pl,
-                    'top_holdings': active_holdings[:5]  # Top 5 posiciones
-                }
-        
-        # 8. Metales Preciosos
-        if config.include_metals:
-            metal_transactions = PreciousMetalTransaction.query.filter_by(user_id=current_user.id).all()
-            
-            if metal_transactions:
-                summary_data['metals']['available'] = True
-                
-                # Obtener precios actuales
-                gold_price = None
-                silver_price = None
-                
-                gold_record = PreciousMetalPrice.query.filter_by(metal_type='gold').first()
-                if gold_record:
-                    gold_price = gold_record.price_eur_per_oz
-                
-                silver_record = PreciousMetalPrice.query.filter_by(metal_type='silver').first()
-                if silver_record:
-                    silver_price = silver_record.price_eur_per_oz
-                
-                # Calcular resumen por tipo de metal
-                gold_summary = {
-                    'total_g': 0,
-                    'total_oz': 0,
-                    'total_investment': 0,
-                    'current_value': 0
-                }
-                
-                silver_summary = {
-                    'total_g': 0,
-                    'total_oz': 0,
-                    'total_investment': 0,
-                    'current_value': 0
-                }
-                
-                # Factor de conversión gramos a onzas troy
-                g_to_oz = 0.0321507466
-                
-                for transaction in metal_transactions:
-                    # Determinar el resumen a actualizar
-                    summary = gold_summary if transaction.metal_type == 'gold' else silver_summary
-                    
-                    # Conversión a onzas troy si es necesario
-                    quantity_oz = transaction.quantity if transaction.unit_type == 'oz' else transaction.quantity * g_to_oz
-                    
-                    # Actualizar según tipo de transacción
-                    if transaction.transaction_type == 'buy':
-                        summary['total_investment'] += (transaction.price_per_unit * quantity_oz)
-                        
-                        # Actualizar cantidad total
-                        if transaction.unit_type == 'g':
-                            summary['total_g'] += transaction.quantity
-                            summary['total_oz'] += transaction.quantity * g_to_oz
-                        else:
-                            summary['total_oz'] += transaction.quantity
-                            summary['total_g'] += transaction.quantity / g_to_oz
-                    
-                    elif transaction.transaction_type == 'sell':
-                        summary['total_investment'] -= (transaction.price_per_unit * quantity_oz)
-                        
-                        # Actualizar cantidad total
-                        if transaction.unit_type == 'g':
-                            summary['total_g'] -= transaction.quantity
-                            summary['total_oz'] -= transaction.quantity * g_to_oz
-                        else:
-                            summary['total_oz'] -= transaction.quantity
-                            summary['total_g'] -= transaction.quantity / g_to_oz
-                
-                # Calcular valores actuales
-                if gold_price:
-                    gold_summary['current_value'] = gold_summary['total_oz'] * gold_price
-                
-                if silver_price:
-                    silver_summary['current_value'] = silver_summary['total_oz'] * silver_price
-                
-                # Calcular totales
-                total_investment = gold_summary['total_investment'] + silver_summary['total_investment']
-                total_value = gold_summary['current_value'] + silver_summary['current_value']
-                total_pl = total_value - total_investment
-                
-                summary_data['metals']['data'] = {
-                    'gold': gold_summary,
-                    'silver': silver_summary,
-                    'total_investment': total_investment,
-                    'total_value': total_value,
-                    'total_pl': total_pl
-                }
-        
-        # 9. Cálculo del Patrimonio Neto
-        assets = 0
-        liabilities = 0
-        
-        # Activos
-        if summary_data['bank_accounts']['available']:
-            assets += summary_data['bank_accounts']['data']['total_cash']
-        
-        if summary_data['investments']['available']:
-            assets += summary_data['investments']['data']['total_market_value']
-        
-        if summary_data['crypto']['available']:
-            assets += summary_data['crypto']['data']['total_value']
-        
-        if summary_data['metals']['available']:
-            assets += summary_data['metals']['data']['total_value']
-        
-        if summary_data['pension_plans']['available']:
-            assets += summary_data['pension_plans']['data']['total_pension']
-        
-        # Pasivos
-        if summary_data['debts']['available']:
-            liabilities += summary_data['debts']['data']['total_debt']
-        
-        # Patrimonio Neto
-        net_worth = assets - liabilities
-        
-        summary_data['net_worth']['available'] = True
-        summary_data['net_worth']['data'] = {
-            'total_assets': assets,
-            'total_liabilities': liabilities,
-            'net_worth': net_worth
-        }
-    
-    except Exception as e:
-        print(f"Error calculando resumen financiero: {e}")
-        flash(f"Se produjo un error al calcular algunos datos del resumen: {e}", "warning")
-    
-    return render_template('financial_summary.html',
-                          config_form=config_form,
-                          summary=summary_data,
-                          config=config)
 
 
 @app.route('/debt_management', methods=['GET', 'POST'])
