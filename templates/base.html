@@ -64,8 +64,11 @@
     	      <a class="nav-link {% if request.endpoint == 'broker_operations' %}active{% endif %}" href="{{ url_for('broker_operations') }}">Ingreso/Retirada Broker</a>
   	    </li>
 	    <li class="nav-item">
-    	      <a class="nav-link {% if request.endpoint == 'fixed_income' %}active{% endif %}" href="{{ url_for('fixed_income') }}">Ingresos Fijos</a>
+    	      <a class="nav-link {% if request.endpoint == 'fixed_income' %}active{% endif %}" href="{{ url_for('fixed_income') }}">Salario</a>
   	    </li>
+	    <li class="nav-item">
+              <a class="nav-link {% if request.endpoint == 'variable_income' %}active{% endif %}" href="{{ url_for('variable_income') }}">Ingresos</a>
+            </li>
 	    <li class="nav-item">
             <a class="nav-link {% if request.endpoint == 'debt_management' %}active{% endif %}" href="{{ url_for('debt_management') }}">Deudas</a>
 	    </li>

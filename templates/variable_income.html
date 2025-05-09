@@ -1,0 +1,354 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mt-4">Ingresos</h1>
+    <p>Aquí puedes registrar y hacer seguimiento de tus ingresos fijos y variables como salario, freelance, dividendos, bonificaciones y más.</p>
+    
+    <!-- Resumen de la Situación Actual -->
+    <div class="card mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0">Resumen de Ingresos</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <!-- Último Mes -->
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-body text-center">
+                            <h6>Último Mes</h6>
+                            <h3 class="text-success">{{ total_last_month|round(2) }} €</h3>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Últimos 3 Meses -->
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-body text-center">
+                            <h6>Últimos 3 Meses</h6>
+                            <h3 class="text-primary">{{ total_last_3_months|round(2) }} €</h3>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Últimos 6 Meses -->
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-body text-center">
+                            <h6>Últimos 6 Meses</h6>
+                            <h3 class="text-info">{{ total_last_6_months|round(2) }} €</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <!-- Columna izquierda: Formularios -->
+        <div class="col-md-4">
+            <!-- Formulario para añadir categoría -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>Crear Categoría de Ingreso</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('variable_income') }}">
+                        {{ category_form.hidden_tag() }}
+                        <input type="hidden" name="add_category" value="1">
+                        
+                        <div class="mb-3">
+                            {{ category_form.name.label(class="form-label") }}
+                            {{ category_form.name(class="form-control") }}
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ category_form.description.label(class="form-label") }}
+                            {{ category_form.description(class="form-control") }}
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ category_form.parent_id.label(class="form-label") }}
+                            {{ category_form.parent_id(class="form-select") }}
+                            <div class="form-text">Selecciona una categoría padre para crear una subcategoría.</div>
+                        </div>
+                        
+                        {{ category_form.submit(class="btn btn-primary") }}
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Formulario para añadir ingreso -->
+            <div class="card">
+                <div class="card-header">
+                    <h5>Registrar Ingreso</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('variable_income') }}">
+                        {{ income_form.hidden_tag() }}
+                        <input type="hidden" name="add_income" value="1">
+                        
+                        <div class="mb-3">
+                            {{ income_form.description.label(class="form-label") }}
+                            {{ income_form.description(class="form-control") }}
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ income_form.amount.label(class="form-label") }}
+                            {{ income_form.amount(class="form-control") }}
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ income_form.date.label(class="form-label") }}
+                            {{ income_form.date(class="form-control") }}
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ income_form.category_id.label(class="form-label") }}
+                            {{ income_form.category_id(class="form-select") }}
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ income_form.income_type.label(class="form-label") }}
+                            <select id="income_type" name="income_type" class="form-select" onchange="handleIncomeTypeChange()">
+                                <option value="fixed">Ingreso Fijo</option>
+                                <option value="punctual">Ingreso Variable / Puntual</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3 form-check d-none">
+                            {{ income_form.is_recurring(class="form-check-input") }}
+                            {{ income_form.is_recurring.label(class="form-check-label") }}
+                        </div>
+                        
+                        <div id="recurring-options" style="display: none;">
+                            <div class="mb-3">
+                                {{ income_form.recurrence_months.label(class="form-label") }}
+                                {{ income_form.recurrence_months(class="form-select") }}
+                            </div>
+                            
+                            <div class="mb-3">
+                                {{ income_form.end_date.label(class="form-label") }}
+                                {{ income_form.end_date(class="form-control") }}
+                                <div class="form-text">Opcional. Si no se especifica, el ingreso no tiene fecha de finalización.</div>
+                            </div>
+                        </div>
+                        
+                        {{ income_form.submit(class="btn btn-success") }}
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Columna derecha: Historial y análisis -->
+        <div class="col-md-8">
+            <!-- Análisis por Categoría -->
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">Análisis por Categoría (Últimos 6 meses)</h5>
+                </div>
+                <div class="card-body">
+                    {% if sorted_categories %}
+                        <div class="table-responsive">
+                            <table class="table table-striped table-bordered table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Categoría</th>
+                                        <th class="text-end">Total (€)</th>
+                                        <th class="text-end">% del Total</th>
+                                        <th>Proporción</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Calcular el total de todas las categorías primero -->
+                                    {% set total_sum = namespace(value=0) %}
+                                    {% for category, amount in sorted_categories %}
+                                        {% set total_sum.value = total_sum.value + amount %}
+                                    {% endfor %}
+                                    
+                                    {% for category, amount in sorted_categories %}
+                                        <tr>
+                                            <td>{{ category }}</td>
+                                            <td class="text-end">{{ amount|round(2) }}</td>
+                                            <td class="text-end">
+                                                {% if total_sum.value > 0 %}
+                                                    {{ ((amount / total_sum.value) * 100)|round(2) }}%
+                                                {% else %}
+                                                    0%
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <div class="progress">
+                                                    <div 
+                                                        class="progress-bar bg-success" 
+                                                        role="progressbar" 
+                                                        style="width: {% if total_sum.value > 0 %}{{ ((amount / total_sum.value) * 100)|round(0) }}{% else %}0{% endif %}%;" 
+                                                        aria-valuenow="{% if total_sum.value > 0 %}{{ ((amount / total_sum.value) * 100)|round(0) }}{% else %}0{% endif %}"
+                                                        aria-valuemin="0" 
+                                                        aria-valuemax="100">
+                                                        {% if total_sum.value > 0 %}{{ ((amount / total_sum.value) * 100)|round(0) }}%{% else %}0%{% endif %}
+                                                    </div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info">
+                            No hay suficientes datos para mostrar un análisis por categoría.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Historial de Ingresos -->
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Historial de Ingresos</h5>
+                </div>
+                <div class="card-body">
+                    {% if unified_incomes %}
+                        <div class="table-responsive">
+                            <table class="table table-striped table-bordered table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Descripción</th>
+                                        <th>Categoría</th>
+                                        <th>Tipo</th>
+                                        <th class="text-end">Importe (€)</th>
+                                        <th class="text-center">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for income in unified_incomes %}
+                                    <tr>
+                                        <td>{{ income.date.strftime('%d/%m/%Y') }}</td>
+                                        <td>{{ income.description }}</td>
+                                        <td>{{ income.category_name }}</td>
+                                        <td>
+                                            {% if income.income_type == 'fixed' %}
+                                                <span class="badge bg-primary">Fijo</span>
+                                            {% else %}
+                                                <span class="badge bg-warning">Variable</span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-end">{{ income.amount|round(2) }}</td>
+                                        <td class="text-center">
+                                            <div class="btn-group">
+                                                <a href="{{ url_for('edit_variable_income', income_id=income.id) }}" class="btn btn-primary btn-sm" title="Editar ingreso">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pencil" viewBox="0 0 16 16">
+                                                        <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/>
+                                                    </svg>
+                                                </a>
+                                                
+                                                {% if income.income_type == 'fixed' and income.is_recurring %}
+                                                    {% if income.is_ended is defined and income.is_ended %}
+                                                        <!-- Botón para reactivar el ingreso fijo finalizado -->
+                                                        <form method="POST" action="{{ url_for('end_variable_income', income_id=income.id, action_date=income.date.strftime('%Y-%m-%d')) }}" class="d-inline" onsubmit="return confirm('¿Estás seguro de que deseas reactivar este ingreso fijo? Se volverán a generar los pagos futuros.');">
+                                                            <button type="submit" class="btn btn-outline-secondary btn-sm" title="Reactivar ingreso">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-calendar-check" viewBox="0 0 16 16">
+                                                                    <path d="M10.854 7.146a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708 0l-1.5-1.5a.5.5 0 1 1 .708-.708L7.5 9.793l2.646-2.647a.5.5 0 0 1 .708 0z"/>
+                                                                    <path d="M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5zM1 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4H1z"/>
+                                                                </svg>
+                                                                Finalizado ({{ income.end_date.strftime('%m/%Y') }})
+                                                            </button>
+                                                        </form>
+                                                    {% else %}
+                                                        <!-- Botón para finalizar el ingreso fijo -->
+                                                        <form method="POST" action="{{ url_for('end_variable_income', income_id=income.id, action_date=income.date.strftime('%Y-%m-%d')) }}" class="d-inline" onsubmit="return confirm('¿Estás seguro de que deseas finalizar este ingreso en {{ income.date.strftime('%m/%Y') }}? Los pagos posteriores se cancelarán pero se mantendrá el historial anterior.');">
+                                                            <button type="submit" class="btn btn-warning btn-sm" title="Finalizar ingreso">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-calendar-x" viewBox="0 0 16 16">
+                                                                    <path d="M6.146 7.146a.5.5 0 0 1 .708 0L8 8.293l1.146-1.147a.5.5 0 1 1 .708.708L8.707 9l1.147 1.146a.5.5 0 0 1-.708.708L8 9.707l-1.146 1.147a.5.5 0 0 1-.708-.708L7.293 9 6.146 7.854a.5.5 0 0 1 0-.708z"/>
+                                                                    <path d="M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5zM1 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4H1z"/>
+                                                                </svg>
+                                                                Finalizar
+                                                            </button>
+                                                        </form>
+                                                    {% endif %}
+                                                {% endif %}
+                                                
+                                                <form method="POST" action="{{ url_for('delete_variable_income', income_id=income.id) }}" class="d-inline" onsubmit="return confirm('¿Estás seguro de que deseas eliminar este ingreso?');">
+                                                    <button type="submit" class="btn btn-danger btn-sm" title="Eliminar ingreso">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
+                                                            <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                                                            <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                                                        </svg>
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info">
+                            No hay ingresos registrados. Utiliza el formulario para añadir tu primer ingreso.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript para mostrar/ocultar opciones de recurrencia y automarcar el checkbox -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Referencias a elementos del DOM
+    const incomeTypeSelect = document.getElementById('income_type');
+    const recurringCheck = document.getElementById('is_recurring');
+    const recurringOptions = document.getElementById('recurring-options');
+    
+    // Función para manejar cambios en el tipo de ingreso
+    function handleIncomeTypeChange() {
+        const isFixed = incomeTypeSelect.value === 'fixed';
+        
+        // Marcar/desmarcar checkbox de recurrencia automáticamente
+        recurringCheck.checked = isFixed;
+        
+        // Mostrar/ocultar opciones de recurrencia
+        recurringOptions.style.display = isFixed ? 'block' : 'none';
+    }
+    
+    // Asignar la función al evento change
+    if (incomeTypeSelect) {
+        incomeTypeSelect.addEventListener('change', handleIncomeTypeChange);
+        
+        // Ejecutar una vez al cargar para establecer el estado inicial
+        handleIncomeTypeChange();
+    }
+    
+    // Establecer la fecha actual en el campo de fecha por defecto
+    const dateInput = document.getElementById('date');
+    if (dateInput) {
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = (today.getMonth() + 1).toString().padStart(2, '0');
+        const day = today.getDate().toString().padStart(2, '0');
+        
+        dateInput.value = `${year}-${month}-${day}`;
+    }
+});
+
+// Función global para manejar cambios en el tipo de ingreso (usada en el HTML)
+function handleIncomeTypeChange() {
+    const incomeTypeSelect = document.getElementById('income_type');
+    const recurringCheck = document.getElementById('is_recurring');
+    const recurringOptions = document.getElementById('recurring-options');
+    
+    const isFixed = incomeTypeSelect.value === 'fixed';
+    
+    // Marcar/desmarcar checkbox de recurrencia automáticamente
+    recurringCheck.checked = isFixed;
+    
+    // Mostrar/ocultar opciones de recurrencia
+    recurringOptions.style.display = isFixed ? 'block' : 'none';
+}
+</script>
+{% endblock content %}

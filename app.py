@@ -6188,6 +6188,738 @@ class CashHistoryForm(FlaskForm):
                            render_kw={"type": "month", "placeholder": "YYYY-MM"})
     submit = SubmitField('Guardar Estado Actual')
 
+# --- Modelos para Ingresos Variables ---
+class VariableIncomeCategory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    parent_id = db.Column(db.Integer, db.ForeignKey('variable_income_category.id', ondelete='SET NULL'), nullable=True)
+    is_default = db.Column(db.Boolean, default=False)  # Para categorías predefinidas
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relación con el usuario
+    user = db.relationship('User', backref=db.backref('variable_income_categories', lazy='dynamic'))
+    
+    # Relación para subcategorías
+    subcategories = db.relationship('VariableIncomeCategory', 
+                                 backref=db.backref('parent', remote_side=[id]),
+                                 cascade="all, delete-orphan")
+    
+    # Relación con ingresos
+    incomes = db.relationship('VariableIncome', backref='category', lazy='dynamic', cascade="all, delete-orphan")
+    
+    def __repr__(self):
+        return f'<VariableIncomeCategory {self.name}>'
+
+class VariableIncome(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
+    category_id = db.Column(db.Integer, db.ForeignKey('variable_income_category.id', ondelete='SET NULL'), nullable=True)
+    description = db.Column(db.String(200), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    date = db.Column(db.Date, nullable=False, default=date.today)
+    income_type = db.Column(db.String(20), nullable=False, default="punctual")  # "punctual", "recurring"
+    is_recurring = db.Column(db.Boolean, default=False)  # Para ingresos periódicos
+    recurrence_months = db.Column(db.Integer, nullable=True)  # Cada cuántos meses se repite (1=mensual, 12=anual)
+    start_date = db.Column(db.Date, nullable=True)  # Para ingresos recurrentes
+    end_date = db.Column(db.Date, nullable=True)  # Fecha opcional de finalización
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relación con el usuario
+    user = db.relationship('User', backref=db.backref('variable_incomes', lazy='dynamic'))
+    
+    def __repr__(self):
+        return f'<VariableIncome {self.description} ({self.amount}€)>'
+
+# --- Formularios para la gestión de ingresos variables ---
+# --- Formularios para la gestión de ingresos ---
+class VariableIncomeCategoryForm(FlaskForm):
+    name = StringField('Nombre de la Categoría', validators=[DataRequired()],
+                    render_kw={"placeholder": "Ej: Freelance, Dividendos, Bonificaciones..."})
+    description = TextAreaField('Descripción (Opcional)',
+                             render_kw={"placeholder": "Descripción opcional", "rows": 2})
+    parent_id = SelectField('Categoría Padre (Opcional)', coerce=int, choices=[], validators=[Optional()])
+    submit = SubmitField('Guardar Categoría')
+
+class VariableIncomeForm(FlaskForm):
+    description = StringField('Descripción', validators=[DataRequired()],
+                           render_kw={"placeholder": "Ej: Salario empresa, Proyecto freelance, Dividendo acción..."})
+    amount = StringField('Importe (€)', validators=[DataRequired()],
+                       render_kw={"placeholder": "Ej: 1500.50"})
+    date = StringField('Fecha', validators=[DataRequired()],
+                     render_kw={"type": "date"})
+    category_id = SelectField('Categoría', coerce=int, validators=[Optional()])
+    income_type = SelectField('Tipo de Ingreso',
+                            choices=[
+                                ('fixed', 'Ingreso Fijo'),
+                                ('punctual', 'Ingreso Variable / Puntual')
+                            ],
+                            validators=[DataRequired()])
+    is_recurring = BooleanField('Es Recurrente')
+    recurrence_months = SelectField('Recurrencia',
+                                 choices=[
+                                     (1, 'Mensual'),
+                                     (2, 'Bimestral'),
+                                     (3, 'Trimestral'),
+                                     (6, 'Semestral'),
+                                     (12, 'Anual')
+                                 ], coerce=int, validators=[Optional()])
+    start_date = StringField('Fecha Inicio (Para recurrentes)',
+                          render_kw={"type": "date"}, validators=[Optional()])
+    end_date = StringField('Fecha Fin (Opcional)',
+                        render_kw={"type": "date"}, validators=[Optional()])
+    submit = SubmitField('Registrar Ingreso')
+
+@app.route('/end_variable_income/<int:income_id>/<string:action_date>', methods=['POST'])
+@login_required
+def end_variable_income(income_id, action_date):
+    """
+    Finaliza un ingreso fijo estableciendo su fecha de fin a la fecha especificada.
+    Si ya está finalizado (tiene end_date), revierte la finalización.
+    
+    Args:
+        income_id: ID del ingreso fijo
+        action_date: Fecha desde la que finalizar (formato YYYY-MM-DD)
+    """
+    # Buscar el ingreso por ID y verificar que pertenece al usuario
+    income = VariableIncome.query.filter_by(id=income_id, user_id=current_user.id).first_or_404()
+    
+    # Verificar que es un ingreso fijo (recurrente)
+    if not income.is_recurring or income.income_type != 'fixed':
+        flash('Solo se pueden finalizar ingresos fijos.', 'warning')
+        return redirect(url_for('variable_income'))
+    
+    try:
+        # Convertir la fecha de acción a objeto date
+        fin_date = datetime.strptime(action_date, '%Y-%m-%d').date()
+        
+        # Si el ingreso ya tiene fecha de fin (está finalizado), revertir la finalización
+        if income.end_date:
+            income.end_date = None
+            db.session.commit()
+            flash(f'El ingreso fijo "{income.description}" ha sido reactivado. Se generarán pagos desde la fecha actual.', 'success')
+        else:
+            # Finalizar el ingreso en la fecha especificada
+            # Ajustamos al primer día del mes para mantener consistencia
+            fin_month_date = date(fin_date.year, fin_date.month, 1)
+            
+            income.end_date = fin_month_date
+            db.session.commit()
+            flash(f'El ingreso fijo "{income.description}" ha sido finalizado en {fin_month_date.strftime("%m/%Y")}. No se generarán más pagos a partir de esta fecha.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error al procesar el ingreso fijo: {e}', 'danger')
+    
+    return redirect(url_for('variable_income'))
+
+
+
+@app.route('/variable_income', methods=['GET', 'POST'])
+@login_required
+def variable_income():
+    """Muestra y gestiona la página de ingresos (fijos y variables)."""
+    # Formulario para categorías
+    category_form = VariableIncomeCategoryForm()
+
+    # Cargar categorías para el dropdown del formulario
+    user_categories = VariableIncomeCategory.query.filter_by(
+        user_id=current_user.id,
+        parent_id=None  # Solo categorías principales
+    ).all()
+
+    category_form.parent_id.choices = [(0, 'Ninguna (Categoría Principal)')] + [
+        (cat.id, cat.name) for cat in user_categories
+    ]
+
+    # Formulario para ingresos
+    income_form = VariableIncomeForm()
+
+    # Cargar todas las categorías para el dropdown (incluyendo subcategorías)
+    all_categories = VariableIncomeCategory.query.filter_by(user_id=current_user.id).all()
+
+    # Crear una lista de opciones con indentación para mostrar jerarquía
+    category_choices = []
+    for cat in all_categories:
+        if cat.parent_id is None:
+            category_choices.append((cat.id, cat.name))
+            # Añadir subcategorías con indentación
+            subcats = VariableIncomeCategory.query.filter_by(parent_id=cat.id).all()
+            for subcat in subcats:
+                category_choices.append((subcat.id, f"-- {subcat.name}"))
+
+    income_form.category_id.choices = [(0, 'Sin categoría')] + category_choices
+
+    # Procesar formulario de categoría
+    if category_form.validate_on_submit() and 'add_category' in request.form:
+        try:
+            parent_id = category_form.parent_id.data
+            if parent_id == 0:
+                parent_id = None  # Si se seleccionó "Ninguna"
+
+            # Crear nueva categoría
+            new_category = VariableIncomeCategory(
+                user_id=current_user.id,
+                name=category_form.name.data,
+                description=category_form.description.data,
+                parent_id=parent_id
+            )
+
+            db.session.add(new_category)
+            db.session.commit()
+
+            flash('Categoría añadida correctamente.', 'success')
+            return redirect(url_for('variable_income'))
+
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error al crear categoría: {e}', 'danger')
+
+    # Procesar formulario de ingreso
+    if income_form.validate_on_submit() and 'add_income' in request.form:
+        try:
+            # Convertir valores
+            amount = float(income_form.amount.data.replace(',', '.'))
+            date_obj = datetime.strptime(income_form.date.data, '%Y-%m-%d').date()
+
+            # Determinar categoría
+            category_id = income_form.category_id.data
+            if category_id == 0:
+                category_id = None  # Sin categoría
+
+            # Verificar campos para ingresos recurrentes/fijos
+            is_recurring = income_form.income_type.data == 'fixed'  # Solo ingresos fijos son recurrentes
+            recurrence_months = None
+            start_date = None
+            end_date = None
+
+            if is_recurring:
+                recurrence_months = income_form.recurrence_months.data
+
+                # Para ingresos fijos, la fecha de inicio siempre es igual a la fecha del ingreso
+                start_date = date_obj
+
+                if income_form.end_date.data:
+                    end_date = datetime.strptime(income_form.end_date.data, '%Y-%m-%d').date()
+
+            # Crear nuevo ingreso
+            new_income = VariableIncome(
+                user_id=current_user.id,
+                category_id=category_id,
+                description=income_form.description.data,
+                amount=amount,
+                date=date_obj,
+                income_type=income_form.income_type.data,
+                is_recurring=is_recurring,
+                recurrence_months=recurrence_months if is_recurring else None,
+                start_date=start_date,
+                end_date=end_date
+            )
+
+            db.session.add(new_income)
+            db.session.commit()
+
+            flash('Ingreso registrado correctamente.', 'success')
+            return redirect(url_for('variable_income'))
+
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error al registrar ingreso: {e}', 'danger')
+
+    # Obtener todos los ingresos del usuario (ordenados por fecha, más recientes primero)
+    user_incomes = VariableIncome.query.filter_by(user_id=current_user.id).order_by(VariableIncome.date.desc()).all()
+
+    # Preparar historial unificado de ingresos incluyendo recurrentes expandidos
+    unified_incomes = []
+    
+    # Procesar cada ingreso
+    for income in user_incomes:
+        # Si es un ingreso fijo (recurrente), generar entradas para cada mes
+        if income.is_recurring and income.income_type == 'fixed':
+            # Determinar fecha de inicio y fin
+            start_date = income.start_date or income.date
+            end_date = income.end_date or date.today()
+
+            # Si la fecha de fin es futura, usar la fecha actual como límite
+            if end_date > date.today():
+                end_date = date.today()
+
+            # Calcular meses entre start_date y end_date
+            current_date = start_date
+            recurrence = income.recurrence_months or 1  # Por defecto mensual
+
+            while current_date <= end_date:
+                # Determinar nombre de categoría
+                category_name = "Sin categoría"
+                if income.category_id:
+                    category = VariableIncomeCategory.query.get(income.category_id)
+                    if category:
+                        category_name = category.name
+                
+                # Crear entrada para este mes
+                monthly_entry = {
+                    'id': income.id,
+                    'description': f"{income.description} ({current_date.strftime('%b %Y')})",
+                    'amount': income.amount,
+                    'date': current_date,
+                    'income_type': income.income_type,
+                    'is_recurring': income.is_recurring,
+                    'category_name': category_name,
+                    'from_debt': False
+                }
+                
+                # Verificar si el ingreso tiene fecha de fin para marcarlo
+                if income.end_date:
+                    monthly_entry['is_ended'] = True
+                    monthly_entry['end_date'] = income.end_date
+                else:
+                    monthly_entry['is_ended'] = False
+                
+                unified_incomes.append(monthly_entry)
+
+                # Avanzar al siguiente período según la recurrencia
+                year = current_date.year
+                month = current_date.month + recurrence
+
+                # Ajustar si nos pasamos de diciembre
+                while month > 12:
+                    month -= 12
+                    year += 1
+
+                # Crear nueva fecha
+                try:
+                    current_date = date(year, month, 1)
+                except ValueError:
+                    # Por si hay algún problema con la fecha
+                    break
+        else:
+            # Para ingresos variables/puntuales, solo añadir una entrada directamente
+            category_name = "Sin categoría"
+            if income.category_id:
+                category = VariableIncomeCategory.query.get(income.category_id)
+                if category:
+                    category_name = category.name
+            
+            unified_incomes.append({
+                'id': income.id,
+                'description': income.description,
+                'amount': income.amount,
+                'date': income.date,
+                'income_type': income.income_type,
+                'is_recurring': income.is_recurring,
+                'category_name': category_name,
+                'from_debt': False
+            })
+
+    # Ordenar por fecha (más recientes primero)
+    unified_incomes.sort(key=lambda x: x['date'], reverse=True)
+
+    # Calcular resumen por categoría (últimos 6 meses)
+    six_months_ago = date.today() - timedelta(days=180)
+    incomes_by_category = {}
+    
+    for income in user_incomes:
+        # Determinar todas las fechas para ingresos recurrentes dentro del periodo
+        dates_to_consider = []
+        if income.is_recurring and income.income_type == 'fixed' and income.recurrence_months:
+            start_date = max(income.start_date or income.date, six_months_ago)
+            end_date = min(income.end_date or date.today(), date.today())
+            
+            current_date = start_date
+            recurrence = income.recurrence_months
+            
+            while current_date <= end_date:
+                dates_to_consider.append(current_date)
+                
+                # Avanzar al siguiente período
+                year = current_date.year
+                month = current_date.month + recurrence
+                
+                # Ajustar si nos pasamos de diciembre
+                while month > 12:
+                    month -= 12
+                    year += 1
+                    
+                # Crear nueva fecha
+                try:
+                    current_date = date(year, month, 1)
+                except ValueError:
+                    break
+        else:
+            if income.date >= six_months_ago:
+                dates_to_consider.append(income.date)
+        
+        # Sumar el ingreso en cada fecha correspondiente
+        for income_date in dates_to_consider:
+            # Obtener nombre de categoría
+            category_name = "Sin categoría"
+            if income.category_id:
+                category = VariableIncomeCategory.query.get(income.category_id)
+                if category:
+                    category_name = category.name
+                    
+            # Inicializar categoría si es la primera vez
+            if category_name not in incomes_by_category:
+                incomes_by_category[category_name] = 0
+                
+            # Sumar ingreso
+            incomes_by_category[category_name] += income.amount
+    
+    # Ordenar categorías por ingreso (de mayor a menor)
+    sorted_categories = sorted(
+        incomes_by_category.items(),
+        key=lambda x: x[1],
+        reverse=True
+    )
+    
+    # Calcular total acumulado en distintos períodos
+    total_last_month = 0
+    total_last_3_months = 0
+    total_last_6_months = 0
+    
+    one_month_ago = date.today() - timedelta(days=30)
+    three_months_ago = date.today() - timedelta(days=90)
+    
+    for income in unified_incomes:
+        if income['date'] >= one_month_ago:
+            total_last_month += income['amount']
+        if income['date'] >= three_months_ago:
+            total_last_3_months += income['amount']
+        if income['date'] >= six_months_ago:
+            total_last_6_months += income['amount']
+
+    return render_template('variable_income.html',
+                         category_form=category_form,
+                         income_form=income_form,
+                         incomes=user_incomes,
+                         unified_incomes=unified_incomes,
+                         sorted_categories=sorted_categories,
+                         total_last_month=total_last_month,
+                         total_last_3_months=total_last_3_months,
+                         total_last_6_months=total_last_6_months)
+
+
+@app.route('/edit_variable_income/<int:income_id>', methods=['GET', 'POST'])
+@login_required
+def edit_variable_income(income_id):
+    """Edita un ingreso existente."""
+    # Buscar el ingreso por ID y verificar que pertenece al usuario
+    income = VariableIncome.query.filter_by(id=income_id, user_id=current_user.id).first_or_404()
+    
+    # Crear formulario y prellenarlo con los datos del ingreso
+    form = VariableIncomeForm()
+    
+    # Cargar categorías para el dropdown
+    all_categories = VariableIncomeCategory.query.filter_by(user_id=current_user.id).all()
+    
+    # Crear lista de opciones con indentación para mostrar jerarquía
+    category_choices = []
+    for cat in all_categories:
+        if cat.parent_id is None:
+            category_choices.append((cat.id, cat.name))
+            # Añadir subcategorías con indentación
+            subcats = VariableIncomeCategory.query.filter_by(parent_id=cat.id).all()
+            for subcat in subcats:
+                category_choices.append((subcat.id, f"-- {subcat.name}"))
+    
+    form.category_id.choices = [(0, 'Sin categoría')] + category_choices
+    
+    if request.method == 'GET':
+        # Precargar datos del ingreso en el formulario
+        form.description.data = income.description
+        form.amount.data = str(income.amount)
+        form.date.data = income.date.strftime('%Y-%m-%d')
+        form.category_id.data = income.category_id if income.category_id else 0
+        form.income_type.data = income.income_type
+        form.is_recurring.data = income.is_recurring
+        
+        if income.is_recurring:
+            form.recurrence_months.data = income.recurrence_months if income.recurrence_months else 1
+            if income.start_date:
+                form.start_date.data = income.start_date.strftime('%Y-%m-%d')
+            if income.end_date:
+                form.end_date.data = income.end_date.strftime('%Y-%m-%d')
+    
+    if form.validate_on_submit():
+        try:
+            # Convertir valores
+            amount = float(form.amount.data.replace(',', '.'))
+            date_obj = datetime.strptime(form.date.data, '%Y-%m-%d').date()
+            
+            # Determinar categoría
+            category_id = form.category_id.data
+            if category_id == 0:
+                category_id = None  # Sin categoría
+                
+            # Verificar campos para ingresos recurrentes/fijos
+            is_recurring = form.income_type.data == 'fixed'  # Solo ingresos fijos son recurrentes
+            recurrence_months = None
+            start_date = None
+            end_date = None
+            
+            if is_recurring:
+                recurrence_months = form.recurrence_months.data
+                
+                # Para ingresos fijos, la fecha de inicio es igual a la fecha del ingreso
+                start_date = date_obj
+                    
+                if form.end_date.data:
+                    end_date = datetime.strptime(form.end_date.data, '%Y-%m-%d').date()
+            
+            # Actualizar el ingreso
+            income.description = form.description.data
+            income.amount = amount
+            income.date = date_obj
+            income.category_id = category_id
+            income.income_type = form.income_type.data
+            income.is_recurring = is_recurring
+            income.recurrence_months = recurrence_months if is_recurring else None
+            income.start_date = start_date
+            income.end_date = end_date
+            income.updated_at = datetime.utcnow()
+            
+            db.session.commit()
+            
+            flash('Ingreso actualizado correctamente.', 'success')
+            return redirect(url_for('variable_income'))
+            
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error al actualizar ingreso: {e}', 'danger')
+    
+    return render_template('edit_variable_income.html', form=form, income=income)
+
+
+@app.route('/delete_variable_income/<int:income_id>', methods=['POST'])
+@login_required
+def delete_variable_income(income_id):
+    """Elimina un ingreso variable."""
+    income = VariableIncome.query.filter_by(id=income_id, user_id=current_user.id).first_or_404()
+
+    try:
+        db.session.delete(income)
+        db.session.commit()
+        flash('Ingreso eliminado correctamente.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error al eliminar ingreso: {e}', 'danger')
+
+    return redirect(url_for('variable_income'))
+
+@app.route('/edit_variable_income_category/<int:category_id>', methods=['GET', 'POST'])
+@login_required
+def edit_variable_income_category(category_id):
+    """Edita una categoría de ingreso variable existente."""
+    # Buscar la categoría por ID y verificar que pertenece al usuario
+    category = VariableIncomeCategory.query.filter_by(id=category_id, user_id=current_user.id).first_or_404()
+
+    # Crear formulario
+    form = VariableIncomeCategoryForm()
+
+    # Cargar categorías para el dropdown (excluyendo la actual y sus subcategorías)
+    user_categories = VariableIncomeCategory.query.filter_by(
+        user_id=current_user.id,
+        parent_id=None  # Solo categorías principales
+    ).filter(VariableIncomeCategory.id != category_id).all()
+
+    # Filtrar subcategorías que pertenecen a esta categoría
+    subcategory_ids = [subcat.id for subcat in category.subcategories]
+    user_categories = [cat for cat in user_categories if cat.id not in subcategory_ids]
+
+    form.parent_id.choices = [(0, 'Ninguna (Categoría Principal)')] + [
+        (cat.id, cat.name) for cat in user_categories
+    ]
+
+    if request.method == 'GET':
+        # Precargar datos de la categoría en el formulario
+        form.name.data = category.name
+        form.description.data = category.description
+        form.parent_id.data = category.parent_id if category.parent_id else 0
+
+    if form.validate_on_submit():
+        try:
+            parent_id = form.parent_id.data
+            if parent_id == 0:
+                parent_id = None  # Si se seleccionó "Ninguna"
+
+            # Actualizar la categoría
+            category.name = form.name.data
+            category.description = form.description.data
+            category.parent_id = parent_id
+
+            db.session.commit()
+
+            flash('Categoría actualizada correctamente.', 'success')
+            return redirect(url_for('variable_income'))
+
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error al actualizar categoría: {e}', 'danger')
+
+    return render_template('edit_variable_income_category.html', form=form, category=category)
+
+@app.route('/delete_variable_income_category/<int:category_id>', methods=['POST'])
+@login_required
+def delete_variable_income_category(category_id):
+    """Elimina una categoría de ingreso variable."""
+    category = VariableIncomeCategory.query.filter_by(id=category_id, user_id=current_user.id).first_or_404()
+
+    try:
+        # Verificar si hay ingresos o subcategorías asociadas
+        has_incomes = VariableIncome.query.filter_by(category_id=category_id).first() is not None
+        has_subcategories = VariableIncomeCategory.query.filter_by(parent_id=category_id).first() is not None
+
+        if has_incomes:
+            flash('No se puede eliminar la categoría porque tiene ingresos asociados.', 'warning')
+            return redirect(url_for('variable_income'))
+
+        if has_subcategories:
+            flash('No se puede eliminar la categoría porque tiene subcategorías.', 'warning')
+            return redirect(url_for('variable_income'))
+
+        db.session.delete(category)
+        db.session.commit()
+        flash('Categoría eliminada correctamente.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error al eliminar categoría: {e}', 'danger')
+
+    return redirect(url_for('variable_income'))
+
+
+# Ruta para ayudar a crear categorías predeterminadas
+@app.route('/create_default_income_categories', methods=['GET'])
+@login_required
+def create_default_income_categories():
+    """Crea categorías de ingresos variables predeterminadas para el usuario."""
+    default_categories = [
+        {
+            'name': 'Trabajo Freelance', 
+            'description': 'Ingresos por proyectos independientes',
+            'subcategories': [
+                'Desarrollo web', 
+                'Diseño gráfico', 
+                'Consultoría', 
+                'Traducción', 
+                'Fotografía'
+            ]
+        },
+        {
+            'name': 'Inversiones', 
+            'description': 'Rendimiento de inversiones',
+            'subcategories': [
+                'Dividendos', 
+                'Intereses', 
+                'Alquileres', 
+                'Ganancias de capital'
+            ]
+        },
+        {
+            'name': 'Premios y Regalos', 
+            'description': 'Ingresos no regulares recibidos',
+            'subcategories': [
+                'Premios', 
+                'Regalos', 
+                'Herencias',
+                'Loterías'
+            ]
+        },
+        {
+            'name': 'Reembolsos', 
+            'description': 'Devoluciones de dinero',
+            'subcategories': [
+                'Impuestos', 
+                'Gastos médicos', 
+                'Seguros',
+                'Reclamaciones'
+            ]
+        },
+        {
+            'name': 'Bonificaciones', 
+            'description': 'Pagos extra del trabajo principal',
+            'subcategories': [
+                'Bonos', 
+                'Comisiones', 
+                'Horas extras',
+                'Incentivos'
+            ]
+        },
+        {
+            'name': 'Varios', 
+            'description': 'Otros ingresos no categorizados',
+            'subcategories': []
+        }
+    ]
+    
+    try:
+        categories_added = 0
+        subcategories_added = 0
+        
+        for category in default_categories:
+            # Verificar si la categoría ya existe
+            existing_cat = VariableIncomeCategory.query.filter_by(
+                user_id=current_user.id,
+                name=category['name']
+            ).first()
+            
+            if existing_cat:
+                # Categoría principal ya existe, solo añadir subcategorías faltantes
+                for subcat_name in category['subcategories']:
+                    # Verificar si la subcategoría ya existe
+                    existing_subcat = VariableIncomeCategory.query.filter_by(
+                        user_id=current_user.id,
+                        parent_id=existing_cat.id,
+                        name=subcat_name
+                    ).first()
+                    
+                    if not existing_subcat:
+                        # Crear nueva subcategoría
+                        new_subcat = VariableIncomeCategory(
+                            user_id=current_user.id,
+                            name=subcat_name,
+                            parent_id=existing_cat.id,
+                            is_default=True
+                        )
+                        db.session.add(new_subcat)
+                        subcategories_added += 1
+            else:
+                # Crear categoría principal
+                main_cat = VariableIncomeCategory(
+                    user_id=current_user.id,
+                    name=category['name'],
+                    description=category['description'],
+                    is_default=True
+                )
+                db.session.add(main_cat)
+                db.session.flush()  # Para obtener el ID asignado
+                categories_added += 1
+                
+                # Crear subcategorías
+                for subcat_name in category['subcategories']:
+                    subcategory = VariableIncomeCategory(
+                        user_id=current_user.id,
+                        name=subcat_name,
+                        parent_id=main_cat.id,
+                        is_default=True
+                    )
+                    db.session.add(subcategory)
+                    subcategories_added += 1
+        
+        db.session.commit()
+        
+        if categories_added > 0 or subcategories_added > 0:
+            flash(f'Se han creado {categories_added} categorías y {subcategories_added} subcategorías predeterminadas.', 'success')
+        else:
+            flash('Ya existen todas las categorías predeterminadas.', 'info')
+        
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error al crear categorías predeterminadas: {e}', 'danger')
+    
+    return redirect(url_for('variable_income'))
+
+
 @app.route('/bank_accounts', methods=['GET', 'POST'])
 @login_required
 def bank_accounts():
