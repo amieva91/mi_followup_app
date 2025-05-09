@@ -55,7 +55,7 @@
           <ul class="navbar-nav me-auto mb-2 mb-md-0">
             {% if current_user.is_authenticated %}
             <li class="nav-item">
-              <a class="nav-link {% if request.endpoint == 'show_portfolio' %}active{% endif %}" href="{{ url_for('show_portfolio') }}">Ver Portfolio</a>
+              <a class="nav-link {% if request.endpoint == 'show_portfolio' %}active{% endif %}" href="{{ url_for('show_portfolio') }}">Portfolio</a>
             </li>
             <li class="nav-item">
               <a class="nav-link {% if request.endpoint == 'show_watchlist' %}active{% endif %}" href="{{ url_for('show_watchlist') }}">Watchlist</a>
@@ -88,7 +88,7 @@
               <a class="nav-link {% if request.endpoint == 'pension_plans' %}active{% endif %}" href="{{ url_for('pension_plans') }}">Plan de Pensiones</a>
 	    </li>
 	    <li class="nav-item">
-              <a class="nav-link {% if request.endpoint == 'financial_summary' %}active{% endif %}" href="{{ url_for('financial_summary') }}">Resumen Financiero</a>
+              <a class="nav-link {% if request.endpoint == 'financial_summary' %}active{% endif %}" href="{{ url_for('financial_summary') }}">Resumen</a>
             </li>
 	    <li class="nav-item">
               <a class="nav-link {% if request.endpoint == 'index' %}active{% endif %}" href="{{ url_for('index') }}">Cargar/Procesar</a>
