@@ -55,9 +55,6 @@
           <ul class="navbar-nav me-auto mb-2 mb-md-0">
             {% if current_user.is_authenticated %}
             <li class="nav-item">
-              <a class="nav-link {% if request.endpoint == 'index' %}active{% endif %}" href="{{ url_for('index') }}">Cargar/Procesar</a>
-            </li>
-            <li class="nav-item">
               <a class="nav-link {% if request.endpoint == 'show_portfolio' %}active{% endif %}" href="{{ url_for('show_portfolio') }}">Ver Portfolio</a>
             </li>
             <li class="nav-item">
@@ -89,6 +86,9 @@
 	    </li>
 	    <li class="nav-item">
               <a class="nav-link {% if request.endpoint == 'financial_summary' %}active{% endif %}" href="{{ url_for('financial_summary') }}">Resumen Financiero</a>
+            </li>
+	    <li class="nav-item">
+              <a class="nav-link {% if request.endpoint == 'index' %}active{% endif %}" href="{{ url_for('index') }}">Cargar/Procesar</a>
             </li>
             {# --- NUEVO ENLACE GESTIÓN MAPEO --- #}
             <li class="nav-item">
