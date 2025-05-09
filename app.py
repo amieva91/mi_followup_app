@@ -6690,6 +6690,64 @@ def edit_variable_income(income_id):
     
     return render_template('edit_variable_income.html', form=form, income=income)
 
+@app.route('/delete_variable_income_with_options/<int:income_id>/<string:delete_type>', methods=['POST'])
+@login_required
+def delete_variable_income_with_options(income_id, delete_type):
+    """
+    Elimina un ingreso fijo recurrente según la opción seleccionada:
+    - 'single': Elimina solo la entrada específica
+    - 'series': Elimina toda la serie recurrente
+
+    Args:
+        income_id: ID del ingreso recurrente
+        delete_type: Tipo de eliminación ('single' o 'series')
+    """
+    # Buscar el ingreso por ID y verificar que pertenece al usuario
+    income = VariableIncome.query.filter_by(id=income_id, user_id=current_user.id).first_or_404()
+
+    if not income:
+        flash('Ingreso no encontrado.', 'danger')
+        return redirect(url_for('variable_income'))
+
+    try:
+        if delete_type == 'series':
+            # Eliminar toda la serie recurrente
+            db.session.delete(income)
+            db.session.commit()
+            flash(f'La serie completa del ingreso recurrente "{income.description}" ha sido eliminada.', 'success')
+
+        elif delete_type == 'single':
+            # Para eliminar solo una entrada de una serie, creamos un registro negativo para ese mes específico
+            entry_date_str = request.args.get('entry_date')
+
+            if entry_date_str:
+                entry_date = datetime.strptime(entry_date_str, '%Y-%m-%d').date()
+
+                # Crear un ingreso de compensación (mismo importe pero negativo)
+                compensation = VariableIncome(
+                    user_id=current_user.id,
+                    category_id=income.category_id,
+                    description=f"Excepción: {income.description}",
+                    amount=-income.amount,  # Importe negativo para cancelar
+                    date=entry_date,
+                    income_type='punctual',  # Puntual para que no se repita
+                    is_recurring=False
+                )
+
+                db.session.add(compensation)
+                db.session.commit()
+                flash(f'El pago específico de "{income.description}" para {entry_date.strftime("%m/%Y")} ha sido cancelado.', 'success')
+            else:
+                flash('No se pudo determinar la fecha del pago a eliminar.', 'warning')
+
+        else:
+            flash('Opción de eliminación no válida.', 'warning')
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error al eliminar ingreso: {e}', 'danger')
+
+    return redirect(url_for('variable_income'))
 
 @app.route('/delete_variable_income/<int:income_id>', methods=['POST'])
 @login_required
