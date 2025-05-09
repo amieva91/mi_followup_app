@@ -1443,6 +1443,7 @@ class ExpenseForm(FlaskForm):
     submit = SubmitField('Registrar Gasto')
 
 
+
 @app.route('/expenses', methods=['GET', 'POST'])
 @login_required
 def expenses():
@@ -1523,10 +1524,10 @@ def expenses():
 
             if is_recurring:
                 recurrence_months = expense_form.recurrence_months.data
-                
+
                 # CAMBIO: Para gastos recurrentes, la fecha de inicio siempre es igual a la fecha del gasto
                 start_date = date_obj
-                    
+
                 if expense_form.end_date.data:
                     end_date = datetime.strptime(expense_form.end_date.data, '%Y-%m-%d').date()
 
@@ -1623,7 +1624,7 @@ def expenses():
 
     # Lista para almacenar todos los gastos procesados (incluyendo recurrentes expandidos)
     expenses_in_range = []
-    
+
     # Procesar cada gasto
     for expense in user_expenses:
         # Para gastos recurrentes, generar entradas para cada mes
@@ -1631,25 +1632,25 @@ def expenses():
             # Determinar fecha de inicio y fin
             expense_start = expense.start_date or expense.date
             expense_end = expense.end_date or end_date
-            
+
             # Ajustar si está fuera del rango de análisis
             if expense_end < six_months_ago:
                 # El gasto terminó antes del período de análisis
                 continue
-                
+
             if expense_start > end_date:
                 # El gasto comienza después del período de análisis
                 continue
-                
+
             # Ajustar inicio al período de análisis si es necesario
             actual_start = max(expense_start, six_months_ago)
             # Ajustar fin al período de análisis si es necesario
             actual_end = min(expense_end, end_date)
-            
+
             # Calcular meses entre start_date y end_date
             current_date = actual_start
             recurrence = expense.recurrence_months or 1  # Por defecto mensual
-            
+
             while current_date <= actual_end:
                 # Crear una copia del gasto para este mes
                 expenses_in_range.append({
@@ -1660,23 +1661,23 @@ def expenses():
                     'expense_type': expense.expense_type,
                     'is_recurring': expense.is_recurring
                 })
-                
+
                 # Avanzar al siguiente período según la recurrencia
                 year = current_date.year
                 month = current_date.month + recurrence
-                
+
                 # Ajustar si nos pasamos de diciembre
                 while month > 12:
                     month -= 12
                     year += 1
-                
+
                 # Crear nueva fecha
                 try:
                     current_date = date(year, month, 1)
                 except ValueError:
                     # Por si hay algún problema con la fecha
                     break
-                    
+
         else:
             # Para gastos puntuales, solo incluir si están en el rango
             if six_months_ago <= expense.date <= end_date:
@@ -1755,6 +1756,7 @@ def expenses():
     else:
         current_vs_avg_pct = 0
 
+    # ===== NUEVO: PREPARACIÓN DE HISTORIAL UNIFICADO MEJORADO =====
     # Combinar gastos regulares y de deuda para historial unificado
     unified_expenses = []
 
@@ -1771,15 +1773,15 @@ def expenses():
             # Determinar fecha de inicio y fin
             start_date = expense.start_date or expense.date
             end_date = expense.end_date or date.today()
-            
+
             # Si la fecha de fin es futura, usar la fecha actual como límite
             if end_date > date.today():
                 end_date = date.today()
-            
+
             # Calcular meses entre start_date y end_date
             current_date = start_date
             recurrence = expense.recurrence_months or 1  # Por defecto mensual
-            
+
             while current_date <= end_date:
                 # Crear entrada para este mes
                 monthly_entry = {
@@ -1793,17 +1795,17 @@ def expenses():
                     'from_debt': False
                 }
                 unified_expenses.append(monthly_entry)
-                
+
                 # Avanzar al siguiente período según la recurrencia
                 # Calcular el siguiente mes
                 year = current_date.year
                 month = current_date.month + recurrence
-                
+
                 # Ajustar si nos pasamos de diciembre
                 while month > 12:
                     month -= 12
                     year += 1
-                
+
                 # Crear nueva fecha
                 try:
                     current_date = date(year, month, 1)
@@ -1826,6 +1828,35 @@ def expenses():
     # Añadir gastos de deuda
     unified_expenses.extend(debt_expenses)
 
+    # ==== NUEVO: PROCESAR ESTADO DE FINALIZACIÓN DE GASTOS RECURRENTES ====
+    # Para cada gasto recurrente, verificar si está finalizado y marcar las entradas correspondientes
+    for expense_entry in unified_expenses:
+        # Solo procesar los gastos recurrentes regulares (no de deuda)
+        if expense_entry.get('is_recurring') and expense_entry.get('expense_type') == 'fixed' and not expense_entry.get('from_debt'):
+            # Obtener el gasto original para conocer su fecha de fin
+            original_expense = Expense.query.get(expense_entry.get('id'))
+            if original_expense:
+                # Determinar si el gasto está finalizado (tiene end_date)
+                if original_expense.end_date:
+                    entry_date = expense_entry.get('date')
+
+                    # Si la entrada es del mes de finalización o anterior, marcar como "finalizado"
+                    # (Comparamos por año y mes, ignorando el día)
+                    if (entry_date.year < original_expense.end_date.year or
+                        (entry_date.year == original_expense.end_date.year and
+                         entry_date.month <= original_expense.end_date.month)):
+                        expense_entry['is_ended'] = True
+                        expense_entry['end_date'] = original_expense.end_date
+                    else:
+                        # Si es posterior a la fecha de fin, marcar para ocultar
+                        expense_entry['is_ended'] = True
+                        expense_entry['should_hide'] = True
+                else:
+                    expense_entry['is_ended'] = False
+
+    # Filtrar para eliminar entradas que no deben mostrarse (posteriores a finalización)
+    unified_expenses = [e for e in unified_expenses if not e.get('should_hide', False)]
+
     # Ordenar por fecha (más recientes primero)
     unified_expenses.sort(key=lambda x: x['date'], reverse=True)
 
@@ -1842,17 +1873,22 @@ def expenses():
                          current_month_expenses=current_month_expenses,
                          avg_monthly_expenses=avg_monthly_expenses,
                          current_vs_avg_pct=current_vs_avg_pct)
-# Modificar la función get_category_analysis en app.py
-
 
 
 # --- Nuevas rutas a añadir en app.py para las funcionalidades solicitadas ---
 
 # 1. Ruta para finalizar un gasto recurrente
-@app.route('/end_recurring_expense/<int:expense_id>', methods=['POST'])
+@app.route('/end_recurring_expense/<int:expense_id>/<string:action_date>', methods=['POST'])
 @login_required
-def end_recurring_expense(expense_id):
-    """Finaliza un gasto recurrente estableciendo su fecha de fin a la fecha actual."""
+def end_recurring_expense(expense_id, action_date):
+    """
+    Finaliza un gasto recurrente estableciendo su fecha de fin a la fecha especificada.
+    Si ya está finalizado (tiene end_date), revierte la finalización.
+    
+    Args:
+        expense_id: ID del gasto recurrente
+        action_date: Fecha desde la que finalizar (formato YYYY-MM-DD)
+    """
     # Buscar el gasto por ID y verificar que pertenece al usuario
     expense = Expense.query.filter_by(id=expense_id, user_id=current_user.id).first_or_404()
     
@@ -1862,20 +1898,91 @@ def end_recurring_expense(expense_id):
         return redirect(url_for('expenses'))
     
     try:
-        # Establecer la fecha de fin al mes actual (primer día)
-        today = date.today()
-        current_month_start = date(today.year, today.month, 1)
+        # Convertir la fecha de acción a objeto date
+        fin_date = datetime.strptime(action_date, '%Y-%m-%d').date()
         
-        expense.end_date = current_month_start
-        db.session.commit()
-        
-        flash(f'El gasto recurrente "{expense.description}" ha sido finalizado. No se generarán más pagos a partir del próximo mes.', 'success')
+        # Si el gasto ya tiene fecha de fin (está finalizado), revertir la finalización
+        if expense.end_date:
+            expense.end_date = None
+            db.session.commit()
+            flash(f'El gasto recurrente "{expense.description}" ha sido reactivado. Se generarán pagos desde la fecha actual.', 'success')
+        else:
+            # Finalizar el gasto en la fecha especificada
+            # Ajustamos al primer día del mes para mantener consistencia
+            fin_month_date = date(fin_date.year, fin_date.month, 1)
+            
+            expense.end_date = fin_month_date
+            db.session.commit()
+            flash(f'El gasto recurrente "{expense.description}" ha sido finalizado en {fin_month_date.strftime("%m/%Y")}. No se generarán más pagos a partir de esta fecha.', 'success')
     except Exception as e:
         db.session.rollback()
-        flash(f'Error al finalizar el gasto recurrente: {e}', 'danger')
+        flash(f'Error al procesar el gasto recurrente: {e}', 'danger')
     
     return redirect(url_for('expenses'))
 
+@app.route('/delete_expense_with_options/<int:expense_id>/<string:delete_type>', methods=['POST'])
+@login_required
+def delete_expense_with_options(expense_id, delete_type):
+    """
+    Elimina un gasto recurrente según la opción seleccionada:
+    - 'single': Elimina solo la entrada específica
+    - 'series': Elimina toda la serie recurrente
+    
+    Args:
+        expense_id: ID del gasto recurrente
+        delete_type: Tipo de eliminación ('single' o 'series')
+    """
+    # Buscar el gasto por ID y verificar que pertenece al usuario
+    expense = Expense.query.filter_by(id=expense_id, user_id=current_user.id).first_or_404()
+    
+    if not expense:
+        flash('Gasto no encontrado.', 'danger')
+        return redirect(url_for('expenses'))
+    
+    try:
+        if delete_type == 'series':
+            # Eliminar toda la serie recurrente
+            db.session.delete(expense)
+            db.session.commit()
+            flash(f'La serie completa del gasto recurrente "{expense.description}" ha sido eliminada.', 'success')
+        
+        elif delete_type == 'single':
+            # Para eliminar solo una entrada de una serie, necesitamos:
+            # 1. Marcar la fecha como un hueco en la serie (realmente no podemos eliminar solo una instancia real)
+            # 2. O crear un nuevo registro negativo para ese mes específico
+            
+            # Vamos a optar por la segunda opción: crear un registro negativo (compensación)
+            # Primero, determinar la fecha exacta a partir de los parámetros de URL si se proporciona
+            entry_date_str = request.args.get('entry_date')
+            
+            if entry_date_str:
+                entry_date = datetime.strptime(entry_date_str, '%Y-%m-%d').date()
+                
+                # Crear un gasto de compensación (mismo importe pero negativo)
+                compensation = Expense(
+                    user_id=current_user.id,
+                    category_id=expense.category_id,
+                    description=f"Excepción: {expense.description}",
+                    amount=-expense.amount,  # Importe negativo para cancelar
+                    date=entry_date,
+                    expense_type='punctual',  # Puntual para que no se repita
+                    is_recurring=False
+                )
+                
+                db.session.add(compensation)
+                db.session.commit()
+                flash(f'El pago específico de "{expense.description}" para {entry_date.strftime("%m/%Y")} ha sido cancelado.', 'success')
+            else:
+                flash('No se pudo determinar la fecha del pago a eliminar.', 'warning')
+        
+        else:
+            flash('Opción de eliminación no válida.', 'warning')
+    
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error al eliminar gasto: {e}', 'danger')
+    
+    return redirect(url_for('expenses'))
 
 # 2. Ruta para obtener análisis por categoría según rango temporal
 @app.route('/get_category_analysis')
