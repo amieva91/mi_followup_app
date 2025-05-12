@@ -5581,11 +5581,7 @@ def login():
             if next_page and not next_page.startswith('/login') and not next_page.startswith('/register'):
                 return redirect(next_page)
             else:
-                # Ahora redirigimos a portfolio si hay datos cacheados, de lo contrario a watchlist
-                if portfolio_data:
-                    return redirect(url_for('show_portfolio'))
-                else:
-                    return redirect(url_for('show_watchlist'))
+                return redirect(url_for('financial_summary'))
         else:
             flash('Inicio de sesión fallido. Verifica usuario y contraseña.', 'danger')
     
