@@ -1,0 +1,73 @@
+<form id="accountFormModalContent" action="{{ url_for('manage_account') }}" method="POST">
+    {{ form.hidden_tag() }} {# Si usas Flask-WTF CSRF, sino el csrf_token() del ejemplo anterior #}
+    
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="mb-3">
+        {{ form.username.label(class="form-label") }}
+        {{ form.username(class="form-control" + (" is-invalid" if form.username.errors else ""), value=form.username.data or current_user.username) }}
+        {% if form.username.errors %}
+            <div class="invalid-feedback">
+                {% for error in form.username.errors %}<span>{{ error }}</span>{% endfor %}
+            </div>
+        {% endif %}
+    </div>
+    <div class="mb-3">
+        {{ form.email.label(class="form-label") }}
+        {{ form.email(class="form-control" + (" is-invalid" if form.email.errors else ""), value=form.email.data or current_user.email) }}
+        {% if form.email.errors %}
+            <div class="invalid-feedback">
+                {% for error in form.email.errors %}<span>{{ error }}</span>{% endfor %}
+            </div>
+        {% endif %}
+    </div>
+    <div class="mb-3">
+        {{ form.birth_year.label(class="form-label") }}
+        {{ form.birth_year(class="form-control" + (" is-invalid" if form.birth_year.errors else ""), value=form.birth_year.data or current_user.birth_year) }}
+        {% if form.birth_year.errors %}
+            <div class="invalid-feedback">
+                {% for error in form.birth_year.errors %}<span>{{ error }}</span>{% endfor %}
+            </div>
+        {% endif %}
+    </div>
+    <hr>
+    <h5>Cambiar Contraseña</h5>
+    <div class="mb-3">
+        {{ form.current_password.label(class="form-label") }}
+        {{ form.current_password(class="form-control" + (" is-invalid" if form.current_password.errors else "")) }}
+        {% if form.current_password.errors %}
+            <div class="invalid-feedback">
+                {% for error in form.current_password.errors %}<span>{{ error }}</span>{% endfor %}
+            </div>
+        {% endif %}
+        <small class="form-text text-muted">Dejar en blanco si no deseas cambiar la contraseña.</small>
+    </div>
+    <div class="mb-3">
+        {{ form.new_password.label(class="form-label") }}
+        {{ form.new_password(class="form-control" + (" is-invalid" if form.new_password.errors else "")) }}
+        {% if form.new_password.errors %}
+            <div class="invalid-feedback">
+                {% for error in form.new_password.errors %}<span>{{ error }}</span>{% endfor %}
+            </div>
+        {% endif %}
+    </div>
+    <div class="mb-3">
+        {{ form.confirm_new_password.label(class="form-label") }}
+        {{ form.confirm_new_password(class="form-control" + (" is-invalid" if form.confirm_new_password.errors else "")) }}
+        {% if form.confirm_new_password.errors %}
+            <div class="invalid-feedback">
+                {% for error in form.confirm_new_password.errors %}<span>{{ error }}</span>{% endfor %}
+            </div>
+        {% endif %}
+    </div>
+    {# Los botones de submit y cancelar están en el footer del modal en base.html #}
+</form>

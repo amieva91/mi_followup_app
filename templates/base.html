@@ -3,114 +3,129 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-
     {% if title %}
-        <title>App Portfolio - {{ title }}</title>
+        <title>FollowUp - {{ title }}</title>
     {% else %}
-        <title>App Portfolio</title>
+        <title>FollowUp</title>
     {% endif %}
-
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css">
-
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <style>
-        body {
-            padding-top: 70px; /* Ajustar si navbar es más alta/baja */
-            padding-bottom: 20px; /* Espacio al final */
-        }
-        .messages .alert {
-            margin-top: 15px; /* Espacio sobre los mensajes flash */
-        }
-        /* Estilos de tabla heredados (ajustar si es necesario) */
+        body { padding-top: 70px; padding-bottom: 20px; }
+        .messages .alert { margin-top: 15px; }
         .table th, .table td { vertical-align: middle; text-align: right; }
-        .table th:nth-child(1), .table td:nth-child(1), /* Col 1 */
-        .table th:nth-child(2), .table td:nth-child(2), /* Col 2 */
-        .table th:nth-child(3), .table td:nth-child(3), /* Col 3 */
-        .table th:nth-child(7), .table td:nth-child(7)  /* Col 7 (Divisa en portfolio) */
-        {
-            text-align: left; /* Alinear estas columnas a la izquierda */
-        }
+        .table th:nth-child(1), .table td:nth-child(1),
+        .table th:nth-child(2), .table td:nth-child(2),
+        .table th:nth-child(3), .table td:nth-child(3),
+        .table th:nth-child(7), .table td:nth-child(7) { text-align: left; }
         .pl-positive { color: #198754; font-weight: bold; }
         .pl-negative { color: #dc3545; font-weight: bold; }
-        .action-buttons a, .action-buttons form button { margin-right: 5px; margin-bottom: 5px; } /* Espacio botones */
-        .table-sm th, .table-sm td { padding: 0.4rem; } /* Tabla más compacta */
-        .total-value { font-size: 1.1em; }
-        .total-pl { font-size: 1.1em; margin-top: -10px; }
+        .dropdown-menu-end { right: 0; left: auto; }
+        .navbar-brand { font-weight: 500; }
+        .nav-link { font-size: 0.95rem; }
+        .dropdown-item i { margin-right: 8px; }
     </style>
-    
-    <!-- Incluir Chart.js para gráficos -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-    <nav class="navbar navbar-expand-md navbar-dark bg-dark fixed-top">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top shadow-sm">
       <div class="container-fluid">
-        {# Enlace del Logo/Nombre de la App #}
-        <a class="navbar-brand" href="{{ url_for('index') }}">Mi Portfolio App</a>
-
-        {# Botón para menú responsive en móviles #}
+        {% if current_user.is_authenticated and current_user.username == 'admin' and current_user.is_admin %}
+            <a class="navbar-brand" href="{{ url_for('admin_dashboard') }}">FollowUp</a>
+        {% else %}
+            <a class="navbar-brand" href="{{ url_for('financial_summary') }}">FollowUp</a>
+        {% endif %}
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation">
           <span class="navbar-toggler-icon"></span>
         </button>
-
-        {# Contenido colapsable de la Navbar #}
         <div class="collapse navbar-collapse" id="navbarCollapse">
-
-          {# Enlaces Principales (Alineados a la Izquierda) - Solo para usuarios logueados #}
-          <ul class="navbar-nav me-auto mb-2 mb-md-0">
+          <ul class="navbar-nav me-auto mb-2 mb-lg-0">
             {% if current_user.is_authenticated %}
-            <li class="nav-item">
-              <a class="nav-link {% if request.endpoint == 'show_portfolio' %}active{% endif %}" href="{{ url_for('show_portfolio') }}">Portfolio</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link {% if request.endpoint == 'show_watchlist' %}active{% endif %}" href="{{ url_for('show_watchlist') }}">Watchlist</a>
-            </li>
-	    <li class="nav-item">
-    	      <a class="nav-link {% if request.endpoint == 'broker_operations' %}active{% endif %}" href="{{ url_for('broker_operations') }}">Ingreso/Retirada Broker</a>
-  	    </li>
-	    <li class="nav-item">
-    	      <a class="nav-link {% if request.endpoint == 'fixed_income' %}active{% endif %}" href="{{ url_for('fixed_income') }}">Salario</a>
-  	    </li>
-	    <li class="nav-item">
-              <a class="nav-link {% if request.endpoint == 'variable_income' %}active{% endif %}" href="{{ url_for('variable_income') }}">Ingresos</a>
-            </li>
-	    <li class="nav-item">
-            <a class="nav-link {% if request.endpoint == 'debt_management' %}active{% endif %}" href="{{ url_for('debt_management') }}">Deudas</a>
-	    </li>
-	    <li class="nav-item">
-    	      <a class="nav-link {% if request.endpoint == 'bank_accounts' %}active{% endif %}" href="{{ url_for('bank_accounts') }}">Cuentas Bancarias</a>
-	    </li>
-	    <li class="nav-item">
-              <a class="nav-link {% if request.endpoint == 'expenses' %}active{% endif %}" href="{{ url_for('expenses') }}">Gastos</a>
-            </li>
-	    <li class="nav-item">
-              <a class="nav-link {% if request.endpoint == 'silver_gold' %}active{% endif %}" href="{{ url_for('silver_gold') }}">Oro/Plata</a>
-	    </li>
-	    <li class="nav-item">
-              <a class="nav-link {% if request.endpoint == 'crypto' %}active{% endif %}" href="{{ url_for('crypto') }}">Crypto</a>
-            </li>
-	    <li class="nav-item">
-              <a class="nav-link {% if request.endpoint == 'pension_plans' %}active{% endif %}" href="{{ url_for('pension_plans') }}">Plan de Pensiones</a>
-	    </li>
-	    <li class="nav-item">
-              <a class="nav-link {% if request.endpoint == 'financial_summary' %}active{% endif %}" href="{{ url_for('financial_summary') }}">Resumen</a>
-            </li>
-	    <li class="nav-item">
-              <a class="nav-link {% if request.endpoint == 'index' %}active{% endif %}" href="{{ url_for('index') }}">Cargar/Procesar</a>
-            </li>
-            {# --- NUEVO ENLACE GESTIÓN MAPEO --- #}
-            <li class="nav-item">
-              <a class="nav-link {% if request.endpoint == 'manage_mapping' %}active{% endif %}" href="{{ url_for('manage_mapping') }}">Gestionar Mapeo</a> {# <--- AÑADIDO #}
-            </li>
+                {% if current_user.username == 'admin' and current_user.is_admin %}
+                    <li class="nav-item">
+                      <a class="nav-link {% if request.endpoint and 'admin_dashboard' in request.endpoint %}active{% endif %}" href="{{ url_for('admin_dashboard') }}">
+                        <i class="bi bi-speedometer2"></i> Panel Admin
+                      </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'manage_mapping' %}active{% endif %}" href="{{ url_for('manage_mapping') }}">
+                            <i class="bi bi-shuffle"></i> Gestionar Mapeo
+                        </a>
+                    </li>
+                {% else %}
+                    {% if current_user.is_admin %}
+                    <li class="nav-item">
+                      <a class="nav-link {% if request.endpoint and 'admin_dashboard' in request.endpoint %}active{% endif %}" href="{{ url_for('admin_dashboard') }}">
+                        <i class="bi bi-speedometer2"></i> Panel Admin
+                      </a>
+                    </li>
+                    {% endif %}
+                    
+                    {# Pestañas Comunes para usuarios autenticados (normales y otros admins) #}
+                    <li class="nav-item"><a class="nav-link {% if request.endpoint == 'financial_summary' %}active{% endif %}" href="{{ url_for('financial_summary') }}"><i class="bi bi-clipboard-data"></i> Resumen</a></li>
+                    
+                    {# --- NUEVO MENÚ DESPLEGABLE "BOLSA" --- #}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {% if request.endpoint in ['show_portfolio', 'show_watchlist', 'broker_operations'] %}active{% endif %}" href="#" id="navbarDropdownBolsa" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                           <i class="bi bi-currency-exchange"></i> Bolsa
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="navbarDropdownBolsa">
+                            <li><a class="dropdown-item {% if request.endpoint == 'show_portfolio' %}active{% endif %}" href="{{ url_for('show_portfolio') }}"><i class="bi bi-briefcase-fill"></i> Portfolio</a></li>
+                            <li><a class="dropdown-item {% if request.endpoint == 'show_watchlist' %}active{% endif %}" href="{{ url_for('show_watchlist') }}"><i class="bi bi-eye-fill"></i> Watchlist</a></li>
+                            <li><a class="dropdown-item {% if request.endpoint == 'broker_operations' %}active{% endif %}" href="{{ url_for('broker_operations') }}"><i class="bi bi-arrow-left-right"></i> Ops. Broker</a></li>
+                        </ul>
+                    </li>
+                    {# --- FIN NUEVO MENÚ DESPLEGABLE "BOLSA" --- #}
+                    
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {% if request.endpoint in ['fixed_income', 'variable_income', 'expenses', 'bank_accounts', 'debt_management'] %}active{% endif %}" href="#" id="navbarDropdownFinanzas" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                           <i class="bi bi-cash-coin"></i> Finanzas Personales
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="navbarDropdownFinanzas">
+                            <li><a class="dropdown-item {% if request.endpoint == 'fixed_income' %}active{% endif %}" href="{{ url_for('fixed_income') }}"><i class="bi bi-wallet2"></i> Salario</a></li>
+                            <li><a class="dropdown-item {% if request.endpoint == 'variable_income' %}active{% endif %}" href="{{ url_for('variable_income') }}"><i class="bi bi-graph-up"></i> Ingresos</a></li>
+                            <li><a class="dropdown-item {% if request.endpoint == 'expenses' %}active{% endif %}" href="{{ url_for('expenses') }}"><i class="bi bi-cart3"></i> Gastos</a></li>
+                            <li><a class="dropdown-item {% if request.endpoint == 'bank_accounts' %}active{% endif %}" href="{{ url_for('bank_accounts') }}"><i class="bi bi-bank"></i> Cuentas Bancarias</a></li>
+                            <li><a class="dropdown-item {% if request.endpoint == 'debt_management' %}active{% endif %}" href="{{ url_for('debt_management') }}"><i class="bi bi-credit-card"></i> Deudas</a></li>
+                            {# Ya no está "Ops. Broker" aquí #}
+                        </ul>
+                    </li>
+                     <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {% if request.endpoint in ['silver_gold', 'crypto', 'pension_plans'] %}active{% endif %}" href="#" id="navbarDropdownInversiones" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                           <i class="bi bi-graph-up-arrow"></i> Otras Inversiones
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="navbarDropdownInversiones">
+                            <li><a class="dropdown-item {% if request.endpoint == 'silver_gold' %}active{% endif %}" href="{{ url_for('silver_gold') }}"><i class="bi bi-gem"></i> Oro/Plata</a></li>
+                            <li><a class="dropdown-item {% if request.endpoint == 'crypto' %}active{% endif %}" href="{{ url_for('crypto') }}"><i class="bi bi-currency-bitcoin"></i> Criptomonedas</a></li>
+                            <li><a class="dropdown-item {% if request.endpoint == 'pension_plans' %}active{% endif %}" href="{{ url_for('pension_plans') }}"><i class="bi bi-shield-lock-fill"></i> Plan de Pensiones</a></li>
+                        </ul>
+                    </li>
+                    
+                    {% if current_user.is_admin %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'manage_mapping' %}active{% endif %}" href="{{ url_for('manage_mapping') }}">
+                            <i class="bi bi-shuffle"></i> Gestionar Mapeo
+                        </a>
+                    </li>
+                    {% endif %}
+                {% endif %}
             {% endif %}
           </ul>
-
-          {# Enlaces de Usuario/Login (Alineados a la Derecha) #}
-          <ul class="navbar-nav ms-auto mb-2 mb-md-0">
+          <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
               {% if current_user.is_authenticated %}
-                <li class="nav-item">
-                  <span class="navbar-text me-2">Usuario: {{ current_user.username }}</span>
-                </li>
-                <li class="nav-item">
-                  <a class="btn btn-outline-danger btn-sm" href="{{ url_for('logout') }}">Cerrar Sesión</a>
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="userDropdownMenuLink" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-person-circle"></i> {{ current_user.username }}
+                        {% if current_user.is_admin %}<span class="badge bg-warning text-dark ms-1 rounded-pill">Admin</span>{% endif %}
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="userDropdownMenuLink">
+                        <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#accountModal"><i class="bi bi-person-fill-gear me-2"></i>Mi Cuenta</a></li>
+                        <li><a class="dropdown-item {% if request.endpoint == 'change_password' %}active{% endif %}" href="{{ url_for('change_password') }}"><i class="bi bi-key-fill me-2"></i>Cambiar Contraseña</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('logout') }}"><i class="bi bi-box-arrow-right me-2"></i>Cerrar Sesión</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item text-danger {% if request.endpoint == 'close_account' %}active{% endif %}" href="{{ url_for('close_account') }}"><i class="bi bi-person-x-fill me-2"></i>Cerrar Cuenta</a></li>
+                    </ul>
                 </li>
               {% else %}
                 <li class="nav-item">
@@ -119,13 +134,15 @@
                 <li class="nav-item">
                   <a class="nav-link {% if request.endpoint == 'register' %}active{% endif %}" href="{{ url_for('register') }}">Registrarse</a>
                 </li>
+                 <li class="nav-item">
+                  <a class="nav-link {% if request.endpoint == 'request_reset_password' %}active{% endif %}" href="{{ url_for('request_reset_password') }}">¿Olvidaste contraseña?</a>
+                </li>
               {% endif %}
           </ul>
-        </div> {# Fin collapse #}
-      </div> {# Fin container-fluid #}
+        </div>
+      </div>
     </nav>
-
-    <main class="container" role="main">
+    <main class="container mt-3" role="main">
         <div class="row">
             <div class="col-md-12">
                 {% with messages = get_flashed_messages(with_categories=true) %}
@@ -140,13 +157,118 @@
                 {% endwith %}
             </div>
         </div>
-
         {% block content %}{% endblock %}
-
     </main>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <footer class="container mt-4 py-3 border-top text-center text-muted">
+        <small>&copy; {{ (now.year if now else 2025) }} FollowUp App. Todos los derechos reservados.</small>
+    </footer>
 
-    {% block scripts %}{% endblock %}
+    <div class="modal fade" id="accountModal" tabindex="-1" aria-labelledby="accountModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="accountModalLabel">Gestionar Mi Cuenta</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+             Loading...
+          </div>
+          <div class="modal-footer justify-content-between">
+            <div>
+                <a href="{{ url_for('close_account') }}" class="btn btn-danger">Cerrar Cuenta Permanentemente</a>
+            </div>
+            <div>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" form="accountFormModalContent" class="btn btn-primary">Guardar Cambios</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {% block scripts %}
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const accountModalElement = document.getElementById('accountModal');
+        
+        if (accountModalElement) {
+            const modalBody = accountModalElement.querySelector('.modal-body');
+            const originalSubmitButton = accountModalElement.querySelector('button[type="submit"][form="accountFormModalContent"]');
+
+            function loadModalFormContent() {
+                if (modalBody) {
+                    fetch("{{ url_for('manage_account') }}", {
+                        method: 'GET', 
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    })
+                    .then(response => response.text())
+                    .then(html => {
+                        modalBody.innerHTML = html;
+                        attachFormSubmitListener();
+                    })
+                    .catch(error => {
+                        console.error('Error loading modal form content:', error);
+                        modalBody.innerHTML = "<div class='alert alert-danger'>Error al cargar el formulario. Inténtalo de nuevo.</div>";
+                    });
+                }
+            }
+
+            function attachFormSubmitListener() {
+                const formInModal = modalBody.querySelector('form'); 
+                if (formInModal) {
+                    if (originalSubmitButton) {
+                        originalSubmitButton.onclick = function() { 
+                           if(formInModal.checkValidity()){ 
+                                submitModalForm(formInModal);
+                           } else {
+                               formInModal.reportValidity(); 
+                           }
+                        };
+                    }
+                }
+            }
+
+            function submitModalForm(formElement) {
+                const formData = new FormData(formElement);
+                fetch(formElement.action, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(response => response.text())
+                .then(html => {
+                    modalBody.innerHTML = html; 
+                    attachFormSubmitListener(); 
+
+                    const successAlert = modalBody.querySelector('.alert-success');
+                    if (successAlert) {
+                        setTimeout(() => {
+                            const modalInstance = bootstrap.Modal.getInstance(accountModalElement);
+                            if (modalInstance) {
+                                modalInstance.hide();
+                            }
+                            window.location.reload(); 
+                        }, 1500);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error submitting account form via AJAX:', error);
+                    modalBody.innerHTML = "<div class='alert alert-danger'>Error al contactar con el servidor. Inténtalo de nuevo.</div>";
+                    attachFormSubmitListener(); 
+                });
+            }
+
+            accountModalElement.addEventListener('show.bs.modal', function () {
+                loadModalFormContent(); 
+            });
+        }
+    });
+    </script>
+    {% endblock scripts %}
 </body>
 </html>

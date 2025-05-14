@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <h2>Cerrar Cuenta Permanentemente</h2>
+    <p class="text-danger"><strong>¡Atención!</strong> Esta acción es irreversible. Todos tus datos asociados con esta cuenta serán eliminados permanentemente, incluyendo tu portfolio, watchlist, historial de operaciones, datos financieros, etc.</p>
+    <p>Para confirmar, por favor ingresa tu contraseña y marca la casilla de confirmación.</p>
+
+    <form method="POST" action="{{ url_for('close_account') }}" class="mt-3">
+        {{ form.hidden_tag() }} {# Important for CSRF protection #}
+
+        <div class="mb-3">
+            {{ form.password.label(class="form-label") }}
+            {{ form.password(class="form-control" + (" is-invalid" if form.password.errors else "")) }}
+            {% if form.password.errors %}
+                <div class="invalid-feedback">
+                    {% for error in form.password.errors %}<span>{{ error }}</span>{% endfor %}
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="form-check mb-3">
+            {{ form.confirm(class="form-check-input" + (" is-invalid" if form.confirm.errors else "")) }}
+            {{ form.confirm.label(class="form-check-label") }}
+            {% if form.confirm.errors %}
+                <div class="invalid-feedback d-block"> {# d-block needed for checkbox feedback #}
+                    {% for error in form.confirm.errors %}<span>{{ error }}</span>{% endfor %}
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="d-grid gap-2">
+             {{ form.submit(class="btn btn-danger") }}
+             <a href="{{ url_for('index') }}" class="btn btn-secondary">Cancelar</a> {# Or link to a settings page #}
+        </div>
+    </form>
+</div>
+{% endblock %}

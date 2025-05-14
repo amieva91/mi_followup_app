@@ -3,49 +3,77 @@
 {% block content %}
     <div class="row justify-content-center">
         <div class="col-md-6">
-            <h2 class="mt-4 mb-4">Registro de Nuevo Usuario</h2>
-            <form method="POST" action="">
+            <h2 class="mt-4 mb-4">{{ title|default('Registro de Nuevo Usuario') }}</h2>
+            <form method="POST" action="{{ url_for('register') }}" novalidate>
                 {{ form.hidden_tag() }} {# Importante para protección CSRF #}
                 <fieldset class="form-group">
                     <div class="mb-3">
                         {{ form.username.label(class="form-label") }}
                         {% if form.username.errors %}
-                            {{ form.username(class="form-control is-invalid") }}
+                            {{ form.username(class="form-control is-invalid", size=32) }}
                             <div class="invalid-feedback">
                                 {% for error in form.username.errors %}<span>{{ error }}</span>{% endfor %}
                             </div>
                         {% else %}
-                            {{ form.username(class="form-control") }}
+                            {{ form.username(class="form-control", size=32) }}
                         {% endif %}
                     </div>
+
+                    <div class="mb-3">
+                        {{ form.email.label(class="form-label") }}
+                        {% if form.email.errors %}
+                            {{ form.email(class="form-control is-invalid", size=32, placeholder="tu@email.com") }}
+                            <div class="invalid-feedback">
+                                {% for error in form.email.errors %}<span>{{ error }}</span>{% endfor %}
+                            </div>
+                        {% else %}
+                            {{ form.email(class="form-control", size=32, placeholder="tu@email.com") }}
+                        {% endif %}
+                    </div>
+
+                    {# --- NUEVO CAMPO: AÑO DE NACIMIENTO --- #}
+                    <div class="mb-3">
+                        {{ form.birth_year.label(class="form-label") }}
+                        {% if form.birth_year.errors %}
+                            {{ form.birth_year(class="form-control is-invalid") }}
+                            <div class="invalid-feedback">
+                                {% for error in form.birth_year.errors %}<span>{{ error }}</span>{% endfor %}
+                            </div>
+                        {% else %}
+                            {{ form.birth_year(class="form-control") }}
+                        {% endif %}
+                         <small class="form-text text-muted">Opcional.</small>
+                    </div>
+                    {# --- FIN NUEVO CAMPO --- #}
+
                     <div class="mb-3">
                         {{ form.password.label(class="form-label") }}
                         {% if form.password.errors %}
-                            {{ form.password(class="form-control is-invalid") }}
+                            {{ form.password(class="form-control is-invalid", size=32) }}
                             <div class="invalid-feedback">
                                 {% for error in form.password.errors %}<span>{{ error }}</span>{% endfor %}
                             </div>
                         {% else %}
-                            {{ form.password(class="form-control") }}
+                            {{ form.password(class="form-control", size=32) }}
                         {% endif %}
                     </div>
                     <div class="mb-3">
                         {{ form.confirm_password.label(class="form-label") }}
                         {% if form.confirm_password.errors %}
-                            {{ form.confirm_password(class="form-control is-invalid") }}
+                            {{ form.confirm_password(class="form-control is-invalid", size=32) }}
                             <div class="invalid-feedback">
                                 {% for error in form.confirm_password.errors %}<span>{{ error }}</span>{% endfor %}
                             </div>
                         {% else %}
-                            {{ form.confirm_password(class="form-control") }}
+                            {{ form.confirm_password(class="form-control", size=32) }}
                         {% endif %}
                     </div>
                 </fieldset>
-                <div class="form-group mt-3">
+                <div class="form-group mt-3 d-grid">
                     {{ form.submit(class="btn btn-primary") }}
                 </div>
             </form>
-            <div class="border-top pt-3 mt-3">
+            <div class="border-top pt-3 mt-3 text-center">
                 <small class="text-muted">
                     ¿Ya tienes una cuenta? <a class="ms-2" href="{{ url_for('login') }}">Inicia Sesión</a>
                 </small>

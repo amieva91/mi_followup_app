@@ -6,18 +6,22 @@ import re
 import traceback
 import uuid
 import json
+from functools import wraps
 import time
-from datetime import date, timedelta, datetime
+from datetime import date, timedelta, datetime # Asegúrate que datetime está importado
 import glob
 import requests # Para tipos de cambio
 import yfinance as yf # Para precios acciones
 from flask import (
-    Flask, request, render_template, send_file, flash, redirect, url_for, session, get_flashed_messages
+    Flask, request, render_template, send_file, flash, redirect, url_for, session, get_flashed_messages, jsonify
 )
+from itsdangerous import URLSafeTimedSerializer
+from flask_mail import Mail, Message
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField, BooleanField, RadioField, FileField, MultipleFileField, HiddenField, SelectField, TextAreaField
-from wtforms.validators import DataRequired, Length, Email, EqualTo, ValidationError, Optional
+# MODIFICACIÓN AQUÍ: Añadir IntegerField y NumberRange
+from wtforms import StringField, PasswordField, SubmitField, BooleanField, RadioField, FileField, MultipleFileField, HiddenField, SelectField, TextAreaField, IntegerField
+from wtforms.validators import DataRequired, Length, Email, EqualTo, ValidationError, Optional, NumberRange # Asegúrate que NumberRange está importado
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user, login_required
@@ -64,8 +68,34 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024
 
-# Inicializar SQLAlchemy DESPUÉS de configurar la app
+# --- Configuración para Flask-Mail (NECESITARÁS AJUSTAR ESTO) ---
+# Ejemplo de configuración esencial en app.py
+print("DEBUG: Configurando Flask-Mail...")
+app.config['MAIL_SERVER'] = 'smtp.googlemail.com'
+app.config['MAIL_PORT'] = 587 # o 465
+app.config['MAIL_USE_TLS'] = True # o MAIL_USE_SSL = True
+app.config['MAIL_USE_SSL'] = False # Si usas TLS en puerto 587, SSL es False
+app.config['MAIL_USERNAME'] = 'followup.fit@gmail.com' # el que te da tu proveedor de envío
+app.config['MAIL_PASSWORD'] = 'gbbzbvuvidosrgwy' # la que te da tu proveedor de envío
+app.config['MAIL_DEFAULT_SENDER'] = 'followup.fit@gmail.com' # O un email 'no-reply@tuapp.com'
+
+# --- Depuración de la Configuración de Mail ---
+print(f"DEBUG: MAIL_SERVER = {app.config.get('MAIL_SERVER')}")
+print(f"DEBUG: MAIL_PORT = {app.config.get('MAIL_PORT')}")
+print(f"DEBUG: MAIL_USE_TLS = {app.config.get('MAIL_USE_TLS')}")
+print(f"DEBUG: MAIL_USERNAME = {app.config.get('MAIL_USERNAME')}")
+print(f"DEBUG: MAIL_PASSWORD EXISTE = {'Sí' if app.config.get('MAIL_PASSWORD') else 'No'}") # No imprimas la contraseña real
+print(f"DEBUG: MAIL_DEFAULT_SENDER = {app.config.get('MAIL_DEFAULT_SENDER')}")
+# --- Fin Depuración ---
+
+mail = Mail(app)
+print("DEBUG: Flask-Mail inicializado.")
+
+
 db = SQLAlchemy(app)
+
+from flask_migrate import Migrate
+migrate = Migrate(app, db)
 
 # Inicializar Flask-Login DESPUÉS de configurar la app
 login_manager = LoginManager(app)
@@ -80,24 +110,434 @@ os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 # En app.py
 
 # ... (Imports y Configuración de app, db, login_manager ANTES de esto) ...
+# En app.py
 
-# --- Modelos de Base de Datos ---
-
-class User(db.Model, UserMixin):
+class ActivityLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    password_hash = db.Column(db.String(128), nullable=False)
-    # Relación con items de watchlist, con borrado en cascada y carga dinámica
-    watchlist_items = db.relationship('WatchlistItem', backref='owner', lazy='dynamic', cascade="all, delete-orphan")
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    
+    # Quién realizó la acción (puede ser NULL para acciones del sistema)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'), nullable=True)
+    username = db.Column(db.String(80), nullable=True) # Guardar por si se borra el usuario
+    
+    # A quién afecta la acción (puede ser NULL)
+    target_user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'), nullable=True)
+    target_username = db.Column(db.String(80), nullable=True)
 
-    def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
+    action_type = db.Column(db.String(100), nullable=False, index=True) # Ej: 'LOGIN', 'LOGOUT', 'REGISTER', 'PASSWORD_RESET_REQUEST', 'ADMIN_TOGGLE_ACTIVE'
+    message = db.Column(db.String(500), nullable=False) # Descripción breve
+    details = db.Column(db.Text, nullable=True) # Detalles adicionales, ej. JSON con datos cambiados
+    ip_address = db.Column(db.String(45), nullable=True)
 
-    def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
+    # Relaciones para acceder fácilmente a los usuarios si aún existen
+    actor = db.relationship('User', foreign_keys=[user_id], backref='actions_performed')
+    target = db.relationship('User', foreign_keys=[target_user_id], backref='actions_received')
 
     def __repr__(self):
-        return f'<User {self.username}>'
+        return f'<ActivityLog {self.timestamp} - {self.username or "System"} - {self.action_type}>'
+
+
+# Modelo User (Verifica que todas las relaciones estén definidas aquí con backref y cascade)
+class SetEmailForm(FlaskForm): # NUEVO FORMULARIO
+    email = StringField('Correo Electrónico', validators=[DataRequired(), Email(message="Correo electrónico no válido.")])
+    confirm_email = StringField('Confirmar Correo Electrónico', validators=[DataRequired(), EqualTo('email', message='Los correos electrónicos deben coincidir.')])
+    submit = SubmitField('Guardar Correo Electrónico')
+
+    def validate_email(self, email):
+        # Comprobar si el email ya está en uso por OTRO usuario
+        user = User.query.filter(User.email == email.data, User.id != current_user.id).first()
+        if user:
+            raise ValidationError('Ese correo electrónico ya está registrado por otro usuario. Por favor, elige otro.')
+
+
+# --- Modelos para Plan de Pensiones ---
+class PensionPlan(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
+    entity_name = db.Column(db.String(100), nullable=False)
+    plan_name = db.Column(db.String(150), nullable=True)
+    current_balance = db.Column(db.Float, nullable=False, default=0.0)
+    last_updated = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # --- ELIMINA O COMENTA ESTA LÍNEA ---
+    # user = db.relationship('User', backref=db.backref('pension_plans', lazy='dynamic'))
+
+    def __repr__(self):
+        return f'<PensionPlan {self.entity_name} - {self.plan_name} ({self.current_balance}€)>'
+
+class PensionPlanHistory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
+    date = db.Column(db.Date, nullable=False)
+    total_amount = db.Column(db.Float, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # --- ELIMINA O COMENTA ESTA LÍNEA ---
+    # user = db.relationship('User', backref=db.backref('pension_history', lazy='dynamic'))
+
+    def __repr__(self):
+        return f'<PensionPlanHistory {self.date.strftime("%m/%Y")} - {self.total_amount}€>'
+
+# --- Modelos para Cryptos ---
+class CryptoExchange(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
+    exchange_name = db.Column(db.String(100), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # --- ELIMINA O COMENTA ESTA LÍNEA ---
+    # user = db.relationship('User', backref=db.backref('crypto_exchanges', lazy='dynamic'))
+    transactions = db.relationship('CryptoTransaction', backref='exchange', lazy='dynamic', cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f'<CryptoExchange {self.exchange_name}>'
+
+class CryptoTransaction(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    exchange_id = db.Column(db.Integer, db.ForeignKey('crypto_exchange.id', ondelete='CASCADE'), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
+    transaction_type = db.Column(db.String(10), nullable=False)  # 'buy' o 'sell'
+    crypto_name = db.Column(db.String(100), nullable=False)
+    ticker_symbol = db.Column(db.String(20), nullable=False)  # BTC-EUR, ETH-EUR, etc.
+    date = db.Column(db.Date, nullable=False)
+    quantity = db.Column(db.Float, nullable=False)
+    price_per_unit = db.Column(db.Float, nullable=False)
+    fees = db.Column(db.Float, nullable=True)
+    current_price = db.Column(db.Float, nullable=True)
+    price_updated_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # --- ELIMINA O COMENTA ESTA LÍNEA ---
+    # user = db.relationship('User', backref=db.backref('crypto_transactions', lazy='dynamic'))
+
+    def __repr__(self):
+        return f'<CryptoTransaction {self.transaction_type} {self.crypto_name} ({self.quantity})>'
+
+class CryptoHolding(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    exchange_id = db.Column(db.Integer, db.ForeignKey('crypto_exchange.id', ondelete='CASCADE'), nullable=False, index=True) # Mantener si es útil
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
+    crypto_name = db.Column(db.String(100), nullable=False)
+    ticker_symbol = db.Column(db.String(20), nullable=False)  # BTC-EUR, ETH-EUR, etc.
+    quantity = db.Column(db.Float, nullable=False, default=0.0)
+    current_price = db.Column(db.Float, nullable=True)
+    price_updated_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # --- ELIMINA O COMENTA ESTA LÍNEA ---
+    # user = db.relationship('User', backref=db.backref('crypto_holdings', lazy='dynamic'))
+
+    def __repr__(self):
+        return f'<CryptoHolding {self.crypto_name} ({self.quantity})>'
+
+class CryptoHistoryRecord(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
+    date = db.Column(db.Date, nullable=False)
+    total_value_eur = db.Column(db.Float, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # --- ELIMINA O COMENTA ESTA LÍNEA ---
+    # user = db.relationship('User', backref=db.backref('crypto_history', lazy='dynamic'))
+
+    def __repr__(self):
+        return f'<CryptoHistoryRecord {self.date.strftime("%m/%Y")} - {self.total_value_eur}€>'
+
+# --- Modelos para Silver/Gold ---
+class PreciousMetalTransaction(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
+    metal_type = db.Column(db.String(10), nullable=False)  # 'gold' o 'silver'
+    transaction_type = db.Column(db.String(10), nullable=False)  # 'buy' o 'sell'
+    date = db.Column(db.Date, nullable=False)
+    price_per_unit = db.Column(db.Float, nullable=False)  # Precio por unidad
+    quantity = db.Column(db.Float, nullable=False)  # Cantidad en gramos u onzas
+    unit_type = db.Column(db.String(10), nullable=False)  # 'g' o 'oz'
+    taxes_fees = db.Column(db.Float, nullable=True)  # Impuestos y comisiones
+    description = db.Column(db.String(200), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # --- ELIMINA O COMENTA ESTA LÍNEA ---
+    # user = db.relationship('User', backref=db.backref('metal_transactions', lazy='dynamic'))
+
+    def __repr__(self):
+        return f'<PreciousMetalTransaction {self.metal_type} {self.transaction_type} {self.quantity}{self.unit_type}>'
+
+# --- Models for Debt Management ---
+class DebtCeiling(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
+    percentage = db.Column(db.Float, nullable=False, default=5.0)  # Default 5% of salary
+    last_updated = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # --- ELIMINA O COMENTA ESTA LÍNEA ---
+    # user = db.relationship('User', backref=db.backref('debt_ceiling', uselist=False))
+
+    def __repr__(self):
+        return f'<DebtCeiling {self.percentage}%>'
+
+class DebtInstallmentPlan(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
+    description = db.Column(db.String(200), nullable=False)
+    total_amount = db.Column(db.Float, nullable=False)
+    start_date = db.Column(db.Date, nullable=False)
+    duration_months = db.Column(db.Integer, nullable=False)  # Number of installments
+    monthly_payment = db.Column(db.Float, nullable=False)    # Calculated field
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # --- ELIMINA O COMENTA ESTA LÍNEA ---
+    # user = db.relationship('User', backref=db.backref('debt_plans', lazy='dynamic'))
+
+    # ... (properties como end_date, remaining_installments, etc.) ...
+
+    def __repr__(self):
+         return f'<DebtInstallmentPlan {self.description} - {self.total_amount}€>'
+
+    @property
+    def end_date(self):
+        """Calculate the end date of the installment plan."""
+        if self.start_date and self.duration_months:
+            # Add months to start date
+            month = self.start_date.month - 1 + self.duration_months
+            year = self.start_date.year + month // 12
+            month = month % 12 + 1
+            return date(year, month, 1)
+        return None
+
+    @property
+    def remaining_installments(self):
+        """Calculate the number of remaining installments assuming payments on the 1st of each month."""
+        if not self.is_active:
+            return 0
+
+        today = date.today()
+
+        # Si estamos antes del inicio, todas las cuotas están pendientes
+        if today < self.start_date:
+            return self.duration_months
+
+        # Calcular el número total de meses entre la fecha de inicio y hoy
+        # Incluyendo el mes actual solo si hoy es día 1 o anterior
+        months_since_start = (today.year - self.start_date.year) * 12 + (today.month - self.start_date.month)
+
+        # Si ya pasó el día 1 del mes actual, ese pago ya está hecho
+        if today.day > 1:
+            months_since_start += 1
+
+        # Calcular cuotas restantes
+        remaining = self.duration_months - months_since_start
+        return max(0, remaining)
+
+    @property
+    def remaining_amount(self):
+        """Calculate the remaining amount to be paid."""
+        return self.monthly_payment * self.remaining_installments
+
+    @property
+    def progress_percentage(self):
+        """Calculate the percentage of debt paid off."""
+        if self.duration_months == 0:
+            return 100
+
+        completed = self.duration_months - self.remaining_installments
+        return (completed / self.duration_months) * 100
+
+
+class DebtHistoryRecord(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
+    date = db.Column(db.Date, nullable=False)
+    debt_amount = db.Column(db.Float, nullable=False)
+    ceiling_percentage = db.Column(db.Float, nullable=False)  # Store the ceiling % at the time of record
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # --- ELIMINA O COMENTA ESTA LÍNEA ---
+    # user = db.relationship('User', backref=db.backref('debt_history', lazy='dynamic'))
+
+    def __repr__(self):
+        return f'<DebtHistoryRecord {self.date.strftime("%m/%Y")} - {self.debt_amount}€>'
+
+
+# --- Modelos para Gastos ---
+class ExpenseCategory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    parent_id = db.Column(db.Integer, db.ForeignKey('expense_category.id', ondelete='SET NULL'), nullable=True)
+    is_default = db.Column(db.Boolean, default=False)  # Para categorías predefinidas
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # --- ELIMINA O COMENTA ESTA LÍNEA ---
+    # user = db.relationship('User', backref=db.backref('expense_categories', lazy='dynamic'))
+
+    # Relación para subcategorías (esta está bien porque es dentro de la misma tabla)
+    subcategories = db.relationship('ExpenseCategory',
+                                 backref=db.backref('parent', remote_side=[id]),
+                                 cascade="all, delete-orphan")
+
+    # Relación con gastos (esta está bien, el backref está en Expense)
+    expenses = db.relationship('Expense', backref='category', lazy='dynamic', cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f'<ExpenseCategory {self.name}>'
+
+class Expense(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
+    category_id = db.Column(db.Integer, db.ForeignKey('expense_category.id', ondelete='SET NULL'), nullable=True) # ondelete SET NULL está bien aquí
+    description = db.Column(db.String(200), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    date = db.Column(db.Date, nullable=False, default=date.today)
+    expense_type = db.Column(db.String(20), nullable=False)  # "fixed", "punctual"
+    is_recurring = db.Column(db.Boolean, default=False)  # Para gastos periódicos/fijos
+    recurrence_months = db.Column(db.Integer, nullable=True)  # Cada cuántos meses se repite (1=mensual, 12=anual)
+    start_date = db.Column(db.Date, nullable=True)  # Para gastos recurrentes
+    end_date = db.Column(db.Date, nullable=True)  # Fecha opcional de finalización
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # --- ELIMINA O COMENTA ESTA LÍNEA ---
+    # user = db.relationship('User', backref=db.backref('expenses', lazy='dynamic'))
+
+    def __repr__(self):
+        return f'<Expense {self.description} ({self.amount}€)>'
+
+# --- Modelo para guardar la configuración del Resumen Financiero ---
+
+# Modelo UserPortfolio
+class UserPortfolio(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
+    portfolio_data = db.Column(db.Text, nullable=True)  # JSON en formato texto
+    csv_data = db.Column(db.Text, nullable=True)  # JSON en formato texto para el CSV procesado
+    csv_filename = db.Column(db.String(100), nullable=True)  # Nombre del archivo CSV temporal
+    last_updated = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # --- ELIMINA O COMENTA ESTA LÍNEA ---
+    # user = db.relationship('User', backref=db.backref('portfolio', uselist=False))
+
+
+# Modelo FixedIncome
+class FixedIncome(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
+    annual_net_salary = db.Column(db.Float, nullable=True)  # Salario neto anual
+    last_updated = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # --- ELIMINA O COMENTA ESTA LÍNEA ---
+    # user = db.relationship('User', backref=db.backref('fixed_income', uselist=False))
+
+
+# Modelo BrokerOperation
+class BrokerOperation(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
+    date = db.Column(db.Date, nullable=False, default=date.today)
+    operation_type = db.Column(db.String(20), nullable=False)  # 'Ingreso', 'Retirada', 'Comisión'
+    concept = db.Column(db.String(50), nullable=False)  # 'Inversión', 'Dividendos', 'Desinversión', etc.
+    amount = db.Column(db.Float, nullable=False)  # Cantidad (positiva para ingresos, negativa para retiradas/comisiones)
+    description = db.Column(db.Text, nullable=True)  # Descripción opcional
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # --- ELIMINA O COMENTA ESTA LÍNEA ---
+    # user = db.relationship('User', backref=db.backref('broker_operations', lazy='dynamic'))
+
+
+# Modelo SalaryHistory
+class SalaryHistory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
+    year = db.Column(db.Integer, nullable=False)
+    annual_net_salary = db.Column(db.Float, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # --- ELIMINA O COMENTA ESTA LÍNEA ---
+    # user = db.relationship('User', backref=db.backref('salary_history', lazy='dynamic'))
+
+
+# Modelo BankAccount
+class BankAccount(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
+    bank_name = db.Column(db.String(100), nullable=False)
+    account_name = db.Column(db.String(100), nullable=True)  # Nombre optativo (ej: "Cuenta Nómina")
+    current_balance = db.Column(db.Float, nullable=False, default=0.0)
+    last_updated = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # --- ELIMINA O COMENTA ESTA LÍNEA ---
+    # user = db.relationship('User', backref=db.backref('bank_accounts', lazy='dynamic'))
+
+    def __repr__(self):
+        return f'<BankAccount {self.bank_name} - {self.account_name} ({self.current_balance}€)>'
+
+# Modelo CashHistoryRecord
+class CashHistoryRecord(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
+    date = db.Column(db.Date, nullable=False)
+    total_cash = db.Column(db.Float, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # --- ELIMINA O COMENTA ESTA LÍNEA ---
+    # user = db.relationship('User', backref=db.backref('cash_history', lazy='dynamic'))
+
+    def __repr__(self):
+        return f'<CashHistoryRecord {self.date.strftime("%m/%Y")} - {self.total_cash}€>'
+
+
+# Modelo VariableIncomeCategory
+class VariableIncomeCategory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    parent_id = db.Column(db.Integer, db.ForeignKey('variable_income_category.id', ondelete='SET NULL'), nullable=True)
+    is_default = db.Column(db.Boolean, default=False)  # Para categorías predefinidas
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # --- ELIMINA O COMENTA ESTA LÍNEA ---
+    # user = db.relationship('User', backref=db.backref('variable_income_categories', lazy='dynamic'))
+
+    # Relación para subcategorías (esta está bien)
+    subcategories = db.relationship('VariableIncomeCategory',
+                                 backref=db.backref('parent', remote_side=[id]),
+                                 cascade="all, delete-orphan")
+
+    # Relación con ingresos (esta está bien)
+    incomes = db.relationship('VariableIncome', backref='category', lazy='dynamic', cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f'<VariableIncomeCategory {self.name}>'
+
+# Modelo VariableIncome
+class VariableIncome(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
+    category_id = db.Column(db.Integer, db.ForeignKey('variable_income_category.id', ondelete='SET NULL'), nullable=True) # ondelete SET NULL ok
+    description = db.Column(db.String(200), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    date = db.Column(db.Date, nullable=False, default=date.today)
+    income_type = db.Column(db.String(20), nullable=False, default="punctual")  # "punctual", "recurring"
+    is_recurring = db.Column(db.Boolean, default=False)  # Para ingresos periódicos
+    recurrence_months = db.Column(db.Integer, nullable=True)  # Cada cuántos meses se repite (1=mensual, 12=anual)
+    start_date = db.Column(db.Date, nullable=True)  # Para ingresos recurrentes
+    end_date = db.Column(db.Date, nullable=True)  # Fecha opcional de finalización
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # --- ELIMINA O COMENTA ESTA LÍNEA ---
+    # user = db.relationship('User', backref=db.backref('variable_incomes', lazy='dynamic'))
+
+    def __repr__(self):
+        return f'<VariableIncome {self.description} ({self.amount}€)>'
+
+
+# Modelo WatchlistItem (ya tiene backref='owner', así que no necesita cambios aquí)
+
+# ... (otros imports y modelos) ...
 
 class WatchlistItem(db.Model):
     # --- Campos Básicos ---
@@ -170,7 +610,7 @@ class WatchlistItem(db.Model):
 
     # --- Timestamp de última actualización de datos Yahoo ---
     yahoo_last_updated = db.Column(db.DateTime, nullable=True)  # Última actualización de datos
-    
+
     # --- NUEVOS CAMPOS PARA PRECIOS CACHEADOS ---
     cached_price = db.Column(db.Float, nullable=True)  # Último precio conocido
     cached_price_date = db.Column(db.DateTime, nullable=True)  # Fecha de ese precio
@@ -180,118 +620,6 @@ class WatchlistItem(db.Model):
         status = f"Portfolio={'T' if self.is_in_portfolio else 'F'}, Followup={'T' if self.is_in_followup else 'F'}"
         return f'<WatchlistItem ISIN:{self.isin} Ticker:{self.ticker}{self.yahoo_suffix} User:{self.user_id} ({status})>'
 
-# --- Modelos para Plan de Pensiones ---
-class PensionPlan(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
-    entity_name = db.Column(db.String(100), nullable=False)
-    plan_name = db.Column(db.String(150), nullable=True)
-    current_balance = db.Column(db.Float, nullable=False, default=0.0)
-    last_updated = db.Column(db.DateTime, default=datetime.utcnow)
-
-    # Relación con el usuario
-    user = db.relationship('User', backref=db.backref('pension_plans', lazy='dynamic'))
-
-    def __repr__(self):
-        return f'<PensionPlan {self.entity_name} - {self.plan_name} ({self.current_balance}€)>'
-
-class PensionPlanHistory(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
-    date = db.Column(db.Date, nullable=False)
-    total_amount = db.Column(db.Float, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    # Relación con el usuario
-    user = db.relationship('User', backref=db.backref('pension_history', lazy='dynamic'))
-
-    def __repr__(self):
-        return f'<PensionPlanHistory {self.date.strftime("%m/%Y")} - {self.total_amount}€>'
-
-# --- Modelos para Cryptos ---
-class CryptoExchange(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
-    exchange_name = db.Column(db.String(100), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    # Relación con el usuario y transacciones
-    user = db.relationship('User', backref=db.backref('crypto_exchanges', lazy='dynamic'))
-    transactions = db.relationship('CryptoTransaction', backref='exchange', lazy='dynamic', cascade="all, delete-orphan")
-    
-    def __repr__(self):
-        return f'<CryptoExchange {self.exchange_name}>'
-
-class CryptoTransaction(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    exchange_id = db.Column(db.Integer, db.ForeignKey('crypto_exchange.id', ondelete='CASCADE'), nullable=False, index=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
-    transaction_type = db.Column(db.String(10), nullable=False)  # 'buy' o 'sell'
-    crypto_name = db.Column(db.String(100), nullable=False)
-    ticker_symbol = db.Column(db.String(20), nullable=False)  # BTC-EUR, ETH-EUR, etc.
-    date = db.Column(db.Date, nullable=False)
-    quantity = db.Column(db.Float, nullable=False)
-    price_per_unit = db.Column(db.Float, nullable=False)
-    fees = db.Column(db.Float, nullable=True)
-    current_price = db.Column(db.Float, nullable=True)
-    price_updated_at = db.Column(db.DateTime, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    # Relación con el usuario
-    user = db.relationship('User', backref=db.backref('crypto_transactions', lazy='dynamic'))
-    
-    def __repr__(self):
-        return f'<CryptoTransaction {self.transaction_type} {self.crypto_name} ({self.quantity})>'
-
-class CryptoHolding(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    exchange_id = db.Column(db.Integer, db.ForeignKey('crypto_exchange.id', ondelete='CASCADE'), nullable=False, index=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
-    crypto_name = db.Column(db.String(100), nullable=False)
-    ticker_symbol = db.Column(db.String(20), nullable=False)  # BTC-EUR, ETH-EUR, etc.
-    quantity = db.Column(db.Float, nullable=False, default=0.0)
-    current_price = db.Column(db.Float, nullable=True)
-    price_updated_at = db.Column(db.DateTime, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    # Relación con el usuario
-    user = db.relationship('User', backref=db.backref('crypto_holdings', lazy='dynamic'))
-
-    def __repr__(self):
-        return f'<CryptoHolding {self.crypto_name} ({self.quantity})>'
-
-class CryptoHistoryRecord(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
-    date = db.Column(db.Date, nullable=False)
-    total_value_eur = db.Column(db.Float, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    # Relación con el usuario
-    user = db.relationship('User', backref=db.backref('crypto_history', lazy='dynamic'))
-
-    def __repr__(self):
-        return f'<CryptoHistoryRecord {self.date.strftime("%m/%Y")} - {self.total_value_eur}€>'
-
-# --- Modelos para Silver/Gold ---
-class PreciousMetalTransaction(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
-    metal_type = db.Column(db.String(10), nullable=False)  # 'gold' o 'silver'
-    transaction_type = db.Column(db.String(10), nullable=False)  # 'buy' o 'sell'
-    date = db.Column(db.Date, nullable=False)
-    price_per_unit = db.Column(db.Float, nullable=False)  # Precio por unidad
-    quantity = db.Column(db.Float, nullable=False)  # Cantidad en gramos u onzas
-    unit_type = db.Column(db.String(10), nullable=False)  # 'g' o 'oz'
-    taxes_fees = db.Column(db.Float, nullable=True)  # Impuestos y comisiones
-    description = db.Column(db.String(200), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    # Relación con el usuario
-    user = db.relationship('User', backref=db.backref('metal_transactions', lazy='dynamic'))
-
-    def __repr__(self):
-        return f'<PreciousMetalTransaction {self.metal_type} {self.transaction_type} {self.quantity}{self.unit_type}>'
 
 class PreciousMetalPrice(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -380,105 +708,7 @@ class PreciousMetalTransactionForm(FlaskForm):
 
 
 # --- Models for Debt Management ---
-class DebtCeiling(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
-    percentage = db.Column(db.Float, nullable=False, default=5.0)  # Default 5% of salary
-    last_updated = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    # Relationship with user
-    user = db.relationship('User', backref=db.backref('debt_ceiling', uselist=False))
-    
-    def __repr__(self):
-        return f'<DebtCeiling {self.percentage}%>'
 
-
-class DebtInstallmentPlan(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
-    
-    # Debt description
-    description = db.Column(db.String(200), nullable=False)
-    total_amount = db.Column(db.Float, nullable=False)
-    
-    # Payment plan
-    start_date = db.Column(db.Date, nullable=False)
-    duration_months = db.Column(db.Integer, nullable=False)  # Number of installments
-    monthly_payment = db.Column(db.Float, nullable=False)    # Calculated field
-    
-    # Status tracking
-    is_active = db.Column(db.Boolean, nullable=False, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    # Relationship with user
-    user = db.relationship('User', backref=db.backref('debt_plans', lazy='dynamic'))
-    
-    def __repr__(self):
-        return f'<DebtInstallmentPlan {self.description} - {self.total_amount}€>'
-    
-    @property
-    def end_date(self):
-        """Calculate the end date of the installment plan."""
-        if self.start_date and self.duration_months:
-            # Add months to start date
-            month = self.start_date.month - 1 + self.duration_months
-            year = self.start_date.year + month // 12
-            month = month % 12 + 1
-            return date(year, month, 1)
-        return None
-    
-    @property
-    def remaining_installments(self):
-        """Calculate the number of remaining installments assuming payments on the 1st of each month."""
-        if not self.is_active:
-            return 0
-        
-        today = date.today()
-    
-        # Si estamos antes del inicio, todas las cuotas están pendientes
-        if today < self.start_date:
-            return self.duration_months
-    
-        # Calcular el número total de meses entre la fecha de inicio y hoy
-        # Incluyendo el mes actual solo si hoy es día 1 o anterior
-        months_since_start = (today.year - self.start_date.year) * 12 + (today.month - self.start_date.month)
-    
-        # Si ya pasó el día 1 del mes actual, ese pago ya está hecho
-        if today.day > 1:
-            months_since_start += 1
-    
-        # Calcular cuotas restantes
-        remaining = self.duration_months - months_since_start
-        return max(0, remaining) 
-   
-    @property
-    def remaining_amount(self):
-        """Calculate the remaining amount to be paid."""
-        return self.monthly_payment * self.remaining_installments
-    
-    @property
-    def progress_percentage(self):
-        """Calculate the percentage of debt paid off."""
-        if self.duration_months == 0:
-            return 100
-        
-        completed = self.duration_months - self.remaining_installments
-        return (completed / self.duration_months) * 100
-
-
-class DebtHistoryRecord(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
-    date = db.Column(db.Date, nullable=False)
-    debt_amount = db.Column(db.Float, nullable=False)
-    ceiling_percentage = db.Column(db.Float, nullable=False)  # Store the ceiling % at the time of record
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    # Relationship with user
-    user = db.relationship('User', backref=db.backref('debt_history', lazy='dynamic'))
-    
-    def __repr__(self):
-        return f'<DebtHistoryRecord {self.date.strftime("%m/%Y")} - {self.debt_amount}€>'
 
 
 # --- Forms for Debt Management ---
@@ -507,52 +737,6 @@ class DebtHistoryForm(FlaskForm):
 
 
 # --- Modelos para Gastos ---
-class ExpenseCategory(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
-    name = db.Column(db.String(100), nullable=False)
-    description = db.Column(db.Text, nullable=True)
-    parent_id = db.Column(db.Integer, db.ForeignKey('expense_category.id', ondelete='SET NULL'), nullable=True)
-    is_default = db.Column(db.Boolean, default=False)  # Para categorías predefinidas
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    # Relación con el usuario
-    user = db.relationship('User', backref=db.backref('expense_categories', lazy='dynamic'))
-    
-    # Relación para subcategorías
-    subcategories = db.relationship('ExpenseCategory', 
-                                 backref=db.backref('parent', remote_side=[id]),
-                                 cascade="all, delete-orphan")
-    
-    # Relación con gastos
-    expenses = db.relationship('Expense', backref='category', lazy='dynamic', cascade="all, delete-orphan")
-    
-    def __repr__(self):
-        return f'<ExpenseCategory {self.name}>'
-
-class Expense(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
-    category_id = db.Column(db.Integer, db.ForeignKey('expense_category.id', ondelete='SET NULL'), nullable=True)
-    description = db.Column(db.String(200), nullable=False)
-    amount = db.Column(db.Float, nullable=False)
-    date = db.Column(db.Date, nullable=False, default=date.today)
-    expense_type = db.Column(db.String(20), nullable=False)  # "fixed", "punctual"
-    is_recurring = db.Column(db.Boolean, default=False)  # Para gastos periódicos/fijos
-    recurrence_months = db.Column(db.Integer, nullable=True)  # Cada cuántos meses se repite (1=mensual, 12=anual)
-    start_date = db.Column(db.Date, nullable=True)  # Para gastos recurrentes
-    end_date = db.Column(db.Date, nullable=True)  # Fecha opcional de finalización
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    # Relación con el usuario
-    user = db.relationship('User', backref=db.backref('expenses', lazy='dynamic'))
-    
-    def __repr__(self):
-        return f'<Expense {self.description} ({self.amount}€)>'
-
-# --- Formularios para la gestión de gastos ---
-# --- Formularios para la gestión de gastos (MODIFICADO) ---
 class ExpenseCategoryForm(FlaskForm):
     name = StringField('Nombre de la Categoría', validators=[DataRequired()],
                     render_kw={"placeholder": "Ej: Alquiler, Alimentación, Transporte..."})
@@ -593,6 +777,753 @@ class ExpenseForm(FlaskForm):
                         render_kw={"type": "date"}, validators=[Optional()])
     submit = SubmitField('Registrar Gasto')
 
+
+
+
+# --- IMPORTANTE: Revisa el resto de tus modelos (PensionPlan, CryptoExchange, etc.) ---
+# Debes ELIMINAR la línea `user = db.relationship(...)` de esos otros modelos
+# si la relación ya está definida con `backref` en el modelo User anterior.
+# Ejemplo para FinancialSummaryConfig (y aplica un patrón similar a los demás):
+class FinancialSummaryConfig(db.Model): # MOSTRANDO COMPLETA COMO EJEMPLO
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
+    include_income = db.Column(db.Boolean, default=True)
+    include_expenses = db.Column(db.Boolean, default=True)
+    include_debts = db.Column(db.Boolean, default=True)
+    include_investments = db.Column(db.Boolean, default=True)
+    include_crypto = db.Column(db.Boolean, default=True)
+    include_metals = db.Column(db.Boolean, default=True)
+    include_bank_accounts = db.Column(db.Boolean, default=True)
+    include_pension_plans = db.Column(db.Boolean, default=True)
+    last_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    # La línea: user = db.relationship('User', backref=db.backref('fin_summary_config', uselist=False))
+    # DEBE SER ELIMINADA O COMENTADA de aquí.
+
+# --- Formularios WTForms ---
+# RegistrationForm (sin cambios, pero la ruta /register sí cambia)
+
+
+class RegistrationForm(FlaskForm): # MOSTRANDO COMPLETA CON CAMBIOS
+    username = StringField('Usuario', validators=[DataRequired(), Length(min=4, max=80)])
+    email = StringField('Correo Electrónico', validators=[DataRequired(), Email(message="Correo electrónico no válido.")])
+    birth_year = IntegerField('Año de Nacimiento',
+                             validators=[Optional(), NumberRange(min=1900, max=datetime.now().year, message="Año inválido.")],
+                             render_kw={"placeholder": "Ej: 1990"}) # NUEVO CAMPO
+    password = PasswordField('Contraseña', validators=[DataRequired(), Length(min=6)])
+    confirm_password = PasswordField('Confirmar Contraseña', validators=[DataRequired(), EqualTo('password', message='Las contraseñas deben coincidir.')])
+    submit = SubmitField('Registrarse')
+
+    def validate_username(self, username):
+        user = User.query.filter_by(username=username.data).first()
+        if user:
+            raise ValidationError('Ese nombre de usuario ya está en uso. Por favor, elige otro.')
+
+    def validate_email(self, email):
+        user = User.query.filter_by(email=email.data).first()
+        if user:
+            raise ValidationError('Ese correo electrónico ya está registrado. Por favor, elige otro.')
+
+
+# LoginForm (sin cambios en la definición del formulario)
+class LoginForm(FlaskForm): # MOSTRANDO COMPLETA
+    username = StringField('Usuario', validators=[DataRequired()])
+    password = PasswordField('Contraseña', validators=[DataRequired()])
+    remember_me = BooleanField('Recuérdame')
+    submit = SubmitField('Iniciar Sesión')
+
+class RequestResetForm(FlaskForm): # MOSTRANDO COMPLETA
+    email = StringField('Tu Correo Electrónico Registrado', validators=[DataRequired(), Email()])
+    submit = SubmitField('Solicitar Reseteo de Contraseña')
+
+    def validate_email(self, email):
+        user = User.query.filter_by(email=email.data).first()
+        if user is None:
+            raise ValidationError('No hay cuenta registrada con ese correo electrónico. Debes registrarte primero.')
+
+# NUEVO FORMULARIO para ingresar la nueva contraseña tras el reseteo
+class ResetPasswordForm(FlaskForm): # MOSTRANDO COMPLETA
+    password = PasswordField('Nueva Contraseña', validators=[DataRequired(), Length(min=6)])
+    confirm_password = PasswordField('Confirmar Nueva Contraseña', validators=[DataRequired(), EqualTo('password', message='Las contraseñas deben coincidir.')])
+    submit = SubmitField('Establecer Nueva Contraseña')
+
+# NUEVO FORMULARIO
+class ChangePasswordForm(FlaskForm): # MOSTRANDO COMPLETA CON CAMBIOS
+    current_password = PasswordField('Contraseña Actual', validators=[Optional()])
+    new_password = PasswordField('Nueva Contraseña', validators=[DataRequired(), Length(min=6, message="La contraseña debe tener al menos 6 caracteres.")])
+    confirm_new_password = PasswordField('Confirmar Nueva Contraseña', validators=[DataRequired(), EqualTo('new_password', message='Las contraseñas deben coincidir.')])
+    submit = SubmitField('Cambiar Contraseña')
+
+# CloseAccountForm (sin cambios en la definición del formulario)
+class CloseAccountForm(FlaskForm): # MOSTRANDO COMPLETA
+    password = PasswordField('Confirma tu contraseña', validators=[DataRequired()])
+    confirm = BooleanField('Entiendo que esta acción es irreversible y se borrarán todos mis datos.', validators=[DataRequired()])
+    submit = SubmitField('Cerrar mi cuenta permanentemente')
+
+
+# En app.py
+
+def log_activity(action_type, message, actor_user=None, target_user=None, details=None):
+    try:
+        log = ActivityLog(
+            action_type=action_type,
+            message=message,
+            details=json.dumps(details) if details is not None else None, # Guardar detalles como JSON
+            ip_address=request.remote_addr
+        )
+        if actor_user and actor_user.is_authenticated:
+            log.user_id = actor_user.id
+            log.username = actor_user.username
+        
+        if target_user:
+            log.target_user_id = target_user.id
+            log.target_username = target_user.username
+            
+        db.session.add(log)
+        db.session.commit() # Commit individual para logs o agruparlos
+    except Exception as e:
+        app.logger.error(f"Error al registrar actividad: {action_type} - {e}", exc_info=True)
+        db.session.rollback() # Asegurar rollback si el commit del log falla
+
+# --- User Loader ---
+@login_manager.user_loader
+def load_user(user_id): # MOSTRANDO COMPLETA
+    return db.session.get(User, int(user_id))
+
+# --- Decorador para rutas de Administrador (NUEVO) ---
+def admin_required(f): # MOSTRANDO COMPLETA
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated or not current_user.is_admin:
+            flash("Acceso no autorizado. Se requieren privilegios de administrador.", "danger")
+            # Redirige a login o a una página de 'no autorizado' más genérica si la tienes
+            return redirect(url_for('login', next=request.url if request.method == 'GET' else None))
+        return f(*args, **kwargs)
+    return decorated_function
+
+# --- Hook @app.before_request para forzar cambio de contraseña (NUEVO) ---
+@app.before_request
+@app.before_request
+def check_force_password_change(): # MOSTRANDO COMPLETA CON CAMBIOS
+    # Primero, manejar usuarios no autenticados o endpoints públicos
+    if not current_user.is_authenticated or \
+       not request.endpoint or \
+       request.endpoint in ['static', 'logout', 'request_reset_password', 'reset_with_token']:
+        return
+
+    # Forzar cambio de contraseña si es necesario
+    if hasattr(current_user, 'must_change_password') and current_user.must_change_password \
+       and request.endpoint != 'change_password': # Evitar bucle si ya está en change_password
+        flash('Debes cambiar tu contraseña antes de continuar.', 'warning')
+        return redirect(url_for('change_password'))
+
+    # NUEVO: Forzar establecimiento de email si no lo tiene (y no es el admin principal)
+    # Asumimos que el admin principal (username 'admin') puede no tener email
+    if current_user.username != 'admin' and \
+       (not current_user.email or current_user.email == app.config.get('ADMIN_PLACEHOLDER_EMAIL')) and \
+       request.endpoint != 'set_email': # Evitar bucle si ya está en set_email
+        flash('Por favor, establece tu dirección de correo electrónico para continuar.', 'info')
+        return redirect(url_for('set_email'))
+
+
+# En app.py
+
+# ... (otros imports, modelos, formularios, rutas) ...
+
+@app.route('/admin/user/<int:user_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def admin_delete_user(user_id):
+    user_to_delete = db.session.get(User, user_id)
+
+    if not user_to_delete:
+        flash("Usuario no encontrado.", "danger")
+        return redirect(url_for('admin_dashboard'))
+
+    if user_to_delete.username == 'admin' and user_to_delete.is_admin:
+        flash("No se puede eliminar la cuenta del administrador principal 'admin'.", "warning")
+        return redirect(url_for('admin_dashboard'))
+
+    if user_to_delete == current_user:
+        flash("No puedes eliminar tu propia cuenta desde el panel de administración.", "warning")
+        return redirect(url_for('admin_dashboard'))
+
+    try:
+        username_deleted = user_to_delete.username
+        # La cascada definida en el modelo User (cascade="all, delete-orphan")
+        # debería encargarse de borrar todos los datos relacionados.
+        db.session.delete(user_to_delete)
+        db.session.commit()
+        # log_activity(action_type="ADMIN_DELETE_USER",
+        #              message=f"Admin {current_user.username} eliminó al usuario '{username_deleted}'.",
+        #              actor_user=current_user,
+        #              target_user_id=user_id, # Guardar el ID por si acaso
+        #              target_username=username_deleted)
+        flash(f"El usuario '{username_deleted}' y todos sus datos asociados han sido eliminados permanentemente.", "success")
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error al eliminar usuario {user_to_delete.username}: {e}", exc_info=True)
+        flash(f"Error al eliminar el usuario: {e}", "danger")
+
+    return redirect(url_for('admin_dashboard'))
+
+
+@app.route('/set_email', methods=['GET', 'POST']) # NUEVA RUTA
+@login_required
+def set_email(): # MOSTRANDO COMPLETA
+    # Si el usuario ya tiene un email (y no es el admin placeholder), no debería estar aquí
+    # a menos que queramos permitir cambiarlo, pero por ahora es para establecerlo si falta.
+    if current_user.email and current_user.email != app.config.get('ADMIN_PLACEHOLDER_EMAIL') and current_user.username != 'admin':
+        return redirect(url_for('financial_summary')) # O la página principal
+
+    form = SetEmailForm()
+    if form.validate_on_submit():
+        # Verificar si el email ya está en uso por OTRO usuario (el validador del form ya lo hace)
+        # user_with_email = User.query.filter(User.email == form.email.data, User.id != current_user.id).first()
+        # if user_with_email:
+        #     flash('Ese correo electrónico ya está en uso por otro usuario.', 'danger')
+        # else:
+        current_user.email = form.email.data
+        db.session.commit()
+        flash('Tu correo electrónico ha sido guardado correctamente.', 'success')
+        # log_activity(action="email_set", user=current_user) # Ejemplo de log
+        return redirect(url_for('financial_summary')) # O a donde deba ir después
+
+    return render_template('set_email.html', title='Establecer Correo Electrónico', form=form)
+
+@app.route('/register', methods=['GET', 'POST'])
+def register(): # MOSTRANDO COMPLETA CON CAMBIOS
+    if current_user.is_authenticated:
+        return redirect(url_for('financial_summary')) 
+
+    form = RegistrationForm()
+    if form.validate_on_submit(): 
+        hashed_password = generate_password_hash(form.password.data)
+        
+        new_user = User(username=form.username.data,
+                        email=form.email.data,
+                        birth_year=form.birth_year.data if form.birth_year.data else None, # Guardar año de nacimiento
+                        password_hash=hashed_password,
+                        is_admin=False,
+                        must_change_password=False,
+                        is_active=True,
+                        created_at=datetime.utcnow())
+        try:
+            db.session.add(new_user) 
+            db.session.commit()
+            
+            # Opcional: Crear categorías de gastos por defecto para el nuevo usuario
+            # if callable(create_default_expense_categories):
+            #     create_default_expense_categories(new_user.id) # Asumiendo que tienes esta función
+            
+            flash('¡Cuenta creada correctamente! Ahora puedes iniciar sesión.', 'success')
+            log_activity(action_type="REGISTER", 
+                         message=f"Nuevo usuario registrado: '{new_user.username}'.",
+                         actor_user=None, # O el propio new_user si ya tiene ID y se maneja así
+                         target_user=new_user) # Log de la acción
+            return redirect(url_for('login'))
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Error al registrar usuario {form.username.data}: {e}", exc_info=True)
+            flash(f'Error al registrar usuario. Por favor, inténtalo de nuevo.', 'danger')
+            
+    return render_template('register.html', title='Registro', form=form)
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login(): # MOSTRANDO COMPLETA CON CAMBIOS
+    if current_user.is_authenticated and hasattr(current_user, 'must_change_password') and not current_user.must_change_password:
+        return redirect(url_for('financial_summary'))
+    
+    form = LoginForm()
+    if form.validate_on_submit():
+        user = User.query.filter_by(username=form.username.data).first()
+
+        if user and user.is_active:
+            # El admin principal ahora tiene contraseña por defecto "admin"
+            if user.username == 'admin' and user.check_password('admin') and user.must_change_password:
+                login_user(user, remember=form.remember_me.data)
+                # Actualizar datos de login
+                if user.current_login_at: user.last_login_at = user.current_login_at
+                user.current_login_at = datetime.utcnow()
+                user.login_count = (user.login_count or 0) + 1
+                # No hacemos commit aquí todavía, se hará en change_password o al final
+                flash('Bienvenido administrador. Por seguridad, por favor cambia tu contraseña por defecto "admin".', 'info')
+                return redirect(url_for('change_password'))
+            
+            elif user.check_password(form.password.data):
+                login_user(user, remember=form.remember_me.data)
+                if user.current_login_at: user.last_login_at = user.current_login_at
+                user.current_login_at = datetime.utcnow()
+                user.login_count = (user.login_count or 0) + 1
+                db.session.commit() # Guardar datos de login
+
+                if hasattr(user, 'must_change_password') and user.must_change_password:
+                    # Esto no debería pasar para usuarios normales si must_change_password=False por defecto
+                    # pero se mantiene por si acaso o para futuras lógicas
+                    return redirect(url_for('change_password'))
+                
+                # ... (Tu lógica de cargar portfolio) ...
+                next_page = request.args.get('next')
+                if next_page and not next_page.startswith(('/login', '/register', '/change_password')):
+                    return redirect(next_page)
+                return redirect(url_for('financial_summary'))
+            else:
+                flash('Inicio de sesión fallido. Verifica usuario y contraseña.', 'danger')
+        elif user and not user.is_active:
+            flash('Esta cuenta ha sido desactivada.', 'warning')
+        else:
+            flash('Inicio de sesión fallido. Usuario no encontrado.', 'danger')
+            
+    return render_template('login.html', title='Iniciar Sesión', form=form)
+
+@app.route('/logout') # MOSTRANDO COMPLETA CON CAMBIOS
+@login_required
+def logout():
+    # Limpiar datos de sesión sensibles específicos de la app si los hubiera
+    # session.pop('portfolio_data', None)
+    # session.pop('csv_temp_file', None)
+    # ... cualquier otro dato de sesión ...
+    # O limpiar toda la sesión:
+    session.clear()
+    logout_user()
+    flash('Has cerrado sesión.', 'info')
+    return redirect(url_for('login'))
+
+@app.route('/change_password', methods=['GET', 'POST'])
+@login_required
+def change_password(): # MOSTRANDO COMPLETA CON CAMBIOS
+    form = ChangePasswordForm()
+    
+    # Lógica para saber si el campo 'current_password' es necesario
+    needs_current_password = True
+    if current_user.must_change_password:
+        # Si es el admin con la contraseña por defecto "admin"
+        if current_user.username == 'admin' and current_user.check_password('admin'):
+            needs_current_password = False
+        # Si es otro caso donde no hay hash (aunque esto es menos probable ahora)
+        elif current_user.password_hash is None:
+            needs_current_password = False
+
+    if not needs_current_password:
+        form.current_password.validators = [] # Quitar validador
+        # Si quieres ocultarlo del formulario, puedes pasar una variable al template
+        # o manejarlo en el template con una condición.
+    else:
+        # Asegurarse de que el validador DataRequired esté presente
+        # (Puede que necesites ajustar cómo se añaden/quitan validadores dinámicamente si es complejo,
+        # pero para este caso, simplemente no validar current_password si no es necesario)
+        pass
+
+
+    if form.validate_on_submit():
+        password_ok = False
+        if needs_current_password:
+            if current_user.check_password(form.current_password.data):
+                password_ok = True
+            else:
+                flash('La contraseña actual es incorrecta.', 'danger')
+        else: # No se necesita contraseña actual (ej. primer login admin con pass por defecto)
+            password_ok = True
+
+        if password_ok:
+            current_user.set_password(form.new_password.data)
+            current_user.must_change_password = False
+            db.session.commit()
+            flash('Tu contraseña ha sido actualizada correctamente.', 'success')
+            if current_user.is_admin: # Después de cambiar la contraseña, el admin va a su dashboard
+                 return redirect(url_for('admin_dashboard'))
+            return redirect(url_for('financial_summary')) 
+            
+    return render_template('change_password.html', 
+                           title='Cambiar Contraseña', 
+                           form=form,
+                           needs_current_password=needs_current_password)
+
+
+class User(db.Model, UserMixin): # MOSTRAR COMPLETA SI SE MODIFICA
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False) 
+    password_hash = db.Column(db.String(128), nullable=True)
+    birth_year = db.Column(db.Integer, nullable=True) # NUEVO CAMPO AÑADIDO
+    
+    is_admin = db.Column(db.Boolean, default=False, nullable=False)
+    must_change_password = db.Column(db.Boolean, default=False, nullable=False)
+    last_login_at = db.Column(db.DateTime, nullable=True)
+    current_login_at = db.Column(db.DateTime, nullable=True)
+    login_count = db.Column(db.Integer, default=0, nullable=False)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # ... (resto de relaciones existentes en el modelo User) ...
+    watchlist_items = db.relationship('WatchlistItem', backref='owner', lazy='dynamic', cascade="all, delete-orphan")
+    fin_summary_config = db.relationship('FinancialSummaryConfig', backref='user', uselist=False, cascade="all, delete-orphan")
+    pension_plans = db.relationship('PensionPlan', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    pension_history = db.relationship('PensionPlanHistory', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    crypto_exchanges = db.relationship('CryptoExchange', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    crypto_transactions = db.relationship('CryptoTransaction', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    crypto_holdings = db.relationship('CryptoHolding', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    crypto_history = db.relationship('CryptoHistoryRecord', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    metal_transactions = db.relationship('PreciousMetalTransaction', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    debt_ceiling = db.relationship('DebtCeiling', backref='user', uselist=False, cascade="all, delete-orphan")
+    debt_plans = db.relationship('DebtInstallmentPlan', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    debt_history = db.relationship('DebtHistoryRecord', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    expense_categories = db.relationship('ExpenseCategory', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    expenses = db.relationship('Expense', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    portfolio = db.relationship('UserPortfolio', backref='user', uselist=False, cascade="all, delete-orphan")
+    fixed_income = db.relationship('FixedIncome', backref='user', uselist=False, cascade="all, delete-orphan")
+    broker_operations = db.relationship('BrokerOperation', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    salary_history = db.relationship('SalaryHistory', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    bank_accounts = db.relationship('BankAccount', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    cash_history = db.relationship('CashHistoryRecord', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    variable_income_categories = db.relationship('VariableIncomeCategory', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    variable_incomes = db.relationship('VariableIncome', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        if self.password_hash is None:
+            return False
+        return check_password_hash(self.password_hash, password)
+
+    def get_reset_token(self, expires_sec=1800):
+        admin_placeholder_email = app.config.get('ADMIN_PLACEHOLDER_EMAIL', 'admin@internal.local')
+        if self.username == 'admin' and self.email == admin_placeholder_email:
+            app.logger.info(f"Se intentó generar token de reseteo para admin principal ({self.username}) con email placeholder.")
+            return None
+        if not self.email:
+            return None
+        s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
+        return s.dumps({'user_id': self.id})
+
+    @staticmethod
+    def verify_reset_token(token, expires_sec=1800):
+        s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
+        try:
+            data = s.loads(token, max_age=expires_sec)
+            user_id = data.get('user_id')
+        except Exception:
+            return None
+        return db.session.get(User, user_id)
+
+    def __repr__(self):
+        return f'<User {self.username} Admin:{self.is_admin} Email:{self.email}>'
+class AccountManagementForm(FlaskForm):
+    username = StringField('Nombre de Usuario', validators=[DataRequired(), Length(min=4, max=80)])
+    email = StringField('Correo Electrónico', validators=[DataRequired(), Email(message="Correo electrónico no válido.")])
+    birth_year = IntegerField('Año de Nacimiento', validators=[Optional(), NumberRange(min=1900, max=datetime.now().year)])
+    current_password = PasswordField('Contraseña Actual')
+    new_password = PasswordField('Nueva Contraseña', validators=[Optional(), Length(min=6, message="La contraseña debe tener al menos 6 caracteres.")])
+    confirm_new_password = PasswordField('Confirmar Nueva Contraseña', validators=[EqualTo('new_password', message='Las contraseñas deben coincidir.')])
+    submit = SubmitField('Guardar Cambios')
+
+    def validate_username(self, username):
+        if username.data != current_user.username:
+            user = User.query.filter_by(username=username.data).first()
+            if user:
+                raise ValidationError('Ese nombre de usuario ya está en uso. Por favor, elige otro.')
+
+    def validate_email(self, email):
+        if email.data != current_user.email:
+            user = User.query.filter_by(email=email.data).first()
+            if user:
+                raise ValidationError('Ese correo electrónico ya está registrado. Por favor, elige otro.')
+
+@app.route('/manage_account', methods=['GET', 'POST'])
+@login_required
+def manage_account():
+    form = AccountManagementForm(obj=current_user) # Pre-popula el formulario con datos del usuario
+
+    if form.validate_on_submit():
+        try:
+            # Actualizar nombre de usuario
+            if current_user.username != form.username.data:
+                current_user.username = form.username.data
+                flash('Nombre de usuario actualizado.', 'success')
+
+            # Actualizar email
+            if current_user.email != form.email.data:
+                current_user.email = form.email.data
+                flash('Correo electrónico actualizado.', 'success')
+
+            # Actualizar año de nacimiento
+            if form.birth_year.data:
+                 current_user.birth_year = form.birth_year.data
+                 flash('Año de nacimiento actualizado.', 'success')
+            else: # Si se borra el año
+                current_user.birth_year = None
+
+
+            # Actualizar contraseña si se proporcionó la nueva
+            if form.new_password.data:
+                if form.current_password.data and current_user.check_password(form.current_password.data):
+                    current_user.set_password(form.new_password.data)
+                    flash('Contraseña actualizada correctamente.', 'success')
+                elif not form.current_password.data:
+                     flash('Debes ingresar tu contraseña actual para cambiarla.', 'warning')
+                else:
+                    flash('La contraseña actual es incorrecta.', 'danger')
+                    return render_template('manage_account_modal_content.html', form=form) # Para recargar el modal con error
+
+            db.session.commit()
+
+            # Si es una petición AJAX (desde el modal), devolvemos un JSON
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify(success=True, messages=get_flashed_messages(with_categories=True))
+
+            return redirect(url_for('financial_summary')) # O a donde sea apropiado
+
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error al actualizar la cuenta: {e}', 'danger')
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify(success=False, messages=get_flashed_messages(with_categories=True), error=str(e))
+
+    # Si es una petición AJAX (GET inicial para el modal) o falló la validación en POST AJAX
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return render_template('manage_account_modal_content.html', form=form)
+
+    # Para una ruta GET normal (si se accediera directamente, aunque el modal es lo principal)
+    return render_template('manage_account_page.html', title='Gestionar Mi Cuenta', form=form)
+
+
+
+def send_reset_email(user): # MOSTRANDO COMPLETA
+    # Primero, verificar si el usuario tiene un email válido para enviar.
+    # Esto es crucial si tu admin no tiene email o si usas un placeholder.
+    admin_placeholder_email = app.config.get('ADMIN_PLACEHOLDER_EMAIL') # Obtener el placeholder desde config
+
+    if not user.email:
+        app.logger.warning(f"Intento de enviar email de reseteo a usuario '{user.username}' que no tiene email registrado.")
+        return False
+    
+    if user.username == 'admin' and admin_placeholder_email and user.email == admin_placeholder_email:
+        app.logger.warning(f"Intento de enviar email de reseteo al admin principal '{user.username}' que usa un email placeholder.")
+        # Decidir si quieres enviar un flash message aquí o manejarlo en la ruta que llama a esta función.
+        # Por ahora, solo evitamos el envío y devolvemos False.
+        return False
+
+    token = user.get_reset_token() # Este método ya debería estar en tu modelo User
+
+    if not token:
+        # Esto podría pasar si get_reset_token tiene alguna lógica interna que previene la creación
+        # (aunque ya hemos cubierto el caso de 'no email' arriba).
+        app.logger.warning(f"No se pudo generar un token de reseteo para el usuario '{user.username}'.")
+        return False
+        
+    # El remitente por defecto se toma de app.config['MAIL_DEFAULT_SENDER']
+    # Asegúrate de que MAIL_DEFAULT_SENDER esté configurado en app.config
+    msg = Message(
+        subject='Solicitud de Reseteo de Contraseña - Mi Portfolio App',
+        recipients=[user.email] # El email del usuario al que se le enviará
+        # sender=app.config['MAIL_DEFAULT_SENDER'] # No es necesario si MAIL_DEFAULT_SENDER está configurado globalmente
+    )
+
+    # _external=True es importante para generar una URL absoluta que funcione fuera de la app
+    link_reseteo = url_for('reset_with_token', token=token, _external=True)
+    
+    msg.body = f'''Hola {user.username},
+
+Para resetear tu contraseña, por favor visita el siguiente enlace:
+{link_reseteo}
+
+Si no solicitaste este cambio, puedes ignorar este correo electrónico de forma segura.
+Este enlace expirará en 30 minutos.
+
+Saludos,
+El equipo de Mi Portfolio App
+'''
+    # Opcionalmente, puedes usar plantillas HTML para correos más elaborados:
+    # msg.html = render_template('email/reset_password_email.html', user=user, token=token)
+
+    try:
+        mail.send(msg)
+        app.logger.info(f"Email de reseteo de contraseña enviado exitosamente a {user.email}")
+        return True
+    except Exception as e:
+        # Loguear el error detallado es crucial para diagnosticar problemas de envío
+        app.logger.error(f"FALLO al enviar email de reseteo de contraseña a {user.email}. Error: {e}", exc_info=True)
+        # Podrías añadir un reintento aquí o una notificación más específica si falla
+        return False
+
+
+@app.route("/request_reset_password", methods=['GET', 'POST']) # NUEVA RUTA
+def request_reset_password(): # MOSTRANDO COMPLETA
+    if current_user.is_authenticated:
+        return redirect(url_for('financial_summary'))
+    form = RequestResetForm()
+    if form.validate_on_submit():
+        user = User.query.filter_by(email=form.email.data).first()
+        if user:
+            if send_reset_email(user):
+                flash('Se ha enviado un email con instrucciones para resetear tu contraseña a tu correo electrónico.', 'info')
+            else:
+                flash('Error al enviar el email de reseteo. Por favor, inténtalo más tarde o contacta al administrador.', 'danger')
+        else:
+            # No revelamos si el email existe o no por seguridad, pero el validador del form ya lo hace.
+             flash('Si ese correo está registrado, recibirás un email para resetear tu contraseña.', 'info')
+        return redirect(url_for('login'))
+    return render_template('request_reset_password.html', title='Resetear Contraseña', form=form)
+
+@app.route("/reset_password/<token>", methods=['GET', 'POST']) # NUEVA RUTA
+def reset_with_token(token): # MOSTRANDO COMPLETA
+    if current_user.is_authenticated:
+        return redirect(url_for('financial_summary'))
+    user = User.verify_reset_token(token)
+    if user is None:
+        flash('El token de reseteo es inválido o ha expirado.', 'warning')
+        return redirect(url_for('request_reset_password'))
+    
+    form = ResetPasswordForm()
+    if form.validate_on_submit():
+        user.set_password(form.password.data)
+        user.must_change_password = False # El reseteo cuenta como cambio
+        db.session.commit()
+        flash('Tu contraseña ha sido actualizada. Ahora puedes iniciar sesión.', 'success')
+        return redirect(url_for('login'))
+    return render_template('reset_with_token.html', title='Establecer Nueva Contraseña', form=form, token=token)
+
+# En app.py
+
+@app.route('/admin/user/<int:user_id>/trigger_reset_password', methods=['POST'])
+@login_required
+@admin_required
+def admin_trigger_reset_password(user_id):
+    user_to_reset = db.session.get(User, user_id)
+    if not user_to_reset:
+        flash("Usuario no encontrado.", "danger")
+        return redirect(url_for('admin_dashboard'))
+
+    # Evitar que el admin principal se auto-envíe un reset si no tiene email funcional
+    # o si su email es el placeholder. La función send_reset_email ya lo maneja.
+    if user_to_reset.username == 'admin' and \
+       (not user_to_reset.email or user_to_reset.email == app.config.get('ADMIN_PLACEHOLDER_EMAIL')):
+        flash(f"El administrador principal '{user_to_reset.username}' no tiene un email configurado para reseteo.", "warning")
+        return redirect(url_for('admin_dashboard'))
+    
+    # La función send_reset_email ya verifica si el usuario tiene un email válido
+    if send_reset_email(user_to_reset):
+        flash(f"Se ha enviado un email de reseteo de contraseña al usuario '{user_to_reset.username}' ({user_to_reset.email}).", 'success')
+    else:
+        flash(f"Error al enviar el email de reseteo para '{user_to_reset.username}'. Verifica la configuración de email o si el usuario tiene un email válido.", 'danger')
+    
+    return redirect(url_for('admin_dashboard'))
+
+
+@app.route('/close_account', methods=['GET', 'POST']) # MOSTRANDO COMPLETA (sin cambios internos)
+@login_required
+def close_account():
+    form = CloseAccountForm()
+    if form.validate_on_submit():
+        if current_user.check_password(form.password.data):
+            try:
+                user_id_to_delete = current_user.id
+                username_deleted = current_user.username
+                
+                db.session.delete(current_user) # Asume cascadas configuradas en User Model
+                db.session.commit()
+                logout_user() # Importante desloguear al usuario
+                flash(f'La cuenta de {username_deleted} ha sido cerrada permanentemente.', 'success')
+                return redirect(url_for('login'))
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Error al cerrar la cuenta: {e}', 'danger')
+                app.logger.error(f"Error al cerrar la cuenta de {current_user.username}: {e}", exc_info=True)
+        else:
+            flash('Contraseña incorrecta. No se pudo cerrar la cuenta.', 'warning')
+    return render_template('close_account.html', title='Cerrar Cuenta', form=form)
+
+
+
+@app.route('/admin') # Redirige a dashboard
+@app.route('/admin/dashboard')
+@login_required
+@admin_required
+def admin_dashboard(): # MOSTRANDO COMPLETA CON CAMBIOS PARA LOGS
+    users = User.query.order_by(User.username).all()
+    user_count = User.query.count()
+    active_user_count = User.query.filter_by(is_active=True).count()
+    admin_user_count = User.query.filter_by(is_admin=True).count()
+    
+    # Obtener los últimos N logs de actividad, ordenados por más reciente primero
+    # Puedes ajustar el .limit() al número de logs que quieras mostrar
+    recent_activity_logs = ActivityLog.query.order_by(ActivityLog.timestamp.desc()).limit(50).all()
+    
+    # Para la plantilla, es útil procesar los detalles si son JSON
+    # Esto es opcional, podrías simplemente mostrar el string details directamente
+    processed_logs = []
+    for log_entry in recent_activity_logs:
+        details_parsed = log_entry.details
+        if log_entry.details:
+            try:
+                # Intenta cargar como JSON si se guardó así
+                parsed = json.loads(log_entry.details)
+                # Formatear el JSON para mejor visualización (opcional)
+                details_parsed = json.dumps(parsed, indent=2, ensure_ascii=False)
+            except json.JSONDecodeError:
+                # Si no es JSON válido, se muestra como texto plano
+                details_parsed = log_entry.details
+        
+        processed_logs.append({
+            'timestamp': log_entry.timestamp,
+            'username': log_entry.username or "Sistema",
+            'action_type': log_entry.action_type,
+            'message': log_entry.message,
+            'target_username': log_entry.target_username,
+            'details': details_parsed, # Detalles procesados o en crudo
+            'ip_address': log_entry.ip_address
+        })
+
+    # Placeholder para los logs "simplificados" que tenías antes, por si aún los quieres
+    # admin_simple_logs = [
+    #     f"({datetime.now().strftime('%Y-%m-%d %H:%M:%S')}) Acceso al panel de administración por {current_user.username}.",
+    # ]
+    
+    admin_placeholder_email = app.config.get('ADMIN_PLACEHOLDER_EMAIL')
+
+    return render_template('admin/dashboard.html', 
+                           title="Panel de Administración", 
+                           users=users,
+                           user_count=user_count,
+                           active_user_count=active_user_count,
+                           admin_user_count=admin_user_count,
+                           admin_placeholder_email=admin_placeholder_email,
+                           activity_logs=processed_logs) # Pasar los logs procesados
+
+@app.route('/admin/user/<int:user_id>/toggle_active', methods=['POST']) # NUEVA RUTA
+@login_required
+@admin_required
+def admin_toggle_user_active(user_id): # MOSTRANDO COMPLETA
+    user = db.session.get(User, user_id)
+    if user:
+        if user.username == 'admin' and user.is_admin: # No permitir desactivar al admin principal
+            flash("No se puede desactivar la cuenta del administrador principal 'admin'.", "warning")
+        else:
+            user.is_active = not user.is_active
+            db.session.commit()
+            status = "activado" if user.is_active else "desactivado"
+            flash(f"El estado de actividad del usuario '{user.username}' ha sido cambiado a {status}.", "success")
+    else:
+        flash("Usuario no encontrado.", "danger")
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/user/<int:user_id>/toggle_admin', methods=['POST']) # NUEVA RUTA
+@login_required
+@admin_required
+def admin_toggle_user_admin(user_id): # MOSTRANDO COMPLETA
+    user = db.session.get(User, user_id)
+    if user:
+        if user.username == 'admin' and not user.is_admin == False : # No permitir quitar admin al admin principal
+             flash("No se pueden revocar los privilegios de administrador al usuario 'admin'.", "warning")
+        else:
+            user.is_admin = not user.is_admin
+            db.session.commit()
+            status = "administrador" if user.is_admin else "usuario normal"
+            flash(f"El usuario '{user.username}' ahora es {status}.", "success")
+    else:
+        flash("Usuario no encontrado.", "danger")
+    return redirect(url_for('admin_dashboard'))
 
 
 @app.route('/edit_expense/<int:expense_id>', methods=['GET', 'POST'])
@@ -686,22 +1617,6 @@ def edit_expense(expense_id):
     return render_template('edit_expense.html', form=form, expense=expense)
 
 
-# --- Modelo para guardar la configuración del Resumen Financiero ---
-class FinancialSummaryConfig(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
-    include_income = db.Column(db.Boolean, default=True)
-    include_expenses = db.Column(db.Boolean, default=True)
-    include_debts = db.Column(db.Boolean, default=True)
-    include_investments = db.Column(db.Boolean, default=True)
-    include_crypto = db.Column(db.Boolean, default=True)
-    include_metals = db.Column(db.Boolean, default=True)
-    include_bank_accounts = db.Column(db.Boolean, default=True)
-    include_pension_plans = db.Column(db.Boolean, default=True)
-    last_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    # Relación con el usuario
-    user = db.relationship('User', backref=db.backref('fin_summary_config', uselist=False))
 
 # --- Formulario para configurar el Resumen Financiero ---
 class FinancialSummaryConfigForm(FlaskForm):
@@ -5125,44 +6040,8 @@ def update_all_watchlist_items_from_yahoo(user_id, force_update=False):
     return results
 
 
-# --- User Loader (DEBE IR DESPUÉS de definir User y login_manager) ---
-@login_manager.user_loader
-def load_user(user_id):
-    # ... (código como antes) ...
-    return db.session.get(User, int(user_id))
-
-# --- Formularios (DESPUÉS de modelos) ---
-# ... (RegistrationForm, LoginForm) ...
 
 
-# --- Formularios WTForms ---
-class RegistrationForm(FlaskForm):
-    username = StringField('Usuario', validators=[DataRequired(), Length(min=4, max=80)])
-    password = PasswordField('Contraseña', validators=[DataRequired(), Length(min=6)])
-    confirm_password = PasswordField('Confirmar Contraseña', validators=[DataRequired(), EqualTo('password', message='Las contraseñas deben coincidir.')])
-    submit = SubmitField('Registrarse')
-
-    def validate_username(self, username):
-        user = User.query.filter_by(username=username.data).first()
-        if user:
-            raise ValidationError('Ese nombre de usuario ya está en uso. Por favor, elige otro.')
-
-class LoginForm(FlaskForm):
-    username = StringField('Usuario', validators=[DataRequired()])
-    password = PasswordField('Contraseña', validators=[DataRequired()])
-    remember_me = BooleanField('Recuérdame')
-    submit = SubmitField('Iniciar Sesión')
-
-class UserPortfolio(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
-    portfolio_data = db.Column(db.Text, nullable=True)  # JSON en formato texto
-    csv_data = db.Column(db.Text, nullable=True)  # JSON en formato texto para el CSV procesado
-    csv_filename = db.Column(db.String(100), nullable=True)  # Nombre del archivo CSV temporal
-    last_updated = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    # Relación con el usuario
-    user = db.relationship('User', backref=db.backref('portfolio', uselist=False))
 
 # Funciones auxiliares para guardar y cargar el portfolio
 def save_user_portfolio(user_id, portfolio_data, csv_data=None, csv_filename=None):
@@ -5518,74 +6397,6 @@ def calculate_portfolio(df_transacciones):
 
 # --- Rutas Flask ---
 
-# --- Rutas de Autenticación ---
-@app.route('/register', methods=['GET', 'POST'])
-def register():
-    if current_user.is_authenticated:
-        return redirect(url_for('index'))
-        
-    form = RegistrationForm()
-    if form.validate_on_submit():
-        hashed_password = generate_password_hash(form.password.data)
-        user = User(username=form.username.data, password_hash=hashed_password)
-        
-        try:
-            db.session.add(user)
-            db.session.commit()
-            
-            # Crear categorías predeterminadas para el nuevo usuario
-            create_default_expense_categories(user.id)
-            
-            flash('¡Cuenta creada correctamente! Ahora puedes iniciar sesión.', 'success')
-            return redirect(url_for('login'))
-        except Exception as e:
-            db.session.rollback()
-            flash(f'Error al registrar usuario: {e}', 'danger')
-            print(f"Error DB al registrar usuario: {e}")
-            
-    return render_template('register.html', title='Registro', form=form)
-
-
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    """Maneja el inicio de sesión de usuarios."""
-    if current_user.is_authenticated:
-        # Limpiar sesión anterior por si ha habido cambio de usuario
-        session.pop('portfolio_data', None)
-        session.pop('csv_temp_file', None)
-        
-        # Si ya está logueado, redirigir a watchlist en lugar de index
-        return redirect(url_for('show_watchlist'))
-
-    form = LoginForm()
-    if form.validate_on_submit():
-        user = User.query.filter_by(username=form.username.data).first()
-        if user and user.check_password(form.password.data):
-            # Limpiar datos de sesión antiguos
-            session.pop('portfolio_data', None)
-            session.pop('csv_temp_file', None)
-            
-            # Iniciar sesión de usuario
-            login_user(user, remember=form.remember_me.data)
-            
-            # CARGAR PORTFOLIO CACHEADO DEL USUARIO CORRECTO
-            portfolio_data, csv_data, csv_filename = load_user_portfolio(user.id)
-            if portfolio_data:
-                # Guardar en sesión para mostrar directamente
-                session['portfolio_data'] = portfolio_data
-                if csv_filename:
-                    session['csv_temp_file'] = csv_filename
-                flash('Datos de portfolio cargados de la sesión anterior.', 'success')
-            
-            next_page = request.args.get('next')
-            if next_page and not next_page.startswith('/login') and not next_page.startswith('/register'):
-                return redirect(next_page)
-            else:
-                return redirect(url_for('financial_summary'))
-        else:
-            flash('Inicio de sesión fallido. Verifica usuario y contraseña.', 'danger')
-    
-    return render_template('login.html', title='Iniciar Sesión', form=form)
 
 
 # 2. AÑADIR NUEVA RUTA PARA ACTUALIZAR SOLO PRECIOS
@@ -5736,293 +6547,25 @@ def update_portfolio_prices():
     
     return redirect(url_for('show_portfolio'))
 
-@app.route('/logout')
-@login_required
-def logout():
-    # Limpiar los datos de la sesión antes de cerrar sesión
-    session.pop('portfolio_data', None)
-    session.pop('csv_temp_file', None)
-    session.pop('missing_isins_for_mapping', None)
-    session.pop('temp_csv_pending_filename', None)
-    session.pop('temp_portfolio_pending_filename', None)
-    
-    # Cerrar sesión
-    logout_user()
-    flash('Has cerrado sesión.', 'info')
-    return redirect(url_for('login'))
 
-# --- Rutas Principales de la Aplicación ---
-# En app.py
-@app.route('/', methods=['GET', 'POST'])
-@login_required
+@app.route('/')
+@login_required # Opcional, dependiendo si quieres que esta sea la página de inicio post-login
 def index():
-    """
-    Maneja la subida de archivos (POST) o carga desde ruta, procesa,
-    calcula portfolio, comprueba mapeo global, sincroniza watchlist DB
-    (con logging de error mejorado), y redirige. Muestra form (GET).
-    """
-    if request.method == 'POST':
-        input_method = request.form.get('input_method')
-        processed_data = None
-        errors_pre_process = []
-
-        # --- Determinar método y procesar archivos ---
-        if input_method == 'upload':
-            print("Procesando método: upload")
-            if 'csv_files[]' not in request.files:
-                flash('Error: No parte archivo.', 'danger')
-                return redirect(request.url)
-            
-            files = request.files.getlist('csv_files[]')
-            if not files or all(f.filename == '' for f in files):
-                flash('Error: No archivos.', 'danger')
-                return redirect(request.url)
-            
-            processed_data = process_uploaded_csvs(files)
-            
-        elif input_method == 'path':
-            # ... [Código para método path sin cambios] ...
-            pass
-        else:
-            flash('Error: Método entrada no válido.', 'danger')
-            return redirect(request.url)
-
-        # --- Procesamiento Común Post-Carga/Lectura ---
-        if errors_pre_process:
-            for msg in errors_pre_process:
-                flash(msg, 'danger' if 'Error:' in msg else 'warning')
-            if any("Error:" in e for e in errors_pre_process) or processed_data is None:
-                return redirect(url_for('index'))
-
-        # Desempaquetado y checks básicos
-        try:
-            processed_df_for_csv, combined_df_raw, errors_process = processed_data
-        except (TypeError, ValueError) as e_unpack:
-            print(f"ERROR FATAL: No se pudo desempaquetar processed_data. Error: {e_unpack}")
-            flash("Error interno inesperado (Ref: UNPACK_FAIL).", "danger")
-            session.clear()
-            return redirect(url_for('index'))
-
-        if errors_process:
-            for msg in errors_process:
-                flash(msg, 'danger' if "Error:" in msg else ('warning' if "Advertencia:" in msg else 'info'))
-
-        if combined_df_raw is None or combined_df_raw.empty:
-            flash('No se pudieron procesar los datos base necesarios.', 'warning')
-            return redirect(url_for('index'))
-
-        # Calcular Portfolio
-        portfolio_df = calculate_portfolio(combined_df_raw)
-
-        # --- SINCRONIZAR PORTFOLIO CALCULADO CON WATCHLIST EN DB --- ### BLOQUE CON ERROR LOGGING MEJORADO ###
-        if portfolio_df is not None:
-            print(f"Sincronizando portfolio ({len(portfolio_df)} items) con watchlist DB para usuario {current_user.id}...")
-            mapping_data_sync = load_mapping() # Cargar mapeo para obtener Ticker/Nombre/etc.
-            try:
-                # 1. Obtener watchlist actual de la DB
-                current_db_watchlist = WatchlistItem.query.filter_by(user_id=current_user.id).all()
-                db_isin_map = {item.isin: item for item in current_db_watchlist if item.isin}
-                print(f" Encontrados {len(current_db_watchlist)} items en watchlist DB.")
-
-                # 2. Obtener ISINs del nuevo portfolio
-                new_portfolio_isins = set(portfolio_df['ISIN'].dropna().unique())
-                print(f" ISINs en nuevo portfolio: {len(new_portfolio_isins)}")
-
-                # 3. Actualizar items existentes en DB
-                items_to_commit = [] # Lista para guardar objetos modificados
-                for item_db in current_db_watchlist:
-                    isin = item_db.isin
-                    is_now_in_portfolio = isin in new_portfolio_isins
-                    needs_update = False
-
-                    if is_now_in_portfolio:
-                        if not item_db.is_in_portfolio: # Si antes no estaba y ahora sí
-                            print(f"  -> Marcar {isin} EN portfolio (in_portfolio=True, in_followup=False)")
-                            item_db.is_in_portfolio = True
-                            item_db.is_in_followup = False
-                            needs_update = True
-                        # Si ya estaba, no cambiamos flags (a menos que fuera manual?) -> Podríamos resetear is_in_followup aquí? Por ahora no.
-                        new_portfolio_isins.discard(isin) # Quitar de pendientes a añadir
-                    else: # No está en el portfolio actual
-                        if item_db.is_in_portfolio: # Pero sí estaba antes
-                            print(f"  -> Marcar {isin} FUERA portfolio (in_portfolio=False, in_followup=True)")
-                            item_db.is_in_portfolio = False
-                            item_db.is_in_followup = True # Pasa a seguimiento manual/histórico
-                            needs_update = True
-
-                    if needs_update:
-                        items_to_commit.append(item_db) # Añadir a sesión si cambió
-
-                # 4. Añadir items nuevos del portfolio que no estaban en la DB
-                print(f" ISINs nuevos a añadir a watchlist DB: {len(new_portfolio_isins)}")
-                for isin_to_add in new_portfolio_isins:
-                    portfolio_row = portfolio_df[portfolio_df['ISIN'] == isin_to_add].iloc[0]
-                    map_info = mapping_data_sync.get(isin_to_add, {})
-                    ticker = map_info.get('ticker', 'N/A')
-                    google_ex = map_info.get('google_ex', None)
-                    name = map_info.get('name', portfolio_row.get('Producto', 'Desconocido')).strip()
-                    if not name: name = portfolio_row.get('Producto', 'Desconocido')
-                    # Derivar sufijo Yahoo usando el mapa global y la bolsa original
-                    degiro_bolsa_code = portfolio_row.get('Bolsa de')
-                    yahoo_suffix = BOLSA_TO_YAHOO_MAP.get(degiro_bolsa_code, '') if degiro_bolsa_code else ''
-
-                    print(f"  -> Añadiendo nuevo item {isin_to_add} ({ticker}{yahoo_suffix}) a DB (portfolio=True, followup=False)")
-                    new_watch_item = WatchlistItem(
-                        item_name=name, isin=isin_to_add, ticker=ticker,
-                        yahoo_suffix=yahoo_suffix, google_ex=google_ex,
-                        user_id=current_user.id,
-                        is_in_portfolio=True, # Está en el portfolio actual
-                        is_in_followup=False   # No está (aún) en seguimiento manual
-                    )
-                    db.session.add(new_watch_item) # Añadir nuevo a sesión
-
-                # 5. Guardar todos los cambios en la base de datos
-                if items_to_commit or new_portfolio_isins: # Solo hacer commit si hubo cambios o añadidos
-                     db.session.commit()
-                     print("Sincronización watchlist DB completada.")
-                else:
-                     print("No hubo cambios necesarios en la sincronización de watchlist DB.")
-
-            except Exception as e_sync: # Capturar cualquier error durante la sincronización
-                db.session.rollback() # MUY IMPORTANTE: Deshacer cambios parciales
-                # --- LOGGING DE ERROR MEJORADO ---
-                print(f"!!!!!!!! ERROR DURANTE SINCRONIZACIÓN WATCHLIST DB !!!!!!!!")
-                print(f"Error específico: {e_sync}")
-                print("--- Traceback Completo del Error de Sincronización ---")
-                traceback.print_exc() # Imprime el traceback completo a la consola
-                print("-----------------------------------------------------")
-                flash("Error Interno al actualizar la watchlist con el portfolio. Revisa logs.", "danger")
-                # Considerar si continuar o no. Por ahora continuamos.
-            # --- FIN BLOQUE TRY/EXCEPT SYNC ---
-        else:
-            print("Portfolio vacío o no calculado, no se sincroniza watchlist.")
-        # --- FIN BLOQUE SINCRONIZACIÓN ---
+    # Esta ruta ahora solo renderiza la plantilla 'index.html'
+    # La lógica de carga de CSVs, si es necesario separarla, iría en otra ruta
+    # o se manejaría aquí si 'index.html' sigue siendo la página de carga.
+    # Por el momento, se asume que 'index.html' es para cargar CSVs
+    # y que el botón en 'Portfolio' simplemente redirige aquí.
+    
+    # La funcionalidad de procesar CSVs subidos ya existe en tu app.py
+    # No es necesario duplicarla aquí si la ruta '/' ya maneja la subida.
+    # Solo nos aseguramos que 'index.html' (la página de carga) se muestre correctamente
+    # y que la navegación esté presente.
+    
+    return render_template('index.html', title="Cargar CSVs")
 
 
-        # --- Cargar Mapeo GLOBAL y Comprobar ISINs Faltantes (sin cambios aquí) ---
-        mapping_data = load_mapping()
-        missing_isins_details = []
-        if portfolio_df is not None and not portfolio_df.empty:
-             all_isins_in_portfolio = portfolio_df['ISIN'].unique()
-             for isin in all_isins_in_portfolio:
-                map_entry = mapping_data.get(isin);
-                if not map_entry or not map_entry.get('ticker') or map_entry.get('yahoo_suffix') is None or not map_entry.get('google_ex'):
-                     p_row = portfolio_df.loc[portfolio_df['ISIN'] == isin].iloc[0]
-                     p_name = p_row.get('Producto', 'Desconocido'); bolsa_c = p_row.get('Bolsa de', None)
-                     missing_isins_details.append({'isin': isin, 'name': p_name, 'bolsa_de': bolsa_c})
 
-        # --- Decisión: Continuar o Pedir Mapeo GLOBAL ---
-        if not missing_isins_details:
-            # --- CASO 1: No faltan mapeos GLOBALES ---
-            print("No faltan mapeos globales. Preparando CSV final y redirect a portfolio...")
-            temp_csv_filename = None
-            # ... (Enriquecer CSV, guardar CSV temporal final, guardar nombre en session['csv_temp_file']) ...
-            if processed_df_for_csv is not None and not processed_df_for_csv.empty:
-                try:
-                    processed_df_for_csv['Ticker'] = processed_df_for_csv['ISIN'].map(lambda x: mapping_data.get(x, {}).get('ticker', ''))
-                    processed_df_for_csv['Exchange Google'] = processed_df_for_csv['ISIN'].map(lambda x: mapping_data.get(x, {}).get('google_ex', ''))
-                    cols_final = [c for c in FINAL_COLS_ORDERED if c in processed_df_for_csv.columns];
-                    if 'Ticker' not in cols_final and 'Ticker' in processed_df_for_csv.columns: cols_final.insert(FINAL_COLS_ORDERED.index('Ticker'), 'Ticker')
-                    if 'Exchange Google' not in cols_final and 'Exchange Google' in processed_df_for_csv.columns: cols_final.insert(FINAL_COLS_ORDERED.index('Exchange Google'), 'Exchange Google')
-                    cols_final = [c for c in cols_final if c in processed_df_for_csv.columns]; processed_df_for_csv = processed_df_for_csv.reindex(columns=cols_final, fill_value='')
-                    uid = uuid.uuid4(); temp_csv_filename = f"processed_{uid}.csv"; path = os.path.join(OUTPUT_FOLDER, temp_csv_filename); processed_df_for_csv.to_csv(path, index=False, sep=';', decimal='.', encoding='utf-8-sig'); session['csv_temp_file'] = temp_csv_filename; print(f"CSV final guardado: {path}")
-                except Exception as e: flash(f"Error guardando CSV final: {e}", "danger"); session.pop('csv_temp_file', None)
-            else: session.pop('csv_temp_file', None)
-        # Guardar portfolio_df en sesión para mostrar en /portfolio
-        if portfolio_df is not None and not portfolio_df.empty:
-            # Convertir DataFrame a lista de diccionarios para JSON
-            portfolio_list = []
-            for _, row in portfolio_df.iterrows():
-                # Crear un diccionario con valores serializables
-                row_dict = {}
-                for col, value in row.items():
-                    if pd.isna(value):
-                        row_dict[col] = None
-                    elif isinstance(value, (np.int64, np.int32)):
-                        row_dict[col] = int(value)
-                    elif isinstance(value, (np.float64, np.float32)):
-                        row_dict[col] = float(value)
-                    elif isinstance(value, (datetime, date, pd.Timestamp)):
-                        row_dict[col] = value.isoformat() if hasattr(value, 'isoformat') else str(value)
-                    else:
-                        row_dict[col] = value
-                portfolio_list.append(row_dict)
-            
-            # Verificar que se puede serializar
-            try:
-                json.dumps(portfolio_list)
-                print("✓ Portfolio válido para JSON")
-            except Exception as e_json:
-                print(f"⚠️ ERROR: Portfolio no válido para JSON: {e_json}")
-                # Intento de corrección básica
-                for item in portfolio_list:
-                    for key, value in list(item.items()):
-                        if not isinstance(value, (str, int, float, bool, type(None))):
-                            item[key] = str(value)
-            
-            # Guardar en sesión y BD
-            session['portfolio_data'] = portfolio_list
-            
-            # También guardar CSV si existe
-            temp_csv_filename = None
-            csv_data_list = None
-            if processed_df_for_csv is not None and not processed_df_for_csv.empty:
-                try:
-                    # Convertir DF a lista para guardar
-                    csv_data_list = []
-                    for _, row in processed_df_for_csv.iterrows():
-                        row_dict = {}
-                        for col, value in row.items():
-                            if pd.isna(value):
-                                row_dict[col] = None
-                            elif isinstance(value, (np.int64, np.int32)):
-                                row_dict[col] = int(value)
-                            elif isinstance(value, (np.float64, np.float32)):
-                                row_dict[col] = float(value)
-                            elif isinstance(value, (datetime, date, pd.Timestamp)):
-                                row_dict[col] = value.isoformat() if hasattr(value, 'isoformat') else str(value)
-                            else:
-                                row_dict[col] = value
-                        csv_data_list.append(row_dict)
-                    
-                    # Guardar archivo CSV temporal
-                    uid = uuid.uuid4()
-                    temp_csv_filename = f"processed_{uid}.csv"
-                    path = os.path.join(OUTPUT_FOLDER, temp_csv_filename)
-                    processed_df_for_csv.to_csv(path, index=False, sep=';', decimal='.', encoding='utf-8-sig')
-                    session['csv_temp_file'] = temp_csv_filename
-                    print(f"CSV final guardado: {path}")
-                except Exception as e:
-                    flash(f"Error guardando CSV final: {e}", "danger")
-                    session.pop('csv_temp_file', None)
-                    temp_csv_filename = None
-            else:
-                session.pop('csv_temp_file', None)
-            
-            # Guardar en BD
-            save_success = save_user_portfolio(
-                user_id=current_user.id,
-                portfolio_data=portfolio_list,
-                csv_data=csv_data_list,
-                csv_filename=temp_csv_filename
-            )
-            
-            if save_success:
-                print("Datos de portfolio guardados en BD")
-                flash('Archivos procesados y watchlist sincronizada.', 'success')
-            else:
-                print("⚠️ ERROR: No se pudo guardar el portfolio en BD")
-                flash('Archivos procesados, pero hubo un error al guardar en la base de datos.', 'warning')
-        else:
-            session.pop('portfolio_data', None)
-            print("Warn: Portfolio vacío, no guardado.")
-            flash('Archivos procesados. Portfolio vacío.', 'info')
-
-        # Redirigir a show_portfolio
-        return redirect(url_for('show_portfolio'))
-
-    # --- Manejo GET ---
-    return render_template('index.html')
 
 # --- NUEVA RUTA: Gestionar Mapeo Global ---
 @app.route('/manage_mapping')
@@ -6447,10 +6990,10 @@ def save_mapping_route():
 def show_portfolio():
     """
     Muestra la página con el resumen de la cartera, usando precios cacheados.
+    Añade un botón para ir a la página de carga de CSVs.
     """
     print(f"Iniciando show_portfolio para usuario: {current_user.id}")
     
-    # Inicializar variables
     portfolio_data_list = None
     temp_filename = None
     csv_existe = False
@@ -6460,40 +7003,32 @@ def show_portfolio():
     total_cost_basis_eur_est = 0.0
     total_pl_eur_est = 0.0
 
-    # PASO 1: Intentar obtener datos de la sesión
     if 'portfolio_data' in session:
         portfolio_data_list = session.get('portfolio_data')
         temp_filename = session.get('csv_temp_file')
         csv_existe = bool(temp_filename)
         print(f"Datos encontrados en sesión: {len(portfolio_data_list) if portfolio_data_list else 0} items")
 
-    # PASO 2: Si no hay datos en sesión, intentar cargar desde la BD
     if not portfolio_data_list:
         print(f"Cargando datos de la base de datos para usuario: {current_user.id}")
         try:
-            # Obtener registro completo para tener la fecha de actualización
             portfolio_record = UserPortfolio.query.filter_by(user_id=current_user.id).first()
             if portfolio_record:
                 if portfolio_record.portfolio_data:
                     try:
-                        # Cargar datos JSON
                         portfolio_data_list = json.loads(portfolio_record.portfolio_data)
                         print(f"Datos cargados de BD: {len(portfolio_data_list) if portfolio_data_list else 0} items")
                         
-                        # Verificar que es una lista de diccionarios
                         if not isinstance(portfolio_data_list, list):
                             portfolio_data_list = []
                         
-                        # Actualizar sesión
                         session['portfolio_data'] = portfolio_data_list
                         
-                        # Obtener nombre de archivo CSV si existe
                         if portfolio_record.csv_filename:
                             temp_filename = portfolio_record.csv_filename
                             session['csv_temp_file'] = temp_filename
                             csv_existe = True
                         
-                        # Obtener fecha de actualización
                         if portfolio_record.last_updated:
                             last_updated = portfolio_record.last_updated.strftime("%d/%m/%Y %H:%M")
                             
@@ -6509,34 +7044,25 @@ def show_portfolio():
             import traceback
             traceback.print_exc()
 
-    # PASO 3: Procesar datos del portfolio si existen
     if portfolio_data_list:
         print(f"Procesando {len(portfolio_data_list)} items del portfolio")
-        mapping_data = load_mapping()
+        # mapping_data = load_mapping() # No es necesario aquí si solo mostramos
         
         for item in portfolio_data_list:
-            # Crear copia para evitar modificar el original en sesión
             try:
                 new_item = item.copy() if isinstance(item, dict) else dict(item)
                 
-                # Acumular totales con datos existentes (sin recalcular)
                 if 'market_value_eur' in new_item and new_item.get('market_value_eur') is not None:
-                    try:
-                        total_market_value_eur += float(new_item['market_value_eur'])
-                    except (ValueError, TypeError):
-                        pass
+                    try: total_market_value_eur += float(new_item['market_value_eur'])
+                    except (ValueError, TypeError): pass
                 
                 if 'cost_basis_eur_est' in new_item and new_item.get('cost_basis_eur_est') is not None:
-                    try:
-                        total_cost_basis_eur_est += float(new_item['cost_basis_eur_est'])
-                    except (ValueError, TypeError):
-                        pass
+                    try: total_cost_basis_eur_est += float(new_item['cost_basis_eur_est'])
+                    except (ValueError, TypeError): pass
                 
                 if 'pl_eur_est' in new_item and new_item.get('pl_eur_est') is not None:
-                    try:
-                        total_pl_eur_est += float(new_item['pl_eur_est'])
-                    except (ValueError, TypeError):
-                        pass
+                    try: total_pl_eur_est += float(new_item['pl_eur_est'])
+                    except (ValueError, TypeError): pass
                 
                 enriched_portfolio_data.append(new_item)
             except Exception as e:
@@ -6546,12 +7072,10 @@ def show_portfolio():
         print(f"Portfolio procesado: {len(enriched_portfolio_data)} items válidos")
     else:
         print("No hay datos de portfolio para mostrar")
-        # Si no hay datos, crear un array vacío para la plantilla
         enriched_portfolio_data = []
 
-    # Renderizar plantilla
     return render_template(
-        'portfolio.html',
+        'portfolio.html', # Asumo que tienes un portfolio.html
         portfolio=enriched_portfolio_data,
         temp_csv_file_exists=csv_existe,
         total_value_eur=total_market_value_eur,
@@ -7095,29 +7619,6 @@ def add_watchlist_item():
 
 # --- Nuevos Modelos para las Funcionalidades Adicionales ---
 
-class FixedIncome(db.Model):
-    """Modelo para almacenar los ingresos fijos (salario) del usuario."""
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
-    annual_net_salary = db.Column(db.Float, nullable=True)  # Salario neto anual
-    last_updated = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    # Relación con el usuario
-    user = db.relationship('User', backref=db.backref('fixed_income', uselist=False))
-
-class BrokerOperation(db.Model):
-    """Modelo para almacenar operaciones de ingreso/retirada del broker."""
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
-    date = db.Column(db.Date, nullable=False, default=date.today)
-    operation_type = db.Column(db.String(20), nullable=False)  # 'Ingreso', 'Retirada', 'Comisión'
-    concept = db.Column(db.String(50), nullable=False)  # 'Inversión', 'Dividendos', 'Desinversión', etc.
-    amount = db.Column(db.Float, nullable=False)  # Cantidad (positiva para ingresos, negativa para retiradas/comisiones)
-    description = db.Column(db.Text, nullable=True)  # Descripción opcional
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    # Relación con el usuario
-    user = db.relationship('User', backref=db.backref('broker_operations', lazy='dynamic'))
 
 # --- Formularios para las Nuevas Funcionalidades ---
 class FixedIncomeForm(FlaskForm):
@@ -7144,17 +7645,6 @@ class BrokerOperationForm(FlaskForm):
     submit = SubmitField('Registrar Operación')
 
 # Nuevo modelo para el historial de salarios
-class SalaryHistory(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
-    year = db.Column(db.Integer, nullable=False)
-    annual_net_salary = db.Column(db.Float, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    # Relación con el usuario
-    user = db.relationship('User', backref=db.backref('salary_history', lazy='dynamic'))
-
-
 # Formulario para añadir historial de salarios
 class SalaryHistoryForm(FlaskForm):
     year = StringField('Año', validators=[DataRequired()], 
@@ -7165,32 +7655,7 @@ class SalaryHistoryForm(FlaskForm):
 
 
 # Modelos para la gestión de cuentas bancarias
-class BankAccount(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
-    bank_name = db.Column(db.String(100), nullable=False)
-    account_name = db.Column(db.String(100), nullable=True)  # Nombre optativo (ej: "Cuenta Nómina")
-    current_balance = db.Column(db.Float, nullable=False, default=0.0)
-    last_updated = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    # Relación con el usuario
-    user = db.relationship('User', backref=db.backref('bank_accounts', lazy='dynamic'))
-    
-    def __repr__(self):
-        return f'<BankAccount {self.bank_name} - {self.account_name} ({self.current_balance}€)>'
 
-class CashHistoryRecord(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
-    date = db.Column(db.Date, nullable=False)
-    total_cash = db.Column(db.Float, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    # Relación con el usuario
-    user = db.relationship('User', backref=db.backref('cash_history', lazy='dynamic'))
-    
-    def __repr__(self):
-        return f'<CashHistoryRecord {self.date.strftime("%m/%Y")} - {self.total_cash}€>'
 
 # Formularios para cuentas bancarias
 class BankAccountForm(FlaskForm):
@@ -7208,52 +7673,7 @@ class CashHistoryForm(FlaskForm):
     submit = SubmitField('Guardar Estado Actual')
 
 # --- Modelos para Ingresos Variables ---
-class VariableIncomeCategory(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
-    name = db.Column(db.String(100), nullable=False)
-    description = db.Column(db.Text, nullable=True)
-    parent_id = db.Column(db.Integer, db.ForeignKey('variable_income_category.id', ondelete='SET NULL'), nullable=True)
-    is_default = db.Column(db.Boolean, default=False)  # Para categorías predefinidas
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    # Relación con el usuario
-    user = db.relationship('User', backref=db.backref('variable_income_categories', lazy='dynamic'))
-    
-    # Relación para subcategorías
-    subcategories = db.relationship('VariableIncomeCategory', 
-                                 backref=db.backref('parent', remote_side=[id]),
-                                 cascade="all, delete-orphan")
-    
-    # Relación con ingresos
-    incomes = db.relationship('VariableIncome', backref='category', lazy='dynamic', cascade="all, delete-orphan")
-    
-    def __repr__(self):
-        return f'<VariableIncomeCategory {self.name}>'
 
-class VariableIncome(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
-    category_id = db.Column(db.Integer, db.ForeignKey('variable_income_category.id', ondelete='SET NULL'), nullable=True)
-    description = db.Column(db.String(200), nullable=False)
-    amount = db.Column(db.Float, nullable=False)
-    date = db.Column(db.Date, nullable=False, default=date.today)
-    income_type = db.Column(db.String(20), nullable=False, default="punctual")  # "punctual", "recurring"
-    is_recurring = db.Column(db.Boolean, default=False)  # Para ingresos periódicos
-    recurrence_months = db.Column(db.Integer, nullable=True)  # Cada cuántos meses se repite (1=mensual, 12=anual)
-    start_date = db.Column(db.Date, nullable=True)  # Para ingresos recurrentes
-    end_date = db.Column(db.Date, nullable=True)  # Fecha opcional de finalización
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    # Relación con el usuario
-    user = db.relationship('User', backref=db.backref('variable_incomes', lazy='dynamic'))
-    
-    def __repr__(self):
-        return f'<VariableIncome {self.description} ({self.amount}€)>'
-
-# --- Formularios para la gestión de ingresos variables ---
-# --- Formularios para la gestión de ingresos ---
 class VariableIncomeCategoryForm(FlaskForm):
     name = StringField('Nombre de la Categoría', validators=[DataRequired()],
                     render_kw={"placeholder": "Ej: Freelance, Dividendos, Bonificaciones..."})
@@ -8580,11 +9000,55 @@ def delete_watchlist_item():
     return redirect(url_for('show_watchlist'))
 
 
+
 # --- Ejecución Principal ---
-if __name__ == '__main__':
-    # Crear tablas si no existen al iniciar la app
+if __name__ == '__main__': # MOSTRANDO COMPLETA CON CAMBIOS
+    # Define el email placeholder para el admin en la config para fácil acceso
+    app.config['ADMIN_PLACEHOLDER_EMAIL'] = 'admin@no-reply.internal'
+
+
     with app.app_context():
         print("Verificando/Creando tablas de la base de datos...")
         db.create_all()
         print("Tablas verificadas/creadas.")
+
+        admin_user = User.query.filter_by(username='admin').first()
+        admin_email_placeholder = app.config['ADMIN_PLACEHOLDER_EMAIL']
+
+        if not admin_user:
+            print(f"Creando usuario administrador por defecto ('admin') con email placeholder: {admin_email_placeholder}...")
+            admin_password_hash = generate_password_hash("admin")
+            admin = User(username='admin',
+                         email=admin_email_placeholder,  # <--- CAMBIO: Admin con email placeholder
+                         password_hash=admin_password_hash,
+                         is_admin=True,
+                         must_change_password=True,
+                         is_active=True)
+            db.session.add(admin)
+            try:
+                db.session.commit()
+                print(f"Usuario 'admin' creado con email '{admin_email_placeholder}' y contraseña 'admin'. Deberá cambiarla en el primer inicio de sesión.")
+            except Exception as e:
+                db.session.rollback()
+                print(f"Error al crear el usuario admin: {e}")
+                app.logger.error(f"Error al crear el usuario admin: {e}", exc_info=True)
+
+        elif admin_user.is_admin: # Si el usuario admin ya existe
+            # Asegurar que el admin tenga el email placeholder si no tiene uno válido o tiene uno antiguo
+            if not admin_user.email or admin_user.email != admin_email_placeholder:
+                print(f"Actualizando email del usuario admin a placeholder: {admin_email_placeholder}")
+                admin_user.email = admin_email_placeholder
+
+            if not admin_user.is_active:
+                admin_user.is_active = True
+            if admin_user.check_password('admin'):
+               admin_user.must_change_password = True
+
+            try:
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f"Error al asegurar estado del admin: {e}", exc_info=True)
+
+    # ... (app.run) ...
     app.run(debug=True, host='0.0.0.0', port=5000)

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-info text-white">
+                    <h4>{{ title }}</h4>
+                </div>
+                <div class="card-body">
+                    {% if current_user.username != 'admin' and (not current_user.email or current_user.email == app.config.get('ADMIN_PLACEHOLDER_EMAIL')) %}
+                    <p class="alert alert-info">
+                        Para continuar usando la aplicación y para futuras notificaciones (como reseteo de contraseña),
+                        necesitamos que establezcas una dirección de correo electrónico válida.
+                    </p>
+                    {% endif %}
+                    <form method="POST" action="{{ url_for('set_email') }}" novalidate>
+                        {{ form.hidden_tag() }}
+                        <div class="mb-3">
+                            {{ form.email.label(class="form-label") }}
+                            {% if form.email.errors %}
+                                {{ form.email(class="form-control is-invalid", placeholder="tu@email.com") }}
+                                <div class="invalid-feedback">
+                                    {% for error in form.email.errors %}
+                                        <span>{{ error }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                {{ form.email(class="form-control", placeholder="tu@email.com") }}
+                            {% endif %}
+                        </div>
+                        <div class="mb-3">
+                            {{ form.confirm_email.label(class="form-label") }}
+                            {% if form.confirm_email.errors %}
+                                {{ form.confirm_email(class="form-control is-invalid", placeholder="confirma tu@email.com") }}
+                                <div class="invalid-feedback">
+                                    {% for error in form.confirm_email.errors %}
+                                        <span>{{ error }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                {{ form.confirm_email(class="form-control", placeholder="confirma tu@email.com") }}
+                            {% endif %}
+                        </div>
+                        <div class="d-grid">
+                            {{ form.submit(class="btn btn-primary w-100") }}
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
