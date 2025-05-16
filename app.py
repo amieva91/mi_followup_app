@@ -1029,52 +1029,6 @@ def register(): # MOSTRANDO COMPLETA CON CAMBIOS
     return render_template('register.html', title='Registro', form=form)
 
 
-@app.route('/login', methods=['GET', 'POST'])
-def login(): # MOSTRANDO COMPLETA CON CAMBIOS
-    if current_user.is_authenticated and hasattr(current_user, 'must_change_password') and not current_user.must_change_password:
-        return redirect(url_for('financial_summary'))
-    
-    form = LoginForm()
-    if form.validate_on_submit():
-        user = User.query.filter_by(username=form.username.data).first()
-
-        if user and user.is_active:
-            # El admin principal ahora tiene contraseña por defecto "admin"
-            if user.username == 'admin' and user.check_password('admin') and user.must_change_password:
-                login_user(user, remember=form.remember_me.data)
-                # Actualizar datos de login
-                if user.current_login_at: user.last_login_at = user.current_login_at
-                user.current_login_at = datetime.utcnow()
-                user.login_count = (user.login_count or 0) + 1
-                # No hacemos commit aquí todavía, se hará en change_password o al final
-                flash('Bienvenido administrador. Por seguridad, por favor cambia tu contraseña por defecto "admin".', 'info')
-                return redirect(url_for('change_password'))
-            
-            elif user.check_password(form.password.data):
-                login_user(user, remember=form.remember_me.data)
-                if user.current_login_at: user.last_login_at = user.current_login_at
-                user.current_login_at = datetime.utcnow()
-                user.login_count = (user.login_count or 0) + 1
-                db.session.commit() # Guardar datos de login
-
-                if hasattr(user, 'must_change_password') and user.must_change_password:
-                    # Esto no debería pasar para usuarios normales si must_change_password=False por defecto
-                    # pero se mantiene por si acaso o para futuras lógicas
-                    return redirect(url_for('change_password'))
-                
-                # ... (Tu lógica de cargar portfolio) ...
-                next_page = request.args.get('next')
-                if next_page and not next_page.startswith(('/login', '/register', '/change_password')):
-                    return redirect(next_page)
-                return redirect(url_for('financial_summary'))
-            else:
-                flash('Inicio de sesión fallido. Verifica usuario y contraseña.', 'danger')
-        elif user and not user.is_active:
-            flash('Esta cuenta ha sido desactivada.', 'warning')
-        else:
-            flash('Inicio de sesión fallido. Usuario no encontrado.', 'danger')
-            
-    return render_template('login.html', title='Iniciar Sesión', form=form)
 
 @app.route('/logout') # MOSTRANDO COMPLETA CON CAMBIOS
 @login_required
@@ -6548,23 +6502,281 @@ def update_portfolio_prices():
     return redirect(url_for('show_portfolio'))
 
 
-@app.route('/')
-@login_required # Opcional, dependiendo si quieres que esta sea la página de inicio post-login
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if current_user.is_authenticated and hasattr(current_user, 'must_change_password') and not current_user.must_change_password:
+        # Usuario ya autenticado y sin necesidad de cambiar contraseña, redirigir según rol
+        if current_user.is_admin:  # Asumiendo que el usuario 'admin' tiene is_admin = True
+            return redirect(url_for('admin_dashboard'))
+        else:
+            return redirect(url_for('financial_summary'))
+    
+    form = LoginForm()
+    if form.validate_on_submit():
+        user = User.query.filter_by(username=form.username.data).first()
+
+        if user and user.is_active:
+            # Manejo especial para el primer inicio de sesión del admin con contraseña por defecto
+            if user.username == 'admin' and user.check_password('admin') and user.must_change_password:
+                login_user(user, remember=form.remember_me.data)
+                # Actualizar datos de login (copiado de tu lógica original)
+                if user.current_login_at: user.last_login_at = user.current_login_at
+                user.current_login_at = datetime.utcnow()
+                user.login_count = (user.login_count or 0) + 1
+                # El commit se hará después del cambio de contraseña o en un login normal
+                flash('Bienvenido administrador. Por seguridad, por favor cambia tu contraseña por defecto "admin".', 'info')
+                return redirect(url_for('change_password'))
+            
+            elif user.check_password(form.password.data):
+                login_user(user, remember=form.remember_me.data)
+                # Actualizar datos de login (copiado de tu lógica original)
+                if user.current_login_at: user.last_login_at = user.current_login_at
+                user.current_login_at = datetime.utcnow()
+                user.login_count = (user.login_count or 0) + 1
+                db.session.commit() # Guardar datos de login
+
+                if hasattr(user, 'must_change_password') and user.must_change_password:
+                    # Para cualquier usuario que deba cambiar contraseña (ej. admin después de reseteo por otro admin)
+                    return redirect(url_for('change_password'))
+                
+                next_page = request.args.get('next')
+                if next_page and not next_page.startswith(('/login', '/register', '/change_password')):
+                    return redirect(next_page)
+                
+                # --- LÓGICA DE REDIRECCIÓN PRINCIPAL MODIFICADA ---
+                if user.is_admin:  # Verificar si el usuario es administrador
+                    return redirect(url_for('admin_dashboard'))
+                else:
+                    return redirect(url_for('financial_summary'))
+            else:
+                flash('Inicio de sesión fallido. Verifica usuario y contraseña.', 'danger')
+        elif user and not user.is_active:
+            flash('Esta cuenta ha sido desactivada.', 'warning')
+        else:
+            flash('Inicio de sesión fallido. Usuario no encontrado.', 'danger')
+            
+    return render_template('login.html', title='Iniciar Sesión', form=form)
+
+
+# ... (tus importaciones y otras definiciones de app.py) ...
+# Recuerda tener definidas tus funciones auxiliares como:
+# process_uploaded_csvs, process_csvs_from_paths, calculate_portfolio,
+# load_mapping, save_mapping, save_user_portfolio, etc.
+# y tus modelos User, WatchlistItem, UserPortfolio.
+# y variables globales como OUTPUT_FOLDER, FINAL_COLS_ORDERED, BOLSA_TO_YAHOO_MAP.
+
+@app.route('/', methods=['GET', 'POST'])
+@login_required
 def index():
-    # Esta ruta ahora solo renderiza la plantilla 'index.html'
-    # La lógica de carga de CSVs, si es necesario separarla, iría en otra ruta
-    # o se manejaría aquí si 'index.html' sigue siendo la página de carga.
-    # Por el momento, se asume que 'index.html' es para cargar CSVs
-    # y que el botón en 'Portfolio' simplemente redirige aquí.
-    
-    # La funcionalidad de procesar CSVs subidos ya existe en tu app.py
-    # No es necesario duplicarla aquí si la ruta '/' ya maneja la subida.
-    # Solo nos aseguramos que 'index.html' (la página de carga) se muestre correctamente
-    # y que la navegación esté presente.
-    
-    return render_template('index.html', title="Cargar CSVs")
+    # Para solicitudes GET de usuarios autenticados, redirigir según el rol.
+    if request.method == 'GET':
+        if current_user.is_admin:
+            return redirect(url_for('admin_dashboard'))
+        else:
+            return redirect(url_for('financial_summary'))
 
+    # Para solicitudes POST, se maneja la lógica de subida de archivos.
+    if request.method == 'POST':
+        input_method = request.form.get('input_method')
+        processed_data = None
+        errors_pre_process = []
 
+        if input_method == 'upload':
+            print("Procesando método: upload")
+            if 'csv_files[]' not in request.files:
+                flash('Error: No se encontró la parte del archivo en la solicitud.', 'danger')
+                return redirect(url_for('upload_page_form')) # MODIFICADO: Redirigir al formulario
+            
+            files = request.files.getlist('csv_files[]')
+            if not files or all(f.filename == '' for f in files):
+                flash('Error: No se seleccionaron archivos.', 'danger')
+                return redirect(url_for('upload_page_form')) # MODIFICADO: Redirigir al formulario
+            
+            processed_data = process_uploaded_csvs(files) 
+            
+        elif input_method == 'path':
+            print("Procesando método: path")
+            server_path_input = request.form.get('server_path', '').strip()
+            if not server_path_input:
+                flash('Error: No se especificó la ruta del servidor.', 'danger')
+                return redirect(url_for('upload_page_form')) # MODIFICADO: Redirigir al formulario
+
+            try:
+                if not os.path.isdir(server_path_input):
+                    errors_pre_process.append(f"Error: La ruta '{server_path_input}' no es un directorio válido.")
+                else:
+                    csv_pattern = re.compile(r"^\d{4}\.csv$")
+                    paths_to_process = []
+                    for entry in os.listdir(server_path_input):
+                        if csv_pattern.match(entry) and os.path.isfile(os.path.join(server_path_input, entry)):
+                            paths_to_process.append(os.path.join(server_path_input, entry))
+                    
+                    if not paths_to_process:
+                        errors_pre_process.append(f"Advertencia: No se encontraron archivos AAAA.csv en '{server_path_input}'.")
+                    else:
+                        print(f"Archivos encontrados en ruta: {paths_to_process}")
+                        processed_data = process_csvs_from_paths(paths_to_process)
+            except Exception as e_path:
+                errors_pre_process.append(f"Error al acceder o listar la ruta del servidor '{server_path_input}': {e_path}")
+        else:
+            flash('Error: Método de entrada no válido.', 'danger')
+            return redirect(url_for('upload_page_form')) # MODIFICADO: Redirigir al formulario
+
+        if errors_pre_process:
+            for msg in errors_pre_process:
+                flash(msg, 'danger' if 'Error:' in msg else 'warning')
+            if any("Error:" in e for e in errors_pre_process) or processed_data is None:
+                return redirect(url_for('upload_page_form')) # MODIFICADO: Redirigir al formulario
+
+        try:
+            processed_df_for_csv, combined_df_raw, errors_process = processed_data
+        except (TypeError, ValueError) as e_unpack:
+            print(f"ERROR FATAL: No se pudo desempaquetar processed_data. Error: {e_unpack}")
+            flash("Error interno inesperado (Ref: UNPACK_FAIL). Por favor, revisa los logs del servidor.", "danger")
+            session.clear()
+            return redirect(url_for('upload_page_form')) # MODIFICADO: Redirigir al formulario
+
+        if errors_process:
+            for msg in errors_process:
+                flash(msg, 'danger' if "Error:" in msg else ('warning' if "Advertencia:" in msg else 'info'))
+
+        if combined_df_raw is None or combined_df_raw.empty:
+            flash('No se pudieron procesar los datos base necesarios de los archivos CSV. Verifica el formato y contenido de los archivos.', 'warning')
+            return redirect(url_for('upload_page_form')) # MODIFICADO: Redirigir al formulario
+
+        portfolio_df = calculate_portfolio(combined_df_raw)
+
+        if portfolio_df is not None and not portfolio_df.empty:
+            print(f"Sincronizando portfolio ({len(portfolio_df)} items) con watchlist DB para usuario {current_user.id}...")
+            mapping_data_sync = load_mapping()
+            try:
+                current_db_watchlist = WatchlistItem.query.filter_by(user_id=current_user.id).all()
+                db_isin_map = {item.isin: item for item in current_db_watchlist if item.isin}
+                new_portfolio_isins = set(portfolio_df['ISIN'].dropna().unique())
+                items_to_commit_or_add = []
+
+                for item_db in current_db_watchlist:
+                    isin = item_db.isin
+                    is_now_in_portfolio = isin in new_portfolio_isins
+                    needs_update = False
+                    if is_now_in_portfolio:
+                        if not item_db.is_in_portfolio:
+                            item_db.is_in_portfolio = True
+                            if hasattr(item_db, 'is_in_followup'): item_db.is_in_followup = False
+                            elif hasattr(item_db, 'is_manual'): item_db.is_manual = False
+                            needs_update = True
+                        new_portfolio_isins.discard(isin) 
+                    else: 
+                        if item_db.is_in_portfolio:
+                            item_db.is_in_portfolio = False
+                            if hasattr(item_db, 'is_in_followup'): item_db.is_in_followup = True
+                            elif hasattr(item_db, 'is_manual'): item_db.is_manual = True
+                            needs_update = True
+                    if needs_update: items_to_commit_or_add.append(item_db)
+
+                for isin_to_add in new_portfolio_isins:
+                    portfolio_row = portfolio_df[portfolio_df['ISIN'] == isin_to_add].iloc[0]
+                    map_info = mapping_data_sync.get(isin_to_add, {})
+                    ticker = map_info.get('ticker', 'N/A')
+                    google_ex = map_info.get('google_ex', None)
+                    name = map_info.get('name', portfolio_row.get('Producto', 'Desconocido')).strip()
+                    if not name: name = portfolio_row.get('Producto', 'Desconocido')
+                    degiro_bolsa_code = portfolio_row.get('Bolsa de')
+                    yahoo_suffix = BOLSA_TO_YAHOO_MAP.get(degiro_bolsa_code, '') if degiro_bolsa_code else ''
+                    new_watch_item_data = {
+                        'item_name': name, 'isin': isin_to_add, 'ticker': ticker,
+                        'yahoo_suffix': yahoo_suffix, 'google_ex': google_ex,
+                        'user_id': current_user.id, 'is_in_portfolio': True
+                    }
+                    if hasattr(WatchlistItem, 'is_in_followup'): new_watch_item_data['is_in_followup'] = False
+                    elif hasattr(WatchlistItem, 'is_manual'): new_watch_item_data['is_manual'] = False
+                    new_watch_item = WatchlistItem(**new_watch_item_data)
+                    items_to_commit_or_add.append(new_watch_item)
+                
+                if items_to_commit_or_add:
+                     db.session.add_all(items_to_commit_or_add)
+                     db.session.commit()
+                     print("Sincronización watchlist DB completada.")
+            except Exception as e_sync: 
+                db.session.rollback(); traceback.print_exc()
+                flash("Error Interno al actualizar la watchlist. Revisa logs.", "danger")
+        else:
+            print("Portfolio vacío, no se sincroniza watchlist.")
+        
+        mapping_data = load_mapping()
+        missing_isins_details = []
+        if portfolio_df is not None and not portfolio_df.empty:
+             all_isins_in_portfolio = portfolio_df['ISIN'].unique()
+             for isin in all_isins_in_portfolio:
+                map_entry = mapping_data.get(isin)
+                if not map_entry or not map_entry.get('ticker') or not map_entry.get('google_ex'):
+                     p_row = portfolio_df[portfolio_df['ISIN'] == isin].iloc[0]
+                     missing_isins_details.append({'isin': isin, 'name': p_row.get('Producto', 'Desconocido'), 'bolsa_de': p_row.get('Bolsa de', None)})
+        
+        if missing_isins_details:
+            session['missing_isins_for_mapping'] = missing_isins_details
+            if processed_df_for_csv is not None and not processed_df_for_csv.empty:
+                uid_csv = uuid.uuid4(); temp_csv_fn = f"pending_csv_{uid_csv}.json"
+                try:
+                    processed_df_for_csv.to_json(os.path.join(OUTPUT_FOLDER, temp_csv_fn), orient='records', lines=True)
+                    session['temp_csv_pending_filename'] = temp_csv_fn
+                except Exception as e: print(f"Error guardando DF CSV pendiente: {e}")
+            if portfolio_df is not None and not portfolio_df.empty:
+                uid_port = uuid.uuid4(); temp_port_fn = f"pending_portfolio_{uid_port}.json"
+                try:
+                    portfolio_df.to_json(os.path.join(OUTPUT_FOLDER, temp_port_fn), orient='records', lines=True)
+                    session['temp_portfolio_pending_filename'] = temp_port_fn
+                except Exception as e: print(f"Error guardando DF Portfolio pendiente: {e}")
+            return redirect(url_for('complete_mapping'))
+        else:
+            final_csv_filename_to_save_in_db = None
+            csv_data_list_for_db = None
+            if processed_df_for_csv is not None and not processed_df_for_csv.empty:
+                try:
+                    processed_df_for_csv['Ticker'] = processed_df_for_csv['ISIN'].map(lambda x: mapping_data.get(x, {}).get('ticker', ''))
+                    processed_df_for_csv['Exchange Google'] = processed_df_for_csv['ISIN'].map(lambda x: mapping_data.get(x, {}).get('google_ex', ''))
+                    cols_final_ordered = [c for c in FINAL_COLS_ORDERED if c in processed_df_for_csv.columns] # FINAL_COLS_ORDERED debe estar definido
+                    # ... (lógica para añadir Ticker y Exchange Google a cols_final_ordered si no están) ...
+                    processed_df_for_csv = processed_df_for_csv.reindex(columns=cols_final_ordered, fill_value='')
+                    uid_final = uuid.uuid4(); final_temp_csv_filename_for_session = f"processed_{uid_final}.csv"
+                    path_final = os.path.join(OUTPUT_FOLDER, final_temp_csv_filename_for_session) # OUTPUT_FOLDER debe estar definido
+                    processed_df_for_csv.to_csv(path_final, index=False, sep=';', decimal='.', encoding='utf-8-sig')
+                    session['csv_temp_file'] = final_temp_csv_filename_for_session
+                    final_csv_filename_to_save_in_db = final_temp_csv_filename_for_session
+                    csv_data_list_for_db = processed_df_for_csv.to_dict('records')
+                except Exception as e_final_csv:
+                    flash(f"Error al generar CSV final: {e_final_csv}", "danger"); session.pop('csv_temp_file', None)
+            else:
+                session.pop('csv_temp_file', None)
+        
+            if portfolio_df is not None and not portfolio_df.empty:
+                portfolio_list_for_session_and_db = portfolio_df.to_dict('records')
+                session['portfolio_data'] = portfolio_list_for_session_and_db
+                save_success = save_user_portfolio(
+                    user_id=current_user.id,
+                    portfolio_data=portfolio_list_for_session_and_db,
+                    csv_data=csv_data_list_for_db,
+                    csv_filename=final_csv_filename_to_save_in_db
+                ) # Tu función save_user_portfolio
+                if save_success: flash('Archivos procesados y portfolio listo.', 'success')
+                else: flash('Error al guardar datos del portfolio en BD.', 'warning')
+            else:
+                session.pop('portfolio_data', None)
+                if csv_data_list_for_db:
+                     save_user_portfolio(user_id=current_user.id, portfolio_data=None, csv_data=csv_data_list_for_db, csv_filename=final_csv_filename_to_save_in_db)
+                flash('Archivos procesados. Portfolio vacío.', 'info')
+            return redirect(url_for('show_portfolio'))
+
+    return redirect(url_for('login')) # Fallback improbable
+
+@app.route('/upload_page', methods=['GET'])
+@login_required
+def upload_page_form():
+    """
+    Esta ruta se dedica a mostrar la página con el formulario para cargar CSVs.
+    El formulario en sí (en index.html) enviará los datos (POST) a la ruta '/' (index).
+    """
+    return render_template('index.html', title="Cargar CSVs Anuales")
 
 
 # --- NUEVA RUTA: Gestionar Mapeo Global ---
