@@ -958,15 +958,19 @@ def load_user(user_id): # MOSTRANDO COMPLETA
 
 # En app.py
 
-@app.route('/add_expense_category_ajax', methods=['POST']) # Asegúrate que la ruta y el método son correctos
+
+# En app.py
+
+@app.route('/add_expense_category_ajax', methods=['POST'])
 @login_required
-def add_expense_category_ajax(): # Asegúrate que el nombre de la función sea el que usas en url_for
-    form = ExpenseCategoryForm(request.form)
+def add_expense_category_ajax():
+    form = ExpenseCategoryForm(request.form) 
+    
+    # Poblar opciones de parent_id para el formulario que se está validando
+    user_categories_main_for_validation = ExpenseCategory.query.filter_by(user_id=current_user.id, parent_id=None).order_by(ExpenseCategory.name).all()
+    form.parent_id.choices = [(0, 'Ninguna (Categoría Principal)')] + [(cat.id, cat.name) for cat in user_categories_main_for_validation]
 
-    user_categories_main = ExpenseCategory.query.filter_by(user_id=current_user.id, parent_id=None).order_by(ExpenseCategory.name).all()
-    form.parent_id.choices = [(0, 'Ninguna (Categoría Principal)')] + [(cat.id, cat.name) for cat in user_categories_main]
-
-    if form.validate(): # Nota: No es validate_on_submit() para AJAX data a menos que manejes el token CSRF explícitamente con JS
+    if form.validate():
         try:
             parent_id_val = form.parent_id.data
             if parent_id_val == 0: 
@@ -981,20 +985,28 @@ def add_expense_category_ajax(): # Asegúrate que el nombre de la función sea e
             db.session.add(new_category)
             db.session.commit()
 
+            # Preparar la lista de categorías para el dropdown del formulario principal de Deudas
             all_expense_categories = ExpenseCategory.query.filter_by(user_id=current_user.id).order_by(ExpenseCategory.name).all()
-            category_choices_updated = []
-            for cat in all_expense_categories:
-                if cat.parent_id is None:
-                    category_choices_updated.append({'id': cat.id, 'name': cat.name, 'is_main': True})
-                    subcats = ExpenseCategory.query.filter_by(user_id=current_user.id, parent_id=cat.id).order_by(ExpenseCategory.name).all()
-                    for subcat in subcats:
-                         category_choices_updated.append({'id': subcat.id, 'name': f"↳ {subcat.name}", 'is_main': False})
-
+            debt_form_category_choices = []
+            # Primero las principales
+            main_cats_for_debt_form = [c for c in all_expense_categories if c.parent_id is None]
+            for cat_df in main_cats_for_debt_form:
+                debt_form_category_choices.append({'id': cat_df.id, 'name': cat_df.name})
+                # Luego sus subcategorías
+                subcats_df = [s for s in all_expense_categories if s.parent_id == cat_df.id]
+                for sub_df in subcats_df:
+                     debt_form_category_choices.append({'id': sub_df.id, 'name': f"↳ {sub_df.name}"})
+            
+            # Preparar la lista de categorías principales para el dropdown de "Categoría Padre" DEL MODAL
+            modal_parent_category_choices = [{'id': cat.id, 'name': cat.name} 
+                                             for cat in main_cats_for_debt_form] # Reutilizamos main_cats_for_debt_form
+            
             return jsonify({
                 'success': True, 
                 'message': 'Categoría añadida correctamente.', 
                 'new_category_id': new_category.id,
-                'categories': category_choices_updated
+                'debt_form_categories': debt_form_category_choices,       # Para el select del plan de deuda
+                'modal_parent_categories': modal_parent_category_choices # Para el select de parent_id en el modal
             })
         except Exception as e:
             db.session.rollback()
@@ -1003,6 +1015,7 @@ def add_expense_category_ajax(): # Asegúrate que el nombre de la función sea e
     else:
         errors = {field: error[0] for field, error in form.errors.items()}
         return jsonify({'success': False, 'message': 'Errores de validación.', 'errors': errors})
+
 
 # --- Decorador para rutas de Administrador (NUEVO) ---
 def admin_required(f): # MOSTRANDO COMPLETA

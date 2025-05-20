@@ -42,7 +42,7 @@
                     <div class="card h-100">
                         <div class="card-body text-center">
                             <h6>Uso del Techo</h6>
-                            {% if debt_percentage is not none and debt_percentage is not defined or debt_percentage is not none %}
+                            {% if debt_percentage is not none %}
                                 <h3 class="{% if debt_percentage >= 90 %}text-danger{% elif debt_percentage >= 75 %}text-warning{% else %}text-success{% endif %}">
                                     {{ debt_percentage|round(2) }}%
                                 </h3>
@@ -197,7 +197,6 @@
                                             </div>
                                         </td>
                                         <td class="text-center">
-                                            {# --- BOTONES DE ACCIÓN RESTAURADOS --- #}
                                             <div class="btn-group">
                                                 <button type="button" class="btn btn-primary btn-sm" title="Renegociar deuda" 
                                                         data-bs-toggle="modal" data-bs-target="#renegociateModal{{ plan.id }}">
@@ -217,7 +216,6 @@
                                                 </form>
                                             </div>
                                             
-                                            {# --- MODAL DE RENEGOCIACIÓN RESTAURADO --- #}
                                             <div class="modal fade" id="renegociateModal{{ plan.id }}" tabindex="-1" aria-labelledby="renegociateModalLabel{{ plan.id }}" aria-hidden="true">
                                                 <div class="modal-dialog">
                                                     <div class="modal-content">
@@ -233,7 +231,7 @@
                                                                 </div>
                                                                 <div class="mb-3">
                                                                     <p>Monto pendiente: <strong id="remainingAmount{{plan.id}}">{{ plan.remaining_amount|round(2) }}</strong> €</p>
-                                                                    <p>Nueva cuota mensual estimada: <strong id="newMonthlyPaymentText{{plan.id}}"></strong> €</p>
+                                                                    <p>Nueva cuota mensual estimada: <strong id="newMonthlyPaymentText{{plan.id}}">0.00</strong> €</p> {# Actualizado por JS #}
                                                                 </div>
                                                             </form>
                                                         </div>
@@ -295,8 +293,8 @@
                                             {% endif %}
                                         </td>
                                         <td class="text-center">
-                                            {# --- BOTÓN DE ACCIÓN RESTAURADO --- #}
                                             <form method="POST" action="{{ url_for('delete_debt_plan', plan_id=plan.id) }}" class="d-inline" onsubmit="return confirm('¿Estás seguro de que deseas eliminar este plan de pago del historial? (Esta acción no se puede deshacer)');">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}"> {# Añadir CSRF si es necesario #}
                                                 <button type="submit" class="btn btn-danger btn-sm" title="Eliminar del historial">
                                                     <i class="bi bi-trash"></i>
                                                 </button>
@@ -325,19 +323,20 @@
       </div>
       <div class="modal-body">
         <form id="modalCategoryCreateForm"> 
-            {{ modal_category_form.hidden_tag() if modal_category_form else ''}}
+            {# Asumiendo que modal_category_form se pasa desde app.py y tiene hidden_tag() #}
+            {{ modal_category_form.hidden_tag() if modal_category_form and modal_category_form.hidden_tag }}
             <div class="mb-3">
-                {{ modal_category_form.name.label(class="form-label") }}
-                {{ modal_category_form.name(class="form-control", id="modal_cat_name") }}
+                {{ modal_category_form.name.label(class="form-label") if modal_category_form else '<label class="form-label">Nombre</label>' }}
+                {{ modal_category_form.name(class="form-control", id="modal_cat_name") if modal_category_form else '<input type="text" class="form-control" id="modal_cat_name">' }}
                 <div class="invalid-feedback" id="modal_cat_name_error"></div>
             </div>
             <div class="mb-3">
-                {{ modal_category_form.description.label(class="form-label") }}
-                {{ modal_category_form.description(class="form-control", id="modal_cat_description") }}
+                {{ modal_category_form.description.label(class="form-label") if modal_category_form else '<label class="form-label">Descripción</label>' }}
+                {{ modal_category_form.description(class="form-control", id="modal_cat_description") if modal_category_form else '<textarea class="form-control" id="modal_cat_description"></textarea>' }}
             </div>
             <div class="mb-3">
-                {{ modal_category_form.parent_id.label(class="form-label") }}
-                {{ modal_category_form.parent_id(class="form-select", id="modal_cat_parent_id") }}
+                {{ modal_category_form.parent_id.label(class="form-label") if modal_category_form else '<label class="form-label">Categoría Padre</label>' }}
+                {{ modal_category_form.parent_id(class="form-select", id="modal_cat_parent_id") if modal_category_form else '<select class="form-select" id="modal_cat_parent_id"><option value="0">Ninguna</option></select>' }}
                 <div class="form-text">Selecciona una categoría padre para crear una subcategoría.</div>
             </div>
         </form>
@@ -356,92 +355,116 @@
 {{ super() }} 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Lógica para el modal de añadir categoría (sin cambios)
-    const addCategoryModal = document.getElementById('addCategoryModal');
+    const addCategoryModalElement = document.getElementById('addCategoryModal');
     const submitModalCategoryButton = document.getElementById('submitModalCategory');
     const debtPlanCategorySelect = document.getElementById('category_id'); 
+    const modalCategoryParentSelect = document.getElementById('modal_cat_parent_id'); 
 
-    if (submitModalCategoryButton && addCategoryModal && debtPlanCategorySelect) {
+    if (submitModalCategoryButton && addCategoryModalElement && debtPlanCategorySelect && modalCategoryParentSelect) {
         submitModalCategoryButton.addEventListener('click', function() {
             const form = document.getElementById('modalCategoryCreateForm');
             const formData = new FormData(form);
             
-            document.getElementById('modal_cat_name_error').textContent = '';
-            document.getElementById('modal_cat_name').classList.remove('is-invalid');
+            const modalCatNameInput = document.getElementById('modal_cat_name');
+            const modalCatNameError = document.getElementById('modal_cat_name_error');
+            if (modalCatNameError) modalCatNameError.textContent = '';
+            if (modalCatNameInput) modalCatNameInput.classList.remove('is-invalid');
 
             fetch("{{ url_for('add_expense_category_ajax') }}", {
                 method: 'POST',
                 body: formData,
+                headers: {
+                  'X-CSRFToken': form.querySelector('[name=csrf_token]') ? form.querySelector('[name=csrf_token]').value : ''
+                }
             })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    var modal = bootstrap.Modal.getInstance(addCategoryModal);
-                    modal.hide();
+                    const modalInstance = bootstrap.Modal.getInstance(addCategoryModalElement);
+                    if (modalInstance) modalInstance.hide();
                     form.reset();
-                    debtPlanCategorySelect.innerHTML = '<option value="0">- Selecciona una Categoría -</option>';
-                    data.categories.forEach(function(category) {
+
+                    debtPlanCategorySelect.innerHTML = '<option value="0">- Selecciona una Categoría -</option>'; 
+                    data.debt_form_categories.forEach(function(category) {
                         var option = new Option(category.name, category.id);
                         debtPlanCategorySelect.add(option);
                     });
-                    debtPlanCategorySelect.value = data.new_category_id;
-                    // Podrías usar un sistema de notificaciones flash más elegante aquí
-                    // en lugar de un simple alert, pero por ahora:
-                    const flashContainer = document.querySelector('.container > .row:first-child > .col-md-12'); // Asumiendo que aquí van los flashes
+                    if (data.new_category_id) { // Asegurarse que existe antes de intentar seleccionarla
+                        debtPlanCategorySelect.value = data.new_category_id;
+                    }
+                    
+                    modalCategoryParentSelect.innerHTML = '<option value="0">Ninguna (Categoría Principal)</option>';
+                    data.modal_parent_categories.forEach(function(category) {
+                        var option = new Option(category.name, category.id);
+                        modalCategoryParentSelect.add(option);
+                    });
+                    
+                    const flashContainer = document.querySelector('.container > .row:first-child > .col-md-12');
                     if (flashContainer) {
                         const alertDiv = document.createElement('div');
                         alertDiv.className = 'alert alert-success alert-dismissible fade show mt-3';
                         alertDiv.setAttribute('role', 'alert');
                         alertDiv.innerHTML = `${data.message} <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>`;
+                        // Eliminar alertas previas del mismo tipo para no acumular
+                        const existingAlert = flashContainer.querySelector('.alert-success');
+                        if(existingAlert) existingAlert.remove();
                         flashContainer.prepend(alertDiv);
+                        setTimeout(() => {
+                            const currentAlert = alertDiv; // Usar la referencia directa
+                            if (currentAlert) {
+                                const bsAlert = bootstrap.Alert.getOrCreateInstance(currentAlert);
+                                if(bsAlert) bsAlert.close();
+                            }
+                        }, 5000);
                     } else {
-                         alert(data.message);
+                         alert(data.message); 
                     }
                 } else {
-                    if (data.errors && data.errors.name) {
-                        document.getElementById('modal_cat_name').classList.add('is-invalid');
-                        document.getElementById('modal_cat_name_error').textContent = data.errors.name;
+                    if (data.errors && data.errors.name && modalCatNameInput && modalCatNameError) {
+                        modalCatNameInput.classList.add('is-invalid');
+                        modalCatNameError.textContent = data.errors.name;
                     } else {
-                        alert(data.message || 'Error desconocido.');
+                        alert(data.message || 'Error desconocido al crear la categoría.');
                     }
                 }
             })
             .catch(error => {
-                console.error('Error en AJAX:', error);
+                console.error('Error en AJAX creando categoría:', error);
                 alert('Error de conexión al intentar crear la categoría.');
             });
         });
     }
     
-    // Script para el selector de mes/año en el formulario principal
-    const dateInput = document.getElementById('start_date'); // ID del campo start_date en plan_form
-    if (dateInput && !dateInput.value) { // Solo si está vacío para no sobrescribir en caso de error de validación
-        const todayForDate = new Date();
-        const yearForDate = todayForDate.getFullYear();
-        const monthForDate = (todayForDate.getMonth() + 1).toString().padStart(2, '0');
-        dateInput.value = `${yearForDate}-${monthForDate}`;
+    const dateInputPlanForm = document.getElementById('start_date');
+    if (dateInputPlanForm && !dateInputPlanForm.value) { 
+        const todayForDatePlan = new Date();
+        const yearForDatePlan = todayForDatePlan.getFullYear();
+        const monthForDatePlan = (todayForDatePlan.getMonth() + 1).toString().padStart(2, '0');
+        dateInputPlanForm.value = `${yearForDatePlan}-${monthForDatePlan}`;
     }
 
-    // --- NUEVO JAVASCRIPT PARA MODALES DE RENEGOCIACIÓN ---
     document.querySelectorAll('[id^=renegociateModal]').forEach(modalElement => {
-        const newDurationInput = modalElement.querySelector('[id^=newDuration]');
-        const remainingAmountText = modalElement.querySelector('[id^=remainingAmount]');
-        const newMonthlyPaymentText = modalElement.querySelector('[id^=newMonthlyPaymentText]');
+        const newDurationInput = modalElement.querySelector('input[id^=newDuration]'); // Selector más específico
+        const remainingAmountStrong = modalElement.querySelector('strong[id^=remainingAmount]');
+        const newMonthlyPaymentStrong = modalElement.querySelector('strong[id^=newMonthlyPaymentText]');
 
-        if (newDurationInput && remainingAmountText && newMonthlyPaymentText) {
-            function updateEstimatedPayment() {
-                const remainingAmount = parseFloat(remainingAmountText.textContent.replace('€', '').replace(',', '.').trim());
-                const newDuration = parseInt(newDurationInput.value);
+        if (newDurationInput && remainingAmountStrong && newMonthlyPaymentStrong) {
+            function updateEstimatedPaymentInModal() {
+                const remainingAmountVal = parseFloat(remainingAmountStrong.textContent.replace('€', '').replace(',', '.').trim());
+                const newDurationVal = parseInt(newDurationInput.value);
 
-                if (!isNaN(remainingAmount) && !isNaN(newDuration) && newDuration > 0) {
-                    const newPayment = remainingAmount / newDuration;
-                    newMonthlyPaymentText.textContent = newPayment.toFixed(2);
+                if (!isNaN(remainingAmountVal) && !isNaN(newDurationVal) && newDurationVal > 0) {
+                    const newPayment = remainingAmountVal / newDurationVal;
+                    newMonthlyPaymentStrong.textContent = newPayment.toFixed(2);
                 } else {
-                    newMonthlyPaymentText.textContent = '0.00';
+                    newMonthlyPaymentStrong.textContent = '0.00';
                 }
             }
-            newDurationInput.addEventListener('input', updateEstimatedPayment);
-            updateEstimatedPayment(); // Calcular al abrir el modal
+            newDurationInput.addEventListener('input', updateEstimatedPaymentInModal);
+            
+            modalElement.addEventListener('shown.bs.modal', function() { // Calcular al mostrarse completamente
+                updateEstimatedPaymentInModal();
+            });
         }
     });
 });
