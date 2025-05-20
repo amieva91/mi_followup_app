@@ -1,0 +1,299 @@
+{% extends "base.html" %}
+
+{% block head %}
+    {{ super() }}
+    <style>
+        .valuation-history-table th, .valuation-history-table td {
+            font-size: 0.85em;
+            padding: 0.35rem;
+        }
+        .table-acciones-pequenas .btn {
+            padding: 0.1rem 0.3rem;
+            font-size: 0.7rem;
+        }
+        .card-header h5 button i.bi-chevron-right,
+        .card-header h5 button i.bi-chevron-down { /* Selector más específico */
+            transition: transform 0.2s ease-in-out;
+        }
+        .card-header h5 button[aria-expanded="true"] i.bi-chevron-right, /* Cambia el icono cuando está expandido */
+        .card-header h5 button[aria-expanded="true"] i.bi-chevron-down {
+            transform: rotate(90deg);
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mt-4">{{ title if title else "Gestión de Inmuebles" }}</h1>
+    <p>Registra tus propiedades y su evolución de valor a lo largo del tiempo.</p>
+
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Resumen General Inmobiliario</h5>
+        </div>
+        <div class="card-body">
+            <div class="row text-center">
+                <div class="col-md-4 mb-3 mb-md-0">
+                    <h6>Valor Total de Mercado Actual</h6>
+                    <h3 class="text-success">{{ total_market_value|round(2) }} €</h3>
+                </div>
+                <div class="col-md-4 mb-3 mb-md-0">
+                    <h6>Saldo Hipotecario Total</h6>
+                    <h3 class="text-danger">{{ total_mortgage_balance|round(2) }} €</h3>
+                </div>
+                <div class="col-md-4">
+                    <h6>Patrimonio Neto Inmobiliario</h6>
+                    <h3 class="text-primary">{{ net_equity|round(2) }} €</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-5">
+            <div class="card mb-4">
+                <div class="card-header" id="headingAddAsset">
+                    <h5 class="mb-0">
+                        <button class="btn btn-link text-decoration-none text-dark p-0 w-100 text-start d-flex justify-content-between align-items-center" type="button" data-bs-toggle="collapse" data-bs-target="#addAssetCollapse" aria-expanded="false" aria-controls="addAssetCollapse">
+                            Añadir Nuevo Inmueble
+                            <i class="bi bi-chevron-right"></i>
+                        </button>
+                    </h5>
+                </div>
+                <div id="addAssetCollapse" class="collapse {% if asset_form.errors %}show{% endif %}" aria-labelledby="headingAddAsset">
+                    <div class="card-body">
+                        <form method="POST" action="{{ url_for('real_estate') }}">
+                            {{ asset_form.hidden_tag() }}
+                            <div class="mb-3">
+                                {{ asset_form.property_name.label(class="form-label") }}
+                                {{ asset_form.property_name(class="form-control form-control-sm" + (" is-invalid" if asset_form.property_name.errors else "")) }}
+                                {% for error in asset_form.property_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="mb-3">
+                                {{ asset_form.property_type.label(class="form-label") }}
+                                {{ asset_form.property_type(class="form-select form-select-sm" + (" is-invalid" if asset_form.property_type.errors else "")) }}
+                                {% for error in asset_form.property_type.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    {{ asset_form.purchase_year.label(class="form-label") }}
+                                    {{ asset_form.purchase_year(class="form-control form-control-sm" + (" is-invalid" if asset_form.purchase_year.errors else "")) }}
+                                    {% for error in asset_form.purchase_year.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    {{ asset_form.purchase_price.label(class="form-label") }}
+                                    {{ asset_form.purchase_price(class="form-control form-control-sm" + (" is-invalid" if asset_form.purchase_price.errors else "")) }}
+                                    {% for error in asset_form.purchase_price.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                                </div>
+                            </div>
+                            {# Si decides reincorporar la gestión de alquileres, aquí iría el checkbox y el campo de ingresos #}
+                            {#
+                            <div class="form-check mb-3">
+                                {{ asset_form.is_rental(class="form-check-input") }}
+                                {{ asset_form.is_rental.label(class="form-check-label") }}
+                            </div>
+                            <div id="rental_details_add_form" style="display: {% if asset_form.is_rental.data %}block{% else %}none{% endif %};">
+                                <div class="mb-3">
+                                    {{ asset_form.rental_income_monthly.label(class="form-label") }}
+                                    {{ asset_form.rental_income_monthly(class="form-control form-control-sm" + (" is-invalid" if asset_form.rental_income_monthly.errors else "")) }}
+                                    {% for error in asset_form.rental_income_monthly.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                                </div>
+                            </div>
+                            #}
+                            {{ asset_form.submit_asset(class="btn btn-primary btn-sm") }}
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="bi bi-graph-up me-2"></i>Registrar Tasación Manual</h5>
+                </div>
+                <div class="card-body">
+                    {% if assets_details %} 
+                    <form method="POST" action="{{ url_for('add_valuation') }}">
+                        {{ valuation_form.hidden_tag() }}
+                        <div class="mb-3">
+                            {{ valuation_form.asset_id.label(class="form-label") }}
+                            {{ valuation_form.asset_id(class="form-select form-select-sm" + (" is-invalid" if valuation_form.asset_id.errors else ""), **valuation_form.asset_id.render_kw) }}
+                            {% for error in valuation_form.asset_id.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                {{ valuation_form.valuation_year.label(class="form-label") }}
+                                {{ valuation_form.valuation_year(class="form-control form-control-sm" + (" is-invalid" if valuation_form.valuation_year.errors else ""), **valuation_form.valuation_year.render_kw) }}
+                                {% for error in valuation_form.valuation_year.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                {{ valuation_form.market_value.label(class="form-label") }}
+                                {{ valuation_form.market_value(class="form-control form-control-sm" + (" is-invalid" if valuation_form.market_value.errors else ""), **valuation_form.market_value.render_kw) }}
+                                {% for error in valuation_form.market_value.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                        </div>
+                        {{ valuation_form.submit_valuation(class="btn btn-success btn-sm", **valuation_form.submit_valuation.render_kw) }}
+                    </form>
+                    {% else %}
+                    <div class="alert alert-info">Primero debes añadir un inmueble para poder registrar su tasación.</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-7">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-list-task me-2"></i>Mis Inmuebles</h5>
+                </div>
+                <div class="card-body">
+                    {% if assets_details %}
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Nombre</th>
+                                        <th class="text-end">Valor de Mercado</th>
+                                        <th class="text-center">Hipoteca</th>
+                                        <th class="text-end">% Revalorización</th>
+                                        <th class="text-center">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for asset_detail in assets_details %}
+                                    <tr>
+                                        <td>
+                                            {# Usar el icon_class_map pasado desde app.py #}
+                                            <i class="bi {{ icon_class_map.get(asset_detail.property_type, 'bi-question-circle-fill') }} me-2" title="{{ asset_detail.property_type if asset_detail.property_type else 'Inmueble' }}"></i>
+                                            {{ asset_detail.display_name }}
+                                            <small class="d-block text-muted">{{ asset_detail.purchase_info }}</small>
+                                        </td>
+                                        <td class="text-end">
+                                            {{ asset_detail.current_market_value_display|round(2) }} €
+                                            {% if asset_detail.value_last_updated_year_display %}
+                                                <small class="d-block text-muted">(Tasado {{ asset_detail.value_last_updated_year_display }})</small>
+                                            {% elif asset_detail.purchase_price is not none %}
+                                                 <small class="d-block text-muted">(Valor compra)</small>
+                                            {% else %}
+                                                 <small class="d-block text-muted">(Sin datos)</small>
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-center">
+                                            {% if asset_detail.mortgage_status == "Hipoteca" %}
+                                                <span class="badge bg-warning text-dark">{{ asset_detail.mortgage_status }}</span>
+                                            {% else %}
+                                                <span class="badge bg-success">{{ asset_detail.mortgage_status }}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-end {% if asset_detail.revalorization_percentage is not none %}{% if asset_detail.revalorization_percentage > 0 %}text-success{% elif asset_detail.revalorization_percentage < 0 %}text-danger{% else %}text-secondary{% endif %}{% endif %}">
+                                            {{ asset_detail.revalorization_percentage|round(1) if asset_detail.revalorization_percentage is not none else '--' }}%
+                                        </td>
+                                        <td class="text-center table-acciones-pequenas">
+                                            <a href="{{ url_for('edit_real_estate_asset', asset_id=asset_detail.id) }}" class="btn btn-primary" title="Editar Inmueble"><i class="bi bi-pencil-fill"></i></a>
+                                            <form action="{{ url_for('delete_real_estate_asset', asset_id=asset_detail.id) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Estás seguro? Esta acción eliminará el inmueble Y TODAS SUS TASACIONES ASOCIADAS.');">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
+                                                <button type="submit" class="btn btn-danger" title="Eliminar Inmueble"><i class="bi bi-trash-fill"></i></button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info">No tienes inmuebles registrados.</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if assets_details %}
+            <div class="card">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0"><i class="bi bi-bar-chart-line-fill me-2"></i>Historial de Tasaciones por Inmueble</h5>
+                </div>
+                <div class="card-body">
+                    {% for asset_detail in assets_details %}
+                        {% if asset_detail.valuations %}
+                            <h6><i class="bi {{ icon_class_map.get(asset_detail.property_type, 'bi-building') }} me-1"></i> {{ asset_detail.display_name }}</h6>
+                            <div class="table-responsive mb-3">
+                                <table class="table table-sm table-bordered valuation-history-table">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Año Tasación</th>
+                                            <th class="text-end">Valor Mercado (€)</th>
+                                            <th class="text-end">Cambio vs Año Ant.</th>
+                                            <th class="text-center">Acción</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for val in asset_detail.valuations %}
+                                        <tr>
+                                            <td>{{ val.year }}</td>
+                                            <td class="text-end">{{ val.value|round(2) }}</td>
+                                            <td class="text-end {% if val.change_pct is not none %}{% if val.change_pct > 0 %}text-success{% elif val.change_pct < 0 %}text-danger{% else %}text-secondary{% endif %}{% endif %}">
+                                                {{ val.change_pct|round(1) ~ '%' if val.change_pct is not none else '--' }}
+                                            </td>
+                                            <td class="text-center table-acciones-pequenas">
+                                                <form action="{{ url_for('delete_valuation', valuation_id=val.id) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Seguro que quieres eliminar esta tasación del año {{ val.year }} para {{ asset_detail.property_name }}?');">
+                                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
+                                                    <button type="submit" class="btn btn-danger" title="Eliminar Tasación"><i class="bi bi-x-circle"></i></button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                             <p><small><em>No hay tasaciones registradas para {{ asset_detail.display_name }}.</em></small></p>
+                        {% endif %}
+                        {% if not loop.last %}<hr>{% endif %}
+                    {% endfor %}
+                     {% if not assets_details %}
+                        <div class="alert alert-light">No hay inmuebles para mostrar historial de tasaciones.</div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Script para el formulario de añadir inmueble (colapsable)
+        const addAssetCollapseElement = document.getElementById('addAssetCollapse');
+        const addAssetButtonIcon = document.querySelector('button[data-bs-target="#addAssetCollapse"] i'); // Selecciona el icono dentro del botón
+
+        if (addAssetCollapseElement && addAssetButtonIcon) {
+            addAssetCollapseElement.addEventListener('show.bs.collapse', function () {
+                addAssetButtonIcon.classList.remove('bi-chevron-right');
+                addAssetButtonIcon.classList.add('bi-chevron-down');
+            });
+            addAssetCollapseElement.addEventListener('hide.bs.collapse', function () {
+                addAssetButtonIcon.classList.remove('bi-chevron-down');
+                addAssetButtonIcon.classList.add('bi-chevron-right');
+            });
+            // Si el formulario tiene errores y se muestra por defecto, ajustamos el icono
+            if (addAssetCollapseElement.classList.contains('show')) {
+                 addAssetButtonIcon.classList.remove('bi-chevron-right');
+                 addAssetButtonIcon.classList.add('bi-chevron-down');
+            }
+        }
+
+        // Si vuelves a añadir la gestión de alquileres, el script para ello iría aquí.
+        // const isRentalCheckboxAdd = document.getElementById('is_rental'); 
+        // const rentalDetailsDivAdd = document.getElementById('rental_details_add_form');
+        // if (isRentalCheckboxAdd && rentalDetailsDivAdd) {
+        //     function toggleRentalDetailsAdd() {
+        //         rentalDetailsDivAdd.style.display = isRentalCheckboxAdd.checked ? 'block' : 'none';
+        //     }
+        //     toggleRentalDetailsAdd(); 
+        //     isRentalCheckboxAdd.addEventListener('change', toggleRentalDetailsAdd);
+        // }
+    });
+</script>
+{% endblock %}

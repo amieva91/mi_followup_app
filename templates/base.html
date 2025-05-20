@@ -26,8 +26,7 @@
         .nav-link { font-size: 0.95rem; }
         .dropdown-item i { margin-right: 8px; }
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-</head>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> {% block head %}{% endblock %} </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top shadow-sm">
       <div class="container-fluid">
@@ -43,6 +42,7 @@
           <ul class="navbar-nav me-auto mb-2 mb-lg-0">
             {% if current_user.is_authenticated %}
                 {% if current_user.username == 'admin' and current_user.is_admin %}
+                    {#-- Menú para el usuario 'admin' --#}
                     <li class="nav-item">
                       <a class="nav-link {% if request.endpoint and 'admin_dashboard' in request.endpoint %}active{% endif %}" href="{{ url_for('admin_dashboard') }}">
                         <i class="bi bi-speedometer2"></i> Panel Admin
@@ -53,19 +53,26 @@
                             <i class="bi bi-shuffle"></i> Gestionar Mapeo
                         </a>
                     </li>
+                     {# Aquí podrías añadir más ítems específicos solo para el 'admin' principal si es necesario #}
                 {% else %}
-                    {% if current_user.is_admin %}
+                    {#-- Menú para usuarios normales y otros administradores --#}
+                    {% if current_user.is_admin %} {# Para administradores que no son 'admin' #}
                     <li class="nav-item">
                       <a class="nav-link {% if request.endpoint and 'admin_dashboard' in request.endpoint %}active{% endif %}" href="{{ url_for('admin_dashboard') }}">
                         <i class="bi bi-speedometer2"></i> Panel Admin
                       </a>
                     </li>
+                     <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'manage_mapping' %}active{% endif %}" href="{{ url_for('manage_mapping') }}">
+                            <i class="bi bi-shuffle"></i> Gestionar Mapeo
+                        </a>
+                    </li>
                     {% endif %}
                     
-                    {# Pestañas Comunes para usuarios autenticados (normales y otros admins) #}
-                    <li class="nav-item"><a class="nav-link {% if request.endpoint == 'financial_summary' %}active{% endif %}" href="{{ url_for('financial_summary') }}"><i class="bi bi-clipboard-data"></i> Resumen</a></li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'financial_summary' %}active{% endif %}" href="{{ url_for('financial_summary') }}"><i class="bi bi-clipboard-data"></i> Resumen</a>
+                    </li>
                     
-                    {# --- NUEVO MENÚ DESPLEGABLE "BOLSA" --- #}
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle {% if request.endpoint in ['show_portfolio', 'show_watchlist', 'broker_operations'] %}active{% endif %}" href="#" id="navbarDropdownBolsa" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                            <i class="bi bi-currency-exchange"></i> Bolsa
@@ -76,7 +83,6 @@
                             <li><a class="dropdown-item {% if request.endpoint == 'broker_operations' %}active{% endif %}" href="{{ url_for('broker_operations') }}"><i class="bi bi-arrow-left-right"></i> Ops. Broker</a></li>
                         </ul>
                     </li>
-                    {# --- FIN NUEVO MENÚ DESPLEGABLE "BOLSA" --- #}
                     
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle {% if request.endpoint in ['fixed_income', 'variable_income', 'expenses', 'bank_accounts', 'debt_management'] %}active{% endif %}" href="#" id="navbarDropdownFinanzas" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -88,10 +94,15 @@
                             <li><a class="dropdown-item {% if request.endpoint == 'expenses' %}active{% endif %}" href="{{ url_for('expenses') }}"><i class="bi bi-cart3"></i> Gastos</a></li>
                             <li><a class="dropdown-item {% if request.endpoint == 'bank_accounts' %}active{% endif %}" href="{{ url_for('bank_accounts') }}"><i class="bi bi-bank"></i> Cuentas Bancarias</a></li>
                             <li><a class="dropdown-item {% if request.endpoint == 'debt_management' %}active{% endif %}" href="{{ url_for('debt_management') }}"><i class="bi bi-credit-card"></i> Deudas</a></li>
-                            {# Ya no está "Ops. Broker" aquí #}
                         </ul>
                     </li>
-                     <li class="nav-item dropdown">
+
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'real_estate' %}active{% endif %}" href="{{ url_for('real_estate') }}">
+                            <i class="bi bi-house-door-fill"></i> Inmuebles
+                        </a>
+                    </li>
+                    <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle {% if request.endpoint in ['silver_gold', 'crypto', 'pension_plans'] %}active{% endif %}" href="#" id="navbarDropdownInversiones" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                            <i class="bi bi-graph-up-arrow"></i> Otras Inversiones
                         </a>
@@ -102,16 +113,13 @@
                         </ul>
                     </li>
                     
-                    {% if current_user.is_admin %}
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'manage_mapping' %}active{% endif %}" href="{{ url_for('manage_mapping') }}">
-                            <i class="bi bi-shuffle"></i> Gestionar Mapeo
-                        </a>
+                        <a class="nav-link {% if request.endpoint == 'generate_financial_report' %}active{% endif %}" href="{{ url_for('generate_financial_report') }}"><i class="bi bi-file-earmark-text-fill"></i> Informe</a>
                     </li>
-                    {% endif %}
-                {% endif %}
-            {% endif %}
+                {% endif %} {# Fin del else para if current_user.username == 'admin' y es admin principal #}
+            {% endif %} {# Fin del if current_user.is_authenticated #}
           </ul>
+
           <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
               {% if current_user.is_authenticated %}
                 <li class="nav-item dropdown">
@@ -142,6 +150,7 @@
         </div>
       </div>
     </nav>
+
     <main class="container mt-3" role="main">
         <div class="row">
             <div class="col-md-12">
@@ -162,7 +171,7 @@
 
     <footer class="container mt-4 py-3 border-top text-center text-muted">
         <small>&copy; {{ (now.year if now else 2025) }} FollowUp App. Todos los derechos reservados.</small>
-    </footer>
+        </footer>
 
     <div class="modal fade" id="accountModal" tabindex="-1" aria-labelledby="accountModalLabel" aria-hidden="true">
       <div class="modal-dialog modal-lg">
@@ -188,8 +197,10 @@
     </div>
 
     {% block scripts %}
+    {# Scripts comunes o específicos de la página base #}
     <script>
     document.addEventListener('DOMContentLoaded', function () {
+        // Lógica para el modal de "Gestionar Mi Cuenta"
         const accountModalElement = document.getElementById('accountModal');
         
         if (accountModalElement) {
@@ -198,16 +209,16 @@
 
             function loadModalFormContent() {
                 if (modalBody) {
-                    fetch("{{ url_for('manage_account') }}", {
+                    fetch("{{ url_for('manage_account') }}", { // Asegúrate que esta ruta exista y devuelva el contenido del form
                         method: 'GET', 
                         headers: {
-                            'X-Requested-With': 'XMLHttpRequest'
+                            'X-Requested-With': 'XMLHttpRequest' // Para que Flask sepa que es AJAX
                         }
                     })
                     .then(response => response.text())
                     .then(html => {
                         modalBody.innerHTML = html;
-                        attachFormSubmitListener();
+                        attachFormSubmitListener(); // Vuelve a añadir el listener al nuevo form
                     })
                     .catch(error => {
                         console.error('Error loading modal form content:', error);
@@ -217,14 +228,19 @@
             }
 
             function attachFormSubmitListener() {
-                const formInModal = modalBody.querySelector('form'); 
+                const formInModal = modalBody.querySelector('form'); // Asume que el form tiene un ID o se puede seleccionar
                 if (formInModal) {
-                    if (originalSubmitButton) {
-                        originalSubmitButton.onclick = function() { 
-                           if(formInModal.checkValidity()){ 
+                    // El botón de submit está fuera del modal-body, así que no necesitamos
+                    // re-adjuntar su listener si solo el contenido del modal-body cambia.
+                    // Nos aseguramos que el atributo 'form' del botón principal del modal
+                    // apunte al ID del formulario que cargamos dinámicamente.
+                    // Esto se maneja mejor si el form cargado tiene un ID estático como "accountFormModalContent".
+                    if (originalSubmitButton && formInModal.id === "accountFormModalContent") {
+                         originalSubmitButton.onclick = function() { 
+                           if(formInModal.checkValidity()){ // Validación HTML5 básica
                                 submitModalForm(formInModal);
                            } else {
-                               formInModal.reportValidity(); 
+                               formInModal.reportValidity(); // Muestra mensajes de validación del navegador
                            }
                         };
                     }
@@ -233,18 +249,20 @@
 
             function submitModalForm(formElement) {
                 const formData = new FormData(formElement);
-                fetch(formElement.action, {
+                fetch(formElement.action, { // La action del form cargado
                     method: 'POST',
                     body: formData,
                     headers: {
                         'X-Requested-With': 'XMLHttpRequest'
                     }
                 })
-                .then(response => response.text())
-                .then(html => {
-                    modalBody.innerHTML = html; 
-                    attachFormSubmitListener(); 
+                .then(response => response.text()) // O response.json() si tu endpoint devuelve JSON
+                .then(htmlOrJson => {
+                    // Asumimos que el servidor devuelve el contenido del formulario de nuevo (con errores o éxito)
+                    modalBody.innerHTML = htmlOrJson; 
+                    attachFormSubmitListener(); // Re-adjuntar listener al nuevo contenido del form
 
+                    // Si el servidor indica éxito (ej. con un flash message o una clase específica)
                     const successAlert = modalBody.querySelector('.alert-success');
                     if (successAlert) {
                         setTimeout(() => {
@@ -252,17 +270,19 @@
                             if (modalInstance) {
                                 modalInstance.hide();
                             }
-                            window.location.reload(); 
-                        }, 1500);
+                            // Opcional: Recargar la página o actualizar partes específicas si es necesario
+                            window.location.reload(); // Recarga la página para ver cambios (ej: nombre de usuario)
+                        }, 1500); // Cerrar modal después de 1.5 segundos
                     }
                 })
                 .catch(error => {
                     console.error('Error submitting account form via AJAX:', error);
                     modalBody.innerHTML = "<div class='alert alert-danger'>Error al contactar con el servidor. Inténtalo de nuevo.</div>";
-                    attachFormSubmitListener(); 
+                    attachFormSubmitListener(); // Re-adjuntar por si el usuario quiere reintentar
                 });
             }
 
+            // Cargar contenido del formulario cuando se muestra el modal
             accountModalElement.addEventListener('show.bs.modal', function () {
                 loadModalFormContent(); 
             });

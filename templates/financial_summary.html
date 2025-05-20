@@ -2,7 +2,6 @@
 
 {% block head %}
 {{ super() }}
-<!-- Incluir Chart.js para los gráficos -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 {% endblock %}
 
@@ -11,7 +10,6 @@
     <h1 class="mt-4">Resumen Financiero</h1>
     <p>Visión global de tus finanzas con datos de todas las secciones.</p>
     
-    <!-- Panel de KPIs (NUEVO) -->
     {% if summary.kpis.available %}
     <div class="card mb-4">
         <div class="card-header bg-dark text-white">
@@ -68,7 +66,6 @@
     </div>
     {% endif %}
     
-    <!-- Patrimonio Neto (Destacado) -->
     <div class="card mb-4">
         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
             <h5 class="mb-0">Patrimonio Neto</h5>
@@ -99,7 +96,6 @@
                             </div>
                         </div>
                         
-                        <!-- Gráfico de evolución patrimonial (NUEVO) -->
                         {% if summary.charts and summary.charts.data and summary.charts.data.net_worth_history %}
                         <div class="chart-container" style="position: relative; height:260px;">
                             <canvas id="netWorthChart"></canvas>
@@ -107,7 +103,6 @@
                         {% endif %}
                     </div>
                     
-                    <!-- Gráfico de distribución de activos (NUEVO) -->
                     <div class="col-md-5">
                         <h6 class="text-center mb-3">Distribución de Activos</h6>
                         <div class="chart-container" style="position: relative; height:260px;">
@@ -123,7 +118,6 @@
         </div>
     </div>
     
-    <!-- Flujo de Caja Mensual (NUEVO) -->
     {% if summary.cash_flow and summary.cash_flow.available %}
     <div class="card mb-4">
         <div class="card-header bg-info text-white">
@@ -147,7 +141,6 @@
                 </div>
             </div>
             
-            <!-- Gráfico de flujo de caja (NUEVO) -->
             <div class="chart-container mt-3" style="position: relative; height:200px;">
                 <canvas id="cashFlowChart"></canvas>
             </div>
@@ -156,9 +149,7 @@
     {% endif %}
     
     <div class="row">
-        <!-- Columna izquierda: Configuración y Activos -->
         <div class="col-md-4">
-            <!-- Formulario de configuración -->
             <div class="card mb-4">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Configuración del Resumen</h5>
@@ -213,6 +204,10 @@
                                     {{ config_form.include_pension_plans(class="form-check-input") }}
                                     {{ config_form.include_pension_plans.label(class="form-check-label") }}
                                 </div>
+
+                                <div class="form-check"> {{ config_form.include_real_estate(class="form-check-input") }}
+                                    {{ config_form.include_real_estate.label(class="form-check-label") }}
+                                </div>
                             </div>
                             
                             {{ config_form.submit(class="btn btn-primary") }}
@@ -221,7 +216,6 @@
                 </div>
             </div>
             
-            <!-- Acciones Rápidas (NUEVO) -->
             <div class="card mb-4">
                 <div class="card-header bg-secondary text-white">
                     <h5 class="mb-0">Acciones Rápidas</h5>
@@ -248,11 +242,14 @@
                                 <i class="bi bi-bank"></i> Cuentas Bancarias
                             </a>
                         </div>
+                         <div class="col-6 mb-2"> <a href="{{ url_for('real_estate') }}" class="btn btn-outline-warning btn-sm d-block">
+                                <i class="bi bi-house-door-fill"></i> Gestionar Inmuebles
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
             
-            <!-- Cuentas Bancarias (NUEVO ORDEN) -->
             {% if config.include_bank_accounts and summary.bank_accounts.available %}
             <div class="card mb-4">
                 <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
@@ -287,7 +284,6 @@
                     </div>
                     {% endif %}
                     
-                    <!-- Gráfico histórico de efectivo (NUEVO) -->
                     {% if summary.charts and summary.charts.data and summary.charts.data.cash_history %}
                     <div class="chart-container mt-3" style="position: relative; height:150px;">
                         <canvas id="cashHistoryChart"></canvas>
@@ -297,11 +293,10 @@
             </div>
             {% endif %}
             
-            <!-- Deudas -->
             {% if config.include_debts and summary.debts.available %}
             <div class="card mb-4">
                 <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Deudas</h5>
+                    <h5 class="mb-0">Deudas (No Hipotecarias)</h5>
                     <a href="{{ url_for('debt_management') }}" class="btn btn-sm btn-light">
                         <i class="bi bi-pencil"></i>
                     </a>
@@ -346,9 +341,7 @@
             {% endif %}
         </div>
         
-        <!-- Columna central: Ingresos y Gastos -->
         <div class="col-md-4">
-            <!-- Resumen Ingresos -->
             {% if config.include_income and (summary.income.available or summary.variable_income.available) %}
             <div class="card mb-4">
                 <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
@@ -452,7 +445,6 @@
             </div>
             {% endif %}
             
-            <!-- Resumen Gastos -->
             {% if config.include_expenses and summary.expenses.available %}
             <div class="card mb-4">
                 <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
@@ -481,9 +473,17 @@
                                 </div>
                             </div>
                         </div>
+                         <div class="col-12 mt-2">
+                            <div class="card bg-light">
+                                <div class="card-body text-center p-2">
+                                    <h6>Promedio Gasto Mensual (sin deudas)</h6>
+                                    <h5>{{ summary.expenses.data.monthly_avg_expenses|round(2) }} €</h5>
+                                    <small class="text-muted">Estimación últimos meses</small>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     
-                    <!-- Gráfico de gastos por categoría (NUEVO) -->
                     {% if summary.expenses.data.by_category %}
                     <div class="mt-3">
                         <h6>Principales Categorías:</h6>
@@ -496,7 +496,6 @@
             </div>
             {% endif %}
             
-            <!-- Metales Preciosos -->
             {% if config.include_metals and summary.metals.available %}
             <div class="card mb-4">
                 <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
@@ -541,13 +540,11 @@
             {% endif %}
         </div>
         
-        <!-- Columna derecha: Inversiones y Crypto -->
         <div class="col-md-4">
-            <!-- Resumen Inversiones -->
             {% if config.include_investments and summary.investments.available %}
             <div class="card mb-4">
                 <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Inversiones</h5>
+                    <h5 class="mb-0">Inversiones (Portfolio)</h5>
                     <a href="{{ url_for('show_portfolio') }}" class="btn btn-sm btn-light">
                         <i class="bi bi-pencil"></i>
                     </a>
@@ -593,7 +590,6 @@
             </div>
             {% endif %}
             
-            <!-- Criptomonedas -->
             {% if config.include_crypto and summary.crypto.available %}
             <div class="card mb-4">
                 <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
@@ -629,11 +625,11 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {% for crypto in summary.crypto.data.top_holdings %}
+                                    {% for crypto_item in summary.crypto.data.top_holdings %}
                                     <tr>
-                                        <td>{{ crypto.name }}</td>
-                                        <td class="text-end">{{ crypto.quantity|round(6) }}</td>
-                                        <td class="text-end">{{ crypto.current_value|round(2) }} €</td>
+                                        <td>{{ crypto_item.name }}</td>
+                                        <td class="text-end">{{ crypto_item.quantity|round(6) }}</td>
+                                        <td class="text-end">{{ crypto_item.current_value|round(2) }} €</td>
                                     </tr>
                                     {% endfor %}
                                 </tbody>
@@ -645,7 +641,6 @@
             </div>
             {% endif %}
             
-            <!-- Planes de Pensiones -->
             {% if config.include_pension_plans and summary.pension_plans.available %}
             <div class="card mb-4">
                 <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
@@ -682,21 +677,68 @@
                 </div>
             </div>
             {% endif %}
+
+            {% if config.include_real_estate and summary.real_estate.available %}
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white d-flex justify-content-between align-items-center"> <h5 class="mb-0">Inmuebles</h5>
+                    <a href="{{ url_for('real_estate') }}" class="btn btn-sm btn-light">
+                        <i class="bi bi-house-door-fill"></i>
+                    </a>
+                </div>
+                <div class="card-body">
+                    <div class="text-center mb-3">
+                        <h6>Patrimonio Neto Inmobiliario</h6>
+                        <h4>{{ summary.real_estate.data.net_equity|round(2) }} €</h4>
+                    </div>
+                     <div class="row text-center">
+                        <div class="col-6">
+                            <small>Valor Total Mercado</small>
+                            <p class="mb-0">{{ summary.real_estate.data.total_market_value|round(2) }} €</p>
+                        </div>
+                        <div class="col-6">
+                            <small>Hipotecas Pendientes</small>
+                            <p class="mb-0">{{ summary.real_estate.data.total_mortgage_balance|round(2) }} €</p>
+                        </div>
+                    </div>
+                    {% if summary.real_estate.data.assets %}
+                    <div class="mt-3">
+                        <h6>Principales Inmuebles ({{ summary.real_estate.data.count }} en total):</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Nombre</th>
+                                        <th class="text-end">Valor</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for asset_item in summary.real_estate.data.assets %}
+                                    <tr>
+                                        <td>{{ asset_item.name }}</td>
+                                        <td class="text-end">{{ asset_item.value|round(2) }} €</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>
 
-<!-- Scripts para los gráficos -->
 <script>
 document.addEventListener("DOMContentLoaded", function() {
     // Gráfico de activos (pie chart)
     {% if summary.net_worth.available and summary.net_worth.data.total_assets > 0 %}
     const assetsCtx = document.getElementById('assetsChart').getContext('2d');
     
-    // Preparar datos para el gráfico de activos
     const assetsData = [];
     const assetsLabels = [];
-    const assetsColors = ['#17a2b8', '#28a745', '#ffc107', '#dc3545', '#6c757d'];
+    const assetsColors = ['#17a2b8', '#28a745', '#ffc107', '#dc3545', '#6c757d', '#fd7e14', '#20c997']; // Añadido color para Inmuebles
     
     {% if summary.bank_accounts.available and summary.bank_accounts.data.total_cash > 0 %}
     assetsData.push({{ summary.bank_accounts.data.total_cash }});
@@ -722,6 +764,11 @@ document.addEventListener("DOMContentLoaded", function() {
     assetsData.push({{ summary.pension_plans.data.total_pension }});
     assetsLabels.push('Planes de Pensiones');
     {% endif %}
+
+    {% if summary.real_estate.available and summary.real_estate.data.total_market_value > 0 %} {# NUEVO PARA INMUEBLES #}
+    assetsData.push({{ summary.real_estate.data.total_market_value }});
+    assetsLabels.push('Inmuebles');
+    {% endif %}
     
     new Chart(assetsCtx, {
         type: 'doughnut',
@@ -739,9 +786,7 @@ document.addEventListener("DOMContentLoaded", function() {
             plugins: {
                 legend: {
                     position: 'right',
-                    labels: {
-                        boxWidth: 12
-                    }
+                    labels: { boxWidth: 12 }
                 },
                 tooltip: {
                     callbacks: {
@@ -761,19 +806,8 @@ document.addEventListener("DOMContentLoaded", function() {
     // Gráfico de evolución de patrimonio neto
     {% if summary.charts and summary.charts.data and summary.charts.data.net_worth_history %}
     const netWorthCtx = document.getElementById('netWorthChart').getContext('2d');
-    
-    const netWorthDates = [
-        {% for date in summary.charts.data.net_worth_history.dates %}
-        "{{ date }}",
-        {% endfor %}
-    ];
-    
-    const netWorthValues = [
-        {% for value in summary.charts.data.net_worth_history.values_list %}
-	{{ value }},
-        {% endfor %}
-    ];
-    
+    const netWorthDates = [{% for date_str in summary.charts.data.net_worth_history.dates %}"{{ date_str }}",{% endfor %}];
+    const netWorthValues = [{% for value in summary.charts.data.net_worth_history.values_list %}{{ value }},{% endfor %}];
     new Chart(netWorthCtx, {
         type: 'line',
         data: {
@@ -789,35 +823,10 @@ document.addEventListener("DOMContentLoaded", function() {
             }]
         },
         options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                y: {
-                    beginAtZero: false,
-                    ticks: {
-                        callback: function(value) {
-                            return value.toLocaleString('es-ES') + ' €';
-                        }
-                    }
-                }
-            },
-            plugins: {
-                legend: {
-                    display: false
-                },
-                title: {
-                    display: true,
-                    text: 'Evolución del Patrimonio Neto'
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            const value = context.raw;
-                            return `${value.toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})} €`;
-                        }
-                    }
-                }
-            }
+            responsive: true, maintainAspectRatio: false,
+            scales: { y: { beginAtZero: false, ticks: { callback: function(value) { return value.toLocaleString('es-ES') + ' €'; } } } },
+            plugins: { legend: { display: false }, title: { display: true, text: 'Evolución del Patrimonio Neto' },
+                       tooltip: { callbacks: { label: function(context) { return `${context.raw.toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})} €`; } } } }
         }
     });
     {% endif %}
@@ -825,54 +834,21 @@ document.addEventListener("DOMContentLoaded", function() {
     // Gráfico de efectivo histórico
     {% if summary.charts and summary.charts.data and summary.charts.data.cash_history %}
     const cashHistoryCtx = document.getElementById('cashHistoryChart').getContext('2d');
-    
-    const cashHistoryDates = [
-        {% for date in summary.charts.data.cash_history.dates %}
-        "{{ date }}",
-        {% endfor %}
-    ];
-    
-    const cashHistoryValues = [
-        {% for value in summary.charts.data.cash_history.values_list %}
-        {{ value }},
-        {% endfor %}
-    ];
-    
+    const cashHistoryDates = [{% for date_str in summary.charts.data.cash_history.dates %}"{{ date_str }}",{% endfor %}];
+    const cashHistoryValues = [{% for value in summary.charts.data.cash_history.values_list %}{{ value }},{% endfor %}];
     new Chart(cashHistoryCtx, {
         type: 'line',
         data: {
             labels: cashHistoryDates,
             datasets: [{
-                label: 'Efectivo',
-                data: cashHistoryValues,
-                borderColor: '#17a2b8',
-                backgroundColor: 'rgba(23, 162, 184, 0.1)',
-                borderWidth: 2,
-                fill: true,
-                tension: 0.1
+                label: 'Efectivo', data: cashHistoryValues, borderColor: '#17a2b8',
+                backgroundColor: 'rgba(23, 162, 184, 0.1)', borderWidth: 2, fill: true, tension: 0.1
             }]
         },
         options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                y: {
-                    beginAtZero: false,
-                    ticks: {
-                        callback: function(value) {
-                            return value.toLocaleString('es-ES') + ' €';
-                        }
-                    }
-                }
-            },
-            plugins: {
-                legend: {
-                    display: false
-                },
-                title: {
-                    display: false
-                }
-            }
+            responsive: true, maintainAspectRatio: false,
+            scales: { y: { beginAtZero: false, ticks: { callback: function(value) { return value.toLocaleString('es-ES') + ' €'; } } } },
+            plugins: { legend: { display: false }, title: { display: false } }
         }
     });
     {% endif %}
@@ -880,54 +856,22 @@ document.addEventListener("DOMContentLoaded", function() {
     // Gráfico de gastos por categoría
     {% if summary.expenses.available and summary.expenses.data.by_category %}
     const expensesCtx = document.getElementById('expensesChart').getContext('2d');
-    
-    const expensesCategories = [
-        {% for category, amount in summary.expenses.data.by_category[:5] %}
-        "{{ category }}",
-        {% endfor %}
-    ];
-    
-    const expensesAmounts = [
-        {% for category, amount in summary.expenses.data.by_category[:5] %}
-        {{ amount }},
-        {% endfor %}
-    ];
-    
+    const expensesCategories = [{% for category, amount in summary.expenses.data.by_category[:5] %}"{{ category }}",{% endfor %}];
+    const expensesAmounts = [{% for category, amount in summary.expenses.data.by_category[:5] %}{{ amount }},{% endfor %}];
     new Chart(expensesCtx, {
         type: 'bar',
         data: {
             labels: expensesCategories,
             datasets: [{
-                label: 'Gasto por Categoría',
-                data: expensesAmounts,
-                backgroundColor: [
-                    'rgba(220, 53, 69, 0.7)',
-                    'rgba(253, 126, 20, 0.7)',
-                    'rgba(255, 193, 7, 0.7)',
-                    'rgba(40, 167, 69, 0.7)',
-                    'rgba(23, 162, 184, 0.7)'
-                ],
+                label: 'Gasto por Categoría', data: expensesAmounts,
+                backgroundColor: ['rgba(220, 53, 69, 0.7)','rgba(253, 126, 20, 0.7)','rgba(255, 193, 7, 0.7)','rgba(40, 167, 69, 0.7)','rgba(23, 162, 184, 0.7)'],
                 borderWidth: 1
             }]
         },
         options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        callback: function(value) {
-                            return value.toLocaleString('es-ES') + ' €';
-                        }
-                    }
-                }
-            },
-            plugins: {
-                legend: {
-                    display: false
-                }
-            }
+            responsive: true, maintainAspectRatio: false,
+            scales: { y: { beginAtZero: true, ticks: { callback: function(value) { return value.toLocaleString('es-ES') + ' €'; } } } },
+            plugins: { legend: { display: false } }
         }
     });
     {% endif %}
@@ -935,7 +879,6 @@ document.addEventListener("DOMContentLoaded", function() {
     // Gráfico de flujo de caja
     {% if summary.cash_flow and summary.cash_flow.available %}
     const cashFlowCtx = document.getElementById('cashFlowChart').getContext('2d');
-    
     new Chart(cashFlowCtx, {
         type: 'bar',
         data: {
@@ -948,35 +891,16 @@ document.addEventListener("DOMContentLoaded", function() {
                     {{ summary.cash_flow.data.net_cash_flow }}
                 ],
                 backgroundColor: [
-                    'rgba(40, 167, 69, 0.7)',
-                    'rgba(220, 53, 69, 0.7)',
-                    {% if summary.cash_flow.data.net_cash_flow >= 0 %}
-                    'rgba(40, 167, 69, 0.7)'
-                    {% else %}
-                    'rgba(220, 53, 69, 0.7)'
-                    {% endif %}
+                    'rgba(40, 167, 69, 0.7)', 'rgba(220, 53, 69, 0.7)',
+                    {% if summary.cash_flow.data.net_cash_flow >= 0 %}'rgba(40, 167, 69, 0.7)'{% else %}'rgba(220, 53, 69, 0.7)'{% endif %}
                 ],
                 borderWidth: 1
             }]
         },
         options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        callback: function(value) {
-                            return value.toLocaleString('es-ES') + ' €';
-                        }
-                    }
-                }
-            },
-            plugins: {
-                legend: {
-                    display: false
-                }
-            }
+            responsive: true, maintainAspectRatio: false,
+            scales: { y: { beginAtZero: true, ticks: { callback: function(value) { return value.toLocaleString('es-ES') + ' €'; } } } },
+            plugins: { legend: { display: false } }
         }
     });
     {% endif %}
