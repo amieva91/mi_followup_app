@@ -11,24 +11,23 @@
 
     <div class="card mt-4">
         <div class="card-header">
-            <h5 class="mb-0">Modificar Datos del Inmueble: {{ asset.property_name }}</h5>
+            <h5 class="mb-0">Modificar Datos del Inmueble: {{ asset.property_name if asset else "Desconocido" }}</h5>
         </div>
         <div class="card-body">
-            <form method="POST" action="{{ url_for('edit_real_estate_asset', asset_id=asset.id) }}">
+            {# El 'asset' se pasa desde app.py para pre-llenar el formulario con obj=asset #}
+            <form method="POST" action="{{ url_for('edit_real_estate_asset', asset_id=asset.id if asset else 0) }}">
                 {{ form.hidden_tag() }}
                 
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         {{ form.property_name.label(class="form-label") }}
-                        {{ form.property_name(class="form-control form-control-sm" + (" is-invalid" if form.property_name.errors else ""), value=asset.property_name if asset else form.property_name.data) }}
+                        {{ form.property_name(class="form-control form-control-sm" + (" is-invalid" if form.property_name.errors else "")) }}
                         {% for error in form.property_name.errors %}
                             <div class="invalid-feedback">{{ error }}</div>
                         {% endfor %}
                     </div>
                     <div class="col-md-6 mb-3">
                         {{ form.property_type.label(class="form-label") }}
-                        {# Para SelectField, el valor se maneja diferente en WTForms al usar obj= en el backend #}
-                        {# Simplemente renderiza el campo, WTForms debería seleccionar la opción correcta si 'obj' se usó #}
                         {{ form.property_type(class="form-select form-select-sm" + (" is-invalid" if form.property_type.errors else "")) }}
                          {% for error in form.property_type.errors %}
                             <div class="invalid-feedback">{{ error }}</div>
@@ -39,40 +38,38 @@
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         {{ form.purchase_year.label(class="form-label") }}
-                        {{ form.purchase_year(class="form-control form-control-sm" + (" is-invalid" if form.purchase_year.errors else ""), value=asset.purchase_year if asset and asset.purchase_year is not none else form.purchase_year.data) }}
+                        {{ form.purchase_year(class="form-control form-control-sm" + (" is-invalid" if form.purchase_year.errors else "")) }}
                          {% for error in form.purchase_year.errors %}
                             <div class="invalid-feedback d-block">{{ error }}</div>
                         {% endfor %}
                     </div>
                     <div class="col-md-6 mb-3">
                         {{ form.purchase_price.label(class="form-label") }}
-                        {{ form.purchase_price(class="form-control form-control-sm" + (" is-invalid" if form.purchase_price.errors else ""), value=asset.purchase_price if asset and asset.purchase_price is not none else form.purchase_price.data) }}
+                        {{ form.purchase_price(class="form-control form-control-sm" + (" is-invalid" if form.purchase_price.errors else "")) }}
                         {% for error in form.purchase_price.errors %}
                             <div class="invalid-feedback">{{ error }}</div>
                         {% endfor %}
                     </div>
                 </div>
                 
-                {# Si has decidido mantener la funcionalidad de alquiler en el modelo y formulario #}
-                {# Si no, elimina esta sección completa #}
+                {# Si has eliminado is_rental y rental_income_monthly de RealEstateAssetForm, esta sección no se renderizará #}
                 {% if 'is_rental' in form and 'rental_income_monthly' in form %}
                 <hr>
-                <h6>Información de Alquiler</h6>
+                <h6>Información de Alquiler (si aplica)</h6>
                 <div class="form-check mb-3">
-                    {{ form.is_rental(class="form-check-input") }} {# WTForms maneja el 'checked' con obj= #}
+                    {{ form.is_rental(class="form-check-input") }}
                     {{ form.is_rental.label(class="form-check-label") }}
                 </div>
-                <div id="rental_details_edit" style="display: {% if form.is_rental.data %}block{% else %}none{% endif %};">
+                <div id="rental_details_edit_form" style="display: {% if form.is_rental.data %}block{% else %}none{% endif %};">
                     <div class="mb-3">
                         {{ form.rental_income_monthly.label(class="form-label") }}
-                        {{ form.rental_income_monthly(class="form-control form-control-sm" + (" is-invalid" if form.rental_income_monthly.errors else ""), value=asset.rental_income_monthly if asset and asset.rental_income_monthly is not none else form.rental_income_monthly.data) }}
+                        {{ form.rental_income_monthly(class="form-control form-control-sm" + (" is-invalid" if form.rental_income_monthly.errors else "")) }}
                         {% for error in form.rental_income_monthly.errors %}
                             <div class="invalid-feedback">{{ error }}</div>
                         {% endfor %}
                     </div>
                 </div>
                 {% endif %}
-                {# Fin de la sección de alquiler opcional #}
 
                 <div class="mt-4">
                     {{ form.submit_asset(value="Actualizar Inmueble", class="btn btn-primary btn-sm") }}
@@ -88,18 +85,16 @@
 {{ super() }}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Script para mostrar/ocultar detalles de alquiler si el campo existe
+        // Script para mostrar/ocultar detalles de alquiler si el campo existe en el formulario de EDICIÓN
         const isRentalCheckboxEdit = document.getElementById('is_rental'); // ID generado por WTForms para form.is_rental
-        const rentalDetailsDivEdit = document.getElementById('rental_details_edit');
+        const rentalDetailsDivEdit = document.getElementById('rental_details_edit_form'); // ID único para esta página
 
         if (isRentalCheckboxEdit && rentalDetailsDivEdit) {
             function toggleRentalDetailsEdit() {
                 rentalDetailsDivEdit.style.display = isRentalCheckboxEdit.checked ? 'block' : 'none';
             }
             // El estado inicial se establece mediante el 'checked' del checkbox
-            // y el 'display' inicial del div, ambos manejados por WTForms y Jinja
-            // al popular el formulario con `obj=asset_to_edit`.
-            // Por si acaso, lo llamamos al cargar:
+            // que WTForms define cuando se instancia el formulario con obj=asset_to_edit.
             toggleRentalDetailsEdit(); 
             isRentalCheckboxEdit.addEventListener('change', toggleRentalDetailsEdit);
         }

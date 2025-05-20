@@ -112,10 +112,6 @@
                             <li><a class="dropdown-item {% if request.endpoint == 'pension_plans' %}active{% endif %}" href="{{ url_for('pension_plans') }}"><i class="bi bi-shield-lock-fill"></i> Plan de Pensiones</a></li>
                         </ul>
                     </li>
-                    
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'generate_financial_report' %}active{% endif %}" href="{{ url_for('generate_financial_report') }}"><i class="bi bi-file-earmark-text-fill"></i> Informe</a>
-                    </li>
                 {% endif %} {# Fin del else para if current_user.username == 'admin' y es admin principal #}
             {% endif %} {# Fin del if current_user.is_authenticated #}
           </ul>

@@ -12,10 +12,10 @@
             font-size: 0.7rem;
         }
         .card-header h5 button i.bi-chevron-right,
-        .card-header h5 button i.bi-chevron-down { /* Selector más específico */
+        .card-header h5 button i.bi-chevron-down {
             transition: transform 0.2s ease-in-out;
         }
-        .card-header h5 button[aria-expanded="true"] i.bi-chevron-right, /* Cambia el icono cuando está expandido */
+        .card-header h5 button[aria-expanded="true"] i.bi-chevron-right, /* Corregido selector */
         .card-header h5 button[aria-expanded="true"] i.bi-chevron-down {
             transform: rotate(90deg);
         }
@@ -56,13 +56,13 @@
                     <h5 class="mb-0">
                         <button class="btn btn-link text-decoration-none text-dark p-0 w-100 text-start d-flex justify-content-between align-items-center" type="button" data-bs-toggle="collapse" data-bs-target="#addAssetCollapse" aria-expanded="false" aria-controls="addAssetCollapse">
                             Añadir Nuevo Inmueble
-                            <i class="bi bi-chevron-right"></i>
+                            <i class="bi bi-chevron-right"></i> {# El JS se encargará de cambiarlo a down #}
                         </button>
                     </h5>
                 </div>
                 <div id="addAssetCollapse" class="collapse {% if asset_form.errors %}show{% endif %}" aria-labelledby="headingAddAsset">
                     <div class="card-body">
-                        <form method="POST" action="{{ url_for('real_estate') }}">
+                        <form method="POST" action="{{ url_for('real_estate') }}"> {# Asume que 'real_estate' maneja el POST para crear #}
                             {{ asset_form.hidden_tag() }}
                             <div class="mb-3">
                                 {{ asset_form.property_name.label(class="form-label") }}
@@ -86,20 +86,6 @@
                                     {% for error in asset_form.purchase_price.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                                 </div>
                             </div>
-                            {# Si decides reincorporar la gestión de alquileres, aquí iría el checkbox y el campo de ingresos #}
-                            {#
-                            <div class="form-check mb-3">
-                                {{ asset_form.is_rental(class="form-check-input") }}
-                                {{ asset_form.is_rental.label(class="form-check-label") }}
-                            </div>
-                            <div id="rental_details_add_form" style="display: {% if asset_form.is_rental.data %}block{% else %}none{% endif %};">
-                                <div class="mb-3">
-                                    {{ asset_form.rental_income_monthly.label(class="form-label") }}
-                                    {{ asset_form.rental_income_monthly(class="form-control form-control-sm" + (" is-invalid" if asset_form.rental_income_monthly.errors else "")) }}
-                                    {% for error in asset_form.rental_income_monthly.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                                </div>
-                            </div>
-                            #}
                             {{ asset_form.submit_asset(class="btn btn-primary btn-sm") }}
                         </form>
                     </div>
@@ -129,6 +115,11 @@
                                 {{ valuation_form.market_value.label(class="form-label") }}
                                 {{ valuation_form.market_value(class="form-control form-control-sm" + (" is-invalid" if valuation_form.market_value.errors else ""), **valuation_form.market_value.render_kw) }}
                                 {% for error in valuation_form.market_value.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                                <div class="mt-1">
+                                    <a href="https://www.idealista.com/valoracion-de-inmuebles/" target="_blank" rel="noopener noreferrer" class="text-primary small"> {# Cambiado a la URL principal de valoración #}
+                                        <i class="bi bi-box-arrow-up-right"></i> Obtener valor de Mercado (Idealista)
+                                    </a>
+                                </div>
                             </div>
                         </div>
                         {{ valuation_form.submit_valuation(class="btn btn-success btn-sm", **valuation_form.submit_valuation.render_kw) }}
@@ -162,7 +153,6 @@
                                     {% for asset_detail in assets_details %}
                                     <tr>
                                         <td>
-                                            {# Usar el icon_class_map pasado desde app.py #}
                                             <i class="bi {{ icon_class_map.get(asset_detail.property_type, 'bi-question-circle-fill') }} me-2" title="{{ asset_detail.property_type if asset_detail.property_type else 'Inmueble' }}"></i>
                                             {{ asset_detail.display_name }}
                                             <small class="d-block text-muted">{{ asset_detail.purchase_info }}</small>
@@ -225,7 +215,7 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {% for val in asset_detail.valuations %}
+                                        {% for val in asset_detail.valuations %} {# Asume que app.py pasa 'valuations' ordenado más reciente primero #}
                                         <tr>
                                             <td>{{ val.year }}</td>
                                             <td class="text-end">{{ val.value|round(2) }}</td>
@@ -257,16 +247,15 @@
         </div>
     </div>
 </div>
-
 {% endblock %}
 
 {% block scripts %}
 {{ super() }}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Script para el formulario de añadir inmueble (colapsable)
         const addAssetCollapseElement = document.getElementById('addAssetCollapse');
-        const addAssetButtonIcon = document.querySelector('button[data-bs-target="#addAssetCollapse"] i'); // Selecciona el icono dentro del botón
+        // Selector más robusto para el icono
+        const addAssetButtonIcon = document.querySelector('button[data-bs-target="#addAssetCollapse"] > i.bi');
 
         if (addAssetCollapseElement && addAssetButtonIcon) {
             addAssetCollapseElement.addEventListener('show.bs.collapse', function () {
@@ -277,23 +266,12 @@
                 addAssetButtonIcon.classList.remove('bi-chevron-down');
                 addAssetButtonIcon.classList.add('bi-chevron-right');
             });
-            // Si el formulario tiene errores y se muestra por defecto, ajustamos el icono
+            // Estado inicial del icono si el collapse está abierto por defecto (ej. por errores de form)
             if (addAssetCollapseElement.classList.contains('show')) {
                  addAssetButtonIcon.classList.remove('bi-chevron-right');
                  addAssetButtonIcon.classList.add('bi-chevron-down');
             }
         }
-
-        // Si vuelves a añadir la gestión de alquileres, el script para ello iría aquí.
-        // const isRentalCheckboxAdd = document.getElementById('is_rental'); 
-        // const rentalDetailsDivAdd = document.getElementById('rental_details_add_form');
-        // if (isRentalCheckboxAdd && rentalDetailsDivAdd) {
-        //     function toggleRentalDetailsAdd() {
-        //         rentalDetailsDivAdd.style.display = isRentalCheckboxAdd.checked ? 'block' : 'none';
-        //     }
-        //     toggleRentalDetailsAdd(); 
-        //     isRentalCheckboxAdd.addEventListener('change', toggleRentalDetailsAdd);
-        // }
     });
 </script>
-{% endblock %}
+{% endblock scripts %}

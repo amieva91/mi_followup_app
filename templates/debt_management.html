@@ -1,19 +1,17 @@
 {% extends "base.html" %}
 
 {% block content %}
-{% set today = now.date() %}
+{% set today = now.date() %} {# Asegúrate de pasar 'now=datetime.now()' desde app.py #}
 <div class="container">
     <h1 class="mt-4">Gestión de Deudas</h1>
-    <p>Aquí puedes definir tu techo de deuda y registrar tus planes de pago. Los pagos se efectúan el día 1 de cada mes.</p>
+    <p>Aquí puedes definir tu techo de deuda y registrar tus planes de pago. Los pagos se asociarán a una categoría de gasto.</p>
     
-    <!-- Resumen de la Situación Actual -->
     <div class="card mb-4">
         <div class="card-header bg-primary text-white">
             <h5 class="mb-0">Resumen de Situación Actual</h5>
         </div>
         <div class="card-body">
             <div class="row">
-                <!-- Deuda Total Pendiente -->
                 <div class="col-md-3">
                     <div class="card h-100">
                         <div class="card-body text-center">
@@ -22,42 +20,36 @@
                         </div>
                     </div>
                 </div>
-                
-                <!-- Pago Mensual Actual -->
                 <div class="col-md-3">
                     <div class="card h-100">
                         <div class="card-body text-center">
                             <h6>Pago Este Mes</h6>
                             <h3 class="text-danger">{{ current_month_payment|round(2) }} €</h3>
-                            <small class="text-muted">{{ current_month.strftime('%m/%Y') }}</small>
+                            <small class="text-muted">{{ current_month.strftime('%m/%Y') if current_month else 'N/A' }}</small>
                         </div>
                     </div>
                 </div>
-                
-                <!-- Pago Próximo Mes -->
                 <div class="col-md-3">
                     <div class="card h-100">
                         <div class="card-body text-center">
                             <h6>Pago Próximo Mes</h6>
                             <h3 class="text-warning">{{ next_month_payment|round(2) }} €</h3>
-                            <small class="text-muted">{{ next_month.strftime('%m/%Y') }}</small>
+                            <small class="text-muted">{{ next_month.strftime('%m/%Y') if next_month else 'N/A' }}</small>
                         </div>
                     </div>
                 </div>
-                
-                <!-- Porcentaje de Techo de Deuda -->
                 <div class="col-md-3">
                     <div class="card h-100">
                         <div class="card-body text-center">
                             <h6>Uso del Techo</h6>
-                            {% if debt_percentage is not none %}
+                            {% if debt_percentage is not none and debt_percentage is not defined or debt_percentage is not none %}
                                 <h3 class="{% if debt_percentage >= 90 %}text-danger{% elif debt_percentage >= 75 %}text-warning{% else %}text-success{% endif %}">
                                     {{ debt_percentage|round(2) }}%
                                 </h3>
                                 <small class="text-muted">Margen: {{ debt_margin|round(2) }} €</small>
                             {% else %}
                                 <h3 class="text-muted">N/A</h3>
-                                <small class="text-muted">Techo no definido</small>
+                                <small class="text-muted">Techo no definido o sin salario</small>
                             {% endif %}
                         </div>
                     </div>
@@ -67,9 +59,7 @@
     </div>
     
     <div class="row mt-4">
-        <!-- Columna izquierda: Formularios -->
         <div class="col-md-4">
-            <!-- Formulario de techo de deuda -->
             <div class="card mb-4">
                 <div class="card-header">
                     <h5>Definir Techo de Deuda</h5>
@@ -80,7 +70,8 @@
                         <input type="hidden" name="update_ceiling" value="1">
                         <div class="mb-3">
                             {{ ceiling_form.percentage.label(class="form-label") }}
-                            {{ ceiling_form.percentage(class="form-control") }}
+                            {{ ceiling_form.percentage(class="form-control" + (" is-invalid" if ceiling_form.percentage.errors else "")) }}
+                            {% for error in ceiling_form.percentage.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                             <div class="form-text">Este porcentaje se calcula sobre tu salario mensual neto.</div>
                         </div>
                         
@@ -89,13 +80,13 @@
                                 <strong>Salario Mensual Neto:</strong> {{ monthly_salary|round(2) }} €
                                 {% if ceiling_amount %}
                                     <p class="mb-0 mt-2">
-                                        <strong>Techo de Deuda Actual ({{ debt_ceiling.percentage }}%):</strong> {{ ceiling_amount|round(2) }} €
+                                        <strong>Techo de Deuda Actual ({{ debt_ceiling.percentage if debt_ceiling else 'N/A' }}%):</strong> {{ ceiling_amount|round(2) }} €
                                     </p>
                                 {% endif %}
                             </div>
                         {% else %}
                             <div class="alert alert-warning">
-                                No has definido tu salario neto. Ve a la sección "Ingresos Fijos" para definirlo.
+                                No has definido tu salario neto. Ve a la sección "Salario" para definirlo y poder calcular tu techo de deuda.
                             </div>
                         {% endif %}
                         
@@ -113,42 +104,55 @@
                 </div>
             </div>
             
-            <!-- Formulario para añadir plan de pago -->
             <div class="card">
                 <div class="card-header">
                     <h5>Añadir Plan de Pago</h5>
                 </div>
                 <div class="card-body">
-                    <form method="POST" action="{{ url_for('debt_management') }}">
+                    <form method="POST" action="{{ url_for('debt_management') }}" id="addDebtPlanForm">
                         {{ plan_form.hidden_tag() }}
+                        <input type="hidden" name="add_plan" value="1">
+
+                        <div class="mb-3">
+                            {{ plan_form.category_id.label(class="form-label") }}
+                            <div class="input-group">
+                                {{ plan_form.category_id(class="form-select" + (" is-invalid" if plan_form.category_id.errors else "")) }}
+                                <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#addCategoryModal" title="Añadir Nueva Categoría">
+                                    <i class="bi bi-plus-lg"></i>
+                                </button>
+                            </div>
+                            {% for error in plan_form.category_id.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        </div>
+
                         <div class="mb-3">
                             {{ plan_form.description.label(class="form-label") }}
-                            {{ plan_form.description(class="form-control") }}
+                            {{ plan_form.description(class="form-control" + (" is-invalid" if plan_form.description.errors else "")) }}
+                             {% for error in plan_form.description.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                         </div>
                         <div class="mb-3">
                             {{ plan_form.total_amount.label(class="form-label") }}
-                            {{ plan_form.total_amount(class="form-control") }}
+                            {{ plan_form.total_amount(class="form-control" + (" is-invalid" if plan_form.total_amount.errors else "")) }}
+                             {% for error in plan_form.total_amount.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                         </div>
                         <div class="mb-3">
                             {{ plan_form.start_date.label(class="form-label") }}
-                            {{ plan_form.start_date(class="form-control") }}
+                            {{ plan_form.start_date(class="form-control" + (" is-invalid" if plan_form.start_date.errors else ""), type="month") }}
                             <div class="form-text">Primer mes en que se realizará el pago. El pago se efectúa el día 1 de cada mes.</div>
+                             {% for error in plan_form.start_date.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                         </div>
                         <div class="mb-3">
                             {{ plan_form.duration_months.label(class="form-label") }}
-                            {{ plan_form.duration_months(class="form-control") }}
+                            {{ plan_form.duration_months(class="form-control" + (" is-invalid" if plan_form.duration_months.errors else ""), type="number", min="1") }}
                             <div class="form-text">Número de meses en que se pagará la deuda.</div>
+                             {% for error in plan_form.duration_months.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                         </div>
-                        <input type="hidden" name="add_plan" value="1">
                         {{ plan_form.submit(class="btn btn-primary") }}
                     </form>
                 </div>
             </div>
         </div>
         
-        <!-- Columna derecha: Planes activos e histórico -->
         <div class="col-md-8">
-            <!-- Planes de Pago Activos -->
             <div class="card mb-4">
                 <div class="card-header bg-success text-white">
                     <h5 class="mb-0">Planes de Pago Activos</h5>
@@ -160,6 +164,7 @@
                                 <thead class="table-dark">
                                     <tr>
                                         <th>Descripción</th>
+                                        <th>Categoría Gasto</th>
                                         <th class="text-end">Cuota Mensual</th>
                                         <th class="text-end">Cuotas Restantes</th>
                                         <th class="text-end">Pendiente (€)</th>
@@ -169,21 +174,15 @@
                                 </thead>
                                 <tbody>
                                     {% for plan in active_debt_plans %}
-                                    {% if not (plan.id in plan_end_dates and plan_end_dates[plan.id] < today) %}
                                     <tr>
                                         <td>
                                             {{ plan.description }}
                                             <small class="d-block text-muted">
                                                 Inicio: {{ plan.start_date.strftime('%m/%Y') }} | 
-                                                Fin: {% set end_month = plan.start_date.month + plan.duration_months - 1 %}
-                                                     {% set end_year = plan.start_date.year %}
-                                                     {% if end_month > 12 %}
-                                                         {% set end_year = end_year + ((end_month - 1) // 12) %}
-                                                         {% set end_month = ((end_month - 1) % 12) + 1 %}
-                                                     {% endif %}
-                                                     {{ "%02d/%d"|format(end_month, end_year) }}
+                                                Fin: {{ plan_end_dates[plan.id].strftime('%m/%Y') if plan.id in plan_end_dates and plan_end_dates[plan.id] else 'N/A' }}
                                             </small>
                                         </td>
+                                        <td>{{ plan.category.name if plan.category else 'N/A' }}</td>
                                         <td class="text-end">{{ plan.monthly_payment|round(2) }} €</td>
                                         <td class="text-end">{{ plan.remaining_installments }}</td>
                                         <td class="text-end">{{ plan.remaining_amount|round(2) }} €</td>
@@ -198,38 +197,27 @@
                                             </div>
                                         </td>
                                         <td class="text-center">
+                                            {# --- BOTONES DE ACCIÓN RESTAURADOS --- #}
                                             <div class="btn-group">
-                                                <!-- Botón para Renegociar Deuda -->
                                                 <button type="button" class="btn btn-primary btn-sm" title="Renegociar deuda" 
                                                         data-bs-toggle="modal" data-bs-target="#renegociateModal{{ plan.id }}">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pencil-square" viewBox="0 0 16 16">
-                                                        <path d="M15.502 1.94a.5.5 0 0 1 0 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 0 1 .707 0l1.293 1.293zm-1.75 2.456-2-2L4.939 9.21a.5.5 0 0 0-.121.196l-.805 2.414a.25.25 0 0 0 .316.316l2.414-.805a.5.5 0 0 0 .196-.12l6.813-6.814z"/>
-                                                        <path fill-rule="evenodd" d="M1 13.5A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-6a.5.5 0 0 0-1 0v6a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5H9a.5.5 0 0 0 0-1H2.5A1.5 1.5 0 0 0 1 2.5v11z"/>
-                                                    </svg>
+                                                    <i class="bi bi-pencil-square"></i>
                                                 </button>
                                                 
-                                                <!-- Botón para Liquidar Deuda -->
                                                 <form method="POST" action="{{ url_for('toggle_debt_plan', plan_id=plan.id) }}" class="d-inline">
                                                     <button type="submit" class="btn btn-success btn-sm" title="Liquidar deuda">
-                                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-check-circle" viewBox="0 0 16 16">
-                                                            <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
-                                                            <path d="M10.97 4.97a.235.235 0 0 0-.02.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-1.071-1.05z"/>
-                                                        </svg>
+                                                        <i class="bi bi-check-circle"></i>
                                                     </button>
                                                 </form>
                                                 
-                                                <!-- Botón para Eliminar Plan -->
                                                 <form method="POST" action="{{ url_for('delete_debt_plan', plan_id=plan.id) }}" class="d-inline" onsubmit="return confirm('¿Estás seguro de que deseas eliminar este plan de pago?');">
                                                     <button type="submit" class="btn btn-danger btn-sm" title="Eliminar plan">
-                                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
-                                                            <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-                                                            <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
-                                                        </svg>
+                                                        <i class="bi bi-trash"></i>
                                                     </button>
                                                 </form>
                                             </div>
                                             
-                                            <!-- Modal para renegociar deuda -->
+                                            {# --- MODAL DE RENEGOCIACIÓN RESTAURADO --- #}
                                             <div class="modal fade" id="renegociateModal{{ plan.id }}" tabindex="-1" aria-labelledby="renegociateModalLabel{{ plan.id }}" aria-hidden="true">
                                                 <div class="modal-dialog">
                                                     <div class="modal-content">
@@ -240,12 +228,12 @@
                                                         <div class="modal-body">
                                                             <form id="renegociateForm{{ plan.id }}" method="POST" action="{{ url_for('renegociate_debt_plan', plan_id=plan.id) }}">
                                                                 <div class="mb-3">
-                                                                    <label for="newDuration{{ plan.id }}" class="form-label">Nuevo número de meses</label>
-                                                                    <input type="number" class="form-control" id="newDuration{{ plan.id }}" name="new_duration_months" min="1" value="{{ plan.duration_months }}">
+                                                                    <label for="newDuration{{ plan.id }}" class="form-label">Nuevo número de meses desde ahora</label>
+                                                                    <input type="number" class="form-control" id="newDuration{{ plan.id }}" name="new_duration_months" min="1" value="{{ plan.remaining_installments if plan.remaining_installments > 0 else 1 }}">
                                                                 </div>
                                                                 <div class="mb-3">
-                                                                    <p>Monto pendiente: {{ plan.remaining_amount|round(2) }} €</p>
-                                                                    <p id="newMonthlyPayment{{ plan.id }}">Nueva cuota mensual: {{ (plan.remaining_amount / plan.duration_months)|round(2) }} €</p>
+                                                                    <p>Monto pendiente: <strong id="remainingAmount{{plan.id}}">{{ plan.remaining_amount|round(2) }}</strong> €</p>
+                                                                    <p>Nueva cuota mensual estimada: <strong id="newMonthlyPaymentText{{plan.id}}"></strong> €</p>
                                                                 </div>
                                                             </form>
                                                         </div>
@@ -258,31 +246,28 @@
                                             </div>
                                         </td>
                                     </tr>
-                                    {% endif %}
                                     {% endfor %}
                                 </tbody>
                             </table>
                         </div>
                     {% else %}
-                        <div class="alert alert-info">
-                            No tienes planes de pago activos. Utiliza el formulario para añadir tu primer plan.
-                        </div>
+                        <div class="alert alert-info">No tienes planes de pago activos.</div>
                     {% endif %}
                 </div>
             </div>
             
-            <!-- Histórico de Todos los Planes -->
             <div class="card">
                 <div class="card-header bg-secondary text-white">
                     <h5 class="mb-0">Histórico de Planes de Pago</h5>
                 </div>
                 <div class="card-body">
-                    {% if all_debt_plans %}
+                     {% if all_debt_plans %}
                         <div class="table-responsive">
                             <table class="table table-striped table-bordered table-hover">
                                 <thead class="table-dark">
                                     <tr>
                                         <th>Descripción</th>
+                                        <th>Categoría Gasto</th>
                                         <th class="text-end">Cantidad Total</th>
                                         <th class="text-end">Cuota Mensual</th>
                                         <th>Periodo</th>
@@ -291,38 +276,29 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {% for plan in all_debt_plans|sort(attribute='end_date', reverse=True) %}
-                                    <tr {% if not plan.is_active %}class="table-secondary"{% endif %}>
+                                    {% for plan in all_debt_plans %}
+                                    <tr {% if not plan.is_active %}class="table-secondary text-muted"{% endif %}>
                                         <td>{{ plan.description }}</td>
+                                        <td>{{ plan.category.name if plan.category else 'N/A' }}</td>
                                         <td class="text-end">{{ plan.total_amount|round(2) }} €</td>
                                         <td class="text-end">{{ plan.monthly_payment|round(2) }} €</td>
                                         <td>
                                             {{ plan.start_date.strftime('%m/%Y') }} - 
-                                            {% set end_month = plan.start_date.month + plan.duration_months - 1 %}
-                                            {% set end_year = plan.start_date.year %}
-                                            {% if end_month > 12 %}
-                                                {% set end_year = end_year + ((end_month - 1) // 12) %}
-                                                {% set end_month = ((end_month - 1) % 12) + 1 %}
-                                            {% endif %}
-                                            {{ "%02d/%d"|format(end_month, end_year) }}
-                                            <small class="d-block text-muted">
-                                                {{ plan.duration_months }} meses
-                                            </small>
+                                            {{ plan_end_dates[plan.id].strftime('%m/%Y') if plan.id in plan_end_dates and plan_end_dates[plan.id] else 'N/A' }}
+                                            <small class="d-block">{{ plan.duration_months }} meses</small>
                                         </td>
                                         <td>
-                                            {% if plan.is_active and plan.id in plan_end_dates and plan_end_dates[plan.id] >= today %}
+                                            {% if plan.is_active %}
                                                 <span class="badge bg-success">Activo</span>
                                             {% else %}
-                                                <span class="badge bg-secondary">Inactivo</span>
+                                                <span class="badge bg-secondary">Inactivo/Liquidado</span>
                                             {% endif %}
                                         </td>
                                         <td class="text-center">
-                                            <form method="POST" action="{{ url_for('delete_debt_plan', plan_id=plan.id) }}" class="d-inline" onsubmit="return confirm('¿Estás seguro de que deseas eliminar este plan de pago del historial?');">
+                                            {# --- BOTÓN DE ACCIÓN RESTAURADO --- #}
+                                            <form method="POST" action="{{ url_for('delete_debt_plan', plan_id=plan.id) }}" class="d-inline" onsubmit="return confirm('¿Estás seguro de que deseas eliminar este plan de pago del historial? (Esta acción no se puede deshacer)');">
                                                 <button type="submit" class="btn btn-danger btn-sm" title="Eliminar del historial">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
-                                                        <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-                                                        <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
-                                                    </svg>
+                                                    <i class="bi bi-trash"></i>
                                                 </button>
                                             </form>
                                         </td>
@@ -332,80 +308,142 @@
                             </table>
                         </div>
                     {% else %}
-                        <div class="alert alert-secondary">
-                            No hay registros históricos de planes de pago. Utiliza el formulario para añadir tu primer plan.
-                        </div>
+                        <div class="alert alert-secondary">No hay registros históricos de planes de pago.</div>
                     {% endif %}
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="addCategoryModal" tabindex="-1" aria-labelledby="addCategoryModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="addCategoryModalLabel">Crear Nueva Categoría de Gasto</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="modalCategoryCreateForm"> 
+            {{ modal_category_form.hidden_tag() if modal_category_form else ''}}
+            <div class="mb-3">
+                {{ modal_category_form.name.label(class="form-label") }}
+                {{ modal_category_form.name(class="form-control", id="modal_cat_name") }}
+                <div class="invalid-feedback" id="modal_cat_name_error"></div>
+            </div>
+            <div class="mb-3">
+                {{ modal_category_form.description.label(class="form-label") }}
+                {{ modal_category_form.description(class="form-control", id="modal_cat_description") }}
+            </div>
+            <div class="mb-3">
+                {{ modal_category_form.parent_id.label(class="form-label") }}
+                {{ modal_category_form.parent_id(class="form-select", id="modal_cat_parent_id") }}
+                <div class="form-text">Selecciona una categoría padre para crear una subcategoría.</div>
+            </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="submitModalCategory">Crear Categoría</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 {% endblock content %}
 
 {% block scripts %}
+{{ super() }} 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Configurar el selector de mes/año con la fecha actual
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = (today.getMonth() + 1).toString().padStart(2, '0');
-    
-    const dateInput = document.getElementById('start_date');
-    if (dateInput) {
-        dateInput.value = `${year}-${month}`;
-    }
-    
-    // Calcular y mostrar pago mensual al completar formulario
-    const totalAmountInput = document.getElementById('total_amount');
-    const durationInput = document.getElementById('duration_months');
-    
-    function calculateMonthlyPayment() {
-        const totalAmount = parseFloat(totalAmountInput.value.replace(',', '.')) || 0;
-        const duration = parseInt(durationInput.value) || 1;
-        
-        if (totalAmount > 0 && duration > 0) {
-            const monthlyPayment = totalAmount / duration;
+    // Lógica para el modal de añadir categoría (sin cambios)
+    const addCategoryModal = document.getElementById('addCategoryModal');
+    const submitModalCategoryButton = document.getElementById('submitModalCategory');
+    const debtPlanCategorySelect = document.getElementById('category_id'); 
+
+    if (submitModalCategoryButton && addCategoryModal && debtPlanCategorySelect) {
+        submitModalCategoryButton.addEventListener('click', function() {
+            const form = document.getElementById('modalCategoryCreateForm');
+            const formData = new FormData(form);
             
-            // Mostrar el resultado en algún lugar
-            const resultElement = document.getElementById('monthly_payment_result');
-            if (resultElement) {
-                resultElement.textContent = `Pago mensual: ${monthlyPayment.toFixed(2)}€`;
-                resultElement.style.display = 'block';
-            }
-        }
-    }
-    
-    if (totalAmountInput && durationInput) {
-        totalAmountInput.addEventListener('input', calculateMonthlyPayment);
-        durationInput.addEventListener('input', calculateMonthlyPayment);
-        
-        // Añadir un elemento para mostrar el resultado si no existe
-        if (!document.getElementById('monthly_payment_result')) {
-            const resultElement = document.createElement('div');
-            resultElement.id = 'monthly_payment_result';
-            resultElement.className = 'alert alert-info mt-2';
-            resultElement.style.display = 'none';
-            durationInput.parentNode.appendChild(resultElement);
-        }
-    }
-    
-    // Actualizar cuota mensual en modales de renegociación
-    {% for plan in active_debt_plans %}
-    const newDurationInput{{ plan.id }} = document.getElementById('newDuration{{ plan.id }}');
-    if (newDurationInput{{ plan.id }}) {
-        newDurationInput{{ plan.id }}.addEventListener('input', function() {
-            const remainingAmount = {{ plan.remaining_amount }};
-            const newDuration = parseInt(this.value) || 1;
-            const newMonthlyPayment = remainingAmount / newDuration;
-            
-            const paymentElement = document.getElementById('newMonthlyPayment{{ plan.id }}');
-            if (paymentElement) {
-                paymentElement.textContent = `Nueva cuota mensual: ${newMonthlyPayment.toFixed(2)} €`;
-            }
+            document.getElementById('modal_cat_name_error').textContent = '';
+            document.getElementById('modal_cat_name').classList.remove('is-invalid');
+
+            fetch("{{ url_for('add_expense_category_ajax') }}", {
+                method: 'POST',
+                body: formData,
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    var modal = bootstrap.Modal.getInstance(addCategoryModal);
+                    modal.hide();
+                    form.reset();
+                    debtPlanCategorySelect.innerHTML = '<option value="0">- Selecciona una Categoría -</option>';
+                    data.categories.forEach(function(category) {
+                        var option = new Option(category.name, category.id);
+                        debtPlanCategorySelect.add(option);
+                    });
+                    debtPlanCategorySelect.value = data.new_category_id;
+                    // Podrías usar un sistema de notificaciones flash más elegante aquí
+                    // en lugar de un simple alert, pero por ahora:
+                    const flashContainer = document.querySelector('.container > .row:first-child > .col-md-12'); // Asumiendo que aquí van los flashes
+                    if (flashContainer) {
+                        const alertDiv = document.createElement('div');
+                        alertDiv.className = 'alert alert-success alert-dismissible fade show mt-3';
+                        alertDiv.setAttribute('role', 'alert');
+                        alertDiv.innerHTML = `${data.message} <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>`;
+                        flashContainer.prepend(alertDiv);
+                    } else {
+                         alert(data.message);
+                    }
+                } else {
+                    if (data.errors && data.errors.name) {
+                        document.getElementById('modal_cat_name').classList.add('is-invalid');
+                        document.getElementById('modal_cat_name_error').textContent = data.errors.name;
+                    } else {
+                        alert(data.message || 'Error desconocido.');
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error en AJAX:', error);
+                alert('Error de conexión al intentar crear la categoría.');
+            });
         });
     }
-    {% endfor %}
+    
+    // Script para el selector de mes/año en el formulario principal
+    const dateInput = document.getElementById('start_date'); // ID del campo start_date en plan_form
+    if (dateInput && !dateInput.value) { // Solo si está vacío para no sobrescribir en caso de error de validación
+        const todayForDate = new Date();
+        const yearForDate = todayForDate.getFullYear();
+        const monthForDate = (todayForDate.getMonth() + 1).toString().padStart(2, '0');
+        dateInput.value = `${yearForDate}-${monthForDate}`;
+    }
+
+    // --- NUEVO JAVASCRIPT PARA MODALES DE RENEGOCIACIÓN ---
+    document.querySelectorAll('[id^=renegociateModal]').forEach(modalElement => {
+        const newDurationInput = modalElement.querySelector('[id^=newDuration]');
+        const remainingAmountText = modalElement.querySelector('[id^=remainingAmount]');
+        const newMonthlyPaymentText = modalElement.querySelector('[id^=newMonthlyPaymentText]');
+
+        if (newDurationInput && remainingAmountText && newMonthlyPaymentText) {
+            function updateEstimatedPayment() {
+                const remainingAmount = parseFloat(remainingAmountText.textContent.replace('€', '').replace(',', '.').trim());
+                const newDuration = parseInt(newDurationInput.value);
+
+                if (!isNaN(remainingAmount) && !isNaN(newDuration) && newDuration > 0) {
+                    const newPayment = remainingAmount / newDuration;
+                    newMonthlyPaymentText.textContent = newPayment.toFixed(2);
+                } else {
+                    newMonthlyPaymentText.textContent = '0.00';
+                }
+            }
+            newDurationInput.addEventListener('input', updateEstimatedPayment);
+            updateEstimatedPayment(); // Calcular al abrir el modal
+        }
+    });
 });
 </script>
 {% endblock scripts %}
