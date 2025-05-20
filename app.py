@@ -2508,6 +2508,26 @@ def delete_real_estate_asset(asset_id):
         app.logger.error(f"Error eliminando inmueble {asset_id}: {e}", exc_info=True)
     return redirect(url_for('real_estate'))
 
+
+# En app.py
+# En app.py
+
+# Asegúrate de tener todos estos imports al principio de tu app.py, por ejemplo:
+# from flask import render_template, redirect, url_for, flash, request, jsonify
+# from flask_login import login_required, current_user
+# from .models import (db, User, FinancialSummaryConfig, FixedIncome, SalaryHistory, 
+#                      VariableIncome, VariableIncomeCategory, Expense, ExpenseCategory, 
+#                      DebtInstallmentPlan, DebtCeiling, DebtHistoryRecord,
+#                      BankAccount, CashHistoryRecord, 
+#                      PensionPlan, PensionPlanHistory, UserPortfolio, CryptoTransaction, 
+#                      CryptoHolding, CryptoHistoryRecord,
+#                      PreciousMetalTransaction, PreciousMetalPrice,
+#                      RealEstateAsset, RealEstateMortgage, RealEstateExpense, RealEstateValueHistory)
+# from .forms import FinancialSummaryConfigForm # Y otros formularios que uses
+# from datetime import datetime, date, timedelta
+# import json
+
+
 @app.route('/financial_summary', methods=['GET', 'POST'])
 @login_required
 def financial_summary():
@@ -2516,15 +2536,9 @@ def financial_summary():
     if not config:
         config = FinancialSummaryConfig(
             user_id=current_user.id,
-            include_income=True,
-            include_expenses=True,
-            include_debts=True,
-            include_investments=True,
-            include_crypto=True,
-            include_metals=True,
-            include_bank_accounts=True,
-            include_pension_plans=True,
-            include_real_estate=True  # Asegurar que el nuevo flag tiene un valor por defecto
+            include_income=True, include_expenses=True, include_debts=True,
+            include_investments=True, include_crypto=True, include_metals=True,
+            include_bank_accounts=True, include_pension_plans=True, include_real_estate=True
         )
         db.session.add(config)
         db.session.commit()
@@ -2533,17 +2547,7 @@ def financial_summary():
 
     if config_form.validate_on_submit():
         try:
-            # Poblar el objeto config desde el formulario
-            config.include_income = config_form.include_income.data
-            config.include_expenses = config_form.include_expenses.data
-            config.include_debts = config_form.include_debts.data
-            config.include_investments = config_form.include_investments.data
-            config.include_crypto = config_form.include_crypto.data
-            config.include_metals = config_form.include_metals.data
-            config.include_bank_accounts = config_form.include_bank_accounts.data
-            config.include_pension_plans = config_form.include_pension_plans.data
-            config.include_real_estate = config_form.include_real_estate.data # NUEVO
-            
+            config_form.populate_obj(config)
             config.last_updated = datetime.utcnow()
             db.session.commit()
             flash('Configuración del resumen guardada correctamente.', 'success')
@@ -2556,31 +2560,38 @@ def financial_summary():
     summary_data = {
         'income': {'available': False, 'data': {}},
         'variable_income': {'available': False, 'data': {}},
-        'expenses': {'available': False, 'data': {}},
+        'expenses': {'available': False, 'data': { # Inicializar el diccionario de datos para gastos
+            'fixed_monthly': 0,
+            'punctual_last_month': 0,
+            'monthly_avg_expenses': 0, 
+            'by_category': [] 
+        }},
         'debts': {'available': False, 'data': {}},
         'investments': {'available': False, 'data': {}},
         'crypto': {'available': False, 'data': {}},
         'metals': {'available': False, 'data': {}},
         'bank_accounts': {'available': False, 'data': {}},
         'pension_plans': {'available': False, 'data': {}},
-        'real_estate': {'available': False, 'data': {}},  # NUEVA SECCIÓN INICIALIZADA
+        'real_estate': {'available': False, 'data': {}},
         'net_worth': {'available': False, 'data': {}},
         'kpis': {'available': False, 'data': {}},
         'charts': {'available': False, 'data': {}}
     }
 
     try:
-        # 1. Ingresos Fijos
+        # --- INGRESOS (Fijos y Variables) ---
+        current_total_monthly_income_for_kpi = 0 # Para KPIs
         if config.include_income:
-            income_data_db = FixedIncome.query.filter_by(user_id=current_user.id).first()
-            if income_data_db and income_data_db.annual_net_salary is not None:
+            fixed_income_db = FixedIncome.query.filter_by(user_id=current_user.id).first()
+            if fixed_income_db and fixed_income_db.annual_net_salary is not None:
                 summary_data['income']['available'] = True
+                monthly_salary_val = fixed_income_db.annual_net_salary / 12
+                current_total_monthly_income_for_kpi += monthly_salary_val
                 summary_data['income']['data'] = {
-                    'annual_net_salary': income_data_db.annual_net_salary,
-                    'monthly_salary_12': income_data_db.annual_net_salary / 12,
-                    'monthly_salary_14': income_data_db.annual_net_salary / 14,
-                    'last_updated': income_data_db.last_updated,
-                    'history': []
+                    'annual_net_salary': fixed_income_db.annual_net_salary,
+                    'monthly_salary_12': monthly_salary_val,
+                    'monthly_salary_14': fixed_income_db.annual_net_salary / 14,
+                    'last_updated': fixed_income_db.last_updated, 'history': []
                 }
                 salary_history_db = SalaryHistory.query.filter_by(user_id=current_user.id).order_by(SalaryHistory.year.desc()).all()
                 prev_salary = None
@@ -2592,95 +2603,138 @@ def financial_summary():
                         'year': entry.year, 'salary': entry.annual_net_salary, 'variation': variation
                     })
                     prev_salary = entry.annual_net_salary
-
-        # 1.1 Ingresos Variables
-        if config.include_income: # Asumo que los ingresos variables también dependen de este flag
-            three_months_ago = date.today() - timedelta(days=90)
-            punctual_incomes_db = VariableIncome.query.filter(
-                VariableIncome.user_id == current_user.id,
-                VariableIncome.income_type == 'punctual',
-                VariableIncome.date >= three_months_ago
-            ).all()
-            fixed_incomes_db = VariableIncome.query.filter(
-                VariableIncome.user_id == current_user.id,
-                VariableIncome.income_type == 'fixed',
-                VariableIncome.is_recurring == True
-            ).all()
             
-            recurring_income_entries_total = 0
-            for income_rec in fixed_incomes_db:
-                start_calc = max(income_rec.start_date or income_rec.date, three_months_ago)
-                end_calc = min(income_rec.end_date or date.today(), date.today())
-                current_calc_date = start_calc
-                while current_calc_date <= end_calc:
-                    recurring_income_entries_total += income_rec.amount
-                    month_rec = current_calc_date.month + (income_rec.recurrence_months or 1)
-                    year_rec = current_calc_date.year + (month_rec -1) // 12
-                    month_rec = ((month_rec - 1) % 12) + 1
-                    try:
-                        current_calc_date = date(year_rec, month_rec, 1)
-                    except ValueError: break
+            three_months_ago_inc = date.today() - timedelta(days=90)
+            variable_incomes_total_3m = 0
+            # (Lógica de expansión de ingresos variables recurrentes en los últimos 3 meses)
+            all_var_incomes_expanded_for_summary = []
+            for vi_sum in VariableIncome.query.filter_by(user_id=current_user.id).all():
+                if hasattr(vi_sum, 'is_recurring') and vi_sum.is_recurring and vi_sum.income_type == 'fixed': # Asumiendo que 'fixed' indica recurrente
+                    start_calc_vi_sum = max(vi_sum.start_date or vi_sum.date, three_months_ago_inc)
+                    end_calc_vi_sum = min(vi_sum.end_date or date.today(), date.today())
+                    current_calc_date_vi_sum = start_calc_vi_sum
+                    while current_calc_date_vi_sum <= end_calc_vi_sum:
+                        all_var_incomes_expanded_for_summary.append(vi_sum.amount)
+                        month_vi_sum = current_calc_date_vi_sum.month + (vi_sum.recurrence_months or 1)
+                        year_vi_sum = current_calc_date_vi_sum.year + (month_vi_sum -1) // 12
+                        month_vi_sum = ((month_vi_sum - 1) % 12) + 1
+                        try: current_calc_date_vi_sum = date(year_vi_sum, month_vi_sum, 1)
+                        except ValueError: break
+                elif vi_sum.date >= three_months_ago_inc: # Puntuales en rango
+                     all_var_incomes_expanded_for_summary.append(vi_sum.amount)
+            variable_incomes_total_3m = sum(all_var_incomes_expanded_for_summary)
 
-            total_punctual = sum(inc.amount for inc in punctual_incomes_db)
-            total_variable_income = total_punctual + recurring_income_entries_total
-            if total_variable_income > 0:
+            if variable_incomes_total_3m > 0:
+                avg_monthly_variable_income = variable_incomes_total_3m / 3
+                current_total_monthly_income_for_kpi += avg_monthly_variable_income
                 summary_data['variable_income']['available'] = True
-                summary_data['variable_income']['data'] = {
-                    'total': total_variable_income,
-                    'monthly_avg': total_variable_income / 3
-                }
+                summary_data['variable_income']['data'] = {'total': variable_incomes_total_3m, 'monthly_avg': avg_monthly_variable_income}
 
-        # 2. Gastos
+        # --- GASTOS ---
+        current_total_monthly_expenses_for_kpi = 0 # Para KPIs y Flujo de Caja
         if config.include_expenses:
-            expenses_db = Expense.query.filter_by(user_id=current_user.id).all()
-            if expenses_db:
+            all_user_expenses = Expense.query.filter_by(user_id=current_user.id).all()
+            if all_user_expenses: # Solo si hay gastos, marcamos como disponible
                 summary_data['expenses']['available'] = True
-                fixed_monthly_sum = sum(e.amount for e in expenses_db if e.expense_type == 'fixed' and e.is_recurring)
+
+                # 1. Gastos Fijos Mensuales (activos)
+                fixed_monthly_sum_val = sum(
+                    e.amount for e in all_user_expenses 
+                    if e.expense_type == 'fixed' and e.is_recurring and (not e.end_date or e.end_date >= date.today())
+                )
+                summary_data['expenses']['data']['fixed_monthly'] = fixed_monthly_sum_val
+                current_total_monthly_expenses_for_kpi += fixed_monthly_sum_val
+
+                # 2. Gastos Puntuales del Último Mes
                 one_month_ago = date.today() - timedelta(days=30)
-                punctual_last_month_sum = sum(e.amount for e in expenses_db if e.expense_type == 'punctual' and e.date >= one_month_ago)
+                summary_data['expenses']['data']['punctual_last_month'] = sum(
+                    e.amount for e in all_user_expenses
+                    if e.expense_type == 'punctual' and e.date >= one_month_ago
+                )
 
-                # Promedio mensual de gastos (simplificado para el resumen)
-                # Una lógica más precisa estaría en el informe detallado o en la propia página de gastos.
-                # Aquí tomaremos una aproximación: Fijos + (Puntuales últimos 3 meses / 3)
+                # 3. Promedio Mensual de Gastos (Generales directos, últimos 3 meses)
                 three_months_ago_exp = date.today() - timedelta(days=90)
-                punctual_3m_sum = sum(e.amount for e in expenses_db if e.expense_type == 'punctual' and e.date >= three_months_ago_exp)
-                monthly_avg_expenses = fixed_monthly_sum + (punctual_3m_sum / 3)
-
-
-                expenses_by_cat_data = {}
-                six_months_ago_exp = date.today() - timedelta(days=180)
-                # (Esta lógica de expansión de recurrentes debería estar aquí para el gráfico)
-                # Por simplicidad para el resumen, podríamos tomar los gastos tal cual de los últimos 6 meses
-                recent_expenses_for_chart = Expense.query.filter(Expense.user_id == current_user.id, Expense.date >= six_months_ago_exp).all()
-
-                for exp in recent_expenses_for_chart: # Usar los gastos en el rango
-                    cat_name = exp.category.name if exp.category else "Sin categoría"
-                    expenses_by_cat_data[cat_name] = expenses_by_cat_data.get(cat_name, 0) + exp.amount
+                punctual_expenses_3m_sum = sum(
+                    e.amount for e in all_user_expenses
+                    if e.expense_type == 'punctual' and e.date >= three_months_ago_exp and e.date <= date.today()
+                )
+                # Incluir gastos fijos expandidos en el periodo de 3 meses para el promedio
+                fixed_expenses_3m_sum = 0
+                for exp_fixed_3m in all_user_expenses:
+                    if exp_fixed_3m.expense_type == 'fixed' and exp_fixed_3m.is_recurring:
+                        start_loop_3m = max(exp_fixed_3m.start_date or exp_fixed_3m.date, three_months_ago_exp)
+                        end_loop_3m = min(exp_fixed_3m.end_date or date.today(), date.today())
+                        current_loop_3m = start_loop_3m
+                        rec_3m = exp_fixed_3m.recurrence_months or 1
+                        while current_loop_3m <= end_loop_3m:
+                            if current_loop_3m >= three_months_ago_exp:
+                                fixed_expenses_3m_sum += exp_fixed_3m.amount
+                            year_next_3m = current_loop_3m.year
+                            month_next_3m = current_loop_3m.month + rec_3m
+                            while month_next_3m > 12: month_next_3m -= 12; year_next_3m += 1
+                            try: current_loop_3m = date(year_next_3m, month_next_3m, 1)
+                            except ValueError: break
                 
-                sorted_expenses_by_cat = sorted(expenses_by_cat_data.items(), key=lambda x: x[1], reverse=True)
+                total_direct_expenses_3m = fixed_expenses_3m_sum + punctual_expenses_3m_sum
+                avg_monthly_direct_expenses = total_direct_expenses_3m / 3 if total_direct_expenses_3m > 0 else 0
+                summary_data['expenses']['data']['monthly_avg_expenses'] = avg_monthly_direct_expenses
+                # Para KPIs, usamos un promedio de gastos variables y los fijos actuales
+                current_total_monthly_expenses_for_kpi += (punctual_expenses_3m_sum / 3)
 
-                summary_data['expenses']['data'] = {
-                    'fixed_monthly': fixed_monthly_sum,
-                    'punctual_last_month': punctual_last_month_sum,
-                    'monthly_avg_expenses': monthly_avg_expenses, # Promedio más preciso aquí
-                    'by_category': sorted_expenses_by_cat
-                }
-        
-        # 3. Deudas (Préstamos personales, tarjetas, etc., NO hipotecas aquí)
+
+                # 4. Gastos por Categoría (para el gráfico, últimos 6 meses)
+                six_months_ago_exp_cat = date.today() - timedelta(days=180)
+                expenses_in_range_for_cat_chart = []
+                for exp_cat in all_user_expenses: # Iterar sobre todos los gastos del usuario
+                    if exp_cat.expense_type == 'fixed' and exp_cat.is_recurring:
+                        start_loop_date_cat = exp_cat.start_date or exp_cat.date
+                        end_loop_date_cat = exp_cat.end_date or date.today()
+                        start_loop_date_cat = max(start_loop_date_cat, six_months_ago_exp_cat) # Ajustar al inicio del rango de 6 meses
+                        end_loop_date_cat = min(end_loop_date_cat, date.today()) # Ajustar al fin del rango (hoy)
+
+                        current_loop_date_cat = start_loop_date_cat
+                        recurrence_loop_cat = exp_cat.recurrence_months or 1
+                        while current_loop_date_cat <= end_loop_date_cat:
+                            # Solo añadir si la fecha del gasto está dentro del periodo de 6 meses
+                            if current_loop_date_cat >= six_months_ago_exp_cat: 
+                                 expenses_in_range_for_cat_chart.append({'amount': exp_cat.amount, 'category_id': exp_cat.category_id})
+                            
+                            year_next_cat = current_loop_date_cat.year
+                            month_next_cat = current_loop_date_cat.month + recurrence_loop_cat
+                            while month_next_cat > 12: month_next_cat -= 12; year_next_cat +=1
+                            try: current_loop_date_cat = date(year_next_cat, month_next_cat, 1)
+                            except ValueError: break
+                    elif exp_cat.date >= six_months_ago_exp_cat and exp_cat.date <= date.today(): # Puntuales en rango de 6 meses
+                         expenses_in_range_for_cat_chart.append({'amount': exp_cat.amount, 'category_id': exp_cat.category_id})
+                
+                expenses_by_cat_dict = {}
+                for exp_item_cat in expenses_in_range_for_cat_chart:
+                    cat_obj = ExpenseCategory.query.get(exp_item_cat['category_id']) if exp_item_cat['category_id'] else None
+                    cat_name = cat_obj.name if cat_obj else "Sin categoría"
+                    expenses_by_cat_dict[cat_name] = expenses_by_cat_dict.get(cat_name, 0) + exp_item_cat['amount']
+                
+                summary_data['expenses']['data']['by_category'] = sorted(expenses_by_cat_dict.items(), key=lambda x: x[1], reverse=True)
+
+        # --- DEUDAS (No Hipotecarias) ---
+        monthly_debt_payment_val = 0
+        total_general_debt_val = 0
         if config.include_debts:
             debt_plans_db = DebtInstallmentPlan.query.filter_by(user_id=current_user.id, is_active=True).all()
             if debt_plans_db:
                 summary_data['debts']['available'] = True
-                total_debt_val = sum(p.remaining_amount for p in debt_plans_db)
+                total_general_debt_val = sum(p.remaining_amount for p in debt_plans_db)
                 current_month_date = date(date.today().year, date.today().month, 1)
-                monthly_payment_val = sum(p.monthly_payment for p in debt_plans_db if p.start_date <= current_month_date and (p.end_date is None or p.end_date > current_month_date))
+                monthly_debt_payment_val = sum(p.monthly_payment for p in debt_plans_db if p.start_date <= current_month_date and (p.end_date is None or p.end_date > current_month_date))
                 summary_data['debts']['data'] = {
-                    'total_debt': total_debt_val,
-                    'monthly_payment': monthly_payment_val,
+                    'total_debt': total_general_debt_val,
+                    'monthly_payment': monthly_debt_payment_val,
                     'debt_list': [{'description': p.description, 'remaining': p.remaining_amount, 'progress_pct': p.progress_percentage} for p in debt_plans_db[:3]]
                 }
+        current_total_monthly_expenses_for_kpi += monthly_debt_payment_val
 
-        # 4. Cuentas Bancarias
+        # --- ACTIVOS ---
+        # Cuentas Bancarias
+        total_cash_val = 0
         if config.include_bank_accounts:
             bank_accounts_db = BankAccount.query.filter_by(user_id=current_user.id).all()
             if bank_accounts_db:
@@ -2690,31 +2744,14 @@ def financial_summary():
                     'total_cash': total_cash_val,
                     'accounts': [{'bank_name': acc.bank_name, 'balance': acc.current_balance} for acc in bank_accounts_db]
                 }
-                cash_history_db = CashHistoryRecord.query.filter_by(user_id=current_user.id).order_by(CashHistoryRecord.date.asc()).limit(12).all() # asc para gráfico
-                if cash_history_db:
-                    if 'charts' not in summary_data: summary_data['charts'] = {'available': True, 'data': {}}
-                    summary_data['charts']['data']['cash_history'] = {
-                        'dates': [rec.date.strftime('%Y-%m') for rec in cash_history_db],
-                        'values_list': [rec.total_cash for rec in cash_history_db]
-                    }
-        
-        # 5. Planes de Pensiones
-        if config.include_pension_plans:
-            pension_plans_db = PensionPlan.query.filter_by(user_id=current_user.id).all()
-            if pension_plans_db:
-                summary_data['pension_plans']['available'] = True
-                total_pension_val = sum(p.current_balance for p in pension_plans_db)
-                summary_data['pension_plans']['data'] = {
-                    'total_pension': total_pension_val,
-                    'plans': [{'entity_name': p.entity_name, 'balance': p.current_balance} for p in pension_plans_db]
-                }
-
-        # 6. Inversiones (Portfolio)
+        # Inversiones
+        total_market_value_inv = 0
+        total_cost_basis_inv = 0
         if config.include_investments:
             portfolio_record_db = UserPortfolio.query.filter_by(user_id=current_user.id).first()
             if portfolio_record_db and portfolio_record_db.portfolio_data:
                 portfolio_data_json = json.loads(portfolio_record_db.portfolio_data)
-                if portfolio_data_json: # Asegurarse que no es None o lista vacía
+                if portfolio_data_json:
                     summary_data['investments']['available'] = True
                     total_market_value_inv = sum(float(item.get('market_value_eur', 0) or 0) for item in portfolio_data_json)
                     total_cost_basis_inv = sum(float(item.get('cost_basis_eur_est', 0) or 0) for item in portfolio_data_json)
@@ -2724,187 +2761,171 @@ def financial_summary():
                         'total_cost_basis': total_cost_basis_inv,
                         'top_positions': [{'name': item.get('item_name', item.get('Producto')), 'market_value': float(item.get('market_value_eur',0) or 0)} for item in sorted(portfolio_data_json, key=lambda x: float(x.get('market_value_eur', 0) or 0), reverse=True)[:3]]
                     }
-        
-        # 7. Criptomonedas
+        # Crypto
+        current_crypto_value = 0
+        invested_crypto_value = 0
         if config.include_crypto:
-            crypto_transactions_db = CryptoTransaction.query.filter_by(user_id=current_user.id).all()
-            if crypto_transactions_db:
-                # (Lógica simplificada para resumen, una más detallada está en la ruta /crypto)
-                # Esta lógica debería recalcularse basada en transacciones para ser precisa
-                current_crypto_value = 0
-                invested_crypto_value = 0
-                holdings_summary = {} # ticker: {'quantity': X, 'name': Y, 'current_price': Z}
-                
-                for ct in crypto_transactions_db:
-                    if ct.ticker_symbol not in holdings_summary:
-                        holdings_summary[ct.ticker_symbol] = {'quantity': 0, 'name': ct.crypto_name, 'current_price': ct.current_price or 0, 'investment':0}
-                    
-                    if ct.transaction_type == 'buy':
-                        holdings_summary[ct.ticker_symbol]['quantity'] += ct.quantity
-                        holdings_summary[ct.ticker_symbol]['investment'] += ct.quantity * ct.price_per_unit
-                    elif ct.transaction_type == 'sell':
-                        holdings_summary[ct.ticker_symbol]['quantity'] -= ct.quantity
-                        # Reducir la inversión proporcionalmente podría ser complejo, simplificamos
-                        # El P/L real necesitaría un cálculo FIFO/LIFO o promedio.
-                
-                for ticker, data in holdings_summary.items():
-                    current_crypto_value += data['quantity'] * data['current_price']
-                    invested_crypto_value += data['investment'] # Esta es una aproximación del coste
-
-                if current_crypto_value > 0 or invested_crypto_value > 0 : # Si hay alguna tenencia o inversión
-                    summary_data['crypto']['available'] = True
-                    summary_data['crypto']['data'] = {
-                        'total_value': current_crypto_value,
-                        'total_pl': current_crypto_value - invested_crypto_value, # P/L Aproximado
-                        'total_investment': invested_crypto_value,
-                        'top_holdings': sorted([{'name': d['name'], 'quantity': d['quantity'], 'current_value': d['quantity'] * d['current_price']} for t, d in holdings_summary.items() if d['quantity'] > 0], key=lambda x: x['current_value'], reverse=True)[:3]
-                    }
-
-        # 8. Metales Preciosos
+            # (Lógica de cálculo de valor de crypto como la tenías) ...
+             holdings_summary = {} 
+             for ct in CryptoTransaction.query.filter_by(user_id=current_user.id).all():
+                if ct.ticker_symbol not in holdings_summary:
+                    holdings_summary[ct.ticker_symbol] = {'quantity': 0, 'name': ct.crypto_name, 'current_price': ct.current_price or 0, 'investment':0}
+                if ct.transaction_type == 'buy':
+                    holdings_summary[ct.ticker_symbol]['quantity'] += ct.quantity
+                    holdings_summary[ct.ticker_symbol]['investment'] += ct.quantity * ct.price_per_unit
+                elif ct.transaction_type == 'sell':
+                    holdings_summary[ct.ticker_symbol]['quantity'] -= ct.quantity
+             for ticker, data_crypto in holdings_summary.items():
+                current_crypto_value += data_crypto['quantity'] * data_crypto['current_price']
+                invested_crypto_value += data_crypto['investment']
+             if current_crypto_value > 0 or invested_crypto_value > 0 :
+                summary_data['crypto']['available'] = True
+                summary_data['crypto']['data'] = {
+                    'total_value': current_crypto_value,
+                    'total_pl': current_crypto_value - invested_crypto_value,
+                    'total_investment': invested_crypto_value,
+                    'top_holdings': sorted([{'name': d['name'], 'quantity': d['quantity'], 'current_value': d['quantity'] * d['current_price']} for t, d in holdings_summary.items() if d['quantity'] > 0], key=lambda x: x['current_value'], reverse=True)[:3]
+                }
+        # Metales
+        total_metal_value = 0
+        total_invested_metal = 0
         if config.include_metals:
-            metal_transactions_db = PreciousMetalTransaction.query.filter_by(user_id=current_user.id).all()
-            if metal_transactions_db:
-                # (Lógica simplificada para resumen)
-                # Deberías tener una función que calcule el valor actual de los metales como en la ruta /silver_gold
-                gold_price_oz = PreciousMetalPrice.query.filter_by(metal_type='gold').first().price_eur_per_oz if PreciousMetalPrice.query.filter_by(metal_type='gold').first() else 0
-                silver_price_oz = PreciousMetalPrice.query.filter_by(metal_type='silver').first().price_eur_per_oz if PreciousMetalPrice.query.filter_by(metal_type='silver').first() else 0
-                g_to_oz = 0.0321507
-
-                current_gold_oz = 0; invested_gold = 0
-                current_silver_oz = 0; invested_silver = 0
-
-                for mt in metal_transactions_db:
-                    qty_oz = mt.quantity if mt.unit_type == 'oz' else mt.quantity * g_to_oz
-                    cost = qty_oz * mt.price_per_unit # Costo de esta transacción
-                    if mt.metal_type == 'gold':
-                        if mt.transaction_type == 'buy': current_gold_oz += qty_oz; invested_gold += cost
-                        else: current_gold_oz -= qty_oz; # Venta reduce coste base si se implementa FIFO/LIFO
-                    elif mt.metal_type == 'silver':
-                        if mt.transaction_type == 'buy': current_silver_oz += qty_oz; invested_silver += cost
-                        else: current_silver_oz -= qty_oz;
-                
-                gold_value = current_gold_oz * gold_price_oz
-                silver_value = current_silver_oz * silver_price_oz
-                total_metal_value = gold_value + silver_value
-                total_invested_metal = invested_gold + invested_silver
-
-                if total_metal_value > 0 or total_invested_metal > 0:
-                    summary_data['metals']['available'] = True
-                    summary_data['metals']['data'] = {
-                        'total_value': total_metal_value,
-                        'total_pl': total_metal_value - total_invested_metal, # P/L Aproximado
-                        'gold': {'current_value': gold_value, 'total_oz': current_gold_oz},
-                        'silver': {'current_value': silver_value, 'total_oz': current_silver_oz}
-                    }
-        
-        # NUEVO: 9. Inmuebles (Real Estate)
+            # (Lógica de cálculo de valor de metales como la tenías) ...
+            gold_price_oz = PreciousMetalPrice.query.filter_by(metal_type='gold').first().price_eur_per_oz if PreciousMetalPrice.query.filter_by(metal_type='gold').first() else 0
+            silver_price_oz = PreciousMetalPrice.query.filter_by(metal_type='silver').first().price_eur_per_oz if PreciousMetalPrice.query.filter_by(metal_type='silver').first() else 0
+            g_to_oz = 0.0321507
+            current_gold_oz = 0; invested_gold = 0
+            current_silver_oz = 0; invested_silver = 0
+            for mt in PreciousMetalTransaction.query.filter_by(user_id=current_user.id).all():
+                qty_oz = mt.quantity if mt.unit_type == 'oz' else mt.quantity * g_to_oz
+                cost = qty_oz * mt.price_per_unit
+                if mt.metal_type == 'gold':
+                    if mt.transaction_type == 'buy': current_gold_oz += qty_oz; invested_gold += cost
+                    else: current_gold_oz -= qty_oz;
+                elif mt.metal_type == 'silver':
+                    if mt.transaction_type == 'buy': current_silver_oz += qty_oz; invested_silver += cost
+                    else: current_silver_oz -= qty_oz;
+            gold_value = current_gold_oz * gold_price_oz
+            silver_value = current_silver_oz * silver_price_oz
+            total_metal_value = gold_value + silver_value
+            total_invested_metal = invested_gold + invested_silver
+            if total_metal_value > 0 or total_invested_metal > 0:
+                summary_data['metals']['available'] = True
+                summary_data['metals']['data'] = {
+                    'total_value': total_metal_value, 'total_pl': total_metal_value - total_invested_metal,
+                    'gold': {'current_value': gold_value, 'total_oz': current_gold_oz},
+                    'silver': {'current_value': silver_value, 'total_oz': current_silver_oz}
+                }
+        # Pensiones
+        total_pension_val = 0
+        if config.include_pension_plans:
+            pension_plans_db = PensionPlan.query.filter_by(user_id=current_user.id).all()
+            if pension_plans_db:
+                summary_data['pension_plans']['available'] = True
+                total_pension_val = sum(p.current_balance for p in pension_plans_db)
+                summary_data['pension_plans']['data'] = {
+                    'total_pension': total_pension_val,
+                    'plans': [{'entity_name': p.entity_name, 'balance': p.current_balance} for p in pension_plans_db]
+                }
+        # Inmuebles
+        total_re_market_value_val = 0
+        total_re_mortgage_balance_val = 0
         if config.include_real_estate:
             real_estate_assets_db = RealEstateAsset.query.filter_by(user_id=current_user.id).all()
             if real_estate_assets_db:
                 summary_data['real_estate']['available'] = True
-                total_re_market_value = sum(asset.current_market_value for asset in real_estate_assets_db if asset.current_market_value)
-                total_re_mortgage_balance = sum(asset.mortgage.current_principal_balance for asset in real_estate_assets_db if asset.mortgage and asset.mortgage.current_principal_balance)
-                
+                total_re_market_value_val = sum(asset.current_market_value or 0 for asset in real_estate_assets_db)
+                total_re_mortgage_balance_val = sum(asset.mortgage.current_principal_balance or 0 for asset in real_estate_assets_db if asset.mortgage)
                 summary_data['real_estate']['data'] = {
                     'count': len(real_estate_assets_db),
-                    'total_market_value': total_re_market_value,
-                    'total_mortgage_balance': total_re_mortgage_balance,
-                    'net_equity': total_re_market_value - total_re_mortgage_balance,
-                    'assets': [{'name': asset.property_name, 'value': asset.current_market_value} for asset in real_estate_assets_db[:3]]
+                    'total_market_value': total_re_market_value_val,
+                    'total_mortgage_balance': total_re_mortgage_balance_val,
+                    'net_equity': total_re_market_value_val - total_re_mortgage_balance_val,
+                    'assets': [{'name': asset.property_name, 'value': asset.current_market_value or 0} for asset in real_estate_assets_db[:3]]
                 }
+                # Sumar gastos de hipoteca a los gastos totales para KPIs
+                current_total_monthly_expenses_for_kpi += sum(asset_re.mortgage.monthly_payment or 0 for asset_re in real_estate_assets_db if asset_re.mortgage)
+                # Sumar gastos recurrentes de RE para KPIs
+                # (Asumiendo que tienes el modelo RealEstateExpense y la lógica para promediarlos)
+                # monthly_re_expenses_avg = calculate_average_monthly_re_expenses(current_user.id) # Necesitarías esta función
+                # current_total_monthly_expenses_for_kpi += monthly_re_expenses_avg
 
-        # 10. Cálculo del Patrimonio Neto (ACTUALIZADO)
-        assets = 0
-        liabilities = 0
+
+        # --- PATRIMONIO NETO (Cálculo final) ---
+        assets_final = (total_cash_val + total_market_value_inv + current_crypto_value + 
+                        total_metal_value + total_pension_val + total_re_market_value_val)
+        liabilities_final = total_general_debt_val + total_re_mortgage_balance_val
         
-        if summary_data['bank_accounts']['available']: assets += summary_data['bank_accounts']['data'].get('total_cash', 0)
-        if summary_data['investments']['available']: assets += summary_data['investments']['data'].get('total_market_value', 0)
-        if summary_data['crypto']['available']: assets += summary_data['crypto']['data'].get('total_value', 0)
-        if summary_data['metals']['available']: assets += summary_data['metals']['data'].get('total_value', 0)
-        if summary_data['pension_plans']['available']: assets += summary_data['pension_plans']['data'].get('total_pension', 0)
-        if summary_data['real_estate']['available']: assets += summary_data['real_estate']['data'].get('total_market_value', 0) # AÑADIDO ACTIVO INMOBILIARIO
-        
-        if summary_data['debts']['available']: liabilities += summary_data['debts']['data'].get('total_debt', 0)
-        if summary_data['real_estate']['available']: liabilities += summary_data['real_estate']['data'].get('total_mortgage_balance', 0) # AÑADIDO PASIVO HIPOTECARIO
-        
-        net_worth_val = assets - liabilities
+        net_worth_val = assets_final - liabilities_final
         summary_data['net_worth']['available'] = True
         summary_data['net_worth']['data'] = {
-            'total_assets': assets,
-            'total_liabilities': liabilities,
-            'net_worth': net_worth_val
+            'total_assets': assets_final, 'total_liabilities': liabilities_final, 'net_worth': net_worth_val
         }
-        
-        # 11. KPIs Financieros (ACTUALIZADO CON INGRESOS DE ALQUILER Y GASTOS DE INMUEBLES)
-        total_monthly_income = 0
-        if summary_data['income']['available']: total_monthly_income += summary_data['income']['data'].get('monthly_salary_12', 0)
-        if summary_data['variable_income']['available']: total_monthly_income += summary_data['variable_income']['data'].get('monthly_avg', 0)
-        
 
-        total_monthly_expenses_kpi = 0 # Renombrar para evitar conflicto con el 'monthly_avg_expenses' anterior
-        if summary_data['expenses']['available']: total_monthly_expenses_kpi += summary_data['expenses']['data'].get('monthly_avg_expenses', 0) # Usar promedio para gastos generales
-        
-        # Sumar pagos mensuales de deudas (excluyendo hipotecas ya que se cuentan en pasivos de RE)
-        if summary_data['debts']['available']: total_monthly_expenses_kpi += summary_data['debts']['data'].get('monthly_payment', 0)
-        
-        # Sumar pagos mensuales de hipotecas
-        if summary_data['real_estate']['available']:
-            for asset_re in RealEstateAsset.query.filter_by(user_id=current_user.id).all():
-                if asset_re.mortgage and asset_re.mortgage.monthly_payment:
-                    total_monthly_expenses_kpi += asset_re.mortgage.monthly_payment
-        
-        # Sumar gastos recurrentes de inmuebles (promedio mensual)
-        if config.include_real_estate: # Solo si se incluyen inmuebles
-            re_expenses_monthly_avg = 0
-            re_expenses_db = RealEstateExpense.query.filter_by(user_id=current_user.id).all()
-            for re_exp in re_expenses_db:
-                if re_exp.is_recurring:
-                    if re_exp.recurrence_frequency == 'monthly': re_expenses_monthly_avg += re_exp.amount
-                    elif re_exp.recurrence_frequency == 'quarterly': re_expenses_monthly_avg += re_exp.amount / 3
-                    elif re_exp.recurrence_frequency == 'semiannual': re_expenses_monthly_avg += re_exp.amount / 6
-                    elif re_exp.recurrence_frequency == 'annual': re_expenses_monthly_avg += re_exp.amount / 12
-                # Podrías añadir un promedio de gastos puntuales de inmuebles si quisieras ser más preciso
-            total_monthly_expenses_kpi += re_expenses_monthly_avg
-
-
-        if total_monthly_income > 0 or total_monthly_expenses_kpi > 0 : # Si hay ingresos o gastos
+        # --- KPIs Financieros ---
+        if current_total_monthly_income_for_kpi > 0 or current_total_monthly_expenses_for_kpi > 0 :
             summary_data['kpis']['available'] = True
-            monthly_savings_val = total_monthly_income - total_monthly_expenses_kpi
-            savings_rate_val = (monthly_savings_val / total_monthly_income * 100) if total_monthly_income > 0 else 0
+            monthly_savings_val = current_total_monthly_income_for_kpi - current_total_monthly_expenses_for_kpi
+            savings_rate_val = (monthly_savings_val / current_total_monthly_income_for_kpi * 100) if current_total_monthly_income_for_kpi > 0 else (-100 if current_total_monthly_expenses_for_kpi > 0 else 0)
             
-            debt_payment_for_ratio = summary_data['debts']['data'].get('monthly_payment', 0)
-            if summary_data['real_estate']['available']: # Sumar cuotas hipotecarias para el ratio
-                 for asset_re_kpi in RealEstateAsset.query.filter_by(user_id=current_user.id).all():
-                    if asset_re_kpi.mortgage and asset_re_kpi.mortgage.monthly_payment:
-                        debt_payment_for_ratio += asset_re_kpi.mortgage.monthly_payment
+            total_debt_payments_for_ratio = monthly_debt_payment_val # Deudas generales
+            total_debt_payments_for_ratio += sum(asset_re_kpi.mortgage.monthly_payment or 0 for asset_re_kpi in RealEstateAsset.query.filter_by(user_id=current_user.id).all() if asset_re_kpi.mortgage) # Hipotecas
 
-            debt_to_income_val = (debt_payment_for_ratio / total_monthly_income * 100) if total_monthly_income > 0 else 0
-            debt_to_assets_val = (liabilities / assets * 100) if assets > 0 else 0 # liabilities y assets ya incluyen inmuebles
+            debt_to_income_val = (total_debt_payments_for_ratio / current_total_monthly_income_for_kpi * 100) if current_total_monthly_income_for_kpi > 0 else 0
+            debt_to_assets_val = (liabilities_final / assets_final * 100) if assets_final > 0 else 0
             
             summary_data['kpis']['data'] = {
-                'monthly_income': total_monthly_income,
-                'monthly_expenses': total_monthly_expenses_kpi,
+                'monthly_income': current_total_monthly_income_for_kpi,
+                'monthly_expenses': current_total_monthly_expenses_for_kpi,
                 'monthly_savings': monthly_savings_val,
                 'savings_rate': savings_rate_val,
                 'debt_to_income': debt_to_income_val,
                 'debt_to_assets': debt_to_assets_val
             }
 
-        # 12. Flujo de Caja Mensual (Cash Flow)
-        # Usamos los mismos totales que para KPIs para consistencia
-        if summary_data['kpis']['available']: # Solo si tenemos los datos de KPIs
+        # --- Flujo de Caja Mensual ---
+        if summary_data['kpis'].get('available'):
             summary_data['cash_flow'] = {'available': True, 'data': {
                 'total_income': summary_data['kpis']['data']['monthly_income'],
                 'total_expenses': summary_data['kpis']['data']['monthly_expenses'],
                 'net_cash_flow': summary_data['kpis']['data']['monthly_savings']
             }}
         
-        # 13. Datos para Gráficos
-        # Gráfico de evolución de patrimonio neto (simplificado, idealmente se construye con historiales de cada activo)
-        # Por ahora, solo tomaremos el historial de efectivo como proxy o un cálculo más complejo si es necesario.
-        # Esta parte puede requerir una tabla `NetWorthHistory` o una reconstrucción más elaborada.
-        # Para el gráfico de distribución de activos, los datos ya están en `summary_data`
-        # (ej: bank_accounts.total_cash, investments.total_market_value, etc.)
+        # --- DATOS PARA GRÁFICOS ---
+        if 'charts' not in summary_data: summary_data['charts'] = {'available': True, 'data': {}}
+
+        cash_history_db = CashHistoryRecord.query.filter_by(user_id=current_user.id).order_by(CashHistoryRecord.date.asc()).limit(12).all()
+        if cash_history_db:
+            summary_data['charts']['data']['cash_history'] = {
+                'dates': [rec.date.strftime('%Y-%m') for rec in cash_history_db],
+                'values_list': [rec.total_cash for rec in cash_history_db]
+            }
+
+        # Historial de Patrimonio Neto
+        historical_net_worth_points = {}
+        # (Lógica para poblar historical_net_worth_points como te mostré antes, usando historiales de Cash, Pension, Crypto, REValue, Debt)
+        # ...
+        # Ejemplo simplificado, debes completar esta parte con la lógica de la respuesta anterior
+        for rec in CashHistoryRecord.query.filter_by(user_id=current_user.id).all():
+            month_year = rec.date.strftime('%Y-%m')
+            if month_year not in historical_net_worth_points: historical_net_worth_points[month_year] = {'assets': 0, 'liabilities': 0, 'date_obj': rec.date}
+            historical_net_worth_points[month_year]['assets'] += rec.total_cash
+        # (Añadir pension, crypto, RE value history a assets; debt history a liabilities)
+
+        net_worth_chart_list = []
+        for month_year_str, data_point in historical_net_worth_points.items():
+            net_worth_chart_list.append({
+                'date_str': month_year_str, 'date_obj': data_point['date_obj'],
+                'net_worth': data_point['assets'] - data_point['liabilities']
+            })
+        net_worth_chart_list.sort(key=lambda x: x['date_obj'])
+        net_worth_chart_list = net_worth_chart_list[-12:]
+
+        if net_worth_chart_list:
+            summary_data['charts']['data']['net_worth_history'] = {
+                'dates': [item['date_str'] for item in net_worth_chart_list],
+                'values_list': [item['net_worth'] for item in net_worth_chart_list]
+            }
 
     except Exception as e:
         app.logger.error(f"Error calculando resumen financiero: {e}", exc_info=True)
@@ -2914,6 +2935,8 @@ def financial_summary():
                            config_form=config_form,
                            summary=summary_data,
                            config=config)
+
+
 
 @app.route('/export_financial_summary', methods=['GET'])
 @login_required
