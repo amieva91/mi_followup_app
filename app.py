@@ -3887,15 +3887,13 @@ class ExpenseForm(FlaskForm):
 
 
 
-# In app.py
 
-# Ensure these models are imported or defined above
+# Ensure these are imported at the top of app.py if not already:
 # from .models import db, Expense, ExpenseCategory, DebtInstallmentPlan, FixedIncome 
 # from .forms import ExpenseForm, ExpenseCategoryForm
 # from flask_login import current_user, login_required
 # from flask import render_template, redirect, url_for, flash, request
 # from datetime import date, timedelta, datetime
-
 
 @app.route('/expenses', methods=['GET', 'POST'])
 @login_required
@@ -3903,118 +3901,174 @@ def expenses():
     """Muestra y gestiona la página de gastos."""
     category_form = ExpenseCategoryForm()
     expense_form = ExpenseForm()
+    today = date.today() # Define today here for use throughout
 
+    # Populate category dropdown for category_form
     user_expense_categories_main = ExpenseCategory.query.filter_by(user_id=current_user.id, parent_id=None).order_by(ExpenseCategory.name).all()
     category_form.parent_id.choices = [(0, 'Ninguna (Categoría Principal)')] + [(cat.id, cat.name) for cat in user_expense_categories_main]
 
+    # Populate category dropdown for expense_form
     all_categories_for_expense_form = ExpenseCategory.query.filter_by(user_id=current_user.id).order_by(ExpenseCategory.name).all()
     expense_category_choices = []
-    for cat_exp in all_categories_for_expense_form:
-        if cat_exp.parent_id is None:
-            expense_category_choices.append((cat_exp.id, cat_exp.name))
-            subcats_exp = ExpenseCategory.query.filter_by(user_id=current_user.id, parent_id=cat_exp.id).order_by(ExpenseCategory.name).all()
-            for subcat_exp in subcats_exp:
-                expense_category_choices.append((subcat_exp.id, f"↳ {subcat_exp.name}"))
+    main_categories_for_expense = [c for c in all_categories_for_expense_form if c.parent_id is None]
+    for cat_exp in main_categories_for_expense:
+        expense_category_choices.append((cat_exp.id, cat_exp.name))
+        subcats_exp = [s for s in all_categories_for_expense_form if s.parent_id == cat_exp.id]
+        for subcat_exp in subcats_exp:
+            expense_category_choices.append((subcat_exp.id, f"↳ {subcat_exp.name}"))
     expense_form.category_id.choices = [(0, 'Sin categoría')] + expense_category_choices
 
-    if category_form.validate_on_submit() and 'add_category' in request.form:
-        try:
-            parent_id_val = category_form.parent_id.data
-            if parent_id_val == 0: parent_id_val = None
-            new_category = ExpenseCategory(
-                user_id=current_user.id,
-                name=category_form.name.data,
-                description=category_form.description.data,
-                parent_id=parent_id_val
-            )
-            db.session.add(new_category)
-            db.session.commit()
-            flash('Categoría añadida correctamente.', 'success')
-            return redirect(url_for('expenses'))
-        except Exception as e:
-            db.session.rollback()
-            flash(f'Error al crear categoría: {str(e)}', 'danger')
+    if request.method == 'POST':
+        if 'add_category' in request.form and category_form.validate_on_submit():
+            try:
+                parent_id_val = category_form.parent_id.data
+                if parent_id_val == 0: parent_id_val = None
+                new_category = ExpenseCategory(
+                    user_id=current_user.id,
+                    name=category_form.name.data,
+                    description=category_form.description.data,
+                    parent_id=parent_id_val
+                )
+                db.session.add(new_category)
+                db.session.commit()
+                flash('Categoría añadida correctamente.', 'success')
+                return redirect(url_for('expenses'))
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Error al crear categoría: {str(e)}', 'danger')
+                app.logger.error(f"Error creando categoría de gasto: {e}", exc_info=True)
 
-    if expense_form.validate_on_submit() and 'add_expense' in request.form:
-        try:
-            amount_val = float(expense_form.amount.data.replace(',', '.'))
-            date_obj_val = datetime.strptime(expense_form.date.data, '%Y-%m-%d').date()
-            category_id_val = expense_form.category_id.data
-            if category_id_val == 0: category_id_val = None
+        elif 'add_expense' in request.form and expense_form.validate_on_submit():
+            try:
+                amount_val = float(expense_form.amount.data.replace(',', '.'))
+                date_obj_val = datetime.strptime(expense_form.date.data, '%Y-%m-%d').date()
+                category_id_val = expense_form.category_id.data
+                if category_id_val == 0: category_id_val = None
 
-            is_recurring_val = expense_form.expense_type.data == 'fixed'
-            recurrence_months_val = None
-            start_date_val = None
-            end_date_val = None
+                is_recurring_val = expense_form.expense_type.data == 'fixed'
+                recurrence_months_val = None
+                start_date_val = None # Will be set to date_obj_val if recurring
+                end_date_val = None
 
-            if is_recurring_val:
-                recurrence_months_val = expense_form.recurrence_months.data
-                start_date_val = date_obj_val # Start date is the expense date for recurring
-                if expense_form.end_date.data:
-                    end_date_val = datetime.strptime(expense_form.end_date.data, '%Y-%m-%d').date()
+                if is_recurring_val:
+                    recurrence_months_val = expense_form.recurrence_months.data
+                    start_date_val = date_obj_val 
+                    if expense_form.end_date.data:
+                        end_date_val = datetime.strptime(expense_form.end_date.data, '%Y-%m-%d').date()
+                
+                new_expense = Expense(
+                    user_id=current_user.id,
+                    category_id=category_id_val,
+                    description=expense_form.description.data,
+                    amount=amount_val,
+                    date=date_obj_val, # For punctual, this is the date; for recurring, it's the first occurrence/reference
+                    expense_type=expense_form.expense_type.data,
+                    is_recurring=is_recurring_val,
+                    recurrence_months=recurrence_months_val if is_recurring_val else None,
+                    start_date=start_date_val if is_recurring_val else date_obj_val, # Ensure start_date is set
+                    end_date=end_date_val
+                )
+                db.session.add(new_expense)
+                db.session.commit()
+                flash('Gasto registrado correctamente.', 'success')
+                return redirect(url_for('expenses'))
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Error al registrar gasto: {str(e)}', 'danger')
+                app.logger.error(f"Error registrando gasto: {e}", exc_info=True)
+        
+        # If POST but forms didn't validate correctly, it will fall through to render_template
+        # and WTForms will handle displaying errors on the forms.
 
-            new_expense = Expense(
-                user_id=current_user.id,
-                category_id=category_id_val,
-                description=expense_form.description.data,
-                amount=amount_val,
-                date=date_obj_val,
-                expense_type=expense_form.expense_type.data,
-                is_recurring=is_recurring_val,
-                recurrence_months=recurrence_months_val,
-                start_date=start_date_val,
-                end_date=end_date_val
-            )
-            db.session.add(new_expense)
-            db.session.commit()
-            flash('Gasto registrado correctamente.', 'success')
-            return redirect(url_for('expenses'))
-        except Exception as e:
-            db.session.rollback()
-            flash(f'Error al registrar gasto: {str(e)}', 'danger')
-
+    # --- Data for GET request or if POST failed validation ---
     user_expenses_db = Expense.query.filter_by(user_id=current_user.id).order_by(Expense.date.desc()).all()
     
-    # --- Resumen de Gastos Mensuales ---
-    fixed_expenses_sum = sum(e.amount for e in user_expenses_db if e.expense_type == 'fixed' and e.is_recurring and (not e.end_date or e.end_date >= date.today()))
+    fixed_expenses_sum = 0
+    for e in user_expenses_db:
+        if e.expense_type == 'fixed' and e.is_recurring:
+            is_currently_active = True
+            if e.end_date and e.end_date < today.replace(day=1): # If end_date is before the start of current month
+                is_currently_active = False
+            if e.start_date and e.start_date > today: # If start_date is in the future
+                is_currently_active = False
+            if is_currently_active:
+                fixed_expenses_sum += e.amount
     
-    one_month_ago = date.today() - timedelta(days=30)
-    punctual_expenses_sum = sum(e.amount for e in user_expenses_db if e.expense_type == 'punctual' and e.date >= one_month_ago)
+    one_month_ago = today - timedelta(days=30)
+    punctual_expenses_sum = sum(e.amount for e in user_expenses_db if e.expense_type == 'punctual' and e.date >= one_month_ago and e.date <= today)
     
     debt_plans_active = DebtInstallmentPlan.query.filter_by(user_id=current_user.id, is_active=True).all()
-    current_month_date_obj = date(date.today().year, date.today().month, 1)
-    debt_monthly_sum = sum(plan.monthly_payment for plan in debt_plans_active if plan.start_date <= current_month_date_obj and (plan.end_date is None or plan.end_date > current_month_date_obj))
-    
-    total_monthly_expenses_summary = fixed_expenses_sum + debt_monthly_sum
+    current_month_date_obj = date(today.year, today.month, 1)
+    debt_monthly_sum = 0
+    for plan in debt_plans_active:
+        plan_end_date_prop = plan.end_date # Access the property
+        if plan.start_date <= current_month_date_obj and (plan_end_date_prop is None or current_month_date_obj < plan_end_date_prop):
+            debt_monthly_sum += plan.monthly_payment
+            
+    total_monthly_expenses_summary = fixed_expenses_sum + debt_monthly_sum # Note: punctual_expenses_sum is last 30 days, not strictly "monthly average" for this summary card
 
     # --- Comparativa vs Media ---
+    current_month_start_date = today.replace(day=1)
     current_month_expenses_val = 0
-    # Sumar gastos fijos del mes actual
-    for exp_fixed in user_expenses_db:
-        if exp_fixed.expense_type == 'fixed' and exp_fixed.is_recurring:
-            start_d = exp_fixed.start_date or exp_fixed.date
-            end_d = exp_fixed.end_date or date.today()
-            if start_d.year == current_month_date_obj.year and start_d.month == current_month_date_obj.month and start_d <= date.today() and date.today() <= end_d:
-                 current_month_expenses_val += exp_fixed.amount # Asumiendo que si es recurrente, este mes cuenta
-    # Sumar gastos puntuales del mes actual
-    current_month_expenses_val += sum(e.amount for e in user_expenses_db if e.expense_type == 'punctual' and e.date.year == current_month_date_obj.year and e.date.month == current_month_date_obj.month)
-    # Sumar gastos de deuda del mes actual
-    current_month_expenses_val += debt_monthly_sum 
-    
-    # Media 6 meses (lógica simplificada, puedes refinarla como en get_category_analysis)
-    six_months_ago_date = date.today() - timedelta(days=180)
-    expenses_last_6_months_total = 0
-    # (Esta parte necesitaría expandir los gastos recurrentes y de deuda para ser precisa)
-    # Por ahora, usaremos una aproximación para el resumen rápido:
-    # (Total gastos de los últimos 6 meses / 6)
-    # Para una media precisa, deberías usar la lógica de expansión como en get_category_analysis
-    # Aquí, usaremos el total_monthly_expenses_summary como una proxy de la media si no quieres calcularla con expansión aquí.
-    # O, para una media más real de gastos directos:
-    direct_expenses_6m = Expense.query.filter(Expense.user_id == current_user.id, Expense.date >= six_months_ago_date).all()
-    # Esta media es solo de gastos directos, no incluye deudas aún.
-    avg_monthly_expenses_direct = sum(e.amount for e in direct_expenses_6m) / 6 if direct_expenses_6m else 0
-    avg_monthly_expenses_summary = avg_monthly_expenses_direct + debt_monthly_sum # Añadir la deuda mensual actual a la media de gastos directos
+    # Gastos fijos del mes actual
+    for exp_fixed_comp in user_expenses_db:
+        if exp_fixed_comp.expense_type == 'fixed' and exp_fixed_comp.is_recurring:
+            # Check if this fixed expense occurs in the current month
+            start_d_comp = exp_fixed_comp.start_date or exp_fixed_comp.date
+            end_d_comp = exp_fixed_comp.end_date
+            
+            # Normalize to first of month for comparison
+            start_d_comp_month = start_d_comp.replace(day=1)
+            end_d_comp_month = end_d_comp.replace(day=1) if end_d_comp else date.max
 
+            if start_d_comp_month <= current_month_start_date <= end_d_comp_month:
+                 current_month_expenses_val += exp_fixed_comp.amount
+    # Gastos puntuales del mes actual
+    current_month_expenses_val += sum(e.amount for e in user_expenses_db if e.expense_type == 'punctual' and e.date >= current_month_start_date and e.date <= today)
+    current_month_expenses_val += debt_monthly_sum # Gastos de deuda del mes actual (calculated above)
+    
+    # Media 6 meses (usando la lógica de get_category_analysis para consistencia)
+    six_months_ago_start_date = (today.replace(day=1) - timedelta(days=1)).replace(day=1) # Start of 1st month, 6 months ago
+    for _ in range(5): # Go back 5 more full months
+        six_months_ago_start_date = (six_months_ago_start_date - timedelta(days=1)).replace(day=1)
+    
+    # For average, we use end of *previous* month as the period for averaging past data, or end of current month if it's partial.
+    # Let's use the total expenses from get_category_analysis for 6 months for better consistency.
+    # This means the JS call to fetchCategoryAnalysis(6) will provide the basis for this average eventually.
+    # For now, an approximation for display:
+    # A more accurate average would involve expanding all expenses over the last 6 months.
+    # For a quick display, this can be simplified or fetched.
+    # Let's use a placeholder for now, assuming JS will fill the precise table that drives this.
+    # avg_monthly_expenses_summary = ... (this would require full expansion logic like in get_category_analysis)
+    # Placeholder:
+    expenses_for_avg_calc = []
+    temp_iter_date = six_months_ago_start_date
+    end_avg_period = today.replace(day=1) # Average up to the start of the current month
+
+    while temp_iter_date < end_avg_period: # Iterate through the last 6 full past months
+        # Direct fixed expenses
+        for exp_avg in user_expenses_db:
+            if exp_avg.is_recurring and exp_avg.expense_type == 'fixed':
+                s_avg = exp_avg.start_date or exp_avg.date
+                e_avg = exp_avg.end_date
+                if s_avg.replace(day=1) <= temp_iter_date and (not e_avg or temp_iter_date < e_avg.replace(day=1)):
+                    if (temp_iter_date.year - s_avg.year) * 12 + (temp_iter_date.month - s_avg.month) % (exp_avg.recurrence_months or 1) == 0:
+                        expenses_for_avg_calc.append(exp_avg.amount)
+        # Direct punctual expenses
+        expenses_for_avg_calc.extend(e.amount for e in user_expenses_db if not e.is_recurring and e.date.year == temp_iter_date.year and e.date.month == temp_iter_date.month)
+        # Debt payments
+        for plan_avg in debt_plans_active: # only active plans contribute to ongoing average
+            plan_end_date_prop_avg = plan_avg.end_date
+            if plan_avg.start_date <= temp_iter_date and (plan_end_date_prop_avg is None or temp_iter_date < plan_end_date_prop_avg):
+                expenses_for_avg_calc.append(plan_avg.monthly_payment)
+        
+        next_m_avg = temp_iter_date.month + 1
+        next_y_avg = temp_iter_date.year
+        if next_m_avg > 12: next_m_avg = 1; next_y_avg += 1
+        try: temp_iter_date = date(next_y_avg, next_m_avg, 1)
+        except ValueError: break
+        
+    avg_monthly_expenses_summary = sum(expenses_for_avg_calc) / 6 if expenses_for_avg_calc else 0
     current_vs_avg_pct_val = ((current_month_expenses_val - avg_monthly_expenses_summary) / avg_monthly_expenses_summary * 100) if avg_monthly_expenses_summary > 0 else 0
 
     # --- Historial Unificado de Gastos ---
@@ -4023,98 +4077,103 @@ def expenses():
         category_name_exp = expense_item.category.name if expense_item.category else "Sin categoría"
         if expense_item.is_recurring and expense_item.expense_type == 'fixed':
             start_loop_date = expense_item.start_date or expense_item.date
-            end_loop_date = expense_item.end_date or date.today()
-            if end_loop_date > date.today(): end_loop_date = date.today()
+            # Limit loop to today to not show future occurrences in history
+            effective_end_loop_date = expense_item.end_date if expense_item.end_date and expense_item.end_date <= today else today
             
             current_loop_date = start_loop_date
             recurrence_loop = expense_item.recurrence_months or 1
-            while current_loop_date <= end_loop_date:
+            while current_loop_date <= effective_end_loop_date:
                 unified_expenses_list.append({
-                    'id': expense_item.id,
-                    'description': f"{expense_item.description} ({current_loop_date.strftime('%b %Y')})",
+                    'id': expense_item.id, # Base ID of the recurring expense
+                    'unique_id': f"exp_{expense_item.id}_{current_loop_date.strftime('%Y%m%d')}", # For modal uniqueness
+                    'description': f"{expense_item.description}", # Base description
+                    'occurrence_date_display': f"({current_loop_date.strftime('%b %Y')})", # Display specific occurrence
                     'amount': expense_item.amount,
-                    'date': current_loop_date,
+                    'date': current_loop_date, # Actual date of this occurrence
                     'expense_type': expense_item.expense_type,
                     'is_recurring': expense_item.is_recurring,
                     'category_name': category_name_exp,
                     'from_debt': False,
-                    'is_ended': expense_item.end_date is not None and current_loop_date.year >= expense_item.end_date.year and current_loop_date.month >= expense_item.end_date.month,
-                    'end_date': expense_item.end_date
+                    'is_mortgage_payment': False,
+                    'is_ended': expense_item.end_date is not None and current_loop_date.replace(day=1) >= expense_item.end_date.replace(day=1),
+                    'end_date_obj': expense_item.end_date # Pass actual end_date object
                 })
                 year_next = current_loop_date.year
                 month_next = current_loop_date.month + recurrence_loop
                 while month_next > 12: month_next -= 12; year_next +=1
                 try: current_loop_date = date(year_next, month_next, 1)
                 except ValueError: break
-        else:
+        else: # Punctual expenses
             unified_expenses_list.append({
                 'id': expense_item.id,
+                'unique_id': f"exp_{expense_item.id}_{expense_item.date.strftime('%Y%m%d')}",
                 'description': expense_item.description,
+                'occurrence_date_display': "", # No extra date for punctual
                 'amount': expense_item.amount,
                 'date': expense_item.date,
                 'expense_type': expense_item.expense_type,
                 'is_recurring': expense_item.is_recurring,
                 'category_name': category_name_exp,
                 'from_debt': False,
-                'is_ended': False # Gastos puntuales no "terminan"
+                'is_mortgage_payment': False,
+                'is_ended': False,
+                'end_date_obj': None
             })
 
-    # Añadir gastos de deuda al historial unificado
-    # Cargar planes de deuda con su categoría (usando joinedload para eficiencia)
-    debt_plans_for_history = DebtInstallmentPlan.query.options(db.joinedload(DebtInstallmentPlan.category)).filter_by(user_id=current_user.id).all()
+    debt_plans_for_history = DebtInstallmentPlan.query.options(
+        db.joinedload(DebtInstallmentPlan.category)
+    ).filter_by(user_id=current_user.id).all()
+
     for plan in debt_plans_for_history:
-        num_payments_to_show = plan.duration_months - plan.remaining_installments # Pagos ya hechos o que deberían haberse hecho
+        num_payments_occurred = plan.duration_months - plan.remaining_installments
+        if not plan.is_active and plan.remaining_installments == 0:
+            num_payments_occurred = plan.duration_months
+
+        current_payment_date_for_plan = date(plan.start_date.year, plan.start_date.month, 1)
         
-        current_payment_date_debt = date(plan.start_date.year, plan.start_date.month, 1)
-        for i in range(num_payments_to_show):
-            if current_payment_date_debt > date.today() and not (current_payment_date_debt.year == date.today().year and current_payment_date_debt.month == date.today().month) : # No mostrar futuros a menos que sea el mes actual
-                break
-            
-            # *** MODIFICACIÓN AQUÍ para usar la categoría del plan de deuda ***
-            category_name_for_debt_payment = "Deuda (Sin Categoría)" # Default
-            if plan.category: # plan.category ahora debería estar cargado
-                category_name_for_debt_payment = plan.category.name
-            
+        for i in range(num_payments_occurred):
+            category_name_for_debt_payment = plan.category.name if plan.category else "Deuda (Sin Categoría)"
+            description_prefix = "Pago Hipoteca" if plan.is_mortgage else "Pago Deuda"
+
             unified_expenses_list.append({
-                'id': f"debt_{plan.id}_{current_payment_date_debt.strftime('%Y%m')}",
-                'description': f"{plan.description}",
+                'id': f"debt_{plan.id}", # Base ID for debt plan related actions
+                'unique_id': f"debt_{plan.id}_{current_payment_date_for_plan.strftime('%Y%m%d')}",
+                'description': f"{description_prefix}: {plan.description}",
+                'occurrence_date_display': f"({current_payment_date_for_plan.strftime('%b %Y')})",
                 'amount': plan.monthly_payment,
-                'date': current_payment_date_debt,
-                'expense_type': 'debt', 
-                'is_recurring': True,
-                'category_name': category_name_for_debt_payment, # Usar la categoría del plan
+                'date': current_payment_date_for_plan,
+                'expense_type': 'debt_payment', 
+                'is_recurring': True, 
+                'category_name': category_name_for_debt_payment,
                 'from_debt': True,
-                'is_ended': not plan.is_active and plan.end_date and current_payment_date_debt >= plan.end_date
+                'is_mortgage_payment': plan.is_mortgage, # **** MODIFIED: ADDED THIS FLAG ****
+                'is_ended': (not plan.is_active and i == (num_payments_occurred -1)),
+                'end_date_obj': plan.end_date # Property access
             })
-            month_debt_next = current_payment_date_debt.month + 1
-            year_debt_next = current_payment_date_debt.year
-            if month_debt_next > 12: month_debt_next = 1; year_debt_next +=1
-            try: current_payment_date_debt = date(year_debt_next, month_debt_next, 1)
-            except ValueError: break
+
+            month_next_debt = current_payment_date_for_plan.month + 1
+            year_next_debt = current_payment_date_for_plan.year
+            if month_next_debt > 12:
+                month_next_debt = 1; year_next_debt += 1
+            try: current_payment_date_for_plan = date(year_next_debt, month_next_debt, 1)
+            except ValueError: break 
             
     unified_expenses_list.sort(key=lambda x: x['date'], reverse=True)
     
-    # Para el análisis por categoría, por defecto carga últimos 6 meses
-    # (La carga inicial se hace en la plantilla, el JS llamará a /get_category_analysis)
-    # Aquí podrías pasar sorted_categories=None y dejar que el JS lo cargue,
-    # o calcular los últimos 6 meses aquí como en la plantilla original.
-    # Por simplicidad, lo dejaré para que la plantilla lo maneje con el JS.
-    
     return render_template('expenses.html',
+                         title="Gestión de Gastos",
                          category_form=category_form,
                          expense_form=expense_form,
-                         # expenses=user_expenses_db, # Ya no se pasa directamente, se usa unified_expenses
                          unified_expenses=unified_expenses_list,
                          fixed_expenses_sum=fixed_expenses_sum,
                          punctual_expenses_sum=punctual_expenses_sum,
                          debt_monthly_sum=debt_monthly_sum,
                          total_monthly_expenses=total_monthly_expenses_summary,
-                         # sorted_categories=sorted_categories, # Se carga vía AJAX ahora
                          current_month_expenses=current_month_expenses_val,
                          avg_monthly_expenses=avg_monthly_expenses_summary,
-                         current_vs_avg_pct=current_vs_avg_pct_val)
+                         current_vs_avg_pct=current_vs_avg_pct_val,
+                         now=datetime.now()) # For setting default date in JS
 
-# --- Nuevas rutas a añadir en app.py para las funcionalidades solicitadas ---
 
 # 1. Ruta para finalizar un gasto recurrente
 @app.route('/end_recurring_expense/<int:expense_id>/<string:action_date>', methods=['POST'])
@@ -4614,7 +4673,7 @@ def debt_management():
                     if is_mortgage_checked and linked_asset_id_val and linked_asset_id_val !=0:
                         selected_asset = db.session.get(RealEstateAsset, linked_asset_id_val)
                         if selected_asset and selected_asset.user_id == current_user.id:
-                            description_val = f"Hipoteca: {selected_asset.property_type + ' - ' if selected_asset.property_type else ''}{selected_asset.property_name}"
+                            description_val = f"{selected_asset.property_type + ' - ' if selected_asset.property_type else ''}{selected_asset.property_name}"
                             # Check if asset already has an *active* mortgage debt plan
                             if selected_asset.debt_plan_as_mortgage and selected_asset.debt_plan_as_mortgage.is_active:
                                 flash(f"El inmueble '{selected_asset.property_name}' ya tiene una hipoteca (plan de deuda) activa asociada.", "warning")

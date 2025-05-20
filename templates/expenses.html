@@ -1,5 +1,14 @@
 {% extends "base.html" %}
 
+{% block head %}
+    {{ super() }}
+    <style>
+        /* Add any page-specific styles here if needed */
+        .modal-body label { margin-bottom: 0.3rem; }
+        .modal-body .form-control, .modal-body .form-select { margin-bottom: 0.8rem; }
+    </style>
+{% endblock %}
+
 {% block content %}
 <div class="container">
     <h1 class="mt-4">Gestión de Gastos</h1>
@@ -10,41 +19,43 @@
             <h5 class="mb-0">Resumen de Gastos Mensuales</h5>
         </div>
         <div class="card-body">
-            <div class="row">
-                <div class="col-md-3">
+            <div class="row text-center">
+                <div class="col-md-3 mb-2">
                     <div class="card h-100">
-                        <div class="card-body text-center">
+                        <div class="card-body">
                             <h6>Gastos Fijos</h6>
                             <h3 class="text-primary">{{ fixed_expenses_sum|round(2) }} €</h3>
+                             <small class="text-muted">Este mes</small>
                         </div>
                     </div>
                 </div>
                 
-                <div class="col-md-3">
+                <div class="col-md-3 mb-2">
                     <div class="card h-100">
-                        <div class="card-body text-center">
+                        <div class="card-body">
                             <h6>Gastos Puntuales</h6>
                             <h3 class="text-warning">{{ punctual_expenses_sum|round(2) }} €</h3>
-                            <small class="text-muted">Último mes</small>
+                            <small class="text-muted">Últimos 30 días</small>
                         </div>
                     </div>
                 </div>
                 
-                <div class="col-md-3">
+                <div class="col-md-3 mb-2">
                     <div class="card h-100">
-                        <div class="card-body text-center">
-                            <h6>Gastos de Deuda</h6>
+                        <div class="card-body">
+                            <h6>Pagos de Deuda</h6>
                             <h3 class="text-danger">{{ debt_monthly_sum|round(2) }} €</h3>
+                             <small class="text-muted">Este mes</small>
                         </div>
                     </div>
                 </div>
                 
-                <div class="col-md-3">
+                <div class="col-md-3 mb-2">
                     <div class="card h-100">
-                        <div class="card-body text-center">
-                            <h6>Total Mensual</h6>
+                        <div class="card-body">
+                            <h6>Total Estimado Mensual</h6>
                             <h3 class="text-success">{{ total_monthly_expenses|round(2) }} €</h3>
-                            <small class="text-muted">Fijos + Deudas + Puntuales (promedio)</small> {# Ajustar texto si es necesario #}
+                            <small class="text-muted">Fijos + Deudas</small>
                         </div>
                     </div>
                 </div>
@@ -57,39 +68,39 @@
             <h5 class="mb-0">Comparativa de Gasto Mensual</h5>
         </div>
         <div class="card-body">
-            <div class="row">
-                <div class="col-md-4">
+            <div class="row text-center">
+                <div class="col-md-4 mb-2">
                     <div class="card">
-                        <div class="card-body text-center">
-                            <h6>Este Mes</h6>
+                        <div class="card-body">
+                            <h6>Este Mes (Actual)</h6>
                             <h3 class="text-primary">{{ current_month_expenses|round(2) }} €</h3>
                         </div>
                     </div>
                 </div>
                 
-                <div class="col-md-4">
+                <div class="col-md-4 mb-2">
                     <div class="card">
-                        <div class="card-body text-center">
-                            <h6>Media (6 meses)</h6>
+                        <div class="card-body">
+                            <h6>Media (Últ. 6 Meses)</h6>
                             <h3 class="text-secondary">{{ avg_monthly_expenses|round(2) }} €</h3>
                         </div>
                     </div>
                 </div>
                 
-                <div class="col-md-4">
+                <div class="col-md-4 mb-2">
                     <div class="card">
-                        <div class="card-body text-center">
+                        <div class="card-body">
                             <h6>Variación</h6>
                             <h3 class="{% if current_vs_avg_pct > 0 %}text-danger{% elif current_vs_avg_pct < 0 %}text-success{% else %}text-secondary{% endif %}">
-                                {{ current_vs_avg_pct|round(2) }}%
+                                {{ current_vs_avg_pct|round(1) }}%
                             </h3>
                             <small class="text-muted">
-                                {% if current_vs_avg_pct > 0 %}
-                                    Por encima de la media
-                                {% elif current_vs_avg_pct < 0 %}
-                                    Por debajo de la media
+                                {% if current_vs_avg_pct > 1 %}
+                                    <i class="bi bi-arrow-up-right-circle-fill text-danger"></i> Superior a la media
+                                {% elif current_vs_avg_pct < -1 %}
+                                    <i class="bi bi-arrow-down-right-circle-fill text-success"></i> Inferior a la media
                                 {% else %}
-                                    Igual que la media
+                                    <i class="bi bi-arrow-left-right"></i> Similar a la media
                                 {% endif %}
                             </small>
                         </div>
@@ -112,23 +123,24 @@
                         
                         <div class="mb-3">
                             {{ category_form.name.label(class="form-label") }}
-                            {{ category_form.name(class="form-control" + (" is-invalid" if category_form.name.errors else "")) }}
+                            {{ category_form.name(class="form-control form-control-sm" + (" is-invalid" if category_form.name.errors else "")) }}
                             {% for error in category_form.name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                         </div>
                         
                         <div class="mb-3">
                             {{ category_form.description.label(class="form-label") }}
-                            {{ category_form.description(class="form-control") }}
+                            {{ category_form.description(class="form-control form-control-sm", rows="2") }}
                         </div>
                         
                         <div class="mb-3">
                             {{ category_form.parent_id.label(class="form-label") }}
-                            {{ category_form.parent_id(class="form-select" + (" is-invalid" if category_form.parent_id.errors else "")) }}
+                            {{ category_form.parent_id(class="form-select form-select-sm" + (" is-invalid" if category_form.parent_id.errors else "")) }}
                             {% for error in category_form.parent_id.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                             <div class="form-text">Selecciona una categoría padre para crear una subcategoría.</div>
                         </div>
                         
-                        {{ category_form.submit(class="btn btn-primary") }}
+                        {{ category_form.submit(class="btn btn-primary btn-sm") }}
+                         <a href="{{ url_for('manage_expense_categories') }}" class="btn btn-outline-secondary btn-sm">Gestionar Todas</a>
                     </form>
                 </div>
             </div>
@@ -144,57 +156,58 @@
                         
                         <div class="mb-3">
                             {{ expense_form.description.label(class="form-label") }}
-                            {{ expense_form.description(class="form-control" + (" is-invalid" if expense_form.description.errors else "")) }}
+                            {{ expense_form.description(class="form-control form-control-sm" + (" is-invalid" if expense_form.description.errors else "")) }}
                              {% for error in expense_form.description.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                         </div>
                         
-                        <div class="mb-3">
-                            {{ expense_form.amount.label(class="form-label") }}
-                            {{ expense_form.amount(class="form-control" + (" is-invalid" if expense_form.amount.errors else "")) }}
-                             {% for error in expense_form.amount.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                        </div>
-                        
-                        <div class="mb-3">
-                            {{ expense_form.date.label(class="form-label") }}
-                            {{ expense_form.date(class="form-control" + (" is-invalid" if expense_form.date.errors else ""), type="date") }}
-                             {% for error in expense_form.date.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                {{ expense_form.amount.label(class="form-label") }}
+                                {{ expense_form.amount(class="form-control form-control-sm" + (" is-invalid" if expense_form.amount.errors else "")) }}
+                                 {% for error in expense_form.amount.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                             <div class="col-md-6 mb-3">
+                                {{ expense_form.date.label(class="form-label") }}
+                                {{ expense_form.date(class="form-control form-control-sm" + (" is-invalid" if expense_form.date.errors else ""), type="date") }}
+                                 {% for error in expense_form.date.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
                         </div>
                         
                         <div class="mb-3">
                             {{ expense_form.category_id.label(class="form-label") }}
-                            {{ expense_form.category_id(class="form-select" + (" is-invalid" if expense_form.category_id.errors else "")) }}
+                            {{ expense_form.category_id(class="form-select form-select-sm" + (" is-invalid" if expense_form.category_id.errors else "")) }}
                              {% for error in expense_form.category_id.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                         </div>
                         
                         <div class="mb-3">
                             {{ expense_form.expense_type.label(class="form-label") }}
-                            <select id="expense_type" name="expense_type" class="form-select">
-                                <option value="punctual" {% if expense_form.expense_type.data == 'punctual' %}selected{% endif %}>Gasto Puntual</option>
+                            <select id="expense_type" name="expense_type" class="form-select form-select-sm">
+                                <option value="punctual" {% if expense_form.expense_type.data == 'punctual' or not expense_form.expense_type.data %}selected{% endif %}>Gasto Puntual</option>
                                 <option value="fixed" {% if expense_form.expense_type.data == 'fixed' %}selected{% endif %}>Gasto Recurrente</option>
                             </select>
                              {% for error in expense_form.expense_type.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                         </div>
                         
-                        <div class="mb-3 form-check d-none"> {# Oculto, controlado por JS #}
-                            {{ expense_form.is_recurring(class="form-check-input") }}
-                            {{ expense_form.is_recurring.label(class="form-check-label") }}
+                        {# Este campo is_recurring se maneja por JS, no es necesario mostrarlo explícitamente si expense_type lo controla #}
+                        <div class="mb-3 form-check d-none"> 
+                            {{ expense_form.is_recurring(class="form-check-input", id="is_recurring_hidden_checkbox") }}
                         </div>
                         
                         <div id="recurring-options" style="display: {% if expense_form.expense_type.data == 'fixed' %}block{% else %}none{% endif %};">
                             <div class="mb-3">
                                 {{ expense_form.recurrence_months.label(class="form-label") }}
-                                {{ expense_form.recurrence_months(class="form-select" + (" is-invalid" if expense_form.recurrence_months.errors else "")) }}
+                                {{ expense_form.recurrence_months(class="form-select form-select-sm" + (" is-invalid" if expense_form.recurrence_months.errors else "")) }}
                                 {% for error in expense_form.recurrence_months.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                             </div>
                             <div class="mb-3">
                                 {{ expense_form.end_date.label(class="form-label") }}
-                                {{ expense_form.end_date(class="form-control" + (" is-invalid" if expense_form.end_date.errors else ""), type="date") }}
+                                {{ expense_form.end_date(class="form-control form-control-sm" + (" is-invalid" if expense_form.end_date.errors else ""), type="date") }}
                                 <div class="form-text">Opcional. Si no se especifica, el gasto no tiene fecha de finalización.</div>
                                 {% for error in expense_form.end_date.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                             </div>
                         </div>
                         
-                        {{ expense_form.submit(class="btn btn-primary") }}
+                        {{ expense_form.submit(class="btn btn-primary btn-sm") }}
                     </form>
                 </div>
             </div>
@@ -205,11 +218,10 @@
                 <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Análisis por Categoría</h5>
                     <div class="dropdown">
-                        <button class="btn btn-sm btn-light dropdown-toggle" type="button" id="timeRangeDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                            <span id="selectedRange">Últimos 6 meses</span>
+                        <button class="btn btn-sm btn-light dropdown-toggle" type="button" id="timeRangeDropdownExpenses" data-bs-toggle="dropdown" aria-expanded="false">
+                            <span id="selectedRangeExpenses">Últimos 6 meses</span> {# ID cambiado para evitar colisión #}
                         </button>
-                        {# ID AÑADIDO AQUÍ para el selector de JS más específico #}
-                        <ul class="dropdown-menu dropdown-menu-end" id="categoryAnalysisTimeRangeMenu" aria-labelledby="timeRangeDropdown">
+                        <ul class="dropdown-menu dropdown-menu-end" id="categoryAnalysisTimeRangeMenuExpenses" aria-labelledby="timeRangeDropdownExpenses">
                             <li><a class="dropdown-item" href="#" data-range="1">Último mes</a></li>
                             <li><a class="dropdown-item" href="#" data-range="3">Últimos 3 meses</a></li>
                             <li><a class="dropdown-item active" href="#" data-range="6">Últimos 6 meses</a></li>
@@ -223,16 +235,34 @@
                     </div>
                 </div>
                 
-                <div class="modal fade" id="customRangeModal" tabindex="-1" aria-labelledby="customRangeModalLabel" aria-hidden="true">
-                    {# ... (contenido del modal para rango personalizado, sin cambios) ... #}
+                <div class="modal fade" id="customRangeModalExpenses" tabindex="-1" aria-labelledby="customRangeModalLabelExpenses" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="customRangeModalLabelExpenses">Seleccionar Rango Personalizado</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="mb-3">
+                                    <label for="startDateExpenses" class="form-label">Fecha de Inicio:</label>
+                                    <input type="date" class="form-control" id="startDateExpenses">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="endDateExpenses" class="form-label">Fecha de Fin:</label>
+                                    <input type="date" class="form-control" id="endDateExpenses">
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                <button type="button" class="btn btn-primary" id="applyCustomRangeExpenses">Aplicar Rango</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 
                 <div id="analysisByCategory" class="card-body">
-                    {# Contenido inicial cargado desde app.py para el rango por defecto (ej. 6 meses) #}
-                    {# O un mensaje de "Cargando..." si prefieres que el JS lo cargue siempre al inicio #}
-                    {# El siguiente bloque es un ejemplo de cómo se vería el contenido renderizado por el servidor #}
-                    {# para el rango por defecto, que luego el JS reemplazaría. #}
-                    {% include 'category_analysis_table.html' %} {# Asumiendo que este parcial existe y toma las variables adecuadas #}
+                    {# Contenido se carga vía AJAX #}
+                    <div class="text-center p-4"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Cargando...</span></div></div>
                 </div>
             </div>
             
@@ -242,9 +272,9 @@
                 </div>
                 <div class="card-body">
                     {% if unified_expenses %}
-                        <div class="table-responsive">
-                            <table class="table table-striped table-bordered table-hover">
-                                <thead class="table-dark">
+                        <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
+                            <table class="table table-striped table-bordered table-hover table-sm">
+                                <thead class="table-dark sticky-top">
                                     <tr>
                                         <th>Fecha</th>
                                         <th>Descripción</th>
@@ -258,17 +288,29 @@
                                     {% for expense in unified_expenses %}
                                     <tr>
                                         <td>{{ expense.date.strftime('%d/%m/%Y') }}</td>
-                                        <td>{{ expense.description }}</td>
+                                        <td>
+                                            {{ expense.description }}
+                                            {% if expense.is_recurring and not expense.from_debt %}
+                                                <small class="text-muted d-block">{{ expense.occurrence_date_display }}</small>
+                                            {% elif expense.from_debt %}
+                                                <small class="text-muted d-block">{{ expense.occurrence_date_display }}</small>
+                                            {% endif %}
+                                        </td>
                                         <td>{{ expense.category_name }}</td>
                                         <td>
+                                            {# **** MODIFIED SECTION FOR EXPENSE TYPE DISPLAY **** #}
                                             {% if expense.from_debt %}
-                                                <span class="badge bg-danger">Deuda</span>
-                                            {% elif expense.is_recurring and expense.expense_type == 'fixed' %} {# Condición más específica para "Recurrente" #}
+                                                {% if expense.is_mortgage_payment %}
+                                                    <span class="badge bg-info text-dark">Hipoteca</span>
+                                                {% else %}
+                                                    <span class="badge bg-danger">Deuda</span>
+                                                {% endif %}
+                                            {% elif expense.is_recurring and expense.expense_type == 'fixed' %}
                                                 <span class="badge bg-primary">Recurrente</span>
-                                            {% elif expense.expense_type == 'fixed' %} {# Si es 'fixed' pero no is_recurring (caso raro, pero por si acaso) #}
-                                                <span class="badge bg-info">Fijo</span>
+                                            {% elif expense.expense_type == 'fixed' %} 
+                                                <span class="badge bg-secondary">Fijo</span>
                                             {% else %} {# expense_type == 'punctual' #}
-                                                <span class="badge bg-warning">Puntual</span>
+                                                <span class="badge bg-warning text-dark">Puntual</span>
                                             {% endif %}
                                         </td>
                                         <td class="text-end">{{ expense.amount|round(2) }}</td>
@@ -278,27 +320,55 @@
                                                     <a href="{{ url_for('edit_expense', expense_id=expense.id) }}" class="btn btn-primary btn-sm" title="Editar gasto"><i class="bi bi-pencil"></i></a>
                                                     {% if expense.is_recurring and expense.expense_type == 'fixed' %}
                                                         {% if expense.is_ended %}
-                                                            <form method="POST" action="{{ url_for('end_recurring_expense', expense_id=expense.id, action_date=expense.date.strftime('%Y-%m-%d')) }}" class="d-inline" onsubmit="return confirm('¿Reactivar gasto recurrente?');">
-                                                                <button type="submit" class="btn btn-outline-secondary btn-sm" title="Reactivar contrato"><i class="bi bi-calendar-check"></i> Finalizado ({{ expense.end_date.strftime('%m/%Y') if expense.end_date }})</button>
+                                                            <form method="POST" action="{{ url_for('end_recurring_expense', expense_id=expense.id, action_date=expense.date.strftime('%Y-%m-%d')) }}" class="d-inline" onsubmit="return confirm('¿Reactivar gasto recurrente \'{{ expense.description }}\'?');">
+                                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
+                                                                <button type="submit" class="btn btn-outline-secondary btn-sm" title="Reactivar contrato"><i class="bi bi-calendar-check"></i> Finalizado ({{ expense.end_date_obj.strftime('%m/%Y') if expense.end_date_obj }})</button>
                                                             </form>
                                                         {% else %}
-                                                            <form method="POST" action="{{ url_for('end_recurring_expense', expense_id=expense.id, action_date=expense.date.strftime('%Y-%m-%d')) }}" class="d-inline" onsubmit="return confirm('¿Finalizar este contrato en {{ expense.date.strftime('%m/%Y') }}?');">
+                                                            <form method="POST" action="{{ url_for('end_recurring_expense', expense_id=expense.id, action_date=expense.date.strftime('%Y-%m-%d')) }}" class="d-inline" onsubmit="return confirm('¿Finalizar este contrato \'{{ expense.description }}\' en {{ expense.date.strftime('%m/%Y') }}?');">
+                                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
                                                                 <button type="submit" class="btn btn-warning btn-sm" title="Finalizar contrato"><i class="bi bi-calendar-x"></i> Finalizar</button>
                                                             </form>
                                                         {% endif %}
-                                                        <button type="button" class="btn btn-danger btn-sm" title="Eliminar gasto" data-bs-toggle="modal" data-bs-target="#deleteOptions{{ expense.id }}{{ expense.date.strftime('%Y%m%d') }}"><i class="bi bi-trash"></i></button>
-                                                        <div class="modal fade" id="deleteOptions{{ expense.id }}{{ expense.date.strftime('%Y%m%d') }}" tabindex="-1" aria-hidden="true">
-                                                            {# ... (contenido del modal de eliminación, sin cambios) ... #}
+                                                        <button type="button" class="btn btn-danger btn-sm" title="Eliminar gasto" data-bs-toggle="modal" data-bs-target="#deleteOptionsModal_{{ expense.unique_id }}"><i class="bi bi-trash"></i></button>
+                                                        
+                                                        <div class="modal fade" id="deleteOptionsModal_{{ expense.unique_id }}" tabindex="-1" aria-labelledby="deleteOptionsLabel_{{ expense.unique_id }}" aria-hidden="true">
+                                                          <div class="modal-dialog">
+                                                            <div class="modal-content">
+                                                              <div class="modal-header">
+                                                                <h5 class="modal-title" id="deleteOptionsLabel_{{ expense.unique_id }}">Eliminar Gasto Recurrente: {{ expense.description }}</h5>
+                                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                              </div>
+                                                              <div class="modal-body">
+                                                                <p>¿Cómo quieres eliminar este gasto recurrente?</p>
+                                                                <ul>
+                                                                    <li><strong>Eliminar solo este pago de {{ expense.date.strftime('%B %Y') }}:</strong> Se creará una entrada negativa para compensar este pago específico. La serie recurrente continuará.</li>
+                                                                    <li><strong>Eliminar toda la serie recurrente:</strong> Se eliminará el gasto recurrente completo, incluyendo todos sus pagos pasados y futuros.</li>
+                                                                </ul>
+                                                              </div>
+                                                              <div class="modal-footer">
+                                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                                                <form method="POST" action="{{ url_for('delete_expense_with_options', expense_id=expense.id, delete_type='single') }}?entry_date={{ expense.date.strftime('%Y-%m-%d') }}" class="d-inline">
+                                                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
+                                                                    <button type="submit" class="btn btn-warning">Eliminar solo este pago</button>
+                                                                </form>
+                                                                <form method="POST" action="{{ url_for('delete_expense_with_options', expense_id=expense.id, delete_type='series') }}" class="d-inline" onsubmit="return confirm('¿Estás SEGURO de eliminar TODA la serie de este gasto recurrente?');">
+                                                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
+                                                                    <button type="submit" class="btn btn-danger">Eliminar toda la serie</button>
+                                                                </form>
+                                                              </div>
+                                                            </div>
+                                                          </div>
                                                         </div>
-                                                    {% else %}
+                                                    {% else %} {# Gasto puntual #}
                                                         <form method="POST" action="{{ url_for('delete_expense', expense_id=expense.id) }}" class="d-inline" onsubmit="return confirm('¿Eliminar este gasto?');">
                                                              <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
                                                             <button type="submit" class="btn btn-danger btn-sm" title="Eliminar gasto"><i class="bi bi-trash"></i></button>
                                                         </form>
                                                     {% endif %}
                                                 </div>
-                                            {% else %}
-                                                <a href="{{ url_for('debt_management') }}" class="btn btn-outline-secondary btn-sm">Gestionar en Deudas</a>
+                                            {% else %} {# Es un gasto de deuda #}
+                                                <a href="{{ url_for('debt_management') }}" class="btn btn-outline-secondary btn-sm">Ver en Deudas</a>
                                             {% endif %}
                                         </td>
                                     </tr>
@@ -318,13 +388,14 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const expenseTypeSelect = document.getElementById('expense_type');
-    const recurringCheck = document.getElementById('is_recurring'); // Campo oculto
+    const recurringCheck = document.getElementById('is_recurring_hidden_checkbox'); 
     const recurringOptions = document.getElementById('recurring-options');
+    const defaultExpenseDateInput = document.getElementById('{{ expense_form.date.id }}'); // Usar el ID del campo de fecha
     
     function handleExpenseTypeChange() {
-        if (!expenseTypeSelect || !recurringCheck || !recurringOptions) return; // Defensive check
+        if (!expenseTypeSelect || !recurringCheck || !recurringOptions) return;
         const isRecurrent = expenseTypeSelect.value === 'fixed';
-        recurringCheck.checked = isRecurrent;
+        recurringCheck.checked = isRecurrent; // Actualizar el checkbox oculto
         recurringOptions.style.display = isRecurrent ? 'block' : 'none';
     }
     
@@ -333,90 +404,37 @@ document.addEventListener('DOMContentLoaded', function() {
         handleExpenseTypeChange(); // Estado inicial
     }
     
-    const dateInput = document.getElementById('date'); // ID del campo de fecha en expense_form
-    if (dateInput && !dateInput.value) { // Solo si está vacío para no sobrescribir en validación fallida
+    if (defaultExpenseDateInput && !defaultExpenseDateInput.value) {
         const today = new Date();
         const year = today.getFullYear();
         const month = (today.getMonth() + 1).toString().padStart(2, '0');
         const day = today.getDate().toString().padStart(2, '0');
-        dateInput.value = `${year}-${month}-${day}`;
+        defaultExpenseDateInput.value = `${year}-${month}-${day}`;
     }
     
-    // --- Lógica para el selector de rango de tiempo ---
-    const timeRangeMenuElement = document.getElementById('categoryAnalysisTimeRangeMenu'); // Usar el ID específico
-    let dropdownItems = [];
-    if (timeRangeMenuElement) {
-        dropdownItems = timeRangeMenuElement.querySelectorAll('.dropdown-item');
-    }
-    
-    const selectedRangeText = document.getElementById('selectedRange');
-    const customRangeModalEl = document.getElementById('customRangeModal');
-    let bootstrapModalInstance;
-    if (customRangeModalEl) {
-        bootstrapModalInstance = new bootstrap.Modal(customRangeModalEl);
-    }
-    const applyCustomRangeBtn = document.getElementById('applyCustomRange');
-    const startDateInput = document.getElementById('startDate');
-    const endDateInput = document.getElementById('endDate');
-    
-    // Establecer fechas por defecto en el modal de rango personalizado
-    if (startDateInput && endDateInput && !startDateInput.value && !endDateInput.value) {
-        const todayForRange = new Date();
-        endDateInput.value = todayForRange.toISOString().split('T')[0];
-        const defaultStartDate = new Date(todayForRange);
-        defaultStartDate.setMonth(defaultStartDate.getMonth() - 6); // Por defecto 6 meses
-        startDateInput.value = defaultStartDate.toISOString().split('T')[0];
-        fetchCategoryAnalysis(6); // Cargar análisis por defecto al cargar página
-    } else if (startDateInput && endDateInput && startDateInput.value && endDateInput.value) {
-        // Si hay fechas (ej. tras error de validación y recarga), cargar con esas fechas
-        fetchCategoryAnalysisByDates(startDateInput.value, endDateInput.value);
-    } else {
-        fetchCategoryAnalysis(6); // Carga por defecto si no hay fechas
+    // --- Lógica para el selector de rango de tiempo del Análisis por Categoría ---
+    const timeRangeMenuExpenses = document.getElementById('categoryAnalysisTimeRangeMenuExpenses');
+    const selectedRangeTextExpenses = document.getElementById('selectedRangeExpenses');
+    const customRangeModalExpenses = document.getElementById('customRangeModalExpenses');
+    const applyCustomRangeBtnExpenses = document.getElementById('applyCustomRangeExpenses');
+    const startDateInputExpenses = document.getElementById('startDateExpenses');
+    const endDateInputExpenses = document.getElementById('endDateExpenses');
+    let bootstrapCustomRangeModalExpenses;
+
+    if(customRangeModalExpenses) {
+        bootstrapCustomRangeModalExpenses = new bootstrap.Modal(customRangeModalExpenses);
     }
 
-
-    dropdownItems.forEach(item => {
-        item.addEventListener('click', function(e) {
-            e.preventDefault();
-            dropdownItems.forEach(i => i.classList.remove('active'));
-            this.classList.add('active');
-            const range = this.getAttribute('data-range');
-            
-            if (range === 'custom') {
-                if (bootstrapModalInstance) bootstrapModalInstance.show();
-            } else {
-                if(selectedRangeText) selectedRangeText.textContent = this.textContent;
-                fetchCategoryAnalysis(parseInt(range));
-            }
-        });
-    });
-    
-    if (applyCustomRangeBtn) {
-        applyCustomRangeBtn.addEventListener('click', function() {
-            if (startDateInput.value && endDateInput.value) {
-                if (selectedRangeText) {
-                    const startDateObj = new Date(startDateInput.value);
-                    const endDateObj = new Date(endDateInput.value);
-                    selectedRangeText.textContent = `${startDateObj.toLocaleDateString()} - ${endDateObj.toLocaleDateString()}`;
-                }
-                fetchCategoryAnalysisByDates(startDateInput.value, endDateInput.value);
-                if (bootstrapModalInstance) bootstrapModalInstance.hide();
-            } else {
-                alert('Por favor, selecciona fechas válidas.');
-            }
-        });
-    }
-    
     function fetchCategoryAnalysis(months) {
         const analysisDiv = document.getElementById('analysisByCategory');
         if (!analysisDiv) return;
         analysisDiv.innerHTML = '<div class="text-center p-4"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Cargando...</span></div></div>';
         fetch(`/get_category_analysis?months=${months}`)
-            .then(response => response.ok ? response.text() : Promise.reject(`Error: ${response.statusText}`))
+            .then(response => response.ok ? response.text() : Promise.reject({status: response.status, statusText: response.statusText}))
             .then(html => { analysisDiv.innerHTML = html; })
             .catch(error => {
-                console.error('Error:', error);
-                analysisDiv.innerHTML = `<div class="alert alert-danger">Error al cargar datos.</div>`;
+                console.error('Error fetching category analysis:', error);
+                analysisDiv.innerHTML = `<div class="alert alert-danger">Error al cargar datos (${error.status || ''} ${error.statusText || ''}). Inténtelo de nuevo.</div>`;
             });
     }
     
@@ -425,24 +443,60 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!analysisDiv) return;
         analysisDiv.innerHTML = '<div class="text-center p-4"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Cargando...</span></div></div>';
         fetch(`/get_category_analysis?start_date=${startDate}&end_date=${endDate}`)
-            .then(response => response.ok ? response.text() : Promise.reject(`Error: ${response.statusText}`))
+            .then(response => response.ok ? response.text() : Promise.reject({status: response.status, statusText: response.statusText}))
             .then(html => { analysisDiv.innerHTML = html; })
             .catch(error => {
-                console.error('Error:', error);
-                analysisDiv.innerHTML = `<div class="alert alert-danger">Error al cargar datos.</div>`;
+                console.error('Error fetching category analysis by dates:', error);
+                analysisDiv.innerHTML = `<div class="alert alert-danger">Error al cargar datos (${error.status || ''} ${error.statusText || ''}). Inténtelo de nuevo.</div>`;
             });
     }
-});
 
-function handleExpenseTypeChange() { // Asegurarse que esta función global está disponible
-    const expenseTypeSelect = document.getElementById('expense_type');
-    const recurringCheck = document.getElementById('is_recurring');
-    const recurringOptions = document.getElementById('recurring-options');
+    if (timeRangeMenuExpenses && selectedRangeTextExpenses) {
+        const dropdownItemsExpenses = timeRangeMenuExpenses.querySelectorAll('.dropdown-item');
+        // Set default dates for custom range modal
+        if (startDateInputExpenses && endDateInputExpenses && !startDateInputExpenses.value && !endDateInputExpenses.value) {
+            const todayForRange = new Date();
+            endDateInputExpenses.valueAsDate = todayForRange; // Set as Date object
+            const defaultStartDate = new Date(todayForRange);
+            defaultStartDate.setMonth(defaultStartDate.getMonth() - 6);
+            startDateInputExpenses.valueAsDate = defaultStartDate; // Set as Date object
+        }
+        fetchCategoryAnalysis(6); // Initial load for default 6 months
+
+        dropdownItemsExpenses.forEach(item => {
+            item.addEventListener('click', function(e) {
+                e.preventDefault();
+                dropdownItemsExpenses.forEach(i => i.classList.remove('active'));
+                this.classList.add('active');
+                const range = this.getAttribute('data-range');
+                
+                if (range === 'custom') {
+                    if (bootstrapCustomRangeModalExpenses) bootstrapCustomRangeModalExpenses.show();
+                } else {
+                    selectedRangeTextExpenses.textContent = this.textContent;
+                    fetchCategoryAnalysis(parseInt(range));
+                }
+            });
+        });
+    }
     
-    if (!expenseTypeSelect || !recurringCheck || !recurringOptions) return;
-    const isRecurrent = expenseTypeSelect.value === 'fixed';
-    recurringCheck.checked = isRecurrent;
-    recurringOptions.style.display = isRecurrent ? 'block' : 'none';
-}
+    if (applyCustomRangeBtnExpenses && startDateInputExpenses && endDateInputExpenses && selectedRangeTextExpenses && bootstrapCustomRangeModalExpenses) {
+        applyCustomRangeBtnExpenses.addEventListener('click', function() {
+            if (startDateInputExpenses.value && endDateInputExpenses.value) {
+                const startDateObj = new Date(startDateInputExpenses.value);
+                const endDateObj = new Date(endDateInputExpenses.value);
+                if (startDateObj > endDateObj) {
+                    alert("La fecha de inicio no puede ser posterior a la fecha de fin.");
+                    return;
+                }
+                selectedRangeTextExpenses.textContent = `${startDateObj.toLocaleDateString('es-ES', {day:'2-digit', month:'2-digit', year:'numeric'})} - ${endDateObj.toLocaleDateString('es-ES', {day:'2-digit', month:'2-digit', year:'numeric'})}`;
+                fetchCategoryAnalysisByDates(startDateInputExpenses.value, endDateInputExpenses.value);
+                bootstrapCustomRangeModalExpenses.hide();
+            } else {
+                alert('Por favor, selecciona ambas fechas para el rango personalizado.');
+            }
+        });
+    }
+});
 </script>
-{% endblock content %}
+{% endblock %}
