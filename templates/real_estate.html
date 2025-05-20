@@ -15,10 +15,11 @@
         .card-header h5 button i.bi-chevron-down {
             transition: transform 0.2s ease-in-out;
         }
-        .card-header h5 button[aria-expanded="true"] i.bi-chevron-right, /* Corregido selector */
+        .card-header h5 button[aria-expanded="true"] i.bi-chevron-right,
         .card-header h5 button[aria-expanded="true"] i.bi-chevron-down {
             transform: rotate(90deg);
         }
+        /* .progress-bar-text style can be removed if no other progress bars use it on this page */
     </style>
 {% endblock %}
 
@@ -56,14 +57,16 @@
                     <h5 class="mb-0">
                         <button class="btn btn-link text-decoration-none text-dark p-0 w-100 text-start d-flex justify-content-between align-items-center" type="button" data-bs-toggle="collapse" data-bs-target="#addAssetCollapse" aria-expanded="false" aria-controls="addAssetCollapse">
                             Añadir Nuevo Inmueble
-                            <i class="bi bi-chevron-right"></i> {# El JS se encargará de cambiarlo a down #}
+                            <i class="bi bi-chevron-right"></i>
                         </button>
                     </h5>
                 </div>
-                <div id="addAssetCollapse" class="collapse {% if asset_form.errors %}show{% endif %}" aria-labelledby="headingAddAsset">
+                <div id="addAssetCollapse" class="collapse {% if asset_form.errors and asset_form.submit_asset.data %}show{% endif %}" aria-labelledby="headingAddAsset">
                     <div class="card-body">
-                        <form method="POST" action="{{ url_for('real_estate') }}"> {# Asume que 'real_estate' maneja el POST para crear #}
+                        <form method="POST" action="{{ url_for('real_estate') }}">
                             {{ asset_form.hidden_tag() }}
+                            <input type="hidden" name="form_name" value="add_asset"> 
+
                             <div class="mb-3">
                                 {{ asset_form.property_name.label(class="form-label") }}
                                 {{ asset_form.property_name(class="form-control form-control-sm" + (" is-invalid" if asset_form.property_name.errors else "")) }}
@@ -100,6 +103,8 @@
                     {% if assets_details %} 
                     <form method="POST" action="{{ url_for('add_valuation') }}">
                         {{ valuation_form.hidden_tag() }}
+                        <input type="hidden" name="form_name" value="add_valuation">
+
                         <div class="mb-3">
                             {{ valuation_form.asset_id.label(class="form-label") }}
                             {{ valuation_form.asset_id(class="form-select form-select-sm" + (" is-invalid" if valuation_form.asset_id.errors else ""), **valuation_form.asset_id.render_kw) }}
@@ -115,8 +120,9 @@
                                 {{ valuation_form.market_value.label(class="form-label") }}
                                 {{ valuation_form.market_value(class="form-control form-control-sm" + (" is-invalid" if valuation_form.market_value.errors else ""), **valuation_form.market_value.render_kw) }}
                                 {% for error in valuation_form.market_value.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                                
                                 <div class="mt-1">
-                                    <a href="https://www.idealista.com/valoracion-de-inmuebles/" target="_blank" rel="noopener noreferrer" class="text-primary small"> {# Cambiado a la URL principal de valoración #}
+                                    <a href="https://www.idealista.com/valoracion-de-inmuebles/" target="_blank" rel="noopener noreferrer" class="text-primary small">
                                         <i class="bi bi-box-arrow-up-right"></i> Obtener valor de Mercado (Idealista)
                                     </a>
                                 </div>
@@ -168,8 +174,9 @@
                                             {% endif %}
                                         </td>
                                         <td class="text-center">
+                                            {# MODIFIED SECTION FOR MORTGAGE DISPLAY #}
                                             {% if asset_detail.mortgage_status == "Hipoteca" %}
-                                                <span class="badge bg-warning text-dark">{{ asset_detail.mortgage_status }}</span>
+                                                <span class="badge bg-primary">Hipoteca</span>
                                             {% else %}
                                                 <span class="badge bg-success">{{ asset_detail.mortgage_status }}</span>
                                             {% endif %}
@@ -215,7 +222,7 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {% for val in asset_detail.valuations %} {# Asume que app.py pasa 'valuations' ordenado más reciente primero #}
+                                        {% for val in asset_detail.valuations %}
                                         <tr>
                                             <td>{{ val.year }}</td>
                                             <td class="text-end">{{ val.value|round(2) }}</td>
@@ -253,24 +260,23 @@
 {{ super() }}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        // Script para el formulario de añadir inmueble (colapsable)
         const addAssetCollapseElement = document.getElementById('addAssetCollapse');
-        // Selector más robusto para el icono
-        const addAssetButtonIcon = document.querySelector('button[data-bs-target="#addAssetCollapse"] > i.bi');
+        const addAssetButtonIcon = document.querySelector('button[data-bs-target="#addAssetCollapse"] i.bi'); 
 
         if (addAssetCollapseElement && addAssetButtonIcon) {
-            addAssetCollapseElement.addEventListener('show.bs.collapse', function () {
-                addAssetButtonIcon.classList.remove('bi-chevron-right');
-                addAssetButtonIcon.classList.add('bi-chevron-down');
-            });
-            addAssetCollapseElement.addEventListener('hide.bs.collapse', function () {
-                addAssetButtonIcon.classList.remove('bi-chevron-down');
-                addAssetButtonIcon.classList.add('bi-chevron-right');
-            });
-            // Estado inicial del icono si el collapse está abierto por defecto (ej. por errores de form)
-            if (addAssetCollapseElement.classList.contains('show')) {
-                 addAssetButtonIcon.classList.remove('bi-chevron-right');
-                 addAssetButtonIcon.classList.add('bi-chevron-down');
+            function updateIconState() {
+                if (addAssetCollapseElement.classList.contains('show')) {
+                    addAssetButtonIcon.classList.remove('bi-chevron-right');
+                    addAssetButtonIcon.classList.add('bi-chevron-down');
+                } else {
+                    addAssetButtonIcon.classList.remove('bi-chevron-down');
+                    addAssetButtonIcon.classList.add('bi-chevron-right');
+                }
             }
+            addAssetCollapseElement.addEventListener('show.bs.collapse', updateIconState);
+            addAssetCollapseElement.addEventListener('hide.bs.collapse', updateIconState);
+            updateIconState(); 
         }
     });
 </script>

@@ -2,6 +2,7 @@
 import os
 import pandas as pd
 import io
+import math
 import re
 import traceback
 import uuid
@@ -278,59 +279,95 @@ class DebtCeiling(db.Model):
 
 # En app.py
 
+# En app.py
+
+# ... other imports and model definitions ...
+
 class DebtInstallmentPlan(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True) # Clave foránea es suficiente
+    id = db.Column(db.Integer, primary_key=True) 
+    
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
     expense_category_id = db.Column(db.Integer, db.ForeignKey('expense_category.id', ondelete='SET NULL'), nullable=True)
     description = db.Column(db.String(200), nullable=False)
     total_amount = db.Column(db.Float, nullable=False)
     start_date = db.Column(db.Date, nullable=False)
     duration_months = db.Column(db.Integer, nullable=False)
-    monthly_payment = db.Column(db.Float, nullable=False)
+    monthly_payment = db.Column(db.Float, nullable=False)    
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    # Se elimina la línea: user = db.relationship('User', backref=db.backref('debt_plans', ...))
-    # El atributo 'user' en las instancias de DebtInstallmentPlan lo crea el 'backref' de User.debt_plans
+    is_mortgage = db.Column(db.Boolean, default=False, nullable=False)
+    linked_asset_id_for_mortgage = db.Column(db.Integer, db.ForeignKey('real_estate_asset.id'), nullable=True)
 
-    category = db.relationship('ExpenseCategory', backref=db.backref('debt_plans_associated', lazy='dynamic'))
+    category = db.relationship('ExpenseCategory', backref=db.backref('debt_plans_associated', lazy='select'))
+    # user relationship is via backref in User.debt_plans
 
-    # ... (tus @property y __repr__ existentes) ...
+    # ADD THIS RELATIONSHIP:
+    # This defines that a DebtInstallmentPlan can be the source ID for one RealEstateMortgage record.
+    # If this DebtInstallmentPlan is deleted, the associated RealEstateMortgage record (which uses this plan's ID)
+    # will also be deleted due to cascade="all, delete-orphan".
+    mortgage_record_it_is_linked_to = db.relationship(
+        "RealEstateMortgage",
+        foreign_keys="RealEstateMortgage.debt_installment_plan_id", # Links via RealEstateMortgage.debt_installment_plan_id
+        backref=db.backref("debt_installment_plan_source", uselist=False), # Allows RealEstateMortgage to access its DebtInstallmentPlan
+        uselist=False, # One-to-one: one DebtInstallmentPlan ID is used by at most one RealEstateMortgage
+        cascade="all, delete-orphan" # Crucial for cleanup
+    )
+
     @property
     def end_date(self):
         if self.start_date and self.duration_months:
             month = self.start_date.month - 1 + self.duration_months
             year = self.start_date.year + month // 12
             month = month % 12 + 1
-            return date(year, month, 1)
+            try:
+                return date(year, month, 1)
+            except ValueError:
+                app.logger.error(f"Fecha inválida calculada para DebtInstallmentPlan {self.id}: Año {year}, Mes {month}")
+                return None
         return None
 
     @property
     def remaining_installments(self):
         if not self.is_active: return 0
         today = date.today()
-        if today < self.start_date: return self.duration_months
-        months_since_start = (today.year - self.start_date.year) * 12 + (today.month - self.start_date.month)
-        # Ajuste: si ya pasó el día 1 del mes actual, ese pago ya se considera hecho para "restantes"
-        if today.day > 1 and self.start_date <= today:
-            months_since_start += 1
-        # Si es el primer día del mes y el plan ya inició, la cuota está pendiente, no sumar.
         
+        if not isinstance(self.start_date, date):
+            try:
+                start_date_obj = datetime.strptime(str(self.start_date), '%Y-%m-%d').date()
+            except ValueError:
+                return self.duration_months
+        else:
+            start_date_obj = self.start_date
+
+        if today < start_date_obj: return self.duration_months
+        
+        months_since_start = (today.year - start_date_obj.year) * 12 + (today.month - start_date_obj.month)
+        
+        if today.day > 1 and start_date_obj <= today: # Consider current month as passed if not the 1st
+            months_since_start += 1
+            
         remaining = self.duration_months - months_since_start
         return max(0, remaining)
 
     @property
     def remaining_amount(self):
-        return self.monthly_payment * self.remaining_installments
+        monthly_payment_val = self.monthly_payment if isinstance(self.monthly_payment, (int, float)) else 0.0
+        return monthly_payment_val * self.remaining_installments
 
     @property
     def progress_percentage(self):
         if self.duration_months == 0: return 100
-        completed = self.duration_months - self.remaining_installments
-        return (completed / self.duration_months) * 100 if self.duration_months > 0 else 100
+        completed_installments = self.duration_months - self.remaining_installments
+        # Ensure completed_installments does not exceed duration_months due to rounding or future start_dates
+        completed_installments = min(completed_installments, self.duration_months)
+        completed_installments = max(0, completed_installments) # Ensure not negative
+        return (completed_installments / self.duration_months) * 100 if self.duration_months > 0 else 100
 
     def __repr__(self):
         return f'<DebtInstallmentPlan {self.description} - {self.total_amount}€ CategoryID: {self.expense_category_id}>'
+
+# ... rest of your app.py ...
 
 class DebtHistoryRecord(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -707,18 +744,48 @@ class DebtCeilingForm(FlaskForm):
 # En app.py, dentro de la definición de formularios
 
 class DebtInstallmentPlanForm(FlaskForm):
-    # NUEVO CAMPO: Selección de categoría
     category_id = SelectField('Categoría del Gasto (Deuda)*', coerce=int, validators=[DataRequired(message="Debes seleccionar una categoría.")])
+    
+    # NUEVOS CAMPOS PARA HIPOTECA
+    is_mortgage = BooleanField('Es una Hipoteca')
+    linked_asset_id = SelectField('Seleccionar Inmueble Hipotecado', coerce=int, validators=[Optional()]) # Se valida en la vista si is_mortgage=True
 
-    description = StringField('Descripción de la Deuda*', validators=[DataRequired()],
-                           render_kw={"placeholder": "Ej: Préstamo coche, Tarjeta crédito..."})
-    total_amount = StringField('Cantidad Total a Pagar (€)*', validators=[DataRequired()],
-                            render_kw={"placeholder": "Ej: 5000.00"})
-    start_date = StringField('Fecha de Inicio (Mes/Año)*', validators=[DataRequired()],
-                          render_kw={"type": "month", "placeholder": "YYYY-MM"})
-    duration_months = StringField('Duración (Meses)*', validators=[DataRequired()],
-                               render_kw={"placeholder": "Ej: 12", "type": "number", "min": "1"})
+    description = StringField('Descripción de la Deuda*', 
+                              validators=[DataRequired()],
+                              render_kw={"placeholder": "Ej: Préstamo coche, Tarjeta..."})
+    total_amount = FloatField('Cantidad Total a Pagar (€)*', 
+                               validators=[DataRequired(), NumberRange(min=0.01)], 
+                               render_kw={"placeholder": "Ej: 5000.00"}) # Cambiado a FloatField
+    start_date = StringField('Fecha de Inicio (Mes/Año)*', 
+                             validators=[DataRequired()],
+                             render_kw={"type": "month"}) # HTML5 se encargará del formato
+
+    # NUEVO: Elección entre duración o mensualidad
+    payment_input_type = RadioField('Definir por:', choices=[('duration', 'Duración'), ('monthly_amount', 'Mensualidad')], default='duration', validators=[DataRequired()])
+    duration_months_input = IntegerField('Duración (Meses)*', 
+                                    validators=[Optional(), NumberRange(min=1)], # Opcional, dependerá del RadioField
+                                    render_kw={"placeholder": "Ej: 12", "type": "number", "min": "1"})
+    monthly_payment_input = FloatField('Mensualidad (€)*', 
+                                     validators=[Optional(), NumberRange(min=0.01)], # Opcional
+                                     render_kw={"placeholder": "Ej: 250.50"})
+    
     submit = SubmitField('Añadir Plan de Pago')
+
+    # Validadores personalizados si es necesario para duration/monthly_payment según payment_input_type
+    def validate_duration_months_input(self, field):
+        if self.payment_input_type.data == 'duration' and not field.data:
+            raise ValidationError('La duración es obligatoria si se define por duración.')
+        if field.data is not None and field.data <= 0:
+            raise ValidationError('La duración debe ser mayor que cero.')
+
+    def validate_monthly_payment_input(self, field):
+        if self.payment_input_type.data == 'monthly_amount' and not field.data:
+            raise ValidationError('La mensualidad es obligatoria si se define por mensualidad.')
+        if field.data is not None and field.data <= 0:
+            raise ValidationError('La mensualidad debe ser mayor que cero.')
+        if self.payment_input_type.data == 'monthly_amount' and self.total_amount.data and field.data > self.total_amount.data:
+            raise ValidationError('La mensualidad no puede ser mayor que la cantidad total.')
+
 
 class DebtHistoryForm(FlaskForm):
     month_year = StringField('Mes y Año', validators=[DataRequired()],
@@ -771,6 +838,18 @@ class ExpenseForm(FlaskForm):
 
 
 # In app.py
+
+class RealEstateAssetFormPopup(FlaskForm): # Formulario simplificado para el pop-up
+    property_name = StringField('Nombre del Inmueble*', validators=[DataRequired(), Length(max=150)], render_kw={"placeholder": "Ej: Apartamento Sol"})
+    property_type = SelectField('Tipo de Inmueble', choices=[
+        ('', '- Seleccionar Tipo -'), ('Apartamento', 'Apartamento'), ('Casa', 'Casa'), 
+        ('Local Comercial', 'Local Comercial'), ('Terreno', 'Terreno'), 
+        ('Garaje', 'Garaje'), ('Trastero', 'Trastero'), ('Otro', 'Otro')
+    ], validators=[Optional()])
+    purchase_year = IntegerField('Año de Compra', validators=[Optional(), NumberRange(min=1900, max=datetime.now().year)], render_kw={"placeholder": f"Ej: {datetime.now().year - 5}", "type":"number"})
+    purchase_price = FloatField('Precio de Compra (€)', validators=[Optional(), NumberRange(min=0)], render_kw={"placeholder": "Ej: 150000"})
+    submit_popup_asset = SubmitField('Guardar Inmueble y Seleccionar')
+
 
 class RealEstateAssetForm(FlaskForm):
     property_name = StringField('Nombre del Inmueble*', validators=[DataRequired(), Length(max=150)], render_kw={"placeholder": "Ej: Apartamento Sol"})
@@ -960,6 +1039,59 @@ def load_user(user_id): # MOSTRANDO COMPLETA
 
 
 # En app.py
+@app.route('/add_real_estate_asset_ajax', methods=['POST'])
+@login_required
+def add_real_estate_asset_ajax():
+    form = RealEstateAssetFormPopup(request.form) # Usar el formulario específico del popup
+    if form.validate():
+        try:
+            purchase_price_val = form.purchase_price.data
+            purchase_year_val = form.purchase_year.data
+            new_asset = RealEstateAsset(
+                user_id=current_user.id,
+                property_name=form.property_name.data,
+                property_type=form.property_type.data,
+                purchase_year=purchase_year_val,
+                purchase_price=purchase_price_val,
+                current_market_value=purchase_price_val if purchase_price_val is not None else 0.0,
+                value_last_updated_year=purchase_year_val if purchase_year_val is not None else None
+            )
+            db.session.add(new_asset)
+            db.session.commit()
+
+            if purchase_price_val is not None and purchase_year_val is not None:
+                initial_valuation = RealEstateValueHistory(
+                    asset_id=new_asset.id, user_id=current_user.id,
+                    valuation_year=purchase_year_val, market_value=purchase_price_val
+                )
+                db.session.add(initial_valuation)
+                db.session.commit()
+            
+            # Devolver lista actualizada de inmuebles que NO tienen hipoteca activa
+            assets_without_mortgage = RealEstateAsset.query\
+                .outerjoin(RealEstateMortgage, RealEstateAsset.id == RealEstateMortgage.asset_id)\
+                .filter(RealEstateAsset.user_id == current_user.id)\
+                .filter(db.or_(RealEstateMortgage.id == None, RealEstateMortgage.current_principal_balance <= 0))\
+                .order_by(RealEstateAsset.property_name).all()
+
+            asset_choices = [{'id': asset.id, 'name': f"{asset.property_type + ' - ' if asset.property_type else ''}{asset.property_name}"} 
+                             for asset in assets_without_mortgage]
+            
+            return jsonify({
+                'success': True, 
+                'message': 'Inmueble añadido y seleccionado.',
+                'new_asset_id': new_asset.id,
+                'assets': asset_choices
+            })
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Error AJAX añadiendo inmueble: {e}", exc_info=True)
+            return jsonify({'success': False, 'message': f'Error al crear inmueble: {str(e)}'})
+    else:
+        errors = {field: error[0] for field, error in form.errors.items()}
+        return jsonify({'success': False, 'message': 'Errores de validación al añadir inmueble.', 'errors': errors})
+
+
 
 @app.route('/add_expense_category_ajax', methods=['POST'])
 @login_required
@@ -1224,52 +1356,56 @@ def change_password(): # MOSTRANDO COMPLETA CON CAMBIOS
 # In app.py
 
 class RealEstateAsset(db.Model):
+    # ... (como lo tenías, asegurándote de que 'mortgage' es la relación a RealEstateMortgage)
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
     property_name = db.Column(db.String(150), nullable=False)
     property_type = db.Column(db.String(50), nullable=True) 
-    
-    purchase_year = db.Column(db.Integer, nullable=True) 
+    purchase_year = db.Column(db.Integer, nullable=True)
     purchase_price = db.Column(db.Float, nullable=True)
-    
     current_market_value = db.Column(db.Float, nullable=True, default=0.0) 
     value_last_updated_year = db.Column(db.Integer, nullable=True)
-
-    # इंश्योर These are REMOVED or commented out:
-    # is_rental = db.Column(db.Boolean, default=False)
-    # rental_income_monthly = db.Column(db.Float, nullable=True) 
-    
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     user = db.relationship('User', backref=db.backref('real_estate_assets', lazy='dynamic', cascade="all, delete-orphan"))
-    mortgage = db.relationship('RealEstateMortgage', backref='asset', uselist=False, cascade="all, delete-orphan")
+    # Esta relación es clave: un inmueble puede tener UNA hipoteca principal activa
+    mortgage = db.relationship('RealEstateMortgage', backref='real_estate_asset_linked', uselist=False, cascade="all, delete-orphan") 
     value_history = db.relationship('RealEstateValueHistory', 
                                     backref='asset', 
                                     lazy='dynamic', 
                                     cascade="all, delete-orphan", 
                                     order_by="desc(RealEstateValueHistory.valuation_year)")
+    
+    # Relación para saber si este activo está vinculado a un plan de deuda (que actúa como hipoteca)
+    # Esto es para facilitar encontrar el DebtInstallmentPlan que ES la hipoteca de este RealEstateAsset.
+    debt_plan_as_mortgage = db.relationship('DebtInstallmentPlan', 
+                                            foreign_keys='DebtInstallmentPlan.linked_asset_id_for_mortgage', 
+                                            backref='mortgaged_asset', 
+                                            uselist=False)
 
-    def __repr__(self):
-        return f'<RealEstateAsset {self.property_name}>'
 
-class RealEstateMortgage(db.Model):
+class RealEstateMortgage(db.Model): # Este modelo almacenará los detalles de la hipoteca
     id = db.Column(db.Integer, primary_key=True)
-    asset_id = db.Column(db.Integer, db.ForeignKey('real_estate_asset.id', ondelete='CASCADE'), nullable=False, index=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True) # Para facilitar consultas
+    # Enlace uno-a-uno con RealEstateAsset (un inmueble tiene una hipoteca)
+    asset_id = db.Column(db.Integer, db.ForeignKey('real_estate_asset.id', ondelete='CASCADE'), nullable=False, unique=True) 
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
     
     lender_name = db.Column(db.String(100), nullable=True)
-    original_loan_amount = db.Column(db.Float, nullable=True)
-    current_principal_balance = db.Column(db.Float, nullable=False, default=0.0)
-    interest_rate_annual = db.Column(db.Float, nullable=True) # Tasa de interés anual
-    monthly_payment = db.Column(db.Float, nullable=True) # Cuota mensual (principal + intereses)
-    loan_term_years = db.Column(db.Integer, nullable=True)
-    loan_start_date = db.Column(db.Date, nullable=True)
-    last_updated = db.Column(db.DateTime, default=datetime.utcnow)
+    original_loan_amount = db.Column(db.Float, nullable=False) # Cantidad original de la hipoteca
+    current_principal_balance = db.Column(db.Float, nullable=False) # Saldo pendiente (se actualiza)
+    interest_rate_annual = db.Column(db.Float, nullable=True)
+    monthly_payment = db.Column(db.Float, nullable=False) # Cuota mensual de la hipoteca
+    loan_term_years = db.Column(db.Integer, nullable=True) # Duración original en años
+    loan_start_date = db.Column(db.Date, nullable=False)
     
-    user = db.relationship('User', backref=db.backref('real_estate_mortgages', lazy='dynamic'))
-
-    def __repr__(self):
-        return f'<RealEstateMortgage for Asset ID {self.asset_id} - Balance: {self.current_principal_balance}>'
+    # Enlace al DebtInstallmentPlan que representa esta hipoteca en la sección de deudas
+    # Esto ayuda a mantener la coherencia si se edita/liquida el plan de deuda.
+    # Hacemos que sea nullable por si se quiere registrar una hipoteca sin un plan de deuda detallado (menos probable con el flujo actual)
+    debt_installment_plan_id = db.Column(db.Integer, db.ForeignKey('debt_installment_plan.id'), nullable=True, unique=True)
+    
+    last_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    user = db.relationship('User') # Ya existe backref en User.real_estate_mortgages
 
 class RealEstateExpense(db.Model): # Gastos específicos del inmueble
     id = db.Column(db.Integer, primary_key=True)
@@ -2221,25 +2357,29 @@ def create_default_expense_categories(user_id):
         print(f"Error al crear categorías predeterminadas: {e}")
         return False
 
-
-
-# In app.py
-
+# En app.py
 @app.route('/real_estate', methods=['GET', 'POST'])
 @login_required
 def real_estate():
-    asset_form = RealEstateAssetForm()
-    valuation_form = ValuationEntryForm()
+    asset_form = RealEstateAssetForm() # Formulario para añadir nuevo inmueble
+    valuation_form = ValuationEntryForm() # Formulario para añadir nueva tasación
 
-    icon_map = { # Definir el mapa de iconos aquí
-        'Apartamento': 'bi-building', 'Casa': 'bi-house-door-fill',
-        'Local Comercial': 'bi-shop', 'Terreno': 'bi-map-fill',
-        'Garaje': 'bi-p-circle-fill', 'Trastero': 'bi-archive-fill',
-        'Otro': 'bi-bricks' 
+    # Mapa de iconos para los tipos de inmueble
+    icon_map = {
+        'Apartamento': 'bi-building',
+        'Casa': 'bi-house-door-fill',
+        'Local Comercial': 'bi-shop',
+        'Terreno': 'bi-map-fill',
+        'Garaje': 'bi-p-circle-fill',
+        'Trastero': 'bi-archive-fill',
+        'Otro': 'bi-bricks'
     }
 
-    user_assets_for_select = [(asset.id, f"{asset.property_type + ' - ' if asset.property_type else ''}{asset.property_name}") 
-                              for asset in RealEstateAsset.query.filter_by(user_id=current_user.id).order_by(RealEstateAsset.property_name).all()]
+    # Poblar dinámicamente las opciones del SelectField de inmuebles para el formulario de tasación
+    user_assets_for_select = [
+        (asset.id, f"{asset.property_type + ' - ' if asset.property_type else ''}{asset.property_name}")
+        for asset in RealEstateAsset.query.filter_by(user_id=current_user.id).order_by(RealEstateAsset.property_name).all()
+    ]
     if user_assets_for_select:
         valuation_form.asset_id.choices = [(0, '- Selecciona un Inmueble -')] + user_assets_for_select
         valuation_form.asset_id.render_kw = {}
@@ -2249,6 +2389,7 @@ def real_estate():
         valuation_form.asset_id.render_kw = {'disabled': True}
         valuation_form.submit_valuation.render_kw = {'disabled': True}
 
+    # Manejar el envío del formulario para añadir un nuevo inmueble
     if asset_form.validate_on_submit() and asset_form.submit_asset.data:
         try:
             purchase_price_val = asset_form.purchase_price.data
@@ -2262,7 +2403,6 @@ def real_estate():
                 purchase_price=purchase_price_val,
                 current_market_value=purchase_price_val if purchase_price_val is not None else 0.0,
                 value_last_updated_year=purchase_year_val if purchase_year_val is not None else None
-                # REMOVED: is_rental and rental_income_monthly assignments
             )
             db.session.add(new_asset)
             db.session.commit()
@@ -2284,51 +2424,72 @@ def real_estate():
             flash(f'Error al añadir inmueble: {str(e)}', 'danger')
             app.logger.error(f"Error añadiendo inmueble: {e}", exc_info=True)
 
+    # --- Preparar datos para mostrar en la página (para solicitudes GET o si un POST falla) ---
     all_user_assets_details = []
     db_assets = RealEstateAsset.query.filter_by(user_id=current_user.id).order_by(RealEstateAsset.property_name).all()
-    
+
     summary_total_market_value = 0
-    summary_total_mortgage = 0
+    summary_total_mortgage = 0 # Suma de los saldos pendientes de las hipotecas activas
 
     for asset in db_assets:
         current_value_for_table = asset.current_market_value or 0
         summary_total_market_value += current_value_for_table
 
+        # Initialize mortgage details with defaults (assuming paid if no active mortgage)
         mortgage_status = "Pagado"
-        mortgage_balance = 0
-        if asset.mortgage:
-            if asset.mortgage.current_principal_balance is not None and asset.mortgage.current_principal_balance > 0:
-                mortgage_status = "Hipoteca"
-                mortgage_balance = asset.mortgage.current_principal_balance
-                summary_total_mortgage += mortgage_balance
+        mortgage_balance_for_display = 0
+        mortgage_progress_percent = 100  # Default to 100% if paid or no mortgage
+
+        # Check if this asset has an active DebtInstallmentPlan that is marked as its mortgage
+        active_mortgage_debt_plan = None
+        if asset.debt_plan_as_mortgage and asset.debt_plan_as_mortgage.is_active: #
+            active_mortgage_debt_plan = asset.debt_plan_as_mortgage #
         
+        if active_mortgage_debt_plan:
+            # If there's an active linked mortgage plan, use its details
+            mortgage_status = "Hipoteca" #
+            
+            # Use the DebtInstallmentPlan's 'remaining_amount' for the current balance
+            mortgage_balance_for_display = active_mortgage_debt_plan.remaining_amount #
+            
+            # Add this active mortgage's balance to the summary total
+            summary_total_mortgage += mortgage_balance_for_display #
+            
+            # Use the DebtInstallmentPlan's 'progress_percentage'
+            mortgage_progress_percent = active_mortgage_debt_plan.progress_percentage #
+            
+            # Clamp the percentage value between 0 and 100 to be safe for display
+            mortgage_progress_percent = max(0, min(mortgage_progress_percent, 100)) #
+        
+        # If no active_mortgage_debt_plan is found, the defaults "Pagado" and 100% progress remain.
+
         revalorization_percentage = None
         if asset.purchase_price and asset.purchase_price > 0 and current_value_for_table > 0:
             try:
                 revalorization_percentage = ((current_value_for_table - asset.purchase_price) / asset.purchase_price) * 100
-            except ZeroDivisionError: 
+            except ZeroDivisionError:
                 revalorization_percentage = None
-        
-        valuations_for_asset = sorted(asset.value_history.all(), key=lambda v: v.valuation_year)
-        valuations_display = []
-        for i, current_val_hist in enumerate(valuations_for_asset):
-            change_from_previous_pct = None
-            if i > 0:
-                previous_val_hist = valuations_for_asset[i-1]
-                if previous_val_hist.market_value > 0:
-                    try:
-                        change_from_previous_pct = ((current_val_hist.market_value - previous_val_hist.market_value) / previous_val_hist.market_value) * 100
-                    except ZeroDivisionError:
-                        change_from_previous_pct = None
-            valuations_display.append({
-                'id': current_val_hist.id,
-                'year': current_val_hist.valuation_year,
-                'value': current_val_hist.market_value,
-                'change_pct': change_from_previous_pct
-            })
-        valuations_display.sort(key=lambda x: x['year'], reverse=True)
 
-        display_name = f"{asset.property_type} - {asset.property_name}" if asset.property_type else asset.property_name
+        valuations_for_asset = sorted(asset.value_history.all(), key=lambda v_hist: v_hist.valuation_year)
+        valuations_display_list = []
+        for i, current_val_hist_item in enumerate(valuations_for_asset):
+            change_from_previous_year_pct = None
+            if i > 0:
+                previous_val_hist_item = valuations_for_asset[i-1]
+                if previous_val_hist_item.market_value > 0:
+                    try:
+                        change_from_previous_year_pct = ((current_val_hist_item.market_value - previous_val_hist_item.market_value) / previous_val_hist_item.market_value) * 100
+                    except ZeroDivisionError:
+                        change_from_previous_year_pct = None
+            valuations_display_list.append({
+                'id': current_val_hist_item.id,
+                'year': current_val_hist_item.valuation_year,
+                'value': current_val_hist_item.market_value,
+                'change_pct': change_from_previous_year_pct
+            })
+        valuations_display_list.sort(key=lambda x: x['year'], reverse=True)
+
+        display_name_text = f"{asset.property_type} - {asset.property_name}" if asset.property_type else asset.property_name
         
         purchase_price_display_text = 'N/A'
         if asset.purchase_price is not None:
@@ -2340,28 +2501,30 @@ def real_estate():
 
         all_user_assets_details.append({
             'id': asset.id,
-            'display_name': display_name,
+            'display_name': display_name_text,
             'property_type': asset.property_type,
             'purchase_info': purchase_info_text,
             'current_market_value_display': current_value_for_table,
             'value_last_updated_year_display': asset.value_last_updated_year,
             'mortgage_status': mortgage_status,
+            'mortgage_balance_for_display': mortgage_balance_for_display,
+            'mortgage_progress_percent': mortgage_progress_percent,
             'revalorization_percentage': revalorization_percentage,
-            'valuations': valuations_display
-            # REMOVED: 'is_rental' and 'rental_income_monthly'
+            'valuations': valuations_display_list
         })
-        
+
     summary_net_equity = summary_total_market_value - summary_total_mortgage
 
-    return render_template('real_estate.html', 
-                           title="Gestión de Inmuebles", 
+    return render_template('real_estate.html',
+                           title="Gestión de Inmuebles",
                            asset_form=asset_form,
                            valuation_form=valuation_form,
                            assets_details=all_user_assets_details,
                            total_market_value=summary_total_market_value,
                            total_mortgage_balance=summary_total_mortgage,
                            net_equity=summary_net_equity,
-                           icon_class_map=icon_map) # Pasando el mapa de iconos
+                           icon_class_map=icon_map)
+
 
 @app.route('/add_valuation', methods=['POST'])
 @login_required
@@ -3914,7 +4077,7 @@ def expenses():
             
             unified_expenses_list.append({
                 'id': f"debt_{plan.id}_{current_payment_date_debt.strftime('%Y%m')}",
-                'description': f"Pago Deuda: {plan.description}",
+                'description': f"{plan.description}",
                 'amount': plan.monthly_payment,
                 'date': current_payment_date_debt,
                 'expense_type': 'debt', 
@@ -4060,186 +4223,174 @@ def delete_expense_with_options(expense_id, delete_type):
     
     return redirect(url_for('expenses'))
 
-# 2. Ruta para obtener análisis por categoría según rango temporal
+
+# Ensure these are imported at the top of app.py if not already:
+# from flask import request, jsonify # jsonify is not used here, render_template is
+# from .models import db, Expense, ExpenseCategory, DebtInstallmentPlan # Adjust as per your model locations
+# from flask_login import current_user, login_required
+# from datetime import date, timedelta, datetime
+
 @app.route('/get_category_analysis')
 @login_required
 def get_category_analysis():
-    """
-    Endpoint AJAX para obtener el análisis por categoría según un rango temporal.
-    
-    Parámetros Query:
-    - months: número de meses hacia atrás (1, 3, 6, 12, 36, 60, 120)
-    - start_date: fecha de inicio para rango personalizado (formato YYYY-MM-DD)
-    - end_date: fecha de fin para rango personalizado (formato YYYY-MM-DD)
-    """
-    # Obtener parámetros
-    months = request.args.get('months', type=int)
+    months_param = request.args.get('months', type=int)
     start_date_str = request.args.get('start_date')
     end_date_str = request.args.get('end_date')
+
+    today = date.today()
+    # analysis_end_date is the last day of the current month, or today if custom range ends earlier.
+    # For month-based ranges, we want to include the entirety of the end month.
     
-    # Calcular fechas de inicio y fin
-    end_date = date.today()
-    
+    range_description = ""
+    months_in_range = 0
+
     if start_date_str and end_date_str:
-        # Usar rango personalizado
         try:
-            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
-            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
-            
-            # Validar fechas
-            if start_date > end_date:
-                return '<div class="alert alert-danger">La fecha de inicio no puede ser posterior a la fecha de fin.</div>'
-            
-            range_description = f"{start_date.strftime('%d/%m/%Y')} - {end_date.strftime('%d/%m/%Y')}"
+            analysis_start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date().replace(day=1)
+            # For custom range, end_date is the last day of the selected month
+            temp_end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+            next_month = temp_end_date.replace(day=28) + timedelta(days=4) # Go to next month
+            analysis_end_date = next_month - timedelta(days=next_month.day) # Last day of temp_end_date's month
+
+            if analysis_start_date > analysis_end_date:
+                return '<div class="alert alert-danger">La fecha de inicio no puede ser posterior a la fecha de fin.</div>', 400
+            range_description = f"{analysis_start_date.strftime('%d/%m/%Y')} - {analysis_end_date.strftime('%d/%m/%Y')}"
+            months_in_range = (analysis_end_date.year - analysis_start_date.year) * 12 + (analysis_end_date.month - analysis_start_date.month) + 1
         except ValueError:
-            return '<div class="alert alert-danger">Formato de fecha inválido.</div>'
+            return '<div class="alert alert-danger">Formato de fecha inválido.</div>', 400
     else:
-        # Usar número de meses
-        if not months:
-            months = 6  # Por defecto, 6 meses
+        months_param = months_param if months_param else 6 # Default to 6 months
+        months_in_range = months_param
         
-        start_date = end_date - timedelta(days=30 * months)
+        # Calculate end_date as the last day of the current month
+        next_month_today = today.replace(day=28) + timedelta(days=4)
+        analysis_end_date = next_month_today - timedelta(days=next_month_today.day)
+
+        # Calculate start_date as the first day of the month, 'months_param' months ago
+        analysis_start_date = today.replace(day=1)
+        for _ in range(months_param -1):
+            prev_month_end = analysis_start_date - timedelta(days=1)
+            analysis_start_date = prev_month_end.replace(day=1)
         
-        # Determinar descripción del rango según meses
-        if months == 1:
-            range_description = "Último mes"
-        elif months == 3:
-            range_description = "Últimos 3 meses"
-        elif months == 6:
-            range_description = "Últimos 6 meses"
-        elif months == 12:
-            range_description = "Último año"
-        elif months == 36:
-            range_description = "Últimos 3 años"
-        elif months == 60:
-            range_description = "Últimos 5 años"
-        elif months == 120:
-            range_description = "Últimos 10 años"
-        else:
-            range_description = f"Últimos {months} meses"
-    
-    # Obtener todos los gastos
-    all_expenses = Expense.query.filter_by(user_id=current_user.id).all()
-    
-    # Lista para almacenar todos los gastos procesados (incluyendo recurrentes expandidos)
-    expenses_in_range = []
-    
-    # Procesar cada gasto
-    for expense in all_expenses:
-        # Para gastos recurrentes, generar entradas para cada mes
+        if months_param == 1: range_description = "Último mes"
+        elif months_param == 3: range_description = "Últimos 3 meses"
+        elif months_param == 6: range_description = "Últimos 6 meses"
+        elif months_param == 12: range_description = "Último año"
+        elif months_param == 36: range_description = "Últimos 3 años"
+        elif months_param == 60: range_description = "Últimos 5 años"
+        elif months_param == 120: range_description = "Últimos 10 años"
+        else: range_description = f"Últimos {months_param} meses"
+
+    all_expense_occurrences = []
+
+    # 1. Process Direct Expenses (from Expense model)
+    direct_expenses_query = Expense.query.filter(Expense.user_id == current_user.id).all()
+    for expense in direct_expenses_query:
+        category_name = expense.category.name if expense.category else "Sin categoría"
         if expense.is_recurring and expense.expense_type == 'fixed':
-            # Determinar fecha de inicio y fin
-            expense_start = expense.start_date or expense.date
-            expense_end = expense.end_date or end_date
+            expense_loop_start_date = expense.start_date or expense.date
+            # For recurring, iterate through months it's active within the analysis window
+            current_occurrence_month_start = expense_loop_start_date.replace(day=1)
             
-            # Ajustar si está fuera del rango de análisis
-            if expense_end < start_date:
-                # El gasto terminó antes del período de análisis
-                continue
+            while current_occurrence_month_start <= analysis_end_date:
+                if current_occurrence_month_start < analysis_start_date: # Fast-forward if before analysis window
+                    year_next = current_occurrence_month_start.year
+                    month_next = current_occurrence_month_start.month + (expense.recurrence_months or 1)
+                    while month_next > 12: month_next -= 12; year_next += 1
+                    try: current_occurrence_month_start = date(year_next, month_next, 1)
+                    except ValueError: break
+                    continue
+
+                # Check if this occurrence is within the expense's own active period
+                is_within_expense_period = True
+                if expense.end_date and current_occurrence_month_start > expense.end_date:
+                    is_within_expense_period = False
                 
-            if expense_start > end_date:
-                # El gasto comienza después del período de análisis
-                continue
-                
-            # Ajustar inicio al período de análisis si es necesario
-            actual_start = max(expense_start, start_date)
-            # Ajustar fin al período de análisis si es necesario
-            actual_end = min(expense_end, end_date)
-            
-            # Calcular meses entre start_date y end_date
-            current_date = actual_start
-            recurrence = expense.recurrence_months or 1  # Por defecto mensual
-            
-            while current_date <= actual_end:
-                # Crear una copia del gasto para este mes
-                expenses_in_range.append({
-                    'description': expense.description,
+                if is_within_expense_period:
+                    all_expense_occurrences.append({
+                        'amount': expense.amount,
+                        'category_name': category_name
+                    })
+
+                # Advance to next recurrence for this expense
+                year_next = current_occurrence_month_start.year
+                month_next = current_occurrence_month_start.month + (expense.recurrence_months or 1)
+                while month_next > 12: month_next -= 12; year_next += 1
+                try: current_occurrence_month_start = date(year_next, month_next, 1)
+                except ValueError: break # Invalid date, stop processing this expense
+        else: # Punctual expenses
+            if analysis_start_date <= expense.date <= analysis_end_date:
+                all_expense_occurrences.append({
                     'amount': expense.amount,
-                    'date': current_date,
-                    'category_id': expense.category_id,
-                    'expense_type': expense.expense_type,
-                    'is_recurring': expense.is_recurring
+                    'category_name': category_name
                 })
-                
-                # Avanzar al siguiente período según la recurrencia
-                year = current_date.year
-                month = current_date.month + recurrence
-                
-                # Ajustar si nos pasamos de diciembre
-                while month > 12:
-                    month -= 12
-                    year += 1
-                
-                # Crear nueva fecha
-                try:
-                    current_date = date(year, month, 1)
-                except ValueError:
-                    # Por si hay algún problema con la fecha
-                    break
-                    
-        else:
-            # Para gastos puntuales, solo incluir si están en el rango
-            if start_date <= expense.date <= end_date:
-                expenses_in_range.append({
-                    'description': expense.description,
-                    'amount': expense.amount,
-                    'date': expense.date,
-                    'category_id': expense.category_id,
-                    'expense_type': expense.expense_type,
-                    'is_recurring': expense.is_recurring
+
+    # 2. Process Debt Payments
+    active_debt_plans = DebtInstallmentPlan.query.options(
+        db.joinedload(DebtInstallmentPlan.category)
+    ).filter(
+        DebtInstallmentPlan.user_id == current_user.id,
+        DebtInstallmentPlan.is_active == True 
+    ).all()
+
+    current_month_iterator = analysis_start_date.replace(day=1)
+    while current_month_iterator <= analysis_end_date:
+        for plan in active_debt_plans:
+            # plan.end_date is the property calculating the month *after* the last payment
+            plan_is_payable_this_month = False
+            if plan.start_date <= current_month_iterator:
+                if plan.end_date: # plan.end_date is already first day of month AFTER last payment
+                    if current_month_iterator < plan.end_date:
+                        plan_is_payable_this_month = True
+                else: # Should not happen if plan has duration, but as fallback
+                    plan_is_payable_this_month = True 
+            
+            if plan_is_payable_this_month:
+                debt_category_name = plan.category.name if plan.category else "Deuda (Sin Categoría)"
+                all_expense_occurrences.append({
+                    'amount': plan.monthly_payment,
+                    'category_name': debt_category_name
                 })
-    
-    # Calcular gastos por categoría
-    expenses_by_category = {}
-    
-    for expense in expenses_in_range:
-        category_name = "Sin categoría"
-        if expense['category_id']:
-            category = ExpenseCategory.query.get(expense['category_id'])
-            if category:
-                category_name = category.name
-                
-        if category_name not in expenses_by_category:
-            expenses_by_category[category_name] = {
-                'total': 0,
-                'count': 0,
-                'monthly_avg': 0
-            }
         
-        expenses_by_category[category_name]['total'] += expense['amount']
-        expenses_by_category[category_name]['count'] += 1
-    
-    # Calcular promedio mensual por categoría
-    # Calcular número de meses en el rango
-    if start_date_str and end_date_str:
-        # Para rangos personalizados, calcular número de meses
-        months_diff = (end_date.year - start_date.year) * 12 + (end_date.month - start_date.month) + 1
-    else:
-        # Para rangos predefinidos, usar el valor de meses
-        months_diff = months
-    
-    for category_name, data in expenses_by_category.items():
-        if months_diff > 0:
-            data['monthly_avg'] = data['total'] / months_diff
-        else:
-            data['monthly_avg'] = 0
-    
-    # Ordenar categorías por gasto total (de mayor a menor)
-    sorted_categories = sorted(
-        expenses_by_category.items(),
+        next_iter_month = current_month_iterator.month + 1
+        next_iter_year = current_month_iterator.year
+        if next_iter_month > 12:
+            next_iter_month = 1
+            next_iter_year += 1
+        try:
+            current_month_iterator = date(next_iter_year, next_iter_month, 1)
+        except ValueError: # Should not happen with y/m logic
+            break 
+
+    # 3. Aggregate by category
+    expenses_by_category_agg = {}
+    for occ in all_expense_occurrences:
+        cat_name = occ['category_name']
+        expenses_by_category_agg.setdefault(cat_name, {'total': 0, 'monthly_avg': 0})
+        expenses_by_category_agg[cat_name]['total'] += occ['amount']
+
+    total_sum_for_period = sum(data['total'] for data in expenses_by_category_agg.values())
+
+    if months_in_range > 0:
+        for cat_name, data in expenses_by_category_agg.items():
+            data['monthly_avg'] = data['total'] / months_in_range
+    else: # Avoid division by zero if range is somehow zero months
+         for cat_name, data in expenses_by_category_agg.items():
+            data['monthly_avg'] = data['total'] 
+
+
+    sorted_categories_final = sorted(
+        expenses_by_category_agg.items(),
         key=lambda x: x[1]['total'],
         reverse=True
     )
     
-    # Calcular el total de todos los gastos para los porcentajes
-    total_sum = sum(data['total'] for _, data in sorted_categories)
-    
-    # Renderizar solo la parte de la tabla de análisis
     return render_template(
-        'category_analysis_table.html',
-        sorted_categories=sorted_categories,
-        total_sum=total_sum,
-        range_description=range_description
+        'category_analysis_table.html', 
+        sorted_categories=sorted_categories_final,
+        total_sum=total_sum_for_period,
+        range_description=range_description,
+        months_in_range=months_in_range 
     )
 
 @app.route('/delete_expense/<int:expense_id>', methods=['POST'])
@@ -4339,136 +4490,261 @@ def delete_expense_category(category_id):
     return redirect(url_for('expenses'))
 
 
-
 # En app.py
+
+
+# Ensure 'math' is imported at the top of your app.py
+import math
+# Ensure RealEstateAsset, RealEstateMortgage, DebtInstallmentPlan, etc. are imported
 
 @app.route('/debt_management', methods=['GET', 'POST'])
 @login_required
 def debt_management():
     income_data = FixedIncome.query.filter_by(user_id=current_user.id).first()
     monthly_salary = (income_data.annual_net_salary / 12) if income_data and income_data.annual_net_salary else None
-
     debt_ceiling = DebtCeiling.query.filter_by(user_id=current_user.id).first()
-    if not debt_ceiling:
+    if not debt_ceiling: 
         debt_ceiling = DebtCeiling(user_id=current_user.id)
         db.session.add(debt_ceiling)
-        db.session.commit()
+        # Commit immediately or ensure it's part of a transaction that commits soon
+        # For simplicity if this is rare, an immediate commit is fine.
+        try:
+            db.session.commit()
+        except Exception as e_dc_commit:
+            db.session.rollback()
+            app.logger.error(f"Error committing initial debt ceiling: {e_dc_commit}")
 
-    ceiling_amount = (monthly_salary * (debt_ceiling.percentage / 100)) if monthly_salary and debt_ceiling else None
 
-    ceiling_form = DebtCeilingForm(obj=debt_ceiling) # Usar obj para pre-poblar
-    plan_form = DebtInstallmentPlanForm()
-
-    # Formulario para el modal de crear categoría de gasto
+    ceiling_amount = (monthly_salary * (debt_ceiling.percentage / 100)) if monthly_salary and debt_ceiling and debt_ceiling.percentage is not None else None
+    
+    ceiling_form = DebtCeilingForm(request.form if request.method == 'POST' and 'update_ceiling' in request.form else None, obj=debt_ceiling if request.method == 'GET' else None)
+    plan_form = DebtInstallmentPlanForm(request.form if request.method == 'POST' and 'add_plan' in request.form else None)
     modal_category_form = ExpenseCategoryForm()
-    user_expense_categories_main = ExpenseCategory.query.filter_by(user_id=current_user.id, parent_id=None).order_by(ExpenseCategory.name).all()
-    modal_category_form.parent_id.choices = [(0, 'Ninguna (Categoría Principal)')] + [(cat.id, cat.name) for cat in user_expense_categories_main]
+    modal_asset_form = RealEstateAssetFormPopup()
 
-
-    # Poblar opciones del SelectField de categorías para el plan de deuda
-    # Incluir categorías principales y subcategorías con indentación
+    plan_form.category_id.render_kw = {}
+    plan_form.linked_asset_id.render_kw = {} 
+    if hasattr(plan_form, 'duration_months_input') and plan_form.duration_months_input:
+        plan_form.duration_months_input.render_kw = {}
+    if hasattr(plan_form, 'monthly_payment_input') and plan_form.monthly_payment_input:
+        plan_form.monthly_payment_input.render_kw = {}
+    
     all_expense_categories = ExpenseCategory.query.filter_by(user_id=current_user.id).order_by(ExpenseCategory.name).all()
     category_choices = []
-    for cat in all_expense_categories:
-        if cat.parent_id is None: # Categoría principal
-            category_choices.append((cat.id, cat.name))
-            # Buscar subcategorías
-            subcats = ExpenseCategory.query.filter_by(user_id=current_user.id, parent_id=cat.id).order_by(ExpenseCategory.name).all()
-            for subcat in subcats:
-                category_choices.append((subcat.id, f"↳ {subcat.name}")) # Usar flecha para indicar subcategoría
+    main_cats_for_modal = []
+    main_cats_for_plan_form = [c for c in all_expense_categories if c.parent_id is None]
+
+    for cat_main in main_cats_for_plan_form:
+        category_choices.append((cat_main.id, cat_main.name))
+        main_cats_for_modal.append({'id': cat_main.id, 'name': cat_main.name})
+        for sub_cat in [s for s in all_expense_categories if s.parent_id == cat_main.id]:
+            category_choices.append((sub_cat.id, f"↳ {sub_cat.name}"))
+    
     plan_form.category_id.choices = [(0, '- Selecciona una Categoría -')] + category_choices
+    modal_category_form.parent_id.choices = [(0, 'Ninguna (Categoría Principal)')] + [(c['id'], c['name']) for c in main_cats_for_modal]
+
+    assets_without_active_mortgage = RealEstateAsset.query\
+        .outerjoin(DebtInstallmentPlan, RealEstateAsset.id == DebtInstallmentPlan.linked_asset_id_for_mortgage)\
+        .filter(RealEstateAsset.user_id == current_user.id)\
+        .filter(db.or_(DebtInstallmentPlan.id == None, DebtInstallmentPlan.is_active == False))\
+        .order_by(RealEstateAsset.property_name).all()
+
+    asset_choices = [(asset.id, f"{asset.property_type + ' - ' if asset.property_type else ''}{asset.property_name}") 
+                     for asset in assets_without_active_mortgage]
+    
+    if asset_choices:
+        plan_form.linked_asset_id.choices = [(0, '- Selecciona Inmueble (si es hipoteca) -')] + asset_choices
+    else: 
+        plan_form.linked_asset_id.choices = [(0, 'No hay inmuebles elegibles')]
+        plan_form.linked_asset_id.render_kw['disabled'] = True
+        
+    if request.method == 'POST':
+        if 'update_ceiling' in request.form:
+            if ceiling_form.validate():
+                try:
+                    percentage_str = str(ceiling_form.percentage.data).replace(',', '.') 
+                    debt_ceiling.percentage = float(percentage_str)
+                    debt_ceiling.last_updated = datetime.utcnow()
+                    db.session.commit()
+                    flash('Techo de deuda actualizado correctamente.', 'success')
+                    return redirect(url_for('debt_management'))
+                except (ValueError, TypeError, Exception) as e: 
+                    db.session.rollback()
+                    flash(f'Error al procesar los datos del techo de deuda: {str(e)}', 'danger')
+                    app.logger.error(f"Error actualizando techo de deuda: {e}", exc_info=True)
+        
+        elif 'add_plan' in request.form:
+            is_mortgage_checked = plan_form.is_mortgage.data # Use plan_form.is_mortgage.data
+            linked_asset_id_val = plan_form.linked_asset_id.data if is_mortgage_checked else None
+
+            if is_mortgage_checked and (not linked_asset_id_val or linked_asset_id_val == 0):
+                plan_form.linked_asset_id.errors.append("Debe seleccionar un inmueble si es una hipoteca.")
+            
+            if plan_form.validate() and not plan_form.linked_asset_id.errors:
+                try:
+                    start_month_year_str = plan_form.start_date.data
+                    year_val, month_val = map(int, start_month_year_str.split('-'))
+                    start_date_obj_val = date(year_val, month_val, 1)
+                    total_amount_val = plan_form.total_amount.data 
+                    
+                    duration_months_final = None
+                    monthly_payment_final = None
+
+                    if plan_form.payment_input_type.data == 'duration':
+                        duration_months_final = plan_form.duration_months_input.data
+                        if duration_months_final and total_amount_val and duration_months_final > 0:
+                            monthly_payment_final = total_amount_val / duration_months_final
+                        else:
+                            flash("Se requiere Cantidad Total y Duración (mayor que cero) para calcular la mensualidad.", "danger")
+                            raise ValueError("Datos insuficientes para cálculo de mensualidad.")
+                    elif plan_form.payment_input_type.data == 'monthly_amount':
+                        monthly_payment_final = plan_form.monthly_payment_input.data
+                        if monthly_payment_final and total_amount_val and monthly_payment_final > 0:
+                            duration_months_final = math.ceil(total_amount_val / monthly_payment_final)
+                        else:
+                            flash("Se requiere Cantidad Total y Mensualidad (mayor que cero) para calcular la duración.", "danger")
+                            raise ValueError("Datos insuficientes o inválidos para cálculo de duración.")
+                    
+                    # end_date_obj_val = calculate_end_date(start_date_obj_val, duration_months_final) 
+                    # is_active_val = end_date_obj_val >= date.today() if end_date_obj_val else True
+                    # is_active_val will be determined by DebtInstallmentPlan properties later
+
+                    description_val = plan_form.description.data
+
+                    if is_mortgage_checked and linked_asset_id_val and linked_asset_id_val !=0:
+                        selected_asset = db.session.get(RealEstateAsset, linked_asset_id_val)
+                        if selected_asset and selected_asset.user_id == current_user.id:
+                            description_val = f"Hipoteca: {selected_asset.property_type + ' - ' if selected_asset.property_type else ''}{selected_asset.property_name}"
+                            # Check if asset already has an *active* mortgage debt plan
+                            if selected_asset.debt_plan_as_mortgage and selected_asset.debt_plan_as_mortgage.is_active:
+                                flash(f"El inmueble '{selected_asset.property_name}' ya tiene una hipoteca (plan de deuda) activa asociada.", "warning")
+                                raise ValueError("Inmueble ya hipotecado con plan de deuda activo.")
+                        else:
+                            flash("Inmueble seleccionado para hipoteca no válido.", "danger")
+                            raise ValueError("Inmueble no válido para hipoteca.")
+                    else: # If not mortgage or no asset selected, ensure linked_asset_id_val is None
+                        linked_asset_id_val = None
 
 
-    if ceiling_form.validate_on_submit() and 'update_ceiling' in request.form:
-        try:
-            percentage_str = ceiling_form.percentage.data.replace(',', '.')
-            debt_ceiling.percentage = float(percentage_str)
-            debt_ceiling.last_updated = datetime.utcnow()
-            db.session.commit()
-            flash('Techo de deuda actualizado correctamente.', 'success')
-            return redirect(url_for('debt_management'))
-        except (ValueError, Exception) as e:
-            db.session.rollback()
-            flash(f'Error al procesar los datos del techo de deuda: {str(e)}', 'danger')
+                    new_debt_plan = DebtInstallmentPlan(
+                        user_id=current_user.id, expense_category_id=plan_form.category_id.data,
+                        description=description_val, total_amount=total_amount_val,
+                        start_date=start_date_obj_val, duration_months=duration_months_final,
+                        monthly_payment=monthly_payment_final, # is_active will be determined by its property
+                        is_mortgage=is_mortgage_checked, 
+                        linked_asset_id_for_mortgage=linked_asset_id_val if is_mortgage_checked else None
+                    )
+                    db.session.add(new_debt_plan)
+                    db.session.flush() # new_debt_plan gets an ID
+                    
+                    if is_mortgage_checked and linked_asset_id_val and new_debt_plan.id is not None :
+                        asset_to_mortgage = db.session.get(RealEstateAsset, linked_asset_id_val)
+                        if asset_to_mortgage:
+                            # 1. Delete any existing RealEstateMortgage record directly linked to THIS ASSET
+                            #    This is if the asset had an old RealEstateMortgage entry not tied to a still-active debt plan.
+                            if asset_to_mortgage.mortgage:
+                                app.logger.info(f"Asset (ID: {asset_to_mortgage.id}) has an existing RealEstateMortgage record (ID: {asset_to_mortgage.mortgage.id}). Deleting it before creating new one.")
+                                db.session.delete(asset_to_mortgage.mortgage)
+                                db.session.flush()
 
-    if plan_form.validate_on_submit() and 'add_plan' in request.form:
-        if plan_form.category_id.data == 0: # Si no seleccionó categoría válida
-             plan_form.category_id.errors.append("Debe seleccionar una categoría válida.")
-        else:
-            try:
-                start_month_year = plan_form.start_date.data
-                year, month = map(int, start_month_year.split('-'))
-                start_date_obj = date(year, month, 1) # Pagos el día 1
+                            # 2. DEFENSIVE CHECK & CLEANUP:
+                            #    Check if any RealEstateMortgage record (for any asset, by any user - though should be scoped to user)
+                            #    is ALREADY using the new_debt_plan.id. This handles orphaned RealEstateMortgage records
+                            #    if the cascade on DebtInstallmentPlan deletion wasn't in place or didn't cover an old case.
+                            existing_rem_with_colliding_dip_id = RealEstateMortgage.query.filter_by(
+                                debt_installment_plan_id=new_debt_plan.id
+                            ).first()
+                            
+                            if existing_rem_with_colliding_dip_id:
+                                app.logger.warning(
+                                    f"DEFENSIVE CLEANUP: Found RealEstateMortgage (ID: {existing_rem_with_colliding_dip_id.id}, on asset ID: {existing_rem_with_colliding_dip_id.asset_id}, by user: {existing_rem_with_colliding_dip_id.user_id}) "
+                                    f"already linked to the NEW DebtInstallmentPlan ID: {new_debt_plan.id}. Deleting this conflicting record."
+                                )
+                                db.session.delete(existing_rem_with_colliding_dip_id)
+                                db.session.flush() 
 
-                total_amount_val = float(plan_form.total_amount.data.replace(',', '.'))
-                duration_months_val = int(plan_form.duration_months.data)
-                monthly_payment_val = total_amount_val / duration_months_val if duration_months_val > 0 else total_amount_val
+                            # 3. Create and link the new mortgage record
+                            new_mortgage_record = RealEstateMortgage(
+                                asset_id=asset_to_mortgage.id,
+                                user_id=current_user.id,
+                                original_loan_amount=total_amount_val,
+                                current_principal_balance=total_amount_val, # Initial balance is total amount
+                                monthly_payment=monthly_payment_final,
+                                loan_start_date=start_date_obj_val,
+                                loan_term_years=math.ceil(duration_months_final / 12) if duration_months_final else None,
+                                debt_installment_plan_id=new_debt_plan.id # Link to the new debt plan
+                            )
+                            db.session.add(new_mortgage_record)
+                            asset_to_mortgage.mortgage = new_mortgage_record # Establish relationship for the asset
+                    
+                    db.session.commit()
+                    flash('Plan de pago añadido correctamente.', 'success')
+                    return redirect(url_for('debt_management'))
+                except ValueError as ve:
+                    db.session.rollback() # Rollback on known ValueErrors too
+                    app.logger.warning(f"ValueError al crear plan de pago: {ve}")
+                    # flash(str(ve), 'danger') # Flash message is already set by the raising code
+                except Exception as e:
+                    db.session.rollback()
+                    flash(f'Error al crear plan de pago: {str(e)}', 'danger')
+                    app.logger.error(f"Error creando plan de pago: {e}", exc_info=True)
 
-                end_date_obj = calculate_end_date(start_date_obj, duration_months_val) # Usar tu función
-                is_active_val = end_date_obj >= date.today()
+    if request.method == "GET" and not ceiling_form.is_submitted():
+        ceiling_form = DebtCeilingForm(obj=debt_ceiling)
 
-                new_plan = DebtInstallmentPlan(
-                    user_id=current_user.id,
-                    expense_category_id=plan_form.category_id.data, # GUARDAR LA CATEGORÍA
-                    description=plan_form.description.data,
-                    total_amount=total_amount_val,
-                    start_date=start_date_obj,
-                    duration_months=duration_months_val,
-                    monthly_payment=monthly_payment_val,
-                    is_active=is_active_val
-                )
-                db.session.add(new_plan)
-                db.session.commit()
-                flash('Plan de pago añadido correctamente con su categoría de gasto.', 'success')
-                return redirect(url_for('debt_management'))
-            except Exception as e:
-                db.session.rollback()
-                flash(f'Error al crear plan de pago: {str(e)}', 'danger')
-                app.logger.error(f"Error creando plan de pago: {e}", exc_info=True)
-
-    # ... (lógica existente para obtener planes, calcular resúmenes, etc.) ...
-    all_debt_plans = DebtInstallmentPlan.query.filter_by(user_id=current_user.id).order_by(
-        DebtInstallmentPlan.is_active.desc(),
-        DebtInstallmentPlan.start_date.desc()
-    ).all()
-
+    all_debt_plans_query = DebtInstallmentPlan.query.options(
+        db.joinedload(DebtInstallmentPlan.category)
+    ).filter_by(user_id=current_user.id).all()
+    
     today = date.today()
-    plan_end_dates = {plan.id: plan.end_date for plan in all_debt_plans if plan.end_date}
+    plan_end_dates = {plan.id: plan.end_date for plan in all_debt_plans_query if plan.end_date}
+    
+    # Populate is_active based on current date and end_date for all plans before filtering
+    for plan_dp in all_debt_plans_query:
+        if plan_dp.end_date:
+            plan_dp.is_active = plan_dp.end_date >= date(today.year, today.month, 1) # Active if end date is this month or later
+        else: # No end date means it's ongoing, depends on remaining installments
+            plan_dp.is_active = plan_dp.remaining_installments > 0
 
-    active_debt_plans = [plan for plan in all_debt_plans if plan.is_active and plan_end_dates.get(plan.id, today) >= today]
-    active_debt_plans.sort(key=lambda x: plan_end_dates.get(x.id, today))
-    all_debt_plans.sort(key=lambda x: plan_end_dates.get(x.id, today), reverse=True)
 
-    current_month = date(today.year, today.month, 1)
-    next_month_year = today.year if today.month < 12 else today.year + 1
-    next_month_month = today.month + 1 if today.month < 12 else 1
-    next_month_obj = date(next_month_year, next_month_month, 1)
+    all_debt_plans_sorted = sorted(
+        all_debt_plans_query, 
+        key=lambda p: (not p.is_active, plan_end_dates.get(p.id, date.max), p.start_date),
+        reverse=False # Active first, then by end_date ascending, then by start_date ascending
+    )
+    
+    active_debt_plans_list = [plan for plan in all_debt_plans_sorted if plan.is_active]
+    
+    current_month_date_display = date(today.year, today.month, 1)
+    nm_year_display, nm_month_display = (today.year, today.month + 1) if today.month < 12 else (today.year + 1, 1)
+    next_month_date_display = date(nm_year_display, nm_month_display, 1)
 
-    total_debt_remaining = sum(plan.remaining_amount for plan in active_debt_plans)
-    current_month_payment = sum(plan.monthly_payment for plan in active_debt_plans if plan.start_date <= current_month and plan_end_dates.get(plan.id, current_month) > current_month)
-    next_month_payment = sum(plan.monthly_payment for plan in active_debt_plans if plan.start_date <= next_month_obj and plan_end_dates.get(plan.id, next_month_obj) > next_month_obj)
-
-    debt_percentage = (current_month_payment / ceiling_amount * 100) if ceiling_amount and ceiling_amount > 0 else None
-    debt_margin = (ceiling_amount - current_month_payment) if ceiling_amount is not None else None
-
+    total_debt_remaining_display = sum(plan.remaining_amount for plan in active_debt_plans_list)
+    current_month_payment_display = sum(plan.monthly_payment for plan in active_debt_plans_list if plan.start_date <= current_month_date_display and (not plan.end_date or plan.end_date >= current_month_date_display))
+    next_month_payment_display = sum(plan.monthly_payment for plan in active_debt_plans_list if plan.start_date <= next_month_date_display and (not plan.end_date or plan.end_date >= next_month_date_display))
+    
+    debt_percentage_display = (current_month_payment_display / ceiling_amount * 100) if ceiling_amount and ceiling_amount > 0 else None
+    debt_margin_display = (ceiling_amount - current_month_payment_display) if ceiling_amount is not None else None
+        
     return render_template(
         'debt_management.html',
         ceiling_form=ceiling_form,
         plan_form=plan_form,
-        modal_category_form=modal_category_form, # Pasar el formulario del modal
-        debt_ceiling=debt_ceiling,
+        modal_category_form=modal_category_form,
+        modal_asset_form=modal_asset_form,
+        debt_ceiling=debt_ceiling, 
         ceiling_amount=ceiling_amount,
-        all_debt_plans=all_debt_plans,
-        active_debt_plans=active_debt_plans,
-        total_debt_remaining=total_debt_remaining,
-        current_month_payment=current_month_payment,
-        next_month_payment=next_month_payment,
-        debt_percentage=debt_percentage,
-        debt_margin=debt_margin,
-        current_month=current_month,
-        next_month=next_month_obj,
+        all_debt_plans=all_debt_plans_sorted, # Pass the fully sorted list for historical view
+        active_debt_plans=active_debt_plans_list,
+        total_debt_remaining=total_debt_remaining_display,
+        current_month_payment=current_month_payment_display,
+        next_month_payment=next_month_payment_display,
+        debt_percentage=debt_percentage_display,
+        debt_margin=debt_margin_display,
+        current_month=current_month_date_display,
+        next_month=next_month_date_display,
         monthly_salary=monthly_salary,
-        now=datetime.now(),
+        now=datetime.now(), # Used in template for {% set today = now.date() %}
         plan_end_dates=plan_end_dates
     )
 
