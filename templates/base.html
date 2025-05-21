@@ -80,7 +80,9 @@
                         <ul class="dropdown-menu" aria-labelledby="navbarDropdownBolsa">
                             <li><a class="dropdown-item {% if request.endpoint == 'show_portfolio' %}active{% endif %}" href="{{ url_for('show_portfolio') }}"><i class="bi bi-briefcase-fill"></i> Portfolio</a></li>
                             <li><a class="dropdown-item {% if request.endpoint == 'show_watchlist' %}active{% endif %}" href="{{ url_for('show_watchlist') }}"><i class="bi bi-eye-fill"></i> Watchlist</a></li>
-                            <li><a class="dropdown-item {% if request.endpoint == 'broker_operations' %}active{% endif %}" href="{{ url_for('broker_operations') }}"><i class="bi bi-arrow-left-right"></i> Ops. Broker</a></li>
+                            <li><a class="dropdown-item {% if request.endpoint == 'view_movements' %}active{% endif %}" href="{{ url_for('view_movements') }}"><i class="bi bi-list-ul"></i> Movimientos</a></li>
+			    <li><a class="dropdown-item {% if request.endpoint == 'broker_operations' %}active{% endif %}" href="{{ url_for('broker_operations') }}"><i class="bi bi-arrow-left-right"></i> Ops. Broker</a></li>
+			    
                         </ul>
                     </li>
                     

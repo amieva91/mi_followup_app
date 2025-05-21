@@ -2357,6 +2357,98 @@ def create_default_expense_categories(user_id):
         print(f"Error al crear categorías predeterminadas: {e}")
         return False
 
+import json # Asegúrate de que json está importado al principio de app.py
+
+
+# Dentro de app.py
+
+# ... (otros imports)
+# import json # Asegúrate que está importado
+
+# ...
+
+@app.route('/movements')
+@login_required
+def view_movements():
+    _, csv_data_list, _ = load_user_portfolio(current_user.id) 
+    movements_list = []
+    if csv_data_list:
+        if isinstance(csv_data_list, list):
+            movements_list = csv_data_list
+        else:
+            flash('Error al cargar los datos de movimientos. Formato de datos inesperado.', 'danger')
+            app.logger.error(f"Error cargando movimientos para usuario {current_user.id}: csv_data_list no es una lista, es {type(csv_data_list)}")
+
+    # ---- INICIO DE LÓGICA PARA RESUMEN P/L POR PRODUCTO (CORREGIDA) ----
+    portfolio_data_from_db, _, _ = load_user_portfolio(current_user.id)
+    current_portfolio_items = portfolio_data_from_db if portfolio_data_from_db else []
+    
+    portfolio_isin_to_details = {
+        item.get('ISIN'): {
+            # --- CORRECCIÓN AQUÍ: 'none' a 'None' ---
+            'market_value_eur': float(item.get('market_value_eur', 0.0)) if item.get('market_value_eur') is not None else 0.0,
+            'producto_name': item.get('Producto') 
+        }
+        for item in current_portfolio_items if item.get('ISIN')
+    }
+
+    raw_product_totals = {} 
+    product_movement_isins = {} 
+
+    if movements_list:
+        for movement in movements_list:
+            producto_mov = movement.get('Producto')
+            isin_mov = movement.get('ISIN')
+            total_value_mov = movement.get('Total')
+
+            if producto_mov and total_value_mov is not None:
+                try:
+                    current_total_for_product = float(total_value_mov)
+                    raw_product_totals[producto_mov] = raw_product_totals.get(producto_mov, 0.0) + current_total_for_product
+                    
+                    if isin_mov:
+                        if producto_mov not in product_movement_isins:
+                            product_movement_isins[producto_mov] = set()
+                        product_movement_isins[producto_mov].add(isin_mov)
+                except (ValueError, TypeError) as e:
+                    app.logger.warning(f"No se pudo convertir 'Total' ({total_value_mov}) a float para el producto '{producto_mov}'. Error: {e}")
+
+    final_product_summary_list = []
+    for producto_mov_name, base_net_result in raw_product_totals.items():
+        adjusted_net_result = base_net_result
+        is_in_portfolio_flag = False
+        market_value_of_held_product = 0.0
+        
+        isins_for_this_product_name = product_movement_isins.get(producto_mov_name, set())
+        found_in_portfolio_by_isin = False
+        for isin_m in isins_for_this_product_name:
+            if isin_m in portfolio_isin_to_details:
+                found_in_portfolio_by_isin = True
+                market_value_of_held_product += portfolio_isin_to_details[isin_m]['market_value_eur']
+        
+        if found_in_portfolio_by_isin:
+            is_in_portfolio_flag = True
+            adjusted_net_result += market_value_of_held_product # Sumar el valor de mercado
+            
+        final_product_summary_list.append({
+            'name': producto_mov_name,
+            'net_result': adjusted_net_result, 
+            'is_in_portfolio': is_in_portfolio_flag,
+            'original_total_sum': base_net_result, 
+            'market_value_added': market_value_of_held_product if is_in_portfolio_flag else None,
+        })
+
+    sorted_product_summary_for_template = sorted(final_product_summary_list, key=lambda item: item['net_result'], reverse=True)
+    # ---- FIN DE LÓGICA ----
+
+    return render_template('movements.html', 
+                           movements=movements_list, 
+                           product_summary=sorted_product_summary_for_template, 
+                           title="Movimientos de Cartera")
+
+# ... (resto de app.py)
+
+
 # En app.py
 @app.route('/real_estate', methods=['GET', 'POST'])
 @login_required
@@ -6126,111 +6218,261 @@ def get_exchange_rate(from_currency, to_currency='EUR'):
     fx_cache[cache_key] = (now, rate)
     return rate
 
-# --- Funciones de Procesamiento de CSVs ---
-# (Asegúrate de incluir aquí las versiones completas y funcionales de estas)
+
+
+
 def process_uploaded_csvs(files):
-    # ... (Código completo de la función como la teníamos antes) ...
-    all_dfs = []; filenames_processed = []; errors = []
-    if not files or all(f.filename == '' for f in files): errors.append("Error: No archivos seleccionados."); return None, None, errors
+    all_dfs = []
+    filenames_processed = []
+    errors = []
+
+    if not files or all(f.filename == '' for f in files):
+        errors.append("Error: No archivos seleccionados.")
+        return None, None, errors
+
     for file in files:
         if file and allowed_file(file.filename):
             filename = secure_filename(file.filename)
-            if not validate_filename_format(filename): errors.append(f"Advertencia: Archivo '{filename}' ignorado (formato AAAA.csv)."); continue
+            if not validate_filename_format(filename):
+                errors.append(f"Advertencia: Archivo '{filename}' ignorado (formato debe ser AAAA.csv).")
+                continue
+            
             df = None
-            try: file.seek(0); df = pd.read_csv(io.BytesIO(file.read()), encoding='utf-8', sep=',', decimal='.', skiprows=0, header=0); print(f"Archivo '{filename}' leído UTF-8. Columnas: {df.columns.tolist()}")
+            try:
+                file.seek(0)
+                df = pd.read_csv(io.BytesIO(file.read()), encoding='utf-8', sep=',', decimal='.', skiprows=0, header=0)
+                print(f"Archivo '{filename}' leído con UTF-8. Columnas: {df.columns.tolist()}")
             except UnicodeDecodeError:
-                 try: file.seek(0); df = pd.read_csv(io.BytesIO(file.read()), encoding='latin-1', sep=',', decimal='.', skiprows=0, header=0); print(f"Archivo '{filename}' leído latin-1. Columnas: {df.columns.tolist()}")
-                 except Exception as e: errors.append(f"Error leyendo '{filename}' (UTF8/Latin1): {e}"); continue
-            except Exception as e: errors.append(f"Error leyendo '{filename}': {e}"); continue
+                try:
+                    file.seek(0)
+                    df = pd.read_csv(io.BytesIO(file.read()), encoding='latin-1', sep=',', decimal='.', skiprows=0, header=0)
+                    print(f"Archivo '{filename}' leído con latin-1. Columnas: {df.columns.tolist()}")
+                except Exception as e:
+                    errors.append(f"Error leyendo '{filename}' (probado con UTF-8 y latin-1): {e}")
+                    continue
+            except Exception as e:
+                errors.append(f"Error general leyendo '{filename}': {e}")
+                continue
+
             if df is not None:
-                 missing = [col for col in COLS_MAP.keys() if col not in df.columns];
-                 if missing: errors.append(f"Advertencia: Columnas faltantes en '{filename}': {missing}.")
-                 df['source_file'] = filename; all_dfs.append(df); filenames_processed.append(filename)
-        elif file.filename != '': errors.append(f"Advertencia: Archivo '{file.filename}' ignorado (no .csv).")
+                missing_original_cols = [col for col in COLS_MAP.keys() if col not in df.columns]
+                if missing_original_cols:
+                    errors.append(f"Advertencia: Columnas originales faltantes en '{filename}': {', '.join(missing_original_cols)}.")
+                
+                df['source_file'] = filename
+                all_dfs.append(df)
+                filenames_processed.append(filename)
+        elif file.filename != '':
+            errors.append(f"Advertencia: Archivo '{file.filename}' ignorado (extensión no permitida o nombre vacío).")
+
     if not all_dfs:
-        if not any("Error:" in e for e in errors): errors.append("Error: No CSVs válidos procesados."); return None, None, errors
+        if not any("Error:" in e for e in errors): # Si no hay errores fatales previos
+            errors.append("Error: No se procesaron archivos CSV válidos.")
+        return None, None, errors
+
     try:
-        combined_df_raw = pd.concat(all_dfs, ignore_index=True); print(f"DF raw creado ({len(combined_df_raw)} filas).")
-        if 'Fecha' in combined_df_raw.columns: combined_df_raw['Fecha'] = pd.to_datetime(combined_df_raw['Fecha'], errors='coerce', dayfirst=True)
+        combined_df_raw = pd.concat(all_dfs, ignore_index=True)
+        print(f"DataFrame raw combinado creado ({len(combined_df_raw)} filas).")
+
+        if 'Fecha' in combined_df_raw.columns:
+            combined_df_raw['Fecha'] = pd.to_datetime(combined_df_raw['Fecha'], errors='coerce', dayfirst=True)
+        
         if 'Fecha' in combined_df_raw.columns and 'Hora' in combined_df_raw.columns:
-              try: temp_f = combined_df_raw['Fecha'].dt.strftime('%Y-%m-%d'); temp_h = combined_df_raw['Hora'].astype(str).str.strip(); combined_df_raw['FechaHora'] = pd.to_datetime(temp_f + ' ' + temp_h, errors='coerce')
-              except Exception as e: print(f"Warn: No FechaHora: {e}"); combined_df_raw['FechaHora'] = combined_df_raw['Fecha']
-        elif 'Fecha' in combined_df_raw.columns: combined_df_raw['FechaHora'] = combined_df_raw['Fecha']
-        sort_col = 'FechaHora' if 'FechaHora' in combined_df_raw.columns else 'Fecha'
-        if sort_col in combined_df_raw.columns: combined_df_raw = combined_df_raw.sort_values(by=sort_col, ascending=True, na_position='first')
-    except Exception as e: errors.append(f"Error combinando/parseando fecha: {e}"); return None, None, errors
-    df_for_portfolio_calc = combined_df_raw.copy()
+            try:
+                # Asegurar que 'Fecha' sea string para concatenar, y 'Hora' también
+                temp_f = combined_df_raw['Fecha'].dt.strftime('%Y-%m-%d')
+                temp_h = combined_df_raw['Hora'].astype(str).str.strip()
+                combined_df_raw['FechaHora'] = pd.to_datetime(temp_f + ' ' + temp_h, errors='coerce')
+            except Exception as e_fh:
+                print(f"Advertencia: No se pudo crear 'FechaHora' compuesta: {e_fh}. Usando solo 'Fecha' para ordenar.")
+                combined_df_raw['FechaHora'] = combined_df_raw['Fecha'] # Fallback
+        elif 'Fecha' in combined_df_raw.columns:
+            combined_df_raw['FechaHora'] = combined_df_raw['Fecha']
+        
+        sort_col_name = 'FechaHora' if 'FechaHora' in combined_df_raw.columns else 'Fecha'
+        if sort_col_name in combined_df_raw.columns:
+            combined_df_raw = combined_df_raw.sort_values(by=sort_col_name, ascending=True, na_position='first')
+        
+    except Exception as e_concat:
+        errors.append(f"Error al combinar archivos CSV o parsear fechas: {e_concat}")
+        return None, None, errors # Devuelve None para df_for_portfolio_calc si falla aquí
+
+    df_for_portfolio_calc = combined_df_raw.copy() # Para cálculo de portfolio con datos más crudos
     processed_df_for_csv = pd.DataFrame()
+
     try:
-        cols_k = list(COLS_MAP.keys()); actual_c = combined_df_raw.columns.tolist(); cols_k = [c for c in cols_k if c in actual_c]
-        if not cols_k: errors.append("Error: Ninguna columna original encontrada."); return None, df_for_portfolio_calc, errors
-        filtered = combined_df_raw[cols_k].copy(); renamed = filtered.rename(columns=COLS_MAP); print(f"Cols renombradas CSV: {renamed.columns.tolist()}")
-        if 'Bolsa' in renamed.columns: renamed['Exchange Yahoo'] = renamed['Bolsa'].map(BOLSA_TO_YAHOO_MAP).fillna(''); print("Col 'Exchange Yahoo' añadida.")
-        else: renamed['Exchange Yahoo'] = ''; errors.append("Warn: No 'Bolsa' para 'Exchange Yahoo'.")
+        # Filtrar solo columnas que existen en el DF y están en COLS_MAP
+        cols_to_rename_present = [col for col in COLS_MAP.keys() if col in combined_df_raw.columns]
+        if not cols_to_rename_present:
+            errors.append("Error: Ninguna de las columnas esperadas (COLS_MAP) se encontró en los archivos CSV.")
+            return None, df_for_portfolio_calc, errors # df_for_portfolio_calc podría tener datos, pero no para el CSV final
+
+        filtered_df = combined_df_raw[cols_to_rename_present].copy()
+        renamed = filtered_df.rename(columns=COLS_MAP)
+        print(f"Columnas renombradas para CSV: {renamed.columns.tolist()}")
+
+        if 'Bolsa' in renamed.columns:
+            renamed['Exchange Yahoo'] = renamed['Bolsa'].map(BOLSA_TO_YAHOO_MAP).fillna('')
+            print("Columna 'Exchange Yahoo' añadida.")
+        else:
+            renamed['Exchange Yahoo'] = '' # Asegurar que la columna exista
+            errors.append("Advertencia: No se encontró la columna 'Bolsa' para generar 'Exchange Yahoo'.")
+
         for col in NUMERIC_COLS:
             if col in renamed.columns:
                 if not pd.api.types.is_numeric_dtype(renamed[col]):
-                    cleaned = renamed[col].astype(str).str.replace(r'[$\s€]', '', regex=True).str.replace(',', '', regex=False); renamed[col] = pd.to_numeric(cleaned, errors='coerce')
+                    cleaned_series = renamed[col].astype(str).str.replace(r'[$\s€]', '', regex=True).str.replace(',', '', regex=False)
+                    renamed[col] = pd.to_numeric(cleaned_series, errors='coerce')
+
+                # ---- INICIO DEL CAMBIO ----
+                # Reemplazar NaN con 0 después de la coerción
+                if pd.api.types.is_numeric_dtype(renamed[col]) or renamed[col].isnull().any():
+                    renamed[col] = renamed[col].fillna(0)
+                # ---- FIN DEL CAMBIO ----
+
                 if col == 'Cantidad':
-                     if pd.api.types.is_numeric_dtype(renamed[col]): renamed[col] = renamed[col].abs()
-                if pd.api.types.is_numeric_dtype(renamed[col]): renamed[col] = renamed[col].astype(float)
-            else: errors.append(f"Warn: Col numérica '{col}' no existe.")
+                     if pd.api.types.is_numeric_dtype(renamed[col]): # Verificar de nuevo
+                         renamed[col] = renamed[col].abs()
+                
+                if pd.api.types.is_numeric_dtype(renamed[col]): # Asegurar tipo float
+                    renamed[col] = renamed[col].astype(float)
+            else:
+                errors.append(f"Advertencia: Columna numérica '{col}' no encontrada tras renombrar.")
+                renamed[col] = 0.0 # Añadir columna con ceros si falta una numérica esencial
+
         processed_df_for_csv = renamed
-    except KeyError as e: errors.append(f"Error proc CSV (KeyError): '{e}'."); return None, df_for_portfolio_calc, errors
-    except Exception as e: errors.append(f"Error proc CSV: {e}"); return None, df_for_portfolio_calc, errors
-    print(f"Proc base completado. DF CSV ({len(processed_df_for_csv)}), DF raw ({len(df_for_portfolio_calc)}).")
+
+    except KeyError as e_key:
+        errors.append(f"Error de procesamiento (KeyError): Columna '{e_key}' no encontrada. Verifica COLS_MAP y tus CSVs.")
+        return None, df_for_portfolio_calc, errors
+    except Exception as e_proc:
+        errors.append(f"Error general durante el procesamiento de datos para CSV: {e_proc}")
+        return None, df_for_portfolio_calc, errors
+        
+    print(f"Procesamiento base completado. DF para CSV ({len(processed_df_for_csv)} filas), DF raw para portfolio ({len(df_for_portfolio_calc)} filas).")
     return processed_df_for_csv, df_for_portfolio_calc, errors
+
 
 def process_csvs_from_paths(list_of_file_paths):
-    # ... (Código completo de la función como la teníamos antes) ...
-    all_dfs = []; errors = []
-    if not list_of_file_paths: errors.append("Error: No rutas."); return None, None, errors
+    all_dfs = []
+    errors = []
+
+    if not list_of_file_paths:
+        errors.append("Error: No se proporcionaron rutas de archivo.")
+        return None, None, errors
+
     for filepath in list_of_file_paths:
-        filename = os.path.basename(filepath); df = None
-        try: df = pd.read_csv(filepath, encoding='utf-8', sep=',', decimal='.', skiprows=0, header=0); print(f"Archivo ruta '{filename}' UTF-8. Cols: {df.columns.tolist()}")
+        filename = os.path.basename(filepath)
+        df = None
+        try:
+            df = pd.read_csv(filepath, encoding='utf-8', sep=',', decimal='.', skiprows=0, header=0)
+            print(f"Archivo de ruta '{filename}' leído con UTF-8. Columnas: {df.columns.tolist()}")
         except UnicodeDecodeError:
-             try: df = pd.read_csv(filepath, encoding='latin-1', sep=',', decimal='.', skiprows=0, header=0); print(f"Archivo ruta '{filename}' latin-1. Cols: {df.columns.tolist()}")
-             except Exception as e: errors.append(f"Error leyendo ruta '{filename}' (UTF8/Latin1): {e}"); continue
-        except FileNotFoundError: errors.append(f"Error: Archivo no encontrado: {filepath}"); continue
-        except Exception as e: errors.append(f"Error leyendo ruta '{filename}': {e}"); continue
+            try:
+                df = pd.read_csv(filepath, encoding='latin-1', sep=',', decimal='.', skiprows=0, header=0)
+                print(f"Archivo de ruta '{filename}' leído con latin-1. Columnas: {df.columns.tolist()}")
+            except Exception as e:
+                errors.append(f"Error leyendo archivo de ruta '{filename}' (probado con UTF-8 y latin-1): {e}")
+                continue
+        except FileNotFoundError:
+            errors.append(f"Error: Archivo no encontrado en la ruta: {filepath}")
+            continue
+        except Exception as e:
+            errors.append(f"Error general leyendo archivo de ruta '{filename}': {e}")
+            continue
+        
         if df is not None:
-             missing = [col for col in COLS_MAP.keys() if col not in df.columns];
-             if missing: errors.append(f"Warn: Columnas faltantes ruta '{filename}': {missing}.")
-             df['source_file'] = filename; all_dfs.append(df)
+            missing_original_cols = [col for col in COLS_MAP.keys() if col not in df.columns]
+            if missing_original_cols:
+                errors.append(f"Advertencia: Columnas originales faltantes en archivo de ruta '{filename}': {', '.join(missing_original_cols)}.")
+            
+            df['source_file'] = filename
+            all_dfs.append(df)
+
     if not all_dfs:
-        if not any("Error:" in e for e in errors): errors.append("Error: No CSVs válidos desde ruta."); return None, None, errors
+        if not any("Error:" in e for e in errors):
+             errors.append("Error: No se procesaron archivos CSV válidos desde las rutas especificadas.")
+        return None, None, errors
+
     try:
-        combined_df_raw = pd.concat(all_dfs, ignore_index=True); print(f"DF raw (ruta) creado ({len(combined_df_raw)} filas).")
-        if 'Fecha' in combined_df_raw.columns: combined_df_raw['Fecha'] = pd.to_datetime(combined_df_raw['Fecha'], errors='coerce', dayfirst=True)
+        combined_df_raw = pd.concat(all_dfs, ignore_index=True)
+        print(f"DataFrame raw combinado (desde rutas) creado ({len(combined_df_raw)} filas).")
+
+        if 'Fecha' in combined_df_raw.columns:
+            combined_df_raw['Fecha'] = pd.to_datetime(combined_df_raw['Fecha'], errors='coerce', dayfirst=True)
+
         if 'Fecha' in combined_df_raw.columns and 'Hora' in combined_df_raw.columns:
-              try: temp_f = combined_df_raw['Fecha'].dt.strftime('%Y-%m-%d'); temp_h = combined_df_raw['Hora'].astype(str).str.strip(); combined_df_raw['FechaHora'] = pd.to_datetime(temp_f + ' ' + temp_h, errors='coerce')
-              except Exception as e: print(f"Warn: No FechaHora: {e}"); combined_df_raw['FechaHora'] = combined_df_raw['Fecha']
-        elif 'Fecha' in combined_df_raw.columns: combined_df_raw['FechaHora'] = combined_df_raw['Fecha']
-        sort_col = 'FechaHora' if 'FechaHora' in combined_df_raw.columns else 'Fecha'
-        if sort_col in combined_df_raw.columns: combined_df_raw = combined_df_raw.sort_values(by=sort_col, ascending=True, na_position='first')
-    except Exception as e: errors.append(f"Error combinando (ruta): {e}"); return None, None, errors
+            try:
+                temp_f = combined_df_raw['Fecha'].dt.strftime('%Y-%m-%d')
+                temp_h = combined_df_raw['Hora'].astype(str).str.strip()
+                combined_df_raw['FechaHora'] = pd.to_datetime(temp_f + ' ' + temp_h, errors='coerce')
+            except Exception as e_fh:
+                print(f"Advertencia (rutas): No se pudo crear 'FechaHora' compuesta: {e_fh}. Usando solo 'Fecha' para ordenar.")
+                combined_df_raw['FechaHora'] = combined_df_raw['Fecha']
+        elif 'Fecha' in combined_df_raw.columns:
+            combined_df_raw['FechaHora'] = combined_df_raw['Fecha']
+
+        sort_col_name = 'FechaHora' if 'FechaHora' in combined_df_raw.columns else 'Fecha'
+        if sort_col_name in combined_df_raw.columns:
+            combined_df_raw = combined_df_raw.sort_values(by=sort_col_name, ascending=True, na_position='first')
+
+    except Exception as e_concat:
+        errors.append(f"Error al combinar archivos CSV (desde rutas) o parsear fechas: {e_concat}")
+        return None, None, errors
+
     df_for_portfolio_calc = combined_df_raw.copy()
     processed_df_for_csv = pd.DataFrame()
+
     try:
-        cols_k = list(COLS_MAP.keys()); actual_c = combined_df_raw.columns.tolist(); cols_k = [c for c in cols_k if c in actual_c]
-        if not cols_k: errors.append("Error: Ninguna col original (ruta)."); return None, df_for_portfolio_calc, errors
-        filtered = combined_df_raw[cols_k].copy(); renamed = filtered.rename(columns=COLS_MAP); print(f"Cols renombradas CSV (ruta): {renamed.columns.tolist()}")
-        if 'Bolsa' in renamed.columns: renamed['Exchange Yahoo'] = renamed['Bolsa'].map(BOLSA_TO_YAHOO_MAP).fillna(''); print("Col 'Exchange Yahoo' (ruta) añadida.")
-        else: renamed['Exchange Yahoo'] = ''; errors.append("Warn: No 'Bolsa' para 'Exchange Yahoo' (ruta).")
+        cols_to_rename_present = [col for col in COLS_MAP.keys() if col in combined_df_raw.columns]
+        if not cols_to_rename_present:
+            errors.append("Error (rutas): Ninguna de las columnas esperadas (COLS_MAP) se encontró en los archivos CSV.")
+            return None, df_for_portfolio_calc, errors
+
+        filtered_df = combined_df_raw[cols_to_rename_present].copy()
+        renamed = filtered_df.rename(columns=COLS_MAP)
+        print(f"Columnas renombradas para CSV (desde rutas): {renamed.columns.tolist()}")
+
+        if 'Bolsa' in renamed.columns:
+            renamed['Exchange Yahoo'] = renamed['Bolsa'].map(BOLSA_TO_YAHOO_MAP).fillna('')
+            print("Columna 'Exchange Yahoo' (desde rutas) añadida.")
+        else:
+            renamed['Exchange Yahoo'] = ''
+            errors.append("Advertencia (rutas): No se encontró la columna 'Bolsa' para generar 'Exchange Yahoo'.")
+
         for col in NUMERIC_COLS:
             if col in renamed.columns:
                 if not pd.api.types.is_numeric_dtype(renamed[col]):
-                    cleaned = renamed[col].astype(str).str.replace(r'[$\s€]', '', regex=True).str.replace(',', '', regex=False); renamed[col] = pd.to_numeric(cleaned, errors='coerce')
-                if col == 'Cantidad':
-                     if pd.api.types.is_numeric_dtype(renamed[col]): renamed[col] = renamed[col].abs()
-                if pd.api.types.is_numeric_dtype(renamed[col]): renamed[col] = renamed[col].astype(float)
-            else: errors.append(f"Warn: Col numérica '{col}' no existe (ruta).")
-        processed_df_for_csv = renamed
-    except KeyError as e: errors.append(f"Error proc CSV (KeyError ruta): '{e}'."); return None, df_for_portfolio_calc, errors
-    except Exception as e: errors.append(f"Error proc CSV (ruta): {e}"); return None, df_for_portfolio_calc, errors
-    print(f"Proc base (ruta) completado. DF CSV, DF raw.")
-    return processed_df_for_csv, df_for_portfolio_calc, errors
+                    cleaned_series = renamed[col].astype(str).str.replace(r'[$\s€]', '', regex=True).str.replace(',', '', regex=False)
+                    renamed[col] = pd.to_numeric(cleaned_series, errors='coerce')
 
+                # ---- INICIO DEL CAMBIO ----
+                # Reemplazar NaN con 0 después de la coerción
+                if pd.api.types.is_numeric_dtype(renamed[col]) or renamed[col].isnull().any():
+                    renamed[col] = renamed[col].fillna(0)
+                # ---- FIN DEL CAMBIO ----
+                
+                if col == 'Cantidad':
+                     if pd.api.types.is_numeric_dtype(renamed[col]): # Verificar de nuevo
+                         renamed[col] = renamed[col].abs()
+
+                if pd.api.types.is_numeric_dtype(renamed[col]): # Asegurar tipo float
+                    renamed[col] = renamed[col].astype(float)
+            else:
+                errors.append(f"Advertencia: Columna numérica '{col}' no encontrada tras renombrar (rutas).")
+                renamed[col] = 0.0 # Añadir columna con ceros
+
+        processed_df_for_csv = renamed
+
+    except KeyError as e_key:
+        errors.append(f"Error de procesamiento (KeyError rutas): Columna '{e_key}' no encontrada. Verifica COLS_MAP y tus CSVs.")
+        return None, df_for_portfolio_calc, errors
+    except Exception as e_proc:
+        errors.append(f"Error general durante el procesamiento de datos para CSV (rutas): {e_proc}")
+        return None, df_for_portfolio_calc, errors
+        
+    print(f"Procesamiento base (desde rutas) completado. DF para CSV ({len(processed_df_for_csv)} filas), DF raw para portfolio ({len(df_for_portfolio_calc)} filas).")
+    return processed_df_for_csv, df_for_portfolio_calc, errors
 
 def calculate_portfolio(df_transacciones):
     # ... (Código completo de la función como la teníamos antes) ...
