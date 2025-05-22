@@ -3,6 +3,7 @@ import os
 import pandas as pd
 import io
 import csv
+import hashlib
 import math
 import re
 from sqlalchemy import func
@@ -1021,8 +1022,6 @@ class CloseAccountForm(FlaskForm): # MOSTRANDO COMPLETA
     submit = SubmitField('Cerrar mi cuenta permanentemente')
 
 
-# Reemplaza tu función crypto_movements actual con esta versión mejorada:
-
 @app.route('/crypto_movements', methods=['GET', 'POST'])
 @login_required
 def crypto_movements():
@@ -1041,6 +1040,7 @@ def crypto_movements():
             csv_reader = csv.DictReader(stream)
             
             movements_added = 0
+            duplicates_found = 0
             errors = []
             
             for row_num, row in enumerate(csv_reader, start=2):  # start=2 porque la fila 1 es el header
@@ -1094,8 +1094,8 @@ def crypto_movements():
                     except (ValueError, TypeError):
                         pass
                     
-                    # Crear nuevo movimiento
-                    new_movement = CryptoCsvMovement(
+                    # Crear movimiento temporal para generar hash
+                    temp_movement = CryptoCsvMovement(
                         user_id=current_user.id,
                         exchange_name=exchange_name,
                         timestamp_utc=timestamp_utc,
@@ -1112,7 +1112,23 @@ def crypto_movements():
                         csv_filename=filename
                     )
                     
-                    db.session.add(new_movement)
+                    # Generar hash único
+                    transaction_hash_unique = temp_movement.generate_hash()
+                    
+                    # Verificar si ya existe este hash
+                    existing_movement = CryptoCsvMovement.query.filter_by(
+                        user_id=current_user.id,
+                        transaction_hash_unique=transaction_hash_unique
+                    ).first()
+                    
+                    if existing_movement:
+                        duplicates_found += 1
+                        continue  # Saltar duplicado
+                    
+                    # Añadir hash al movimiento
+                    temp_movement.transaction_hash_unique = transaction_hash_unique
+                    
+                    db.session.add(temp_movement)
                     movements_added += 1
                     
                 except Exception as e:
@@ -1125,8 +1141,12 @@ def crypto_movements():
             # Mostrar resultado
             if movements_added > 0:
                 flash(f'CSV procesado correctamente. {movements_added} movimientos añadidos.', 'success')
+                if duplicates_found > 0:
+                    flash(f'{duplicates_found} movimientos duplicados omitidos.', 'info')
                 if errors:
                     flash(f'Se encontraron {len(errors)} errores en algunas filas.', 'warning')
+            elif duplicates_found > 0:
+                flash(f'No se añadieron movimientos nuevos. {duplicates_found} duplicados encontrados.', 'warning')
             else:
                 flash('No se pudieron procesar movimientos del CSV.', 'warning')
                 
@@ -1911,6 +1931,10 @@ class CryptoPriceVerification(db.Model):
     def __repr__(self):
         return f'<CryptoPriceVerification {self.currency_symbol}: {"✓" if self.price_available else "✗"}>'
 
+# Reemplaza tu modelo CryptoCsvMovement en models.py con este código completo:
+
+import hashlib
+
 class CryptoCsvMovement(db.Model):
     __tablename__ = 'crypto_csv_movements'
     
@@ -1934,12 +1958,22 @@ class CryptoCsvMovement(db.Model):
     # Campos de control
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     csv_filename = db.Column(db.String(255), nullable=True)
+    transaction_hash_unique = db.Column(db.String(64), nullable=True, index=True)  # Hash para detectar duplicados
     
     # Relación con usuario
     user = db.relationship('User', backref=db.backref('crypto_csv_movements', lazy=True, cascade='all, delete-orphan'))
     
+    def generate_hash(self):
+        """Genera un hash único basado en los datos principales de la transacción."""
+        # Crear string con datos únicos de la transacción
+        hash_data = f"{self.user_id}_{self.exchange_name}_{self.timestamp_utc}_{self.transaction_description}_{self.currency}_{self.amount}_{self.to_currency}_{self.to_amount}_{self.transaction_kind}_{self.transaction_hash}"
+        
+        # Generar hash SHA-256
+        return hashlib.sha256(hash_data.encode('utf-8')).hexdigest()
+    
     def __repr__(self):
         return f'<CryptoCsvMovement {self.id}: {self.exchange_name} - {self.transaction_description}>'
+
 
 class RealEstateAsset(db.Model):
     # ... (como lo tenías, asegurándote de que 'mortgage' es la relación a RealEstateMortgage)
@@ -6182,6 +6216,22 @@ def verify_crypto_prices():
         app.logger.error(f"Error en verify_crypto_prices: {e}", exc_info=True)
     
     return redirect(url_for('crypto_movements'))
+
+
+# Añadir este campo al modelo CryptoCsvMovement en models.py:
+
+# Dentro de la clase CryptoCsvMovement, añadir esta línea después de csv_filename:
+transaction_hash_unique = db.Column(db.String(64), nullable=True, index=True)  # Hash para detectar duplicados
+
+# Y añadir este método a la clase:
+def generate_hash(self):
+    """Genera un hash único basado en los datos principales de la transacción."""
+    
+    # Crear string con datos únicos de la transacción
+    hash_data = f"{self.user_id}_{self.exchange_name}_{self.timestamp_utc}_{self.transaction_description}_{self.currency}_{self.amount}_{self.to_currency}_{self.to_amount}_{self.transaction_kind}_{self.transaction_hash}"
+    
+    # Generar hash SHA-256
+    return hashlib.sha256(hash_data.encode('utf-8')).hexdigest()
 
 # Función auxiliar para asegurar que Crypto.com existe como exchange
 def ensure_crypto_com_exchange():
