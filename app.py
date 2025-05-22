@@ -1021,6 +1021,8 @@ class CloseAccountForm(FlaskForm): # MOSTRANDO COMPLETA
     submit = SubmitField('Cerrar mi cuenta permanentemente')
 
 
+# Reemplaza tu función crypto_movements actual con esta versión mejorada:
+
 @app.route('/crypto_movements', methods=['GET', 'POST'])
 @login_required
 def crypto_movements():
@@ -1148,14 +1150,42 @@ def crypto_movements():
     total_movements = len(movements)
     exchanges_count = len(set(m.exchange_name for m in movements)) if movements else 0
     
+    # Obtener criptomonedas únicas identificadas
+    unique_currencies = db.session.query(CryptoCsvMovement.currency).filter_by(
+        user_id=current_user.id
+    ).filter(
+        CryptoCsvMovement.currency.isnot(None),
+        CryptoCsvMovement.currency != ''
+    ).distinct().all()
+    
+    # Procesar las criptomonedas únicas y obtener su estado de verificación
+    crypto_currencies = []
+    for currency_tuple in unique_currencies:
+        currency = currency_tuple[0]
+        if currency and currency.strip():
+            # Buscar si ya existe verificación previa
+            existing_verification = CryptoPriceVerification.query.filter_by(
+                user_id=current_user.id,
+                currency_symbol=currency
+            ).first()
+            
+            crypto_currencies.append({
+                'symbol': currency,
+                'verified': existing_verification.price_available if existing_verification else None,
+                'last_check': existing_verification.last_check if existing_verification else None
+            })
+    
+    # Ordenar por símbolo
+    crypto_currencies.sort(key=lambda x: x['symbol'])
+    
     return render_template(
         'crypto_movements.html',
         csv_form=csv_form,
         movements=movements,
         total_movements=total_movements,
-        exchanges_count=exchanges_count
+        exchanges_count=exchanges_count,
+        crypto_currencies=crypto_currencies
     )
-
 
 
 def log_activity(action_type, message, actor_user=None, target_user=None, details=None):
@@ -1860,6 +1890,26 @@ def change_password(): # MOSTRANDO COMPLETA CON CAMBIOS
                            form=form,
                            needs_current_password=needs_current_password)
 
+
+# Añadir este modelo después del modelo CryptoCsvMovement en models.py:
+
+class CryptoPriceVerification(db.Model):
+    __tablename__ = 'crypto_price_verifications'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    currency_symbol = db.Column(db.String(20), nullable=False)
+    price_available = db.Column(db.Boolean, nullable=False, default=False)
+    last_check = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relación con usuario
+    user = db.relationship('User', backref=db.backref('crypto_price_verifications', lazy=True))
+    
+    # Índice único para evitar duplicados por usuario y moneda
+    __table_args__ = (db.UniqueConstraint('user_id', 'currency_symbol', name='unique_user_currency'),)
+    
+    def __repr__(self):
+        return f'<CryptoPriceVerification {self.currency_symbol}: {"✓" if self.price_available else "✗"}>'
 
 class CryptoCsvMovement(db.Model):
     __tablename__ = 'crypto_csv_movements'
@@ -6037,6 +6087,101 @@ def clear_all_crypto_movements():
     
     return redirect(url_for('crypto_movements'))
 
+
+# Añadir esta nueva ruta después de clear_all_crypto_movements:
+
+@app.route('/verify_crypto_prices', methods=['POST'])
+@login_required
+def verify_crypto_prices():
+    """Verifica manualmente si yfinance puede obtener precios para las criptomonedas identificadas."""
+    try:
+        # Obtener todas las criptomonedas únicas del usuario
+        unique_currencies = db.session.query(CryptoCsvMovement.currency).filter_by(
+            user_id=current_user.id
+        ).filter(
+            CryptoCsvMovement.currency.isnot(None),
+            CryptoCsvMovement.currency != ''
+        ).distinct().all()
+        
+        verified_count = 0
+        failed_count = 0
+        
+        for currency_tuple in unique_currencies:
+            currency = currency_tuple[0]
+            if not currency or not currency.strip():
+                continue
+                
+            currency = currency.strip()
+            
+            # Intentar obtener precio con yfinance
+            price_available = False
+            try:
+                # Intentar diferentes formatos de ticker para yfinance
+                possible_tickers = [
+                    f"{currency}-USD",  # BTC-USD
+                    f"{currency}USD",   # BTCUSD  
+                    currency,           # BTC
+                    f"{currency}-EUR",  # BTC-EUR
+                    f"{currency}EUR"    # BTCEUR
+                ]
+                
+                for ticker in possible_tickers:
+                    try:
+                        crypto_ticker = yf.Ticker(ticker)
+                        # Intentar obtener información básica
+                        info = crypto_ticker.info
+                        if info and 'regularMarketPrice' in info and info['regularMarketPrice'] is not None:
+                            price_available = True
+                            break
+                        
+                        # También intentar obtener datos históricos como respaldo
+                        hist = crypto_ticker.history(period="1d")
+                        if not hist.empty and len(hist) > 0:
+                            price_available = True
+                            break
+                            
+                    except Exception:
+                        continue
+                        
+            except Exception as e:
+                app.logger.warning(f"Error verificando precio para {currency}: {e}")
+            
+            # Guardar o actualizar el resultado de verificación
+            existing_verification = CryptoPriceVerification.query.filter_by(
+                user_id=current_user.id,
+                currency_symbol=currency
+            ).first()
+            
+            if existing_verification:
+                existing_verification.price_available = price_available
+                existing_verification.last_check = datetime.utcnow()
+            else:
+                new_verification = CryptoPriceVerification(
+                    user_id=current_user.id,
+                    currency_symbol=currency,
+                    price_available=price_available,
+                    last_check=datetime.utcnow()
+                )
+                db.session.add(new_verification)
+            
+            if price_available:
+                verified_count += 1
+            else:
+                failed_count += 1
+        
+        db.session.commit()
+        
+        if verified_count > 0 or failed_count > 0:
+            flash(f'Verificación completada: {verified_count} criptomonedas disponibles en yfinance, {failed_count} no disponibles.', 'success')
+        else:
+            flash('No se encontraron criptomonedas para verificar.', 'info')
+            
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error durante la verificación: {e}', 'danger')
+        app.logger.error(f"Error en verify_crypto_prices: {e}", exc_info=True)
+    
+    return redirect(url_for('crypto_movements'))
 
 # Función auxiliar para asegurar que Crypto.com existe como exchange
 def ensure_crypto_com_exchange():
