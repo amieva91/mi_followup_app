@@ -2,8 +2,10 @@
 import os
 import pandas as pd
 import io
+import csv
 import math
 import re
+from sqlalchemy import func
 import traceback
 import uuid
 import json
@@ -16,6 +18,7 @@ import yfinance as yf # Para precios acciones
 from flask import (
     Flask, request, render_template, send_file, flash, redirect, url_for, session, get_flashed_messages, jsonify
 )
+from flask_wtf.file import FileField, FileRequired, FileAllowed
 from itsdangerous import URLSafeTimedSerializer
 from flask_mail import Mail, Message
 from flask_sqlalchemy import SQLAlchemy
@@ -108,10 +111,22 @@ login_manager.login_message_category = 'info'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-# En app.py
 
-# ... (Imports y Configuración de app, db, login_manager ANTES de esto) ...
-# En app.py
+class CsvUploadForm(FlaskForm):
+    exchange = SelectField(
+        'Exchange', 
+        choices=[('Crypto.com', 'Crypto.com')], 
+        validators=[DataRequired()],
+        default='Crypto.com'
+    )
+    csv_file = FileField(
+        'Archivo CSV', 
+        validators=[
+            FileRequired(message='Debe seleccionar un archivo'),
+            FileAllowed(['csv'], message='Solo se permiten archivos CSV')
+        ]
+    )
+    submit = SubmitField('Cargar CSV')
 
 class ActivityLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -1006,7 +1021,142 @@ class CloseAccountForm(FlaskForm): # MOSTRANDO COMPLETA
     submit = SubmitField('Cerrar mi cuenta permanentemente')
 
 
-# En app.py
+@app.route('/crypto_movements', methods=['GET', 'POST'])
+@login_required
+def crypto_movements():
+    """Muestra y gestiona los movimientos de CSV de exchanges automatizados."""
+    csv_form = CsvUploadForm()
+    
+    # Procesar carga de CSV
+    if csv_form.validate_on_submit():
+        try:
+            uploaded_file = csv_form.csv_file.data
+            exchange_name = csv_form.exchange.data
+            filename = secure_filename(uploaded_file.filename)
+            
+            # Leer el contenido del CSV
+            stream = io.StringIO(uploaded_file.stream.read().decode("utf-8"), newline=None)
+            csv_reader = csv.DictReader(stream)
+            
+            movements_added = 0
+            errors = []
+            
+            for row_num, row in enumerate(csv_reader, start=2):  # start=2 porque la fila 1 es el header
+                try:
+                    # Parsear la fecha
+                    timestamp_str = row.get('Timestamp (UTC)', '').strip()
+                    timestamp_utc = None
+                    if timestamp_str:
+                        # Formato esperado: "2024-01-01 12:00:00" o similar
+                        try:
+                            timestamp_utc = datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S')
+                        except ValueError:
+                            try:
+                                # Intentar otros formatos posibles
+                                timestamp_utc = datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S.%f')
+                            except ValueError:
+                                errors.append(f"Fila {row_num}: Formato de fecha inválido: {timestamp_str}")
+                                continue
+                    
+                    # Convertir valores numéricos
+                    amount = None
+                    to_amount = None
+                    native_amount = None
+                    native_amount_in_usd = None
+                    
+                    try:
+                        amount_str = row.get('Amount', '').strip()
+                        if amount_str and amount_str != '':
+                            amount = float(amount_str)
+                    except (ValueError, TypeError):
+                        pass
+                    
+                    try:
+                        to_amount_str = row.get('To Amount', '').strip()
+                        if to_amount_str and to_amount_str != '':
+                            to_amount = float(to_amount_str)
+                    except (ValueError, TypeError):
+                        pass
+                    
+                    try:
+                        native_amount_str = row.get('Native Amount', '').strip()
+                        if native_amount_str and native_amount_str != '':
+                            native_amount = float(native_amount_str)
+                    except (ValueError, TypeError):
+                        pass
+                    
+                    try:
+                        native_amount_usd_str = row.get('Native Amount (in USD)', '').strip()
+                        if native_amount_usd_str and native_amount_usd_str != '':
+                            native_amount_in_usd = float(native_amount_usd_str)
+                    except (ValueError, TypeError):
+                        pass
+                    
+                    # Crear nuevo movimiento
+                    new_movement = CryptoCsvMovement(
+                        user_id=current_user.id,
+                        exchange_name=exchange_name,
+                        timestamp_utc=timestamp_utc,
+                        transaction_description=row.get('Transaction Description', '').strip(),
+                        currency=row.get('Currency', '').strip(),
+                        amount=amount,
+                        to_currency=row.get('To Currency', '').strip(),
+                        to_amount=to_amount,
+                        native_currency=row.get('Native Currency', '').strip(),
+                        native_amount=native_amount,
+                        native_amount_in_usd=native_amount_in_usd,
+                        transaction_kind=row.get('Transaction Kind', '').strip(),
+                        transaction_hash=row.get('Transaction Hash', '').strip(),
+                        csv_filename=filename
+                    )
+                    
+                    db.session.add(new_movement)
+                    movements_added += 1
+                    
+                except Exception as e:
+                    errors.append(f"Fila {row_num}: Error procesando datos - {str(e)}")
+                    continue
+            
+            # Guardar en la base de datos
+            db.session.commit()
+            
+            # Mostrar resultado
+            if movements_added > 0:
+                flash(f'CSV procesado correctamente. {movements_added} movimientos añadidos.', 'success')
+                if errors:
+                    flash(f'Se encontraron {len(errors)} errores en algunas filas.', 'warning')
+            else:
+                flash('No se pudieron procesar movimientos del CSV.', 'warning')
+                
+            if errors:
+                # Mostrar solo los primeros 5 errores para no saturar la interfaz
+                for error in errors[:5]:
+                    flash(error, 'danger')
+                if len(errors) > 5:
+                    flash(f'... y {len(errors) - 5} errores más.', 'danger')
+            
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error procesando el archivo CSV: {str(e)}', 'danger')
+    
+    # Obtener todos los movimientos del usuario ordenados por fecha
+    movements = CryptoCsvMovement.query.filter_by(
+        user_id=current_user.id
+    ).order_by(CryptoCsvMovement.timestamp_utc.desc()).all()
+    
+    # Estadísticas básicas
+    total_movements = len(movements)
+    exchanges_count = len(set(m.exchange_name for m in movements)) if movements else 0
+    
+    return render_template(
+        'crypto_movements.html',
+        csv_form=csv_form,
+        movements=movements,
+        total_movements=total_movements,
+        exchanges_count=exchanges_count
+    )
+
+
 
 def log_activity(action_type, message, actor_user=None, target_user=None, details=None):
     try:
@@ -1030,12 +1180,369 @@ def log_activity(action_type, message, actor_user=None, target_user=None, detail
         app.logger.error(f"Error al registrar actividad: {action_type} - {e}", exc_info=True)
         db.session.rollback() # Asegurar rollback si el commit del log falla
 
+def group_top_n_for_pie(data_dict, top_n=7):
+    if not data_dict: return {"labels": [], "data": []}
+    sorted_items = sorted(data_dict.items(), key=lambda item: item[1], reverse=True)
+    labels, data = [], []
+    other_sum = 0.0
+    for i, (key, value) in enumerate(sorted_items):
+        if value <= 0: continue
+        if i < top_n:
+            labels.append(key)
+            data.append(round(value, 2))
+        else:
+            other_sum += value
+    if other_sum > 0:
+        labels.append('Otros')
+        data.append(round(other_sum, 2))
+    return {"labels": labels, "data": data}
+
+
+def get_current_financial_crosstime_metrics(user_id):
+    broker_ops = BrokerOperation.query.filter_by(user_id=user_id).order_by(BrokerOperation.date.asc()).all()
+    _, csv_data_list, _ = load_user_portfolio(user_id)
+    asset_movements_raw = csv_data_list if csv_data_list and isinstance(csv_data_list, list) else []
+
+    all_events = []
+    for op in broker_ops:
+        is_external_cf = op.operation_type in ['Ingreso', 'Retirada', 'Comisión']
+        cf_value = 0.0
+        if op.operation_type == 'Ingreso': cf_value = -op.amount
+        elif op.operation_type == 'Retirada': cf_value = -op.amount 
+        elif op.operation_type == 'Comisión': cf_value = op.amount 
+
+        all_events.append({
+            'date': op.date, 'type': 'broker_op', 'value': op.amount,
+            'is_external_ewc_cf': is_external_cf, 'ewc_cf_value': cf_value
+        })
+
+    for movement in asset_movements_raw:
+        fecha_str, total_val, isin, cantidad_abs = movement.get('Fecha'), movement.get('Total'), movement.get('ISIN'), movement.get('Cantidad')
+        if fecha_str and isinstance(fecha_str, str) and total_val is not None and isin and cantidad_abs is not None:
+            try:
+                event_date = datetime.strptime(fecha_str[:10], '%Y-%m-%d').date()
+                all_events.append({
+                    'date': event_date, 'type': 'asset_trade',
+                    'value': float(total_val), 'isin': isin, 'cantidad': float(cantidad_abs),
+                    'is_external_ewc_cf': False, 'ewc_cf_value': 0.0
+                })
+            except Exception as e: app.logger.warning(f"Metrics: Error procesando movimiento: {movement}, Error: {e}")
+        else: app.logger.warning(f"Metrics: Movimiento omitido por datos faltantes: {movement}")
+            
+    if not all_events:
+        return {
+            'current_capital_propio': 0.0, 'current_trading_cash_flow': 0.0,
+            'current_realized_specific_pnl': 0.0, 'current_apalancamiento': 0.0,
+            'first_event_date': None, 'last_event_date': None,
+            'total_cost_of_all_buys_ever': 0.0,
+            'twr_ewc_percentage': 0.0, 'twr_ewc_annualized_percentage': 0.0,
+            'daily_chart_labels': [], 'daily_capital_propio_series': [], 
+            'daily_apalancamiento_series': [], 'daily_realized_specific_pnl_series': [],
+            'daily_twr_ewc_index_series': [], # Se mantiene para la lógica interna
+            'daily_twr_percentage_series': [] # Se añade la nueva serie
+        }
+
+    all_events.sort(key=lambda x: (x['date'], 0 if x['is_external_ewc_cf'] else 1))
+
+    first_event_date_overall = all_events[0]['date']
+    
+    daily_chart_labels = []
+    daily_capital_propio_series = []
+    daily_apalancamiento_series = []
+    daily_realized_specific_pnl_series = []
+    daily_twr_ewc_index_series = [] # Esta es la serie base 100 original
+
+    cp_acc = 0.0; tcf_acc = 0.0; rsp_acc = 0.0
+    holdings = {}; total_buy_cost_acc = 0.0
+    
+    twr_factors = []
+    cte_after_prev_cf = 0.0 
+    current_twr_idx = 100.0   
+    twr_started = False       
+    first_cf_date_for_annualization = None
+    
+    final_apalancamiento_calculated = 0.0 
+
+    unique_dates = sorted(list(set(e['date'] for e in all_events)))
+    event_pointer = 0
+
+    for current_day in unique_dates:
+        temp_event_pointer_for_cf = event_pointer
+        ewc_before_any_cf_today = (-cp_acc) + rsp_acc 
+
+        while temp_event_pointer_for_cf < len(all_events) and all_events[temp_event_pointer_for_cf]['date'] == current_day:
+            event = all_events[temp_event_pointer_for_cf]
+            if event['is_external_ewc_cf']:
+                ewc_val_for_factor_calc = (-cp_acc) + rsp_acc 
+                if twr_started:
+                    if abs(cte_after_prev_cf) > 1e-9:
+                        period_factor = ewc_val_for_factor_calc / cte_after_prev_cf
+                        twr_factors.append(period_factor)
+                        current_twr_idx *= period_factor
+                    elif ewc_val_for_factor_calc == 0 and cte_after_prev_cf == 0:
+                        twr_factors.append(1.0)
+                
+                cp_acc_before_cf_event = cp_acc 
+                cp_acc += event['value'] 
+                
+                cte_after_prev_cf = (-cp_acc) + rsp_acc 
+
+                if not twr_started and abs(cte_after_prev_cf) > 1e-9:
+                    twr_started = True
+                    current_twr_idx = 100.0 
+                    if first_cf_date_for_annualization is None:
+                         first_cf_date_for_annualization = current_day
+            temp_event_pointer_for_cf +=1
+        
+        temp_rsp_day_change = 0.0
+        temp_tcf_day_change = 0.0
+
+        while event_pointer < len(all_events) and all_events[event_pointer]['date'] == current_day:
+            event = all_events[event_pointer]
+            if event['type'] == 'broker_op': 
+                if not event['is_external_ewc_cf']:
+                     pass
+            elif event['type'] == 'asset_trade':
+                temp_tcf_day_change += event['value']
+                isin, qty, val = event['isin'], event['cantidad'], event['value']
+                if val < 0: 
+                    total_buy_cost_acc += abs(val)
+                    if isin not in holdings: holdings[isin] = {'qty': 0.0, 'total_cost_basis': 0.0}
+                    holdings[isin]['qty'] += qty
+                    holdings[isin]['total_cost_basis'] += abs(val)
+                elif val > 0: 
+                    if isin in holdings and holdings[isin]['qty'] > 1e-6:
+                        p = holdings[isin]; avg_c = p['total_cost_basis']/p['qty'] if p['qty'] > 0 else 0
+                        q_sold = min(qty, p['qty']); cost_sold = q_sold * avg_c
+                        proceeds = (val/qty)*q_sold if qty > 0 else 0
+                        pnl_sale = proceeds - cost_sold
+                        temp_rsp_day_change += pnl_sale 
+                        p['qty'] -= q_sold; p['total_cost_basis'] -= cost_sold
+                        if p['qty'] < 1e-6: p['qty'] = 0.0; p['total_cost_basis'] = 0.0
+            event_pointer += 1
+        
+        rsp_acc += temp_rsp_day_change
+        tcf_acc += temp_tcf_day_change
+
+        val_inv_bruto = max(0, -tcf_acc); aport_netas_usr = max(0, -cp_acc)
+        gnc_netas_tr_cf = max(0, tcf_acc); fondos_disp_s_d = aport_netas_usr + gnc_netas_tr_cf
+        apalancamiento_eod = max(0, val_inv_bruto - fondos_disp_s_d)
+        final_apalancamiento_calculated = apalancamiento_eod 
+
+        daily_chart_labels.append(current_day.strftime('%Y-%m-%d'))
+        daily_capital_propio_series.append(round(cp_acc, 2))
+        daily_apalancamiento_series.append(round(apalancamiento_eod, 2))
+        daily_realized_specific_pnl_series.append(round(rsp_acc, 2))
+        
+        if twr_started:
+            ewc_eod = (-cp_acc) + rsp_acc 
+            if abs(cte_after_prev_cf) > 1e-9:
+                factor_interno_periodo = ewc_eod / cte_after_prev_cf 
+                daily_twr_ewc_index_series.append(round(current_twr_idx * factor_interno_periodo, 2))
+            else:
+                 daily_twr_ewc_index_series.append(round(current_twr_idx, 2))
+        else:
+            daily_twr_ewc_index_series.append(100.0)
+
+    last_event_date_overall = all_events[-1]['date'] if all_events else date.today()
+
+    final_overall_twr_factor = 1.0
+    if twr_factors:
+        for factor in twr_factors: final_overall_twr_factor *= factor
+    
+    final_ewc_val_for_last_factor = (-cp_acc) + rsp_acc 
+    if twr_started and abs(cte_after_prev_cf) > 1e-9: 
+         last_stretch_factor = final_ewc_val_for_last_factor / cte_after_prev_cf
+         final_overall_twr_factor *= last_stretch_factor
+    elif twr_started and final_ewc_val_for_last_factor == 0 and cte_after_prev_cf == 0:
+         final_overall_twr_factor *= 1.0
+
+    twr_ewc_percentage = (final_overall_twr_factor - 1) * 100 if twr_started else 0.0
+    
+    twr_ewc_annualized_percentage = 0.0
+    if twr_started and first_cf_date_for_annualization and last_event_date_overall:
+        if final_overall_twr_factor > 0:
+            dias_periodo_twr = (last_event_date_overall - first_cf_date_for_annualization).days
+            if dias_periodo_twr >= 1:
+                anios_periodo_twr = max(dias_periodo_twr / 365.25, 1/365.25)
+                twr_ewc_annualized_percentage = (math.pow(final_overall_twr_factor, 1.0 / anios_periodo_twr) - 1) * 100
+            elif dias_periodo_twr == 0 :
+                 twr_ewc_annualized_percentage = twr_ewc_percentage
+        elif final_overall_twr_factor <= 0 and abs(cte_after_prev_cf if cte_after_prev_cf is not None else 0.0) > 1e-9 :
+            twr_ewc_annualized_percentage = -100.0
+
+    current_apalancamiento_final = final_apalancamiento_calculated 
+
+    # --- MODIFICACIÓN AQUÍ: Transformar la serie de índice a porcentaje ---
+    daily_twr_percentage_series = [round(val - 100, 2) if isinstance(val, (int, float)) else 0 for val in daily_twr_ewc_index_series]
+    # --- FIN DE LA MODIFICACIÓN ---
+
+    return {
+        'current_capital_propio': round(cp_acc, 2),
+        'current_trading_cash_flow': round(tcf_acc, 2),
+        'current_realized_specific_pnl': round(rsp_acc, 2),
+        'current_apalancamiento': round(current_apalancamiento_final, 2),
+        'first_event_date': first_event_date_overall,
+        'last_event_date': last_event_date_overall,
+        'total_cost_of_all_buys_ever': round(total_buy_cost_acc, 2),
+        'twr_ewc_percentage': round(twr_ewc_percentage, 2) if isinstance(twr_ewc_percentage, float) and math.isfinite(twr_ewc_percentage) else "N/A",
+        'twr_ewc_annualized_percentage': round(twr_ewc_annualized_percentage, 2) if isinstance(twr_ewc_annualized_percentage, float) and math.isfinite(twr_ewc_annualized_percentage) else "N/A",
+        'daily_chart_labels': daily_chart_labels,
+        'daily_capital_propio_series': daily_capital_propio_series,
+        'daily_apalancamiento_series': daily_apalancamiento_series,
+        'daily_realized_specific_pnl_series': daily_realized_specific_pnl_series,
+        'daily_twr_ewc_index_series': daily_twr_ewc_index_series, # Se mantiene por si se usa en otro lado o para referencia
+        'daily_twr_percentage_series': daily_twr_percentage_series # Se añade la nueva serie para el gráfico
+    }
+
+
+
+
+@app.route('/capital_evolution')
+@login_required
+def capital_evolution():
+    all_metrics_and_series = get_current_financial_crosstime_metrics(current_user.id)
+
+    # >>> INICIO DE LA MODIFICACIÓN <<<
+    chart_data = {
+        'labels': all_metrics_and_series['daily_chart_labels'],
+        'capitalPropio': all_metrics_and_series['daily_capital_propio_series'],
+        'apalancamiento': all_metrics_and_series['daily_apalancamiento_series'],
+        'tradingPnL': all_metrics_and_series['daily_realized_specific_pnl_series'],
+        # Cambiamos twrIndex por twrPercentage y usamos la nueva serie
+        'twrPercentage': all_metrics_and_series.get('daily_twr_percentage_series', [])
+    }
+    # >>> FIN DE LA MODIFICACIÓN <<<
+
+    return render_template('capital_evolution.html',
+                           chart_data=chart_data,
+                           title="Evolución de Capital")
+
+
+# En app.py
+
+# ... (otros imports y código) ...
+
+@app.route('/portfolio_dashboard_data')
+@login_required
+def portfolio_dashboard_data():
+    user_id = current_user.id
+    portfolio_summary_from_db, _, _ = load_user_portfolio(user_id) # Esto carga las posiciones del portfolio
+
+    # Lógica para calcular datos de distribución por sector y país (basado en tu código)
+    watchlist_items_db = WatchlistItem.query.filter_by(user_id=user_id).all()
+    watchlist_map = {
+        item.isin: {'sector': item.sector, 'pais': item.pais}
+        for item in watchlist_items_db if item.isin
+    }
+    sector_values = {}
+    country_values = {}
+    total_market_value_eur = 0.0 # Para la suma del valor de mercado de las posiciones
+    total_cost_basis_eur_open_positions = 0.0 # Para la suma del coste base de posiciones abiertas
+    total_unrealized_pl_eur = 0.0 # Para la suma de P/L no realizada de posiciones abiertas
+
+    if portfolio_summary_from_db: # portfolio_summary_from_db es la lista de items/posiciones
+        for item in portfolio_summary_from_db:
+            try:
+                market_value = float(item.get('market_value_eur', 0.0) or 0.0) # or 0.0 para manejar None
+                item_cost_basis = float(item.get('cost_basis_eur_est', 0.0) or 0.0)
+                item_pl_eur = float(item.get('pl_eur_est', 0.0) or 0.0)
+                isin = item.get('ISIN')
+
+                total_market_value_eur += market_value
+                total_cost_basis_eur_open_positions += item_cost_basis
+                total_unrealized_pl_eur += item_pl_eur
+
+                sector = 'Desconocido/Otros'
+                if isin and isin in watchlist_map and watchlist_map[isin].get('sector'):
+                    sector_item = watchlist_map[isin]['sector']
+                    if sector_item and sector_item.strip(): sector = sector_item
+                sector_values[sector] = sector_values.get(sector, 0.0) + market_value
+
+                pais = 'Desconocido/Otros'
+                if isin and isin in watchlist_map and watchlist_map[isin].get('pais'):
+                    pais_item = watchlist_map[isin]['pais']
+                    if pais_item and pais_item.strip(): pais = pais_item
+                country_values[pais] = country_values.get(pais, 0.0) + market_value
+            except (ValueError, TypeError) as e:
+                app.logger.error(f"Dashboard: Error procesando item del portfolio {item.get('ISIN')} para gráficos de tarta: {e}")
+                continue
+
+    # Obtener métricas cruzadas en el tiempo (incluyendo Capital Propio y Apalancamiento)
+    crosstime_metrics = get_current_financial_crosstime_metrics(user_id)
+
+    # >>> INICIO DE LA MODIFICACIÓN: Aplicar abs() a current_capital_propio <<<
+    current_capital_propio_abs = abs(crosstime_metrics.get('current_capital_propio', 0))
+    # >>> FIN DE LA MODIFICACIÓN <<<
+    
+    current_apalancamiento = crosstime_metrics.get('current_apalancamiento', 0)
+    current_realized_specific_pnl = crosstime_metrics.get('current_realized_specific_pnl', 0)
+    rentabilidad_acumulada_percentage = crosstime_metrics.get('twr_ewc_percentage', "N/A")
+    rentabilidad_media_anual_percentage = crosstime_metrics.get('twr_ewc_annualized_percentage', "N/A")
+
+    beneficio_perdida_global = total_unrealized_pl_eur + current_realized_specific_pnl
+    overall_return_percentage_open_positions = (total_unrealized_pl_eur / total_cost_basis_eur_open_positions * 100) if total_cost_basis_eur_open_positions != 0 else 0
+
+    sector_chart_data = group_top_n_for_pie(sector_values)
+    country_chart_data = group_top_n_for_pie(country_values)
+
+    data_to_return = {
+        "summary_metrics": {
+            "total_market_value_eur": round(total_market_value_eur, 2),
+            "total_cost_basis_eur_open_positions": round(total_cost_basis_eur_open_positions, 2),
+            "total_unrealized_pl_eur": round(total_unrealized_pl_eur, 2),
+            "overall_return_percentage_open_positions": round(overall_return_percentage_open_positions, 2),
+            "current_capital_propio": current_capital_propio_abs, # Usar el valor absoluto
+            "current_apalancamiento": current_apalancamiento, # Ya es >= 0
+            "beneficio_perdida_global": round(beneficio_perdida_global, 2),
+            "rentabilidad_acumulada_percentage": rentabilidad_acumulada_percentage,
+            "rentabilidad_media_anual_percentage": rentabilidad_media_anual_percentage
+        },
+        "sector_distribution": sector_chart_data,
+        "country_distribution": country_chart_data
+    }
+    return jsonify(data_to_return)
+
+# ... (resto de tu código app.py) ...
+
 # --- User Loader ---
 @login_manager.user_loader
 def load_user(user_id): # MOSTRANDO COMPLETA
     return db.session.get(User, int(user_id))
 
 # En app.py
+def calculate_portfolio_cost_basis(user_id):
+    """
+    Calcula el coste base total del portfolio actual del usuario.
+    Similar a la lógica en capital_evolution, pero solo para posiciones abiertas.
+    """
+    # Cargar movimientos de activos para recalcular coste base de posiciones actuales
+    # Esta es la parte más compleja: necesitaríamos recrear el estado de 'holdings_avg_cost'
+    # basado en todos los movimientos históricos para llegar al portfolio actual.
+    # O, si el UserPortfolio ya almacena el coste base por posición, usar eso.
+
+    # Alternativa más simple si UserPortfolio.portfolio_data tiene 'coste_medio_compra_eur' y 'cantidad_actual':
+    user_portfolio_record = UserPortfolio.query.filter_by(user_id=user_id).first()
+    total_cost_basis = 0.0
+    if user_portfolio_record and user_portfolio_record.portfolio_data:
+        try:
+            portfolio_items = json.loads(user_portfolio_record.portfolio_data)
+            if isinstance(portfolio_items, list):
+                for item in portfolio_items:
+                    try:
+                        # Asumimos que 'coste_medio_compra_eur' ya está calculado y guardado en el objeto UserPortfolio
+                        # O 'valor_compra_total_eur_ajustado' que es el coste total de la posición
+                        cost_basis_item = float(item.get('valor_compra_total_eur_ajustado', 0.0)) # Usar el valor total de compra ajustado
+                        total_cost_basis += cost_basis_item
+                    except (ValueError, TypeError):
+                        app.logger.warning(f"Valor de coste inválido para el item {item.get('ISIN')} en calculate_portfolio_cost_basis")
+        except json.JSONDecodeError:
+            app.logger.error(f"Error decodificando portfolio_data para cálculo de coste base, user {user_id}")
+    return total_cost_basis
+
+
+
+
 
 
 # En app.py
@@ -1353,7 +1860,36 @@ def change_password(): # MOSTRANDO COMPLETA CON CAMBIOS
                            form=form,
                            needs_current_password=needs_current_password)
 
-# In app.py
+
+class CryptoCsvMovement(db.Model):
+    __tablename__ = 'crypto_csv_movements'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    exchange_name = db.Column(db.String(100), nullable=False, default='Crypto.com')
+    
+    # Campos del CSV de Crypto.com
+    timestamp_utc = db.Column(db.DateTime, nullable=True)
+    transaction_description = db.Column(db.Text, nullable=True)
+    currency = db.Column(db.String(20), nullable=True)
+    amount = db.Column(db.Float, nullable=True)
+    to_currency = db.Column(db.String(20), nullable=True)
+    to_amount = db.Column(db.Float, nullable=True)
+    native_currency = db.Column(db.String(20), nullable=True)
+    native_amount = db.Column(db.Float, nullable=True)
+    native_amount_in_usd = db.Column(db.Float, nullable=True)
+    transaction_kind = db.Column(db.String(100), nullable=True)
+    transaction_hash = db.Column(db.String(255), nullable=True)
+    
+    # Campos de control
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    csv_filename = db.Column(db.String(255), nullable=True)
+    
+    # Relación con usuario
+    user = db.relationship('User', backref=db.backref('crypto_csv_movements', lazy=True, cascade='all, delete-orphan'))
+    
+    def __repr__(self):
+        return f'<CryptoCsvMovement {self.id}: {self.exchange_name} - {self.transaction_description}>'
 
 class RealEstateAsset(db.Model):
     # ... (como lo tenías, asegurándote de que 'mortgage' es la relación a RealEstateMortgage)
@@ -2446,7 +2982,8 @@ def view_movements():
                            product_summary=sorted_product_summary_for_template, 
                            title="Movimientos de Cartera")
 
-# ... (resto de app.py)
+
+
 
 
 # En app.py
@@ -5224,6 +5761,301 @@ def delete_pension_history(record_id):
     return redirect(url_for('pension_plans'))
 
 
+@app.route('/crypto_portfolio', methods=['GET', 'POST'])
+@login_required
+def crypto_portfolio():
+    """Muestra y gestiona la página de portfolio de criptomonedas (funcionalidad manual)."""
+    # Formulario para añadir nuevo exchange
+    exchange_form = CryptoExchangeForm()
+    
+    # Formulario para añadir nueva transacción
+    transaction_form = CryptoTransactionForm()
+    
+    # Cargar exchanges para el dropdown del formulario
+    user_exchanges = CryptoExchange.query.filter_by(user_id=current_user.id).all()
+    transaction_form.exchange_id.choices = [(e.id, e.exchange_name) for e in user_exchanges]
+    
+    # Procesar formulario de añadir exchange
+    if exchange_form.validate_on_submit() and 'add_exchange' in request.form:
+        try:
+            new_exchange = CryptoExchange(
+                user_id=current_user.id,
+                exchange_name=exchange_form.exchange_name.data
+            )
+            
+            db.session.add(new_exchange)
+            db.session.commit()
+            
+            flash('Exchange añadido correctamente.', 'success')
+            return redirect(url_for('crypto_portfolio'))
+            
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error al añadir exchange: {e}', 'danger')
+    
+    # Procesar formulario de añadir transacción
+    if transaction_form.validate_on_submit() and 'add_transaction' in request.form:
+        try:
+            # Comprobar si el exchange pertenece al usuario
+            exchange = CryptoExchange.query.filter_by(
+                id=transaction_form.exchange_id.data, 
+                user_id=current_user.id
+            ).first()
+            
+            if not exchange:
+                flash('Exchange no válido.', 'danger')
+                return redirect(url_for('crypto_portfolio'))
+            
+            # Convertir valores numéricos
+            quantity = float(transaction_form.quantity.data.replace(',', '.'))
+            price_per_unit = float(transaction_form.price_per_unit.data.replace(',', '.'))
+            fees = None
+            if transaction_form.fees.data and transaction_form.fees.data.strip():
+                fees = float(transaction_form.fees.data.replace(',', '.'))
+            
+            # Convertir fecha
+            transaction_date = datetime.strptime(transaction_form.date.data, '%Y-%m-%d').date()
+            
+            # Crear nueva transacción
+            new_transaction = CryptoTransaction(
+                exchange_id=exchange.id,
+                user_id=current_user.id,
+                transaction_type=transaction_form.transaction_type.data,
+                crypto_name=transaction_form.crypto_name.data,
+                ticker_symbol=transaction_form.ticker_symbol.data.upper(),
+                date=transaction_date,
+                quantity=quantity,
+                price_per_unit=price_per_unit,
+                fees=fees
+            )
+            
+            # Intentar obtener precio actual
+            current_price = get_crypto_price(new_transaction.ticker_symbol)
+            if current_price is not None:
+                new_transaction.current_price = current_price
+                new_transaction.price_updated_at = datetime.utcnow()
+            
+            db.session.add(new_transaction)
+            db.session.commit()
+            
+            flash('Operación registrada correctamente.', 'success')
+            return redirect(url_for('crypto_portfolio'))
+            
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error al registrar la operación: {e}', 'danger')
+    
+    # Obtener todas las transacciones ordenadas por fecha (más recientes primero)
+    all_transactions = CryptoTransaction.query.filter_by(
+        user_id=current_user.id
+    ).order_by(CryptoTransaction.date.desc()).all()
+    
+    # Mapa de exchange_id a nombre para mostrar en la lista
+    exchange_map = {ex.id: ex.exchange_name for ex in user_exchanges}
+    
+    # Preparar resumen del portfolio por exchange
+    exchange_portfolios = {}
+    for exchange in user_exchanges:
+        exchange_portfolios[exchange.id] = {
+            'exchange': exchange,
+            'cryptos': {}
+        }
+    
+    # Calcular resumen del portfolio por criptomoneda
+    portfolio_summary = {}
+    total_investment = 0
+    total_current_value = 0
+    total_profit_loss = 0
+    
+    for transaction in all_transactions:
+        crypto_key = transaction.ticker_symbol
+        
+        # Inicializar datos de la criptomoneda si no existe
+        if crypto_key not in portfolio_summary:
+            portfolio_summary[crypto_key] = {
+                'name': transaction.crypto_name,
+                'ticker': transaction.ticker_symbol,
+                'total_quantity': 0,
+                'total_investment': 0,
+                'total_fees': 0,
+                'current_price': transaction.current_price,
+                'price_updated_at': transaction.price_updated_at,
+            }
+        
+        # Actualizar cantidades basadas en el tipo de transacción
+        if transaction.transaction_type == 'buy':
+            portfolio_summary[crypto_key]['total_quantity'] += transaction.quantity
+            portfolio_summary[crypto_key]['total_investment'] += (transaction.quantity * transaction.price_per_unit)
+            if transaction.fees:
+                portfolio_summary[crypto_key]['total_fees'] += transaction.fees
+        else:  # 'sell'
+            portfolio_summary[crypto_key]['total_quantity'] -= transaction.quantity
+            portfolio_summary[crypto_key]['total_investment'] -= (transaction.quantity * transaction.price_per_unit)
+            if transaction.fees:
+                portfolio_summary[crypto_key]['total_fees'] += transaction.fees
+        
+        # Usar precio más reciente
+        if transaction.current_price is not None and (
+            portfolio_summary[crypto_key]['current_price'] is None or 
+            (transaction.price_updated_at and portfolio_summary[crypto_key]['price_updated_at'] and 
+             transaction.price_updated_at > portfolio_summary[crypto_key]['price_updated_at'])
+        ):
+            portfolio_summary[crypto_key]['current_price'] = transaction.current_price
+            portfolio_summary[crypto_key]['price_updated_at'] = transaction.price_updated_at
+        
+        # Agregar datos al resumen por exchange
+        ex_id = transaction.exchange_id
+        if ex_id in exchange_portfolios:
+            if crypto_key not in exchange_portfolios[ex_id]['cryptos']:
+                exchange_portfolios[ex_id]['cryptos'][crypto_key] = {
+                    'name': transaction.crypto_name,
+                    'ticker': transaction.ticker_symbol,
+                    'total_quantity': 0,
+                    'total_investment': 0,
+                    'total_fees': 0,
+                    'current_price': transaction.current_price,
+                }
+            
+            # Actualizar cantidades en el resumen por exchange
+            if transaction.transaction_type == 'buy':
+                exchange_portfolios[ex_id]['cryptos'][crypto_key]['total_quantity'] += transaction.quantity
+                exchange_portfolios[ex_id]['cryptos'][crypto_key]['total_investment'] += (transaction.quantity * transaction.price_per_unit)
+                if transaction.fees:
+                    exchange_portfolios[ex_id]['cryptos'][crypto_key]['total_fees'] += transaction.fees
+            else:  # 'sell'
+                exchange_portfolios[ex_id]['cryptos'][crypto_key]['total_quantity'] -= transaction.quantity
+                exchange_portfolios[ex_id]['cryptos'][crypto_key]['total_investment'] -= (transaction.quantity * transaction.price_per_unit)
+                if transaction.fees:
+                    exchange_portfolios[ex_id]['cryptos'][crypto_key]['total_fees'] += transaction.fees
+            
+            # Actualizar precio actual
+            exchange_portfolios[ex_id]['cryptos'][crypto_key]['current_price'] = portfolio_summary[crypto_key]['current_price']
+    
+    # Calcular valores actuales y rentabilidad
+    portfolio_list = []
+    for key, crypto in portfolio_summary.items():
+        if crypto['total_quantity'] > 0 and crypto['current_price'] is not None:
+            current_value = crypto['total_quantity'] * crypto['current_price']
+            profit_loss = current_value - crypto['total_investment'] - crypto['total_fees']
+            profit_loss_pct = 0
+            
+            if crypto['total_investment'] > 0:
+                profit_loss_pct = (profit_loss / crypto['total_investment']) * 100
+            
+            crypto['current_value'] = current_value
+            crypto['profit_loss'] = profit_loss
+            crypto['profit_loss_pct'] = profit_loss_pct
+            
+            total_investment += crypto['total_investment'] + crypto['total_fees']
+            total_current_value += current_value
+            total_profit_loss += profit_loss
+        
+        # Solo incluir en el resumen si la cantidad es mayor que cero
+        if crypto['total_quantity'] > 0:
+            portfolio_list.append(crypto)
+    
+    # Calcular porcentaje total de rentabilidad
+    total_profit_loss_pct = 0
+    if total_investment > 0:
+        total_profit_loss_pct = (total_profit_loss / total_investment) * 100
+    
+    # Calcular el valor actual para cada crypto en cada exchange
+    for ex_id, exchange_data in exchange_portfolios.items():
+        exchange_total_value = 0
+        exchange_total_investment = 0
+        exchange_total_profit_loss = 0
+        
+        for crypto_key, crypto in exchange_data['cryptos'].items():
+            if crypto['total_quantity'] > 0 and crypto['current_price'] is not None:
+                current_value = crypto['total_quantity'] * crypto['current_price']
+                profit_loss = current_value - crypto['total_investment'] - crypto['total_fees']
+                profit_loss_pct = 0
+                
+                if crypto['total_investment'] > 0:
+                    profit_loss_pct = (profit_loss / crypto['total_investment']) * 100
+                
+                crypto['current_value'] = current_value
+                crypto['profit_loss'] = profit_loss
+                crypto['profit_loss_pct'] = profit_loss_pct
+                
+                exchange_total_investment += crypto['total_investment'] + crypto['total_fees']
+                exchange_total_value += current_value
+                exchange_total_profit_loss += profit_loss
+        
+        exchange_data['total_investment'] = exchange_total_investment
+        exchange_data['total_current_value'] = exchange_total_value
+        exchange_data['total_profit_loss'] = exchange_total_profit_loss
+        
+        if exchange_total_investment > 0:
+            exchange_data['total_profit_loss_pct'] = (exchange_total_profit_loss / exchange_total_investment) * 100
+        else:
+            exchange_data['total_profit_loss_pct'] = 0
+    
+    return render_template(
+        'crypto_portfolio.html',  # Cambiar el nombre del template
+        exchange_form=exchange_form,
+        transaction_form=transaction_form,
+        all_transactions=all_transactions,
+        exchange_map=exchange_map,
+        portfolio_summary=portfolio_list,
+        exchange_portfolios=exchange_portfolios,
+        total_investment=total_investment,
+        total_current_value=total_current_value,
+        total_profit_loss=total_profit_loss,
+        total_profit_loss_pct=total_profit_loss_pct
+    )
+
+
+@app.route('/delete_crypto_movement/<int:movement_id>', methods=['POST'])
+@login_required
+def delete_crypto_movement(movement_id):
+    """Elimina un movimiento específico."""
+    movement = CryptoCsvMovement.query.filter_by(id=movement_id, user_id=current_user.id).first_or_404()
+    
+    try:
+        db.session.delete(movement)
+        db.session.commit()
+        flash('Movimiento eliminado correctamente.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error al eliminar movimiento: {e}', 'danger')
+    
+    return redirect(url_for('crypto_movements'))
+
+@app.route('/clear_all_crypto_movements', methods=['POST'])
+@login_required
+def clear_all_crypto_movements():
+    """Elimina todos los movimientos del usuario."""
+    try:
+        movements_count = CryptoCsvMovement.query.filter_by(user_id=current_user.id).count()
+        CryptoCsvMovement.query.filter_by(user_id=current_user.id).delete()
+        db.session.commit()
+        flash(f'{movements_count} movimientos eliminados correctamente.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error al eliminar movimientos: {e}', 'danger')
+    
+    return redirect(url_for('crypto_movements'))
+
+
+# Función auxiliar para asegurar que Crypto.com existe como exchange
+def ensure_crypto_com_exchange():
+    """Asegura que el exchange Crypto.com existe para el usuario actual."""
+    crypto_com = CryptoExchange.query.filter_by(
+        user_id=current_user.id,
+        exchange_name='Crypto.com'
+    ).first()
+    
+    if not crypto_com:
+        crypto_com = CryptoExchange(
+            user_id=current_user.id,
+            exchange_name='Crypto.com'
+        )
+        db.session.add(crypto_com)
+        db.session.commit()
+    
+    return crypto_com
+
 @app.route('/crypto', methods=['GET', 'POST'])
 @login_required
 def crypto():
@@ -5469,6 +6301,8 @@ def crypto():
     )
 
 
+# REEMPLAZA tu función update_crypto_prices incompleta por esta versión completa:
+
 @app.route('/update_crypto_prices', methods=['GET'])
 @login_required
 def update_crypto_prices():
@@ -5512,7 +6346,9 @@ def update_crypto_prices():
         db.session.rollback()
         flash(f'Error al actualizar precios: {e}', 'danger')
     
-    return redirect(url_for('crypto'))
+    return redirect(url_for('crypto_portfolio'))
+
+
 
 @app.route('/delete_crypto_exchange/<int:exchange_id>', methods=['POST'])
 @login_required
@@ -5529,7 +6365,7 @@ def delete_crypto_exchange(exchange_id):
         db.session.rollback()
         flash(f'Error al eliminar exchange: {e}', 'danger')
     
-    return redirect(url_for('crypto'))
+    return redirect(url_for('crypto_portfolio'))  # Actualizado
 
 @app.route('/delete_crypto_transaction/<int:transaction_id>', methods=['POST'])
 @login_required
@@ -5545,18 +6381,17 @@ def delete_crypto_transaction(transaction_id):
         db.session.rollback()
         flash(f'Error al eliminar operación: {e}', 'danger')
     
-    return redirect(url_for('crypto'))
+    return redirect(url_for('crypto_portfolio'))
+
 
 @app.route('/edit_crypto_transaction/<int:transaction_id>', methods=['GET', 'POST'])
 @login_required
 def edit_crypto_transaction(transaction_id):
     """Edita una operación existente."""
-    # Buscar la transacción por ID y verificar que pertenece al usuario
     transaction = CryptoTransaction.query.filter_by(id=transaction_id, user_id=current_user.id).first_or_404()
     
     if request.method == 'POST':
         try:
-            # Obtener los datos del formulario
             transaction_type = request.form.get('transaction_type')
             crypto_name = request.form.get('crypto_name')
             ticker_symbol = request.form.get('ticker_symbol').upper()
@@ -5565,15 +6400,12 @@ def edit_crypto_transaction(transaction_id):
             price_per_unit = float(request.form.get('price_per_unit').replace(',', '.'))
             fees_str = request.form.get('fees')
             
-            # Convertir fecha
             transaction_date = datetime.strptime(date_str, '%Y-%m-%d').date()
             
-            # Procesar fees
             fees = None
             if fees_str and fees_str.strip():
                 fees = float(fees_str.replace(',', '.'))
             
-            # Actualizar la transacción
             transaction.transaction_type = transaction_type
             transaction.crypto_name = crypto_name
             transaction.ticker_symbol = ticker_symbol
@@ -5582,7 +6414,6 @@ def edit_crypto_transaction(transaction_id):
             transaction.price_per_unit = price_per_unit
             transaction.fees = fees
             
-            # Intentar actualizar el precio actual
             current_price = get_crypto_price(ticker_symbol)
             if current_price is not None:
                 transaction.current_price = current_price
@@ -5590,14 +6421,12 @@ def edit_crypto_transaction(transaction_id):
             
             db.session.commit()
             flash('Operación actualizada correctamente.', 'success')
-            return redirect(url_for('crypto'))
+            return redirect(url_for('crypto_portfolio'))
         
         except Exception as e:
             db.session.rollback()
             flash(f'Error al actualizar la operación: {e}', 'danger')
     
-    # Para GET, mostrar formulario de edición
-    # Obtener exchanges para el dropdown
     exchanges = CryptoExchange.query.filter_by(user_id=current_user.id).all()
     
     return render_template(
@@ -7459,7 +8288,6 @@ def show_portfolio():
         total_pl_eur=total_pl_eur_est,
         last_updated=last_updated
     )
-
 
 @app.route('/download_csv')
 @login_required

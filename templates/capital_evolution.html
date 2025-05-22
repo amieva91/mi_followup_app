@@ -1,0 +1,473 @@
+{% extends "base.html" %}
+
+{% block head_extra %}
+    {{ super() }}
+    <style>
+        /* Estilos para los botones de filtro de fecha */
+        .date-range-btn-group-wrapper {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        .btn-group-sm > .btn {
+            padding: .25rem .5rem;
+            font-size: .875rem;
+        }
+        #capitalEvolutionChartContainer.card-body {
+            /* border: 1px solid #ddd; */
+        }
+         #capitalEvolutionChart {
+            /* No se necesita borde aquí usualmente */
+        }
+    </style>
+{% endblock head_extra %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <h1 class="mb-3 text-center">{{ title }}</h1>
+
+    <div class="date-range-btn-group-wrapper">
+        <div class="btn-group btn-group-sm me-md-2 mb-2" role="group" aria-label="Filtro rango de fechas principal">
+            <button type="button" class="btn btn-outline-primary date-range-btn active" data-range="all">Desde Inicio</button>
+            <button type="button" class="btn btn-outline-primary date-range-btn" data-range="1y">Últ. Año</button>
+            <button type="button" class="btn btn-outline-primary date-range-btn" data-range="2y">2 Años</button>
+            <button type="button" class="btn btn-outline-primary date-range-btn" data-range="3y">3 Años</button>
+        </div>
+        <div class="btn-group btn-group-sm mb-2" role="group" aria-label="Filtro rango de fechas extendido">
+            <button type="button" class="btn btn-outline-primary date-range-btn" data-range="5y">5 Años</button>
+            <button type="button" class="btn btn-outline-primary date-range-btn" data-range="10y">10 Años</button>
+        </div>
+    </div>
+
+    {% if chart_data and chart_data.labels and chart_data.labels|length > 0 %}
+        <div class="card shadow-sm">
+            <div class="card-body" id="capitalEvolutionChartContainer">
+                <div style="position: relative; height: 63.75vh; width: 100%; margin: 0 auto; max-width: 1200px;">
+                    <canvas id="capitalEvolutionChart"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="alert alert-secondary small mt-3">
+            <ul class="mb-0 ps-3">
+                <li><strong>Capital Propio (Azul):</strong> Aportaciones netas al bróker.</li>
+                <li><strong>P/L Específica Acum. (Verde/Roja):</strong> P/L de ventas vs coste medio.</li>
+                <li><strong>Dinero Apalancado (Naranja):</strong> Inversión que excede capital propio + P/L trading (flujo caja).</li>
+                <li><strong>Rentabilidad TWRR CTE (Púrpura):</strong> Rendimiento porcentual del (Capital Aportado Neto + P/L Realizada).</li>
+            </ul>
+        </div>
+    {% else %}
+        <div class="alert alert-warning mt-3" role="alert">
+            No hay suficientes datos para generar el gráfico de evolución de capital.
+            Revisa <a href="{{ url_for('broker_operations') }}" class="alert-link">operaciones de bróker</a> y
+            <a href="{{ url_for('upload_page_form') }}" class="alert-link">movimientos de cartera</a>.
+        </div>
+    {% endif %}
+</div>
+{% endblock content %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const ctx = document.getElementById('capitalEvolutionChart');
+    const chartDataJson = {{ chart_data | tojson | safe }};
+    let capitalChart = null;
+
+    const originalLabels = (chartDataJson && chartDataJson.labels) ? [...chartDataJson.labels] : [];
+    const originalCapitalPropio = (chartDataJson && chartDataJson.capitalPropio) ? [...chartDataJson.capitalPropio] : [];
+    const originalTradingPnL = (chartDataJson && chartDataJson.tradingPnL) ? [...chartDataJson.tradingPnL] : [];
+    const originalApalancamiento = (chartDataJson && chartDataJson.apalancamiento) ? [...chartDataJson.apalancamiento] : [];
+    const originalTwrPercentage = (chartDataJson && chartDataJson.twrPercentage) ? [...chartDataJson.twrPercentage] : [];
+
+    // Esta función setScaleLimits se usará solo para el eje de Euros
+    function setScaleLimits(scale, yAxisID, defaultMin = -10, defaultMax = 10, defaultPaddingFactor = 0.15, minPaddingVal = 1) {
+        let dataMin = Infinity; let dataMax = -Infinity; let hasData = false;
+        scale.chart.data.datasets.forEach(dataset => {
+            if (dataset.yAxisID === yAxisID && !dataset.hidden && dataset.data && dataset.data.length > 0) {
+                dataset.data.forEach(val => {
+                    if (val === null || val === undefined) return;
+                    hasData = true;
+                    if (val < dataMin) dataMin = val;
+                    if (val > dataMax) dataMax = val;
+                });
+            }
+        });
+
+        if (!hasData) {
+            scale.min = defaultMin;
+            scale.max = defaultMax;
+            return;
+        }
+
+        const range = dataMax - dataMin;
+        let padding;
+        if (range === 0) {
+            const absVal = Math.abs(dataMin);
+            padding = absVal > 1 ? absVal * 0.20 : minPaddingVal*2;
+            padding = Math.max(padding, minPaddingVal * 2);
+        } else {
+            padding = range * defaultPaddingFactor;
+        }
+        padding = Math.max(padding, minPaddingVal);
+
+        scale.min = Math.floor(dataMin - padding);
+        scale.max = Math.ceil(dataMax + padding);
+
+        if (scale.min === scale.max) {
+            scale.min -= Math.max(1, minPaddingVal) ;
+            scale.max += Math.max(1, minPaddingVal);
+        }
+    }
+
+    // Función para determinar el color de la línea P/L según el valor final
+    function getPnLLineColor(pnlData) {
+        if (!pnlData || pnlData.length === 0) return 'rgb(40,167,69)'; // Verde por defecto
+        
+        // Obtener el último valor válido (no null/undefined)
+        let lastValue = null;
+        for (let i = pnlData.length - 1; i >= 0; i--) {
+            if (pnlData[i] !== null && pnlData[i] !== undefined) {
+                lastValue = pnlData[i];
+                break;
+            }
+        }
+        
+        // Si el último valor es positivo o cero, verde; si es negativo, rojo
+        return (lastValue >= 0) ? 'rgb(40,167,69)' : 'rgb(220,53,69)';
+    }
+
+    function createOrUpdateChart(labels, cpData, pnlData, apData, twrPercentageData) {
+        const yEuroAxisID = 'yEuroAxis';
+        const yTWRRPercentageAxisID = 'yTWRRPercentageAxisID';
+
+        const datasets = [
+            {
+                label: 'Capital Propio (€)',
+                data: cpData,
+                borderColor: 'rgb(54, 162, 235)',
+                tension: 0.1, fill: false,
+                yAxisID: yEuroAxisID,
+                pointRadius: labels.length < 150 ? 2:0, borderWidth: 2
+            },
+            {
+                label: 'P/L Específica Acum. (€)',
+                data: pnlData,
+                borderColor: getPnLLineColor(pnlData), // Usar la función para determinar el color
+                tension: 0.1, fill: false,
+                yAxisID: yEuroAxisID,
+                pointRadius: labels.length < 150 ? 2:0, borderWidth: 2
+            },
+            {
+                label: 'Dinero Apalancado (€)',
+                data: apData,
+                borderColor: 'rgb(255,159,64)',
+                backgroundColor: 'rgba(255,159,64,0.2)',
+                tension: 0.1, fill: true,
+                yAxisID: yEuroAxisID,
+                pointRadius: labels.length < 150 ? 2:0, borderWidth: 1.5
+            },
+            {
+                label: 'Rentabilidad TWRR CTE (%)',
+                data: twrPercentageData,
+                borderColor: 'rgb(153,102,255)',
+                tension: 0.1, fill: false,
+                yAxisID: yTWRRPercentageAxisID,
+                pointRadius: labels.length < 150 ? 2:0, borderWidth: 2, borderDash: [5,5]
+            }
+        ];
+
+        const chartOptions = {
+            responsive: true, maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                title: { display: true, text: 'Evolución Financiera', font: {size:16}},
+                legend: { position: 'bottom', labels: {usePointStyle: true, padding:15, font:{size:10}}},
+                tooltip: {
+                    callbacks: {
+                        label: function(tooltipCtx) {
+                            let l = tooltipCtx.dataset.label || '';
+                            if(l)l+=': ';
+                            if(tooltipCtx.parsed.y !== null) {
+                                if (tooltipCtx.dataset.yAxisID === yTWRRPercentageAxisID) {
+                                    l += parseFloat(tooltipCtx.parsed.y).toFixed(2) + '%';
+                                } else {
+                                    l += new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR'}).format(tooltipCtx.parsed.y);
+                                }
+                            }
+                            return l;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    title: {display: true, text: 'Fecha'},
+                    ticks: {autoSkip: true, maxTicksLimit: labels.length > 200 ? 10 : (labels.length > 90 ? 15 : 25)}
+                },
+                [yEuroAxisID]: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    title: {
+                        display: true,
+                        text: 'Valor (€)'
+                    },
+                    ticks: {
+                        callback: function(v){return new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR'}).format(v);}
+                    },
+                    grid: {
+                        drawOnChartArea: true,
+                        color: function(context) {
+                            if (context.tick && context.tick.value === 0) {
+                                return 'rgba(0, 0, 0, 0.6)';
+                            }
+                            return 'rgba(0, 0, 0, 0.1)';
+                        },
+                        lineWidth: function(context) {
+                            if (context.tick && context.tick.value === 0) {
+                                return 2;
+                            }
+                            return 1;
+                        }
+                    },
+                    afterDataLimits: (s) => setScaleLimits(s, yEuroAxisID, -100, 100, 0.20, 50) // Aumentado padding para este eje
+                },
+                [yTWRRPercentageAxisID]: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    title: { display: true, text: 'Rentabilidad (%)', font: {size:10}, color: 'rgb(153,102,255)'},
+                    ticks: {
+                        color: 'rgb(153,102,255)',
+                        callback: function(v){ return v !== null ? v.toFixed(1) + '%' : ''; }
+                    },
+                    grid: {
+                        drawOnChartArea: true,
+                        color: function(context) {
+                            if (context.tick && context.tick.value === 0) {
+                                return 'rgba(0, 0, 0, 0.6)';
+                            }
+                            return 'transparent';
+                        },
+                        lineWidth: function(context) {
+                            if (context.tick && context.tick.value === 0) {
+                                return 2;
+                            }
+                            return 1;
+                        }
+                    },
+                    // >>> INICIO: LÓGICA MODIFICADA PARA ALINEAR EL CERO DEL EJE DE PORCENTAJE <<<
+                    afterDataLimits: (s_perc) => { // s_perc es el objeto de escala para yTWRRPercentageAxisID
+                        const yEuroAxis = s_perc.chart.scales[yEuroAxisID]; // Obtener la escala del eje de Euros por su ID
+
+                        if (!yEuroAxis || yEuroAxis.min === undefined || yEuroAxis.max === undefined) {
+                            // El eje de Euros aún no está listo, usar un escalado por defecto para el eje de porcentaje
+                            setScaleLimits(s_perc, yTWRRPercentageAxisID, -20, 50, 0.15, 2); // Un fallback
+                            return;
+                        }
+
+                        // 1. Calcular la proporción del cero en el eje de Euros
+                        let euroZeroProportion = 0.5; // Default si el rango del eje Euro es 0
+                        const euroRange = yEuroAxis.max - yEuroAxis.min;
+                        if (Math.abs(euroRange) > 1e-6) { // Si hay un rango
+                            euroZeroProportion = (0 - yEuroAxis.min) / euroRange;
+                        } else { // Si el rango es cero (ej. min=max=0 o min=max=X)
+                            if (yEuroAxis.min === 0) euroZeroProportion = 0.5; // Si todo es 0, centrar
+                            else if (yEuroAxis.min > 0) euroZeroProportion = 0;  // Si todo es positivo, cero abajo
+                            else euroZeroProportion = 1; // Si todo es negativo, cero arriba
+                        }
+                        euroZeroProportion = Math.max(0, Math.min(1, euroZeroProportion)); // Asegurar que esté entre [0, 1]
+
+                        // 2. Obtener los datos min/max reales para el eje de porcentaje
+                        let dataMinPerc = Infinity, dataMaxPerc = -Infinity, hasDataPerc = false;
+                        s_perc.chart.data.datasets.forEach(dataset => {
+                            if (dataset.yAxisID === s_perc.id && !dataset.hidden && dataset.data && dataset.data.length > 0) {
+                                dataset.data.forEach(val => {
+                                    if (val !== null && val !== undefined) {
+                                        hasDataPerc = true;
+                                        dataMinPerc = Math.min(dataMinPerc, val);
+                                        dataMaxPerc = Math.max(dataMaxPerc, val);
+                                    }
+                                });
+                            }
+                        });
+
+                        if (!hasDataPerc) { // Si no hay datos para el eje de porcentaje
+                            s_perc.min = -10; s_perc.max = 10; // Un rango por defecto pequeño
+                            return;
+                        }
+                        
+                        let newMinPerc, newMaxPerc;
+                        const dataRangePerc = dataMaxPerc - dataMinPerc;
+                        const defaultPaddingFactor = 0.15; // Factor de padding similar al de setScaleLimits
+                        const minAbsPadding = 2; // Un padding mínimo absoluto (ej. 2%)
+
+                        if (Math.abs(dataRangePerc) < 1e-6) { // Datos de porcentaje son planos (ej. todo 0% o todo 5%)
+                            const val = dataMinPerc;
+                            const span = Math.max(Math.abs(val) * 0.4, 10); // Crear un span alrededor del valor
+                            newMinPerc = val - euroZeroProportion * span;
+                            newMaxPerc = val + (1 - euroZeroProportion) * span;
+                        } else {
+                            // Aplicar la proporción del cero del eje Euro para determinar el nuevo min/max del eje de porcentaje
+                            if (euroZeroProportion <= 1e-6) { // Cero del Euro está en/debajo del mínimo
+                                newMinPerc = 0;
+                                newMaxPerc = dataMaxPerc / (1 - defaultPaddingFactor); // Expandir para incluir dataMaxPerc con padding
+                                if (newMaxPerc <= 0) newMaxPerc = Math.max(dataMaxPerc + minAbsPadding, minAbsPadding); // Asegurar rango positivo
+                            } else if (euroZeroProportion >= 1 - 1e-6) { // Cero del Euro está en/encima del máximo
+                                newMaxPerc = 0;
+                                newMinPerc = dataMinPerc / (1 - defaultPaddingFactor); // Expandir para incluir dataMinPerc con padding
+                                if (newMinPerc >= 0) newMinPerc = Math.min(dataMinPerc - minAbsPadding, -minAbsPadding); // Asegurar rango negativo
+                            } else {
+                                // El cero está en algún punto intermedio del eje Euro
+                                // Calcular el span necesario para el eje de porcentaje
+                                let spanNeeded;
+                                const spanPos = dataMaxPerc / (1 - euroZeroProportion);
+                                const spanNeg = dataMinPerc / (-euroZeroProportion);
+
+                                if (dataMinPerc >= 0) { // Todos los datos de % son positivos
+                                     spanNeeded = spanPos;
+                                     if(dataMaxPerc === 0) spanNeeded = minAbsPadding / (1-euroZeroProportion);
+                                } else if (dataMaxPerc <= 0) { // Todos los datos de % son negativos
+                                     spanNeeded = spanNeg;
+                                     if(dataMinPerc === 0) spanNeeded = minAbsPadding / euroZeroProportion;
+                                } else { // Los datos de % cruzan el cero
+                                    spanNeeded = Math.max(spanPos, spanNeg);
+                                }
+                                
+                                const finalSpan = spanNeeded / (1 - (defaultPaddingFactor*1.5)); // Añadir padding al span
+                                
+                                newMinPerc = -euroZeroProportion * finalSpan;
+                                newMaxPerc = (1 - euroZeroProportion) * finalSpan;
+                            }
+                        }
+
+                        // Asegurar que los datos originales queden dentro con un pequeño margen adicional
+                        const finalMinPadding = Math.max(Math.abs(dataMinPerc * 0.05), minAbsPadding / 2);
+                        const finalMaxPadding = Math.max(Math.abs(dataMaxPerc * 0.05), minAbsPadding / 2);
+
+                        s_perc.min = Math.floor(Math.min(newMinPerc, dataMinPerc - finalMinPadding));
+                        s_perc.max = Math.ceil(Math.max(newMaxPerc, dataMaxPerc + finalMaxPadding));
+                        
+                        if (s_perc.min === s_perc.max) { // Evitar rango cero
+                            s_perc.min -= minAbsPadding / 2;
+                            s_perc.max += minAbsPadding / 2;
+                            if (s_perc.min === s_perc.max) {s_perc.max +=1;} // Si sigue siendo cero
+                        }
+                        // console.log(`Euro ZeroProp: ${euroZeroProportion.toFixed(3)}, Perc Data: [${dataMinPerc.toFixed(1)}, ${dataMaxPerc.toFixed(1)}], New Perc Scale: [${s_perc.min.toFixed(1)}, ${s_perc.max.toFixed(1)}]`);
+                    }
+                    // >>> FIN: LÓGICA MODIFICADA PARA ALINEAR EL CERO DEL EJE DE PORCENTAJE <<<
+                }
+            }
+        };
+
+        if (capitalChart) {
+            capitalChart.data.labels = labels;
+            datasets.forEach((newDataset, index) => {
+                if (capitalChart.data.datasets[index]) {
+                    capitalChart.data.datasets[index].data = newDataset.data;
+                    capitalChart.data.datasets[index].yAxisID = newDataset.yAxisID;
+                    capitalChart.data.datasets[index].borderColor = newDataset.borderColor;
+                    capitalChart.data.datasets[index].label = newDataset.label;
+                } else {
+                    capitalChart.data.datasets.push(newDataset);
+                }
+            });
+            if (capitalChart.data.datasets.length > datasets.length) {
+                 capitalChart.data.datasets.splice(datasets.length);
+            }
+            capitalChart.options = chartOptions;
+            capitalChart.update();
+        } else {
+            if (ctx && labels && labels.length > 0) {
+                capitalChart = new Chart(ctx, { type: 'line', data: { labels: labels, datasets: datasets }, options: chartOptions });
+            } else {
+                 const chartContainerDiv = document.getElementById('capitalEvolutionChartContainer');
+                 const divWrapper = chartContainerDiv ? chartContainerDiv.querySelector('div[style*="height: 63.75vh"]') : null;
+                 if(divWrapper) {
+                     divWrapper.innerHTML = "<p class='text-warning text-center p-3'>No hay datos suficientes para mostrar el gráfico.</p>";
+                 } else if (chartContainerDiv) {
+                     chartContainerDiv.innerHTML = "<p class='text-warning text-center p-3'>No hay datos suficientes para mostrar el gráfico (wrapper no encontrado).</p>";
+                 }
+            }
+        }
+    }
+
+    if (originalLabels && originalLabels.length > 0) {
+        createOrUpdateChart(originalLabels, originalCapitalPropio, originalTradingPnL, originalApalancamiento, originalTwrPercentage);
+    } else {
+        document.querySelectorAll('.date-range-btn').forEach(button => button.disabled = true);
+        const chartContainerDiv = document.getElementById('capitalEvolutionChartContainer');
+        const divWrapper = chartContainerDiv ? chartContainerDiv.querySelector('div[style*="height: 63.75vh"]') : null;
+        if (divWrapper) {
+            divWrapper.innerHTML = "<p class='text-warning text-center p-3'>No hay datos iniciales para el gráfico.</p>";
+        } else if (chartContainerDiv) {
+             chartContainerDiv.innerHTML = "<p class='text-warning text-center p-3'>No hay datos iniciales para el gráfico (wrapper no encontrado).</p>";
+        }
+    }
+
+    const rangeButtons = document.querySelectorAll('.date-range-btn');
+    rangeButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            rangeButtons.forEach(btn => btn.classList.remove('active'));
+            this.classList.add('active');
+            const range = this.getAttribute('data-range');
+            if (!originalLabels || originalLabels.length === 0) return;
+            const dataEndDateStr = originalLabels[originalLabels.length - 1];
+            const endDate = new Date(dataEndDateStr + "T00:00:00Z");
+            let startDate;
+
+            if (range === 'all') {
+                createOrUpdateChart(originalLabels, originalCapitalPropio, originalTradingPnL, originalApalancamiento, originalTwrPercentage);
+                return;
+            }
+            let tempStartDate = new Date(endDate);
+            switch(range) {
+                case '1y': tempStartDate.setFullYear(endDate.getFullYear() - 1); tempStartDate.setDate(endDate.getDate() + 1); break;
+                case '2y': tempStartDate.setFullYear(endDate.getFullYear() - 2); tempStartDate.setDate(endDate.getDate() + 1); break;
+                case '3y': tempStartDate.setFullYear(endDate.getFullYear() - 3); tempStartDate.setDate(endDate.getDate() + 1); break;
+                case '5y': tempStartDate.setFullYear(endDate.getFullYear() - 5); tempStartDate.setDate(endDate.getDate() + 1); break;
+                case '10y': tempStartDate.setFullYear(endDate.getFullYear() - 10); tempStartDate.setDate(endDate.getDate() + 1); break;
+                default: tempStartDate = new Date(originalLabels[0] + "T00:00:00Z");
+            }
+            startDate = tempStartDate;
+            const firstAvailableDate = new Date(originalLabels[0] + "T00:00:00Z");
+            if (startDate < firstAvailableDate) startDate = firstAvailableDate;
+
+            const filteredLabels = []; const filteredCapitalPropio = []; const filteredTradingPnL = [];
+            const filteredApalancamiento = [];
+            const filteredTwrPercentage = [];
+
+            for (let i = 0; i < originalLabels.length; i++) {
+                const currentDate = new Date(originalLabels[i] + "T00:00:00Z");
+                if (currentDate >= startDate && currentDate <= endDate) {
+                    filteredLabels.push(originalLabels[i]);
+                    filteredCapitalPropio.push(originalCapitalPropio[i]);
+                    filteredTradingPnL.push(originalTradingPnL[i]);
+                    filteredApalancamiento.push(originalApalancamiento[i]);
+                    filteredTwrPercentage.push(originalTwrPercentage[i]);
+                }
+            }
+
+            const chartContainerDiv = document.getElementById('capitalEvolutionChartContainer');
+            const divWrapper = chartContainerDiv ? chartContainerDiv.querySelector('div[style*="height: 63.75vh"]') : null;
+
+            if (filteredLabels.length > 0) {
+                 if (!capitalChart && divWrapper && divWrapper.firstChild && divWrapper.firstChild.tagName !== 'CANVAS') {
+                    if (!document.getElementById('capitalEvolutionChart') && divWrapper) {
+                        divWrapper.innerHTML = '<canvas id="capitalEvolutionChart"></canvas>';
+                    }
+                 }
+                 createOrUpdateChart(filteredLabels, filteredCapitalPropio, filteredTradingPnL, filteredApalancamiento, filteredTwrPercentage);
+            } else {
+                if (capitalChart) { capitalChart.destroy(); capitalChart = null; }
+                if (divWrapper) {
+                    divWrapper.innerHTML = '<div class="alert alert-warning text-center p-3" role="alert">No hay datos para el rango de fechas seleccionado.</div>';
+                }
+            }
+        });
+    });
+});
+</script>
+{% endblock scripts %}

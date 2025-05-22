@@ -80,6 +80,7 @@
                         <ul class="dropdown-menu" aria-labelledby="navbarDropdownBolsa">
                             <li><a class="dropdown-item {% if request.endpoint == 'show_portfolio' %}active{% endif %}" href="{{ url_for('show_portfolio') }}"><i class="bi bi-briefcase-fill"></i> Portfolio</a></li>
                             <li><a class="dropdown-item {% if request.endpoint == 'show_watchlist' %}active{% endif %}" href="{{ url_for('show_watchlist') }}"><i class="bi bi-eye-fill"></i> Watchlist</a></li>
+			    <li><a class="dropdown-item {% if request.endpoint == 'capital_evolution' %}active{% endif %}" href="{{ url_for('capital_evolution') }}"><i class="bi bi-graph-up-arrow"></i> Flujos de Capital</a></li>
                             <li><a class="dropdown-item {% if request.endpoint == 'view_movements' %}active{% endif %}" href="{{ url_for('view_movements') }}"><i class="bi bi-list-ul"></i> Movimientos</a></li>
 			    <li><a class="dropdown-item {% if request.endpoint == 'broker_operations' %}active{% endif %}" href="{{ url_for('broker_operations') }}"><i class="bi bi-arrow-left-right"></i> Ops. Broker</a></li>
 			    
@@ -104,16 +105,26 @@
                             <i class="bi bi-house-door-fill"></i> Inmuebles
                         </a>
                     </li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {% if request.endpoint in ['silver_gold', 'crypto', 'pension_plans'] %}active{% endif %}" href="#" id="navbarDropdownInversiones" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                           <i class="bi bi-graph-up-arrow"></i> Otras Inversiones
-                        </a>
-                        <ul class="dropdown-menu" aria-labelledby="navbarDropdownInversiones">
-                            <li><a class="dropdown-item {% if request.endpoint == 'silver_gold' %}active{% endif %}" href="{{ url_for('silver_gold') }}"><i class="bi bi-gem"></i> Oro/Plata</a></li>
-                            <li><a class="dropdown-item {% if request.endpoint == 'crypto' %}active{% endif %}" href="{{ url_for('crypto') }}"><i class="bi bi-currency-bitcoin"></i> Criptomonedas</a></li>
-                            <li><a class="dropdown-item {% if request.endpoint == 'pension_plans' %}active{% endif %}" href="{{ url_for('pension_plans') }}"><i class="bi bi-shield-lock-fill"></i> Plan de Pensiones</a></li>
-                        </ul>
-                    </li>
+
+		    <li class="nav-item dropdown">
+    			<a class="nav-link dropdown-toggle {% if request.endpoint in ['crypto_portfolio', 'crypto_movements'] %}active{% endif %}" href="#" id="navbarDropdownCrypto" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+       				<i class="bi bi-currency-bitcoin"></i> Criptomonedas
+    			</a>
+    			<ul class="dropdown-menu" aria-labelledby="navbarDropdownCrypto">
+        			<li><a class="dropdown-item {% if request.endpoint == 'crypto_portfolio' %}active{% endif %}" href="{{ url_for('crypto_portfolio') }}"><i class="bi bi-wallet2"></i> Portfolio</a></li>
+				<li><a class="dropdown-item {% if request.endpoint == 'crypto_movements' %}active{% endif %}" href="{{ url_for('crypto_movements') }}"><i class="bi bi-list-ul"></i> Movimientos</a></li>
+    			</ul>
+		    </li>
+
+		    <li class="nav-item dropdown">
+    			<a class="nav-link dropdown-toggle {% if request.endpoint in ['silver_gold', 'pension_plans'] %}active{% endif %}" href="#" id="navbarDropdownInversiones" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+       				<i class="bi bi-graph-up-arrow"></i> Otras Inversiones
+    			</a>
+    			<ul class="dropdown-menu" aria-labelledby="navbarDropdownInversiones">
+        			<li><a class="dropdown-item {% if request.endpoint == 'silver_gold' %}active{% endif %}" href="{{ url_for('silver_gold') }}"><i class="bi bi-gem"></i> Oro/Plata</a></li>
+        			<li><a class="dropdown-item {% if request.endpoint == 'pension_plans' %}active{% endif %}" href="{{ url_for('pension_plans') }}"><i class="bi bi-shield-lock-fill"></i> Plan de Pensiones</a></li>
+    			</ul>
+		    </li>
                 {% endif %} {# Fin del else para if current_user.username == 'admin' y es admin principal #}
             {% endif %} {# Fin del if current_user.is_authenticated #}
           </ul>

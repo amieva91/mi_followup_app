@@ -1,0 +1,387 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mt-4">Portfolio de Criptomonedas</h1>
+    <p>Registro y seguimiento manual de operaciones de criptomonedas.</p>
+    
+    <div class="row mt-4">
+        <!-- Columna izquierda: Formularios -->
+        <div class="col-md-4">
+            <!-- Formulario para añadir exchange -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>Añadir Nuevo Exchange</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('crypto_portfolio') }}">
+                        {{ exchange_form.hidden_tag() }}
+                        <input type="hidden" name="add_exchange" value="1">
+                        <div class="mb-3">
+                            {{ exchange_form.exchange_name.label(class="form-label") }}
+                            {{ exchange_form.exchange_name(class="form-control") }}
+                        </div>
+                        {{ exchange_form.submit(class="btn btn-primary") }}
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Formulario para añadir operación -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>Registrar Operación Manual</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('crypto_portfolio') }}">
+                        {{ transaction_form.hidden_tag() }}
+                        <input type="hidden" name="add_transaction" value="1">
+                        <div class="mb-3">
+                            {{ transaction_form.exchange_id.label(class="form-label") }}
+                            {% if transaction_form.exchange_id.choices|length > 0 %}
+                                {{ transaction_form.exchange_id(class="form-select") }}
+                            {% else %}
+                                {{ transaction_form.exchange_id(class="form-select", disabled=True) }}
+                                <div class="form-text text-danger">Primero debes añadir un exchange.</div>
+                            {% endif %}
+                        </div>
+                        <div class="mb-3">
+                            {{ transaction_form.transaction_type.label(class="form-label") }}
+                            {{ transaction_form.transaction_type(class="form-select") }}
+                        </div>
+                        <div class="mb-3">
+                            {{ transaction_form.crypto_name.label(class="form-label") }}
+                            {{ transaction_form.crypto_name(class="form-control") }}
+                        </div>
+                        <div class="mb-3">
+                            {{ transaction_form.ticker_symbol.label(class="form-label") }}
+                            {{ transaction_form.ticker_symbol(class="form-control") }}
+                            <div class="form-text">Ejemplo: BTC-EUR, ETH-EUR, XRP-EUR</div>
+                        </div>
+                        <div class="mb-3">
+                            {{ transaction_form.date.label(class="form-label") }}
+                            {{ transaction_form.date(class="form-control") }}
+                        </div>
+                        <div class="mb-3">
+                            {{ transaction_form.quantity.label(class="form-label") }}
+                            {{ transaction_form.quantity(class="form-control") }}
+                        </div>
+                        <div class="mb-3">
+                            {{ transaction_form.price_per_unit.label(class="form-label") }}
+                            {{ transaction_form.price_per_unit(class="form-control") }}
+                        </div>
+                        <div class="mb-3">
+                            {{ transaction_form.fees.label(class="form-label") }}
+                            {{ transaction_form.fees(class="form-control") }}
+                        </div>
+                        {% if transaction_form.exchange_id.choices|length > 0 %}
+                            {{ transaction_form.submit(class="btn btn-primary") }}
+                        {% else %}
+                            {{ transaction_form.submit(class="btn btn-primary", disabled=True) }}
+                        {% endif %}
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Columna derecha: Resumen y operaciones -->
+        <div class="col-md-8">
+            <!-- Botón para actualizar precios -->
+            <div class="mb-3 text-end">
+                <a href="{{ url_for('update_crypto_prices') }}" class="btn btn-primary">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-repeat" viewBox="0 0 16 16">
+                        <path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41zm-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9z"/>
+                        <path fill-rule="evenodd" d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3zM3.1 9a5.002 5.002 0 0 0 8.757 2.182a.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9H3.1z"/>
+                    </svg>
+                    Actualizar Precios
+                </a>
+            </div>
+            
+            <!-- Resumen del portfolio total -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>Resumen del Portfolio</h5>
+                </div>
+                <div class="card-body">
+                    {% if portfolio_summary %}
+                        <div class="alert {% if total_profit_loss >= 0 %}alert-success{% else %}alert-danger{% endif %}">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <strong>Inversión Total:</strong> {{ total_investment|round(2) }} €
+                                </div>
+                                <div class="col-md-4">
+                                    <strong>Valor Actual:</strong> {{ total_current_value|round(2) }} €
+                                </div>
+                                <div class="col-md-4">
+                                    <strong>Rentabilidad:</strong> 
+                                    {{ total_profit_loss|round(2) }} € 
+                                    ({{ total_profit_loss_pct|round(2) }}%)
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="table-responsive">
+                            <table class="table table-striped table-bordered table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Criptomoneda</th>
+                                        <th>Ticker</th>
+                                        <th class="text-end">Cantidad</th>
+                                        <th class="text-end">Inversión (€)</th>
+                                        <th class="text-end">Precio Actual (€)</th>
+                                        <th class="text-end">Valor Actual (€)</th>
+                                        <th class="text-end">Rentabilidad</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for crypto in portfolio_summary %}
+                                    <tr>
+                                        <td>{{ crypto.name }}</td>
+                                        <td>{{ crypto.ticker }}</td>
+                                        <td class="text-end">{{ crypto.total_quantity|round(8) }}</td>
+                                        <td class="text-end">{{ (crypto.total_investment + crypto.total_fees)|round(2) }}</td>
+                                        <td class="text-end">
+                                            {% if crypto.current_price %}
+                                                {{ crypto.current_price|round(2) }}
+                                            {% else %}
+                                                N/A
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-end">
+                                            {% if crypto.current_value %}
+                                                {{ crypto.current_value|round(2) }}
+                                            {% else %}
+                                                N/A
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-end {% if crypto.profit_loss >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                            {% if crypto.profit_loss %}
+                                                {{ crypto.profit_loss|round(2) }} € ({{ crypto.profit_loss_pct|round(2) }}%)
+                                            {% else %}
+                                                N/A
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info">
+                            No hay criptomonedas en el portfolio. Añade operaciones para comenzar.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Portfolio por Exchange -->
+            {% if exchange_portfolios %}
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5>Portfolio por Exchange</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="accordion" id="exchangeAccordion">
+                            {% for ex_id, ex_data in exchange_portfolios.items() %}
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header" id="heading{{ ex_id }}">
+                                        <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ ex_id }}" aria-expanded="true" aria-controls="collapse{{ ex_id }}">
+                                            {{ ex_data.exchange.exchange_name }} - 
+                                            {% if ex_data.total_current_value %}
+                                                {{ ex_data.total_current_value|round(2) }} € 
+                                                <span class="ms-2 {% if ex_data.total_profit_loss >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                                    ({{ ex_data.total_profit_loss|round(2) }} € / {{ ex_data.total_profit_loss_pct|round(2) }}%)
+                                                </span>
+                                            {% else %}
+                                                Sin operaciones
+                                            {% endif %}
+                                        </button>
+                                    </h2>
+                                    <div id="collapse{{ ex_id }}" class="accordion-collapse collapse" aria-labelledby="heading{{ ex_id }}">
+                                        <div class="accordion-body">
+                                            {% if ex_data.cryptos %}
+                                                <div class="table-responsive">
+                                                    <table class="table table-sm table-striped table-bordered">
+                                                        <thead class="table-secondary">
+                                                            <tr>
+                                                                <th>Criptomoneda</th>
+                                                                <th>Ticker</th>
+                                                                <th class="text-end">Cantidad</th>
+                                                                <th class="text-end">Precio Actual</th>
+                                                                <th class="text-end">Valor</th>
+                                                                <th class="text-end">Rentabilidad</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {% for crypto_key, crypto in ex_data.cryptos.items() %}
+                                                                {% if crypto.total_quantity > 0 %}
+                                                                <tr>
+                                                                    <td>{{ crypto.name }}</td>
+                                                                    <td>{{ crypto.ticker }}</td>
+                                                                    <td class="text-end">{{ crypto.total_quantity|round(8) }}</td>
+                                                                    <td class="text-end">
+                                                                        {% if crypto.current_price %}
+                                                                            {{ crypto.current_price|round(2) }} €
+                                                                        {% else %}
+                                                                            N/A
+                                                                        {% endif %}
+                                                                    </td>
+                                                                    <td class="text-end">
+                                                                        {% if crypto.current_value %}
+                                                                            {{ crypto.current_value|round(2) }} €
+                                                                        {% else %}
+                                                                            N/A
+                                                                        {% endif %}
+                                                                    </td>
+                                                                    <td class="text-end {% if crypto.profit_loss >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                                                        {% if crypto.profit_loss %}
+                                                                            {{ crypto.profit_loss|round(2) }} € ({{ crypto.profit_loss_pct|round(2) }}%)
+                                                                        {% else %}
+                                                                            N/A
+                                                                        {% endif %}
+                                                                    </td>
+                                                                </tr>
+                                                                {% endif %}
+                                                            {% endfor %}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                                
+                                                <div class="d-flex justify-content-end mt-2">
+                                                    <form method="POST" action="{{ url_for('delete_crypto_exchange', exchange_id=ex_id) }}" onsubmit="return confirm('¿Estás seguro? Se eliminarán todas las operaciones asociadas a este exchange.');">
+                                                        <button type="submit" class="btn btn-danger btn-sm">
+                                                            Eliminar Exchange
+                                                        </button>
+                                                    </form>
+                                                </div>
+                                            {% else %}
+                                                <div class="alert alert-secondary">
+                                                    No hay criptomonedas registradas en este exchange.
+                                                </div>
+                                                
+                                                <div class="d-flex justify-content-end mt-2">
+                                                    <form method="POST" action="{{ url_for('delete_crypto_exchange', exchange_id=ex_id) }}" onsubmit="return confirm('¿Estás seguro de que deseas eliminar este exchange?');">
+                                                        <button type="submit" class="btn btn-danger btn-sm">
+                                                            Eliminar Exchange
+                                                        </button>
+                                                    </form>
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+            
+            <!-- Historial de operaciones único -->
+            <div class="card">
+                <div class="card-header">
+                    <h5>Historial de Operaciones</h5>
+                </div>
+                <div class="card-body">
+                    {% if all_transactions %}
+                        <div class="table-responsive">
+                            <table class="table table-striped table-bordered table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Exchange</th>
+                                        <th>Tipo</th>
+                                        <th>Criptomoneda</th>
+                                        <th>Ticker</th>
+                                        <th class="text-end">Cantidad</th>
+                                        <th class="text-end">Precio (€)</th>
+                                        <th class="text-end">Total (€)</th>
+                                        <th class="text-end">Comisiones (€)</th>
+                                        <th class="text-center">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for t in all_transactions %}
+                                    <tr>
+                                        <td>{{ t.date.strftime('%d/%m/%Y') }}</td>
+                                        <td>{{ exchange_map.get(t.exchange_id, 'Desconocido') }}</td>
+                                        <td>
+                                            {% if t.transaction_type == 'buy' %}
+                                                <span class="badge bg-primary">Compra</span>
+                                            {% else %}
+                                                <span class="badge bg-success">Venta</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ t.crypto_name }}</td>
+                                        <td>{{ t.ticker_symbol }}</td>
+                                        <td class="text-end">{{ t.quantity|round(8) }}</td>
+                                        <td class="text-end">{{ t.price_per_unit|round(2) }}</td>
+                                        <td class="text-end">{{ (t.quantity * t.price_per_unit)|round(2) }}</td>
+                                        <td class="text-end">
+                                            {% if t.fees %}
+                                                {{ t.fees|round(2) }}
+                                            {% else %}
+                                                ---
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-center">
+                                            <div class="btn-group">
+                                                <a href="{{ url_for('edit_crypto_transaction', transaction_id=t.id) }}" class="btn btn-warning btn-sm">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pencil-square" viewBox="0 0 16 16">
+                                                        <path d="M15.502 1.94a.5.5 0 0 1 0 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 0 1 .707 0l1.293 1.293zm-1.75 2.456-2-2L4.939 9.21a.5.5 0 0 0-.121.196l-.805 2.414a.25.25 0 0 0 .316.316l2.414-.805a.5.5 0 0 0 .196-.12l6.813-6.814z"/>
+                                                        <path fill-rule="evenodd" d="M1 13.5A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-6a.5.5 0 0 0-1 0v6a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5H9a.5.5 0 0 0 0-1H2.5A1.5 1.5 0 0 0 1 2.5v11z"/>
+                                                    </svg>
+                                                </a>
+                                                <form method="POST" action="{{ url_for('delete_crypto_transaction', transaction_id=t.id) }}" class="d-inline" onsubmit="return confirm('¿Estás seguro de que deseas eliminar esta operación?');">
+                                                    <button type="submit" class="btn btn-danger btn-sm">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
+                                                            <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                                                            <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                                                        </svg>
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info">
+                            No hay operaciones registradas. Usa el formulario para registrar tu primera operación.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Configurar la fecha con el día actual
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = (today.getMonth() + 1).toString().padStart(2, '0');
+    const day = today.getDate().toString().padStart(2, '0');
+    
+    const dateInput = document.getElementById('date');
+    if (dateInput) {
+        dateInput.value = `${year}-${month}-${day}`;
+    }
+    
+    // Expandir todos los acordeones por defecto
+    const accordionButtons = document.querySelectorAll('.accordion-button');
+    accordionButtons.forEach(button => {
+        const collapseId = button.getAttribute('data-bs-target');
+        const collapseElement = document.querySelector(collapseId);
+        if (collapseElement) {
+            collapseElement.classList.add('show');
+            // Asegurarse de que el botón no tiene la clase 'collapsed'
+            button.classList.remove('collapsed');
+        }
+    });
+});
+</script>
+{% endblock scripts %}
