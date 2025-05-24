@@ -14,6 +14,7 @@
                 <div class="card-body d-flex flex-column">
                     <form method="POST" action="{{ url_for('crypto_movements') }}" enctype="multipart/form-data">
                         {{ csv_form.hidden_tag() }}
+                        <input type="hidden" name="upload_csv" value="1">
                         
                         <div class="mb-3">
                             {{ csv_form.exchange.label(class="form-label") }}
@@ -35,13 +36,21 @@
                     <div class="mt-4 pt-3 border-top">
                         <h6>Estadísticas</h6>
                         <div class="row text-center">
-                            <div class="col-6">
-                                <h4 class="text-primary">{{ total_movements }}</h4>
+                            <div class="col-6 col-md-4">
+                                <h5 class="text-primary">{{ total_movements }}</h5>
                                 <small class="text-muted">Total Movimientos</small>
                             </div>
-                            <div class="col-6">
-                                <h4 class="text-info">{{ exchanges_count }}</h4>
+                            <div class="col-6 col-md-4">
+                                <h5 class="text-info">{{ exchanges_count }}</h5>
                                 <small class="text-muted">Exchanges</small>
+                            </div>
+                            <div class="col-6 col-md-4">
+                                <h5 class="text-warning">{{ orphans_count }}</h5>
+                                <small class="text-muted">Huérfanos</small>
+                            </div>
+                            <div class="col-6 col-md-4">
+                                <h5 class="text-secondary">{{ uncategorized_count }}</h5>
+                                <small class="text-muted">Sin Categoría</small>
                             </div>
                         </div>
                         
@@ -51,6 +60,13 @@
                                 <i class="bi bi-trash"></i> Limpiar Todo
                             </button>
                         </div>
+                        <div class="d-grid mt-2">
+                            <form method="POST" action="{{ url_for('recalculate_crypto_orphans') }}" class="d-inline">
+                                <button type="submit" class="btn btn-warning btn-sm">
+                                    <i class="bi bi-arrow-clockwise"></i> Recalcular Huérfanos
+                                </button>
+                            </form>
+                        </div>
                         {% endif %}
                     </div>
                 </div>
@@ -59,181 +75,260 @@
         
         <div class="col-md-6">
             <div class="card mb-4" style="height: 100%;">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5>Criptomonedas Identificadas</h5>
-                    {% if crypto_currencies %}
-                    <form method="POST" action="{{ url_for('verify_crypto_prices') }}" class="d-inline">
-                        <button type="submit" class="btn btn-sm btn-info">
-                            <i class="bi bi-arrow-clockwise"></i> Verificar Precios
-                        </button>
-                    </form>
-                    {% endif %}
+                <div class="card-header">
+                    <h5>Mapeo de Categorías</h5>
                 </div>
                 <div class="card-body d-flex flex-column">
-                    {% if crypto_currencies %}
-                        <!-- Fecha global de última verificación -->
-                        {% set latest_check = crypto_currencies | selectattr('last_check') | map(attribute='last_check') | max %}
-                        {% if latest_check %}
+                    <form method="POST" action="{{ url_for('crypto_movements') }}">
+                        {{ mapping_form.hidden_tag() }}
+                        <input type="hidden" name="create_mapping" value="1">
+                        
                         <div class="mb-3">
-                            <small class="text-muted">
-                                <i class="bi bi-clock"></i> Última verificación: {{ latest_check.strftime('%d/%m/%Y %H:%M') }}
-                            </small>
-                        </div>
-                        {% endif %}
-                        
-                        <!-- Contenedor sin scroll, altura fija -->
-                        <div class="border rounded p-3 flex-grow-1" style="height: 350px; background-color: #f8f9fa;">
-                            <div class="row" id="cryptoCurrenciesList">
-                                {% for crypto in crypto_currencies %}
-                                <div class="col-md-4 col-sm-6 col-6 crypto-item mb-3" data-index="{{ loop.index0 }}" style="display: {% if loop.index0 < 21 %}block{% else %}none{% endif %};">
-                                    <div class="d-flex align-items-center">
-                                        <span class="me-2">
-                                            {% if crypto.verified is none %}
-                                                <i class="bi bi-circle text-muted" title="No verificado"></i>
-                                            {% elif crypto.verified %}
-                                                <i class="bi bi-circle-fill text-success" title="Precio disponible en yfinance"></i>
-                                            {% else %}
-                                                <i class="bi bi-circle-fill text-danger" title="Precio no disponible en yfinance"></i>
-                                            {% endif %}
-                                        </span>
-                                        <strong style="font-size: 0.85rem;">{{ crypto.symbol }}</strong>
-                                    </div>
-                                </div>
-                                {% endfor %}
-                            </div>
+                            {{ mapping_form.mapping_type.label(class="form-label") }}
+                            {{ mapping_form.mapping_type(class="form-select") }}
                         </div>
                         
-                        <!-- Paginación -->
-                        {% if crypto_currencies|length > 21 %}
-                        <div class="mt-3 pt-2 border-top">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <small class="text-muted">
-                                    Mostrando <span id="itemsShowing">1-21</span> de {{ crypto_currencies|length }}
-                                </small>
+                        <div class="mb-3">
+                            {{ mapping_form.source_value.label(class="form-label") }}
+                            {{ mapping_form.source_value(class="form-control") }}
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ mapping_form.target_category.label(class="form-label") }}
+                            {{ mapping_form.target_category(class="form-select") }}
+                        </div>
+                        
+                        {{ mapping_form.submit(class="btn btn-success") }}
+                    </form>
+                    
+                    <!-- Mapeos existentes -->
+                    {% if existing_mappings %}
+                    <div class="mt-4 pt-3 border-top flex-grow-1">
+                        <h6>Mapeos Activos</h6>
+                        <div style="max-height: 200px; overflow-y: auto;">
+                            {% for mapping in existing_mappings %}
+                            <div class="d-flex justify-content-between align-items-center mb-2 p-2 bg-light rounded">
                                 <div>
-                                    <button type="button" id="prevPage" class="btn btn-sm btn-outline-secondary me-1" disabled>
-                                        <i class="bi bi-chevron-left"></i>
-                                    </button>
-                                    <button type="button" id="nextPage" class="btn btn-sm btn-outline-secondary">
-                                        <i class="bi bi-chevron-right"></i>
-                                    </button>
+                                    <small class="text-muted">{{ mapping.mapping_type }}:</small><br>
+                                    <strong>{{ mapping.source_value }}</strong> → {{ mapping.target_category }}
                                 </div>
+                                <form method="POST" action="{{ url_for('delete_crypto_mapping', mapping_id=mapping.id) }}" class="d-inline">
+                                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('¿Eliminar este mapeo?');">
+                                        <i class="bi bi-trash" style="font-size: 0.7rem;"></i>
+                                    </button>
+                                </form>
                             </div>
+                            {% endfor %}
                         </div>
-                        {% endif %}
-                        
-                        <!-- Leyenda -->
-                        <div class="mt-3 pt-2 border-top">
-                            <small class="text-muted">
-                                <i class="bi bi-circle-fill text-success"></i> Disponible &nbsp;
-                                <i class="bi bi-circle-fill text-danger"></i> No disponible &nbsp;
-                                <i class="bi bi-circle text-muted"></i> No verificado
-                            </small>
-                        </div>
-                    {% else %}
-                        <div class="alert alert-info mb-0 text-center">
-                            <i class="bi bi-info-circle"></i><br>
-                            No se han identificado criptomonedas aún.<br>
-                            Sube un archivo CSV para comenzar.
-                        </div>
+                    </div>
                     {% endif %}
                 </div>
             </div>
         </div>
     </div>
     
-    <div class="row">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <h5>Movimientos Registrados</h5>
-                </div>
-                <div class="card-body">
-                    {% if movements %}
-                        <div class="table-responsive" style="font-size: 0.85rem;">
-                            <table class="table table-striped table-bordered table-hover table-sm">
-                                <thead class="table-dark">
-                                    <tr>
-                                        <th>Fecha</th>
-                                        <th>Exchange</th>
-                                        <th>Descripción</th>
-                                        <th>Moneda</th>
-                                        <th>Cantidad</th>
-                                        <th>M. Destino</th>
-                                        <th>Cant. Destino</th>
-                                        <th>M. Nativa</th>
-                                        <th>Cant. Nativa</th>
-                                        <th>Tipo</th>
-                                        <th>Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for movement in movements %}
-                                    <tr>
-                                        <td style="font-size: 0.75rem;">
-                                            {% if movement.timestamp_utc %}
-                                                {{ movement.timestamp_utc.strftime('%d/%m/%y %H:%M') }}
-                                            {% else %}
-                                                ---
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            <span class="badge bg-secondary" style="font-size: 0.7rem;">{{ movement.exchange_name[:8] }}</span>
-                                        </td>
-                                        <td style="font-size: 0.75rem;">
-                                            {{ movement.transaction_description[:40] }}{% if movement.transaction_description|length > 40 %}...{% endif %}
-                                        </td>
-                                        <td style="font-weight: 500;">{{ movement.currency or '---' }}</td>
-                                        <td class="text-end" style="font-size: 0.75rem;">
-                                            {% if movement.amount %}
-                                                {{ movement.amount|round(6) }}
-                                            {% else %}
-                                                ---
-                                            {% endif %}
-                                        </td>
-                                        <td>{{ movement.to_currency or '---' }}</td>
-                                        <td class="text-end" style="font-size: 0.75rem;">
-                                            {% if movement.to_amount %}
-                                                {{ movement.to_amount|round(6) }}
-                                            {% else %}
-                                                ---
-                                            {% endif %}
-                                        </td>
-                                        <td>{{ movement.native_currency or '---' }}</td>
-                                        <td class="text-end" style="font-size: 0.75rem;">
-                                            {% if movement.native_amount %}
-                                                {{ movement.native_amount|round(2) }}
-                                            {% else %}
-                                                ---
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            {% if movement.transaction_kind %}
-                                                <span class="badge bg-info" style="font-size: 0.65rem;">{{ movement.transaction_kind[:12] }}</span>
-                                            {% else %}
-                                                ---
-                                            {% endif %}
-                                        </td>
-                                        <td class="text-center">
-                                            <form method="POST" action="{{ url_for('delete_crypto_movement', movement_id=movement.id) }}" class="d-inline" onsubmit="return confirm('¿Estás seguro?');">
-                                                <button type="submit" class="btn btn-danger btn-sm" style="padding: 2px 6px;">
-                                                    <i class="bi bi-trash" style="font-size: 0.7rem;"></i>
-                                                </button>
-                                            </form>
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    {% else %}
-                        <div class="alert alert-info">
-                            <h5>No hay movimientos registrados</h5>
-                            <p>Sube un archivo CSV para comenzar.</p>
-                        </div>
-                    {% endif %}
+    <!-- Tabla P&L por Criptomoneda -->
+    {% if crypto_pnl_data %}
+    <div class="card mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0">P&L por Criptomoneda (Solo Compras/Ventas Completas)</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-bordered table-hover table-sm">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Criptomoneda</th>
+                            <th class="text-end">Total Invertido (€)</th>
+                            <th class="text-end">Total Vendido (€)</th>
+                            <th class="text-end">P&L Realizado (€)</th>
+                            <th class="text-end">P&L (%)</th>
+                            <th class="text-center">Compras</th>
+                            <th class="text-center">Ventas</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for pnl in crypto_pnl_data %}
+                        <tr>
+                            <td><strong>{{ pnl.currency }}</strong></td>
+                            <td class="text-end">{{ pnl.total_invested|round(2) }}</td>
+                            <td class="text-end">{{ pnl.total_sold|round(2) }}</td>
+                            <td class="text-end {% if pnl.realized_pnl >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                {{ pnl.realized_pnl|round(2) }}
+                            </td>
+                            <td class="text-end {% if pnl.pnl_percentage >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                {{ pnl.pnl_percentage|round(2) }}%
+                            </td>
+                            <td class="text-center">{{ pnl.num_compras }}</td>
+                            <td class="text-center">{{ pnl.num_ventas }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Movimientos Registrados -->
+    <div class="card">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Movimientos Registrados</h5>
+                <div class="d-flex gap-2">
+                    <!-- Barra de búsqueda -->
+                    <form method="GET" action="{{ url_for('crypto_movements') }}" class="d-flex">
+                        <input type="text" name="search" value="{{ search_query }}" 
+                               class="form-control form-control-sm" placeholder="Buscar..." style="width: 200px;">
+                        <button type="submit" class="btn btn-outline-secondary btn-sm ms-1">
+                            <i class="bi bi-search"></i>
+                        </button>
+                        {% if search_query %}
+                        <a href="{{ url_for('crypto_movements') }}" class="btn btn-outline-danger btn-sm ms-1">
+                            <i class="bi bi-x"></i>
+                        </a>
+                        {% endif %}
+                    </form>
                 </div>
             </div>
+        </div>
+        <div class="card-body">
+            {% if movements %}
+                <div class="table-responsive" style="font-size: 0.85rem;">
+                    <table class="table table-striped table-bordered table-hover table-sm">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Exchange</th>
+                                <th>Descripción</th>
+                                <th>Moneda</th>
+                                <th>Cantidad</th>
+                                <th>M. Destino</th>
+                                <th>Cant. Destino</th>
+                                <th>M. Nativa</th>
+                                <th>Cant. Nativa</th>
+                                <th>Tipo</th>
+                                <th>Categoría</th>
+                                <th>Procesar</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for movement in movements %}
+                            <tr>
+                                <td style="font-size: 0.75rem;">
+                                    {% if movement.timestamp_utc %}
+                                        {{ movement.timestamp_utc.strftime('%d/%m/%y %H:%M') }}
+                                    {% else %}
+                                        ---
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge bg-secondary" style="font-size: 0.7rem;">{{ movement.exchange_name[:8] }}</span>
+                                </td>
+                                <td style="font-size: 0.75rem;" title="{{ movement.transaction_description }}">
+                                    {{ movement.transaction_description[:40] }}{% if movement.transaction_description|length > 40 %}...{% endif %}
+                                </td>
+                                <td style="font-weight: 500;">{{ movement.currency or '---' }}</td>
+                                <td class="text-end" style="font-size: 0.75rem;">
+                                    {% if movement.amount %}
+                                        {{ movement.amount|round(6) }}
+                                    {% else %}
+                                        ---
+                                    {% endif %}
+                                </td>
+                                <td>{{ movement.to_currency or '---' }}</td>
+                                <td class="text-end" style="font-size: 0.75rem;">
+                                    {% if movement.to_amount %}
+                                        {{ movement.to_amount|round(6) }}
+                                    {% else %}
+                                        ---
+                                    {% endif %}
+                                </td>
+                                <td>{{ movement.native_currency or '---' }}</td>
+                                <td class="text-end" style="font-size: 0.75rem;">
+                                    {% if movement.native_amount %}
+                                        {{ movement.native_amount|round(2) }}
+                                    {% else %}
+                                        ---
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if movement.transaction_kind %}
+                                        <span class="badge bg-info" style="font-size: 0.65rem;" title="{{ movement.transaction_kind }}">
+                                            {{ movement.transaction_kind[:12] }}
+                                        </span>
+                                    {% else %}
+                                        ---
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% set category_colors = {
+                                        'Compra': 'success',
+                                        'Venta': 'primary',
+                                        'Rewards': 'warning',
+                                        'Staking Lock': 'info',
+                                        'Staking Reward': 'success',
+                                        'Staking UnLock': 'secondary',
+                                        'Deposito': 'dark',
+                                        'Retiro': 'danger',
+                                        'Sin Categoría': 'light text-dark'
+                                    } %}
+                                    <span class="badge bg-{{ category_colors.get(movement.category, 'secondary') }}" style="font-size: 0.65rem;">
+                                        {{ movement.category }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% set status_colors = {
+                                        'OK': 'success',
+                                        'SKIP': 'secondary',
+                                        'Huérfano': 'danger'
+                                    } %}
+                                    <span class="badge bg-{{ status_colors.get(movement.process_status, 'secondary') }}" style="font-size: 0.65rem;">
+                                        {{ movement.process_status }}
+                                    </span>
+                                </td>
+                                <td class="text-center">
+                                    <div class="btn-group">
+                                        <a href="{{ url_for('edit_crypto_movement', movement_id=movement.id) }}" 
+                                           class="btn btn-warning btn-sm" style="padding: 2px 6px;">
+                                            <i class="bi bi-pencil" style="font-size: 0.7rem;"></i>
+                                        </a>
+                                        <form method="POST" action="{{ url_for('delete_crypto_movement', movement_id=movement.id) }}" 
+                                              class="d-inline" onsubmit="return confirm('¿Estás seguro?');">
+                                            <button type="submit" class="btn btn-danger btn-sm" style="padding: 2px 6px;">
+                                                <i class="bi bi-trash" style="font-size: 0.7rem;"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                {% if search_query %}
+                <div class="mt-3">
+                    <small class="text-muted">
+                        Mostrando {{ movements|length }} resultado(s) para "{{ search_query }}"
+                    </small>
+                </div>
+                {% endif %}
+            {% else %}
+                {% if search_query %}
+                <div class="alert alert-info">
+                    <h5>No se encontraron resultados</h5>
+                    <p>No hay movimientos que coincidan con la búsqueda "{{ search_query }}".</p>
+                    <a href="{{ url_for('crypto_movements') }}" class="btn btn-primary">Ver todos los movimientos</a>
+                </div>
+                {% else %}
+                <div class="alert alert-info">
+                    <h5>No hay movimientos registrados</h5>
+                    <p>Sube un archivo CSV para comenzar.</p>
+                </div>
+                {% endif %}
+            {% endif %}
         </div>
     </div>
 </div>
@@ -249,7 +344,7 @@
             <div class="modal-body">
                 <div class="alert alert-warning">
                     <i class="bi bi-exclamation-triangle"></i>
-                    <strong>¡Atención!</strong> Esta acción eliminará todos los movimientos registrados ({{ total_movements }} registros).
+                    <strong>¡Atención!</strong> Esta acción eliminará todos los movimientos registrados ({{ total_movements }} registros) y todos los mapeos de categorías.
                 </div>
                 <p>¿Estás seguro de que deseas continuar? Esta acción no se puede deshacer.</p>
             </div>
@@ -267,67 +362,69 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Paginación para criptomonedas identificadas
-    const itemsPerPage = 24; // 3 columnas × 8 filas
-    const cryptoItems = document.querySelectorAll('.crypto-item');
-    const totalItems = cryptoItems.length;
-    const totalPages = Math.ceil(totalItems / itemsPerPage);
-    let currentPage = 1;
+    // Auto-completar valores para el mapeo basado en datos existentes
+    const mappingTypeSelect = document.querySelector('select[name="mapping_type"]');
+    const sourceValueInput = document.querySelector('input[name="source_value"]');
     
-    function showPage(page) {
-        const startIndex = (page - 1) * itemsPerPage;
-        const endIndex = startIndex + itemsPerPage;
+    if (mappingTypeSelect && sourceValueInput) {
+        // Datos de tipos y descripciones únicos (esto podría venir del backend)
+        const uniqueTypes = [
+            {% for movement in movements %}
+                {% if movement.transaction_kind %}'{{ movement.transaction_kind }}',{% endif %}
+            {% endfor %}
+        ];
         
-        cryptoItems.forEach((item, index) => {
-            if (index >= startIndex && index < endIndex) {
-                item.style.display = 'block';
-            } else {
-                item.style.display = 'none';
+        const uniqueDescriptions = [
+            {% for movement in movements %}
+                {% if movement.transaction_description %}'{{ movement.transaction_description }}',{% endif %}
+            {% endfor %}
+        ];
+        
+        // Eliminar duplicados
+        const uniqueTypesSet = [...new Set(uniqueTypes)];
+        const uniqueDescriptionsSet = [...new Set(uniqueDescriptions)];
+        
+        mappingTypeSelect.addEventListener('change', function() {
+            const selectedType = this.value;
+            sourceValueInput.value = '';
+            
+            // Añadir datalist para autocompletado
+            let existingDatalist = document.getElementById('source-values-datalist');
+            if (existingDatalist) {
+                existingDatalist.remove();
             }
+            
+            const datalist = document.createElement('datalist');
+            datalist.id = 'source-values-datalist';
+            
+            const values = selectedType === 'Tipo' ? uniqueTypesSet : uniqueDescriptionsSet;
+            values.forEach(value => {
+                const option = document.createElement('option');
+                option.value = value;
+                datalist.appendChild(option);
+            });
+            
+            document.body.appendChild(datalist);
+            sourceValueInput.setAttribute('list', 'source-values-datalist');
         });
-        
-        // Actualizar información de paginación
-        const itemsShowing = document.getElementById('itemsShowing');
-        if (itemsShowing) {
-            const start = startIndex + 1;
-            const end = Math.min(endIndex, totalItems);
-            itemsShowing.textContent = `${start}-${end}`;
+    }
+    
+    // Resaltar filas según el estado de procesamiento
+    const tableRows = document.querySelectorAll('tbody tr');
+    tableRows.forEach(row => {
+        const processStatusCell = row.cells[11]; // Columna "Procesar"
+        if (processStatusCell) {
+            const badge = processStatusCell.querySelector('.badge');
+            if (badge) {
+                const status = badge.textContent.trim();
+                if (status === 'Huérfano') {
+                    row.classList.add('table-danger');
+                } else if (status === 'SKIP') {
+                    row.classList.add('table-secondary');
+                }
+            }
         }
-        
-        // Actualizar botones
-        const prevBtn = document.getElementById('prevPage');
-        const nextBtn = document.getElementById('nextPage');
-        
-        if (prevBtn) prevBtn.disabled = (page === 1);
-        if (nextBtn) nextBtn.disabled = (page === totalPages);
-    }
-    
-    // Event listeners para paginación
-    const prevBtn = document.getElementById('prevPage');
-    const nextBtn = document.getElementById('nextPage');
-    
-    if (prevBtn) {
-        prevBtn.addEventListener('click', function() {
-            if (currentPage > 1) {
-                currentPage--;
-                showPage(currentPage);
-            }
-        });
-    }
-    
-    if (nextBtn) {
-        nextBtn.addEventListener('click', function() {
-            if (currentPage < totalPages) {
-                currentPage++;
-                showPage(currentPage);
-            }
-        });
-    }
-    
-    // Mostrar primera página al cargar
-    if (totalItems > itemsPerPage) {
-        showPage(1);
-    }
+    });
 });
 </script>
 {% endblock scripts %}

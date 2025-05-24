@@ -97,6 +97,26 @@ mail = Mail(app)
 print("DEBUG: Flask-Mail inicializado.")
 
 
+
+# Constantes de categorización
+BUY_TRANSACTION_KINDS = [
+    'viban_purchase', 'recurring_buy_order', 'dust_conversion_credited', 
+    'crypto_wallet_swap_credited', 'finance.dpos.staking_conversion.credit'
+]
+
+SELL_TRANSACTION_KINDS = [
+    'crypto_viban_exchange', 'dust_conversion_debited', 
+    'crypto_wallet_swap_debited', 'finance.dpos.staking_conversion.terminate'
+]
+
+REWARD_TRANSACTION_KINDS = [
+    'campaign_reward', 'referral_bonus', 'referral_card_cashback', 
+    'admin_wallet_credited', 'crypto_earn_interest_paid', 'card_cashback_reverted'
+]
+
+
+
+
 db = SQLAlchemy(app)
 
 from flask_migrate import Migrate
@@ -113,21 +133,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 
-class CsvUploadForm(FlaskForm):
-    exchange = SelectField(
-        'Exchange', 
-        choices=[('Crypto.com', 'Crypto.com')], 
-        validators=[DataRequired()],
-        default='Crypto.com'
-    )
-    csv_file = FileField(
-        'Archivo CSV', 
-        validators=[
-            FileRequired(message='Debe seleccionar un archivo'),
-            FileAllowed(['csv'], message='Solo se permiten archivos CSV')
-        ]
-    )
-    submit = SubmitField('Cargar CSV')
+
 
 class ActivityLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -229,6 +235,25 @@ class CryptoTransaction(db.Model):
 
     def __repr__(self):
         return f'<CryptoTransaction {self.transaction_type} {self.crypto_name} ({self.quantity})>'
+
+class CryptoCategoryMapping(db.Model):
+    __tablename__ = 'crypto_category_mappings'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    mapping_type = db.Column(db.String(20), nullable=False)  # 'Tipo' o 'Descripción'
+    source_value = db.Column(db.String(255), nullable=False)  # transaction_kind o transaction_description
+    target_category = db.Column(db.String(50), nullable=False)  # Categoría destino
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relación con usuario
+    user = db.relationship('User', backref=db.backref('crypto_category_mappings', lazy=True, cascade='all, delete-orphan'))
+    
+    # Constraint único por usuario, tipo y valor fuente
+    __table_args__ = (db.UniqueConstraint('user_id', 'mapping_type', 'source_value'),)
+    
+    def __repr__(self):
+        return f'<CryptoCategoryMapping {self.id}: {self.mapping_type} - {self.source_value} -> {self.target_category}>'
 
 class CryptoHolding(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -686,8 +711,22 @@ class PensionHistoryForm(FlaskForm):
                           render_kw={"type": "month", "placeholder": "YYYY-MM"})
     submit = SubmitField('Guardar Estado Actual')
 
-# --- Formularios para Cryptos ---
-# --- Formularios para Crypto ---
+class CsvUploadForm(FlaskForm):
+    exchange = SelectField(
+        'Exchange', 
+        choices=[('Crypto.com', 'Crypto.com')], 
+        validators=[DataRequired()],
+        default='Crypto.com'
+    )
+    csv_file = FileField(
+        'Archivo CSV', 
+        validators=[
+            FileRequired(message='Debe seleccionar un archivo'),
+            FileAllowed(['csv'], message='Solo se permiten archivos CSV')
+        ]
+    )
+    submit = SubmitField('Cargar CSV')
+
 class CryptoExchangeForm(FlaskForm):
     exchange_name = StringField('Nombre del Exchange', validators=[DataRequired()],
                              render_kw={"placeholder": "Ej: Binance, Coinbase..."})
@@ -725,6 +764,58 @@ class CryptoHistoryForm(FlaskForm):
     month_year = StringField('Mes y Año', validators=[DataRequired()],
                           render_kw={"type": "month", "placeholder": "YYYY-MM"})
     submit = SubmitField('Guardar Estado Actual')
+
+class CryptoMovementEditForm(FlaskForm):
+    category = SelectField(
+        'Categoría',
+        choices=[
+            ('Rewards', 'Rewards'),
+            ('Staking Lock', 'Staking Lock'),
+            ('Staking Reward', 'Staking Reward'),
+            ('Staking UnLock', 'Staking UnLock'),
+            ('Compra', 'Compra'),
+            ('Venta', 'Venta'),
+            ('Deposito', 'Deposito'),
+            ('Retiro', 'Retiro'),
+            ('Sin Categoría', 'Sin Categoría')
+        ],
+        validators=[DataRequired()]
+    )
+    process_status = SelectField(
+        'Procesar',
+        choices=[
+            ('OK', 'OK'),
+            ('SKIP', 'SKIP'),
+            ('Huérfano', 'Huérfano')
+        ],
+        validators=[DataRequired()]
+    )
+    submit = SubmitField('Guardar Cambios')
+
+class CryptoCategoryMappingForm(FlaskForm):
+    mapping_type = SelectField(
+        'Mapear por',
+        choices=[('Tipo', 'Tipo'), ('Descripción', 'Descripción')],
+        validators=[DataRequired()]
+    )
+    source_value = StringField('Valor', validators=[DataRequired()],
+                             render_kw={"placeholder": "Ej: viban_purchase o texto descripción"})
+    target_category = SelectField(
+        'Categoría',
+        choices=[
+            ('Rewards', 'Rewards'),
+            ('Staking Lock', 'Staking Lock'),
+            ('Staking Reward', 'Staking Reward'),
+            ('Staking UnLock', 'Staking UnLock'),
+            ('Compra', 'Compra'),
+            ('Venta', 'Venta'),
+            ('Deposito', 'Deposito'),
+            ('Retiro', 'Retiro'),
+            ('Sin Categoría', 'Sin Categoría')
+        ],
+        validators=[DataRequired()]
+    )
+    submit = SubmitField('Crear Mapeo')
 
 # --- Formularios para Silver/Gold ---
 class PreciousMetalTransactionForm(FlaskForm):
@@ -1027,9 +1118,43 @@ class CloseAccountForm(FlaskForm): # MOSTRANDO COMPLETA
 def crypto_movements():
     """Muestra y gestiona los movimientos de CSV de exchanges automatizados."""
     csv_form = CsvUploadForm()
+    mapping_form = CryptoCategoryMappingForm()
+    
+    # Procesar creación de mapeo de categorías
+    if mapping_form.validate_on_submit() and 'create_mapping' in request.form:
+        try:
+            # Verificar si ya existe el mapeo
+            existing_mapping = CryptoCategoryMapping.query.filter_by(
+                user_id=current_user.id,
+                mapping_type=mapping_form.mapping_type.data,
+                source_value=mapping_form.source_value.data
+            ).first()
+            
+            if existing_mapping:
+                existing_mapping.target_category = mapping_form.target_category.data
+                flash(f'Mapeo actualizado: {mapping_form.source_value.data} → {mapping_form.target_category.data}', 'success')
+            else:
+                new_mapping = CryptoCategoryMapping(
+                    user_id=current_user.id,
+                    mapping_type=mapping_form.mapping_type.data,
+                    source_value=mapping_form.source_value.data,
+                    target_category=mapping_form.target_category.data
+                )
+                db.session.add(new_mapping)
+                flash(f'Mapeo creado: {mapping_form.source_value.data} → {mapping_form.target_category.data}', 'success')
+            
+            db.session.commit()
+            
+            # Aplicar el nuevo mapeo a movimientos existentes
+            apply_category_mapping_to_existing(current_user.id, mapping_form.mapping_type.data, 
+                                             mapping_form.source_value.data, mapping_form.target_category.data)
+            
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error creando mapeo: {str(e)}', 'danger')
     
     # Procesar carga de CSV
-    if csv_form.validate_on_submit():
+    if csv_form.validate_on_submit() and 'upload_csv' in request.form:
         try:
             uploaded_file = csv_form.csv_file.data
             exchange_name = csv_form.exchange.data
@@ -1043,18 +1168,16 @@ def crypto_movements():
             duplicates_found = 0
             errors = []
             
-            for row_num, row in enumerate(csv_reader, start=2):  # start=2 porque la fila 1 es el header
+            for row_num, row in enumerate(csv_reader, start=2):
                 try:
                     # Parsear la fecha
                     timestamp_str = row.get('Timestamp (UTC)', '').strip()
                     timestamp_utc = None
                     if timestamp_str:
-                        # Formato esperado: "2024-01-01 12:00:00" o similar
                         try:
                             timestamp_utc = datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S')
                         except ValueError:
                             try:
-                                # Intentar otros formatos posibles
                                 timestamp_utc = datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S.%f')
                             except ValueError:
                                 errors.append(f"Fila {row_num}: Formato de fecha inválido: {timestamp_str}")
@@ -1095,19 +1218,23 @@ def crypto_movements():
                         pass
                     
                     # Crear movimiento temporal para generar hash
+                    transaction_description = row.get('Transaction Description', '').strip()
+                    transaction_kind = row.get('Transaction Kind', '').strip()
+                    native_currency = row.get('Native Currency', '').strip()
+                    
                     temp_movement = CryptoCsvMovement(
                         user_id=current_user.id,
                         exchange_name=exchange_name,
                         timestamp_utc=timestamp_utc,
-                        transaction_description=row.get('Transaction Description', '').strip(),
+                        transaction_description=transaction_description,
                         currency=row.get('Currency', '').strip(),
                         amount=amount,
                         to_currency=row.get('To Currency', '').strip(),
                         to_amount=to_amount,
-                        native_currency=row.get('Native Currency', '').strip(),
+                        native_currency=native_currency,
                         native_amount=native_amount,
                         native_amount_in_usd=native_amount_in_usd,
-                        transaction_kind=row.get('Transaction Kind', '').strip(),
+                        transaction_kind=transaction_kind,
                         transaction_hash=row.get('Transaction Hash', '').strip(),
                         csv_filename=filename
                     )
@@ -1123,10 +1250,26 @@ def crypto_movements():
                     
                     if existing_movement:
                         duplicates_found += 1
-                        continue  # Saltar duplicado
+                        continue
                     
                     # Añadir hash al movimiento
                     temp_movement.transaction_hash_unique = transaction_hash_unique
+                    
+                    # Categorizar automáticamente
+                    category = categorize_transaction(transaction_kind, transaction_description, current_user.id)
+                    temp_movement.category = category
+                    
+                    # Establecer estado de procesamiento
+                    if category == 'Sin Categoría':
+                        temp_movement.process_status = 'SKIP'
+                    else:
+                        temp_movement.process_status = 'OK'
+                    
+                    # Convertir USD a EUR si es necesario
+                    if native_currency == 'USD' and native_amount is not None and timestamp_utc is not None:
+                        exchange_rate = get_usd_to_eur_rate(timestamp_utc)
+                        temp_movement.native_amount = native_amount * exchange_rate
+                        temp_movement.native_currency = 'EUR'
                     
                     db.session.add(temp_movement)
                     movements_added += 1
@@ -1138,11 +1281,25 @@ def crypto_movements():
             # Guardar en la base de datos
             db.session.commit()
             
+            # Detectar huérfanos después de añadir los nuevos movimientos
+            all_movements = CryptoCsvMovement.query.filter_by(user_id=current_user.id).all()
+            orphan_ids = detect_orphans(all_movements)
+            
+            # Actualizar estado de huérfanos
+            if orphan_ids:
+                CryptoCsvMovement.query.filter(
+                    CryptoCsvMovement.id.in_(orphan_ids),
+                    CryptoCsvMovement.user_id == current_user.id
+                ).update({'process_status': 'Huérfano'}, synchronize_session=False)
+                db.session.commit()
+            
             # Mostrar resultado
             if movements_added > 0:
                 flash(f'CSV procesado correctamente. {movements_added} movimientos añadidos.', 'success')
                 if duplicates_found > 0:
                     flash(f'{duplicates_found} movimientos duplicados omitidos.', 'info')
+                if len(orphan_ids) > 0:
+                    flash(f'{len(orphan_ids)} movimientos marcados como huérfanos.', 'warning')
                 if errors:
                     flash(f'Se encontraron {len(errors)} errores en algunas filas.', 'warning')
             elif duplicates_found > 0:
@@ -1151,7 +1308,6 @@ def crypto_movements():
                 flash('No se pudieron procesar movimientos del CSV.', 'warning')
                 
             if errors:
-                # Mostrar solo los primeros 5 errores para no saturar la interfaz
                 for error in errors[:5]:
                     flash(error, 'danger')
                 if len(errors) > 5:
@@ -1161,52 +1317,99 @@ def crypto_movements():
             db.session.rollback()
             flash(f'Error procesando el archivo CSV: {str(e)}', 'danger')
     
-    # Obtener todos los movimientos del usuario ordenados por fecha
-    movements = CryptoCsvMovement.query.filter_by(
-        user_id=current_user.id
-    ).order_by(CryptoCsvMovement.timestamp_utc.desc()).all()
+    # Obtener parámetros de búsqueda
+    search_query = request.args.get('search', '').strip()
     
-    # Estadísticas básicas
-    total_movements = len(movements)
-    exchanges_count = len(set(m.exchange_name for m in movements)) if movements else 0
+    # Construir query base
+    movements_query = CryptoCsvMovement.query.filter_by(user_id=current_user.id)
     
-    # Obtener criptomonedas únicas identificadas
-    unique_currencies = db.session.query(CryptoCsvMovement.currency).filter_by(
-        user_id=current_user.id
-    ).filter(
-        CryptoCsvMovement.currency.isnot(None),
-        CryptoCsvMovement.currency != ''
-    ).distinct().all()
+    # Aplicar filtro de búsqueda si existe
+    if search_query:
+        movements_query = movements_query.filter(
+            db.or_(
+                CryptoCsvMovement.currency.ilike(f'%{search_query}%'),
+                CryptoCsvMovement.transaction_description.ilike(f'%{search_query}%'),
+                CryptoCsvMovement.transaction_kind.ilike(f'%{search_query}%'),
+                CryptoCsvMovement.category.ilike(f'%{search_query}%')
+            )
+        )
     
-    # Procesar las criptomonedas únicas y obtener su estado de verificación
-    crypto_currencies = []
-    for currency_tuple in unique_currencies:
-        currency = currency_tuple[0]
-        if currency and currency.strip():
-            # Buscar si ya existe verificación previa
-            existing_verification = CryptoPriceVerification.query.filter_by(
-                user_id=current_user.id,
-                currency_symbol=currency
-            ).first()
-            
-            crypto_currencies.append({
-                'symbol': currency,
-                'verified': existing_verification.price_available if existing_verification else None,
-                'last_check': existing_verification.last_check if existing_verification else None
-            })
+    # Obtener movimientos ordenados por fecha
+    movements = movements_query.order_by(CryptoCsvMovement.timestamp_utc.desc()).all()
     
-    # Ordenar por símbolo
-    crypto_currencies.sort(key=lambda x: x['symbol'])
+    # Estadísticas
+    total_movements = CryptoCsvMovement.query.filter_by(user_id=current_user.id).count()
+    exchanges_count = len(set(m.exchange_name for m in CryptoCsvMovement.query.filter_by(user_id=current_user.id).all())) if total_movements > 0 else 0
+    orphans_count = CryptoCsvMovement.query.filter_by(user_id=current_user.id, process_status='Huérfano').count()
+    uncategorized_count = CryptoCsvMovement.query.filter_by(user_id=current_user.id, category='Sin Categoría').count()
+    
+    # Calcular P&L por criptomoneda
+    crypto_pnl_data = calculate_crypto_pnl(CryptoCsvMovement.query.filter_by(user_id=current_user.id).all())
+    
+    # Obtener mapeos existentes
+    existing_mappings = CryptoCategoryMapping.query.filter_by(user_id=current_user.id).order_by(
+        CryptoCategoryMapping.mapping_type, CryptoCategoryMapping.source_value
+    ).all()
     
     return render_template(
         'crypto_movements.html',
         csv_form=csv_form,
+        mapping_form=mapping_form,
         movements=movements,
         total_movements=total_movements,
         exchanges_count=exchanges_count,
-        crypto_currencies=crypto_currencies
+        orphans_count=orphans_count,
+        uncategorized_count=uncategorized_count,
+        crypto_pnl_data=crypto_pnl_data,
+        existing_mappings=existing_mappings,
+        search_query=search_query
     )
 
+
+def apply_category_mapping_to_existing(user_id, mapping_type, source_value, target_category):
+    """Aplica un mapeo de categoría a movimientos existentes"""
+    try:
+        if mapping_type == 'Tipo':
+            movements_to_update = CryptoCsvMovement.query.filter_by(
+                user_id=user_id,
+                transaction_kind=source_value
+            ).all()
+        else:  # Descripción
+            movements_to_update = CryptoCsvMovement.query.filter_by(
+                user_id=user_id,
+                transaction_description=source_value
+            ).all()
+        
+        updated_count = 0
+        for movement in movements_to_update:
+            movement.category = target_category
+            # Actualizar process_status según la nueva categoría
+            if target_category == 'Sin Categoría':
+                movement.process_status = 'SKIP'
+            elif movement.process_status == 'SKIP' and target_category != 'Sin Categoría':
+                movement.process_status = 'OK'
+            updated_count += 1
+        
+        db.session.commit()
+        
+        # Recalcular huérfanos después del cambio de categorías
+        all_movements = CryptoCsvMovement.query.filter_by(user_id=user_id).all()
+        orphan_ids = detect_orphans(all_movements)
+        
+        # Actualizar estado de huérfanos
+        if orphan_ids:
+            CryptoCsvMovement.query.filter(
+                CryptoCsvMovement.id.in_(orphan_ids),
+                CryptoCsvMovement.user_id == user_id
+            ).update({'process_status': 'Huérfano'}, synchronize_session=False)
+            db.session.commit()
+        
+        if updated_count > 0:
+            flash(f'{updated_count} movimientos actualizados con la nueva categoría.', 'info')
+            
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error aplicando mapeo: {str(e)}', 'danger')
 
 def log_activity(action_type, message, actor_user=None, target_user=None, details=None):
     try:
@@ -1229,6 +1432,163 @@ def log_activity(action_type, message, actor_user=None, target_user=None, detail
     except Exception as e:
         app.logger.error(f"Error al registrar actividad: {action_type} - {e}", exc_info=True)
         db.session.rollback() # Asegurar rollback si el commit del log falla
+
+def get_usd_to_eur_rate(date):
+    """Obtiene el tipo de cambio USD->EUR para una fecha específica"""
+    try:
+        date_str = date.strftime('%Y-%m-%d')
+        url = f"https://api.frankfurter.app/{date_str}?from=USD&to=EUR"
+        response = requests.get(url, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            return data.get('rates', {}).get('EUR', 1.0)
+        else:
+            # Si falla, usar tipo de cambio actual como fallback
+            current_rate = get_exchange_rate('USD', 'EUR')
+            return current_rate if current_rate else 1.0
+    except Exception as e:
+        print(f"Error obteniendo tipo de cambio para {date_str}: {e}")
+        return 1.0
+
+def categorize_transaction(transaction_kind, transaction_description, user_id):
+    """Categoriza una transacción basada en transaction_kind, descripción y mapeos del usuario"""
+
+    # Primero verificar mapeos personalizados del usuario por tipo
+    user_mapping_type = CryptoCategoryMapping.query.filter_by(
+        user_id=user_id,
+        mapping_type='Tipo',
+        source_value=transaction_kind
+    ).first()
+
+    if user_mapping_type:
+        return user_mapping_type.target_category
+
+    # Luego verificar mapeos personalizados por descripción
+    user_mapping_desc = CryptoCategoryMapping.query.filter_by(
+        user_id=user_id,
+        mapping_type='Descripción',
+        source_value=transaction_description
+    ).first()
+
+    if user_mapping_desc:
+        return user_mapping_desc.target_category
+
+    # Categorización automática por defecto
+    if transaction_kind in BUY_TRANSACTION_KINDS:
+        return 'Compra'
+    elif transaction_kind in SELL_TRANSACTION_KINDS:
+        return 'Venta'
+    elif transaction_kind in REWARD_TRANSACTION_KINDS:
+        return 'Rewards'
+    else:
+        return 'Sin Categoría'
+
+def detect_orphans(movements):
+    """Detecta movimientos huérfanos basado en acumulados por criptomoneda"""
+    
+    # Agrupar por moneda y ordenar por fecha
+    currency_movements = {}
+    for movement in movements:
+        if movement.currency and movement.category in ['Compra', 'Venta', 'Staking Lock', 'Staking UnLock']:
+            if movement.currency not in currency_movements:
+                currency_movements[movement.currency] = []
+            currency_movements[movement.currency].append(movement)
+    
+    # Ordenar cada grupo por fecha
+    for currency in currency_movements:
+        currency_movements[currency].sort(key=lambda x: x.timestamp_utc or datetime.min)
+    
+    orphans = []
+    
+    for currency, movements_list in currency_movements.items():
+        balance = 0.0
+        staking_balance = 0.0
+        
+        for movement in movements_list:
+            if movement.category == 'Compra' and movement.amount:
+                balance += movement.amount
+            elif movement.category == 'Venta' and movement.amount:
+                if balance < movement.amount:
+                    orphans.append(movement.id)
+                else:
+                    balance -= movement.amount
+            elif movement.category == 'Staking Lock' and movement.amount:
+                staking_balance += movement.amount
+            elif movement.category == 'Staking UnLock' and movement.amount:
+                if staking_balance < movement.amount:
+                    orphans.append(movement.id)
+                else:
+                    staking_balance -= movement.amount
+    
+    return orphans
+
+def calculate_crypto_pnl(movements):
+    """Calcula P&L por criptomoneda basado en movimientos de compra/venta no huérfanos"""
+    
+    # Filtrar solo movimientos válidos para P&L
+    valid_movements = [
+        m for m in movements 
+        if m.category in ['Compra', 'Venta'] 
+        and m.process_status != 'Huérfano'
+        and m.currency
+        and m.native_amount
+    ]
+    
+    # Agrupar por moneda
+    currency_data = {}
+    
+    for movement in valid_movements:
+        if movement.currency not in currency_data:
+            currency_data[movement.currency] = {
+                'compras': [],
+                'ventas': [],
+                'total_invested': 0.0,
+                'total_sold': 0.0,
+                'realized_pnl': 0.0
+            }
+        
+        if movement.category == 'Compra':
+            currency_data[movement.currency]['compras'].append(movement)
+            currency_data[movement.currency]['total_invested'] += abs(movement.native_amount)
+        elif movement.category == 'Venta':
+            currency_data[movement.currency]['ventas'].append(movement)
+            currency_data[movement.currency]['total_sold'] += abs(movement.native_amount)
+    
+    # Calcular P&L realizado
+    pnl_data = []
+    for currency, data in currency_data.items():
+        if data['ventas']:  # Solo incluir si hay ventas registradas
+            realized_pnl = data['total_sold'] - data['total_invested']
+            pnl_percentage = (realized_pnl / data['total_invested'] * 100) if data['total_invested'] > 0 else 0
+            
+            pnl_data.append({
+                'currency': currency,
+                'total_invested': data['total_invested'],
+                'total_sold': data['total_sold'],
+                'realized_pnl': realized_pnl,
+                'pnl_percentage': pnl_percentage,
+                'num_compras': len(data['compras']),
+                'num_ventas': len(data['ventas'])
+            })
+    
+    return sorted(pnl_data, key=lambda x: abs(x['realized_pnl']), reverse=True)
+
+def convert_usd_to_eur(movements):
+    """Convierte cantidades nativas de USD a EUR usando tipos de cambio históricos"""
+    for movement in movements:
+        if (movement.native_currency == 'USD' and 
+            movement.native_amount is not None and 
+            movement.timestamp_utc is not None):
+            
+            # Obtener tipo de cambio para la fecha de la transacción
+            exchange_rate = get_usd_to_eur_rate(movement.timestamp_utc)
+            
+            # Convertir la cantidad
+            movement.native_amount = movement.native_amount * exchange_rate
+            movement.native_currency = 'EUR'
+    
+    return movements
 
 def group_top_n_for_pie(data_dict, top_n=7):
     if not data_dict: return {"labels": [], "data": []}
@@ -1446,7 +1806,103 @@ def get_current_financial_crosstime_metrics(user_id):
     }
 
 
+@app.route('/edit_crypto_movement/<int:movement_id>', methods=['GET', 'POST'])
+@login_required
+def edit_crypto_movement(movement_id):
+    """Edita un movimiento de criptomoneda específico"""
+    movement = CryptoCsvMovement.query.filter_by(
+        id=movement_id,
+        user_id=current_user.id
+    ).first_or_404()
+    
+    form = CryptoMovementEditForm()
+    
+    if form.validate_on_submit():
+        try:
+            movement.category = form.category.data
+            movement.process_status = form.process_status.data
+            
+            # Si se marca como "Sin Categoría", automáticamente debe ser "SKIP"
+            if movement.category == 'Sin Categoría':
+                movement.process_status = 'SKIP'
+            
+            db.session.commit()
+            
+            # Recalcular huérfanos después del cambio
+            all_movements = CryptoCsvMovement.query.filter_by(user_id=current_user.id).all()
+            orphan_ids = detect_orphans(all_movements)
+            
+            # Actualizar estado de huérfanos
+            if orphan_ids:
+                CryptoCsvMovement.query.filter(
+                    CryptoCsvMovement.id.in_(orphan_ids),
+                    CryptoCsvMovement.user_id == current_user.id
+                ).update({'process_status': 'Huérfano'}, synchronize_session=False)
+                db.session.commit()
+            
+            flash('Movimiento actualizado correctamente.', 'success')
+            return redirect(url_for('crypto_movements'))
+            
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error actualizando movimiento: {str(e)}', 'danger')
+    
+    # Pre-llenar el formulario con los datos actuales
+    if request.method == 'GET':
+        form.category.data = movement.category
+        form.process_status.data = movement.process_status
+    
+    return render_template('edit_crypto_movement.html', form=form, movement=movement)
 
+@app.route('/delete_crypto_mapping/<int:mapping_id>', methods=['POST'])
+@login_required
+def delete_crypto_mapping(mapping_id):
+    """Elimina un mapeo de categoría"""
+    mapping = CryptoCategoryMapping.query.filter_by(
+        id=mapping_id,
+        user_id=current_user.id
+    ).first_or_404()
+    
+    try:
+        db.session.delete(mapping)
+        db.session.commit()
+        flash('Mapeo eliminado correctamente.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error eliminando mapeo: {str(e)}', 'danger')
+    
+    return redirect(url_for('crypto_movements'))
+
+@app.route('/recalculate_crypto_orphans', methods=['POST'])
+@login_required
+def recalculate_crypto_orphans():
+    """Recalcula todos los movimientos huérfanos"""
+    try:
+        # Resetear todos los estados que no sean 'SKIP'
+        CryptoCsvMovement.query.filter(
+            CryptoCsvMovement.user_id == current_user.id,
+            CryptoCsvMovement.process_status != 'SKIP'
+        ).update({'process_status': 'OK'}, synchronize_session=False)
+        
+        # Recalcular huérfanos
+        all_movements = CryptoCsvMovement.query.filter_by(user_id=current_user.id).all()
+        orphan_ids = detect_orphans(all_movements)
+        
+        # Actualizar estado de huérfanos
+        if orphan_ids:
+            CryptoCsvMovement.query.filter(
+                CryptoCsvMovement.id.in_(orphan_ids),
+                CryptoCsvMovement.user_id == current_user.id
+            ).update({'process_status': 'Huérfano'}, synchronize_session=False)
+        
+        db.session.commit()
+        flash(f'Recálculo completado. {len(orphan_ids)} movimientos marcados como huérfanos.', 'success')
+        
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error recalculando huérfanos: {str(e)}', 'danger')
+    
+    return redirect(url_for('crypto_movements'))
 
 @app.route('/capital_evolution')
 @login_required
@@ -1931,10 +2387,6 @@ class CryptoPriceVerification(db.Model):
     def __repr__(self):
         return f'<CryptoPriceVerification {self.currency_symbol}: {"✓" if self.price_available else "✗"}>'
 
-# Reemplaza tu modelo CryptoCsvMovement en models.py con este código completo:
-
-import hashlib
-
 class CryptoCsvMovement(db.Model):
     __tablename__ = 'crypto_csv_movements'
     
@@ -1955,25 +2407,25 @@ class CryptoCsvMovement(db.Model):
     transaction_kind = db.Column(db.String(100), nullable=True)
     transaction_hash = db.Column(db.String(255), nullable=True)
     
+    # Nuevos campos para categorización y procesamiento
+    category = db.Column(db.String(50), nullable=True, default='Sin Categoría')
+    process_status = db.Column(db.String(20), nullable=True, default='SKIP')
+    
     # Campos de control
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     csv_filename = db.Column(db.String(255), nullable=True)
-    transaction_hash_unique = db.Column(db.String(64), nullable=True, index=True)  # Hash para detectar duplicados
+    transaction_hash_unique = db.Column(db.String(64), nullable=True, index=True)
     
     # Relación con usuario
     user = db.relationship('User', backref=db.backref('crypto_csv_movements', lazy=True, cascade='all, delete-orphan'))
     
     def generate_hash(self):
         """Genera un hash único basado en los datos principales de la transacción."""
-        # Crear string con datos únicos de la transacción
         hash_data = f"{self.user_id}_{self.exchange_name}_{self.timestamp_utc}_{self.transaction_description}_{self.currency}_{self.amount}_{self.to_currency}_{self.to_amount}_{self.transaction_kind}_{self.transaction_hash}"
-        
-        # Generar hash SHA-256
         return hashlib.sha256(hash_data.encode('utf-8')).hexdigest()
     
     def __repr__(self):
         return f'<CryptoCsvMovement {self.id}: {self.exchange_name} - {self.transaction_description}>'
-
 
 class RealEstateAsset(db.Model):
     # ... (como lo tenías, asegurándote de que 'mortgage' es la relación a RealEstateMortgage)
@@ -6106,23 +6558,29 @@ def delete_crypto_movement(movement_id):
     
     return redirect(url_for('crypto_movements'))
 
+
 @app.route('/clear_all_crypto_movements', methods=['POST'])
 @login_required
 def clear_all_crypto_movements():
-    """Elimina todos los movimientos del usuario."""
+    """Elimina todos los movimientos CSV y mapeos del usuario"""
     try:
-        movements_count = CryptoCsvMovement.query.filter_by(user_id=current_user.id).count()
+        # Eliminar todos los movimientos CSV del usuario
         CryptoCsvMovement.query.filter_by(user_id=current_user.id).delete()
+        
+        # Eliminar todos los mapeos de categorías del usuario
+        CryptoCategoryMapping.query.filter_by(user_id=current_user.id).delete()
+        
+        # Eliminar verificaciones de precios del usuario
+        CryptoPriceVerification.query.filter_by(user_id=current_user.id).delete()
+        
         db.session.commit()
-        flash(f'{movements_count} movimientos eliminados correctamente.', 'success')
+        flash('Todos los movimientos, mapeos y verificaciones han sido eliminados.', 'success')
+        
     except Exception as e:
         db.session.rollback()
-        flash(f'Error al eliminar movimientos: {e}', 'danger')
+        flash(f'Error eliminando datos: {str(e)}', 'danger')
     
     return redirect(url_for('crypto_movements'))
-
-
-# Añadir esta nueva ruta después de clear_all_crypto_movements:
 
 @app.route('/verify_crypto_prices', methods=['POST'])
 @login_required
