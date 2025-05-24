@@ -1854,19 +1854,78 @@ def edit_crypto_movement(movement_id):
     
     return render_template('edit_crypto_movement.html', form=form, movement=movement)
 
+
 @app.route('/delete_crypto_mapping/<int:mapping_id>', methods=['POST'])
 @login_required
 def delete_crypto_mapping(mapping_id):
-    """Elimina un mapeo de categoría"""
+    """Elimina un mapeo de categoría y revierte los cambios aplicados"""
     mapping = CryptoCategoryMapping.query.filter_by(
         id=mapping_id,
         user_id=current_user.id
     ).first_or_404()
     
     try:
+        # Guardar datos del mapeo antes de eliminarlo
+        mapping_type = mapping.mapping_type
+        source_value = mapping.source_value
+        target_category = mapping.target_category
+        
+        # Encontrar movimientos que fueron afectados por este mapeo
+        if mapping_type == 'Tipo':
+            affected_movements = CryptoCsvMovement.query.filter_by(
+                user_id=current_user.id,
+                transaction_kind=source_value,
+                category=target_category
+            ).all()
+        else:  # Descripción
+            affected_movements = CryptoCsvMovement.query.filter_by(
+                user_id=current_user.id,
+                transaction_description=source_value,
+                category=target_category
+            ).all()
+        
+        # Eliminar el mapeo
         db.session.delete(mapping)
+        db.session.flush()  # Asegurar que el mapeo se elimine antes de recategorizar
+        
+        # Recategorizar los movimientos afectados sin este mapeo
+        reverted_count = 0
+        for movement in affected_movements:
+            # Recategorizar usando la lógica automática (sin el mapeo eliminado)
+            new_category = categorize_transaction(
+                movement.transaction_kind, 
+                movement.transaction_description, 
+                current_user.id
+            )
+            
+            # Solo actualizar si la categoría cambia
+            if movement.category != new_category:
+                movement.category = new_category
+                
+                # Actualizar process_status según la nueva categoría
+                if new_category == 'Sin Categoría':
+                    movement.process_status = 'SKIP'
+                elif movement.process_status == 'SKIP' and new_category != 'Sin Categoría':
+                    movement.process_status = 'OK'
+                
+                reverted_count += 1
+        
         db.session.commit()
-        flash('Mapeo eliminado correctamente.', 'success')
+        
+        # Recalcular huérfanos después de los cambios de categorías
+        all_movements = CryptoCsvMovement.query.filter_by(user_id=current_user.id).all()
+        orphan_ids = detect_orphans(all_movements)
+        
+        # Actualizar estado de huérfanos
+        if orphan_ids:
+            CryptoCsvMovement.query.filter(
+                CryptoCsvMovement.id.in_(orphan_ids),
+                CryptoCsvMovement.user_id == current_user.id
+            ).update({'process_status': 'Huérfano'}, synchronize_session=False)
+            db.session.commit()
+        
+        flash(f'Mapeo eliminado correctamente. {reverted_count} movimientos revertidos a categorización automática.', 'success')
+        
     except Exception as e:
         db.session.rollback()
         flash(f'Error eliminando mapeo: {str(e)}', 'danger')
