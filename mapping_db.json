@@ -260,5 +260,83 @@
     "google_ex": "HKG",
     "yahoo_suffix": ".HK",
     "name": "PAX GLOBAL TECHNOLOGY LTD"
+  },
+  "US70450Y1038": {
+    "ticker": "PYPL",
+    "name": "PAYPAL HOLDINGS INC",
+    "yahoo_suffix": "",
+    "google_ex": "NASDAQ"
+  },
+  "GB00B0P8RJ60": {
+    "ticker": "IGC",
+    "name": "INDIA CAPITAL GROWTH FND LTD",
+    "yahoo_suffix": ".L",
+    "google_ex": "LON"
+  },
+  "KYG6460B1086": {
+    "ticker": "9616",
+    "name": "NEUSOFT EDUCATION TECHNOLOGY",
+    "yahoo_suffix": ".HK",
+    "google_ex": "HKG"
+  },
+  "NO0003049405": {
+    "ticker": "NKRO",
+    "name": "NEKKAR ASA",
+    "yahoo_suffix": ".OL",
+    "google_ex": "FRA"
+  },
+  "SG1ED2000000": {
+    "ticker": "CRPU",
+    "name": "SASSEUR REAL ESTATE INVESTME",
+    "yahoo_suffix": ".SI",
+    "google_ex": "SGX"
+  },
+  "US78643B5003": {
+    "ticker": "ALAR",
+    "name": "ALARUM TECHNOLOGIES LTD-ADR",
+    "yahoo_suffix": "",
+    "google_ex": "NASDAQ"
+  },
+  "KYG386441037": {
+    "ticker": "GCT",
+    "name": "GIGACLOUD TECHNOLOGY INC - A",
+    "yahoo_suffix": "",
+    "google_ex": "NASDAQ"
+  },
+  "US46627J3023": {
+    "ticker": "H4L1",
+    "name": "HALYK SAVINGS BANK-GDR REG S",
+    "yahoo_suffix": ".F",
+    "google_ex": "FRA"
+  },
+  "US7561091049": {
+    "ticker": "O",
+    "name": "REALTY INCOME CORP",
+    "yahoo_suffix": "",
+    "google_ex": "NYSE"
+  },
+  "US7223041028": {
+    "ticker": "PDD",
+    "name": "PDD HOLDINGS INC",
+    "yahoo_suffix": "",
+    "google_ex": "NASDAQ"
+  },
+  "SE0009554454": {
+    "ticker": "SBB-D",
+    "google_ex": "STO",
+    "yahoo_suffix": ".ST",
+    "name": "SAMHÄLLSBYGGNADSBOLAGET I NORDEN AB"
+  },
+  "CA91702V1013": {
+    "ticker": "URC",
+    "name": "URANIUM ROYALTY CORP",
+    "yahoo_suffix": ".TO",
+    "google_ex": "TSE"
+  },
+  "KYG5215A1004": {
+    "ticker": "9997",
+    "name": "KANGJI MEDICAL HOLDINGS LTD",
+    "yahoo_suffix": ".HK",
+    "google_ex": "HKG"
   }
 }

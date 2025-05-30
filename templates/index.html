@@ -1,55 +1,24 @@
-{% extends "base.html" %} {# Hereda la estructura y navbar de base.html #}
+{% extends "base.html" %}
 
-{% block content %} {# Inicio del bloque de contenido específico #}
+{% block content %}
     <div class="container">
-        <h1>Subir CSVs Anuales de DeGiro</h1>
-        <p>Selecciona tus archivos <code>AAAA.csv</code> para procesar.</p>
+        <h1>Subir CSVs de Transacciones</h1>
+        <p>Selecciona tus archivos CSV para procesar. Compatible con <strong>DeGiro</strong> (formato <code>AAAA.csv</code>) e <strong>IBKR</strong>.</p>
 
-        {# Los mensajes Flash se mostrarán en el bloque de base.html #}
-
-        {# El action apunta a la ruta raíz (endpoint 'index') para el procesamiento POST #}
         <form method="post" enctype="multipart/form-data" action="{{ url_for('index') }}">
-            
-            {# Eliminamos el input_method hidden si solo hay una opción, o lo fijamos #}
             <input type="hidden" name="input_method" value="upload">
 
             <div id="subida-archivos-group" class="mb-3">
                 <label for="csv_files" class="form-label">Selecciona los archivos CSV:</label>
-                <input class="form-control" type="file" id="csv_files" name="csv_files[]" multiple required> {# 'required' para asegurar que se suba algo #}
-                 <div class="form-text">Puedes seleccionar múltiples archivos con formato <code>AAAA.csv</code>.</div>
-            </div>
-
-            {# El siguiente bloque de "Cargar desde Ruta en Servidor" ha sido eliminado #}
-            {# 
-            ANTES ESTABA ESTO:
-            <div class="mb-3">
-                <label class="form-label">Método de Carga:</label>
-                <div class="form-check">
-                    <input class="form-check-input" type="radio" name="input_method" id="method_upload" value="upload" checked onchange="toggleInputMethod()">
-                    <label class="form-check-label" for="method_upload">
-                        Subir Archivos desde mi PC
-                    </label>
-                </div>
-                <div class="form-check">
-                    <input class="form-check-input" type="radio" name="input_method" id="method_path" value="path" onchange="toggleInputMethod()">
-                    <label class="form-check-label" for="method_path">
-                        Cargar desde Ruta en Servidor
-                    </label>
+                <input class="form-control" type="file" id="csv_files" name="csv_files[]" multiple required>
+                <div class="form-text">
+                    <strong>Formatos soportados:</strong><br>
+                    • <strong>DeGiro:</strong> <code>AAAA.csv</code> (ej: 2024.csv)<br>
+                    • <strong>IBKR:</strong> Cualquier archivo CSV exportado desde IBKR
                 </div>
             </div>
-            ...
-            <div id="ruta-servidor-group" class="mb-3">
-                ...
-            </div>
-            #}
 
             <button type="submit" class="btn btn-primary">Procesar Archivos</button>
         </form>
-
-    </div> {# Fin container #}
-{% endblock content %} {# Fin del bloque de contenido específico #}
-
-{% block scripts %} {# Inicio del bloque para scripts específicos #}
-    {# El script toggleInputMethod() ya no es necesario si solo hay una opción #}
-    {# Puedes eliminar este bloque de script o dejarlo vacío si no hay otros scripts #}
-{% endblock scripts %} {# Fin del bloque de scripts #}
+    </div>
+{% endblock content %}

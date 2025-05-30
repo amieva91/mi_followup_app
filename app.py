@@ -47,6 +47,55 @@ OUTPUT_FILENAME = 'degiro_unificado.csv' # Nombre por defecto para descarga fina
 # Asegúrate de que esta carpeta exista.
 SAFE_BASE_DIRECTORY = '/ruta/absoluta/a/tu/carpeta/segura/para/csvs' # <-- ¡¡¡AJUSTA ESTO!!!
 
+# Mapeo de códigos de Mercado IBKR a sufijos de Yahoo Finance
+IBKR_MARKET_TO_YAHOO_MAP = {
+    'NASDAQ': '',      # NASDAQ (US) - sin sufijo
+    'NYSE': '',        # NYSE (US) - sin sufijo  
+    'SEHK': '.HK',     # Hong Kong Stock Exchange
+    'TSE': '.TO',      # Toronto Stock Exchange
+    'LSE': '.L',       # London Stock Exchange
+    'SGX': '.SI',      # Singapore Exchange
+    'OMXNO': '.OL',    # Oslo Stock Exchange
+    'GETTEX2': '.DE',  # German Exchange
+    'BATS': '',        # BATS (US) - sin sufijo
+    'ARCA': '',        # NYSE Arca (US) - sin sufijo
+    'ISLAND': '',      # ISLAND (US) - sin sufijo
+    'IBIS2': '.DE',    # German Exchange (IBIS)
+    'LSEIOB1': '.L',   # London Stock Exchange IOB
+    'DRCTEDGE': '',    # Direct Edge (US) - sin sufijo
+    'IBKR': '',        # IBKR internal - sin sufijo
+    'IBKRATS': '',     # IBKR ATS - sin sufijo
+    'TSXDARK': '.TO',  # TSX Dark Pool
+    'TRIACT': '.TO',   # TriAct Canada
+    'ALPHA': '.TO',    # Alpha Exchange
+    'CAIBFRSH': '.TO', # Canadian exchange
+    'IDEALFX': '',     # IBKR FX - no aplicable para acciones
+}
+
+# Mapeo de códigos de Mercado IBKR a códigos de Google Exchange  
+IBKR_MARKET_TO_GOOGLE_MAP = {
+    'NASDAQ': 'NASDAQ',
+    'NYSE': 'NYSE', 
+    'SEHK': 'HKG',
+    'TSE': 'TSE',
+    'LSE': 'LON',
+    'SGX': 'SGX',
+    'OMXNO': 'OSL',
+    'GETTEX2': 'FRA',
+    'BATS': 'BATS',
+    'ARCA': 'ARCA',
+    'ISLAND': 'NASDAQ',  # Island es parte de NASDAQ
+    'IBIS2': 'FRA',
+    'LSEIOB1': 'LON',
+    'DRCTEDGE': 'NYSE',  # Direct Edge parte de NYSE
+    'IBKR': 'NASDAQ',    # Default para IBKR interno
+    'IBKRATS': 'NASDAQ', # Default para IBKR ATS
+    'TSXDARK': 'TSE',
+    'TRIACT': 'TSE',
+    'ALPHA': 'TSE',
+    'CAIBFRSH': 'TSE',
+}
+
 # Nombres FINALES deseados y su orden para el CSV descargado
 FINAL_COLS_ORDERED = [
     "Fecha", "Hora", "Producto", "ISIN", "Ticker", "Bolsa", "Exchange Yahoo",
@@ -72,6 +121,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'si
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024
+app.config['OUTPUT_FOLDER'] = OUTPUT_FOLDER
 
 # --- Configuración para Flask-Mail (NECESITARÁS AJUSTAR ESTO) ---
 # Ejemplo de configuración esencial en app.py
@@ -1425,6 +1475,1297 @@ def crypto_movements():
        search_query=search_query
    )
 
+def process_uploaded_csvs(files):
+    """
+    Función modificada para soportar tanto DeGiro como IBKR.
+    Mantiene la misma interfaz que la función original.
+    
+    Returns:
+        tuple: (processed_df_for_csv, combined_df_raw, errors)
+    """
+    all_dfs = []
+    filenames_processed = []
+    errors = []
+
+    if not files or all(f.filename == '' for f in files):
+        errors.append("Error: No archivos seleccionados.")
+        return None, None, errors
+
+    for file in files:
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            
+            # Validación de nombre de archivo más flexible
+            if not validate_filename_format_flexible(filename):
+                errors.append(f"Advertencia: Archivo '{filename}' ignorado (formato inválido).")
+                continue
+            
+            df = None
+            try:
+                file.seek(0)
+                
+                # Detectar formato del CSV
+                csv_format = detect_csv_format_simple(file)
+                print(f"Formato detectado para '{filename}': {csv_format}")
+                
+                if csv_format == 'ibkr':
+                    # Procesar CSV de IBKR
+                    print(f"Procesando archivo IBKR: {filename}")
+                    df = process_ibkr_file_complete(file, filename)
+                    if df is not None:
+                        df['csv_format'] = 'ibkr'
+                    
+                else:
+                    # Procesar como DeGiro (lógica original)
+                    file.seek(0)
+                    try:
+                        # Intenta leer con UTF-8 primero
+                        df = pd.read_csv(io.BytesIO(file.read()), encoding='utf-8', sep=',', decimal='.', skiprows=0, header=0)
+                        print(f"Archivo '{filename}' leído con UTF-8. Columnas: {df.columns.tolist()}")
+                    except UnicodeDecodeError:
+                        try:
+                            file.seek(0)
+                            # Si falla UTF-8, intenta con latin-1
+                            df = pd.read_csv(io.BytesIO(file.read()), encoding='latin-1', sep=',', decimal='.', skiprows=0, header=0)
+                            print(f"Archivo '{filename}' leído con latin-1. Columnas: {df.columns.tolist()}")
+                        except Exception as e:
+                            errors.append(f"Error leyendo '{filename}' (probado con UTF-8 y latin-1): {e}")
+                            continue
+                    except Exception as e:
+                        errors.append(f"Error general leyendo '{filename}': {e}")
+                        continue
+                    
+                    if df is not None:
+                        df['csv_format'] = 'degiro'
+
+            except Exception as e:
+                errors.append(f"Error procesando archivo '{filename}': {e}")
+                continue
+
+            if df is not None and not df.empty:
+                # Validar columnas para DeGiro
+                if csv_format != 'ibkr':
+                    missing_original_cols = [col for col in COLS_MAP.keys() if col not in df.columns]
+                    if missing_original_cols:
+                        errors.append(f"Advertencia: Columnas originales faltantes en '{filename}': {', '.join(missing_original_cols)}.")
+                
+                df['source_file'] = filename
+                all_dfs.append(df)
+                filenames_processed.append(filename)
+            else:
+                errors.append(f"Error: No se pudieron leer datos válidos de '{filename}'.")
+        else:
+            if file:
+                errors.append(f"Archivo '{file.filename}' no permitido (debe ser .csv).")
+
+    if not all_dfs:
+        errors.append("Error: No se procesaron archivos válidos.")
+        return None, None, errors
+
+    try:
+        combined_df_raw = pd.concat(all_dfs, ignore_index=True)
+        
+        # Parsear fechas y ordenar
+        try:
+            if 'Fecha' in combined_df_raw.columns and 'Hora' in combined_df_raw.columns:
+                combined_df_raw['FechaHora'] = pd.to_datetime(
+                    combined_df_raw['Fecha'] + ' ' + combined_df_raw['Hora'], 
+                    dayfirst=True, errors='coerce'
+                )
+                combined_df_raw = combined_df_raw.sort_values('FechaHora', ascending=True)
+            elif 'Fecha' in combined_df_raw.columns:
+                combined_df_raw['Fecha'] = pd.to_datetime(combined_df_raw['Fecha'], dayfirst=True, errors='coerce')
+                combined_df_raw = combined_df_raw.sort_values('Fecha', ascending=True)
+        except Exception as e_date:
+            errors.append(f"Advertencia: Error parseando fechas: {e_date}")
+
+        # Preparar DataFrame para cálculo de portfolio
+        df_for_portfolio_calc = combined_df_raw.copy()
+        
+        # Si contiene datos de IBKR, ajustar para calculate_portfolio
+        has_ibkr_data = False
+        if 'csv_format' in combined_df_raw.columns:
+            has_ibkr_data = any(combined_df_raw['csv_format'] == 'ibkr')
+        else:
+            # Fallback: detectar por presencia de ciertos patrones
+            has_ibkr_data = any('U12722327' in str(row.get('source_file', '')) 
+                              for _, row in combined_df_raw.iterrows())
+        
+        if has_ibkr_data:
+            print("Detectados datos IBKR, ajustando DataFrame para calculate_portfolio")
+            df_for_portfolio_calc = prepare_dataframe_for_portfolio_calculation(df_for_portfolio_calc)
+
+        # Preparar DataFrame para CSV final
+        processed_df_for_csv = prepare_processed_dataframe(combined_df_raw, errors)
+
+        return processed_df_for_csv, df_for_portfolio_calc, errors
+
+    except Exception as e_concat:
+        errors.append(f"Error al combinar archivos CSV o parsear fechas: {e_concat}")
+        return None, None, errors
+
+
+def prepare_dataframe_for_portfolio_calculation(df_input): # Renombrado el parámetro de entrada
+    """
+    Prepara el DataFrame para que calculate_portfolio funcione correctamente.
+    Ajusta el signo de 'Número' para transacciones IBKR basado en 'Total'.
+    Las filas de DeGiro deben pasar sin cambios en su columna 'Número'.
+    """
+    if df_input.empty:
+        print("DEBUG: prepare_dataframe_for_portfolio_calculation recibió un DataFrame vacío.")
+        return df_input
+    
+    # Trabajar sobre una copia para no modificar el DataFrame original que podría usarse en otro lado
+    df_processed = df_input.copy() 
+    
+    print("DEBUG: Iniciando prepare_dataframe_for_portfolio_calculation...")
+    stock_isin_to_debug = "SE0009554454" # ¡¡¡REEMPLAZA CON EL ISIN CORRECTO DE SBB!!!
+    
+    # Crear una lista para almacenar los nuevos valores de 'Número'
+    nuevos_numeros = []
+    
+    for idx, row in df_processed.iterrows(): # Iterar sobre la copia
+        is_sbb_row = row.get('ISIN') == stock_isin_to_debug
+        current_csv_format = row.get('csv_format', 'desconocido')
+
+        cantidad_original_str = str(row.get('Número', '0')) # Obtener como string para limpieza
+        total_str = str(row.get('Total', '0'))           # Obtener como string para limpieza
+
+        if is_sbb_row:
+            print(f"  DEBUG SBB (Fila índice pandas: {idx}, Archivo: {row.get('source_file', 'N/A')}):")
+            print(f"    Fila ANTES de cualquier ajuste en prepare_dataframe_for_portfolio_calculation:")
+            print(f"      Número (str): '{cantidad_original_str}', Total (str): '{total_str}', "
+                  f"csv_format: {current_csv_format}")
+
+        try:
+            cantidad_original = float(cantidad_original_str.replace(',', '.'))
+        except ValueError:
+            if is_sbb_row:
+                print(f"    DEBUG SBB (Fila {idx}): 'Número' original ('{cantidad_original_str}') no es numérico. Usando 0.")
+            cantidad_original = 0.0 # O manejar el error de otra forma
+
+        try:
+            total_value = float(total_str.replace(',', '.'))
+        except ValueError:
+            if is_sbb_row:
+                print(f"    DEBUG SBB (Fila {idx}): 'Total' ('{total_str}') no es numérico. Usando 0 para lógica de signo.")
+            total_value = 0.0
+
+        cantidad_final = cantidad_original # Por defecto
+
+        if current_csv_format == 'ibkr':
+            if total_value < 0: # Compra IBKR
+                cantidad_final = abs(cantidad_original) 
+            elif total_value > 0: # Venta IBKR
+                cantidad_final = -abs(cantidad_original)
+            
+            if is_sbb_row: # Esto no debería ocurrir si SBB es de DeGiro
+                print(f"    DEBUG SBB (Fila {idx}): Identificada ERRÓNEAMENTE como 'ibkr'. "
+                      f"total_value: {total_value}, cant_orig: {cantidad_original}, cant_final calculada (IBKR logic): {cantidad_final}")
+        
+        nuevos_numeros.append(cantidad_final)
+
+        if is_sbb_row:
+            print(f"    DEBUG SBB (Fila {idx}): Lógica de ajuste en prepare_dataframe_for_portfolio_calculation:")
+            print(f"      total_value usado: {total_value}, cantidad_original: {cantidad_original}, "
+                  f"cantidad_final a añadir a lista: {cantidad_final}")
+            if cantidad_final != cantidad_original and current_csv_format != 'ibkr':
+                 print(f"      ALERTA: ¡El valor 'Número' de SBB cambió de {cantidad_original} a {cantidad_final} y no es una fila IBKR!")
+            elif cantidad_final == cantidad_original and current_csv_format != 'ibkr':
+                 print(f"      INFO: El valor 'Número' de SBB ({current_csv_format}) no cambió: {cantidad_original} -> {cantidad_final}")
+            elif current_csv_format == 'ibkr':
+                 print(f"      INFO: Fila IBKR. Cantidad original: {cantidad_original}, Cantidad final (ajustada por Total): {cantidad_final}")
+
+
+    # Asignar la lista completa de nuevos números al DataFrame de una vez
+    df_processed['Número'] = nuevos_numeros
+    
+    # Comprobación final para SBB después de asignar toda la columna
+    if stock_isin_to_debug in df_processed['ISIN'].values:
+        sbb_final_check_rows = df_processed[df_processed['ISIN'] == stock_isin_to_debug]
+        print(f"  DEBUG SBB: Valores FINALES de 'Número' en df_processed para SBB (después de asignar la columna 'nuevos_numeros'):")
+        for _, sbb_row_final in sbb_final_check_rows.iterrows():
+             print(f"    Fila índice pandas: {sbb_row_final.name}, 'Número': {sbb_row_final['Número']}")
+    
+    print("DEBUG: Fin de prepare_dataframe_for_portfolio_calculation.")
+    return df_processed
+
+
+def detect_csv_format_simple(file):
+    """Detecta formato CSV de manera simple y robusta."""
+    try:
+        file.seek(0)
+        # Leer primeras líneas como bytes y luego decodificar
+        first_chunk = file.read(2048)  # Leer primeros 2KB
+        
+        if isinstance(first_chunk, bytes):
+            try:
+                content = first_chunk.decode('utf-8')
+            except UnicodeDecodeError:
+                try:
+                    content = first_chunk.decode('latin-1')
+                except:
+                    content = str(first_chunk)
+        else:
+            content = str(first_chunk)
+        
+        file.seek(0)  # Volver al inicio
+        
+        # Verificar las primeras líneas
+        first_lines = content.split('\n')[:15]  # Verificar más líneas
+        
+        # Buscar indicadores claros de IBKR
+        ibkr_indicators = 0
+        for line in first_lines:
+            line_lower = line.lower()
+            if ('statement,' in line_lower or 
+                'operaciones,' in line_lower or 
+                'información de instrumento' in line_lower or
+                'posiciones abiertas,' in line_lower or
+                'valor liquidativo,' in line_lower):
+                ibkr_indicators += 1
+        
+        if ibkr_indicators >= 2:  # Al menos 2 indicadores para estar seguro
+            return 'ibkr'
+        
+        # Buscar indicadores de DeGiro
+        degiro_indicators = ['fecha', 'hora', 'producto', 'isin', 'bolsa de', 'número', 'precio']
+        for line in first_lines:
+            line_lower = line.lower()
+            degiro_matches = sum(1 for indicator in degiro_indicators if indicator in line_lower)
+            if degiro_matches >= 4:  # Al menos 4 columnas conocidas de DeGiro
+                return 'degiro'
+        
+        # Por defecto, asumir DeGiro
+        return 'degiro'
+        
+    except Exception as e:
+        print(f"Error detectando formato: {e}")
+        return 'degiro'  # Fallback a DeGiro
+
+
+def validate_filename_format_flexible(filename):
+    """Validación de archivo más flexible que acepta tanto DeGiro como IBKR."""
+    if not filename or not filename.lower().endswith('.csv'):
+        return False
+    
+    # Permitir formato AAAA.csv para DeGiro
+    if re.match(r"^\d{4}\.csv$", filename):
+        return True
+    
+    # Permitir nombres de IBKR típicos (empiezan con U y contienen números)
+    if re.match(r"^U\d+_\d{8}_\d{8}\.csv$", filename):
+        return True
+    
+    # Permitir otros nombres válidos sin caracteres peligrosos
+    dangerous_chars = ['<', '>', ':', '"', '|', '?', '*', '\\', '/']
+    if any(char in filename for char in dangerous_chars):
+        return False
+    
+    return len(filename) <= 255
+
+
+def prepare_processed_dataframe(combined_df_raw, errors):
+    """Prepara el DataFrame procesado aplicando las transformaciones necesarias."""
+    try:
+        # Determinar si necesitamos aplicar renombrado de columnas (solo para DeGiro)
+        cols_to_rename_present = [col for col in COLS_MAP.keys() if col in combined_df_raw.columns]
+        
+        if cols_to_rename_present:
+            # Aplicar renombrado de columnas de DeGiro
+            filtered_df = combined_df_raw[cols_to_rename_present].copy()
+            renamed = filtered_df.rename(columns=COLS_MAP)
+        else:
+            # Para IBKR, las columnas ya están en el formato correcto
+            renamed = combined_df_raw.copy()
+        
+        # Añadir Exchange Yahoo si no existe pero tenemos datos de Bolsa
+        if 'Bolsa' in renamed.columns and 'Exchange Yahoo' not in renamed.columns:
+            renamed['Exchange Yahoo'] = renamed['Bolsa'].map(BOLSA_TO_YAHOO_MAP).fillna('')
+        elif 'Bolsa de' in renamed.columns and 'Exchange Yahoo' not in renamed.columns:
+            # Para datos que vienen de IBKR
+            renamed['Exchange Yahoo'] = renamed['Bolsa de'].map(get_yahoo_suffix_mapping()).fillna('')
+        
+        # Convertir columnas numéricas
+        for col in NUMERIC_COLS:
+            if col in renamed.columns:
+                if not pd.api.types.is_numeric_dtype(renamed[col]):
+                    # Limpieza de strings antes de convertir a numérico
+                    cleaned_series = renamed[col].astype(str).str.replace(r'[$\s€]', '', regex=True).str.replace(',', '', regex=False)
+                    renamed[col] = pd.to_numeric(cleaned_series, errors='coerce')
+
+                if pd.api.types.is_numeric_dtype(renamed[col]) or renamed[col].isnull().any():
+                    renamed[col] = renamed[col].fillna(0)
+
+                if col == 'Cantidad':
+                    if pd.api.types.is_numeric_dtype(renamed[col]):
+                        renamed[col] = renamed[col].abs()  # Cantidad siempre positiva
+
+                if pd.api.types.is_numeric_dtype(renamed[col]):
+                    renamed[col] = renamed[col].astype(float)
+        
+        return renamed
+        
+    except Exception as e:
+        error_msg = f"Error preparando DataFrame procesado: {e}"
+        print(error_msg)
+        errors.append(error_msg)
+        return combined_df_raw
+
+
+def get_yahoo_suffix_mapping():
+    """Obtiene el mapeo de mercados IBKR a sufijos Yahoo."""
+    return {
+        'NASDAQ': '', 'NYSE': '', 'SEHK': '.HK', 'TSE': '.TO', 'LSE': '.L',
+        'SGX': '.SI', 'OMXNO': '.OL', 'GETTEX2': '.DE', 'BATS': '',
+        'ARCA': '', 'ISLAND': '', 'IBIS2': '.DE', 'LSEIOB1': '.L',
+        'DRCTEDGE': '', 'IBKR': '', 'IBKRATS': '', 'TSXDARK': '.TO',
+        'TRIACT': '.TO', 'ALPHA': '.TO', 'CAIBFRSH': '.TO'
+    }
+
+def detect_csv_format_simple(file):
+    """Detecta formato CSV de manera simple y robusta."""
+    try:
+        file.seek(0)
+        # Leer primeras líneas como bytes y luego decodificar
+        first_chunk = file.read(2048)  # Leer primeros 2KB
+        
+        if isinstance(first_chunk, bytes):
+            try:
+                content = first_chunk.decode('utf-8')
+            except UnicodeDecodeError:
+                try:
+                    content = first_chunk.decode('latin-1')
+                except:
+                    content = str(first_chunk)
+        else:
+            content = str(first_chunk)
+        
+        file.seek(0)  # Volver al inicio
+        
+        # Verificar las primeras líneas
+        first_lines = content.split('\n')[:15]  # Verificar más líneas
+        
+        # Buscar indicadores claros de IBKR
+        ibkr_indicators = 0
+        for line in first_lines:
+            line_lower = line.lower()
+            if ('statement,' in line_lower or 
+                'operaciones,' in line_lower or 
+                'información de instrumento' in line_lower or
+                'posiciones abiertas,' in line_lower or
+                'valor liquidativo,' in line_lower):
+                ibkr_indicators += 1
+        
+        if ibkr_indicators >= 2:  # Al menos 2 indicadores para estar seguro
+            return 'ibkr'
+        
+        # Buscar indicadores de DeGiro
+        degiro_indicators = ['fecha', 'hora', 'producto', 'isin', 'bolsa de', 'número', 'precio']
+        for line in first_lines:
+            line_lower = line.lower()
+            degiro_matches = sum(1 for indicator in degiro_indicators if indicator in line_lower)
+            if degiro_matches >= 4:  # Al menos 4 columnas conocidas de DeGiro
+                return 'degiro'
+        
+        # Por defecto, asumir DeGiro
+        return 'degiro'
+        
+    except Exception as e:
+        print(f"Error detectando formato: {e}")
+        return 'degiro'  # Fallback a DeGiro
+
+
+def validate_filename_format_flexible(filename):
+    """Validación de archivo más flexible que acepta tanto DeGiro como IBKR."""
+    if not filename or not filename.lower().endswith('.csv'):
+        return False
+    
+    # Permitir formato AAAA.csv para DeGiro
+    if re.match(r"^\d{4}\.csv$", filename):
+        return True
+    
+    # Permitir nombres de IBKR típicos (empiezan con U y contienen números)
+    if re.match(r"^U\d+_\d{8}_\d{8}\.csv$", filename):
+        return True
+    
+    # Permitir otros nombres válidos sin caracteres peligrosos
+    dangerous_chars = ['<', '>', ':', '"', '|', '?', '*', '\\', '/']
+    if any(char in filename for char in dangerous_chars):
+        return False
+    
+    return len(filename) <= 255
+
+
+
+
+
+def prepare_processed_dataframe(combined_df_raw, errors):
+    """Prepara el DataFrame procesado aplicando las transformaciones necesarias."""
+    try:
+        # Determinar si necesitamos aplicar renombrado de columnas (solo para DeGiro)
+        cols_to_rename_present = [col for col in COLS_MAP.keys() if col in combined_df_raw.columns]
+        
+        if cols_to_rename_present:
+            # Aplicar renombrado de columnas de DeGiro
+            filtered_df = combined_df_raw[cols_to_rename_present].copy()
+            renamed = filtered_df.rename(columns=COLS_MAP)
+        else:
+            # Para IBKR, las columnas ya están en el formato correcto
+            renamed = combined_df_raw.copy()
+        
+        # Añadir Exchange Yahoo si no existe pero tenemos datos de Bolsa
+        if 'Bolsa' in renamed.columns and 'Exchange Yahoo' not in renamed.columns:
+            renamed['Exchange Yahoo'] = renamed['Bolsa'].map(BOLSA_TO_YAHOO_MAP).fillna('')
+        elif 'Bolsa de' in renamed.columns and 'Exchange Yahoo' not in renamed.columns:
+            # Para datos que vienen de IBKR
+            renamed['Exchange Yahoo'] = renamed['Bolsa de'].map(get_yahoo_suffix_mapping()).fillna('')
+        
+        # Convertir columnas numéricas
+        for col in NUMERIC_COLS:
+            if col in renamed.columns:
+                if not pd.api.types.is_numeric_dtype(renamed[col]):
+                    # Limpieza de strings antes de convertir a numérico
+                    cleaned_series = renamed[col].astype(str).str.replace(r'[$\s€]', '', regex=True).str.replace(',', '', regex=False)
+                    renamed[col] = pd.to_numeric(cleaned_series, errors='coerce')
+
+                if pd.api.types.is_numeric_dtype(renamed[col]) or renamed[col].isnull().any():
+                    renamed[col] = renamed[col].fillna(0)
+
+                if col == 'Cantidad':
+                    if pd.api.types.is_numeric_dtype(renamed[col]):
+                        renamed[col] = renamed[col].abs()  # Cantidad siempre positiva
+
+                if pd.api.types.is_numeric_dtype(renamed[col]):
+                    renamed[col] = renamed[col].astype(float)
+        
+        return renamed
+        
+    except Exception as e:
+        error_msg = f"Error preparando DataFrame procesado: {e}"
+        print(error_msg)
+        errors.append(error_msg)
+        return combined_df_raw
+
+
+
+def get_yahoo_suffix_mapping():
+    """Obtiene el mapeo de mercados IBKR a sufijos Yahoo."""
+    return {
+        'NASDAQ': '', 'NYSE': '', 'SEHK': '.HK', 'TSE': '.TO', 'LSE': '.L',
+        'SGX': '.SI', 'OMXNO': '.OL', 'GETTEX2': '.DE', 'BATS': '',
+        'ARCA': '', 'ISLAND': '', 'IBIS2': '.DE', 'LSEIOB1': '.L',
+        'DRCTEDGE': '', 'IBKR': '', 'IBKRATS': '', 'TSXDARK': '.TO',
+        'TRIACT': '.TO', 'ALPHA': '.TO', 'CAIBFRSH': '.TO'
+    }
+
+
+def get_google_ex_mapping():
+    """Obtiene el mapeo de mercados IBKR a códigos Google Exchange."""
+    return {
+        'NASDAQ': 'NASDAQ', 'NYSE': 'NYSE', 'SEHK': 'HKG', 'TSE': 'TSE',
+        'LSE': 'LON', 'SGX': 'SGX', 'OMXNO': 'OSL', 'GETTEX2': 'FRA',
+        'BATS': 'BATS', 'ARCA': 'ARCA', 'ISLAND': 'NASDAQ',
+        'IBIS2': 'FRA', 'LSEIOB1': 'LON', 'DRCTEDGE': 'NYSE',
+        'IBKR': 'NASDAQ', 'IBKRATS': 'NASDAQ', 'TSXDARK': 'TSE',
+        'TRIACT': 'TSE', 'ALPHA': 'TSE', 'CAIBFRSH': 'TSE'
+    }
+
+
+import csv
+from io import StringIO
+
+# -*- coding: utf-8 -*-
+# ... (imports) ...
+
+def process_ibkr_file_complete(file, filename):
+    # ... (Fase 1: Extraer instrumentos - sin cambios) ...
+    try:
+        file.seek(0)
+        content = file.read()
+        if isinstance(content, bytes):
+            try: content = content.decode('utf-8')
+            except UnicodeDecodeError: content = content.decode('latin-1')
+        
+        lines = content.split('\n')
+        transactions, instruments = [], {} # Definir instruments aquí
+        
+        # Fase 1: Extraer instrumentos (como estaba)
+        for line_num, line_content in enumerate(lines, 1):
+            line_str = line_content.strip()
+            if not line_str or not line_str.startswith('Información de instrumento financiero,Data,Acciones'):
+                continue
+            try:
+                csv_reader_instr = csv.reader(StringIO(line_str))
+                parts_instr = next(csv_reader_instr)
+                if len(parts_instr) >= 9:
+                    symbol_instr, description_instr, isin_instr, market_instr = parts_instr[3].strip(), parts_instr[4].strip(), parts_instr[6].strip(), parts_instr[8].strip()
+                    if symbol_instr and isin_instr:
+                        instruments[symbol_instr] = {'isin': isin_instr, 'name': description_instr, 'market': market_instr}
+            except Exception as e_instr:
+                print(f"Error parseando instrumento en línea {line_num}: {line_str[:100]} -> {e_instr}")
+
+        if instruments: print(f"Total instrumentos encontrados: {len(instruments)}")
+        else: print("No se encontraron instrumentos en la Fase 1.")
+
+
+        # Fase 2: Extraer transacciones
+        transaction_lines_found = 0
+        for line_num, line_content in enumerate(lines, 1):
+            line_str_original = line_content.strip()
+            if not line_str_original: continue
+
+            # Determinar si es una línea de transacción
+            # La línea puede estar entrecomillada o no.
+            # Ej1: "Operaciones,Data,Trade,Acciones,..."
+            # Ej2: Operaciones,Data,Trade,Acciones,...
+            
+            line_to_check_header = line_str_original
+            if line_to_check_header.startswith('"'):
+                line_to_check_header = line_to_check_header[1:] # Quitar solo la primera comilla para la comprobación del header
+
+            if not line_to_check_header.startswith('Operaciones,Data,Trade,Acciones'):
+                continue 
+            
+            transaction_lines_found += 1
+            parts = []
+            parsing_success = False
+
+            # Lógica de limpieza de la línea para csv.reader:
+            # Queremos la cadena que está entre la primera comilla (si existe) 
+            # y la última comilla que precede a la posible basura final (";P;")
+            # o la línea tal cual si no está entrecomillada globalmente.
+
+            line_for_csv_reader = line_str_original
+            if line_str_original.startswith('"'):
+                # Encontrar el final del contenido CSV real, que debería ser justo antes de una comilla
+                # que podría estar seguida por basura como ";P;"
+                # Ejemplo: "CSV_CONTENT_ENDS_HERE";P;...
+                #          ^                     ^
+                #      start_quote           end_quote_of_content
+                
+                # Buscar la última comilla que es parte del contenido CSV.
+                # A menudo, la basura como ";P;" no está entrecomillada.
+                # Si ";P;" existe y hay una comilla justo antes, ese es el final del CSV.
+                garbage_separator_pos = line_str_original.rfind('";') # Busca comilla seguida de punto y coma
+                if garbage_separator_pos > 0 : # Si se encuentra ";
+                    line_for_csv_reader = line_str_original[1:garbage_separator_pos]
+                elif line_str_original.endswith('"'): # Si termina con comilla y no se encontró basura
+                    line_for_csv_reader = line_str_original[1:-1]
+                else: # Empieza con comilla pero no termina con comilla (o no se encontró ";)
+                      # Esto es un caso difícil, podríamos intentar quitar solo la primera.
+                      # O buscar la última comilla en la línea.
+                    last_q = line_str_original.rfind('"')
+                    if last_q > 0: # Si hay otra comilla
+                        line_for_csv_reader = line_str_original[1:last_q]
+                    else: # Solo comilla al inicio, caso raro
+                        line_for_csv_reader = line_str_original[1:]
+
+
+            try:
+                csv_reader_trans = csv.reader(StringIO(line_for_csv_reader))
+                parts = next(csv_reader_trans)
+                if len(parts) >= 4 and parts[0] == "Operaciones" and parts[1] == "Data" and parts[2] == "Trade" and parts[3] == "Acciones":
+                    if len(parts) >= 13: 
+                        parsing_success = True
+            except Exception as e_csv:
+                if transaction_lines_found <= 3:
+                    print(f"Línea {line_num}: Falló csv.reader en línea procesada '{line_for_csv_reader[:100]}...': {e_csv}")
+                parts = [] 
+                parsing_success = False
+            
+            # ----- DEBUG INICIAL (Mantenido y ajustado) -----
+            if transaction_lines_found <= 3:
+                print(f"\n=== DEBUG TRANSACCIÓN {transaction_lines_found} (línea CSV original: {line_num}) ===")
+                print(f"Línea original stripped: '{line_str_original[:150]}...'")
+                print(f"Línea pasada a csv.reader: '{line_for_csv_reader[:150]}...'")
+                print(f"Parsing CSV exitoso: {parsing_success}")
+                print(f"Total parts obtenidos: {len(parts)}")
+                if parts: print(f"Parts (primeros 15 para ver estructura): {parts[:15]}")
+            # ----- FIN DEBUG INICIAL -----
+
+            if not parsing_success:
+                if transaction_lines_found <= 3: 
+                    print(f"  Línea {line_num}: Saltada por fallo en parseo o cabecera/longitud incorrecta. Parts len: {len(parts)}")
+                    if parts and len(parts) >=4: print(f"    Header check: {parts[0]},{parts[1]},{parts[2]},{parts[3]}")
+                if transaction_lines_found <= 3: print("=== FIN DEBUG (FALLO PARSEO/VALIDACIÓN) ===\n")
+                continue
+            
+            # ----- Lógica adaptativa de índices y extracción de campos (como en la respuesta anterior) -----
+            current_idx_currency = 4
+            current_idx_symbol = 5
+            
+            current_idx_datetime_field_date = 6 
+            current_idx_datetime_field_time = -1 
+            current_idx_market = 7
+            current_idx_quantity = 8
+            current_idx_price = 9
+            current_idx_total_value = 11
+            current_idx_commission = 12
+            is_format_urc_like = False
+
+            if len(parts) >= 10:
+                try:
+                    float(str(parts[9]).replace(',', '').replace('"', '')) 
+                    try:
+                        float(str(parts[8]).replace(',', '').replace('"', '')) 
+                    except ValueError: 
+                        is_format_urc_like = True
+                except ValueError: 
+                    pass
+            
+            if is_format_urc_like:
+                if transaction_lines_found <= 3: print("  Formato detectado: URC-like (parts[6]=fecha, parts[7]=hora, parts[9]=cantidad)")
+                current_idx_datetime_field_time = 7 
+                current_idx_market = 8
+                current_idx_quantity = 9
+                current_idx_price = 10
+                current_idx_total_value = 12
+                current_idx_commission = 13
+            else: 
+                 if transaction_lines_found <= 3: print("  Formato detectado: PYPL-like (parts[6]=fecha-hora, parts[8]=cantidad)")
+
+            required_indices_check = [current_idx_currency, current_idx_symbol, current_idx_datetime_field_date, 
+                                 current_idx_market, current_idx_quantity, current_idx_price, 
+                                 current_idx_total_value, current_idx_commission]
+            if current_idx_datetime_field_time != -1:
+                required_indices_check.append(current_idx_datetime_field_time)
+
+            is_crpu_qty_split_case = False
+            symbol_check = parts[current_idx_symbol].strip() if current_idx_symbol < len(parts) else ""
+            
+            if symbol_check == "CRPU" and is_format_urc_like :
+                qty_part1_check = str(parts[current_idx_quantity]) # ej. '5'
+                if (current_idx_quantity + 1) < len(parts):
+                    qty_part2_check = str(parts[current_idx_quantity + 1]) # ej. '400""'
+                    # Comprobar si el primer char de qty_part1 es digito o '-' y el resto digitos,
+                    # y si qty_part2 termina en '00""' y el resto son dígitos.
+                    if (qty_part1_check.replace('-','').isdigit() and 
+                        qty_part2_check.replace('"', '').endswith('00') and 
+                        qty_part2_check.replace('"', '')[:-2].isdigit()):
+                        is_crpu_qty_split_case = True
+                        if transaction_lines_found <=3 : print(f"  CRPU Split Quantity Case DETECTADO para línea {line_num}! Ajustando índices de precio/total/comisión.")
+                        current_idx_price += 1            
+                        current_idx_total_value += 1      
+                        current_idx_commission += 1       
+                        # Actualizar required_indices_check si se desplazan los índices
+                        required_indices_check = [current_idx_currency, current_idx_symbol, current_idx_datetime_field_date, 
+                                                  current_idx_market, current_idx_quantity, # quantity y su parte2 siguen siendo qty_idx y qty_idx+1
+                                                  current_idx_price, current_idx_total_value, current_idx_commission]
+                        if current_idx_datetime_field_time != -1: required_indices_check.append(current_idx_datetime_field_time)
+            
+            if any(idx >= len(parts) or idx < 0 for idx in required_indices_check):
+                print(f"Línea {line_num}: Partes insuficientes ({len(parts)}) para índices ({required_indices_check}). Parts: {parts[:15]}. Saltando.")
+                if transaction_lines_found <= 3: print("=== FIN DEBUG (PARTES INSUFICIENTES PARA FORMATO) ===\n")
+                continue
+            
+            datetime_str_for_parsing = ""
+            date_val = parts[current_idx_datetime_field_date].strip().strip('"')
+            if current_idx_datetime_field_time != -1:
+                time_val = parts[current_idx_datetime_field_time].strip().strip('"')
+                datetime_str_for_parsing = f"{date_val}, {time_val}"
+            else: 
+                datetime_str_for_parsing = date_val
+            
+            if transaction_lines_found <= 3: # DEBUG DETALLADO
+                print(f"  String para parsear fecha/hora: '{datetime_str_for_parsing}'")
+                print(f"  Valores por índice -> cur:'{parts[current_idx_currency]}', sym:'{parts[current_idx_symbol]}', "
+                      f"dt_val_constr:'{datetime_str_for_parsing}', mkt:'{parts[current_idx_market]}', qty_str_raw:'{parts[current_idx_quantity]}', "
+                      f"px_str_raw:'{parts[current_idx_price]}', total_str_raw:'{parts[current_idx_total_value]}', comm_str_raw:'{parts[current_idx_commission]}'")
+                if is_crpu_qty_split_case: # Muestra las partes que formarían la cantidad CRPU
+                     print(f"    CRPU RAW Qty parts: parts[{current_idx_quantity}]='{parts[current_idx_quantity]}', parts[{current_idx_quantity+1}]='{parts[current_idx_quantity+1]}'")
+                print("=== FIN DEBUG ===\n")
+
+            try:
+                currency = parts[current_idx_currency].strip()
+                symbol = parts[current_idx_symbol].strip()
+                execution_market = parts[current_idx_market].strip()
+                
+                quantity_str_val = str(parts[current_idx_quantity]).strip().replace('"', '')
+                if is_crpu_qty_split_case: # Si es CRPU y la cantidad se dividió
+                    # parts[current_idx_quantity] es la parte antes de la coma (ej: '5' o '-5')
+                    # parts[current_idx_quantity+1] es la parte después de la coma (ej: '400""')
+                    part2_qty = str(parts[current_idx_quantity+1]).strip().replace('"', '') # ej: '400'
+                    # Reconstruir el número como si no tuviera coma para la conversión.
+                    # Ej: '5' + '400' -> '5400'. Si era '-5' + '400' -> '-5400'.
+                    if quantity_str_val.startswith('-'):
+                        quantity_str_val = "-" + quantity_str_val.replace('-','') + part2_qty.replace(',','') 
+                    else:
+                        quantity_str_val = quantity_str_val.replace(',','') + part2_qty.replace(',','')
+                    print(f"  CRPU (Línea {line_num}): Cantidad reconstruida a '{quantity_str_val}'")
+
+
+                price_str_val = str(parts[current_idx_price]).strip().replace('"', '')
+                total_value_str_val = str(parts[current_idx_total_value]).strip().replace('"', '')
+                commission_str_val = str(parts[current_idx_commission]).strip().replace('"', '')
+                
+                if not symbol or not quantity_str_val or not price_str_val:
+                    print(f"Línea {line_num}: Datos esenciales vacíos. Símbolo='{symbol}', Cantidad='{quantity_str_val}', Precio='{price_str_val}'.")
+                    continue
+                
+                try:
+                    quantity_original = float(quantity_str_val.replace(',', '')) 
+                    price = abs(float(price_str_val.replace(',', '')))
+                except ValueError as ve_num:
+                    print(f"Línea {line_num}: Error convirtiendo cantidad o precio. Cantidad='{quantity_str_val}', Precio='{price_str_val}'. Error: {ve_num}")
+                    continue
+                
+                quantity = abs(quantity_original)
+                is_buy = quantity_original > 0
+                
+                cleaned_total_value = total_value_str_val.replace(',', '')
+                cleaned_commission = commission_str_val.replace(',', '')
+
+                raw_total_value = abs(float(cleaned_total_value)) if cleaned_total_value and cleaned_total_value != '-' else quantity * price
+                raw_commission = abs(float(cleaned_commission)) if cleaned_commission and cleaned_commission != '-' else 0.0
+                
+                if is_buy:
+                    valor_local, valor, total = -raw_total_value, -raw_total_value, -(raw_total_value + raw_commission)
+                else: 
+                    valor_local, valor, total = raw_total_value, raw_total_value, raw_total_value - raw_commission
+                
+                commission_final = -raw_commission
+                    
+            except ValueError as ve_conv:
+                print(f"Error convirtiendo valores numéricos en línea {line_num}: {ve_conv}. Parts: {parts[:15]}")
+                continue
+            except IndexError as ie_conv:
+                print(f"Error de índice durante conversión en línea {line_num}: {ie_conv}. Parts: {parts[:15]}")
+                continue
+            
+            fecha, hora = parse_ibkr_datetime_robust(datetime_str_for_parsing)
+            
+            transaction = {
+                'Fecha': fecha, 'Hora': hora, 'Producto': symbol, 'ISIN': '', 
+                'Bolsa de': execution_market, 
+                'Número': quantity, 'Precio': price, 'Unnamed: 8': currency,
+                'Valor local': valor_local, 'Unnamed: 10': currency,
+                'Valor': valor, 'Unnamed: 12': currency,
+                'Tipo de cambio': 1.0, 'Costes de transacción': commission_final,
+                'Unnamed: 15': currency, 'Total': total, 'Unnamed: 17': currency
+            }
+            transactions.append(transaction)
+    
+        print(f"DEBUG FINAL: Se encontraron {transaction_lines_found} líneas que parecían transacciones.")
+        print(f"Total transacciones procesadas exitosamente: {len(transactions)}")
+        
+        if not transactions: return None
+        
+        updated_transactions = []
+        for transaction_item in transactions:
+            symbol_key = transaction_item['Producto']
+            if symbol_key in instruments:
+                instrument_info = instruments[symbol_key]
+                transaction_item['ISIN'] = instrument_info['isin']
+                transaction_item['Producto'] = instrument_info['name'] or symbol_key
+                isin = instrument_info['isin']
+                if isin: update_mapping_for_ibkr_instrument(isin, symbol_key, instrument_info)
+                updated_transactions.append(transaction_item)
+            else:
+                print(f"Advertencia: No se encontró info para símbolo '{symbol_key}'.")
+                updated_transactions.append(transaction_item)
+        
+        if updated_transactions:
+            df = pd.DataFrame(updated_transactions)
+            # print(f"Archivo IBKR procesado exitosamente: {len(df)} transacciones") # Ya se imprime al final
+            return df
+        else:
+            # print(f"No se pudieron procesar transacciones de {filename} (post-enriquecimiento)")
+            return None
+
+    except Exception as e_main:
+        print(f"Error CRÍTICO procesando archivo IBKR '{filename}': {e_main}")
+        traceback.print_exc()
+        return None
+
+# ... (resto de tu app.py)
+
+def parse_ibkr_datetime_robust(datetime_str_original):
+    """
+    Parsea una cadena de fecha/hora de IBKR.
+    Devuelve la fecha como string 'DD-MM-YYYY' y la hora como string 'HH:MM'.
+    """
+    try:
+        datetime_str = str(datetime_str_original).strip().strip('"')
+        if datetime_str.startswith('"') and datetime_str.endswith('"') and len(datetime_str) > 1:
+            datetime_str = datetime_str[1:-1]
+
+        date_part_str = ""
+        time_part_str = "00:00:00"
+
+        if ',' in datetime_str:
+            parts_dt = datetime_str.split(',', 1)
+            date_part_str = parts_dt[0].strip()
+            if len(parts_dt) > 1:
+                time_part_str = parts_dt[1].strip()
+        elif ' ' in datetime_str:
+            parts_dt = datetime_str.split(' ', 1)
+            if len(parts_dt) == 2 and ('-' in parts_dt[0] or '/' in parts_dt[0]) and ':' in parts_dt[1]:
+                date_part_str = parts_dt[0].strip()
+                time_part_str = parts_dt[1].strip()
+            else:
+                date_part_str = datetime_str.strip()
+        else:
+            date_part_str = datetime_str.strip()
+
+        fecha_final = "01-01-1900" # Fallback en formato DD-MM-YYYY
+        if date_part_str:
+            parsed_date_obj = None
+            # Intentar parsear varios formatos comunes
+            date_formats_to_try = ['%Y-%m-%d', '%d-%m-%Y', '%m/%d/%Y', '%d/%m/%Y']
+            for fmt in date_formats_to_try:
+                try:
+                    parsed_date_obj = datetime.strptime(date_part_str, fmt)
+                    break 
+                except ValueError:
+                    continue
+            
+            if not parsed_date_obj: # Si strptime falló para todos los formatos comunes
+                try: # Intentar con Pandas, que es más flexible
+                    parsed_date_obj = pd.to_datetime(date_part_str, errors='raise').to_pydatetime()
+                except:
+                     # Como último recurso, intentar regex
+                    match_ymd = re.search(r'(\d{4})[-\./](\d{1,2})[-\./](\d{1,2})', date_part_str)
+                    if match_ymd:
+                        try: parsed_date_obj = datetime(int(match_ymd.group(1)), int(match_ymd.group(2)), int(match_ymd.group(3)))
+                        except: pass
+                    else:
+                        match_dmy = re.search(r'(\d{1,2})[-\./](\d{1,2})[-\./](\d{4})', date_part_str)
+                        if match_dmy:
+                            try: parsed_date_obj = datetime(int(match_dmy.group(3)), int(match_dmy.group(2)), int(match_dmy.group(1)))
+                            except: pass
+            
+            if parsed_date_obj:
+                fecha_final = parsed_date_obj.strftime('%d-%m-%Y') # Formato de salida DD-MM-YYYY
+            else:
+                print(f"Advertencia parse_ibkr_datetime: No se pudo convertir '{date_part_str}' a fecha. Usando '{date_part_str}' o fallback.")
+                fecha_final = date_part_str # Opcional: usar el string original si no se pudo parsear
+
+        hora_final = "00:00"
+        time_part_str_cleaned = time_part_str.split('.')[0]
+        
+        if ':' in time_part_str_cleaned:
+            time_parts_arr = time_part_str_cleaned.split(':')
+            h_str = time_parts_arr[0].strip().zfill(2)
+            m_str = time_parts_arr[1].strip().zfill(2) if len(time_parts_arr) > 1 else "00"
+            try:
+                if 0 <= int(h_str) <= 23 and 0 <= int(m_str) <= 59:
+                    hora_final = f"{h_str}:{m_str}"
+                else:
+                    print(f"Advertencia parse_ibkr_datetime: Hora/minuto inválido en '{time_part_str}'. Usando 00:00.")
+            except ValueError:
+                 print(f"Advertencia parse_ibkr_datetime: Componente de hora no numérico en '{time_part_str}'. Usando 00:00.")
+        elif time_part_str_cleaned.strip().isdigit() and len(time_part_str_cleaned.strip()) <= 2:
+            h_str = time_part_str_cleaned.strip().zfill(2)
+            try:
+                if 0 <= int(h_str) <= 23:
+                    hora_final = f"{h_str}:00"
+                else:
+                    print(f"Advertencia parse_ibkr_datetime: Hora inválida en '{time_part_str}'. Usando 00:00.")
+            except ValueError:
+                print(f"Advertencia parse_ibkr_datetime: Componente de hora no numérico en '{time_part_str}'. Usando 00:00.")
+        
+        # El print de DEBUG muestra el formato de salida que produce esta función
+        # print(f"DEBUG fecha: Original='{datetime_str_original}' -> FechaParseada='{fecha_final}', HoraParseada='{hora_final}'")
+        
+        return fecha_final, hora_final
+        
+    except Exception as e:
+        print(f"Error CRÍTICO parseando fecha/hora IBKR '{datetime_str_original}': {e}")
+        date_fallback_str = "01-01-1900" 
+        if isinstance(datetime_str_original, str):
+            try:
+                first_part = datetime_str_original.split(',')[0].split(' ')[0].strip()
+                # Intentar parsear y reformatear a DD-MM-YYYY si es posible
+                parsed_dt_fallback = None
+                if re.match(r"^\d{4}-\d{2}-\d{2}$", first_part): 
+                    parsed_dt_fallback = datetime.strptime(first_part, '%Y-%m-%d')
+                elif re.match(r"^\d{2}-\d{2}-\d{4}$", first_part):
+                    parsed_dt_fallback = datetime.strptime(first_part, '%d-%m-%Y')
+                if parsed_dt_fallback:
+                    date_fallback_str = parsed_dt_fallback.strftime('%d-%m-%Y')
+            except: pass
+        return date_fallback_str, "00:00"
+
+
+
+
+def parse_ibkr_datetime_robust(datetime_str):
+    """Parsea fecha/hora de IBKR al formato DeGiro de forma robusta."""
+    try:
+        # Limpiar la cadena
+        datetime_str = datetime_str.strip()
+        
+        if ',' in datetime_str:
+            date_part, time_part = datetime_str.split(',', 1)
+            date_part = date_part.strip()
+            time_part = time_part.strip()
+        else:
+            date_part = datetime_str.strip()
+            time_part = "00:00:00"
+        
+        # Convertir fecha de YYYY-MM-DD a DD-MM-YYYY (formato DeGiro)
+        if '-' in date_part and len(date_part.split('-')) == 3:
+            parts = date_part.split('-')
+            if len(parts[0]) == 4:  # Formato YYYY-MM-DD
+                year, month, day = parts
+                fecha = f"{day.zfill(2)}-{month.zfill(2)}-{year}"
+            else:
+                fecha = date_part
+        else:
+            fecha = date_part
+        
+        # Formatear hora HH:MM:SS a HH:MM
+        if ':' in time_part:
+            hora_parts = time_part.split(':')
+            if len(hora_parts) >= 2:
+                hora = f"{hora_parts[0].zfill(2)}:{hora_parts[1].zfill(2)}"
+            else:
+                hora = time_part
+        else:
+            hora = "00:00"
+        
+        print(f"DEBUG fecha: '{datetime_str}' -> fecha='{fecha}', hora='{hora}'")
+        return fecha, hora
+        
+    except Exception as e:
+        print(f"Error parseando fecha/hora IBKR '{datetime_str}': {e}")
+        return datetime_str, "00:00"
+
+def update_mapping_for_ibkr_instrument(isin, symbol, instrument_info):
+    """Actualiza mapping_db.json con información de IBKR de forma segura."""
+    try:
+        mapping_data = load_mapping()
+        
+        if isin not in mapping_data:
+            # Mapear mercado IBKR a Yahoo suffix y Google exchange
+            market = instrument_info.get('market', '')
+            yahoo_suffix = get_yahoo_suffix_mapping().get(market, '')
+            google_ex = get_google_ex_mapping().get(market, market)  # Si no se encuentra, usar el market original
+            
+            mapping_data[isin] = {
+                'ticker': symbol,
+                'name': instrument_info.get('name', ''),
+                'yahoo_suffix': yahoo_suffix,
+                'google_ex': google_ex
+            }
+            
+            save_mapping(mapping_data)
+            print(f"Mapping añadido automáticamente: {isin} -> {symbol} (market: {market} -> yahoo: '{yahoo_suffix}', google: '{google_ex}')")
+        else:
+            print(f"Mapping ya existe para {isin}")
+            
+    except Exception as e:
+        print(f"Error actualizando mapping para {isin}: {e}")
+
+
+
+def parse_ibkr_csv(file_content_or_path, filename):
+    """
+    Parsea un CSV de IBKR y extrae transacciones e información de instrumentos.
+    
+    Args:
+        file_content_or_path: Contenido del archivo o ruta
+        filename: Nombre del archivo para logs
+    
+    Returns:
+        tuple: (transactions_list, instruments_dict, errors_list)
+    """
+    transactions = []
+    instruments = {}
+    errors = []
+    
+    try:
+        # Leer contenido del archivo
+        if isinstance(file_content_or_path, str) and os.path.exists(file_content_or_path):
+            with open(file_content_or_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+        elif hasattr(file_content_or_path, 'read'):
+            file_content_or_path.seek(0)
+            content = file_content_or_path.read()
+            if isinstance(content, bytes):
+                try:
+                    content = content.decode('utf-8')
+                except UnicodeDecodeError:
+                    content = content.decode('latin-1')
+            lines = content.split('\n')
+        else:
+            lines = str(file_content_or_path).split('\n')
+        
+        print(f"Parseando archivo IBKR '{filename}' con {len(lines)} líneas")
+        
+        for line_num, line in enumerate(lines, 1):
+            line = line.strip()
+            if not line:
+                continue
+                
+            parts = line.split(',')
+            if len(parts) < 5:
+                continue
+            
+            # Extraer transacciones de acciones
+            if line.startswith('Operaciones,Data,Trade,Acciones'):
+                if len(parts) >= 13:
+                    try:
+                        currency = parts[4].strip()
+                        symbol = parts[5].strip()
+                        datetime_str = parts[6].strip().strip('"')
+                        market = parts[7].strip()
+                        quantity_str = parts[8].strip()
+                        price_str = parts[9].strip()
+                        total_value_str = parts[11].strip()
+                        commission_str = parts[12].strip()
+                        
+                        # Validar datos esenciales
+                        if not symbol or not quantity_str or not price_str:
+                            continue
+                        
+                        # Convertir cantidad (positiva=compra, negativa=venta en IBKR)
+                        # Para compatibilidad con DeGiro, convertir a valor absoluto
+                        quantity = abs(float(quantity_str.replace(',', '')))
+                        price = abs(float(price_str.replace(',', '')))
+                        total_value = abs(float(total_value_str.replace(',', ''))) if total_value_str else quantity * price
+                        commission = abs(float(commission_str.replace(',', ''))) if commission_str else 0.0
+                        
+                        # Parsear fecha y hora
+                        fecha, hora = parse_ibkr_datetime(datetime_str)
+                        
+                        transaction = {
+                            'Fecha': fecha,
+                            'Hora': hora,
+                            'Producto': symbol,  # Temporal, se actualizará con nombre real
+                            'ISIN': '',  # Se completará después con información de instrumentos
+                            'Ticker': symbol,
+                            'Bolsa': market,
+                            'Número': quantity,
+                            'Precio': price,
+                            'Precio Divisa': currency,
+                            'Valor Local': total_value,
+                            'Valor Local Divisa': currency,
+                            'Valor': total_value,
+                            'Valor Divisa': currency,
+                            'Tipo de cambio': 1.0,  # Será calculado si es necesario
+                            'Costes Transacción': commission,
+                            'Costes Transacción Divisa': currency,
+                            'Total': total_value + commission,
+                            'Total Divisa': currency,
+                            'source_file': filename
+                        }
+                        
+                        transactions.append(transaction)
+                        
+                    except (ValueError, IndexError) as e:
+                        errors.append(f"Error parseando transacción en línea {line_num}: {e}")
+                        continue
+            
+            # Extraer información de instrumentos financieros
+            elif line.startswith('Información de instrumento financiero,Data,Acciones'):
+                if len(parts) >= 8:
+                    try:
+                        symbol = parts[2].strip()
+                        description = parts[3].strip()
+                        isin = parts[5].strip()
+                        market = parts[7].strip()
+                        
+                        if symbol and isin:
+                            # Determinar Yahoo suffix a partir del mercado
+                            yahoo_suffix = IBKR_MARKET_TO_YAHOO_MAP.get(market, '')
+                            google_ex = IBKR_MARKET_TO_GOOGLE_MAP.get(market, market)
+                            
+                            instruments[symbol] = {
+                                'isin': isin,
+                                'name': description,
+                                'market': market,
+                                'yahoo_suffix': yahoo_suffix,
+                                'google_ex': google_ex
+                            }
+                            
+                    except (ValueError, IndexError) as e:
+                        errors.append(f"Error parseando instrumento en línea {line_num}: {e}")
+                        continue
+        
+        print(f"IBKR parsing completado: {len(transactions)} transacciones, {len(instruments)} instrumentos")
+        return transactions, instruments, errors
+        
+    except Exception as e:
+        error_msg = f"Error general parseando archivo IBKR '{filename}': {e}"
+        print(error_msg)
+        errors.append(error_msg)
+        return [], {}, errors
+
+
+def parse_ibkr_datetime(datetime_str):
+    """
+    Parsea fecha y hora de IBKR al formato esperado por DeGiro.
+    
+    Args:
+        datetime_str: String como "2024-04-25, 11:11:05"
+    
+    Returns:
+        tuple: (fecha, hora) en formato compatible con DeGiro
+    """
+    try:
+        # Remover comillas y espacios extra
+        datetime_str = datetime_str.strip('"').strip()
+        
+        if ',' in datetime_str:
+            date_part, time_part = datetime_str.split(',', 1)
+            date_part = date_part.strip()
+            time_part = time_part.strip()
+        else:
+            # Solo fecha, sin hora
+            date_part = datetime_str
+            time_part = "00:00:00"
+        
+        # Convertir fecha de YYYY-MM-DD a DD-MM-YYYY (formato DeGiro)
+        if '-' in date_part and len(date_part.split('-')) == 3:
+            year, month, day = date_part.split('-')
+            fecha = f"{day.zfill(2)}-{month.zfill(2)}-{year}"
+        else:
+            fecha = date_part
+        
+        # Formatear hora
+        if ':' in time_part:
+            hora = time_part
+        else:
+            hora = "00:00"
+        
+        return fecha, hora
+        
+    except Exception as e:
+        print(f"Error parseando fecha/hora IBKR '{datetime_str}': {e}")
+        return datetime_str, "00:00"
+
+def transform_ibkr_to_degiro_format(transactions, instruments, mapping_data=None):
+    """
+    Transforma transacciones e instrumentos de IBKR al formato esperado por DeGiro.
+    
+    Args:
+        transactions: Lista de transacciones parseadas de IBKR
+        instruments: Diccionario de instrumentos {symbol: info}
+        mapping_data: Datos de mapping existentes (opcional)
+    
+    Returns:
+        tuple: (dataframe_transformado, mappings_to_update, errors)
+    """
+    errors = []
+    mappings_to_update = {}
+    
+    if not transactions:
+        errors.append("No hay transacciones de IBKR para transformar")
+        return pd.DataFrame(), {}, errors
+    
+    print(f"Transformando {len(transactions)} transacciones IBKR a formato DeGiro")
+    
+    # Enriquecer transacciones con información de instrumentos
+    for transaction in transactions:
+        symbol = transaction['Ticker']
+        
+        if symbol in instruments:
+            instrument_info = instruments[symbol]
+            
+            # Actualizar información básica
+            transaction['ISIN'] = instrument_info['isin']
+            transaction['Producto'] = instrument_info['name'] or symbol
+            
+            # Mapear bolsa/mercado - usar el mercado original para 'Bolsa de'
+            # pero mapear para Yahoo/Google exchanges
+            transaction['Bolsa de'] = instrument_info['market']
+            transaction['Exchange Yahoo'] = instrument_info['yahoo_suffix']
+            transaction['Exchange Google'] = instrument_info['google_ex']
+            
+            # Preparar información para actualizar mappings si es necesario
+            isin = instrument_info['isin']
+            if isin and (not mapping_data or isin not in mapping_data):
+                mappings_to_update[isin] = {
+                    'ticker': symbol,
+                    'name': instrument_info['name'],
+                    'yahoo_suffix': instrument_info['yahoo_suffix'],
+                    'google_ex': instrument_info['google_ex']
+                }
+        else:
+            # No se encontró información del instrumento
+            errors.append(f"No se encontró información para el símbolo '{symbol}'")
+            transaction['ISIN'] = ''
+            transaction['Producto'] = symbol
+            transaction['Bolsa de'] = transaction.get('Bolsa', '')
+            transaction['Exchange Yahoo'] = ''
+            transaction['Exchange Google'] = ''
+    
+    # Convertir a DataFrame
+    try:
+        df = pd.DataFrame(transactions)
+        
+        # Asegurar que las columnas numéricas sean del tipo correcto
+        numeric_columns = ['Número', 'Precio', 'Valor Local', 'Valor', 'Tipo de cambio', 
+                          'Costes Transacción', 'Total']
+        
+        for col in numeric_columns:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
+        
+        # Ordenar por fecha y hora
+        if 'Fecha' in df.columns:
+            try:
+                # Crear columna FechaHora para ordenamiento
+                df['FechaHora'] = pd.to_datetime(
+                    df['Fecha'] + ' ' + df['Hora'], 
+                    format='%d-%m-%Y %H:%M:%S', 
+                    errors='coerce'
+                )
+                df = df.sort_values('FechaHora', ascending=True)
+                df = df.drop('FechaHora', axis=1)  # Remover columna temporal
+            except Exception as e:
+                print(f"Advertencia: Error ordenando por fecha: {e}")
+        
+        print(f"Transformación IBKR completada: {len(df)} filas, {len(mappings_to_update)} mappings nuevos")
+        return df, mappings_to_update, errors
+        
+    except Exception as e:
+        error_msg = f"Error creando DataFrame desde transacciones IBKR: {e}"
+        print(error_msg)
+        errors.append(error_msg)
+        return pd.DataFrame(), {}, errors
+
+
+def merge_ibkr_with_mapping_data(df_ibkr, mapping_data):
+    """
+    Enriquece el DataFrame de IBKR con información adicional de mapping_db.json.
+    
+    Args:
+        df_ibkr: DataFrame transformado de IBKR
+        mapping_data: Datos cargados de mapping_db.json
+    
+    Returns:
+        DataFrame enriquecido
+    """
+    if df_ibkr.empty or not mapping_data:
+        return df_ibkr
+    
+    print(f"Enriqueciendo DataFrame IBKR con datos de mapping existentes")
+    
+    # Enriquecer con información adicional de mappings si existe
+    for idx, row in df_ibkr.iterrows():
+        isin = row.get('ISIN', '')
+        if isin and isin in mapping_data:
+            mapping_info = mapping_data[isin]
+            
+            # Actualizar campos si están vacíos o si el mapping tiene mejor información
+            if not row.get('Ticker') and mapping_info.get('ticker'):
+                df_ibkr.at[idx, 'Ticker'] = mapping_info['ticker']
+            
+            if not row.get('Exchange Yahoo') and mapping_info.get('yahoo_suffix'):
+                df_ibkr.at[idx, 'Exchange Yahoo'] = mapping_info['yahoo_suffix']
+            
+            if not row.get('Exchange Google') and mapping_info.get('google_ex'):
+                df_ibkr.at[idx, 'Exchange Google'] = mapping_info['google_ex']
+            
+            # Mejorar nombre del producto si el mapping tiene uno mejor
+            if mapping_info.get('name') and len(mapping_info['name']) > len(row.get('Producto', '')):
+                df_ibkr.at[idx, 'Producto'] = mapping_info['name']
+    
+    return df_ibkr
+
 def create_additional_buy_movement_from_reward(original_movement):
     """Crea un movimiento adicional de compra basado en un movimiento de reward"""
     
@@ -1634,6 +2975,110 @@ def log_activity(action_type, message, actor_user=None, target_user=None, detail
         app.logger.error(f"Error al registrar actividad: {action_type} - {e}", exc_info=True)
         db.session.rollback() # Asegurar rollback si el commit del log falla
 
+# -*- coding: utf-8 -*-
+# ... (otros imports y código existente en app.py) ...
+import pandas as pd # Asegúrate que pandas está importado
+
+def prepare_dataframe_for_portfolio_calculation(df):
+    """
+    Prepara el DataFrame para que calculate_portfolio funcione correctamente.
+    Originalmente para ajustar cantidades de IBKR según el signo del Total.
+    Ahora, con el guard if row.get('csv_format') == 'ibkr', solo debería
+    modificar las filas de IBKR. Las filas de DeGiro deberían pasar sin cambios
+    en su columna 'Número'.
+    """
+    if df.empty:
+        print("DEBUG: prepare_dataframe_for_portfolio_calculation recibió un DataFrame vacío.")
+        return df
+    
+    df_portfolio = df.copy() 
+    
+    print("DEBUG: Iniciando prepare_dataframe_for_portfolio_calculation...")
+    stock_isin_to_debug = "SE0009554454" # ¡¡¡REEMPLAZA CON EL ISIN CORRECTO DE SBB!!!
+    changes_made_to_sbb = False
+    
+    for idx, row in df_portfolio.iterrows():
+        is_sbb_row = row.get('ISIN') == stock_isin_to_debug
+        current_csv_format = row.get('csv_format', 'desconocido') # Obtener el formato del CSV
+
+        if is_sbb_row:
+            print(f"  DEBUG SBB (Fila índice pandas: {idx}, Archivo: {row.get('source_file', 'N/A')}):")
+            print(f"    Fila ANTES de cualquier ajuste en prepare_dataframe_for_portfolio_calculation:")
+            print(f"      Número: {row.get('Número')}, Total: {row.get('Total')}, "
+                  f"Valor local: {row.get('Valor local')}, csv_format: {current_csv_format}")
+
+        total_value = row.get('Total') # Obtener Total, puede ser NaN
+        if pd.isna(total_value):
+            total_value = 0  # Tratar NaN como 0 para la lógica de signo
+            if is_sbb_row:
+                print(f"    DEBUG SBB (Fila {idx}): 'Total' era NaN, tratado como 0 para la lógica de signo.")
+        else:
+            # Asegurarse de que total_value sea numérico si no es NaN
+            try:
+                total_value = float(total_value)
+            except ValueError:
+                if is_sbb_row:
+                    print(f"    DEBUG SBB (Fila {idx}): 'Total' ('{row.get('Total')}') no es numérico y no es NaN. Tratado como 0.")
+                total_value = 0
+
+
+        cantidad_original = row.get('Número')
+        if pd.isna(cantidad_original):
+            if is_sbb_row:
+                print(f"    DEBUG SBB (Fila {idx}): 'Número' (cantidad_original) es NaN. No se ajustará esta fila.")
+            continue 
+        
+        try:
+            cantidad_original = float(cantidad_original)
+        except ValueError:
+            if is_sbb_row:
+                print(f"    DEBUG SBB (Fila {idx}): 'Número' (cantidad_original: '{row.get('Número')}') no es numérico. No se ajustará esta fila.")
+            continue
+
+
+        cantidad_final = cantidad_original # Por defecto, no cambiar
+
+        if current_csv_format == 'ibkr':
+            if total_value < 0: # Compra IBKR (Total negativo)
+                cantidad_final = abs(cantidad_original) 
+            elif total_value > 0: # Venta IBKR (Total positivo)
+                cantidad_final = -abs(cantidad_original)
+            # Si total_value es 0 para IBKR, cantidad_final sigue siendo cantidad_original
+            
+            if is_sbb_row: # Esto no debería ocurrir si SBB es de DeGiro
+                print(f"    DEBUG SBB (Fila {idx}): Identificada ERRÓNEAMENTE como 'ibkr'. "
+                      f"total_value: {total_value}, cant_orig: {cantidad_original}, cant_final: {cantidad_final}")
+
+        # Aplicar el cambio si es necesario
+        # La condición original `or (is_sbb_row and 'degiro' in current_csv_format)` era para forzar la impresión del debug.
+        # Ahora, solo asignamos si realmente hubo un cambio.
+        if cantidad_final != cantidad_original:
+            df_portfolio.at[idx, 'Número'] = cantidad_final
+            if is_sbb_row: # Si es SBB y hubo un cambio (no debería si es DeGiro)
+                print(f"    DEBUG SBB (Fila {idx}): ¡CAMBIO INESPERADO APLICADO A FILA DEGIRO!")
+                changes_made_to_sbb = True
+
+
+        if is_sbb_row: # Imprimir estado final para SBB después de la lógica
+            print(f"    DEBUG SBB (Fila {idx}): Fila DESPUÉS de lógica de ajuste en prepare_dataframe_for_portfolio_calculation:")
+            print(f"      total_value usado: {total_value}, cantidad_original: {cantidad_original}, "
+                  f"cantidad_final que se asignaría (si hubo cambio): {cantidad_final}, "
+                  f"Valor actual 'Número' en df: {df_portfolio.at[idx, 'Número']}")
+            if df_portfolio.at[idx, 'Número'] != row.get('Número'): # Compara con el valor original de la fila en esta iteración
+                if not (current_csv_format == 'ibkr' and cantidad_final != cantidad_original) : # Si no es un cambio esperado de IBKR
+                     print(f"      ALERTA: ¡El valor 'Número' de SBB cambió de {row.get('Número')} a {df_portfolio.at[idx, 'Número']} y no es una fila IBKR con cambio esperado!")
+            
+    if changes_made_to_sbb:
+        print("ALERTA DEBUG: Se realizaron cambios en 'Número' para SBB en prepare_dataframe_for_portfolio_calculation, lo cual no se esperaba para filas DeGiro.")
+    else:
+        print("DEBUG: No se realizaron cambios inesperados en 'Número' para SBB en prepare_dataframe_for_portfolio_calculation.")
+
+    print("DEBUG: Fin de prepare_dataframe_for_portfolio_calculation.")
+    return df_portfolio
+
+# ... (el resto de tu app.py, incluyendo calculate_portfolio y process_uploaded_csvs_unified
+#      con sus respectivos bloques de depuración que ya tienes) ...
+
 def get_usd_to_eur_rate(date):
     """Obtiene el tipo de cambio USD->EUR para una fecha específica"""
     try:
@@ -1821,6 +3266,84 @@ def convert_usd_to_eur(movements):
     
     return movements
 
+
+def detect_csv_format(file_content_or_path):
+    """
+    Detecta si un CSV es formato DeGiro o IBKR basándose en su contenido.
+    
+    Args:
+        file_content_or_path: Puede ser:
+            - String con el contenido del archivo
+            - Path del archivo
+            - Objeto file-like (BytesIO)
+    
+    Returns:
+        str: 'degiro', 'ibkr', o 'unknown'
+    """
+    try:
+        # Leer las primeras líneas del archivo
+        if isinstance(file_content_or_path, str):
+            if os.path.exists(file_content_or_path):
+                # Es una ruta de archivo
+                with open(file_content_or_path, 'r', encoding='utf-8') as f:
+                    first_lines = [f.readline().strip() for _ in range(10)]
+            else:
+                # Es contenido directo
+                first_lines = file_content_or_path.split('\n')[:10]
+        else:
+            # Es un objeto file-like (BytesIO)
+            file_content_or_path.seek(0)
+            content = file_content_or_path.read()
+            if isinstance(content, bytes):
+                try:
+                    content = content.decode('utf-8')
+                except UnicodeDecodeError:
+                    content = content.decode('latin-1')
+            first_lines = content.split('\n')[:10]
+            file_content_or_path.seek(0)  # Volver al inicio para procesamiento posterior
+        
+        # Verificar formato IBKR
+        # IBKR tiene líneas que empiezan con "Statement,Header", "Statement,Data", etc.
+        ibkr_indicators = [
+            'Statement,Header',
+            'Statement,Data', 
+            'Operaciones,Header',
+            'Operaciones,Data',
+            'Información de instrumento financiero,Header',
+            'Información de instrumento financiero,Data'
+        ]
+        
+        for line in first_lines:
+            for indicator in ibkr_indicators:
+                if line.startswith(indicator):
+                    print(f"Formato IBKR detectado: línea '{line[:50]}...'")
+                    return 'ibkr'
+        
+        # Verificar formato DeGiro
+        # DeGiro tiene headers directos como "Fecha,Hora,Producto,ISIN,Bolsa de"
+        degiro_indicators = [
+            'Fecha', 'Hora', 'Producto', 'ISIN', 'Bolsa de', 
+            'Número', 'Precio', 'Valor local', 'Valor', 'Total'
+        ]
+        
+        for line in first_lines:
+            if any(indicator in line for indicator in degiro_indicators):
+                # Verificar que sea realmente un header de DeGiro (múltiples columnas)
+                columns = line.split(',')
+                degiro_matches = sum(1 for col in columns if any(ind in col for ind in degiro_indicators))
+                if degiro_matches >= 3:  # Al menos 3 columnas conocidas de DeGiro
+                    print(f"Formato DeGiro detectado: línea '{line[:50]}...'")
+                    return 'degiro'
+        
+        print("Formato de CSV no reconocido")
+        return 'unknown'
+        
+    except Exception as e:
+        print(f"Error detectando formato CSV: {e}")
+        return 'unknown'
+
+
+
 def group_top_n_for_pie(data_dict, top_n=7):
     if not data_dict: return {"labels": [], "data": []}
     sorted_items = sorted(data_dict.items(), key=lambda item: item[1], reverse=True)
@@ -1861,7 +3384,7 @@ def get_current_financial_crosstime_metrics(user_id):
         fecha_str, total_val, isin, cantidad_abs = movement.get('Fecha'), movement.get('Total'), movement.get('ISIN'), movement.get('Cantidad')
         if fecha_str and isinstance(fecha_str, str) and total_val is not None and isin and cantidad_abs is not None:
             try:
-                event_date = datetime.strptime(fecha_str[:10], '%Y-%m-%d').date()
+                event_date = datetime.strptime(fecha_str[:10], '%d-%m-%Y').date()
                 all_events.append({
                     'date': event_date, 'type': 'asset_trade',
                     'value': float(total_val), 'isin': isin, 'cantidad': float(cantidad_abs),
@@ -8010,7 +9533,269 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def validate_filename_format(filename):
-    return re.match(r"^\d{4}\.csv$", filename) is not None
+    """
+    Valida el formato del nombre de archivo para CSVs.
+    Acepta tanto formato DeGiro (AAAA.csv) como cualquier nombre para IBKR.
+    
+    Args:
+        filename: Nombre del archivo a validar
+    
+    Returns:
+        bool: True si el formato es válido
+    """
+    if not filename or not filename.lower().endswith('.csv'):
+        return False
+    
+    # Formato DeGiro: AAAA.csv (cuatro dígitos para el año)
+    if re.match(r"^\d{4}\.csv$", filename):
+        return True
+    
+    # Para otros formatos, validar que sea un nombre de archivo válido
+    # Permitir cualquier nombre que termine en .csv y no contenga caracteres peligrosos
+    dangerous_chars = ['<', '>', ':', '"', '|', '?', '*', '\\', '/']
+    if any(char in filename for char in dangerous_chars):
+        return False
+    
+    # Validar longitud razonable
+    if len(filename) > 255:
+        return False
+    
+    return True
+
+# -*- coding: utf-8 -*-
+# ... (todos tus imports y código anterior) ...
+
+def process_uploaded_csvs_unified(files):
+    """
+    Procesa archivos CSV subidos, detectando automáticamente si son DeGiro o IBKR.
+    Mantiene la misma interfaz que process_uploaded_csvs original.
+    
+    Args:
+        files: Lista de archivos subidos
+    
+    Returns:
+        tuple: (processed_df_for_csv, combined_df_raw, errors)
+    """
+    all_dfs = []
+    filenames_processed = []
+    errors = []
+    mapping_data = load_mapping() # Asumo que load_mapping() está definida
+
+    if not files or all(f.filename == '' for f in files):
+        errors.append("Error: No archivos seleccionados.")
+        return None, None, errors
+
+    for file in files:
+        if file and allowed_file(file.filename): # Asumo que allowed_file() está definida
+            filename = secure_filename(file.filename)
+            # Asumo que validate_filename_format() ha sido reemplazada o es la misma que validate_filename_format_flexible()
+            if not validate_filename_format_flexible(filename): # Usando la versión flexible
+                errors.append(f"Advertencia: Archivo '{filename}' ignorado (formato inválido).")
+                continue
+            
+            df_current_file = None # Para almacenar el DataFrame del archivo actual
+            try:
+                file.seek(0)
+                
+                csv_format = detect_csv_format_simple(file) # Usando la versión simple
+                print(f"Formato detectado para '{filename}': {csv_format}")
+                
+                if csv_format == 'degiro':
+                    df_current_file = process_degiro_file(file, filename) # Asumo que process_degiro_file() está definida
+                    if df_current_file is not None:
+                        df_current_file['csv_format'] = 'degiro'
+                
+                elif csv_format == 'ibkr':
+                    df_current_file = process_ibkr_file_complete(file, filename) # Esta es tu función compleja para IBKR
+                    if df_current_file is not None:
+                        df_current_file['csv_format'] = 'ibkr'
+                
+                else: # Fallback o formato desconocido
+                    errors.append(f"Advertencia: Formato de archivo '{filename}' no reconocido o falló el procesamiento primario. Intentando como DeGiro...")
+                    file.seek(0) # Rebobinar de nuevo por si acaso
+                    df_current_file = process_degiro_file(file, filename)
+                    if df_current_file is not None:
+                        df_current_file['csv_format'] = 'degiro_fallback' # Marcar si es un fallback
+                    else:
+                        errors.append(f"Error: No se pudo procesar '{filename}' en ningún formato conocido.")
+
+                if df_current_file is not None and not df_current_file.empty:
+                    df_current_file['source_file'] = filename
+                    all_dfs.append(df_current_file)
+                    filenames_processed.append(filename)
+                elif df_current_file is None and csv_format != 'unknown': # Si era un formato conocido pero falló
+                     errors.append(f"Error: No se pudieron leer datos válidos de '{filename}' (formato: {csv_format}).")
+
+
+            except Exception as e:
+                errors.append(f"Error crítico procesando archivo '{filename}': {e}")
+                traceback.print_exc() # Imprimir traza completa para errores inesperados
+                continue
+        else:
+            if file and file.filename: # Solo añadir error si había un archivo con nombre
+                errors.append(f"Archivo '{file.filename}' no permitido o inválido.")
+
+    if not all_dfs:
+        if not errors: # Si no hay DataFrames y no hay errores, es un caso raro
+            errors.append("Error: No se procesaron archivos válidos (lista de DataFrames vacía sin errores explícitos).")
+        return None, None, errors
+
+    try:
+        combined_df_raw = pd.concat(all_dfs, ignore_index=True)
+        
+        # Parsear fechas y ordenar
+        try:
+            if 'Fecha' in combined_df_raw.columns and 'Hora' in combined_df_raw.columns:
+                # Intentar combinar Fecha y Hora si ambas existen y no son NaT en su mayoría
+                # Convertir 'Fecha' a datetime primero, manejando NaT
+                combined_df_raw['Fecha'] = pd.to_datetime(combined_df_raw['Fecha'], errors='coerce', dayfirst=True)
+                
+                # Solo proceder con FechaHora si 'Fecha' no es todo NaT
+                if not combined_df_raw['Fecha'].isnull().all():
+                    # Crear FechaHora solo donde Fecha no es NaT
+                    combined_df_raw['FechaHora'] = pd.to_datetime(
+                        combined_df_raw['Fecha'].dt.strftime('%Y-%m-%d') + ' ' + combined_df_raw['Hora'].astype(str),
+                        errors='coerce'
+                    )
+                    combined_df_raw = combined_df_raw.sort_values('FechaHora', ascending=True, na_position='first')
+                else: # Si 'Fecha' es todo NaT, intentar ordenar solo por 'Hora' si es útil, o no ordenar
+                    combined_df_raw = combined_df_raw.sort_values('Hora', ascending=True, na_position='first')
+
+            elif 'Fecha' in combined_df_raw.columns:
+                combined_df_raw['Fecha'] = pd.to_datetime(combined_df_raw['Fecha'], errors='coerce', dayfirst=True)
+                combined_df_raw = combined_df_raw.sort_values('Fecha', ascending=True, na_position='first')
+        except Exception as e_date:
+            errors.append(f"Advertencia: Error parseando/ordenando fechas en combined_df_raw: {e_date}")
+
+
+        # <<< INICIO BLOQUE DE DEBUG 1 >>>
+        print("\nDEBUG: combined_df_raw ANTES de calculate_portfolio")
+        stock_isin_to_debug = "SE0009554454" # ¡¡¡REEMPLAZA CON EL ISIN CORRECTO!!!
+        if 'ISIN' in combined_df_raw.columns:
+            debug_stock_rows = combined_df_raw[combined_df_raw['ISIN'] == stock_isin_to_debug]
+            if not debug_stock_rows.empty:
+                print(f"Filas para ISIN {stock_isin_to_debug} en combined_df_raw ANTES de calculate_portfolio:")
+                cols_to_print_debug1 = ['ISIN', 'Producto', 'Número', 'Precio', 'Valor local', 'Bolsa de', 'Unnamed: 8', 'source_file', 'csv_format', 'Fecha', 'Hora']
+                # Asegurar que solo imprimimos columnas que existen
+                cols_to_print_debug1_existing = [col for col in cols_to_print_debug1 if col in debug_stock_rows.columns]
+                print(debug_stock_rows[cols_to_print_debug1_existing].to_string())
+            else:
+                print(f"No se encontraron filas para ISIN {stock_isin_to_debug} en combined_df_raw.")
+        else:
+            print("Columna 'ISIN' no encontrada en combined_df_raw para depuración.")
+        # <<< FIN BLOQUE DE DEBUG 1 >>>
+
+        df_for_portfolio_calc = combined_df_raw.copy()
+        
+        # Ajuste para IBKR (tu lógica existente)
+        has_ibkr_data = 'csv_format' in df_for_portfolio_calc.columns and \
+                        (df_for_portfolio_calc['csv_format'] == 'ibkr').any()
+        if has_ibkr_data:
+            print("Detectados datos IBKR, ajustando DataFrame para calculate_portfolio (prepare_dataframe_for_portfolio_calculation)")
+            df_for_portfolio_calc = prepare_dataframe_for_portfolio_calculation(df_for_portfolio_calc)
+        
+        # Preparar DataFrame para CSV final
+        # La función prepare_processed_dataframe fue usada antes, asegúrate que es la correcta
+        # o si tenías una prepare_final_csv_dataframe. Usaré prepare_processed_dataframe como en tu app.py.
+        processed_df_for_csv = prepare_processed_dataframe(combined_df_raw, errors) # Tu función de app.py
+        
+        print(f"Procesamiento unificado completado: {len(processed_df_for_csv) if processed_df_for_csv is not None else 0} filas en CSV final, {len(df_for_portfolio_calc)} filas para cálculo de portfolio.")
+        return processed_df_for_csv, df_for_portfolio_calc, errors
+        
+    except Exception as e_concat:
+        errors.append(f"Error crítico al combinar o procesar DataFrames: {e_concat}")
+        traceback.print_exc()
+        return None, None, errors
+
+# En process_degiro_file, después de que df se lee
+def process_degiro_file(file, filename):
+    # ... (try/except para pd.read_csv) ...
+    if df is not None and not df.empty:
+        # <<< NUEVO DEBUG AQUÍ >>>
+        stock_isin_to_debug = "SE0009554454" # SBB ISIN
+        # Intentar encontrar la transacción 1050 por ISIN y fecha/hora si el índice no es estable
+        # Asumiendo que el índice original del CSV es relevante si 'ID Orden' o algo así
+        # Por ahora, filtramos por ISIN y vemos si está la transacción 1050
+        if 'ISIN' in df.columns and 'Número' in df.columns and filename == '2022.csv': # Solo para el archivo relevante
+            sbb_rows_in_degiro_df = df[df['ISIN'] == stock_isin_to_debug]
+            if not sbb_rows_in_degiro_df.empty:
+                # Tratar de identificar la transacción 1050 (esto es heurístico si el índice no es el original)
+                # Si el índice de df es el original del CSV, puedes usar df.loc[1050] si existe
+                # Si no, buscamos por fecha y producto (o una combinación única)
+                tx_1050_candidate = sbb_rows_in_degiro_df[
+                    (pd.to_datetime(sbb_rows_in_degiro_df['Fecha'], dayfirst=True).dt.strftime('%d-%m-%Y') == '22-04-2022') &
+                    (sbb_rows_in_degiro_df['Hora'] == '12:24') &
+                    (sbb_rows_in_degiro_df['Precio'] == 33.54) # Usar más campos para identificarla
+                ]
+                if not tx_1050_candidate.empty:
+                    print(f"DEBUG process_degiro_file ({filename}): SBB tx 1050 'Número' AS READ FROM CSV: {tx_1050_candidate['Número'].values}")
+                else:
+                    print(f"DEBUG process_degiro_file ({filename}): SBB tx 1050 NOT EXACTLY FOUND by criteria for printing 'Número'.")
+            else:
+                 print(f"DEBUG process_degiro_file ({filename}): SBB ISIN not found in this file for 'Número' debug.")
+
+        missing_original_cols = [col for col in COLS_MAP.keys() if col not in df.columns]
+        # ...
+    return df
+
+def prepare_final_csv_dataframe(combined_df_raw):
+    """
+    Prepara el DataFrame final aplicando renombrados y transformaciones.
+    
+    Args:
+        combined_df_raw: DataFrame combinado sin procesar
+    
+    Returns:
+        DataFrame procesado para CSV final
+    """
+    try:
+        # Aplicar renombrado de columnas DeGiro si es necesario
+        cols_to_rename_present = [col for col in COLS_MAP.keys() if col in combined_df_raw.columns]
+        if cols_to_rename_present:
+            filtered_df = combined_df_raw[cols_to_rename_present].copy()
+            renamed = filtered_df.rename(columns=COLS_MAP)
+        else:
+            renamed = combined_df_raw.copy()
+        
+        # Añadir Exchange Yahoo si no existe pero tenemos datos de Bolsa
+        if 'Exchange Yahoo' not in renamed.columns and 'Bolsa' in renamed.columns:
+            renamed['Exchange Yahoo'] = renamed['Bolsa'].map(BOLSA_TO_YAHOO_MAP).fillna('')
+        
+        # Convertir columnas numéricas
+        for col in NUMERIC_COLS:
+            if col in renamed.columns:
+                if not pd.api.types.is_numeric_dtype(renamed[col]):
+                    # Limpieza de strings antes de convertir a numérico
+                    cleaned_series = renamed[col].astype(str).str.replace(r'[$\s€]', '', regex=True).str.replace(',', '', regex=False)
+                    renamed[col] = pd.to_numeric(cleaned_series, errors='coerce')
+                
+                if pd.api.types.is_numeric_dtype(renamed[col]) or renamed[col].isnull().any():
+                    renamed[col] = renamed[col].fillna(0)
+                
+                if col == 'Cantidad':
+                    if pd.api.types.is_numeric_dtype(renamed[col]):
+                        renamed[col] = renamed[col].abs()  # Cantidad siempre positiva
+                
+                if pd.api.types.is_numeric_dtype(renamed[col]):
+                    renamed[col] = renamed[col].astype(float)
+        
+        # Reordenar columnas según FINAL_COLS_ORDERED
+        cols_final = [c for c in FINAL_COLS_ORDERED if c in renamed.columns]
+        missing_cols = [c for c in FINAL_COLS_ORDERED if c not in renamed.columns]
+        
+        # Añadir columnas faltantes con valores vacíos
+        for col in missing_cols:
+            renamed[col] = ''
+        
+        # Reordenar según el orden deseado
+        cols_final = [c for c in FINAL_COLS_ORDERED if c in renamed.columns]
+        renamed = renamed.reindex(columns=cols_final, fill_value='')
+        
+        return renamed
+        
+    except Exception as e:
+        print(f"Error preparando DataFrame final: {e}")
+        return combined_df_raw
 
 def load_mapping():
     if os.path.exists(MAPPING_FILE):
@@ -8053,45 +9838,48 @@ def get_current_price(yahoo_ticker, force_update=False):
         force_update: Si es True, ignora el caché y actualiza desde Yahoo
 
     Returns:
-        Precio actual o 0 si no se puede obtener (para evitar NaN)
+        Precio actual como float, o 0.0 si no se puede obtener.
     """
-    if not yahoo_ticker: return 0  # Cambiado de None a 0
+    if not yahoo_ticker: 
+        return 0.0 # Devuelve float
     now = time.time()
 
-    # Usar caché si está disponible y no se fuerza actualización
     if not force_update and yahoo_ticker in price_cache:
         timestamp, price = price_cache[yahoo_ticker]
-        # Siempre devolver el precio cacheado, sin importar su antigüedad
+        # Devolver precio cacheado si es razonablemente reciente o si no se puede actualizar
+        # Para esta función, si está en caché y no se fuerza, se devuelve.
+        # La validación de antigüedad podría estar en otro nivel si es necesario.
         print(f"Precio {yahoo_ticker} (caché): {price}")
-        # Si el precio es nan, devolver 0
-        if pd.isna(price):
-            return 0
-        return price
+        if pd.isna(price): # Si el precio cacheado era NaN
+            return 0.0
+        return float(price) # Asegurar que es float
 
-    # Si llegamos aquí, es porque debemos actualizar desde Yahoo (force_update=True)
     print(f"Obteniendo precio {yahoo_ticker} (yfinance)...")
     try:
         ticker_obj = yf.Ticker(yahoo_ticker)
-        hist = ticker_obj.history(period="2d")
-        if not hist.empty:
-            last_price = hist['Close'].iloc[-1]
-            # Si el precio es nan, guardar 0 en el caché
-            if pd.isna(last_price):
-                last_price = 0
-            price_cache[yahoo_ticker] = (now, last_price)
+        # hist = ticker_obj.history(period="2d") # "2d" para asegurar que hay al menos un cierre anterior
+        # Usar "1d" puede ser suficiente y más rápido si solo queremos el último cierre disponible
+        data = ticker_obj.history(period="1d")
+
+        if not data.empty and 'Close' in data and not data['Close'].empty:
+            last_price = data['Close'].iloc[-1]
+            if pd.isna(last_price): # Si yfinance devuelve NaN
+                print(f"  -> Precio NaN para {yahoo_ticker}. Usando 0.0")
+                last_price = 0.0
+            else:
+                last_price = float(last_price) # Convertir a float
+            
+            price_cache[yahoo_ticker] = (now, last_price) # Guardar float en caché
             print(f"  -> Obtenido y cacheado: {last_price}")
             return last_price
         else:
-            print(f"  -> No historial reciente {yahoo_ticker}.")
-            # Guardar 0 en el caché en caso de fallo
-            price_cache[yahoo_ticker] = (now, 0)
-            return 0
+            print(f"  -> No historial reciente para {yahoo_ticker}. Usando 0.0")
+            price_cache[yahoo_ticker] = (now, 0.0) # Guardar 0.0 en caché
+            return 0.0
     except Exception as e:
-        print(f"  -> Error yfinance {yahoo_ticker}: {e}")
-        # Guardar 0 en el caché en caso de error
-        price_cache[yahoo_ticker] = (now, 0)
-        return 0
-
+        print(f"  -> Error yfinance obteniendo precio para {yahoo_ticker}: {e}")
+        price_cache[yahoo_ticker] = (now, 0.0) # Guardar 0.0 en caché en caso de error
+        return 0.0
 
 def get_exchange_rate(from_currency, to_currency='EUR'):
     # ... (Código completo de get_exchange_rate con requests/Frankfurter como lo teníamos antes) ...
@@ -8125,136 +9913,6 @@ def get_exchange_rate(from_currency, to_currency='EUR'):
 
 
 
-def process_uploaded_csvs(files):
-    all_dfs = []
-    filenames_processed = []
-    errors = []
-
-    if not files or all(f.filename == '' for f in files):
-        errors.append("Error: No archivos seleccionados.")
-        return None, None, errors
-
-    for file in files:
-        if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
-            if not validate_filename_format(filename):
-                errors.append(f"Advertencia: Archivo '{filename}' ignorado (formato debe ser AAAA.csv).")
-                continue
-            
-            df = None
-            try:
-                file.seek(0)
-                df = pd.read_csv(io.BytesIO(file.read()), encoding='utf-8', sep=',', decimal='.', skiprows=0, header=0)
-                print(f"Archivo '{filename}' leído con UTF-8. Columnas: {df.columns.tolist()}")
-            except UnicodeDecodeError:
-                try:
-                    file.seek(0)
-                    df = pd.read_csv(io.BytesIO(file.read()), encoding='latin-1', sep=',', decimal='.', skiprows=0, header=0)
-                    print(f"Archivo '{filename}' leído con latin-1. Columnas: {df.columns.tolist()}")
-                except Exception as e:
-                    errors.append(f"Error leyendo '{filename}' (probado con UTF-8 y latin-1): {e}")
-                    continue
-            except Exception as e:
-                errors.append(f"Error general leyendo '{filename}': {e}")
-                continue
-
-            if df is not None:
-                missing_original_cols = [col for col in COLS_MAP.keys() if col not in df.columns]
-                if missing_original_cols:
-                    errors.append(f"Advertencia: Columnas originales faltantes en '{filename}': {', '.join(missing_original_cols)}.")
-                
-                df['source_file'] = filename
-                all_dfs.append(df)
-                filenames_processed.append(filename)
-        elif file.filename != '':
-            errors.append(f"Advertencia: Archivo '{file.filename}' ignorado (extensión no permitida o nombre vacío).")
-
-    if not all_dfs:
-        if not any("Error:" in e for e in errors): # Si no hay errores fatales previos
-            errors.append("Error: No se procesaron archivos CSV válidos.")
-        return None, None, errors
-
-    try:
-        combined_df_raw = pd.concat(all_dfs, ignore_index=True)
-        print(f"DataFrame raw combinado creado ({len(combined_df_raw)} filas).")
-
-        if 'Fecha' in combined_df_raw.columns:
-            combined_df_raw['Fecha'] = pd.to_datetime(combined_df_raw['Fecha'], errors='coerce', dayfirst=True)
-        
-        if 'Fecha' in combined_df_raw.columns and 'Hora' in combined_df_raw.columns:
-            try:
-                # Asegurar que 'Fecha' sea string para concatenar, y 'Hora' también
-                temp_f = combined_df_raw['Fecha'].dt.strftime('%Y-%m-%d')
-                temp_h = combined_df_raw['Hora'].astype(str).str.strip()
-                combined_df_raw['FechaHora'] = pd.to_datetime(temp_f + ' ' + temp_h, errors='coerce')
-            except Exception as e_fh:
-                print(f"Advertencia: No se pudo crear 'FechaHora' compuesta: {e_fh}. Usando solo 'Fecha' para ordenar.")
-                combined_df_raw['FechaHora'] = combined_df_raw['Fecha'] # Fallback
-        elif 'Fecha' in combined_df_raw.columns:
-            combined_df_raw['FechaHora'] = combined_df_raw['Fecha']
-        
-        sort_col_name = 'FechaHora' if 'FechaHora' in combined_df_raw.columns else 'Fecha'
-        if sort_col_name in combined_df_raw.columns:
-            combined_df_raw = combined_df_raw.sort_values(by=sort_col_name, ascending=True, na_position='first')
-        
-    except Exception as e_concat:
-        errors.append(f"Error al combinar archivos CSV o parsear fechas: {e_concat}")
-        return None, None, errors # Devuelve None para df_for_portfolio_calc si falla aquí
-
-    df_for_portfolio_calc = combined_df_raw.copy() # Para cálculo de portfolio con datos más crudos
-    processed_df_for_csv = pd.DataFrame()
-
-    try:
-        # Filtrar solo columnas que existen en el DF y están en COLS_MAP
-        cols_to_rename_present = [col for col in COLS_MAP.keys() if col in combined_df_raw.columns]
-        if not cols_to_rename_present:
-            errors.append("Error: Ninguna de las columnas esperadas (COLS_MAP) se encontró en los archivos CSV.")
-            return None, df_for_portfolio_calc, errors # df_for_portfolio_calc podría tener datos, pero no para el CSV final
-
-        filtered_df = combined_df_raw[cols_to_rename_present].copy()
-        renamed = filtered_df.rename(columns=COLS_MAP)
-        print(f"Columnas renombradas para CSV: {renamed.columns.tolist()}")
-
-        if 'Bolsa' in renamed.columns:
-            renamed['Exchange Yahoo'] = renamed['Bolsa'].map(BOLSA_TO_YAHOO_MAP).fillna('')
-            print("Columna 'Exchange Yahoo' añadida.")
-        else:
-            renamed['Exchange Yahoo'] = '' # Asegurar que la columna exista
-            errors.append("Advertencia: No se encontró la columna 'Bolsa' para generar 'Exchange Yahoo'.")
-
-        for col in NUMERIC_COLS:
-            if col in renamed.columns:
-                if not pd.api.types.is_numeric_dtype(renamed[col]):
-                    cleaned_series = renamed[col].astype(str).str.replace(r'[$\s€]', '', regex=True).str.replace(',', '', regex=False)
-                    renamed[col] = pd.to_numeric(cleaned_series, errors='coerce')
-
-                # ---- INICIO DEL CAMBIO ----
-                # Reemplazar NaN con 0 después de la coerción
-                if pd.api.types.is_numeric_dtype(renamed[col]) or renamed[col].isnull().any():
-                    renamed[col] = renamed[col].fillna(0)
-                # ---- FIN DEL CAMBIO ----
-
-                if col == 'Cantidad':
-                     if pd.api.types.is_numeric_dtype(renamed[col]): # Verificar de nuevo
-                         renamed[col] = renamed[col].abs()
-                
-                if pd.api.types.is_numeric_dtype(renamed[col]): # Asegurar tipo float
-                    renamed[col] = renamed[col].astype(float)
-            else:
-                errors.append(f"Advertencia: Columna numérica '{col}' no encontrada tras renombrar.")
-                renamed[col] = 0.0 # Añadir columna con ceros si falta una numérica esencial
-
-        processed_df_for_csv = renamed
-
-    except KeyError as e_key:
-        errors.append(f"Error de procesamiento (KeyError): Columna '{e_key}' no encontrada. Verifica COLS_MAP y tus CSVs.")
-        return None, df_for_portfolio_calc, errors
-    except Exception as e_proc:
-        errors.append(f"Error general durante el procesamiento de datos para CSV: {e_proc}")
-        return None, df_for_portfolio_calc, errors
-        
-    print(f"Procesamiento base completado. DF para CSV ({len(processed_df_for_csv)} filas), DF raw para portfolio ({len(df_for_portfolio_calc)} filas).")
-    return processed_df_for_csv, df_for_portfolio_calc, errors
 
 
 def process_csvs_from_paths(list_of_file_paths):
@@ -8378,197 +10036,362 @@ def process_csvs_from_paths(list_of_file_paths):
     print(f"Procesamiento base (desde rutas) completado. DF para CSV ({len(processed_df_for_csv)} filas), DF raw para portfolio ({len(df_for_portfolio_calc)} filas).")
     return processed_df_for_csv, df_for_portfolio_calc, errors
 
+
+# -*- coding: utf-8 -*-
+# ... (tus imports y el resto de app.py) ...
+
 def calculate_portfolio(df_transacciones):
-    # ... (Código completo de la función como la teníamos antes) ...
-    print("Iniciando cálculo portfolio..."); required_cols = ["ISIN", "Producto", "Número", "Precio", "Valor local", "Bolsa de", "Unnamed: 8"]; sort_col = None
-    if 'FechaHora' in df_transacciones.columns: required_cols.append('FechaHora'); sort_col = 'FechaHora'
-    elif 'Fecha' in df_transacciones.columns: required_cols.append('Fecha'); sort_col = 'Fecha'
-    missing = [c for c in required_cols if c not in df_transacciones.columns];
-    if missing: print(f"Error: Faltan cols portfolio: {missing}"); return pd.DataFrame()
-    existing_cols = [c for c in required_cols if c in df_transacciones.columns]; df = df_transacciones[existing_cols].copy()
+    print("Iniciando cálculo portfolio...")
+    stock_isin_to_debug = "SE0009554454" # ¡¡¡REEMPLAZA CON EL ISIN CORRECTO DE SBB!!!
+
+    # DEBUG 2.1 (Como lo tenías, para ver la entrada completa para SBB)
+    print(f"\nDEBUG: df_transacciones (ENTRADA) a calculate_portfolio")
+    if 'ISIN' in df_transacciones.columns:
+        debug_stock_input_rows = df_transacciones[df_transacciones['ISIN'] == stock_isin_to_debug]
+        if not debug_stock_input_rows.empty:
+            print(f"Filas para ISIN {stock_isin_to_debug} en la ENTRADA de calculate_portfolio:")
+            cols_to_print_input = ['ISIN', 'Producto', 'Número', 'Precio', 'Valor local', 'Bolsa de', 'Unnamed: 8', 'Fecha', 'Hora', 'source_file', 'csv_format']
+            cols_to_print_input_existing = [col for col in cols_to_print_input if col in debug_stock_input_rows.columns]
+            print(debug_stock_input_rows[cols_to_print_input_existing].to_string())
+            print("Tipos de datos ENTRADA (para ISIN debug):")
+            print(debug_stock_input_rows[cols_to_print_input_existing].dtypes)
+        else:
+            print(f"No se encontraron filas para ISIN {stock_isin_to_debug} en la ENTRADA de calculate_portfolio.")
+    else:
+        print("Columna 'ISIN' no encontrada en df_transacciones (ENTRADA) para depuración.")
+
+    # ----- INICIO CORRECCIÓN PARA KeyError -----
+    required_cols = ["ISIN", "Producto", "Número", "Precio", "Valor local", "Bolsa de", "Unnamed: 8"]
+    
+    # Asegurar que Fecha y Hora están si existen en el input, para disponibilidad en el group
+    if 'Fecha' in df_transacciones.columns:
+        required_cols.append('Fecha')
+    if 'Hora' in df_transacciones.columns:
+        required_cols.append('Hora')
+
+    sort_col = None
+    if 'FechaHora' in df_transacciones.columns:
+        if not df_transacciones['FechaHora'].isnull().all():
+            if 'FechaHora' not in required_cols: # Añadir FechaHora si se va a usar para ordenar y no está ya
+                required_cols.append('FechaHora')
+            sort_col = 'FechaHora'
+        # Si FechaHora es todo NaT, pero Fecha es usable, se usará Fecha (ya añadida a required_cols)
+        elif 'Fecha' in required_cols and not df_transacciones['Fecha'].isnull().all():
+            sort_col = 'Fecha'
+    elif 'Fecha' in required_cols and not df_transacciones['Fecha'].isnull().all(): # No hay FechaHora, pero sí Fecha usable
+        sort_col = 'Fecha'
+    # ----- FIN CORRECCIÓN PARA KeyError -----
+            
+    missing = [c for c in required_cols if c not in df_transacciones.columns]
+    if missing:
+        # Si faltan columnas básicas (no Fecha/Hora/FechaHora que son para ordenar), es un error mayor.
+        basic_missing = [m for m in missing if m not in ['Fecha', 'Hora', 'FechaHora']]
+        if basic_missing:
+            print(f"Error: Faltan columnas básicas para calculate_portfolio: {basic_missing}. Columnas disponibles: {df_transacciones.columns.tolist()}")
+            return pd.DataFrame()
+        # Si solo faltan de ordenación, podría continuar pero el orden no será garantizado.
+        print(f"Advertencia: Faltan columnas para ordenación: {missing}. Se continuará sin ordenación si es posible.")
+
+
+    existing_cols = [c for c in required_cols if c in df_transacciones.columns]
+    df = df_transacciones[existing_cols].copy()
+
     num_cols = ['Número', 'Precio', 'Valor local']
     for col in num_cols:
          if col in df.columns:
-              if df[col].dtype == 'object': df[col] = df[col].astype(str).str.replace(',', '.', regex=False).str.strip()
+              if df[col].dtype == 'object':
+                  df[col] = df[col].astype(str).str.replace(',', '.', regex=False).str.strip()
               df[col] = pd.to_numeric(df[col], errors='coerce')
-         else: print(f"Error: Falta col numérica {col}."); return pd.DataFrame()
+         else: # Esto no debería ocurrir si required_cols las incluye y no están en missing.
+             print(f"Error: Columna numérica esperada '{col}' no encontrada en 'df' después de la selección inicial.")
+             return pd.DataFrame()
+
     ess_cols = ['ISIN', 'Número', 'Precio', 'Valor local', 'Bolsa de', 'Unnamed: 8']
-    existing_ess = [c for c in ess_cols if c in df.columns]; df = df.dropna(subset=existing_ess)
-    if df.empty: print("No transacciones válidas tras limpiar NaNs."); return pd.DataFrame()
-    portfolio = {}; print(f"Calculando portfolio sobre {len(df)} transacciones...")
-    for isin, group in df.groupby('ISIN'):
-        if sort_col and sort_col in group.columns: group = group.sort_values(by=sort_col, ascending=True, na_position='last')
-        producto = group['Producto'].iloc[-1]; bolsa_de = group['Bolsa de'].iloc[-1]; price_currency = group['Unnamed: 8'].iloc[-1]
-        col_qty = "Número"; compras = group[group[col_qty] > 0]; ventas = group[group[col_qty] < 0]
-        qty_bought = compras[col_qty].sum(); qty_sold = ventas[col_qty].abs().sum(); qty_actual = qty_bought - qty_sold
-        cost_pxq = 0
-        if 'Precio' in compras.columns:
-             if pd.api.types.is_numeric_dtype(compras[col_qty]) and pd.api.types.is_numeric_dtype(compras['Precio']): cost_pxq = (compras[col_qty] * compras['Precio'].abs()).sum()
+    existing_ess = [c for c in ess_cols if c in df.columns]
+
+    if 'ISIN' in df.columns:
+        df.dropna(subset=['ISIN'], inplace=True)
+        df['ISIN'] = df['ISIN'].astype(str).str.strip()
+        if df.empty:
+            print("DataFrame vacío después de eliminar filas sin ISIN.")
+            return pd.DataFrame()
+    else: # Esto no debería ocurrir si 'ISIN' está en required_cols
+        print("Error: Columna 'ISIN' no presente en 'df' antes de validación de datos esenciales.")
+        return pd.DataFrame()
+
+    # DEBUG 2.2 (Como lo tenías)
+    print(f"\nDEBUG: df ANTES de dropna en calculate_portfolio (columnas esenciales: {existing_ess})")
+    if 'ISIN' in df.columns: 
+        debug_stock_before_dropna = df[df['ISIN'] == stock_isin_to_debug]
+        if not debug_stock_before_dropna.empty:
+            print(f"Filas para ISIN {stock_isin_to_debug} ANTES de dropna (mostrando columnas {existing_ess}):")
+            print(debug_stock_before_dropna[existing_ess].to_string())
+            print("Tipos de datos ANTES de dropna (para ISIN debug, columnas esenciales):")
+            print(debug_stock_before_dropna[existing_ess].dtypes)
+            cols_orig_debug = [col for col in ['Número', 'Precio', 'Valor local'] if col in debug_stock_before_dropna.columns]
+            if cols_orig_debug:
+                print("Valores Originales de cols numéricas (para ISIN debug):")
+                print(debug_stock_before_dropna[cols_orig_debug].to_string())
+        else:
+            print(f"No se encontraron filas para ISIN {stock_isin_to_debug} ANTES de dropna.")
+    
+    if existing_ess: # Solo aplicar dropna si hay columnas esenciales definidas para ello
+        df = df.dropna(subset=existing_ess)
+    else:
+        print("Advertencia: No hay columnas esenciales ('existing_ess') para validar con dropna. Saltando dropna.")
+
+
+    # DEBUG 2.3 (Como lo tenías)
+    print(f"\nDEBUG: df DESPUÉS de dropna en calculate_portfolio")
+    if 'ISIN' in df.columns:
+        debug_stock_after_dropna = df[df['ISIN'] == stock_isin_to_debug]
+        if not debug_stock_after_dropna.empty:
+            print(f"Filas para ISIN {stock_isin_to_debug} DESPUÉS de dropna (mostrando columnas {existing_ess}):")
+            print(debug_stock_after_dropna[existing_ess].to_string())
+        else:
+            print(f"Filas para ISIN {stock_isin_to_debug} ELIMINADAS por dropna.")
+    elif not df_transacciones.empty and 'ISIN' in df_transacciones.columns and \
+         not df_transacciones[df_transacciones['ISIN'] == stock_isin_to_debug].empty :
+        print(f"Filas para ISIN {stock_isin_to_debug} ELIMINADAS por dropna (o la columna ISIN se perdió).")
+
+
+    if df.empty:
+        print("DataFrame vacío después de limpiar NaNs en columnas esenciales en calculate_portfolio.")
+        return pd.DataFrame()
+
+    portfolio = {}
+    print(f"Calculando portfolio sobre {len(df)} transacciones válidas...")
+    
+    for isin_val, group in df.groupby('ISIN'):
+        # DEBUG DENTRO DEL GROUPBY (Como lo tenías)
+        if isin_val == stock_isin_to_debug:
+            print(f"\n---------- DEBUG DENTRO DEL BUCLE PARA ISIN: {stock_isin_to_debug} ----------")
+            print("Datos del 'group' para este ISIN:")
+            cols_to_print_group = ['ISIN', 'Producto', 'Número', 'Precio', 'Valor local', 'Fecha', 'Hora', 'source_file', 'csv_format']
+            existing_cols_group = [col for col in cols_to_print_group if col in group.columns]
+            print(group[existing_cols_group].to_string())
+            if 'Número' in group.columns:
+                print("Columna 'Número' en el 'group':")
+                print(group['Número'].to_string())
+                print(f"Tipo de dato de la columna 'Número' en el 'group': {group['Número'].dtype}")
+            else:
+                print("Advertencia: Columna 'Número' no encontrada en el 'group' para SBB.")
+        
+        if sort_col and sort_col in group.columns: # Asegurarse que sort_col existe antes de usarlo
+            group = group.sort_values(by=sort_col, ascending=True, na_position='last')
+        elif sort_col: # Si se definió sort_col pero no está en el group (no debería pasar con la lógica anterior)
+            print(f"Advertencia: sort_col '{sort_col}' definido pero no encontrado en el grupo para ISIN {isin_val}. No se ordenará este grupo.")
+
+        
+        producto = group['Producto'].iloc[-1] if not group['Producto'].empty else 'Desconocido'
+        bolsa_de = group['Bolsa de'].iloc[-1] if not group['Bolsa de'].empty else 'N/A'
+        price_currency = group['Unnamed: 8'].iloc[-1] if not group['Unnamed: 8'].empty else 'N/A'
+
+        col_qty = "Número"
+        if not pd.api.types.is_numeric_dtype(group[col_qty]):
+             if isin_val == stock_isin_to_debug:
+                print(f"ADVERTENCIA PARA {stock_isin_to_debug}: La columna '{col_qty}' no es numérica antes de filtrar compras/ventas. Intentando convertir...")
+             group[col_qty] = pd.to_numeric(group[col_qty], errors='coerce')
+
+        compras = group[(group[col_qty] > 0) & pd.notna(group[col_qty])]
+        ventas = group[(group[col_qty] < 0) & pd.notna(group[col_qty])]
+
+        qty_bought = compras[col_qty].sum()
+        qty_sold = ventas[col_qty].abs().sum() 
+        qty_actual = qty_bought - qty_sold
+
+        # DEBUG PARA CÁLCULO DE CANTIDADES (Como lo tenías, ahora las columnas Fecha y Hora deberían existir)
+        if isin_val == stock_isin_to_debug:
+            print(f"\nCálculos de cantidad para ISIN {stock_isin_to_debug}:")
+            # Asegurarse de que las columnas existen en 'compras' y 'ventas' antes de intentar imprimirlas
+            cols_debug_compras_ventas = ['Número', 'Precio']
+            if 'Fecha' in compras.columns: cols_debug_compras_ventas.append('Fecha')
+            if 'Hora' in compras.columns: cols_debug_compras_ventas.append('Hora')
+            
+            print("DataFrame 'compras' filtrado para SBB:")
+            print(compras[cols_debug_compras_ventas].to_string() if not compras.empty else "DataFrame 'compras' vacío.")
+            print(f"  qty_bought (sum de 'compras'): {qty_bought}")
+
+            print("DataFrame 'ventas' filtrado para SBB:")
+            print(ventas[cols_debug_compras_ventas].to_string() if not ventas.empty else "DataFrame 'ventas' vacío.")
+            print(f"  qty_sold (sum de abs('ventas')): {qty_sold}")
+            print(f"  qty_actual (qty_bought - qty_sold): {qty_actual}")
+            print(f"  Condición para añadir a portfolio (qty_actual > 1e-6): {qty_actual > 1e-6}")
+            print("------------------------------------------------------------")
+        
+        cost_pxq = 0.0
+        if 'Precio' in compras.columns: # Chequear si existe la columna 'Precio'
+             if pd.api.types.is_numeric_dtype(compras[col_qty]) and pd.api.types.is_numeric_dtype(compras['Precio']):
+                 cost_pxq = (compras[col_qty] * compras['Precio'].abs()).sum()
+        
         avg_buy_p = 0.0
-        if qty_bought > 1e-9: avg_buy_p = cost_pxq / qty_bought
+        if qty_bought > 1e-9:
+            avg_buy_p = cost_pxq / qty_bought
+        
         if qty_actual > 1e-6:
-            portfolio[isin] = {'ISIN': isin, 'Producto': producto, 'Bolsa de': bolsa_de, 'currency': price_currency, 'Cantidad Actual': round(qty_actual, 4), 'Precio Medio Compra': round(avg_buy_p, 4)}
-    if not portfolio: print("Portfolio vacío.")
-    else: print(f"Portfolio con {len(portfolio)} activos.")
+            portfolio[isin_val] = {
+                'ISIN': isin_val,
+                'Producto': producto,
+                'Bolsa de': bolsa_de,
+                'currency': price_currency,
+                'Cantidad Actual': round(qty_actual, 4),
+                'Precio Medio Compra': round(avg_buy_p, 4)
+            }
+
+    if not portfolio:
+        print("Portfolio final vacío después de procesar todos los grupos.")
+    else:
+        print(f"Portfolio final calculado con {len(portfolio)} activos.")
+        
     df_portfolio = pd.DataFrame.from_dict(portfolio, orient='index')
-    if df_portfolio.empty: return df_portfolio
-    if df_portfolio.index.name == 'ISIN': df_portfolio = df_portfolio.reset_index(drop=False)
-    if 'index' in df_portfolio.columns and 'ISIN' in df_portfolio.columns and df_portfolio['ISIN'].equals(df_portfolio['index']): df_portfolio = df_portfolio.drop(columns=['index'])
-    elif 'index' in df_portfolio.columns and 'ISIN' not in df_portfolio.columns: df_portfolio = df_portfolio.rename(columns={'index': 'ISIN'})
-    if 'ISIN' not in df_portfolio.columns: print("Warn: ISIN no es columna."); # Podría intentar recuperarlo del índice si fuera necesario
+
+    if df_portfolio.empty:
+        return df_portfolio
+
+    df_portfolio.reset_index(drop=True, inplace=True)
+
+    if 'ISIN' not in df_portfolio.columns:
+        print("Advertencia CRÍTICA: La columna 'ISIN' no está presente en el DataFrame de portfolio final después de las manipulaciones del índice.")
+        return pd.DataFrame() 
+
     return df_portfolio
 
-# --- Rutas Flask ---
+# No es necesario mostrar process_uploaded_csvs_unified de nuevo ya que no se ha modificado aquí.
+# Asegúrate de que la función process_uploaded_csvs_unified que estés usando es la que te
+# proporcioné en la respuesta anterior, que ya contenía el "DEBUG BLOQUE 1".
 
+# También te incluyo la función process_uploaded_csvs_unified por si la necesitas completa
+# con el DEBUG BLOCK 1 que habías pedido (sin cambios funcionales en esta, solo el print).
+def process_uploaded_csvs_unified(files):
+    """
+    Procesa archivos CSV subidos, detectando automáticamente si son DeGiro o IBKR.
+    Mantiene la misma interfaz que process_uploaded_csvs original.
+    
+    Args:
+        files: Lista de archivos subidos
+    
+    Returns:
+        tuple: (processed_df_for_csv, combined_df_raw, errors)
+    """
+    all_dfs = []
+    filenames_processed = []
+    errors = []
+    mapping_data = load_mapping() 
 
+    if not files or all(f.filename == '' for f in files):
+        errors.append("Error: No archivos seleccionados.")
+        return None, None, errors
 
-# 2. AÑADIR NUEVA RUTA PARA ACTUALIZAR SOLO PRECIOS
-@app.route('/update_portfolio_prices')
-@login_required
-def update_portfolio_prices():
-    """Actualiza solo los precios del portfolio existente sin subir nuevos CSVs."""
-    # Primero, comprobar si hay portfolio en la sesión o en la BD
-    portfolio_data = session.get('portfolio_data')
-    if not portfolio_data:
-        portfolio_data, _, _ = load_user_portfolio(current_user.id)
-        if not portfolio_data:
-            flash("No hay datos de portfolio para actualizar. Por favor, carga tus CSVs primero.", "warning")
-            return redirect(url_for('index'))
-    
-    # Convertir a DataFrame si es una lista de diccionarios
-    if isinstance(portfolio_data, list):
-        import pandas as pd
-        portfolio_df = pd.DataFrame(portfolio_data)
-    else:
-        flash("Error al procesar datos de portfolio. Formato incorrecto.", "danger")
-        return redirect(url_for('show_portfolio'))
-    
-    # Cargar mapeo de ISIN a tickers
-    mapping_data = load_mapping()
-    
-    # Buscar watchlist items para este usuario
-    watchlist_items = WatchlistItem.query.filter_by(user_id=current_user.id, is_in_portfolio=True).all()
-    watchlist_isin_map = {item.isin: item for item in watchlist_items if item.isin}
-    
-    # Crear portfolio enriquecido
-    enriched_portfolio_data = []
-    total_market_value_eur = 0.0
-    total_cost_basis_eur_est = 0.0
-    total_pl_eur_est = 0.0
-    
-    # Variables para contar actualizaciones
-    precios_actualizados = 0
-    precios_fallidos = 0
-    
-    print(f"Actualizando precios para {len(portfolio_df)} items del portfolio...")
-    for _, row in portfolio_df.iterrows():
-        new_item = row.to_dict()
-        isin = new_item.get('ISIN')
-        
-        # Obtener datos desde el mapeo y la watchlist
-        ticker_base = None
-        yahoo_suffix = None
-        
-        # Primero intentar obtener desde watchlist
-        if isin in watchlist_isin_map:
-            ticker_base = watchlist_isin_map[isin].ticker
-            yahoo_suffix = watchlist_isin_map[isin].yahoo_suffix
+    for file in files:
+        if file and allowed_file(file.filename): 
+            filename = secure_filename(file.filename)
+            if not validate_filename_format_flexible(filename): 
+                errors.append(f"Advertencia: Archivo '{filename}' ignorado (formato inválido).")
+                continue
             
-        # Si no está en watchlist, intentar desde el mapeo global
-        if (not ticker_base or not yahoo_suffix) and isin in mapping_data:
-            ticker_base = mapping_data[isin].get('ticker')
-            yahoo_suffix = mapping_data[isin].get('yahoo_suffix', '')
-        
-        # Si no tenemos ticker, mantener el precio anterior si existe
-        if not ticker_base:
-            precios_fallidos += 1
-            if 'current_price_local' in new_item:
-                print(f"  No se encontró ticker para {isin}, manteniendo precio anterior: {new_item['current_price_local']}")
-            else:
-                print(f"  No se encontró ticker para {isin}, no se puede obtener precio")
-            enriched_portfolio_data.append(new_item)
-            continue
-        
-        # Obtener precio actualizado - FORZANDO ACTUALIZACIÓN DESDE YAHOO
-        yahoo_ticker = f"{ticker_base}{yahoo_suffix}"
-        current_price = get_current_price(yahoo_ticker, force_update=True)
-        
-        if current_price is not None:
-            precios_actualizados += 1
-            new_item['current_price_local'] = current_price
-            print(f"  Precio actualizado para {isin} ({yahoo_ticker}): {current_price}")
-            
-            # Calcular resto de valores (copiado de show_portfolio)
-            qty = new_item.get('Cantidad Actual')
-            avg_buy_price = new_item.get('Precio Medio Compra')
-            original_currency = new_item.get('currency')
-            
-            if original_currency and qty is not None and pd.notna(qty) and avg_buy_price is not None and pd.notna(avg_buy_price):
-                price_to_convert = current_price
-                avg_buy_price_for_calc = float(avg_buy_price)
-                currency_to_convert = original_currency.upper()
+            df_current_file = None 
+            try:
+                file.seek(0)
+                
+                csv_format = detect_csv_format_simple(file) 
+                print(f"Formato detectado para '{filename}': {csv_format}")
+                
+                if csv_format == 'degiro':
+                    df_current_file = process_degiro_file(file, filename) 
+                    if df_current_file is not None:
+                        df_current_file['csv_format'] = 'degiro'
+                
+                elif csv_format == 'ibkr':
+                    df_current_file = process_ibkr_file_complete(file, filename) 
+                    if df_current_file is not None:
+                        df_current_file['csv_format'] = 'ibkr'
+                
+                else: 
+                    errors.append(f"Advertencia: Formato de archivo '{filename}' no reconocido o falló el procesamiento primario. Intentando como DeGiro...")
+                    file.seek(0) 
+                    df_current_file = process_degiro_file(file, filename)
+                    if df_current_file is not None:
+                        df_current_file['csv_format'] = 'degiro_fallback' 
+                    else:
+                        errors.append(f"Error: No se pudo procesar '{filename}' en ningún formato conocido.")
 
-                if original_currency == 'GBX':
-                    price_to_convert = price_to_convert / 100.0
-                    avg_buy_price_for_calc = avg_buy_price_for_calc / 100.0
-                    currency_to_convert = 'GBP'
+                if df_current_file is not None and not df_current_file.empty:
+                    df_current_file['source_file'] = filename
+                    all_dfs.append(df_current_file)
+                    filenames_processed.append(filename)
+                elif df_current_file is None and csv_format != 'unknown': 
+                     errors.append(f"Error: No se pudieron leer datos válidos de '{filename}' (formato: {csv_format}).")
 
-                exchange_rate = get_exchange_rate(currency_to_convert, 'EUR')
-                new_item['exchange_rate_to_eur'] = exchange_rate
-
-                if exchange_rate is not None and pd.notna(exchange_rate):
-                    # Calcular Coste Estimado EUR
-                    try:
-                        cost_basis_eur_est = float(qty) * avg_buy_price_for_calc * float(exchange_rate)
-                        if pd.notna(cost_basis_eur_est):
-                            total_cost_basis_eur_est += cost_basis_eur_est
-                            new_item['cost_basis_eur_est'] = cost_basis_eur_est
-                    except Exception as e:
-                        print(f"Error cálculo coste EUR para {isin}: {e}")
-                        new_item['cost_basis_eur_est'] = None
-
-                    # Calcular Valor Mercado EUR
-                    if price_to_convert is not None and pd.notna(price_to_convert):
-                        try:
-                            market_value_local_adjusted = float(qty) * float(price_to_convert)
-                            new_item['market_value_local_adj'] = market_value_local_adjusted
-                            if exchange_rate is not None and pd.notna(exchange_rate) and pd.notna(market_value_local_adjusted):
-                                market_value_eur = market_value_local_adjusted * float(exchange_rate)
-                                if pd.notna(market_value_eur):
-                                    total_market_value_eur += market_value_eur
-                                    new_item['market_value_eur'] = market_value_eur
-                        except Exception as e:
-                            print(f"Error cálculo valor mercado {isin}: {e}")
-                            new_item['market_value_eur'] = None
-
-                    # Calcular G/P Estimada EUR
-                    if new_item.get('market_value_eur') is not None and new_item.get('cost_basis_eur_est') is not None:
-                        pl_eur_est = new_item['market_value_eur'] - new_item['cost_basis_eur_est']
-                        if pd.notna(pl_eur_est):
-                            total_pl_eur_est += pl_eur_est
-                            new_item['pl_eur_est'] = pl_eur_est
+            except Exception as e:
+                errors.append(f"Error crítico procesando archivo '{filename}': {e}")
+                traceback.print_exc() 
+                continue
         else:
-            precios_fallidos += 1
-            print(f"  No se pudo obtener precio para {isin} ({yahoo_ticker})")
+            if file and file.filename: 
+                errors.append(f"Archivo '{file.filename}' no permitido o inválido.")
+
+    if not all_dfs:
+        if not errors: 
+            errors.append("Error: No se procesaron archivos válidos (lista de DataFrames vacía sin errores explícitos).")
+        return None, None, errors
+
+    try:
+        combined_df_raw = pd.concat(all_dfs, ignore_index=True)
         
-        enriched_portfolio_data.append(new_item)
-    
-    # Actualizar portfolio en sesión y en la BD
-    session['portfolio_data'] = enriched_portfolio_data
-    save_user_portfolio(
-        user_id=current_user.id,
-        portfolio_data=enriched_portfolio_data,
-        csv_data=None,  # No modificamos CSV data
-        csv_filename=session.get('csv_temp_file')  # Mantener filename si existe
-    )
-    
-    # Mensaje de confirmación
-    if precios_actualizados > 0:
-        flash(f"Precios actualizados: {precios_actualizados} acciones. Fallos: {precios_fallidos}", "success")
-    else:
-        flash(f"No se pudo actualizar ningún precio. Revisa tu portfolio.", "warning")
-    
-    return redirect(url_for('show_portfolio'))
+        try:
+            if 'Fecha' in combined_df_raw.columns and 'Hora' in combined_df_raw.columns:
+                combined_df_raw['Fecha'] = pd.to_datetime(combined_df_raw['Fecha'], errors='coerce', dayfirst=True)
+                if not combined_df_raw['Fecha'].isnull().all():
+                    combined_df_raw['FechaHora'] = pd.to_datetime(
+                        combined_df_raw['Fecha'].dt.strftime('%Y-%m-%d') + ' ' + combined_df_raw['Hora'].astype(str),
+                        errors='coerce'
+                    )
+                    combined_df_raw = combined_df_raw.sort_values('FechaHora', ascending=True, na_position='first')
+                else: 
+                    combined_df_raw = combined_df_raw.sort_values('Hora', ascending=True, na_position='first')
+            elif 'Fecha' in combined_df_raw.columns:
+                combined_df_raw['Fecha'] = pd.to_datetime(combined_df_raw['Fecha'], errors='coerce', dayfirst=True)
+                combined_df_raw = combined_df_raw.sort_values('Fecha', ascending=True, na_position='first')
+        except Exception as e_date:
+            errors.append(f"Advertencia: Error parseando/ordenando fechas en combined_df_raw: {e_date}")
+
+        # <<< INICIO BLOQUE DE DEBUG 1 >>>
+        print("\nDEBUG: combined_df_raw ANTES de calculate_portfolio")
+        stock_isin_to_debug = "SE0009554454" # ¡¡¡REEMPLAZA CON EL ISIN CORRECTO!!!
+        if 'ISIN' in combined_df_raw.columns:
+            debug_stock_rows = combined_df_raw[combined_df_raw['ISIN'] == stock_isin_to_debug]
+            if not debug_stock_rows.empty:
+                print(f"Filas para ISIN {stock_isin_to_debug} en combined_df_raw ANTES de calculate_portfolio:")
+                cols_to_print_debug1 = ['ISIN', 'Producto', 'Número', 'Precio', 'Valor local', 'Bolsa de', 'Unnamed: 8', 'source_file', 'csv_format', 'Fecha', 'Hora']
+                cols_to_print_debug1_existing = [col for col in cols_to_print_debug1 if col in debug_stock_rows.columns]
+                print(debug_stock_rows[cols_to_print_debug1_existing].to_string())
+            else:
+                print(f"No se encontraron filas para ISIN {stock_isin_to_debug} en combined_df_raw.")
+        else:
+            print("Columna 'ISIN' no encontrada en combined_df_raw para depuración.")
+        # <<< FIN BLOQUE DE DEBUG 1 >>>
+
+        df_for_portfolio_calc = combined_df_raw.copy()
+        
+        has_ibkr_data = 'csv_format' in df_for_portfolio_calc.columns and \
+                        (df_for_portfolio_calc['csv_format'] == 'ibkr').any()
+        if has_ibkr_data:
+            print("Detectados datos IBKR, ajustando DataFrame para calculate_portfolio (prepare_dataframe_for_portfolio_calculation)")
+            df_for_portfolio_calc = prepare_dataframe_for_portfolio_calculation(df_for_portfolio_calc)
+        
+        processed_df_for_csv = prepare_processed_dataframe(combined_df_raw, errors)
+        
+        print(f"Procesamiento unificado completado: {len(processed_df_for_csv) if processed_df_for_csv is not None else 0} filas en CSV final, {len(df_for_portfolio_calc)} filas para cálculo de portfolio.")
+        return processed_df_for_csv, df_for_portfolio_calc, errors
+        
+    except Exception as e_concat:
+        errors.append(f"Error crítico al combinar o procesar DataFrames: {e_concat}")
+        traceback.print_exc()
+        return None, None, errors
+
+# ... (resto de tu código) ...
+
+
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -8627,12 +10450,6 @@ def login():
     return render_template('login.html', title='Iniciar Sesión', form=form)
 
 
-# ... (tus importaciones y otras definiciones de app.py) ...
-# Recuerda tener definidas tus funciones auxiliares como:
-# process_uploaded_csvs, process_csvs_from_paths, calculate_portfolio,
-# load_mapping, save_mapping, save_user_portfolio, etc.
-# y tus modelos User, WatchlistItem, UserPortfolio.
-# y variables globales como OUTPUT_FOLDER, FINAL_COLS_ORDERED, BOLSA_TO_YAHOO_MAP.
 
 @app.route('/', methods=['GET', 'POST'])
 @login_required
@@ -8661,6 +10478,8 @@ def index():
                 flash('Error: No se seleccionaron archivos.', 'danger')
                 return redirect(url_for('upload_page_form')) # MODIFICADO: Redirigir al formulario
             
+            # Aquí se llama a process_uploaded_csvs o process_uploaded_csvs_unified
+            # Asumiré que process_uploaded_csvs es un alias o la versión que utilizas.
             processed_data = process_uploaded_csvs(files) 
             
         elif input_method == 'path':
@@ -8732,14 +10551,14 @@ def index():
                         if not item_db.is_in_portfolio:
                             item_db.is_in_portfolio = True
                             if hasattr(item_db, 'is_in_followup'): item_db.is_in_followup = False
-                            elif hasattr(item_db, 'is_manual'): item_db.is_manual = False
+                            elif hasattr(item_db, 'is_manual'): item_db.is_manual = False # Campo antiguo
                             needs_update = True
                         new_portfolio_isins.discard(isin) 
                     else: 
                         if item_db.is_in_portfolio:
                             item_db.is_in_portfolio = False
                             if hasattr(item_db, 'is_in_followup'): item_db.is_in_followup = True
-                            elif hasattr(item_db, 'is_manual'): item_db.is_manual = True
+                            elif hasattr(item_db, 'is_manual'): item_db.is_manual = True # Campo antiguo
                             needs_update = True
                     if needs_update: items_to_commit_or_add.append(item_db)
 
@@ -8750,15 +10569,29 @@ def index():
                     google_ex = map_info.get('google_ex', None)
                     name = map_info.get('name', portfolio_row.get('Producto', 'Desconocido')).strip()
                     if not name: name = portfolio_row.get('Producto', 'Desconocido')
-                    degiro_bolsa_code = portfolio_row.get('Bolsa de')
-                    yahoo_suffix = BOLSA_TO_YAHOO_MAP.get(degiro_bolsa_code, '') if degiro_bolsa_code else ''
+
+                    # --- INICIO: LÓGICA CORREGIDA PARA YAHOO SUFFIX ---
+                    determined_yahoo_suffix = map_info.get('yahoo_suffix') # Prioridad 1: desde el mapeo global
+                    if determined_yahoo_suffix is None or determined_yahoo_suffix == '':
+                        # Prioridad 2: Derivar de 'Bolsa de' (para DeGiro o si el mapeo global no tiene sufijo)
+                        degiro_bolsa_code_or_ibkr_market = portfolio_row.get('Bolsa de')
+                        if degiro_bolsa_code_or_ibkr_market:
+                            determined_yahoo_suffix = BOLSA_TO_YAHOO_MAP.get(degiro_bolsa_code_or_ibkr_market, '')
+                        else:
+                            determined_yahoo_suffix = '' # Default si no hay 'Bolsa de'
+                    # --- FIN: LÓGICA CORREGIDA PARA YAHOO SUFFIX ---
+                    
                     new_watch_item_data = {
                         'item_name': name, 'isin': isin_to_add, 'ticker': ticker,
-                        'yahoo_suffix': yahoo_suffix, 'google_ex': google_ex,
+                        'yahoo_suffix': determined_yahoo_suffix, # Usar el sufijo determinado correctamente
+                        'google_ex': google_ex,
                         'user_id': current_user.id, 'is_in_portfolio': True
                     }
-                    if hasattr(WatchlistItem, 'is_in_followup'): new_watch_item_data['is_in_followup'] = False
-                    elif hasattr(WatchlistItem, 'is_manual'): new_watch_item_data['is_manual'] = False
+                    if hasattr(WatchlistItem, 'is_in_followup'): 
+                        new_watch_item_data['is_in_followup'] = False
+                    elif hasattr(WatchlistItem, 'is_manual'): # Manejar nombre de campo antiguo
+                        new_watch_item_data['is_manual'] = False
+                    
                     new_watch_item = WatchlistItem(**new_watch_item_data)
                     items_to_commit_or_add.append(new_watch_item)
                 
@@ -8767,12 +10600,13 @@ def index():
                      db.session.commit()
                      print("Sincronización watchlist DB completada.")
             except Exception as e_sync: 
-                db.session.rollback(); traceback.print_exc()
-                flash("Error Interno al actualizar la watchlist. Revisa logs.", "danger")
+                db.session.rollback()
+                traceback.print_exc() # Imprimir traza para depuración
+                flash(f"Error Interno al actualizar la watchlist: {e_sync}", "danger")
         else:
             print("Portfolio vacío, no se sincroniza watchlist.")
         
-        mapping_data = load_mapping()
+        mapping_data = load_mapping() # Recargar por si se actualizó en process_ibkr_file_complete
         missing_isins_details = []
         if portfolio_df is not None and not portfolio_df.empty:
              all_isins_in_portfolio = portfolio_df['ISIN'].unique()
@@ -8804,11 +10638,33 @@ def index():
                 try:
                     processed_df_for_csv['Ticker'] = processed_df_for_csv['ISIN'].map(lambda x: mapping_data.get(x, {}).get('ticker', ''))
                     processed_df_for_csv['Exchange Google'] = processed_df_for_csv['ISIN'].map(lambda x: mapping_data.get(x, {}).get('google_ex', ''))
-                    cols_final_ordered = [c for c in FINAL_COLS_ORDERED if c in processed_df_for_csv.columns] # FINAL_COLS_ORDERED debe estar definido
-                    # ... (lógica para añadir Ticker y Exchange Google a cols_final_ordered si no están) ...
-                    processed_df_for_csv = processed_df_for_csv.reindex(columns=cols_final_ordered, fill_value='')
+                    
+                    # Asegurar que FINAL_COLS_ORDERED tiene Ticker y Exchange Google en las posiciones correctas
+                    # o añadirlos si no están y luego reordenar.
+                    # Esta lógica asume que FINAL_COLS_ORDERED ya está definida y es correcta.
+                    cols_final_ordered_existing = [c for c in FINAL_COLS_ORDERED if c in processed_df_for_csv.columns]
+                    
+                    # Añadir Ticker y Exchange Google si no están en cols_final_ordered_existing pero sí en df
+                    if 'Ticker' in processed_df_for_csv.columns and 'Ticker' not in cols_final_ordered_existing:
+                        # Intentar insertar en la posición deseada de FINAL_COLS_ORDERED
+                        try:
+                            idx_ticker = FINAL_COLS_ORDERED.index('Ticker')
+                            cols_final_ordered_existing.insert(idx_ticker, 'Ticker')
+                        except ValueError: # Si 'Ticker' no está en FINAL_COLS_ORDERED, añadir al final
+                            cols_final_ordered_existing.append('Ticker')
+                            
+                    if 'Exchange Google' in processed_df_for_csv.columns and 'Exchange Google' not in cols_final_ordered_existing:
+                        try:
+                            idx_google_ex = FINAL_COLS_ORDERED.index('Exchange Google')
+                            cols_final_ordered_existing.insert(idx_google_ex, 'Exchange Google')
+                        except ValueError:
+                            cols_final_ordered_existing.append('Exchange Google')
+                    
+                    # Reordenar y rellenar columnas faltantes de FINAL_COLS_ORDERED
+                    processed_df_for_csv = processed_df_for_csv.reindex(columns=FINAL_COLS_ORDERED, fill_value='')
+                    
                     uid_final = uuid.uuid4(); final_temp_csv_filename_for_session = f"processed_{uid_final}.csv"
-                    path_final = os.path.join(OUTPUT_FOLDER, final_temp_csv_filename_for_session) # OUTPUT_FOLDER debe estar definido
+                    path_final = os.path.join(OUTPUT_FOLDER, final_temp_csv_filename_for_session) 
                     processed_df_for_csv.to_csv(path_final, index=False, sep=';', decimal='.', encoding='utf-8-sig')
                     session['csv_temp_file'] = final_temp_csv_filename_for_session
                     final_csv_filename_to_save_in_db = final_temp_csv_filename_for_session
@@ -8826,17 +10682,18 @@ def index():
                     portfolio_data=portfolio_list_for_session_and_db,
                     csv_data=csv_data_list_for_db,
                     csv_filename=final_csv_filename_to_save_in_db
-                ) # Tu función save_user_portfolio
+                ) 
                 if save_success: flash('Archivos procesados y portfolio listo.', 'success')
                 else: flash('Error al guardar datos del portfolio en BD.', 'warning')
             else:
                 session.pop('portfolio_data', None)
-                if csv_data_list_for_db:
+                if csv_data_list_for_db: # Guardar solo el CSV si el portfolio está vacío
                      save_user_portfolio(user_id=current_user.id, portfolio_data=None, csv_data=csv_data_list_for_db, csv_filename=final_csv_filename_to_save_in_db)
                 flash('Archivos procesados. Portfolio vacío.', 'info')
             return redirect(url_for('show_portfolio'))
 
-    return redirect(url_for('login')) # Fallback improbable
+    # Este return solo se alcanzaría si el método no es POST, lo cual ya se maneja al principio
+    return redirect(url_for('login'))
 
 @app.route('/upload_page', methods=['GET'])
 @login_required
@@ -9110,7 +10967,7 @@ def save_mapping_route():
     # --- Recuperar datos pendientes de sesión ---
     missing_isins_details = session.get('missing_isins_for_mapping', [])
     temp_csv_filename = session.get('temp_csv_pending_filename')
-    temp_portfolio_filename = session.get('temp_portfolio_pending_filename') # Nombre archivo portfolio pendiente
+    temp_portfolio_filename = session.get('temp_portfolio_pending_filename') 
 
     # Limpiar sesión
     session.pop('missing_isins_for_mapping', None)
@@ -9120,24 +10977,34 @@ def save_mapping_route():
 
     # --- Cargar DFs desde archivos temporales ---
     processed_df_for_csv = pd.DataFrame()
-    portfolio_df = pd.DataFrame() # <<< DataFrame del portfolio calculado previamente
+    portfolio_df = pd.DataFrame() 
     load_error = False
-    # ... (Código para cargar processed_df_for_csv desde temp_csv_filename como antes) ...
+    
     if temp_csv_filename:
         path = os.path.join(OUTPUT_FOLDER, temp_csv_filename)
         try:
-            if os.path.exists(path): df_csv = pd.read_json(path, orient='records', lines=True); print(f"CSV cargado: {path}"); os.remove(path); print(f"CSV temp elim."); processed_df_for_csv = df_csv
-            else: print(f"Error: Temp CSV no: {path}"); error = True
-        except Exception as e: print(f"Error cargando CSV: {e}"); error = True
-    else: print("Warn: No temp CSV.")
-    # --- Cargar portfolio_df desde temp_portfolio_filename --- ### NUEVO / RE-AÑADIDO ###
+            if os.path.exists(path): 
+                df_csv = pd.read_json(path, orient='records', lines=True)
+                print(f"CSV cargado: {path}")
+                os.remove(path)
+                print(f"CSV temp elim.")
+                processed_df_for_csv = df_csv
+            else: 
+                print(f"Error: Temp CSV no encontrado: {path}")
+                load_error = True # Corrección: debe ser load_error, no solo error
+        except Exception as e: 
+            print(f"Error cargando CSV: {e}")
+            load_error = True # Corrección: debe ser load_error, no solo error
+    else: 
+        print("Warn: No temp CSV.")
+
     if temp_portfolio_filename:
         temp_portfolio_path = os.path.join(OUTPUT_FOLDER, temp_portfolio_filename)
         try:
             if os.path.exists(temp_portfolio_path):
-                portfolio_df = pd.read_json(temp_portfolio_path, orient='records', lines=True) # Cargar aquí
+                portfolio_df = pd.read_json(temp_portfolio_path, orient='records', lines=True) 
                 print(f"DF de Portfolio cargado desde: {temp_portfolio_path} ({len(portfolio_df)} filas)")
-                os.remove(temp_portfolio_path) # Eliminar archivo temporal
+                os.remove(temp_portfolio_path) 
                 print(f"Archivo temporal Portfolio pendiente eliminado.")
             else:
                  print(f"Error: Archivo temporal de Portfolio no encontrado: {temp_portfolio_path}")
@@ -9147,221 +11014,440 @@ def save_mapping_route():
             load_error = True
     else:
          print("Advertencia: No había nombre de archivo temporal de Portfolio en sesión.")
-         # Si no había portfolio pendiente, ¿qué hacemos? Podríamos continuar sin él,
-         # pero la sincronización y la vista de portfolio no funcionarán bien.
-         # Mejor considerar esto un error si esperábamos un portfolio.
-         if missing_isins_details: # Si estábamos completando mapeo, deberíamos tener portfolio
+         if missing_isins_details: 
              load_error = True
 
 
     if load_error:
          flash("Error al recuperar datos temporales pendientes. Vuelve a subir.", "danger")
-         return redirect(url_for('index'))
+         return redirect(url_for('index')) # Asumiendo que 'index' es la página de subida principal
 
-    # --- Procesar formulario y actualizar mapping_db.json (como antes) ---
+    # --- Procesar formulario y actualizar mapping_db.json ---
     mapping_data = load_mapping()
     updated_count = 0
     if missing_isins_details:
          print(f"Procesando form para {len(missing_isins_details)} ISINs...")
-         # ... (lógica para actualizar mapping_data como antes, rellenando huecos) ...
          for item in missing_isins_details:
-            isin = item['isin']; ticker = request.form.get(f'ticker_{isin}'); google_ex = request.form.get(f'google_ex_{isin}'); yahoo_s = request.form.get(f'yahoo_suffix_{isin}', ''); name = request.form.get(f'name_{isin}', item.get('name', ''))
-            if ticker and google_ex: # Ticker y GoogleEx son mínimos para un mapeo útil
-               if isin in mapping_data: # Actualizar existente si faltan campos
-                   upd = False; current = mapping_data[isin]; t_clean = ticker.strip().upper(); g_clean = google_ex.strip().upper(); y_clean = yahoo_s.strip(); n_clean = name.strip()
-                   if not current.get('ticker') and t_clean: mapping_data[isin]['ticker'] = t_clean; upd = True
-                   if not current.get('google_ex') and g_clean: mapping_data[isin]['google_ex'] = g_clean; upd = True
-                   if current.get('yahoo_suffix') is None or (not current.get('yahoo_suffix') and y_clean): mapping_data[isin]['yahoo_suffix'] = y_clean; upd = True
-                   if not current.get('name') and n_clean: mapping_data[isin]['name'] = n_clean; upd = True
-                   if upd: updated_count += 1; print(f"  Mapeo existente ACTUALIZADO {isin}")
-                   else: print(f"  Mapeo {isin} ya completo.")
-               else: # Añadir nuevo
-                   mapping_data[isin] = {"ticker": ticker.strip().upper(), "google_ex": google_ex.strip().upper(), "yahoo_suffix": yahoo_s.strip(), "name": name.strip()}; updated_count += 1; print(f"  Mapeo NUEVO añadido {isin}")
-            else: print(f"Warn: Datos incompletos form {isin}"); flash(f"Datos incompletos {isin} ({item.get('name', isin)}).", "warning")
+            isin = item['isin']
+            ticker = request.form.get(f'ticker_{isin}')
+            google_ex = request.form.get(f'google_ex_{isin}')
+            yahoo_s = request.form.get(f'yahoo_suffix_{isin}', '')
+            name = request.form.get(f'name_{isin}', item.get('name', '')) # Usar nombre del item si no se envía
+            
+            if ticker and google_ex: 
+               ticker_clean = ticker.strip().upper()
+               google_ex_clean = google_ex.strip().upper()
+               yahoo_s_clean = yahoo_s.strip()
+               name_clean = name.strip()
 
-    # Guardar mapeo actualizado si hubo cambios
+               if isin in mapping_data: 
+                   current_entry = mapping_data[isin]
+                   changed_in_existing = False
+                   if not current_entry.get('ticker') and ticker_clean: mapping_data[isin]['ticker'] = ticker_clean; changed_in_existing = True
+                   if not current_entry.get('google_ex') and google_ex_clean: mapping_data[isin]['google_ex'] = google_ex_clean; changed_in_existing = True
+                   if current_entry.get('yahoo_suffix') is None or (not current_entry.get('yahoo_suffix') and yahoo_s_clean): mapping_data[isin]['yahoo_suffix'] = yahoo_s_clean; changed_in_existing = True
+                   if not current_entry.get('name') and name_clean: mapping_data[isin]['name'] = name_clean; changed_in_existing = True
+                   
+                   if changed_in_existing: updated_count += 1; print(f"  Mapeo existente ACTUALIZADO {isin}")
+                   else: print(f"  Mapeo {isin} ya completo o sin cambios válidos.")
+               else: 
+                   mapping_data[isin] = {
+                       "ticker": ticker_clean, 
+                       "google_ex": google_ex_clean, 
+                       "yahoo_suffix": yahoo_s_clean, 
+                       "name": name_clean
+                   }
+                   updated_count += 1
+                   print(f"  Mapeo NUEVO añadido {isin}")
+            else: 
+                print(f"Warn: Datos incompletos form {isin}")
+                flash(f"Datos incompletos para {isin} ({item.get('name', isin)}). No se guardó mapeo global.", "warning")
+
     if updated_count > 0:
         save_mapping(mapping_data)
         flash(f"Guardados {updated_count} mapeos globales.", "success")
-        mapping_data = load_mapping() # Recargar por si acaso
+        mapping_data = load_mapping() 
     elif missing_isins_details:
          flash("No se guardó ningún mapeo global nuevo.", "info")
 
 
-    # --- SINCRONIZAR WATCHLIST DB (AHORA que mapping_data está actualizado) --- ### NUEVO BLOQUE ###
-    if portfolio_df is not None and not portfolio_df.empty: # Sincronizar solo si tenemos portfolio cargado
+    # --- SINCRONIZAR WATCHLIST DB (AHORA que mapping_data está actualizado) ---
+    if portfolio_df is not None and not portfolio_df.empty: 
         print(f"Sincronizando portfolio ({len(portfolio_df)} items) con watchlist DB TRAS GUARDAR MAPEO...")
         try:
-            # La lógica es idéntica a la del bloque de sincronización en la ruta index (POST)
             current_db_watchlist = WatchlistItem.query.filter_by(user_id=current_user.id).all()
             db_isin_map = {item.isin: item for item in current_db_watchlist if item.isin}
             new_portfolio_isins = set(portfolio_df['ISIN'].dropna().unique())
+            items_to_commit_or_add = []
 
-            # 1. Actualizar existentes
             for item_db in current_db_watchlist:
-                isin = item_db.isin; is_now = isin in new_portfolio_isins
-                if is_now:
-                    if not item_db.is_in_portfolio: print(f"  -> Marcar {isin} EN portfolio"); item_db.is_in_portfolio = True; item_db.is_in_followup = False
+                isin = item_db.isin
+                is_now_in_portfolio = isin in new_portfolio_isins
+                needs_update = False
+                if is_now_in_portfolio:
+                    if not item_db.is_in_portfolio: 
+                        print(f"  -> Marcar {isin} EN portfolio")
+                        item_db.is_in_portfolio = True
+                        if hasattr(item_db, 'is_in_followup'): item_db.is_in_followup = False
+                        elif hasattr(item_db, 'is_manual'): item_db.is_manual = False
+                        needs_update = True
                     new_portfolio_isins.discard(isin)
                 else:
-                    if item_db.is_in_portfolio: print(f"  -> Marcar {isin} FUERA portfolio (manual=True)"); item_db.is_in_portfolio = False; item_db.is_manual = True # Corrección: debería ser is_in_followup = True
-
-            # 2. Añadir nuevos
-            print(f" ISINs nuevos a añadir: {len(new_portfolio_isins)}")
+                    if item_db.is_in_portfolio: 
+                        print(f"  -> Marcar {isin} FUERA portfolio (followup=True)")
+                        item_db.is_in_portfolio = False
+                        if hasattr(item_db, 'is_in_followup'): item_db.is_in_followup = True
+                        elif hasattr(item_db, 'is_manual'): item_db.is_manual = True
+                        needs_update = True
+                if needs_update: items_to_commit_or_add.append(item_db)
+            
+            print(f" ISINs nuevos a añadir a watchlist DB: {len(new_portfolio_isins)}")
             for isin_to_add in new_portfolio_isins:
                 portfolio_row = portfolio_df[portfolio_df['ISIN'] == isin_to_add].iloc[0]
-                map_info = mapping_data.get(isin_to_add, {}) # Usar mapping_data actualizado
-                ticker = map_info.get('ticker', 'N/A'); yahoo_suffix = map_info.get('yahoo_suffix', ''); google_ex = map_info.get('google_ex', None); name = map_info.get('name', portfolio_row.get('Producto', '???')).strip();
+                map_info = mapping_data.get(isin_to_add, {}) 
+                ticker = map_info.get('ticker', 'N/A')
+                google_ex = map_info.get('google_ex', None)
+                name = map_info.get('name', portfolio_row.get('Producto', '???')).strip()
                 if not name: name = portfolio_row.get('Producto', '???')
-                print(f"  -> Añadiendo {isin_to_add} ({ticker}{yahoo_suffix}) a DB (portfolio=True, followup=False)")
-                new_watch_item = WatchlistItem(item_name=name, isin=isin_to_add, ticker=ticker, yahoo_suffix=yahoo_suffix, google_ex=google_ex, user_id=current_user.id, is_manual=False, is_in_portfolio=True) # Corrección: usar is_in_followup=False
-                db.session.add(new_watch_item)
 
-            # 3. Guardar cambios DB
-            db.session.commit()
+                # --- INICIO: LÓGICA CORREGIDA PARA YAHOO SUFFIX ---
+                determined_yahoo_suffix = map_info.get('yahoo_suffix') # Prioridad 1: desde el mapeo global
+                if determined_yahoo_suffix is None or determined_yahoo_suffix == '':
+                    # Prioridad 2: Derivar de 'Bolsa de' (para DeGiro o si el mapeo global no tiene sufijo)
+                    degiro_bolsa_code_or_ibkr_market = portfolio_row.get('Bolsa de')
+                    if degiro_bolsa_code_or_ibkr_market:
+                        determined_yahoo_suffix = BOLSA_TO_YAHOO_MAP.get(degiro_bolsa_code_or_ibkr_market, '')
+                    else:
+                        determined_yahoo_suffix = '' # Default si no hay 'Bolsa de'
+                # --- FIN: LÓGICA CORREGIDA PARA YAHOO SUFFIX ---
+                
+                print(f"  -> Añadiendo a watchlist DB: {isin_to_add} ({ticker}{determined_yahoo_suffix})")
+                new_watch_item_data = {
+                    'item_name': name, 'isin': isin_to_add, 'ticker': ticker,
+                    'yahoo_suffix': determined_yahoo_suffix, # Usar el sufijo determinado correctamente
+                    'google_ex': google_ex, 'user_id': current_user.id,
+                    'is_in_portfolio': True
+                }
+                if hasattr(WatchlistItem, 'is_in_followup'): 
+                    new_watch_item_data['is_in_followup'] = False
+                elif hasattr(WatchlistItem, 'is_manual'): 
+                    new_watch_item_data['is_manual'] = False
+                
+                new_watch_item = WatchlistItem(**new_watch_item_data)
+                items_to_commit_or_add.append(new_watch_item)
+
+            if items_to_commit_or_add:
+                db.session.add_all(items_to_commit_or_add)
+                db.session.commit()
             print("Sincronización watchlist DB (tras mapeo) completada.")
 
         except Exception as e_sync:
             db.session.rollback()
             print(f"Error durante sincronización watchlist DB (tras mapeo): {e_sync}")
+            traceback.print_exc()
             flash("Error al actualizar la watchlist tras guardar mapeo.", "danger")
     else:
         print("Advertencia: No hay datos de portfolio cargados para sincronizar watchlist después de guardar mapeo.")
     # --- FIN BLOQUE SINCRONIZACIÓN ---
 
 
-    # --- Preparar y guardar CSV FINAL (como antes) ---
+    # --- Preparar y guardar CSV FINAL ---
     temp_csv_filename_final = None
+    csv_data_list_for_db = None # Para guardar en UserPortfolio
     if processed_df_for_csv is not None and not processed_df_for_csv.empty:
-        # ... (Enriquecer y guardar CSV final en session['csv_temp_file']) ...
         print("Enriqueciendo y guardando CSV final...")
         try:
             processed_df_for_csv['Ticker'] = processed_df_for_csv['ISIN'].map(lambda x: mapping_data.get(x, {}).get('ticker', ''))
+            processed_df_for_csv['Exchange Yahoo'] = processed_df_for_csv['ISIN'].map(lambda x: mapping_data.get(x, {}).get('yahoo_suffix', '')) # Usar yahoo_suffix
             processed_df_for_csv['Exchange Google'] = processed_df_for_csv['ISIN'].map(lambda x: mapping_data.get(x, {}).get('google_ex', ''))
-            cols_final = [c for c in FINAL_COLS_ORDERED if c in processed_df_for_csv.columns];
-            if 'Ticker' not in cols_final and 'Ticker' in processed_df_for_csv.columns: cols_final.insert(FINAL_COLS_ORDERED.index('Ticker'), 'Ticker')
-            if 'Exchange Google' not in cols_final and 'Exchange Google' in processed_df_for_csv.columns: cols_final.insert(FINAL_COLS_ORDERED.index('Exchange Google'), 'Exchange Google')
-            cols_final = [c for c in cols_final if c in processed_df_for_csv.columns]; processed_df_for_csv = processed_df_for_csv.reindex(columns=cols_final, fill_value='')
-            uid_f = uuid.uuid4(); temp_csv_filename_final = f"processed_{uid_f}.csv"; path_f = os.path.join(OUTPUT_FOLDER, temp_csv_filename_final); processed_df_for_csv.to_csv(path_f, index=False, sep=';', decimal='.', encoding='utf-8-sig'); session['csv_temp_file'] = temp_csv_filename_final; print(f"CSV final guardado: {path_f}")
-        except Exception as e: flash(f"Error guardando CSV final: {e}", "danger"); session.pop('csv_temp_file', None)
-    else: print("Warn: No datos CSV final."); session.pop('csv_temp_file', None)
+            
+            # Reordenar y asegurar todas las columnas de FINAL_COLS_ORDERED
+            processed_df_for_csv = processed_df_for_csv.reindex(columns=FINAL_COLS_ORDERED, fill_value='')
+            
+            uid_f = uuid.uuid4(); temp_csv_filename_final = f"processed_{uid_f}.csv"; 
+            path_f = os.path.join(OUTPUT_FOLDER, temp_csv_filename_final); 
+            processed_df_for_csv.to_csv(path_f, index=False, sep=';', decimal='.', encoding='utf-8-sig'); 
+            session['csv_temp_file'] = temp_csv_filename_final; 
+            csv_data_list_for_db = processed_df_for_csv.to_dict('records') # Para UserPortfolio
+            print(f"CSV final guardado: {path_f}")
+        except Exception as e: 
+            flash(f"Error guardando CSV final: {e}", "danger"); 
+            session.pop('csv_temp_file', None)
+            temp_csv_filename_final = None # Asegurar que no se guarda en DB si falla
+            csv_data_list_for_db = None
+    else: 
+        print("Warn: No datos CSV final."); 
+        session.pop('csv_temp_file', None)
 
 
-    # --- Guardar portfolio (cargado de temp) en sesión para mostrar ---
+    # --- Guardar portfolio (cargado de temp) en sesión para mostrar y en DB ---
     if portfolio_df is not None and not portfolio_df.empty:
-         session['portfolio_data'] = portfolio_df.to_dict('records')
-         # Guardar en base de datos para persistencia entre sesiones
+         portfolio_list_for_db = portfolio_df.to_dict('records')
+         session['portfolio_data'] = portfolio_list_for_db # Para la vista inmediata
          save_user_portfolio(
             user_id=current_user.id,
-            portfolio_data=portfolio_df.to_dict('records'),
-            csv_data=processed_df_for_csv.to_dict('records') if processed_df_for_csv is not None else None,
-            csv_filename=temp_csv_filename_final)
-         print("Datos de portfolio puestos en sesión para visualización.")
+            portfolio_data=portfolio_list_for_db,
+            csv_data=csv_data_list_for_db, 
+            csv_filename=temp_csv_filename_final 
+        )
+         print("Datos de portfolio puestos en sesión y guardados en DB.")
     else:
          session.pop('portfolio_data', None)
-         print("Advertencia: No hay datos de portfolio (o error carga) para poner en sesión.")
+         # Si no hay portfolio pero sí CSV, guardar solo el CSV en DB
+         if csv_data_list_for_db:
+             save_user_portfolio(
+                 user_id=current_user.id,
+                 portfolio_data=None, # No hay portfolio
+                 csv_data=csv_data_list_for_db,
+                 csv_filename=temp_csv_filename_final
+             )
+         print("Advertencia: No hay datos de portfolio (o error carga) para poner en sesión/DB.")
 
-    # Redirigir finalmente a la vista del portfolio
     print("Redirigiendo a show_portfolio...")
     return redirect(url_for('show_portfolio'))
 
+
+
+@app.route('/update_portfolio_prices')
+@login_required
+def update_portfolio_prices():
+    """
+    Actualiza los precios del portfolio existente desde yfinance.
+    Maneja la conversión de GBX a GBP para cálculos en EUR.
+    Los datos actualizados se guardan en la base de datos y se establecen a 0.0 si no se encuentran.
+    """
+    print("Iniciando /update_portfolio_prices...")
+
+    portfolio_data_list, _, _ = load_user_portfolio(current_user.id)
+
+    if not portfolio_data_list:
+        flash("No hay datos de portfolio para actualizar. Por favor, carga tus CSVs primero.", "warning")
+        return redirect(url_for('show_portfolio'))
+
+    if not isinstance(portfolio_data_list, list):
+        flash("Error: El formato de los datos del portfolio cargados desde la BD es incorrecto.", "danger")
+        portfolio_data_list = []
+
+    try:
+        portfolio_df = pd.DataFrame(portfolio_data_list)
+    except Exception as e_df:
+        print(f"Error convirtiendo portfolio_data_list a DataFrame: {e_df}")
+        flash("Error interno al procesar datos del portfolio.", "danger")
+        return redirect(url_for('show_portfolio'))
+
+    mapping_data = load_mapping()
+    watchlist_items = WatchlistItem.query.filter_by(user_id=current_user.id, is_in_portfolio=True).all()
+    watchlist_isin_map = {item.isin: item for item in watchlist_items if item.isin}
+
+    enriched_portfolio_data = []
+    precios_actualizados = 0
+    precios_fallidos = 0
+
+    print(f"Actualizando precios para {len(portfolio_df) if not portfolio_df.empty else 0} items del portfolio...")
+    if not portfolio_df.empty:
+        for _, row_series in portfolio_df.iterrows():
+            new_item = row_series.to_dict()
+            isin = new_item.get('ISIN')
+
+            ticker_base = None
+            yahoo_suffix = None
+            original_currency = str(new_item.get('currency', '')).upper()
+            avg_buy_price_original_unit = new_item.get('Precio Medio Compra', 0.0) # Default to 0.0 if missing
+            if pd.isna(avg_buy_price_original_unit): avg_buy_price_original_unit = 0.0
+
+            qty = new_item.get('Cantidad Actual', 0.0) # Default to 0.0 if missing
+            if pd.isna(qty): qty = 0.0
+
+            if isin in watchlist_isin_map:
+                ticker_base = watchlist_isin_map[isin].ticker
+                yahoo_suffix = watchlist_isin_map[isin].yahoo_suffix
+            elif isin in mapping_data:
+                ticker_base = mapping_data[isin].get('ticker')
+                yahoo_suffix = mapping_data[isin].get('yahoo_suffix', '')
+
+            if not ticker_base:
+                precios_fallidos += 1
+                print(f"  No se encontró ticker para ISIN {isin}. Valores EUR se calcularán como 0 o basados en coste 0.")
+                new_item['current_price_local'] = 0.0 # Default si no hay ticker
+                new_item['market_value_eur'] = 0.0
+                # Preservar coste si existe, sino 0.0
+                cost_basis_eur_existing = new_item.get('cost_basis_eur_est')
+                new_item['cost_basis_eur_est'] = float(cost_basis_eur_existing) if pd.notna(cost_basis_eur_existing) else 0.0
+                new_item['pl_eur_est'] = 0.0 - new_item['cost_basis_eur_est']
+                enriched_portfolio_data.append(new_item)
+                continue
+
+            yahoo_ticker_full = f"{ticker_base}{yahoo_suffix}"
+            price_from_yfinance = get_current_price(yahoo_ticker_full, force_update=True) # Ya devuelve float, 0.0 en fallo
+
+            if price_from_yfinance != 0.0: # Solo proceder si se obtuvo un precio > 0
+                precios_actualizados += 1
+                actual_numeric_price_from_yfinance = price_from_yfinance # Ya es float
+
+                price_for_eur_calc = actual_numeric_price_from_yfinance
+                avg_buy_price_for_eur_calc = float(avg_buy_price_original_unit)
+                currency_for_fx = original_currency
+
+                is_lse_pence_ticker = yahoo_ticker_full.endswith('.L')
+
+                if original_currency == 'GBX':
+                    new_item['current_price_local'] = actual_numeric_price_from_yfinance
+                    price_for_eur_calc = actual_numeric_price_from_yfinance / 100.0
+                    avg_buy_price_for_eur_calc = avg_buy_price_for_eur_calc / 100.0
+                    currency_for_fx = 'GBP'
+                elif original_currency == 'GBP':
+                    if is_lse_pence_ticker:
+                        new_item['current_price_local'] = actual_numeric_price_from_yfinance / 100.0
+                        price_for_eur_calc = new_item['current_price_local']
+                    else:
+                        new_item['current_price_local'] = actual_numeric_price_from_yfinance
+                        price_for_eur_calc = actual_numeric_price_from_yfinance
+                    currency_for_fx = 'GBP'
+                else:
+                    new_item['current_price_local'] = actual_numeric_price_from_yfinance
+
+                exchange_rate = get_exchange_rate(currency_for_fx, 'EUR')
+                new_item['exchange_rate_to_eur'] = exchange_rate
+
+                if exchange_rate is not None and pd.notna(exchange_rate):
+                    cost_basis_eur_est = qty * avg_buy_price_for_eur_calc * exchange_rate
+                    market_value_eur = qty * price_for_eur_calc * exchange_rate
+
+                    new_item['cost_basis_eur_est'] = float(cost_basis_eur_est)
+                    new_item['market_value_eur'] = float(market_value_eur)
+                    new_item['pl_eur_est'] = float(market_value_eur - cost_basis_eur_est)
+                else:
+                    print(f"  No se pudo obtener tipo de cambio para {currency_for_fx}->EUR para {isin}. Valores EUR serán 0.")
+                    new_item['cost_basis_eur_est'] = 0.0 # O mantener el coste original si se prefiere y solo MktVal=0
+                    new_item['market_value_eur'] = 0.0
+                    new_item['pl_eur_est'] = 0.0 - new_item.get('cost_basis_eur_est', 0.0)
+            else: # Precio de yfinance fue 0.0 (fallo en get_current_price)
+                precios_fallidos += 1
+                print(f"  No se pudo obtener precio > 0 para {isin} ({yahoo_ticker_full}). Precio yfinance: {price_from_yfinance}. Valores EUR se basarán en precio 0.")
+                new_item['current_price_local'] = 0.0 # Reflejar que el precio actual es 0 o desconocido
+                new_item['market_value_eur'] = 0.0
+
+                # Mantener el coste base si ya existía, si no, 0.0
+                cost_basis_existing = new_item.get('cost_basis_eur_est')
+                new_item['cost_basis_eur_est'] = float(cost_basis_existing) if pd.notna(cost_basis_existing) else 0.0
+
+                new_item['pl_eur_est'] = 0.0 - new_item['cost_basis_eur_est']
+
+            enriched_portfolio_data.append(new_item)
+
+    save_success = save_user_portfolio(
+        user_id=current_user.id,
+        portfolio_data=enriched_portfolio_data,
+        csv_data=None,
+        csv_filename=session.get('csv_temp_file')
+    )
+
+    if save_success:
+        if precios_actualizados > 0 or precios_fallidos > 0: # Mostrar mensaje si hubo algún intento
+            flash_msg = f"Precios actualizados en BD. Obtenidos: {precios_actualizados}, Fallidos/Cero: {precios_fallidos}."
+            flash_cat = "success" if precios_actualizados > 0 else "warning"
+            flash(flash_msg, flash_cat)
+        else: # No hubo items en portfolio_df para procesar
+            flash("No había items en el portfolio para actualizar precios.", "info")
+    else:
+        flash("Error al guardar el portfolio actualizado en la base de datos.", "danger")
+
+    print("Fin /update_portfolio_prices.")
+    return redirect(url_for('show_portfolio'))
+
+
+# ... (resto de tu app.py, incluyendo show_portfolio, load_user_portfolio, save_user_portfolio, etc.) ...
 
 @app.route('/portfolio')
 @login_required
 def show_portfolio():
     """
-    Muestra la página con el resumen de la cartera, usando precios cacheados.
-    Añade un botón para ir a la página de carga de CSVs.
+    Muestra la página con el resumen de la cartera, cargando SIEMPRE desde la base de datos.
     """
     print(f"Iniciando show_portfolio para usuario: {current_user.id}")
     
-    portfolio_data_list = None
-    temp_filename = None
+    # --- MODIFICACIÓN EN EL DESEMPAQUETADO AQUÍ ---
+    portfolio_data_list, _, csv_filename_from_db = load_user_portfolio(current_user.id)
+    # portfolio_data_list recibe el primer valor (datos del portfolio)
+    # _ descarta el segundo valor (csv_data, la lista de diccionarios del CSV)
+    # csv_filename_from_db recibe el tercer valor (el nombre del archivo CSV)
+    
     csv_existe = False
-    last_updated = None
+    last_updated = None 
+    
+    if portfolio_data_list is None:
+        print("No se encontraron datos de portfolio en la base de datos.")
+        portfolio_data_list = [] 
+        flash("No hay datos de portfolio disponibles. Por favor, carga tus CSVs.", "info")
+    elif not isinstance(portfolio_data_list, list):
+        print(f"Error: El formato de portfolio_data_list cargado de BD no es una lista (tipo: {type(portfolio_data_list)}).")
+        flash("Error al cargar datos del portfolio desde la base de datos (formato incorrecto).", "danger")
+        portfolio_data_list = []
+    else:
+        print(f"Datos cargados de BD: {len(portfolio_data_list)} items")
+        portfolio_record = UserPortfolio.query.filter_by(user_id=current_user.id).first()
+        if portfolio_record and portfolio_record.last_updated:
+            # Formatear la fecha aquí para asegurar que es un string
+            last_updated = portfolio_record.last_updated.strftime("%d/%m/%Y %H:%M:%S")
+
+    if csv_filename_from_db: 
+        session['csv_temp_file'] = csv_filename_from_db 
+        # Usar current_app.config en lugar de solo app.config si estás dentro de funciones de blueprint o similar
+        # o si 'app' no está directamente en el scope global de esta función.
+        # Sin embargo, si 'app' es tu objeto Flask global, app.config['OUTPUT_FOLDER'] está bien.
+        output_folder_path = app.config.get('OUTPUT_FOLDER', 'output') # Usar .get con default por seguridad
+        path_to_check = os.path.join(output_folder_path, csv_filename_from_db)
+        csv_existe = os.path.exists(path_to_check)
+        if not csv_existe:
+             print(f"Advertencia: El archivo CSV '{csv_filename_from_db}' (de la BD) no existe en disco en '{path_to_check}'. El enlace de descarga podría no funcionar.")
+    else: 
+        session.pop('csv_temp_file', None)
+
     enriched_portfolio_data = []
     total_market_value_eur = 0.0
-    total_cost_basis_eur_est = 0.0
-    total_pl_eur_est = 0.0
+    # total_cost_basis_eur_est = 0.0 # Ya no se calcula/muestra aquí directamente
+    total_pl_eur_est = 0.0 # P&L Total no realizado
 
-    if 'portfolio_data' in session:
-        portfolio_data_list = session.get('portfolio_data')
-        temp_filename = session.get('csv_temp_file')
-        csv_existe = bool(temp_filename)
-        print(f"Datos encontrados en sesión: {len(portfolio_data_list) if portfolio_data_list else 0} items")
-
-    if not portfolio_data_list:
-        print(f"Cargando datos de la base de datos para usuario: {current_user.id}")
-        try:
-            portfolio_record = UserPortfolio.query.filter_by(user_id=current_user.id).first()
-            if portfolio_record:
-                if portfolio_record.portfolio_data:
-                    try:
-                        portfolio_data_list = json.loads(portfolio_record.portfolio_data)
-                        print(f"Datos cargados de BD: {len(portfolio_data_list) if portfolio_data_list else 0} items")
-                        
-                        if not isinstance(portfolio_data_list, list):
-                            portfolio_data_list = []
-                        
-                        session['portfolio_data'] = portfolio_data_list
-                        
-                        if portfolio_record.csv_filename:
-                            temp_filename = portfolio_record.csv_filename
-                            session['csv_temp_file'] = temp_filename
-                            csv_existe = True
-                        
-                        if portfolio_record.last_updated:
-                            last_updated = portfolio_record.last_updated.strftime("%d/%m/%Y %H:%M")
-                            
-                    except json.JSONDecodeError as e:
-                        print(f"Error al decodificar JSON del portfolio: {e}")
-                        portfolio_data_list = []
-                else:
-                    print("No hay datos de portfolio en la BD")
-            else:
-                print("No se encontró registro de portfolio para el usuario")
-        except Exception as e:
-            print(f"Error general al cargar portfolio de la BD: {e}")
-            import traceback
-            traceback.print_exc()
-
-    if portfolio_data_list:
-        print(f"Procesando {len(portfolio_data_list)} items del portfolio")
-        # mapping_data = load_mapping() # No es necesario aquí si solo mostramos
-        
+    if portfolio_data_list: 
+        print(f"Procesando {len(portfolio_data_list)} items del portfolio para mostrar...")
         for item in portfolio_data_list:
             try:
-                new_item = item.copy() if isinstance(item, dict) else dict(item)
+                # Asegurar que new_item es un diccionario mutable
+                new_item = dict(item) if isinstance(item, dict) else {} 
+                if not new_item and isinstance(item, pd.Series): # Fallback si item es una Serie de Pandas
+                    new_item = item.to_dict()
+
+                # Sumar a totales si los valores son numéricos y existen
+                market_val_eur = new_item.get('market_value_eur')
+                if pd.notna(market_val_eur):
+                    try: 
+                        total_market_value_eur += float(market_val_eur)
+                    except (ValueError, TypeError): 
+                        if 'ISIN' in new_item: print(f"Advertencia: market_value_eur ('{market_val_eur}') para ISIN {new_item['ISIN']} no es numérico.")
                 
-                if 'market_value_eur' in new_item and new_item.get('market_value_eur') is not None:
-                    try: total_market_value_eur += float(new_item['market_value_eur'])
-                    except (ValueError, TypeError): pass
-                
-                if 'cost_basis_eur_est' in new_item and new_item.get('cost_basis_eur_est') is not None:
-                    try: total_cost_basis_eur_est += float(new_item['cost_basis_eur_est'])
-                    except (ValueError, TypeError): pass
-                
-                if 'pl_eur_est' in new_item and new_item.get('pl_eur_est') is not None:
-                    try: total_pl_eur_est += float(new_item['pl_eur_est'])
-                    except (ValueError, TypeError): pass
+                # El pl_eur_est ya debería estar calculado y guardado
+                pl_eur = new_item.get('pl_eur_est')
+                if pd.notna(pl_eur):
+                    try: 
+                        total_pl_eur_est += float(pl_eur)
+                    except (ValueError, TypeError): 
+                        if 'ISIN' in new_item: print(f"Advertencia: pl_eur_est ('{pl_eur}') para ISIN {new_item['ISIN']} no es numérico.")
                 
                 enriched_portfolio_data.append(new_item)
-            except Exception as e:
-                print(f"Error procesando item del portfolio: {e}")
+            except Exception as e_proc_item:
+                print(f"Error procesando item del portfolio para mostrar: {item}. Error: {e_proc_item}")
                 continue
-            
-        print(f"Portfolio procesado: {len(enriched_portfolio_data)} items válidos")
+        print(f"Portfolio procesado para mostrar: {len(enriched_portfolio_data)} items válidos")
     else:
-        print("No hay datos de portfolio para mostrar")
-        enriched_portfolio_data = []
+        print("No hay datos de portfolio para procesar y mostrar.")
 
     return render_template(
-        'portfolio.html', # Asumo que tienes un portfolio.html
+        'portfolio.html', 
         portfolio=enriched_portfolio_data,
-        temp_csv_file_exists=csv_existe,
+        temp_csv_file_exists=csv_existe, 
         total_value_eur=total_market_value_eur,
-        total_pl_eur=total_pl_eur_est,
-        last_updated=last_updated
+        total_pl_eur=total_pl_eur_est, # Este es el P&L no realizado total
+        last_updated=last_updated 
     )
 
 @app.route('/download_csv')
