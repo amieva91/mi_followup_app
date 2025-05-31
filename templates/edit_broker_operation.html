@@ -13,61 +13,36 @@
                 </div>
                 <div class="card-body">
                     <form method="POST" action="{{ url_for('edit_broker_operation', operation_id=operation.id) }}" id="edit-broker-form">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        {{ form.hidden_tag() }}
                         
                         <div class="mb-3">
-                            <label for="date" class="form-label">Fecha</label>
-                            <input type="date" class="form-control" id="date" name="date" value="{{ operation.date.strftime('%Y-%m-%d') }}" required>
+                            {{ form.date.label(class="form-label") }}
+                            {{ form.date(class="form-control") }}
                         </div>
                         
                         <div class="mb-3">
-                            <label for="operation_type" class="form-label">Tipo de Operación</label>
-                            <select class="form-select" id="operation_type" name="operation_type" required>
-                                <option value="Ingreso" {% if operation.operation_type == 'Ingreso' %}selected{% endif %}>Ingreso</option>
-                                <option value="Retirada" {% if operation.operation_type == 'Retirada' %}selected{% endif %}>Retirada</option>
-                                <option value="Comisión" {% if operation.operation_type == 'Comisión' %}selected{% endif %}>Comisión</option>
-                                <option value="Reinversión" {% if operation.operation_type == 'Reinversión' %}selected{% endif %}>Reinversión</option>
-                            </select>
+                            {{ form.operation_type.label(class="form-label") }}
+                            {{ form.operation_type(class="form-select") }}
                         </div>
                         
                         <div class="mb-3">
-                            <label for="concept" class="form-label">Concepto</label>
-                            <select class="form-select" id="concept" name="concept" required>
-                                <!-- Opciones para Ingreso -->
-                                {% if operation.operation_type == 'Ingreso' %}
-                                    <option value="Inversión" {% if operation.concept == 'Inversión' %}selected{% endif %}>Inversión</option>
-                                
-                                <!-- Opciones para Retirada -->
-                                {% elif operation.operation_type == 'Retirada' %}
-                                    <option value="Dividendos" {% if operation.concept == 'Dividendos' %}selected{% endif %}>Dividendos (OBSOLETO - Cambiar a Reinversión+Desinversión)</option>
-                                    <option value="Desinversión" {% if operation.concept == 'Desinversión' %}selected{% endif %}>Desinversión</option>
-                                
-                                <!-- Opciones para Comisión -->
-                                {% elif operation.operation_type == 'Comisión' %}
-                                    <option value="Compra/Venta" {% if operation.concept == 'Compra/Venta' %}selected{% endif %}>Comisión de Compra/Venta</option>
-                                    <option value="Apalancamiento" {% if operation.concept == 'Apalancamiento' %}selected{% endif %}>Comisión de Apalancamiento</option>
-                                    <option value="Otras" {% if operation.concept == 'Otras' %}selected{% endif %}>Otras Comisiones</option>
-                                
-                                <!-- Opciones para Reinversión -->
-                                {% elif operation.operation_type == 'Reinversión' %}
-                                    <option value="Dividendo" {% if operation.concept == 'Dividendo' %}selected{% endif %}>Dividendo</option>
-                                {% endif %}
-                            </select>
+                            {{ form.concept.label(class="form-label") }}
+                            {{ form.concept(class="form-select") }}
                         </div>
                         
                         <div class="mb-3">
-                            <label for="amount" class="form-label">Cantidad (€)</label>
-                            <input type="text" class="form-control" id="amount" name="amount" value="{{ operation.amount|abs|round(2) }}" required>
+                            {{ form.amount.label(class="form-label") }}
+                            {{ form.amount(class="form-control") }}
                             <div class="form-text">Introduce la cantidad en positivo. El sistema aplicará automáticamente el signo según el tipo de operación.</div>
                         </div>
                         
                         <div class="mb-3">
-                            <label for="description" class="form-label">Descripción (Opcional)</label>
-                            <textarea class="form-control" id="description" name="description" rows="3">{{ operation.description or '' }}</textarea>
+                            {{ form.description.label(class="form-label") }}
+                            {{ form.description(class="form-control") }}
                         </div>
                         
                         <div class="d-flex justify-content-between">
-                            <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+                            {{ form.submit(class="btn btn-primary", value="Guardar Cambios") }}
                             <a href="{{ url_for('broker_operations') }}" class="btn btn-secondary">Cancelar</a>
                         </div>
                     </form>
@@ -83,8 +58,16 @@
 document.addEventListener('DOMContentLoaded', function() {
     // Función para actualizar las opciones del campo 'concept' basado en el tipo de operación
     function updateConceptOptions() {
-        const operationType = document.getElementById('operation_type').value;
+        const operationType = document.getElementById('operation_type');
         const conceptSelect = document.getElementById('concept');
+        
+        if (!operationType || !conceptSelect) {
+            console.error("No se encontraron los elementos necesarios");
+            return;
+        }
+        
+        const selectedType = operationType.value;
+        console.log("Tipo de operación seleccionado:", selectedType);
         
         // Guardar selección actual si existe
         const currentSelection = conceptSelect.value;
@@ -95,17 +78,20 @@ document.addEventListener('DOMContentLoaded', function() {
         // Opciones por defecto según tipo de operación
         let options = [];
         
-        if (operationType === 'Ingreso') {
+        if (selectedType === 'Ingreso') {
             options = [['Inversión', 'Inversión']];
-        } else if (operationType === 'Retirada') {
-            options = [['Desinversión', 'Desinversión']];  // ← YA NO HAY 'Dividendos'
-        } else if (operationType === 'Comisión') {
+        } else if (selectedType === 'Retirada') {
+            options = [
+                ['Dividendos', 'Dividendos (OBSOLETO - Usar Reinversión)'],
+                ['Desinversión', 'Desinversión']
+            ];
+        } else if (selectedType === 'Comisión') {
             options = [
                 ['Compra/Venta', 'Comisión de Compra/Venta'],
                 ['Apalancamiento', 'Comisión de Apalancamiento'],
                 ['Otras', 'Otras Comisiones']
             ];
-        } else if (operationType === 'Reinversión') {  // ← NUEVA OPCIÓN
+        } else if (selectedType === 'Reinversión') {
             options = [['Dividendo', 'Dividendo']];
         }
         
@@ -127,25 +113,33 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Actualizar al cambiar el tipo de operación
-    document.getElementById('operation_type').addEventListener('change', updateConceptOptions);
+    const operationTypeSelect = document.getElementById('operation_type');
+    if (operationTypeSelect) {
+        operationTypeSelect.addEventListener('change', updateConceptOptions);
+    }
     
     // Validación de formato de cantidades
-    document.getElementById('edit-broker-form').addEventListener('submit', function(event) {
-        const amountField = document.getElementById('amount');
-        const amountValue = amountField.value.replace(',', '.');
-        
-        // Convertir a número para validar
-        const amount = parseFloat(amountValue);
-        
-        if (isNaN(amount) || amount <= 0) {
-            event.preventDefault();
-            alert('Por favor, introduce una cantidad positiva válida.');
-            amountField.focus();
-        } else {
-            // Asegurar formato con punto decimal para el backend
-            amountField.value = amountValue;
-        }
-    });
+    const editBrokerForm = document.getElementById('edit-broker-form');
+    if (editBrokerForm) {
+        editBrokerForm.addEventListener('submit', function(event) {
+            const amountField = document.getElementById('amount');
+            if (!amountField) {
+                console.error("No se encontró el campo #amount");
+                return;
+            }
+            
+            const amountValue = amountField.value.replace(',', '.');
+            const amount = parseFloat(amountValue);
+            
+            if (isNaN(amount) || amount <= 0) {
+                event.preventDefault();
+                alert('Por favor, introduce una cantidad positiva válida.');
+                amountField.focus();
+            } else {
+                amountField.value = amountValue;
+            }
+        });
+    }
 });
 </script>
-{% endblock scripts %>
+{% endblock scripts %}

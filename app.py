@@ -13382,6 +13382,7 @@ def renegociate_debt_plan(plan_id):
     
     return redirect(url_for('debt_management'))
 
+
 @app.route('/edit_broker_operation/<int:operation_id>', methods=['GET', 'POST'])
 @login_required
 def edit_broker_operation(operation_id):
@@ -13389,22 +13390,27 @@ def edit_broker_operation(operation_id):
     # Buscar la operación por ID y verificar que pertenece al usuario
     operation = BrokerOperation.query.filter_by(id=operation_id, user_id=current_user.id).first_or_404()
     
-    if request.method == 'POST':
+    # Crear formulario para la edición
+    form = BrokerOperationForm()
+    
+    if form.validate_on_submit():
         try:
             # Obtener los datos del formulario
-            operation_date = datetime.strptime(request.form.get('date'), '%Y-%m-%d').date()
-            operation_type = request.form.get('operation_type')
-            concept = request.form.get('concept')
-            amount = float(request.form.get('amount').replace(',', '.'))
-            description = request.form.get('description', '')
+            operation_date = datetime.strptime(form.date.data, '%Y-%m-%d').date()
+            operation_type = form.operation_type.data
+            concept = form.concept.data
+            amount = float(form.amount.data.replace(',', '.'))
+            description = form.description.data
             
-            # MODIFICADO: Aplicar signo según tipo de operación (inversión de signos)
+            # ACTUALIZADO: Aplicar signo según tipo de operación (con nueva lógica de signos)
             if operation_type == 'Ingreso':
-                amount = -abs(amount)  # Inversiones como negativo
+                amount = -abs(amount)  # Negativo (dinero que sale del usuario hacia el broker)
             elif operation_type == 'Retirada':
-                amount = abs(amount)   # Retiradas como positivo
+                amount = abs(amount)   # Positivo (dinero que entra al usuario desde el broker)
             elif operation_type == 'Comisión':
-                amount = -abs(amount)  # Comisiones como negativo
+                amount = -abs(amount)  # Negativo (costo)
+            elif operation_type == 'Reinversión':  # ← NUEVO
+                amount = abs(amount)   # Positivo (beneficio obtenido)
             
             # Actualizar la operación
             operation.date = operation_date
@@ -13421,12 +13427,147 @@ def edit_broker_operation(operation_id):
             db.session.rollback()
             flash(f'Error al actualizar la operación: {e}', 'danger')
     
-    # Para GET, mostrar formulario de edición
+    # Para GET, pre-llenar el formulario con los datos actuales
+    if request.method == 'GET':
+        form.date.data = operation.date.strftime('%Y-%m-%d')
+        form.operation_type.data = operation.operation_type
+        form.concept.data = operation.concept
+        form.amount.data = str(abs(operation.amount))  # Mostrar siempre positivo
+        form.description.data = operation.description
+    
+    # Renderizar template con formulario
     return render_template(
         'edit_broker_operation.html',
+        form=form,
         operation=operation
     )
 
+# ===== NUEVAS RUTAS PARA EL MODAL DE EDICIÓN =====
+
+# ===== NUEVAS RUTAS PARA EL MODAL DE EDICIÓN =====
+
+@app.route('/get_broker_operation/<int:operation_id>')
+@login_required
+def get_broker_operation(operation_id):
+    """Obtiene los datos de una operación específica para el modal de edición."""
+    try:
+        # Buscar la operación por ID y verificar que pertenece al usuario
+        operation = BrokerOperation.query.filter_by(id=operation_id, user_id=current_user.id).first_or_404()
+        
+        return jsonify({
+            'success': True,
+            'operation': {
+                'id': operation.id,
+                'date': operation.date.strftime('%Y-%m-%d'),
+                'operation_type': operation.operation_type,
+                'concept': operation.concept,
+                'amount': float(operation.amount),  # Enviar el valor real (con signo)
+                'description': operation.description or ''
+            }
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 400
+
+@app.route('/edit_broker_operation_ajax/<int:operation_id>', methods=['POST'])
+@login_required
+def edit_broker_operation_ajax(operation_id):
+    """Actualiza una operación de broker vía AJAX desde el modal."""
+    try:
+        # Buscar la operación por ID y verificar que pertenece al usuario
+        operation = BrokerOperation.query.filter_by(id=operation_id, user_id=current_user.id).first()
+        
+        if not operation:
+            return jsonify({
+                'success': False,
+                'error': 'Operación no encontrada o no tienes permisos para editarla'
+            }), 404
+        
+        # Obtener los datos del formulario
+        date_str = request.form.get('date')
+        operation_type = request.form.get('operation_type')
+        concept = request.form.get('concept')
+        amount_str = request.form.get('amount')
+        description = request.form.get('description', '')
+        
+        # Validar datos requeridos
+        if not all([date_str, operation_type, concept, amount_str]):
+            return jsonify({
+                'success': False,
+                'error': 'Faltan campos requeridos'
+            }), 400
+        
+        # Procesar fecha
+        try:
+            operation_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        except ValueError:
+            return jsonify({
+                'success': False,
+                'error': 'Formato de fecha inválido'
+            }), 400
+        
+        # Procesar cantidad
+        try:
+            amount = float(amount_str.replace(',', '.'))
+            if amount <= 0:
+                return jsonify({
+                    'success': False,
+                    'error': 'La cantidad debe ser mayor que cero'
+                }), 400
+        except ValueError:
+            return jsonify({
+                'success': False,
+                'error': 'Formato de cantidad inválido'
+            }), 400
+        
+        # Aplicar signo según tipo de operación (nueva lógica de signos)
+        if operation_type == 'Ingreso':
+            amount = -abs(amount)  # Negativo (dinero que sale del usuario hacia el broker)
+        elif operation_type == 'Retirada':
+            amount = abs(amount)   # Positivo (dinero que entra al usuario desde el broker)
+        elif operation_type == 'Comisión':
+            amount = -abs(amount)  # Negativo (costo)
+        elif operation_type == 'Reinversión':
+            amount = abs(amount)   # Positivo (beneficio obtenido)
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'Tipo de operación inválido: {operation_type}'
+            }), 400
+        
+        # Actualizar la operación
+        operation.date = operation_date
+        operation.operation_type = operation_type
+        operation.concept = concept
+        operation.amount = amount
+        operation.description = description
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Operación actualizada correctamente'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error actualizando operación {operation_id}: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Error interno: {str(e)}'
+        }), 500
+
+# ===== MANTENER LA RUTA ORIGINAL PARA COMPATIBILIDAD (OPCIONAL) =====
+# Puedes mantener la ruta original si quieres que ambas opciones funcionen
+# O eliminarla si solo quieres usar el modal
+
+# @app.route('/edit_broker_operation/<int:operation_id>', methods=['GET', 'POST'])
+# @login_required  
+# def edit_broker_operation_page(operation_id):
+#     """Versión de página completa (opcional, para compatibilidad)"""
+#     # ... código de la implementación anterior ...
 
 @app.route('/delete_broker_operation/<int:operation_id>', methods=['POST'])
 @login_required

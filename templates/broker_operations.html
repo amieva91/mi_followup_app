@@ -208,12 +208,15 @@
                                         <td>{{ op.description or '---' }}</td>
                                         <td class="text-center">
                                             <div class="btn-group btn-group-sm">
-                                                <a href="{{ url_for('edit_broker_operation', operation_id=op.id) }}" class="btn btn-outline-primary">
+                                                <button class="btn btn-outline-primary edit-operation-btn" 
+                                                        data-operation-id="{{ op.id }}"
+                                                        data-bs-toggle="modal" 
+                                                        data-bs-target="#editOperationModal">
                                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pencil-square" viewBox="0 0 16 16">
                                                         <path d="M15.502 1.94a.5.5 0 0 1 0 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 0 1 .707 0l1.293 1.293zm-1.75 2.456-2-2L4.939 9.21a.5.5 0 0 0-.121.196l-.805 2.414a.25.25 0 0 0 .316.316l2.414-.805a.5.5 0 0 0 .196-.12l6.813-6.814z"/>
                                                         <path fill-rule="evenodd" d="M1 13.5A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-6a.5.5 0 0 0-1 0v6a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5H9a.5.5 0 0 0 0-1H2.5A1.5 1.5 0 0 0 1 2.5v11z"/>
                                                     </svg>
-                                                </a>
+                                                </button>
                                                 <form method="POST" action="{{ url_for('delete_broker_operation', operation_id=op.id) }}" class="d-inline" onsubmit="return confirm('¿Estás seguro de eliminar esta operación?');">
                                                     <button type="submit" class="btn btn-outline-danger">
                                                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
@@ -239,6 +242,58 @@
         </div>
     </div>
 </div>
+
+<!-- Modal de Edición -->
+<div class="modal fade" id="editOperationModal" tabindex="-1" aria-labelledby="editOperationModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editOperationModalLabel">Editar Operación</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="edit-operation-form">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="edit-date" class="form-label">Fecha</label>
+                        <input type="date" class="form-control" id="edit-date" name="date" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="edit-operation-type" class="form-label">Tipo de Operación</label>
+                        <select class="form-select" id="edit-operation-type" name="operation_type" required>
+                            <option value="Ingreso">Ingreso</option>
+                            <option value="Retirada">Retirada</option>
+                            <option value="Comisión">Comisión</option>
+                            <option value="Reinversión">Reinversión</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="edit-concept" class="form-label">Concepto</label>
+                        <select class="form-select" id="edit-concept" name="concept" required>
+                            <!-- Se llenan dinámicamente con JavaScript -->
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="edit-amount" class="form-label">Cantidad (€)</label>
+                        <input type="text" class="form-control" id="edit-amount" name="amount" required>
+                        <div class="form-text">Introduce la cantidad en positivo. El sistema aplicará automáticamente el signo según el tipo de operación.</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="edit-description" class="form-label">Descripción (Opcional)</label>
+                        <textarea class="form-control" id="edit-description" name="description" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 {% endblock content %}
 
 {% block scripts %}
@@ -250,7 +305,7 @@ document.addEventListener('DOMContentLoaded', function() {
     updateConceptOptions();
     console.log("Opciones iniciales configuradas");
     
-    // Actualizar al cambiar el tipo de operación
+    // Actualizar al cambiar el tipo de operación en el formulario principal
     const operationTypeSelect = document.getElementById('operation_type');
     if (operationTypeSelect) {
         operationTypeSelect.addEventListener('change', function() {
@@ -258,11 +313,18 @@ document.addEventListener('DOMContentLoaded', function() {
             updateConceptOptions();
         });
         console.log("Evento change registrado correctamente en #operation_type");
-    } else {
-        console.error("No se encontró el elemento #operation_type");
     }
     
-    // Validación de formato de cantidades
+    // Actualizar al cambiar el tipo de operación en el modal de edición
+    const editOperationTypeSelect = document.getElementById('edit-operation-type');
+    if (editOperationTypeSelect) {
+        editOperationTypeSelect.addEventListener('change', function() {
+            console.log("Cambio detectado en edit-operation-type:", this.value);
+            updateEditConceptOptions();
+        });
+    }
+    
+    // Validación de formato de cantidades en formulario principal
     const brokerForm = document.getElementById('broker-form');
     if (brokerForm) {
         brokerForm.addEventListener('submit', function(event) {
@@ -286,9 +348,124 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         console.log("Validación de formulario configurada");
     }
+    
+    // ===== FUNCIONALIDAD DEL MODAL DE EDICIÓN =====
+    
+    // Manejar clics en botones de editar
+    document.querySelectorAll('.edit-operation-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const operationId = this.getAttribute('data-operation-id');
+            loadOperationData(operationId);
+        });
+    });
+    
+    // Envío del formulario de edición
+    const editForm = document.getElementById('edit-operation-form');
+    if (editForm) {
+        editForm.addEventListener('submit', function(event) {
+            event.preventDefault();
+            submitEditForm();
+        });
+    }
+    
+    // Funciones para el modal
+    function loadOperationData(operationId) {
+        console.log('Cargando datos de operación:', operationId);
+        
+        // Hacer petición AJAX para obtener los datos de la operación
+        fetch(`/get_broker_operation/${operationId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    populateEditForm(data.operation);
+                } else {
+                    alert('Error al cargar los datos de la operación: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error al cargar los datos de la operación');
+            });
+    }
+    
+    function populateEditForm(operation) {
+        document.getElementById('edit-date').value = operation.date;
+        document.getElementById('edit-operation-type').value = operation.operation_type;
+        document.getElementById('edit-amount').value = Math.abs(operation.amount).toFixed(2);
+        document.getElementById('edit-description').value = operation.description || '';
+        
+        // Actualizar opciones de concepto y seleccionar el actual
+        updateEditConceptOptions();
+        setTimeout(() => {
+            document.getElementById('edit-concept').value = operation.concept;
+        }, 100);
+        
+        // Guardar el ID de la operación en el formulario
+        editForm.setAttribute('data-operation-id', operation.id);
+    }
+    
+    function submitEditForm() {
+        const formData = new FormData(editForm);
+        const operationId = editForm.getAttribute('data-operation-id');
+        
+        // Validar cantidad
+        const amountValue = formData.get('amount').replace(',', '.');
+        const amount = parseFloat(amountValue);
+        
+        if (isNaN(amount) || amount <= 0) {
+            alert('Por favor, introduce una cantidad positiva válida.');
+            return;
+        }
+        
+        // Actualizar cantidad con formato correcto
+        formData.set('amount', amountValue);
+        
+        // Mostrar indicador de carga
+        const submitBtn = editForm.querySelector('button[type="submit"]');
+        const originalText = submitBtn.textContent;
+        submitBtn.textContent = 'Guardando...';
+        submitBtn.disabled = true;
+        
+        fetch(`/edit_broker_operation_ajax/${operationId}`, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            console.log('Response status:', response.status);
+            console.log('Response headers:', response.headers);
+            return response.json();
+        })
+        .then(data => {
+            console.log('Response data:', data);
+            
+            if (data.success) {
+                // Cerrar modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('editOperationModal'));
+                modal.hide();
+                
+                // Mostrar mensaje de éxito
+                alert('Operación actualizada correctamente');
+                
+                // Recargar la página para mostrar los cambios
+                location.reload();
+            } else {
+                console.error('Error del servidor:', data.error);
+                alert('Error al actualizar la operación: ' + (data.error || 'Error desconocido'));
+            }
+        })
+        .catch(error => {
+            console.error('Error de red o JavaScript:', error);
+            alert('Error de conexión al actualizar la operación: ' + error.message);
+        })
+        .finally(() => {
+            // Restaurar botón
+            submitBtn.textContent = originalText;
+            submitBtn.disabled = false;
+        });
+    }
 });
 
-// Función para actualizar las opciones del campo 'concept' basado en el tipo de operación
+// Función para actualizar las opciones del campo 'concept' (formulario principal)
 function updateConceptOptions() {
     console.log("Ejecutando updateConceptOptions()");
     const operationType = document.getElementById('operation_type');
@@ -300,6 +477,26 @@ function updateConceptOptions() {
     }
     
     const selectedType = operationType.value;
+    updateConceptSelect(conceptSelect, selectedType);
+}
+
+// Función para actualizar las opciones del campo 'concept' (modal de edición)
+function updateEditConceptOptions() {
+    console.log("Ejecutando updateEditConceptOptions()");
+    const operationType = document.getElementById('edit-operation-type');
+    const conceptSelect = document.getElementById('edit-concept');
+    
+    if (!operationType || !conceptSelect) {
+        console.error("No se encontraron los elementos necesarios para edición");
+        return;
+    }
+    
+    const selectedType = operationType.value;
+    updateConceptSelect(conceptSelect, selectedType);
+}
+
+// Función común para actualizar un select de concepto
+function updateConceptSelect(conceptSelect, selectedType) {
     console.log("Tipo de operación seleccionado:", selectedType);
     
     // Guardar selección actual si existe
@@ -314,14 +511,17 @@ function updateConceptOptions() {
     if (selectedType === 'Ingreso') {
         options = [['Inversión', 'Inversión']];
     } else if (selectedType === 'Retirada') {
-        options = [['Desinversión', 'Desinversión']];  // ← YA NO HAY 'Dividendos'
+        options = [
+            ['Dividendos', 'Dividendos (OBSOLETO)'],
+            ['Desinversión', 'Desinversión']
+        ];
     } else if (selectedType === 'Comisión') {
         options = [
             ['Compra/Venta', 'Comisión de Compra/Venta'],
             ['Apalancamiento', 'Comisión de Apalancamiento'],
             ['Otras', 'Otras Comisiones']
         ];
-    } else if (selectedType === 'Reinversión') {  // ← NUEVA OPCIÓN
+    } else if (selectedType === 'Reinversión') {
         options = [['Dividendo', 'Dividendo']];
     }
     
