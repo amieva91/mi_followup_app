@@ -2,8 +2,8 @@
 
 {% block content %}
 <div class="container">
-    <h1 class="mt-4">Ingreso/Retirada Broker</h1>
-    <p>Aquí puedes registrar y gestionar los ingresos, retiradas y comisiones de tu broker.</p>
+    <h1 class="mt-4">Operaciones de Broker</h1>
+    <p>Registra y gestiona ingresos, retiradas, comisiones y reinversiones de tu broker.</p>
     
     <div class="row">
         <!-- Formulario de Registro de Operaciones -->
@@ -61,20 +61,13 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <tr class="{% if totals.Inversión > 0 %}table-warning{% else %}table-secondary{% endif %}">
+                                    <tr class="{% if totals.Inversión < 0 %}table-warning{% else %}table-secondary{% endif %}">
                                         <td>Inversión</td>
-                                        <!-- Mostrar inversión como negativa -->
-                                        <td class="text-end">-{{ totals.Inversión|abs|round(2) }}</td>
+                                        <td class="text-end">{{ totals.Inversión|round(2) }}</td>
                                     </tr>
-                                    <tr class="{% if totals.Dividendos < 0 %}table-success{% else %}table-secondary{% endif %}">
-                                        <td>Dividendos</td>
-                                        <!-- Mostrar dividendos como positivos -->
-                                        <td class="text-end">{{ totals.Dividendos|abs|round(2) }}</td>
-                                    </tr>
-                                    <tr class="{% if totals.Desinversión < 0 %}table-success{% else %}table-secondary{% endif %}">
+                                    <tr class="{% if totals.Desinversión > 0 %}table-success{% else %}table-secondary{% endif %}">
                                         <td>Desinversión</td>
-                                        <!-- Mostrar desinversión como positiva -->
-                                        <td class="text-end">{{ totals.Desinversión|abs|round(2) }}</td>
+                                        <td class="text-end">{{ totals.Desinversión|round(2) }}</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -106,26 +99,64 @@
                         </div>
                     </div>
                     
-                    <!-- Total General con interpretación -->
-                    {% set retiradas_total = totals.Dividendos + totals.Desinversión %}
-                    {% set inversiones_total = totals.Inversión %}
-		    {% set comisiones_total = totals['Compra/Venta'] + totals.Apalancamiento + totals.Otras %}	
-		    {% set balance_positivo = retiradas_total > (totals.Inversión + comisiones_total)|abs %}
+                    <!-- Nueva Sección: Beneficios -->
+                    <div class="row mb-4">
+                        <div class="col-md-12">
+                            <h6>Beneficios Obtenidos</h6>
+                            <table class="table table-sm table-bordered">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Concepto</th>
+                                        <th class="text-end">Total (€)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="{% if totals.Dividendo > 0 %}table-info{% else %}table-secondary{% endif %}">
+                                        <td>Dividendos Obtenidos</td>
+                                        <td class="text-end">{{ totals.Dividendo|round(2) }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                     
-                    <div class="alert {% if balance_positivo %}alert-success{% else %}alert-danger{% endif %} mb-4">
-                        <h6>Balance Total del Broker</h6>
+                    <!-- Balance Actualizado -->
+                    {% set balance_usuario_broker = totals['Balance Neto Usuario'] %}
+                    {% set dinero_puesto_en_broker = balance_usuario_broker|abs %}
+                    {% set has_puesto_dinero = balance_usuario_broker < 0 %}
+                    {% set has_sacado_dinero = balance_usuario_broker > 0 %}
+                    
+                    <div class="alert alert-info mb-4">
+                        <h6>Resumen Financiero</h6>
                         <div class="row">
                             <div class="col-md-6">
-                                <strong>Total: {{ (retiradas_total + inversiones_total + comisiones_total)|round(2) }} €</strong>
-                            </div>
-                            <div class="col-md-6">
-                                {% if balance_positivo %}
-                                    <span class="text-success">Has retirado más dinero del que has ingresado (considerando comisiones).</span>
+                                <strong>Balance Usuario ↔ Broker:</strong><br>
+                                {% if has_puesto_dinero %}
+                                    <span class="text-warning">
+                                        Has puesto {{ dinero_puesto_en_broker|round(2) }} € netos en el broker
+                                    </span>
+                                {% elif has_sacado_dinero %}
+                                    <span class="text-success">
+                                        Has sacado {{ dinero_puesto_en_broker|round(2) }} € netos del broker
+                                    </span>
                                 {% else %}
-                                    <span class="text-danger">Has ingresado más dinero del que has retirado (considerando comisiones).</span>
+                                    <span class="text-secondary">
+                                        Estás en equilibrio (0 € netos)
+                                    </span>
                                 {% endif %}
                             </div>
+                            <div class="col-md-6">
+                                <strong>Total Beneficios Obtenidos:</strong><br>
+                                <span class="{% if totals['Neto Reinversiones'] > 0 %}text-info{% else %}text-secondary{% endif %}">
+                                    {{ totals['Neto Reinversiones']|round(2) }} €
+                                </span>
+                            </div>
                         </div>
+                        <hr>
+                        <small class="text-muted">
+                            <strong>Balance Usuario ↔ Broker:</strong> Dinero neto transferido entre tu cuenta bancaria y el broker.<br>
+                            <strong>Beneficios Obtenidos:</strong> Ganancias generadas por tus inversiones (dividendos, etc.).
+                        </small>
                     </div>
                 </div>
             </div>
@@ -157,16 +188,19 @@
                                             <span class="badge 
                                                 {% if op.operation_type == 'Ingreso' %}bg-warning
                                                 {% elif op.operation_type == 'Retirada' %}bg-success
+                                                {% elif op.operation_type == 'Reinversión' %}bg-info
                                                 {% else %}bg-danger{% endif %}">
                                                 {{ op.operation_type }}
                                             </span>
                                         </td>
                                         <td>{{ op.concept }}</td>
-                                        <td class="text-end {% if op.operation_type == 'Ingreso' %}text-warning{% elif op.operation_type == 'Retirada' %}text-success{% else %}text-danger{% endif %}">
+                                        <td class="text-end {% if op.operation_type == 'Ingreso' %}text-warning{% elif op.operation_type == 'Retirada' %}text-success{% elif op.operation_type == 'Reinversión' %}text-info{% else %}text-danger{% endif %}">
                                             {% if op.operation_type == 'Ingreso' %}
-                                                -{{ op.amount|abs|round(2) }}
+                                                {{ op.amount|round(2) }}
                                             {% elif op.operation_type == 'Retirada' %}
-                                                {{ op.amount|abs|round(2) }}
+                                                {{ op.amount|round(2) }}
+                                            {% elif op.operation_type == 'Reinversión' %}
+                                                +{{ op.amount|abs|round(2) }} (benef.)
                                             {% else %}
                                                 {{ op.amount|round(2) }}
                                             {% endif %}
@@ -212,15 +246,6 @@
 document.addEventListener('DOMContentLoaded', function() {
     console.log("DOM completamente cargado, configurando eventos...");
     
-    // Configurar el selector de mes/año con la fecha actual
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = (today.getMonth() + 1).toString().padStart(2, '0');
-    const dateInput = document.getElementById('month_year');
-    if (dateInput) {
-        dateInput.value = `${year}-${month}`;
-    }
-    
     // Inicializar opciones de concepto al cargar la página
     updateConceptOptions();
     console.log("Opciones iniciales configuradas");
@@ -248,8 +273,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             const amountValue = amountField.value.replace(',', '.');
-            
-            // Convertir a número para validar
             const amount = parseFloat(amountValue);
             
             if (isNaN(amount) || amount <= 0) {
@@ -257,7 +280,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 alert('Por favor, introduce una cantidad positiva válida.');
                 amountField.focus();
             } else {
-                // Asegurar formato con punto decimal para el backend
                 amountField.value = amountValue;
                 console.log("Formulario válido, enviando con cantidad:", amountValue);
             }
@@ -273,9 +295,7 @@ function updateConceptOptions() {
     const conceptSelect = document.getElementById('concept');
     
     if (!operationType || !conceptSelect) {
-        console.error("No se encontraron los elementos necesarios:", 
-                     !operationType ? "#operation_type no encontrado" : "",
-                     !conceptSelect ? "#concept no encontrado" : "");
+        console.error("No se encontraron los elementos necesarios");
         return;
     }
     
@@ -294,16 +314,15 @@ function updateConceptOptions() {
     if (selectedType === 'Ingreso') {
         options = [['Inversión', 'Inversión']];
     } else if (selectedType === 'Retirada') {
-        options = [
-            ['Dividendos', 'Dividendos'],
-            ['Desinversión', 'Desinversión']
-        ];
+        options = [['Desinversión', 'Desinversión']];  // ← YA NO HAY 'Dividendos'
     } else if (selectedType === 'Comisión') {
         options = [
             ['Compra/Venta', 'Comisión de Compra/Venta'],
             ['Apalancamiento', 'Comisión de Apalancamiento'],
             ['Otras', 'Otras Comisiones']
         ];
+    } else if (selectedType === 'Reinversión') {  // ← NUEVA OPCIÓN
+        options = [['Dividendo', 'Dividendo']];
     }
     
     console.log(`Añadiendo ${options.length} opciones para ${selectedType}`);
@@ -324,7 +343,7 @@ function updateConceptOptions() {
             conceptSelect.value = currentSelection;
             console.log(`Restaurada selección previa: ${currentSelection}`);
         } else {
-            console.log(`No se pudo restaurar selección previa: ${currentSelection} (no disponible para ${selectedType})`);
+            console.log(`No se pudo restaurar selección previa: ${currentSelection}`);
         }
     }
 }

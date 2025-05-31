@@ -26,6 +26,7 @@
                                 <option value="Ingreso" {% if operation.operation_type == 'Ingreso' %}selected{% endif %}>Ingreso</option>
                                 <option value="Retirada" {% if operation.operation_type == 'Retirada' %}selected{% endif %}>Retirada</option>
                                 <option value="Comisión" {% if operation.operation_type == 'Comisión' %}selected{% endif %}>Comisión</option>
+                                <option value="Reinversión" {% if operation.operation_type == 'Reinversión' %}selected{% endif %}>Reinversión</option>
                             </select>
                         </div>
                         
@@ -38,7 +39,7 @@
                                 
                                 <!-- Opciones para Retirada -->
                                 {% elif operation.operation_type == 'Retirada' %}
-                                    <option value="Dividendos" {% if operation.concept == 'Dividendos' %}selected{% endif %}>Dividendos</option>
+                                    <option value="Dividendos" {% if operation.concept == 'Dividendos' %}selected{% endif %}>Dividendos (OBSOLETO - Cambiar a Reinversión+Desinversión)</option>
                                     <option value="Desinversión" {% if operation.concept == 'Desinversión' %}selected{% endif %}>Desinversión</option>
                                 
                                 <!-- Opciones para Comisión -->
@@ -46,6 +47,10 @@
                                     <option value="Compra/Venta" {% if operation.concept == 'Compra/Venta' %}selected{% endif %}>Comisión de Compra/Venta</option>
                                     <option value="Apalancamiento" {% if operation.concept == 'Apalancamiento' %}selected{% endif %}>Comisión de Apalancamiento</option>
                                     <option value="Otras" {% if operation.concept == 'Otras' %}selected{% endif %}>Otras Comisiones</option>
+                                
+                                <!-- Opciones para Reinversión -->
+                                {% elif operation.operation_type == 'Reinversión' %}
+                                    <option value="Dividendo" {% if operation.concept == 'Dividendo' %}selected{% endif %}>Dividendo</option>
                                 {% endif %}
                             </select>
                         </div>
@@ -93,16 +98,15 @@ document.addEventListener('DOMContentLoaded', function() {
         if (operationType === 'Ingreso') {
             options = [['Inversión', 'Inversión']];
         } else if (operationType === 'Retirada') {
-            options = [
-                ['Dividendos', 'Dividendos'],
-                ['Desinversión', 'Desinversión']
-            ];
+            options = [['Desinversión', 'Desinversión']];  // ← YA NO HAY 'Dividendos'
         } else if (operationType === 'Comisión') {
             options = [
                 ['Compra/Venta', 'Comisión de Compra/Venta'],
                 ['Apalancamiento', 'Comisión de Apalancamiento'],
                 ['Otras', 'Otras Comisiones']
             ];
+        } else if (operationType === 'Reinversión') {  // ← NUEVA OPCIÓN
+            options = [['Dividendo', 'Dividendo']];
         }
         
         // Añadir nuevas opciones
@@ -144,4 +148,4 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
-{% endblock scripts %}
+{% endblock scripts %>

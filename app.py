@@ -3362,203 +3362,293 @@ def group_top_n_for_pie(data_dict, top_n=7):
     return {"labels": labels, "data": data}
 
 
+
 def get_current_financial_crosstime_metrics(user_id):
+    """
+    Calcula un conjunto completo de métricas financieras a lo largo del tiempo para el usuario.
+    ACTUALIZADA para incluir operaciones de tipo 'Reinversión'.
+    """
+    # Obtiene las operaciones del broker para el usuario, ordenadas por fecha ascendente
     broker_ops = BrokerOperation.query.filter_by(user_id=user_id).order_by(BrokerOperation.date.asc()).all()
+
+    # Carga las datos del CSV procesado del usuario (que contiene los movimientos de activos)
     _, csv_data_list, _ = load_user_portfolio(user_id)
     asset_movements_raw = csv_data_list if csv_data_list and isinstance(csv_data_list, list) else []
 
-    all_events = []
+    all_events = [] # Lista para almacenar todos los eventos (operaciones de broker y transacciones de activos)
+
+    # Procesa las operaciones del broker
     for op in broker_ops:
+        # ACTUALIZADO: Incluir 'Reinversión' pero NO como cash flow externo
         is_external_cf = op.operation_type in ['Ingreso', 'Retirada', 'Comisión']
-        cf_value = 0.0
-        if op.operation_type == 'Ingreso': cf_value = -op.amount
-        elif op.operation_type == 'Retirada': cf_value = -op.amount 
-        elif op.operation_type == 'Comisión': cf_value = op.amount 
+        # 'Reinversión' NO es cash flow externo (beneficio interno)
+        
+        # Para TWRR, los ingresos son flujos de caja positivos (dinero que entra al portfolio desde fuera),
+        # las retiradas son flujos de caja negativos (dinero que sale del portfolio hacia fuera).
+        # Las comisiones pagadas al broker se consideran como una "retirada" o un coste que disminuye el valor del portfolio.
+        # Las reinversiones son NEUTRALES para TWRR (beneficio interno, no cash flow externo).
+        cf_value = 0.0 # Valor del flujo de caja para el cálculo del TWRR
+        if op.operation_type == 'Ingreso': # Dinero que entra al broker (flujo de caja positivo para TWRR)
+            cf_value = -op.amount # op.amount es negativo, así que -(-x) = +x (positivo para TWRR)
+        elif op.operation_type == 'Retirada': # Dinero que sale del broker (flujo de caja negativo para TWRR)
+            cf_value = -op.amount # op.amount es positivo, así que -(+x) = -x (negativo para TWRR)
+        elif op.operation_type == 'Comisión': # Comisión pagada (flujo de caja negativo para TWRR)
+            cf_value = op.amount # op.amount es negativo, mantenemos negativo para TWRR
+        elif op.operation_type == 'Reinversión': # ← NUEVO: Beneficio reinvertido
+            cf_value = 0.0 # NEUTRAL para TWRR (beneficio interno, no afecta cash flows externos)
 
         all_events.append({
-            'date': op.date, 'type': 'broker_op', 'value': op.amount,
-            'is_external_ewc_cf': is_external_cf, 'ewc_cf_value': cf_value
+            'date': op.date,
+            'type': 'broker_op',
+            'value': op.amount, # 'value' es el impacto en el capital propio (signo ya ajustado en BrokerOperation)
+            'operation_type': op.operation_type,  # ← AÑADIDO para distinguir tipos
+            'concept': op.concept,  # ← AÑADIDO para distinguir conceptos
+            'is_external_ewc_cf': is_external_cf, # Indica si es un flujo de caja externo para TWRR
+            'ewc_cf_value': cf_value # 'ewc_cf_value' es el flujo de caja para TWRR con el signo correcto
         })
 
+    # Procesa los movimientos de activos (compras/ventas del CSV) - SIN CAMBIOS
     for movement in asset_movements_raw:
-        fecha_str, total_val, isin, cantidad_abs = movement.get('Fecha'), movement.get('Total'), movement.get('ISIN'), movement.get('Cantidad')
+        fecha_str = movement.get('Fecha')
+        total_val = movement.get('Total') # Valor total de la transacción (negativo para compras, positivo para ventas)
+        isin = movement.get('ISIN')
+        cantidad_abs = movement.get('Cantidad') # Cantidad absoluta del activo
+
         if fecha_str and isinstance(fecha_str, str) and total_val is not None and isin and cantidad_abs is not None:
             try:
-                event_date = datetime.strptime(fecha_str[:10], '%d-%m-%Y').date()
+                event_date = datetime.strptime(fecha_str[:10], '%d-%m-%Y').date() # Parsea la fecha
                 all_events.append({
-                    'date': event_date, 'type': 'asset_trade',
-                    'value': float(total_val), 'isin': isin, 'cantidad': float(cantidad_abs),
-                    'is_external_ewc_cf': False, 'ewc_cf_value': 0.0
+                    'date': event_date,
+                    'type': 'asset_trade',
+                    'value': float(total_val),
+                    'isin': isin,
+                    'cantidad': float(cantidad_abs),
+                    'is_external_ewc_cf': False, # Las compras/ventas de activos no son flujos de caja externos para TWRR
+                    'ewc_cf_value': 0.0
                 })
-            except Exception as e: app.logger.warning(f"Metrics: Error procesando movimiento: {movement}, Error: {e}")
-        else: app.logger.warning(f"Metrics: Movimiento omitido por datos faltantes: {movement}")
-            
+            except Exception as e:
+                print(f"Metrics: Error procesando movimiento de activo: {movement}, Error: {e}")
+        else:
+            print(f"Metrics: Movimiento de activo omitido por datos faltantes: {movement}")
+
+    # Si no hay eventos, retorna valores por defecto
     if not all_events:
         return {
             'current_capital_propio': 0.0, 'current_trading_cash_flow': 0.0,
-            'current_realized_specific_pnl': 0.0, 'current_apalancamiento': 0.0,
-            'first_event_date': None, 'last_event_date': None,
+            'current_realized_specific_pnl': 0.0, 'current_dividend_pnl': 0.0,  # ← AÑADIDO
+            'current_apalancamiento': 0.0, 'first_event_date': None, 'last_event_date': None,
             'total_cost_of_all_buys_ever': 0.0,
             'twr_ewc_percentage': 0.0, 'twr_ewc_annualized_percentage': 0.0,
-            'daily_chart_labels': [], 'daily_capital_propio_series': [], 
+            'daily_chart_labels': [], 'daily_capital_propio_series': [],
             'daily_apalancamiento_series': [], 'daily_realized_specific_pnl_series': [],
-            'daily_twr_ewc_index_series': [], # Se mantiene para la lógica interna
-            'daily_twr_percentage_series': [] # Se añade la nueva serie
+            'daily_dividend_pnl_series': [],  # ← AÑADIDO
+            'daily_twr_ewc_index_series': [], 'daily_twr_percentage_series': []
         }
 
+    # Ordena todos los eventos por fecha, y dentro de la misma fecha, los flujos de caja externos primero
     all_events.sort(key=lambda x: (x['date'], 0 if x['is_external_ewc_cf'] else 1))
 
-    first_event_date_overall = all_events[0]['date']
-    
+    first_event_date_overall = all_events[0]['date'] # Fecha del primer evento
+
+    # Listas para las series diarias del gráfico
     daily_chart_labels = []
     daily_capital_propio_series = []
     daily_apalancamiento_series = []
     daily_realized_specific_pnl_series = []
-    daily_twr_ewc_index_series = [] # Esta es la serie base 100 original
+    daily_dividend_pnl_series = []  # ← AÑADIDO
+    daily_twr_ewc_index_series = [] # Serie del índice TWRR (base 100)
+    daily_twr_percentage_series = [] # Serie del TWRR en porcentaje
 
-    cp_acc = 0.0; tcf_acc = 0.0; rsp_acc = 0.0
-    holdings = {}; total_buy_cost_acc = 0.0
-    
-    twr_factors = []
-    cte_after_prev_cf = 0.0 
-    current_twr_idx = 100.0   
-    twr_started = False       
-    first_cf_date_for_annualization = None
-    
-    final_apalancamiento_calculated = 0.0 
+    # Acumuladores de métricas
+    cp_acc = 0.0  # Capital Propio Acumulado (Aportaciones netas al broker)
+    tcf_acc = 0.0 # Trading Cash Flow Acumulado (Neto de compras y ventas de activos)
+    rsp_acc = 0.0 # Realized Specific P&L Acumulado (Beneficio/Pérdida realizado por ventas de activos)
+    div_acc = 0.0 # ← AÑADIDO: P/L Dividendos Acumulado (Beneficios de dividendos)
 
-    unique_dates = sorted(list(set(e['date'] for e in all_events)))
-    event_pointer = 0
+    holdings = {} # Diccionario para hacer seguimiento de las posiciones actuales (cantidad y coste base)
+    total_buy_cost_acc = 0.0 # Coste base de todas las compras realizadas
 
+    # Variables para el cálculo del TWRR (Time-Weighted Rate of Return)
+    twr_factors = [] # Lista de factores de rendimiento entre flujos de caja
+    cte_after_prev_cf = 0.0  # Valor de la Cartera (EWC) justo DESPUÉS del flujo de caja externo anterior
+    current_twr_idx = 100.0 # Índice TWRR, comienza en 100
+    twr_started = False # Flag para indicar si el cálculo del TWRR ha comenzado
+    first_cf_date_for_annualization = None # Fecha del primer flujo de caja para el cálculo anualizado del TWRR
+
+    final_apalancamiento_calculated = 0.0 # Apalancamiento calculado al final del período
+
+    unique_dates = sorted(list(set(e['date'] for e in all_events))) # Lista única de fechas con eventos
+    event_pointer = 0 # Puntero para recorrer la lista all_events
+
+    # Itera sobre cada día único con eventos
     for current_day in unique_dates:
-        temp_event_pointer_for_cf = event_pointer
-        ewc_before_any_cf_today = (-cp_acc) + rsp_acc 
+        # Procesa los flujos de caja externos (Broker Operations) PRIMERO en el día para TWRR
+        # ACTUALIZADO: incluir dividendos en EWC
+        ewc_before_any_cf_today = (-cp_acc) + rsp_acc + div_acc  # ← EWC incluye dividendos
 
+        # Bucle para procesar todos los flujos de caja externos del día actual
+        temp_event_pointer_for_cf = event_pointer
         while temp_event_pointer_for_cf < len(all_events) and all_events[temp_event_pointer_for_cf]['date'] == current_day:
             event = all_events[temp_event_pointer_for_cf]
-            if event['is_external_ewc_cf']:
-                ewc_val_for_factor_calc = (-cp_acc) + rsp_acc 
-                if twr_started:
-                    if abs(cte_after_prev_cf) > 1e-9:
+            if event['is_external_ewc_cf']: # Si es un flujo de caja externo (operación de broker)
+                # ACTUALIZADO: incluir dividendos en EWC
+                ewc_val_for_factor_calc = (-cp_acc) + rsp_acc + div_acc  # ← EWC incluye dividendos
+
+                if twr_started: # Si el TWRR ya ha comenzado
+                    if abs(cte_after_prev_cf) > 1e-9: # Evita división por cero
                         period_factor = ewc_val_for_factor_calc / cte_after_prev_cf
                         twr_factors.append(period_factor)
-                        current_twr_idx *= period_factor
-                    elif ewc_val_for_factor_calc == 0 and cte_after_prev_cf == 0:
+                        current_twr_idx *= period_factor # Actualiza el índice TWRR
+                    elif ewc_val_for_factor_calc == 0 and cte_after_prev_cf == 0: # Si ambos son 0, el factor es 1
                         twr_factors.append(1.0)
                 
-                cp_acc_before_cf_event = cp_acc 
-                cp_acc += event['value'] 
+                # Actualiza el Capital Propio (cp_acc) con el valor de la operación del broker
+                # SOLO para operaciones externas (Ingreso, Retirada, Comisión)
+                cp_acc += event['value']
                 
-                cte_after_prev_cf = (-cp_acc) + rsp_acc 
+                # ACTUALIZADO: incluir dividendos en EWC
+                cte_after_prev_cf = (-cp_acc) + rsp_acc + div_acc  # ← EWC incluye dividendos
 
+                # Si el TWRR no ha comenzado y el valor de la cartera es significativo
                 if not twr_started and abs(cte_after_prev_cf) > 1e-9:
                     twr_started = True
-                    current_twr_idx = 100.0 
+                    current_twr_idx = 100.0 # Inicia el índice TWRR en 100
                     if first_cf_date_for_annualization is None:
-                         first_cf_date_for_annualization = current_day
-            temp_event_pointer_for_cf +=1
-        
-        temp_rsp_day_change = 0.0
-        temp_tcf_day_change = 0.0
+                         first_cf_date_for_annualization = current_day # Guarda la fecha del primer flujo para anualizar
+            temp_event_pointer_for_cf +=1 # Avanza el puntero temporal
+
+        # Procesa las transacciones de activos Y reinversiones del día actual
+        temp_rsp_day_change = 0.0 # Cambio en P/L realizado durante el día
+        temp_div_day_change = 0.0 # ← AÑADIDO: Cambio en P/L dividendos durante el día
+        temp_tcf_day_change = 0.0 # Cambio en Trading Cash Flow durante el día
 
         while event_pointer < len(all_events) and all_events[event_pointer]['date'] == current_day:
             event = all_events[event_pointer]
-            if event['type'] == 'broker_op': 
-                if not event['is_external_ewc_cf']:
-                     pass
-            elif event['type'] == 'asset_trade':
-                temp_tcf_day_change += event['value']
+            if event['type'] == 'broker_op':
+                # ACTUALIZADO: Procesar reinversiones (beneficios internos)
+                if event.get('operation_type') == 'Reinversión':
+                    if event.get('concept') == 'Dividendo':
+                        temp_div_day_change += abs(event['value'])  # Dividendos siempre positivos
+                    # Aquí podrías añadir otros tipos de reinversión en el futuro
+                    
+                # Las operaciones externas (Ingreso, Retirada, Comisión) ya se procesaron arriba para TWRR
+                # No necesitan procesamiento adicional aquí
+                
+            elif event['type'] == 'asset_trade': # Si es una transacción de activo
+                temp_tcf_day_change += event['value'] # 'value' es el 'Total' del CSV (negativo para compras, positivo para ventas)
                 isin, qty, val = event['isin'], event['cantidad'], event['value']
-                if val < 0: 
-                    total_buy_cost_acc += abs(val)
+
+                if val < 0: # Compra de activo
+                    total_buy_cost_acc += abs(val) # Acumula el coste base total de todas las compras
                     if isin not in holdings: holdings[isin] = {'qty': 0.0, 'total_cost_basis': 0.0}
-                    holdings[isin]['qty'] += qty
-                    holdings[isin]['total_cost_basis'] += abs(val)
-                elif val > 0: 
-                    if isin in holdings and holdings[isin]['qty'] > 1e-6:
-                        p = holdings[isin]; avg_c = p['total_cost_basis']/p['qty'] if p['qty'] > 0 else 0
-                        q_sold = min(qty, p['qty']); cost_sold = q_sold * avg_c
-                        proceeds = (val/qty)*q_sold if qty > 0 else 0
-                        pnl_sale = proceeds - cost_sold
-                        temp_rsp_day_change += pnl_sale 
-                        p['qty'] -= q_sold; p['total_cost_basis'] -= cost_sold
-                        if p['qty'] < 1e-6: p['qty'] = 0.0; p['total_cost_basis'] = 0.0
-            event_pointer += 1
+                    holdings[isin]['qty'] += qty # Añade la cantidad comprada
+                    holdings[isin]['total_cost_basis'] += abs(val) # Añade el coste de la compra al coste base de la posición
+                elif val > 0: # Venta de activo
+                    if isin in holdings and holdings[isin]['qty'] > 1e-6: # Si hay algo que vender
+                        p = holdings[isin] # Posición actual
+                        avg_c = p['total_cost_basis']/p['qty'] if p['qty'] > 0 else 0 # Coste medio de la posición
+                        q_sold = min(qty, p['qty']) # Cantidad vendida (no más de lo que se tiene)
+                        cost_sold = q_sold * avg_c # Coste de la parte vendida
+                        proceeds = (val/qty)*q_sold if qty > 0 else 0 # Ingresos por la venta
+                        pnl_sale = proceeds - cost_sold # P/L realizado de esta venta específica
+                        temp_rsp_day_change += pnl_sale # Acumula el P/L realizado del día
+                        p['qty'] -= q_sold # Actualiza la cantidad de la posición
+                        p['total_cost_basis'] -= cost_sold # Actualiza el coste base de la posición
+                        if p['qty'] < 1e-6: # Si la cantidad es prácticamente cero
+                            p['qty'] = 0.0
+                            p['total_cost_basis'] = 0.0
+            event_pointer += 1 # Avanza el puntero principal de eventos
+
+        rsp_acc += temp_rsp_day_change # Actualiza el P/L Realizado Acumulado
+        div_acc += temp_div_day_change # ← AÑADIDO: Actualiza el P/L Dividendos Acumulado
+        tcf_acc += temp_tcf_day_change # Actualiza el Trading Cash Flow Acumulado
+
+        # ACTUALIZADO: Calcula el Apalancamiento al final del día incluyendo dividendos
+        val_inv_bruto = max(0, -tcf_acc)
+        aport_netas_usr = max(0, -cp_acc)  # Capital aportado usuario
+        gnc_trading = max(0, tcf_acc)      # Ganancias trading en cash  
+        gnc_dividendos = div_acc           # ← AÑADIDO: Ganancias dividendos (siempre positivas)
         
-        rsp_acc += temp_rsp_day_change
-        tcf_acc += temp_tcf_day_change
-
-        val_inv_bruto = max(0, -tcf_acc); aport_netas_usr = max(0, -cp_acc)
-        gnc_netas_tr_cf = max(0, tcf_acc); fondos_disp_s_d = aport_netas_usr + gnc_netas_tr_cf
+        # Fondos disponibles sin deuda = Aportaciones + Ganancias Trading + Ganancias Dividendos
+        fondos_disp_s_d = aport_netas_usr + gnc_trading + gnc_dividendos  # ← ACTUALIZADO
         apalancamiento_eod = max(0, val_inv_bruto - fondos_disp_s_d)
-        final_apalancamiento_calculated = apalancamiento_eod 
+        final_apalancamiento_calculated = apalancamiento_eod # Guarda el último apalancamiento calculado
 
+        # Añade las métricas del día a las series para el gráfico
         daily_chart_labels.append(current_day.strftime('%Y-%m-%d'))
         daily_capital_propio_series.append(round(cp_acc, 2))
         daily_apalancamiento_series.append(round(apalancamiento_eod, 2))
         daily_realized_specific_pnl_series.append(round(rsp_acc, 2))
-        
+        daily_dividend_pnl_series.append(round(div_acc, 2))  # ← AÑADIDO
+
+        # ACTUALIZADO: Calcula el índice TWRR diario incluyendo dividendos
         if twr_started:
-            ewc_eod = (-cp_acc) + rsp_acc 
-            if abs(cte_after_prev_cf) > 1e-9:
-                factor_interno_periodo = ewc_eod / cte_after_prev_cf 
+            ewc_eod = (-cp_acc) + rsp_acc + div_acc  # ← EWC incluye dividendos
+            if abs(cte_after_prev_cf) > 1e-9: # Evita división por cero
+                factor_interno_periodo = ewc_eod / cte_after_prev_cf # Factor de rendimiento desde el último flujo de caja
                 daily_twr_ewc_index_series.append(round(current_twr_idx * factor_interno_periodo, 2))
-            else:
+            else: # Si el valor de la cartera era 0 después del último CF, y continúa siendo 0, el índice no cambia.
                  daily_twr_ewc_index_series.append(round(current_twr_idx, 2))
-        else:
-            daily_twr_ewc_index_series.append(100.0)
+        else: # Si el TWRR no ha comenzado
+            daily_twr_ewc_index_series.append(100.0) # Muestra 100 (base)
 
-    last_event_date_overall = all_events[-1]['date'] if all_events else date.today()
+    last_event_date_overall = all_events[-1]['date'] if all_events else date.today() # Fecha del último evento
 
+    # Calcula el factor TWRR final global
     final_overall_twr_factor = 1.0
-    if twr_factors:
-        for factor in twr_factors: final_overall_twr_factor *= factor
-    
-    final_ewc_val_for_last_factor = (-cp_acc) + rsp_acc 
-    if twr_started and abs(cte_after_prev_cf) > 1e-9: 
+    if twr_factors: # Si ha habido flujos de caja y se han calculado factores
+        for factor in twr_factors:
+            final_overall_twr_factor *= factor
+
+    # ACTUALIZADO: Aplica el factor del último tramo incluyendo dividendos
+    final_ewc_val_for_last_factor = (-cp_acc) + rsp_acc + div_acc  # ← EWC incluye dividendos
+    if twr_started and abs(cte_after_prev_cf) > 1e-9:
          last_stretch_factor = final_ewc_val_for_last_factor / cte_after_prev_cf
          final_overall_twr_factor *= last_stretch_factor
-    elif twr_started and final_ewc_val_for_last_factor == 0 and cte_after_prev_cf == 0:
-         final_overall_twr_factor *= 1.0
+    elif twr_started and final_ewc_val_for_last_factor == 0 and cte_after_prev_cf == 0: # Si empezó en 0 y terminó en 0
+         final_overall_twr_factor *= 1.0 # El factor es 1
 
     twr_ewc_percentage = (final_overall_twr_factor - 1) * 100 if twr_started else 0.0
-    
+
+    # Anualiza el TWRR - SIN CAMBIOS
     twr_ewc_annualized_percentage = 0.0
     if twr_started and first_cf_date_for_annualization and last_event_date_overall:
-        if final_overall_twr_factor > 0:
+        if final_overall_twr_factor > 0: # Solo se puede anualizar si el factor es positivo
             dias_periodo_twr = (last_event_date_overall - first_cf_date_for_annualization).days
-            if dias_periodo_twr >= 1:
+            if dias_periodo_twr >= 1: # Se necesita al menos un día para anualizar
+                # Asegura que anios_periodo_twr no sea cero si dias_periodo_twr es pequeño
                 anios_periodo_twr = max(dias_periodo_twr / 365.25, 1/365.25)
                 twr_ewc_annualized_percentage = (math.pow(final_overall_twr_factor, 1.0 / anios_periodo_twr) - 1) * 100
-            elif dias_periodo_twr == 0 :
-                 twr_ewc_annualized_percentage = twr_ewc_percentage
+            elif dias_periodo_twr == 0 : # Si el período es de un solo día
+                 twr_ewc_annualized_percentage = twr_ewc_percentage # El TWRR es el mismo que el del período
         elif final_overall_twr_factor <= 0 and abs(cte_after_prev_cf if cte_after_prev_cf is not None else 0.0) > 1e-9 :
+            # Si el valor de la cartera se vuelve cero o negativo desde un valor positivo, la pérdida es del 100% o más.
             twr_ewc_annualized_percentage = -100.0
 
-    current_apalancamiento_final = final_apalancamiento_calculated 
+    current_apalancamiento_final = final_apalancamiento_calculated # Apalancamiento final
 
-    # --- MODIFICACIÓN AQUÍ: Transformar la serie de índice a porcentaje ---
+    # Transforma la serie del índice TWRR a porcentaje de cambio desde 100
     daily_twr_percentage_series = [round(val - 100, 2) if isinstance(val, (int, float)) else 0 for val in daily_twr_ewc_index_series]
-    # --- FIN DE LA MODIFICACIÓN ---
 
     return {
         'current_capital_propio': round(cp_acc, 2),
         'current_trading_cash_flow': round(tcf_acc, 2),
         'current_realized_specific_pnl': round(rsp_acc, 2),
+        'current_dividend_pnl': round(div_acc, 2),  # ← AÑADIDO
         'current_apalancamiento': round(current_apalancamiento_final, 2),
         'first_event_date': first_event_date_overall,
         'last_event_date': last_event_date_overall,
-        'total_cost_of_all_buys_ever': round(total_buy_cost_acc, 2),
+        'total_cost_of_all_buys_ever': round(total_buy_cost_acc, 2), # Coste base total de todas las compras
         'twr_ewc_percentage': round(twr_ewc_percentage, 2) if isinstance(twr_ewc_percentage, float) and math.isfinite(twr_ewc_percentage) else "N/A",
         'twr_ewc_annualized_percentage': round(twr_ewc_annualized_percentage, 2) if isinstance(twr_ewc_annualized_percentage, float) and math.isfinite(twr_ewc_annualized_percentage) else "N/A",
         'daily_chart_labels': daily_chart_labels,
         'daily_capital_propio_series': daily_capital_propio_series,
         'daily_apalancamiento_series': daily_apalancamiento_series,
         'daily_realized_specific_pnl_series': daily_realized_specific_pnl_series,
-        'daily_twr_ewc_index_series': daily_twr_ewc_index_series, # Se mantiene por si se usa en otro lado o para referencia
-        'daily_twr_percentage_series': daily_twr_percentage_series # Se añade la nueva serie para el gráfico
+        'daily_dividend_pnl_series': daily_dividend_pnl_series,  # ← AÑADIDO
+        'daily_twr_ewc_index_series': daily_twr_ewc_index_series, # Serie del índice TWRR (base 100)
+        'daily_twr_percentage_series': daily_twr_percentage_series # Serie del TWRR en %
     }
-
 
 @app.route('/edit_crypto_movement/<int:movement_id>', methods=['GET', 'POST'])
 @login_required
@@ -3798,91 +3888,105 @@ def capital_evolution():
                            title="Evolución de Capital")
 
 
-# En app.py
 
-# ... (otros imports y código) ...
 
 @app.route('/portfolio_dashboard_data')
 @login_required
 def portfolio_dashboard_data():
+    """
+    Endpoint actualizado que incluye métricas de dividendos separadas.
+    """
     user_id = current_user.id
-    portfolio_summary_from_db, _, _ = load_user_portfolio(user_id) # Esto carga las posiciones del portfolio
+    # Carga las datos del portfolio del usuario (lista de posiciones actuales)
+    portfolio_summary_from_db, _, _ = load_user_portfolio(user_id)
 
-    # Lógica para calcular datos de distribución por sector y país (basado en tu código)
+    # Obtiene los items de la watchlist para mapear ISIN a sector y país
     watchlist_items_db = WatchlistItem.query.filter_by(user_id=user_id).all()
     watchlist_map = {
         item.isin: {'sector': item.sector, 'pais': item.pais}
-        for item in watchlist_items_db if item.isin
+        for item in watchlist_items_db if item.isin # Solo si el item tiene ISIN
     }
-    sector_values = {}
-    country_values = {}
-    total_market_value_eur = 0.0 # Para la suma del valor de mercado de las posiciones
-    total_cost_basis_eur_open_positions = 0.0 # Para la suma del coste base de posiciones abiertas
-    total_unrealized_pl_eur = 0.0 # Para la suma de P/L no realizada de posiciones abiertas
 
+    sector_values = {} # Diccionario para acumular valor por sector
+    country_values = {} # Diccionario para acumular valor por país
+    total_market_value_eur = 0.0 # Valor total de mercado de todas las posiciones
+    total_cost_basis_eur_open_positions = 0.0 # Coste base total de las posiciones abiertas
+    total_unrealized_pl_eur = 0.0 # P/L no realizado total de las posiciones abiertas
+
+    # Procesa cada item (posición) del portfolio
     if portfolio_summary_from_db: # portfolio_summary_from_db es la lista de items/posiciones
         for item in portfolio_summary_from_db:
             try:
-                market_value = float(item.get('market_value_eur', 0.0) or 0.0) # or 0.0 para manejar None
+                # Obtiene y convierte a float los valores numéricos, gestionando None o strings vacíos
+                market_value = float(item.get('market_value_eur', 0.0) or 0.0)
                 item_cost_basis = float(item.get('cost_basis_eur_est', 0.0) or 0.0)
                 item_pl_eur = float(item.get('pl_eur_est', 0.0) or 0.0)
                 isin = item.get('ISIN')
 
+                # Acumula totales
                 total_market_value_eur += market_value
                 total_cost_basis_eur_open_positions += item_cost_basis
                 total_unrealized_pl_eur += item_pl_eur
 
-                sector = 'Desconocido/Otros'
+                # Agrupa por sector
+                sector = 'Desconocido/Otros' # Valor por defecto
                 if isin and isin in watchlist_map and watchlist_map[isin].get('sector'):
                     sector_item = watchlist_map[isin]['sector']
-                    if sector_item and sector_item.strip(): sector = sector_item
+                    if sector_item and sector_item.strip(): # Asegura que no sea string vacío
+                        sector = sector_item
                 sector_values[sector] = sector_values.get(sector, 0.0) + market_value
 
-                pais = 'Desconocido/Otros'
+                # Agrupa por país
+                pais = 'Desconocido/Otros' # Valor por defecto
                 if isin and isin in watchlist_map and watchlist_map[isin].get('pais'):
                     pais_item = watchlist_map[isin]['pais']
-                    if pais_item and pais_item.strip(): pais = pais_item
+                    if pais_item and pais_item.strip(): # Asegura que no sea string vacío
+                        pais = pais_item
                 country_values[pais] = country_values.get(pais, 0.0) + market_value
             except (ValueError, TypeError) as e:
-                app.logger.error(f"Dashboard: Error procesando item del portfolio {item.get('ISIN')} para gráficos de tarta: {e}")
-                continue
+                print(f"Dashboard: Error procesando item del portfolio {item.get('ISIN')} para gráficos de tarta: {e}")
+                continue # Salta a la siguiente iteración si hay un error con este item
 
-    # Obtener métricas cruzadas en el tiempo (incluyendo Capital Propio y Apalancamiento)
+    # ACTUALIZADO: Obtiene métricas cruzadas en el tiempo (incluyendo dividendos separados)
     crosstime_metrics = get_current_financial_crosstime_metrics(user_id)
 
-    # >>> INICIO DE LA MODIFICACIÓN: Aplicar abs() a current_capital_propio <<<
-    current_capital_propio_abs = abs(crosstime_metrics.get('current_capital_propio', 0))
-    # >>> FIN DE LA MODIFICACIÓN <<<
-    
-    current_apalancamiento = crosstime_metrics.get('current_apalancamiento', 0)
-    current_realized_specific_pnl = crosstime_metrics.get('current_realized_specific_pnl', 0)
+    # ACTUALIZADO: Extrae las métricas necesarias incluyendo las nuevas
+    current_capital_propio_abs = abs(crosstime_metrics.get('current_capital_propio', 0.0))
+    current_apalancamiento = crosstime_metrics.get('current_apalancamiento', 0.0)
+    current_realized_specific_pnl = crosstime_metrics.get('current_realized_specific_pnl', 0.0)
+    current_dividend_pnl = crosstime_metrics.get('current_dividend_pnl', 0.0)  # ← AÑADIDO
     rentabilidad_acumulada_percentage = crosstime_metrics.get('twr_ewc_percentage', "N/A")
     rentabilidad_media_anual_percentage = crosstime_metrics.get('twr_ewc_annualized_percentage', "N/A")
 
-    beneficio_perdida_global = total_unrealized_pl_eur + current_realized_specific_pnl
-    overall_return_percentage_open_positions = (total_unrealized_pl_eur / total_cost_basis_eur_open_positions * 100) if total_cost_basis_eur_open_positions != 0 else 0
+    # ACTUALIZADO: Calcula el beneficio/pérdida global incluyendo dividendos
+    # P/L Global = P/L No Realizado + P/L Trading Realizado + P/L Dividendos
+    beneficio_perdida_global = total_unrealized_pl_eur + current_realized_specific_pnl + current_dividend_pnl
 
+    # Calcula la rentabilidad porcentual de las posiciones abiertas sobre su coste base
+    overall_return_percentage_open_positions = (total_unrealized_pl_eur / total_cost_basis_eur_open_positions * 100) if total_cost_basis_eur_open_positions != 0 else 0.0
+
+    # Prepara las datos para los gráficos de tarta (sector y país)
     sector_chart_data = group_top_n_for_pie(sector_values)
     country_chart_data = group_top_n_for_pie(country_values)
 
+    # ACTUALIZADO: Construye el diccionario de datos a retornar como JSON
     data_to_return = {
         "summary_metrics": {
             "total_market_value_eur": round(total_market_value_eur, 2),
             "total_cost_basis_eur_open_positions": round(total_cost_basis_eur_open_positions, 2),
             "total_unrealized_pl_eur": round(total_unrealized_pl_eur, 2),
             "overall_return_percentage_open_positions": round(overall_return_percentage_open_positions, 2),
-            "current_capital_propio": current_capital_propio_abs, # Usar el valor absoluto
-            "current_apalancamiento": current_apalancamiento, # Ya es >= 0
+            "current_capital_propio": round(current_capital_propio_abs, 2), # Asegura redondeo
+            "current_dividend_pnl": round(current_dividend_pnl, 2),  # ← AÑADIDO
+            "current_apalancamiento": round(current_apalancamiento, 2), # Asegura redondeo
             "beneficio_perdida_global": round(beneficio_perdida_global, 2),
-            "rentabilidad_acumulada_percentage": rentabilidad_acumulada_percentage,
-            "rentabilidad_media_anual_percentage": rentabilidad_media_anual_percentage
+            "rentabilidad_acumulada_percentage": rentabilidad_acumulada_percentage, # Ya viene redondeado o "N/A"
+            "rentabilidad_media_anual_percentage": rentabilidad_media_anual_percentage # Ya viene redondeado o "N/A"
         },
         "sector_distribution": sector_chart_data,
         "country_distribution": country_chart_data
     }
     return jsonify(data_to_return)
-
-# ... (resto de tu código app.py) ...
 
 # --- User Loader ---
 @login_manager.user_loader
@@ -11993,25 +12097,44 @@ class FixedIncomeForm(FlaskForm):
     submit = SubmitField('Guardar')
 
 class BrokerOperationForm(FlaskForm):
-    date = StringField('Fecha', validators=[DataRequired()], 
+    """Formulario actualizado con el nuevo tipo 'Reinversión'"""
+    
+    date = StringField('Fecha', validators=[DataRequired()],
                       render_kw={"placeholder": "DD/MM/YYYY", "type": "date"})
-    operation_type = SelectField('Tipo de Operación', 
+
+    operation_type = SelectField('Tipo de Operación',
                                choices=[
-                                   ('Ingreso', 'Ingreso'), 
-                                   ('Retirada', 'Retirada'), 
-                                   ('Comisión', 'Comisión')
+                                   ('Ingreso', 'Ingreso (Dinero que entra al broker)'),
+                                   ('Retirada', 'Retirada (Dinero que sale del broker)'),
+                                   ('Comisión', 'Comisión (Pagada al broker)'),
+                                   ('Reinversión', 'Reinversión (Beneficios obtenidos)')  # ← NUEVO
                                ],
                                validators=[DataRequired()])
-    # IMPORTANTE: Cambiamos para aceptar cualquier valor en el concepto
-    concept = SelectField('Concepto', validators=[DataRequired()]) 
-    amount = StringField('Cantidad (€)', validators=[DataRequired()], 
+
+    concept = SelectField('Concepto Específico',
+                          choices=[
+                              # Conceptos para Ingreso
+                              ('Inversión', 'Inversión'),
+                              # Conceptos para Retirada (YA NO HAY 'Dividendos')
+                              ('Desinversión', 'Desinversión'),
+                              # Conceptos para Comisión
+                              ('Compra/Venta', 'Comisión de Compra/Venta'),
+                              ('Apalancamiento', 'Comisión de Apalancamiento'),
+                              ('Otras', 'Otras Comisiones'),
+                              # Conceptos para Reinversión
+                              ('Dividendo', 'Dividendo')  # ← NUEVO
+                          ],
+                          validators=[DataRequired()])
+
+    amount = StringField('Cantidad (€)', validators=[DataRequired()],
                         render_kw={"placeholder": "Ej: 1500.50"})
-    description = TextAreaField('Descripción (Opcional)', 
-                             render_kw={"placeholder": "Detalles adicionales (opcional)", "rows": 3})
+
+    description = TextAreaField('Descripción (Opcional)',
+                             render_kw={"placeholder": "Detalles adicionales", "rows": 3})
+
     submit = SubmitField('Registrar Operación')
 
-# Nuevo modelo para el historial de salarios
-# Formulario para añadir historial de salarios
+
 class SalaryHistoryForm(FlaskForm):
     year = StringField('Año', validators=[DataRequired()], 
                       render_kw={"placeholder": "Ej: 2023", "type": "number", "min": "1900", "max": "2100"})
@@ -13124,39 +13247,26 @@ def update_broker_operation_concepts():
 @app.route('/broker_operations', methods=['GET', 'POST'])
 @login_required
 def broker_operations():
-    """Muestra y gestiona la página de operaciones del broker (ingresos/retiradas/comisiones)."""
-    # Crear formulario
+    """Ruta actualizada con nueva lógica de dividendos separados"""
+    
     form = BrokerOperationForm()
 
-    # Configurar opciones iniciales para el campo 'concept'
-    form.concept.choices = [
-        ('Inversión', 'Inversión'),
-        ('Dividendos', 'Dividendos'),
-        ('Desinversión', 'Desinversión'),
-        ('Compra/Venta', 'Comisión de Compra/Venta'),
-        ('Apalancamiento', 'Comisión de Apalancamiento'),
-        ('Otras', 'Otras Comisiones')
-    ]
-
-    # Procesar formulario si se envió
     if form.validate_on_submit():
         try:
-            # Convertir la fecha
             operation_date = datetime.strptime(form.date.data, '%Y-%m-%d').date()
+            amount_str = form.amount.data.replace(',', '.')
+            amount = float(amount_str)
 
-            # Obtener cantidad y manejar automáticamente el signo según el tipo de operación
-            amount = form.amount.data.replace(',', '.')
-            amount = float(amount)
-
-            # MODIFICADO: Ahora las inversiones son negativas y las retiradas positivas
+            # Lógica de signo actualizada - INVERTIDA
             if form.operation_type.data == 'Ingreso':
-                amount = -abs(amount)  # Inversiones como negativo
+                amount = -abs(amount)  # Negativo (dinero que sale del usuario hacia el broker)
             elif form.operation_type.data == 'Retirada':
-                amount = abs(amount)   # Retiradas como positivo
+                amount = abs(amount)   # Positivo (dinero que entra al usuario desde el broker)
             elif form.operation_type.data == 'Comisión':
-                amount = -abs(amount)  # Comisiones como negativo
+                amount = -abs(amount)  # Negativo (costo)
+            elif form.operation_type.data == 'Reinversión':  # ← NUEVO
+                amount = abs(amount)   # Positivo (beneficio)
 
-            # Crear nuevo registro
             new_operation = BrokerOperation(
                 user_id=current_user.id,
                 date=operation_date,
@@ -13165,36 +13275,48 @@ def broker_operations():
                 amount=amount,
                 description=form.description.data
             )
-
             db.session.add(new_operation)
             db.session.commit()
-
             flash('Operación registrada correctamente.', 'success')
             return redirect(url_for('broker_operations'))
-
         except Exception as e:
             db.session.rollback()
             flash(f'Error al registrar la operación: {e}', 'danger')
-            print(f"Error en broker_operations: {e}")
 
-    # Obtener operaciones del usuario ordenadas por fecha (más recientes primero)
     operations = BrokerOperation.query.filter_by(user_id=current_user.id).order_by(BrokerOperation.date.desc()).all()
 
-    # Calcular totales por concepto
+    # Calcular totales actualizados (SIN 'Dividendos' de retirada)
     totals = {
-        'Inversión': 0,
-        'Dividendos': 0,
-        'Desinversión': 0,
-        'Compra/Venta': 0,
-        'Apalancamiento': 0,
-        'Otras': 0,
-        'Total': 0
+        'Inversión': 0,         # Ingresos tipo Inversión
+        'Desinversión': 0,      # Retiradas tipo Desinversión
+        'Compra/Venta': 0,      # Comisiones de Compra/Venta
+        'Apalancamiento': 0,    # Comisiones de Apalancamiento  
+        'Otras': 0,             # Otras Comisiones
+        'Dividendo': 0,         # ← NUEVO: Reinversiones tipo Dividendo
+        'Neto Ingresos': 0,     # Total operaciones tipo Ingreso
+        'Neto Retiradas': 0,    # Total operaciones tipo Retirada
+        'Neto Comisiones': 0,   # Total operaciones tipo Comisión
+        'Neto Reinversiones': 0,  # ← NUEVO: Total operaciones tipo Reinversión
+        'Balance Neto Usuario': 0  # ← MODIFICADO: Solo usuario ↔ broker (sin reinversiones)
     }
-
+    
     for op in operations:
+        # Acumular por tipo de operación
+        if op.operation_type == 'Ingreso':
+            totals['Neto Ingresos'] += op.amount
+        elif op.operation_type == 'Retirada':
+            totals['Neto Retiradas'] += op.amount
+        elif op.operation_type == 'Comisión':
+            totals['Neto Comisiones'] += op.amount
+        elif op.operation_type == 'Reinversión':  # ← NUEVO
+            totals['Neto Reinversiones'] += op.amount
+            
+        # Acumular por concepto específico
         if op.concept in totals:
             totals[op.concept] += op.amount
-        totals['Total'] += op.amount
+
+    # Balance real de flujo usuario ↔ broker (SIN incluir reinversiones)
+    totals['Balance Neto Usuario'] = totals['Neto Ingresos'] + totals['Neto Retiradas'] + totals['Neto Comisiones']
 
     return render_template(
         'broker_operations.html',
@@ -13203,7 +13325,6 @@ def broker_operations():
         totals=totals,
         now=datetime.now()
     )
-
 
 @app.route('/renegociate_debt_plan/<int:plan_id>', methods=['POST'])
 @login_required
