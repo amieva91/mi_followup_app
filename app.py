@@ -548,20 +548,19 @@ class FixedIncome(db.Model):
     # user = db.relationship('User', backref=db.backref('fixed_income', uselist=False))
 
 
-# Modelo BrokerOperation
 class BrokerOperation(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
     date = db.Column(db.Date, nullable=False, default=date.today)
-    operation_type = db.Column(db.String(20), nullable=False)  # 'Ingreso', 'Retirada', 'Comisión'
-    concept = db.Column(db.String(50), nullable=False)  # 'Inversión', 'Dividendos', 'Desinversión', etc.
-    amount = db.Column(db.Float, nullable=False)  # Cantidad (positiva para ingresos, negativa para retiradas/comisiones)
-    description = db.Column(db.Text, nullable=True)  # Descripción opcional
+    operation_type = db.Column(db.String(20), nullable=False)
+    concept = db.Column(db.String(50), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    linked_product_name = db.Column(db.String(150), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    # --- ELIMINA O COMENTA ESTA LÍNEA ---
-    # user = db.relationship('User', backref=db.backref('broker_operations', lazy='dynamic'))
-
+    # YA NO NECESITAS: user = db.relationship('User', backref=db.backref('broker_operations', lazy='dynamic'))
+    # La relación se establece desde el modelo User
 
 # Modelo SalaryHistory
 class SalaryHistory(db.Model):
@@ -12096,9 +12095,11 @@ class FixedIncomeForm(FlaskForm):
                                   render_kw={"placeholder": "Ej: 35000"})
     submit = SubmitField('Guardar')
 
+
+# ...
 class BrokerOperationForm(FlaskForm):
-    """Formulario actualizado con el nuevo tipo 'Reinversión'"""
-    
+    """Formulario actualizado con el nuevo tipo 'Reinversión' y campo 'Acción'"""
+
     date = StringField('Fecha', validators=[DataRequired()],
                       render_kw={"placeholder": "DD/MM/YYYY", "type": "date"})
 
@@ -12107,24 +12108,18 @@ class BrokerOperationForm(FlaskForm):
                                    ('Ingreso', 'Ingreso (Dinero que entra al broker)'),
                                    ('Retirada', 'Retirada (Dinero que sale del broker)'),
                                    ('Comisión', 'Comisión (Pagada al broker)'),
-                                   ('Reinversión', 'Reinversión (Beneficios obtenidos)')  # ← NUEVO
+                                   ('Reinversión', 'Reinversión (Beneficios obtenidos)')
                                ],
                                validators=[DataRequired()])
 
     concept = SelectField('Concepto Específico',
                           choices=[
-                              # Conceptos para Ingreso
-                              ('Inversión', 'Inversión'),
-                              # Conceptos para Retirada (YA NO HAY 'Dividendos')
-                              ('Desinversión', 'Desinversión'),
-                              # Conceptos para Comisión
-                              ('Compra/Venta', 'Comisión de Compra/Venta'),
-                              ('Apalancamiento', 'Comisión de Apalancamiento'),
-                              ('Otras', 'Otras Comisiones'),
-                              # Conceptos para Reinversión
-                              ('Dividendo', 'Dividendo')  # ← NUEVO
+                              # Se llenarán dinámicamente
                           ],
                           validators=[DataRequired()])
+
+    # NUEVO CAMPO ACCIÓN
+    accion = SelectField('Acción (Opcional)', choices=[], validators=[Optional()])
 
     amount = StringField('Cantidad (€)', validators=[DataRequired()],
                         render_kw={"placeholder": "Ej: 1500.50"})
@@ -12133,7 +12128,7 @@ class BrokerOperationForm(FlaskForm):
                              render_kw={"placeholder": "Detalles adicionales", "rows": 3})
 
     submit = SubmitField('Registrar Operación')
-
+# ...
 
 class SalaryHistoryForm(FlaskForm):
     year = StringField('Año', validators=[DataRequired()], 
@@ -13244,79 +13239,124 @@ def update_broker_operation_concepts():
     return jsonify(concepts)
 
 
+
+# ... (otros imports)
+from flask import request # Asegúrate de que request está importado
+# ...
+
 @app.route('/broker_operations', methods=['GET', 'POST'])
 @login_required
 def broker_operations():
-    """Ruta actualizada con nueva lógica de dividendos separados"""
-    
-    form = BrokerOperationForm()
+    # Instanciar el formulario.
+    # Si es POST, request.form contendrá los datos enviados.
+    # WTForms usará request.form para poblar los campos del formulario.
+    form = BrokerOperationForm(request.form if request.method == 'POST' else None)
 
-    if form.validate_on_submit():
+    # --- Poblar SIEMPRE las opciones del campo 'Acción' ---
+    # Esto es necesario tanto para la visualización inicial (GET)
+    # como para volver a renderizar el formulario si falla la validación en POST.
+    _, csv_data_list, _ = load_user_portfolio(current_user.id)
+    product_choices = [("", "- Seleccionar Acción (si aplica) -")]
+    if csv_data_list and isinstance(csv_data_list, list):
+        try:
+            unique_products = sorted(list(set(
+                movement['Producto'] for movement in csv_data_list if 'Producto' in movement and movement['Producto']
+            )))
+            product_choices.extend([(product, product) for product in unique_products])
+        except Exception as e:
+            app.logger.error(f"Error al extraer productos para el dropdown 'Acción': {e}")
+    form.accion.choices = product_choices
+    # --- Fin poblar 'Acción' ---
+
+    # --- Lógica específica para solicitudes POST ---
+    if request.method == 'POST':
+        # ANTES de validar, debemos establecer las opciones correctas para el campo 'concept'
+        # basándonos en el 'operation_type' que se envió con el formulario.
+        # form.operation_type.data ya tendrá el valor enviado porque form se inicializó con request.form.
+        submitted_operation_type = form.operation_type.data
+        concept_choices_for_validation = []
+
+        if submitted_operation_type == 'Ingreso':
+            concept_choices_for_validation = [('Inversión', 'Inversión')]
+        elif submitted_operation_type == 'Retirada':
+            # "Dividendos (OBSOLETO)" ya fue eliminado del JS, así que no debería llegar aquí.
+            # Si llegara, fallaría la validación porque no está en esta lista.
+            concept_choices_for_validation = [('Desinversión', 'Desinversión')]
+        elif submitted_operation_type == 'Comisión':
+            concept_choices_for_validation = [
+                ('Compra/Venta', 'Comisión de Compra/Venta'),
+                ('Apalancamiento', 'Comisión de Apalancamiento'),
+                ('Otras', 'Otras Comisiones')
+            ]
+        elif submitted_operation_type == 'Reinversión':
+            concept_choices_for_validation = [('Dividendo', 'Dividendo')]
+        
+        form.concept.choices = concept_choices_for_validation
+        # --- Fin de establecer choices para 'concept' en POST ---
+
+    # Ahora, si es POST, form.validate_on_submit() usará las choices que acabamos de establecer.
+    if form.validate_on_submit(): # Para GET, esto siempre será False.
         try:
             operation_date = datetime.strptime(form.date.data, '%Y-%m-%d').date()
-            amount_str = form.amount.data.replace(',', '.')
-            amount = float(amount_str)
+            amount_str = str(form.amount.data).replace(',', '.') # Asegurar que es string antes de replace
+            amount_val = float(amount_str)
 
-            # Lógica de signo actualizada - INVERTIDA
+            final_amount = 0.0 # Inicializar
             if form.operation_type.data == 'Ingreso':
-                amount = -abs(amount)  # Negativo (dinero que sale del usuario hacia el broker)
+                final_amount = -abs(amount_val)
             elif form.operation_type.data == 'Retirada':
-                amount = abs(amount)   # Positivo (dinero que entra al usuario desde el broker)
+                final_amount = abs(amount_val)
             elif form.operation_type.data == 'Comisión':
-                amount = -abs(amount)  # Negativo (costo)
-            elif form.operation_type.data == 'Reinversión':  # ← NUEVO
-                amount = abs(amount)   # Positivo (beneficio)
+                final_amount = -abs(amount_val)
+            elif form.operation_type.data == 'Reinversión':
+                final_amount = abs(amount_val)
 
+            linked_product = None
+            if form.operation_type.data == 'Reinversión' and form.concept.data == 'Dividendo':
+                if form.accion.data and form.accion.data != "": # Asegurarse que no es el placeholder
+                    linked_product = form.accion.data
+            
             new_operation = BrokerOperation(
                 user_id=current_user.id,
                 date=operation_date,
                 operation_type=form.operation_type.data,
                 concept=form.concept.data,
-                amount=amount,
-                description=form.description.data
+                amount=final_amount,
+                description=form.description.data,
+                linked_product_name=linked_product
             )
             db.session.add(new_operation)
             db.session.commit()
             flash('Operación registrada correctamente.', 'success')
-            return redirect(url_for('broker_operations'))
+            return redirect(url_for('broker_operations')) # Esto debería ocurrir si todo va bien
         except Exception as e:
             db.session.rollback()
             flash(f'Error al registrar la operación: {e}', 'danger')
+            app.logger.error(f"Error registrando operación de broker: {e}", exc_info=True)
+    # Si form.validate_on_submit() es False (o si hubo una excepción antes del redirect),
+    # se ejecutará el código de abajo para re-renderizar la plantilla.
+    # Los errores de validación se mostrarán automáticamente por WTForms en el template.
 
+    # --- Lógica para solicitudes GET o si la validación POST falla ---
     operations = BrokerOperation.query.filter_by(user_id=current_user.id).order_by(BrokerOperation.date.desc()).all()
-
-    # Calcular totales actualizados (SIN 'Dividendos' de retirada)
-    totals = {
-        'Inversión': 0,         # Ingresos tipo Inversión
-        'Desinversión': 0,      # Retiradas tipo Desinversión
-        'Compra/Venta': 0,      # Comisiones de Compra/Venta
-        'Apalancamiento': 0,    # Comisiones de Apalancamiento  
-        'Otras': 0,             # Otras Comisiones
-        'Dividendo': 0,         # ← NUEVO: Reinversiones tipo Dividendo
-        'Neto Ingresos': 0,     # Total operaciones tipo Ingreso
-        'Neto Retiradas': 0,    # Total operaciones tipo Retirada
-        'Neto Comisiones': 0,   # Total operaciones tipo Comisión
-        'Neto Reinversiones': 0,  # ← NUEVO: Total operaciones tipo Reinversión
-        'Balance Neto Usuario': 0  # ← MODIFICADO: Solo usuario ↔ broker (sin reinversiones)
-    }
     
+    totals = {
+        'Inversión': 0, 'Desinversión': 0, 'Compra/Venta': 0, 'Apalancamiento': 0,
+        'Otras': 0, 'Dividendo': 0, 'Neto Ingresos': 0, 'Neto Retiradas': 0,
+        'Neto Comisiones': 0, 'Neto Reinversiones': 0, 'Balance Neto Usuario': 0
+    }
     for op in operations:
-        # Acumular por tipo de operación
-        if op.operation_type == 'Ingreso':
-            totals['Neto Ingresos'] += op.amount
-        elif op.operation_type == 'Retirada':
-            totals['Neto Retiradas'] += op.amount
-        elif op.operation_type == 'Comisión':
-            totals['Neto Comisiones'] += op.amount
-        elif op.operation_type == 'Reinversión':  # ← NUEVO
-            totals['Neto Reinversiones'] += op.amount
-            
-        # Acumular por concepto específico
-        if op.concept in totals:
-            totals[op.concept] += op.amount
-
-    # Balance real de flujo usuario ↔ broker (SIN incluir reinversiones)
+        if op.operation_type == 'Ingreso': totals['Neto Ingresos'] += op.amount
+        elif op.operation_type == 'Retirada': totals['Neto Retiradas'] += op.amount
+        elif op.operation_type == 'Comisión': totals['Neto Comisiones'] += op.amount
+        elif op.operation_type == 'Reinversión': totals['Neto Reinversiones'] += op.amount
+        if op.concept in totals: totals[op.concept] += op.amount
     totals['Balance Neto Usuario'] = totals['Neto Ingresos'] + totals['Neto Retiradas'] + totals['Neto Comisiones']
+
+    # Para una solicitud GET inicial, el JavaScript poblará los conceptos.
+    # Si es una solicitud POST que falló la validación, form.concept.choices ya
+    # fueron establecidos arriba y se usarán para re-renderizar el select correctamente.
+    # No es estrictamente necesario volver a setearlos aquí para GET si el JS los maneja bien al inicio.
 
     return render_template(
         'broker_operations.html',
@@ -13442,18 +13482,25 @@ def edit_broker_operation(operation_id):
         operation=operation
     )
 
-# ===== NUEVAS RUTAS PARA EL MODAL DE EDICIÓN =====
 
-# ===== NUEVAS RUTAS PARA EL MODAL DE EDICIÓN =====
-
+# ...
 @app.route('/get_broker_operation/<int:operation_id>')
 @login_required
 def get_broker_operation(operation_id):
     """Obtiene los datos de una operación específica para el modal de edición."""
     try:
-        # Buscar la operación por ID y verificar que pertenece al usuario
         operation = BrokerOperation.query.filter_by(id=operation_id, user_id=current_user.id).first_or_404()
-        
+
+        # --- INICIO: Obtener productos para el dropdown del modal ---
+        _, csv_data_list, _ = load_user_portfolio(current_user.id)
+        product_options_for_modal = []
+        if csv_data_list and isinstance(csv_data_list, list):
+            unique_products_modal = sorted(list(set(
+                movement['Producto'] for movement in csv_data_list if 'Producto' in movement and movement['Producto']
+            )))
+            product_options_for_modal = [{'value': product, 'text': product} for product in unique_products_modal]
+        # --- FIN: Obtener productos para el dropdown del modal ---
+
         return jsonify({
             'success': True,
             'operation': {
@@ -13461,11 +13508,14 @@ def get_broker_operation(operation_id):
                 'date': operation.date.strftime('%Y-%m-%d'),
                 'operation_type': operation.operation_type,
                 'concept': operation.concept,
-                'amount': float(operation.amount),  # Enviar el valor real (con signo)
-                'description': operation.description or ''
-            }
+                'amount': float(operation.amount),
+                'description': operation.description or '',
+                'linked_product_name': operation.linked_product_name or '' # <-- AÑADIDO
+            },
+            'product_options': product_options_for_modal # <-- AÑADIDO
         })
     except Exception as e:
+        app.logger.error(f"Error en get_broker_operation {operation_id}: {e}", exc_info=True)
         return jsonify({
             'success': False,
             'error': str(e)
@@ -13476,98 +13526,61 @@ def get_broker_operation(operation_id):
 def edit_broker_operation_ajax(operation_id):
     """Actualiza una operación de broker vía AJAX desde el modal."""
     try:
-        # Buscar la operación por ID y verificar que pertenece al usuario
         operation = BrokerOperation.query.filter_by(id=operation_id, user_id=current_user.id).first()
-        
+
         if not operation:
-            return jsonify({
-                'success': False,
-                'error': 'Operación no encontrada o no tienes permisos para editarla'
-            }), 404
-        
-        # Obtener los datos del formulario
+            return jsonify({'success': False, 'error': 'Operación no encontrada'}), 404
+
         date_str = request.form.get('date')
         operation_type = request.form.get('operation_type')
         concept = request.form.get('concept')
         amount_str = request.form.get('amount')
         description = request.form.get('description', '')
-        
-        # Validar datos requeridos
+        linked_product_form = request.form.get('accion') # <-- NUEVO: Obtener 'accion' del formulario modal
+
         if not all([date_str, operation_type, concept, amount_str]):
-            return jsonify({
-                'success': False,
-                'error': 'Faltan campos requeridos'
-            }), 400
-        
-        # Procesar fecha
+            return jsonify({'success': False, 'error': 'Faltan campos requeridos'}), 400
+
         try:
             operation_date = datetime.strptime(date_str, '%Y-%m-%d').date()
         except ValueError:
-            return jsonify({
-                'success': False,
-                'error': 'Formato de fecha inválido'
-            }), 400
-        
-        # Procesar cantidad
+            return jsonify({'success': False, 'error': 'Formato de fecha inválido'}), 400
+
         try:
-            amount = float(amount_str.replace(',', '.'))
-            if amount <= 0:
-                return jsonify({
-                    'success': False,
-                    'error': 'La cantidad debe ser mayor que cero'
-                }), 400
+            amount_val = float(amount_str.replace(',', '.'))
+            if amount_val <= 0: # La cantidad siempre debe ser positiva en el form
+                return jsonify({'success': False, 'error': 'La cantidad debe ser mayor que cero'}), 400
         except ValueError:
-            return jsonify({
-                'success': False,
-                'error': 'Formato de cantidad inválido'
-            }), 400
-        
-        # Aplicar signo según tipo de operación (nueva lógica de signos)
-        if operation_type == 'Ingreso':
-            amount = -abs(amount)  # Negativo (dinero que sale del usuario hacia el broker)
-        elif operation_type == 'Retirada':
-            amount = abs(amount)   # Positivo (dinero que entra al usuario desde el broker)
-        elif operation_type == 'Comisión':
-            amount = -abs(amount)  # Negativo (costo)
-        elif operation_type == 'Reinversión':
-            amount = abs(amount)   # Positivo (beneficio obtenido)
-        else:
-            return jsonify({
-                'success': False,
-                'error': f'Tipo de operación inválido: {operation_type}'
-            }), 400
-        
-        # Actualizar la operación
+            return jsonify({'success': False, 'error': 'Formato de cantidad inválido'}), 400
+
+        # Aplicar signo
+        if operation_type == 'Ingreso': final_amount = -abs(amount_val)
+        elif operation_type == 'Retirada': final_amount = abs(amount_val)
+        elif operation_type == 'Comisión': final_amount = -abs(amount_val)
+        elif operation_type == 'Reinversión': final_amount = abs(amount_val)
+        else: return jsonify({'success': False, 'error': f'Tipo de operación inválido: {operation_type}'}), 400
+
         operation.date = operation_date
         operation.operation_type = operation_type
         operation.concept = concept
-        operation.amount = amount
+        operation.amount = final_amount
         operation.description = description
-        
+
+        # --- INICIO: Guardar linked_product_name para edición ---
+        if operation_type == 'Reinversión' and concept == 'Dividendo':
+            operation.linked_product_name = linked_product_form if linked_product_form and linked_product_form != "" else None
+        else:
+            operation.linked_product_name = None # Limpiar si no aplica
+        # --- FIN: Guardar linked_product_name para edición ---
+
         db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'message': 'Operación actualizada correctamente'
-        })
-        
+        return jsonify({'success': True, 'message': 'Operación actualizada correctamente'})
+
     except Exception as e:
         db.session.rollback()
-        app.logger.error(f"Error actualizando operación {operation_id}: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Error interno: {str(e)}'
-        }), 500
-
-# ===== MANTENER LA RUTA ORIGINAL PARA COMPATIBILIDAD (OPCIONAL) =====
-# Puedes mantener la ruta original si quieres que ambas opciones funcionen
-# O eliminarla si solo quieres usar el modal
-
-# @app.route('/edit_broker_operation/<int:operation_id>', methods=['GET', 'POST'])
-# @login_required  
-# def edit_broker_operation_page(operation_id):
-#     """Versión de página completa (opcional, para compatibilidad)"""
-#     # ... código de la implementación anterior ...
+        app.logger.error(f"Error actualizando operación AJAX {operation_id}: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'error': f'Error interno: {str(e)}'}), 500
+# ...
 
 @app.route('/delete_broker_operation/<int:operation_id>', methods=['POST'])
 @login_required

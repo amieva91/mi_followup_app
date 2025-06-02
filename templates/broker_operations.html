@@ -6,7 +6,6 @@
     <p>Registra y gestiona ingresos, retiradas, comisiones y reinversiones de tu broker.</p>
     
     <div class="row">
-        <!-- Formulario de Registro de Operaciones -->
         <div class="col-md-4">
             <div class="card">
                 <div class="card-header">
@@ -21,15 +20,20 @@
                         </div>
                         <div class="mb-3">
                             {{ form.operation_type.label(class="form-label") }}
-                            {{ form.operation_type(class="form-select") }}
+                            {{ form.operation_type(class="form-select", id="operation_type") }} {# ID añadido #}
                         </div>
                         <div class="mb-3">
                             {{ form.concept.label(class="form-label") }}
-                            {{ form.concept(class="form-select") }}
+                            {{ form.concept(class="form-select", id="concept") }} {# ID añadido #}
+                        </div>
+                        {# NUEVO CAMPO ACCIÓN #}
+                        <div class="mb-3" id="accion-group" style="display: none;"> 
+                            {{ form.accion.label(class="form-label") }}
+                            {{ form.accion(class="form-select", id="accion") }} {# ID añadido #}
                         </div>
                         <div class="mb-3">
                             {{ form.amount.label(class="form-label") }}
-                            {{ form.amount(class="form-control") }}
+                            {{ form.amount(class="form-control", id="amount") }} {# ID añadido #}
                             <div class="form-text">Introduce la cantidad en positivo. El sistema aplicará automáticamente el signo según el tipo de operación.</div>
                         </div>
                         <div class="mb-3">
@@ -42,14 +46,12 @@
             </div>
         </div>
         
-        <!-- Resumen de Operaciones -->
         <div class="col-md-8">
             <div class="card">
                 <div class="card-header">
                     <h5>Resumen de Operaciones</h5>
                 </div>
                 <div class="card-body">
-                    <!-- Totales por Concepto -->
                     <div class="row mb-4">
                         <div class="col-md-6">
                             <h6>Ingresos y Retiradas</h6>
@@ -99,10 +101,9 @@
                         </div>
                     </div>
                     
-                    <!-- Nueva Sección: Beneficios -->
                     <div class="row mb-4">
                         <div class="col-md-12">
-                            <h6>Beneficios Obtenidos</h6>
+                            <h6>Beneficios Obtenidos (Reinversiones)</h6>
                             <table class="table table-sm table-bordered">
                                 <thead class="table-light">
                                     <tr>
@@ -111,8 +112,9 @@
                                     </tr>
                                 </thead>
                                 <tbody>
+                                    {# Esta sección ahora se alimenta de totals.Dividendo, que viene de operaciones de Reinversión con concepto Dividendo #}
                                     <tr class="{% if totals.Dividendo > 0 %}table-info{% else %}table-secondary{% endif %}">
-                                        <td>Dividendos Obtenidos</td>
+                                        <td>Dividendos Recibidos y Reinvertidos</td>
                                         <td class="text-end">{{ totals.Dividendo|round(2) }}</td>
                                     </tr>
                                 </tbody>
@@ -120,7 +122,6 @@
                         </div>
                     </div>
                     
-                    <!-- Balance Actualizado -->
                     {% set balance_usuario_broker = totals['Balance Neto Usuario'] %}
                     {% set dinero_puesto_en_broker = balance_usuario_broker|abs %}
                     {% set has_puesto_dinero = balance_usuario_broker < 0 %}
@@ -146,7 +147,7 @@
                                 {% endif %}
                             </div>
                             <div class="col-md-6">
-                                <strong>Total Beneficios Obtenidos:</strong><br>
+                                <strong>Total Beneficios Reinvertidos:</strong><br>
                                 <span class="{% if totals['Neto Reinversiones'] > 0 %}text-info{% else %}text-secondary{% endif %}">
                                     {{ totals['Neto Reinversiones']|round(2) }} €
                                 </span>
@@ -155,13 +156,12 @@
                         <hr>
                         <small class="text-muted">
                             <strong>Balance Usuario ↔ Broker:</strong> Dinero neto transferido entre tu cuenta bancaria y el broker.<br>
-                            <strong>Beneficios Obtenidos:</strong> Ganancias generadas por tus inversiones (dividendos, etc.).
+                            <strong>Beneficios Reinvertidos:</strong> Ganancias generadas y mantenidas dentro del broker (ej: dividendos).
                         </small>
                     </div>
                 </div>
             </div>
             
-            <!-- Listado de Operaciones -->
             <div class="card mt-4">
                 <div class="card-header">
                     <h5>Historial de Operaciones</h5>
@@ -175,6 +175,7 @@
                                         <th>Fecha</th>
                                         <th>Tipo</th>
                                         <th>Concepto</th>
+                                        <th>Acción Asoc.</th> {# NUEVA COLUMNA #}
                                         <th class="text-end">Cantidad (€)</th>
                                         <th>Descripción</th>
                                         <th class="text-center">Acciones</th>
@@ -194,6 +195,7 @@
                                             </span>
                                         </td>
                                         <td>{{ op.concept }}</td>
+                                        <td>{{ op.linked_product_name or '---' }}</td> {# MOSTRAR PRODUCTO #}
                                         <td class="text-end {% if op.operation_type == 'Ingreso' %}text-warning{% elif op.operation_type == 'Retirada' %}text-success{% elif op.operation_type == 'Reinversión' %}text-info{% else %}text-danger{% endif %}">
                                             {% if op.operation_type == 'Ingreso' %}
                                                 {{ op.amount|round(2) }}
@@ -243,7 +245,6 @@
     </div>
 </div>
 
-<!-- Modal de Edición -->
 <div class="modal fade" id="editOperationModal" tabindex="-1" aria-labelledby="editOperationModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -251,8 +252,9 @@
                 <h5 class="modal-title" id="editOperationModalLabel">Editar Operación</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form id="edit-operation-form">
+            <form id="edit-operation-form"> {# No necesita action si se maneja por JS #}
                 <div class="modal-body">
+                    <input type="hidden" id="edit-operation-id" name="operation_id">
                     <div class="mb-3">
                         <label for="edit-date" class="form-label">Fecha</label>
                         <input type="date" class="form-control" id="edit-date" name="date" required>
@@ -271,7 +273,15 @@
                     <div class="mb-3">
                         <label for="edit-concept" class="form-label">Concepto</label>
                         <select class="form-select" id="edit-concept" name="concept" required>
-                            <!-- Se llenan dinámicamente con JavaScript -->
+                            </select>
+                    </div>
+
+                    {# NUEVO CAMPO ACCIÓN PARA EL MODAL #}
+                    <div class="mb-3" id="edit-accion-group" style="display: none;">
+                        <label for="edit-accion" class="form-label">Acción (Opcional)</label>
+                        <select class="form-select" id="edit-accion" name="accion">
+                            <option value="">- Seleccionar Acción (si aplica) -</option>
+                            {# Las opciones se poblarán dinámicamente por JS #}
                         </select>
                     </div>
                     
@@ -301,127 +311,156 @@
 document.addEventListener('DOMContentLoaded', function() {
     console.log("DOM completamente cargado, configurando eventos...");
     
-    // Inicializar opciones de concepto al cargar la página
-    updateConceptOptions();
-    console.log("Opciones iniciales configuradas");
-    
-    // Actualizar al cambiar el tipo de operación en el formulario principal
-    const operationTypeSelect = document.getElementById('operation_type');
-    if (operationTypeSelect) {
-        operationTypeSelect.addEventListener('change', function() {
-            console.log("Cambio detectado en operation_type:", this.value);
-            updateConceptOptions();
-        });
-        console.log("Evento change registrado correctamente en #operation_type");
+    const mainOperationTypeSelect = document.getElementById('operation_type');
+    const mainConceptSelect = document.getElementById('concept');
+    const mainAccionGroup = document.getElementById('accion-group');
+    const mainAccionSelect = document.getElementById('accion');
+    const mainBrokerForm = document.getElementById('broker-form');
+
+    const editOperationTypeSelectModal = document.getElementById('edit-operation-type');
+    const editConceptSelectModal = document.getElementById('edit-concept');
+    const editAccionGroupModal = document.getElementById('edit-accion-group');
+    const editAccionSelectModal = document.getElementById('edit-accion');
+    const editFormModal = document.getElementById('edit-operation-form');
+
+    // --- Lógica para el formulario principal ---
+    function updateMainConceptOptions() {
+        if (!mainOperationTypeSelect || !mainConceptSelect) return;
+        const selectedType = mainOperationTypeSelect.value;
+        updateConceptSelect(mainConceptSelect, selectedType, toggleMainAccionField);
     }
-    
-    // Actualizar al cambiar el tipo de operación en el modal de edición
-    const editOperationTypeSelect = document.getElementById('edit-operation-type');
-    if (editOperationTypeSelect) {
-        editOperationTypeSelect.addEventListener('change', function() {
-            console.log("Cambio detectado en edit-operation-type:", this.value);
-            updateEditConceptOptions();
-        });
-    }
-    
-    // Validación de formato de cantidades en formulario principal
-    const brokerForm = document.getElementById('broker-form');
-    if (brokerForm) {
-        brokerForm.addEventListener('submit', function(event) {
-            const amountField = document.getElementById('amount');
-            if (!amountField) {
-                console.error("No se encontró el campo #amount");
-                return;
+
+    function toggleMainAccionField() {
+        if (mainOperationTypeSelect && mainConceptSelect && mainAccionGroup) {
+            if (mainOperationTypeSelect.value === 'Reinversión' && mainConceptSelect.value === 'Dividendo') {
+                mainAccionGroup.style.display = 'block';
+            } else {
+                mainAccionGroup.style.display = 'none';
+                if (mainAccionSelect) mainAccionSelect.value = '';
             }
-            
+        }
+    }
+
+    if (mainOperationTypeSelect) {
+        mainOperationTypeSelect.addEventListener('change', updateMainConceptOptions);
+    }
+    if (mainConceptSelect) {
+        mainConceptSelect.addEventListener('change', toggleMainAccionField);
+    }
+    
+    if (mainBrokerForm) {
+        mainBrokerForm.addEventListener('submit', function(event) {
+            const amountField = document.getElementById('amount');
+            if (!amountField) return;
             const amountValue = amountField.value.replace(',', '.');
             const amount = parseFloat(amountValue);
-            
             if (isNaN(amount) || amount <= 0) {
                 event.preventDefault();
                 alert('Por favor, introduce una cantidad positiva válida.');
                 amountField.focus();
             } else {
                 amountField.value = amountValue;
-                console.log("Formulario válido, enviando con cantidad:", amountValue);
             }
         });
-        console.log("Validación de formulario configurada");
     }
-    
-    // ===== FUNCIONALIDAD DEL MODAL DE EDICIÓN =====
-    
-    // Manejar clics en botones de editar
+    updateMainConceptOptions(); // Initial call for main form
+    toggleMainAccionField(); // Initial check for accion field on main form
+
+    // --- Lógica para el Modal de Edición ---
+    function updateEditModalConceptOptions() {
+        if (!editOperationTypeSelectModal || !editConceptSelectModal) return;
+        const selectedType = editOperationTypeSelectModal.value;
+        updateConceptSelect(editConceptSelectModal, selectedType, toggleEditModalAccionField);
+    }
+
+    function toggleEditModalAccionField() {
+        if (editOperationTypeSelectModal && editConceptSelectModal && editAccionGroupModal) {
+            if (editOperationTypeSelectModal.value === 'Reinversión' && editConceptSelectModal.value === 'Dividendo') {
+                editAccionGroupModal.style.display = 'block';
+            } else {
+                editAccionGroupModal.style.display = 'none';
+                if (editAccionSelectModal) editAccionSelectModal.value = '';
+            }
+        }
+    }
+
+    if (editOperationTypeSelectModal) {
+        editOperationTypeSelectModal.addEventListener('change', updateEditModalConceptOptions);
+    }
+    if (editConceptSelectModal) {
+        editConceptSelectModal.addEventListener('change', toggleEditModalAccionField);
+    }
+
     document.querySelectorAll('.edit-operation-btn').forEach(button => {
         button.addEventListener('click', function() {
             const operationId = this.getAttribute('data-operation-id');
-            loadOperationData(operationId);
+            loadOperationDataForModal(operationId);
         });
     });
     
-    // Envío del formulario de edición
-    const editForm = document.getElementById('edit-operation-form');
-    if (editForm) {
-        editForm.addEventListener('submit', function(event) {
+    if (editFormModal) {
+        editFormModal.addEventListener('submit', function(event) {
             event.preventDefault();
-            submitEditForm();
+            submitEditModalForm();
         });
     }
-    
-    // Funciones para el modal
-    function loadOperationData(operationId) {
-        console.log('Cargando datos de operación:', operationId);
-        
-        // Hacer petición AJAX para obtener los datos de la operación
+
+    function loadOperationDataForModal(operationId) {
         fetch(`/get_broker_operation/${operationId}`)
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    populateEditForm(data.operation);
+                    populateEditModalForm(data.operation, data.product_options || []);
                 } else {
-                    alert('Error al cargar los datos de la operación: ' + data.error);
+                    alert('Error al cargar datos: ' + data.error);
                 }
             })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Error al cargar los datos de la operación');
-            });
+            .catch(error => alert('Error de conexión: ' + error));
     }
-    
-    function populateEditForm(operation) {
+
+    function populateEditModalForm(operation, productOptions) {
         document.getElementById('edit-date').value = operation.date;
         document.getElementById('edit-operation-type').value = operation.operation_type;
         document.getElementById('edit-amount').value = Math.abs(operation.amount).toFixed(2);
         document.getElementById('edit-description').value = operation.description || '';
         
-        // Actualizar opciones de concepto y seleccionar el actual
-        updateEditConceptOptions();
-        setTimeout(() => {
-            document.getElementById('edit-concept').value = operation.concept;
-        }, 100);
+        if (editAccionSelectModal) {
+            editAccionSelectModal.innerHTML = '<option value="">- Seleccionar Acción (si aplica) -</option>'; // Reset
+            productOptions.forEach(opt => {
+                const optionEl = document.createElement('option');
+                optionEl.value = opt.value;
+                optionEl.textContent = opt.text;
+                editAccionSelectModal.appendChild(optionEl);
+            });
+            editAccionSelectModal.value = operation.linked_product_name || '';
+        }
+
+        updateEditModalConceptOptions(); // Actualiza conceptos primero
+        setTimeout(() => { // Delay to ensure concepts are populated
+            if (editConceptSelectModal) editConceptSelectModal.value = operation.concept;
+            toggleEditModalAccionField(); // Luego ajusta visibilidad de acción
+        }, 50); 
         
-        // Guardar el ID de la operación en el formulario
-        editForm.setAttribute('data-operation-id', operation.id);
+        if (editFormModal) editFormModal.setAttribute('data-operation-id', operation.id);
     }
     
-    function submitEditForm() {
-        const formData = new FormData(editForm);
-        const operationId = editForm.getAttribute('data-operation-id');
+    function submitEditModalForm() {
+        const operationId = editFormModal.getAttribute('data-operation-id');
+        const formData = new FormData(editFormModal);
         
-        // Validar cantidad
-        const amountValue = formData.get('amount').replace(',', '.');
-        const amount = parseFloat(amountValue);
-        
-        if (isNaN(amount) || amount <= 0) {
-            alert('Por favor, introduce una cantidad positiva válida.');
-            return;
+        const amountField = document.getElementById('edit-amount');
+        if (amountField){
+            const amountValue = amountField.value.replace(',', '.');
+            const amountNum = parseFloat(amountValue);
+            if (isNaN(amountNum) || amountNum <= 0) {
+                alert('Por favor, introduce una cantidad positiva válida en el modal.');
+                amountField.focus();
+                return;
+            }
+            formData.set('amount', amountValue); // Asegurar que se envía el valor procesado
         }
-        
-        // Actualizar cantidad con formato correcto
-        formData.set('amount', amountValue);
-        
-        // Mostrar indicador de carga
-        const submitBtn = editForm.querySelector('button[type="submit"]');
+
+        const submitBtn = editFormModal.querySelector('button[type="submit"]');
         const originalText = submitBtn.textContent;
         submitBtn.textContent = 'Guardando...';
         submitBtn.disabled = true;
@@ -430,122 +469,60 @@ document.addEventListener('DOMContentLoaded', function() {
             method: 'POST',
             body: formData
         })
-        .then(response => {
-            console.log('Response status:', response.status);
-            console.log('Response headers:', response.headers);
-            return response.json();
-        })
+        .then(response => response.json())
         .then(data => {
-            console.log('Response data:', data);
-            
             if (data.success) {
-                // Cerrar modal
                 const modal = bootstrap.Modal.getInstance(document.getElementById('editOperationModal'));
-                modal.hide();
-                
-                // Mostrar mensaje de éxito
-                alert('Operación actualizada correctamente');
-                
-                // Recargar la página para mostrar los cambios
+                if (modal) modal.hide();
+                alert(data.message || 'Operación actualizada.');
                 location.reload();
             } else {
-                console.error('Error del servidor:', data.error);
-                alert('Error al actualizar la operación: ' + (data.error || 'Error desconocido'));
+                alert('Error: ' + (data.error || 'Error desconocido.'));
             }
         })
-        .catch(error => {
-            console.error('Error de red o JavaScript:', error);
-            alert('Error de conexión al actualizar la operación: ' + error.message);
-        })
+        .catch(error => alert('Error de conexión: ' + error))
         .finally(() => {
-            // Restaurar botón
             submitBtn.textContent = originalText;
             submitBtn.disabled = false;
         });
     }
-});
 
-// Función para actualizar las opciones del campo 'concept' (formulario principal)
-function updateConceptOptions() {
-    console.log("Ejecutando updateConceptOptions()");
-    const operationType = document.getElementById('operation_type');
-    const conceptSelect = document.getElementById('concept');
-    
-    if (!operationType || !conceptSelect) {
-        console.error("No se encontraron los elementos necesarios");
-        return;
-    }
-    
-    const selectedType = operationType.value;
-    updateConceptSelect(conceptSelect, selectedType);
-}
+    // --- Función común para actualizar select de Concepto ---
+    function updateConceptSelect(conceptSelectElement, selectedType, callbackAfterUpdate) {
+        const currentConceptVal = conceptSelectElement.value;
+        conceptSelectElement.innerHTML = ''; // Limpiar
+        let optionsData = [];
 
-// Función para actualizar las opciones del campo 'concept' (modal de edición)
-function updateEditConceptOptions() {
-    console.log("Ejecutando updateEditConceptOptions()");
-    const operationType = document.getElementById('edit-operation-type');
-    const conceptSelect = document.getElementById('edit-concept');
-    
-    if (!operationType || !conceptSelect) {
-        console.error("No se encontraron los elementos necesarios para edición");
-        return;
-    }
-    
-    const selectedType = operationType.value;
-    updateConceptSelect(conceptSelect, selectedType);
-}
+        if (selectedType === 'Ingreso') {
+            optionsData = [['Inversión', 'Inversión']];
+        } else if (selectedType === 'Retirada') {
+            optionsData = [['Desinversión', 'Desinversión']]; // "Dividendos (OBSOLETO)" eliminado
+        } else if (selectedType === 'Comisión') {
+            optionsData = [
+                ['Compra/Venta', 'Comisión de Compra/Venta'],
+                ['Apalancamiento', 'Comisión de Apalancamiento'],
+                ['Otras', 'Otras Comisiones']
+            ];
+        } else if (selectedType === 'Reinversión') {
+            optionsData = [['Dividendo', 'Dividendo']];
+        }
+        
+        optionsData.forEach(optTextValue => {
+            const option = document.createElement('option');
+            option.value = optTextValue[0];
+            option.textContent = optTextValue[1];
+            conceptSelectElement.appendChild(option);
+        });
 
-// Función común para actualizar un select de concepto
-function updateConceptSelect(conceptSelect, selectedType) {
-    console.log("Tipo de operación seleccionado:", selectedType);
-    
-    // Guardar selección actual si existe
-    const currentSelection = conceptSelect.value;
-    
-    // Limpiar opciones actuales
-    conceptSelect.innerHTML = '';
-    
-    // Opciones por defecto según tipo de operación
-    let options = [];
-    
-    if (selectedType === 'Ingreso') {
-        options = [['Inversión', 'Inversión']];
-    } else if (selectedType === 'Retirada') {
-        options = [
-            ['Dividendos', 'Dividendos (OBSOLETO)'],
-            ['Desinversión', 'Desinversión']
-        ];
-    } else if (selectedType === 'Comisión') {
-        options = [
-            ['Compra/Venta', 'Comisión de Compra/Venta'],
-            ['Apalancamiento', 'Comisión de Apalancamiento'],
-            ['Otras', 'Otras Comisiones']
-        ];
-    } else if (selectedType === 'Reinversión') {
-        options = [['Dividendo', 'Dividendo']];
-    }
-    
-    console.log(`Añadiendo ${options.length} opciones para ${selectedType}`);
-    
-    // Añadir nuevas opciones
-    options.forEach(function(option) {
-        const optElement = document.createElement('option');
-        optElement.value = option[0];
-        optElement.textContent = option[1];
-        conceptSelect.appendChild(optElement);
-        console.log(`Añadida opción: ${option[0]} - ${option[1]}`);
-    });
-    
-    // Intentar restaurar selección previa si aún está disponible
-    if (currentSelection) {
-        const optionExists = Array.from(conceptSelect.options).some(opt => opt.value === currentSelection);
-        if (optionExists) {
-            conceptSelect.value = currentSelection;
-            console.log(`Restaurada selección previa: ${currentSelection}`);
-        } else {
-            console.log(`No se pudo restaurar selección previa: ${currentSelection}`);
+        // Restaurar selección previa si es válida
+        if (Array.from(conceptSelectElement.options).some(opt => opt.value === currentConceptVal)) {
+            conceptSelectElement.value = currentConceptVal;
+        }
+        
+        if (typeof callbackAfterUpdate === 'function') {
+            callbackAfterUpdate(); // Llama al callback para actualizar la visibilidad del campo accion
         }
     }
-}
+});
 </script>
 {% endblock scripts %}

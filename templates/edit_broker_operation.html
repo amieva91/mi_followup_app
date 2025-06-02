@@ -12,7 +12,8 @@
                     <h5>Editar Operación</h5>
                 </div>
                 <div class="card-body">
-                    <form method="POST" action="{{ url_for('edit_broker_operation', operation_id=operation.id) }}" id="edit-broker-form">
+                    {# El action apunta a la ruta de edición específica de la página, no la AJAX del modal #}
+                    <form method="POST" action="{{ url_for('edit_broker_operation', operation_id=operation.id) }}" id="edit-broker-form-page">
                         {{ form.hidden_tag() }}
                         
                         <div class="mb-3">
@@ -22,17 +23,24 @@
                         
                         <div class="mb-3">
                             {{ form.operation_type.label(class="form-label") }}
-                            {{ form.operation_type(class="form-select") }}
+                            {# ID único para este select si coexiste con el modal en la misma vista base #}
+                            {{ form.operation_type(class="form-select", id="operation_type_page") }} 
                         </div>
                         
                         <div class="mb-3">
                             {{ form.concept.label(class="form-label") }}
-                            {{ form.concept(class="form-select") }}
+                            {{ form.concept(class="form-select", id="concept_page") }}
+                        </div>
+
+                        {# NUEVO CAMPO ACCIÓN PARA ESTA PÁGINA DE EDICIÓN #}
+                        <div class="mb-3" id="accion-group-page" style="display: none;"> 
+                            {{ form.accion.label(class="form-label") }}
+                            {{ form.accion(class="form-select", id="accion_page") }}
                         </div>
                         
                         <div class="mb-3">
                             {{ form.amount.label(class="form-label") }}
-                            {{ form.amount(class="form-control") }}
+                            {{ form.amount(class="form-control", id="amount_page") }}
                             <div class="form-text">Introduce la cantidad en positivo. El sistema aplicará automáticamente el signo según el tipo de operación.</div>
                         </div>
                         
@@ -56,81 +64,42 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Función para actualizar las opciones del campo 'concept' basado en el tipo de operación
-    function updateConceptOptions() {
-        const operationType = document.getElementById('operation_type');
-        const conceptSelect = document.getElementById('concept');
-        
-        if (!operationType || !conceptSelect) {
-            console.error("No se encontraron los elementos necesarios");
-            return;
-        }
-        
-        const selectedType = operationType.value;
-        console.log("Tipo de operación seleccionado:", selectedType);
-        
-        // Guardar selección actual si existe
-        const currentSelection = conceptSelect.value;
-        
-        // Limpiar opciones actuales
-        conceptSelect.innerHTML = '';
-        
-        // Opciones por defecto según tipo de operación
-        let options = [];
-        
-        if (selectedType === 'Ingreso') {
-            options = [['Inversión', 'Inversión']];
-        } else if (selectedType === 'Retirada') {
-            options = [
-                ['Dividendos', 'Dividendos (OBSOLETO - Usar Reinversión)'],
-                ['Desinversión', 'Desinversión']
-            ];
-        } else if (selectedType === 'Comisión') {
-            options = [
-                ['Compra/Venta', 'Comisión de Compra/Venta'],
-                ['Apalancamiento', 'Comisión de Apalancamiento'],
-                ['Otras', 'Otras Comisiones']
-            ];
-        } else if (selectedType === 'Reinversión') {
-            options = [['Dividendo', 'Dividendo']];
-        }
-        
-        // Añadir nuevas opciones
-        options.forEach(function(option) {
-            const optElement = document.createElement('option');
-            optElement.value = option[0];
-            optElement.textContent = option[1];
-            conceptSelect.appendChild(optElement);
-        });
-        
-        // Intentar restaurar selección previa si aún está disponible
-        if (currentSelection) {
-            const optionExists = Array.from(conceptSelect.options).some(option => option.value === currentSelection);
-            if (optionExists) {
-                conceptSelect.value = currentSelection;
+    const operationTypeSelectPage = document.getElementById('operation_type_page');
+    const conceptSelectPage = document.getElementById('concept_page');
+    const accionGroupPage = document.getElementById('accion-group-page');
+    const accionSelectPage = document.getElementById('accion_page');
+    const editBrokerFormPage = document.getElementById('edit-broker-form-page');
+
+    function updateConceptOptionsPage() {
+        if (!operationTypeSelectPage || !conceptSelectPage) return;
+        const selectedType = operationTypeSelectPage.value;
+        updateConceptSelect(conceptSelectPage, selectedType, toggleAccionFieldPage);
+    }
+
+    function toggleAccionFieldPage() {
+        if (operationTypeSelectPage && conceptSelectPage && accionGroupPage) {
+            if (operationTypeSelectPage.value === 'Reinversión' && conceptSelectPage.value === 'Dividendo') {
+                accionGroupPage.style.display = 'block';
+            } else {
+                accionGroupPage.style.display = 'none';
+                if (accionSelectPage) accionSelectPage.value = '';
             }
         }
     }
-    
-    // Actualizar al cambiar el tipo de operación
-    const operationTypeSelect = document.getElementById('operation_type');
-    if (operationTypeSelect) {
-        operationTypeSelect.addEventListener('change', updateConceptOptions);
+
+    if (operationTypeSelectPage) {
+        operationTypeSelectPage.addEventListener('change', updateConceptOptionsPage);
     }
-    
-    // Validación de formato de cantidades
-    const editBrokerForm = document.getElementById('edit-broker-form');
-    if (editBrokerForm) {
-        editBrokerForm.addEventListener('submit', function(event) {
-            const amountField = document.getElementById('amount');
-            if (!amountField) {
-                console.error("No se encontró el campo #amount");
-                return;
-            }
-            
+    if (conceptSelectPage) {
+        conceptSelectPage.addEventListener('change', toggleAccionFieldPage);
+    }
+
+    if (editBrokerFormPage) {
+        editBrokerFormPage.addEventListener('submit', function(event) {
+            const amountField = document.getElementById('amount_page');
+            if (!amountField) return;
             const amountValue = amountField.value.replace(',', '.');
             const amount = parseFloat(amountValue);
-            
             if (isNaN(amount) || amount <= 0) {
                 event.preventDefault();
                 alert('Por favor, introduce una cantidad positiva válida.');
@@ -140,6 +109,53 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+    
+    // Función común para actualizar un select de Concepto (puede ser la misma que en broker_operations.html)
+    function updateConceptSelect(conceptSelectElement, selectedType, callbackAfterUpdate) {
+        const currentConceptVal = conceptSelectElement.value;
+        conceptSelectElement.innerHTML = ''; // Limpiar
+        let optionsData = [];
+
+        if (selectedType === 'Ingreso') {
+            optionsData = [['Inversión', 'Inversión']];
+        } else if (selectedType === 'Retirada') {
+            optionsData = [['Desinversión', 'Desinversión']]; // "Dividendos (OBSOLETO)" eliminado
+        } else if (selectedType === 'Comisión') {
+            optionsData = [
+                ['Compra/Venta', 'Comisión de Compra/Venta'],
+                ['Apalancamiento', 'Comisión de Apalancamiento'],
+                ['Otras', 'Otras Comisiones']
+            ];
+        } else if (selectedType === 'Reinversión') {
+            optionsData = [['Dividendo', 'Dividendo']];
+        }
+        
+        optionsData.forEach(optTextValue => {
+            const option = document.createElement('option');
+            option.value = optTextValue[0];
+            option.textContent = optTextValue[1];
+            conceptSelectElement.appendChild(option);
+        });
+        
+        // Intentar restaurar selección previa si es válida y existe entre las nuevas opciones
+        // Esto es importante para cuando la página carga con datos preexistentes.
+        if (Array.from(conceptSelectElement.options).some(opt => opt.value === currentConceptVal)) {
+            conceptSelectElement.value = currentConceptVal;
+        } else if (optionsData.length > 0) {
+             // Si la selección previa no es válida con las nuevas opciones,
+             // se selecciona la primera opción disponible por defecto.
+             conceptSelectElement.value = optionsData[0][0];
+        }
+
+
+        if (typeof callbackAfterUpdate === 'function') {
+            callbackAfterUpdate();
+        }
+    }
+
+    // Llamada inicial para configurar los campos al cargar la página de edición
+    updateConceptOptionsPage(); 
+    toggleAccionFieldPage(); 
 });
 </script>
 {% endblock scripts %}
