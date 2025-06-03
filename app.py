@@ -5,9 +5,11 @@ import io
 import csv
 import hashlib
 import math
+from calendar import monthrange
 import re
 from sqlalchemy import func
 import traceback
+from typing import Union 
 import uuid
 import json
 from functools import wraps
@@ -185,7 +187,36 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 
+class HistoricalCryptoPrice(db.Model):
+    __tablename__ = 'historical_crypto_price'
+    id = db.Column(db.Integer, primary_key=True)
+    # Esta es la línea crucial:
+    crypto_symbol_yf = db.Column(db.String(20), nullable=False) # Debe llamarse exactamente 'crypto_symbol_yf'
+    date = db.Column(db.Date, nullable=False)
+    price_eur = db.Column(db.Float, nullable=False)
+    source = db.Column(db.String(50), default='yfinance')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    __table_args__ = (db.UniqueConstraint('crypto_symbol_yf', 'date', name='uq_crypto_date_price'),)
+
+    def __repr__(self):
+        # Asegúrate que aquí también usas self.crypto_symbol_yf
+        return f'<HistoricalCryptoPrice {self.crypto_symbol_yf} {self.date} {self.price_eur}€>'
+
+class HistoricalMetalPrice(db.Model):
+    __tablename__ = 'historical_metal_price'
+    id = db.Column(db.Integer, primary_key=True)
+    # Asumiendo que tienes una tabla PreciousMetal con los símbolos, o usas directamente el símbolo de yfinance
+    metal_symbol = db.Column(db.String(20), nullable=False) # Ej: "GC=F" para Oro, "SI=F" para Plata
+    date = db.Column(db.Date, nullable=False)
+    price_eur = db.Column(db.Float, nullable=False)
+    source = db.Column(db.String(50), default='yfinance') # Para saber de dónde vino el dato
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (db.UniqueConstraint('metal_symbol', 'date', name='uq_metal_date'),)
+
+    def __repr__(self):
+        return f'<HistoricalMetalPrice {self.metal_symbol} {self.date} {self.price_eur}>'
 
 class ActivityLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -2591,6 +2622,150 @@ def parse_ibkr_csv(file_content_or_path, filename):
         print(error_msg)
         errors.append(error_msg)
         return [], {}, errors
+
+
+def get_historical_price_from_yfinance(symbol_yf: str, target_date: date, target_currency: str = 'EUR') -> Union[float, None]:    
+    """
+    Obtiene el precio de cierre de un símbolo de Yahoo Finance para una fecha específica y lo convierte a target_currency.
+    Intenta obtener el precio para target_date. Si no hay datos (ej. fin de semana/festivo),
+    prueba con el día anterior hasta encontrar datos o retroceder un máximo de 4 días.
+    """
+    price_native_currency = None
+    fetched_date = None
+
+    if target_date > date.today():
+        print(f"  [yfinance-SKIP] No se consultan precios para fecha futura: {target_date} para {symbol_yf}")
+        return None, None # Devuelve None para precio y fecha_obtenida
+
+    for i in range(5): # Intentar hasta 5 días atrás (target_date y 4 días antes)
+        current_fetch_date = target_date - timedelta(days=i)
+        try:
+            ticker = yf.Ticker(symbol_yf)
+            # Pedir un rango pequeño para asegurar que obtenemos el cierre del día si está disponible
+            hist = ticker.history(start=current_fetch_date, end=current_fetch_date + timedelta(days=1), auto_adjust=True)
+            if not hist.empty and 'Close' in hist.columns and not pd.isna(hist['Close'].iloc[0]):
+                price_native_currency = float(hist['Close'].iloc[0])
+                fetched_date = current_fetch_date # Guardar la fecha para la que se obtuvo el precio
+                
+                # Obtener la divisa del ticker desde yfinance si es posible
+                info = ticker.info
+                asset_currency = info.get('currency', '').upper()
+
+                if not asset_currency: # Fallback si yfinance no da la divisa (común para algunos futuros)
+                    if symbol_yf in ["GC=F", "SI=F"]: asset_currency = "USD"
+                    # Añade más fallbacks si es necesario para otros símbolos
+
+                print(f"  [yfinance] {symbol_yf} en {fetched_date}: {price_native_currency} {asset_currency if asset_currency else 'N/A'}")
+                
+                if price_native_currency is not None:
+                    break # Precio encontrado
+            # else:
+                # print(f"  [yfinance] No data for {symbol_yf} on {current_fetch_date}")
+        except Exception as e:
+            print(f"  [yfinance-WARN] Error fetching {symbol_yf} for {current_fetch_date}: {e}")
+            continue # Intentar día anterior
+
+    if price_native_currency is None or asset_currency is None:
+        print(f"  [yfinance-FAIL] No se pudo obtener precio o divisa para {symbol_yf} alrededor de {target_date}")
+        return None
+
+    if asset_currency == target_currency:
+        return price_native_currency, fetched_date
+    else:
+        exchange_rate = get_exchange_rate(asset_currency, target_currency) # Tu función existente
+        if exchange_rate is not None:
+            price_target_currency = price_native_currency * exchange_rate
+            print(f"  [yfinance-CONV] {price_native_currency} {asset_currency} -> {price_target_currency:.2f} {target_currency} (Rate: {exchange_rate})")
+            return price_target_currency, fetched_date
+        else:
+            print(f"  [yfinance-FAIL] No se pudo convertir {asset_currency} a {target_currency} para {symbol_yf}")
+            return None, None
+
+
+def get_historical_metal_price_eur(metal_symbol_yf: str, target_date: date) -> Union[float, None]:    
+    """
+    Obtiene el precio histórico en EUR para un metal desde la BD local o yfinance.
+    metal_symbol_yf: Ej. "GC=F" para Oro, "SI=F" para Plata.
+    """
+    # 1. Consultar BD Local
+    cached_price_obj = HistoricalMetalPrice.query.filter_by(
+        metal_symbol_yf=metal_symbol_yf,
+        date=target_date
+    ).first()
+    if cached_price_obj:
+        # print(f"  [DB-HIT] Precio histórico metal {metal_symbol_yf} para {target_date}: {cached_price_obj.price_eur} EUR")
+        return cached_price_obj.price_eur
+
+    # 2. Si no está en BD, consultar yfinance
+    print(f"  [API-CALL] Buscando precio histórico metal {metal_symbol_yf} para {target_date} en yfinance...")
+    fetched_data = get_historical_price_from_yfinance(metal_symbol_yf, target_date, 'EUR')
+    
+    if fetched_data:
+        price_eur, actual_fetched_date = fetched_data
+        if price_eur is not None and actual_fetched_date is not None:
+            # 3. Guardar en BD Local (para la target_date original, incluso si yf dio precio de día cercano)
+            new_price_entry = HistoricalMetalPrice(
+                metal_symbol_yf=metal_symbol_yf,
+                date=target_date, # Usar la fecha solicitada para el cache, no la fecha real del dato de yf
+                price_eur=price_eur
+            )
+            try:
+                db.session.add(new_price_entry)
+                db.session.commit()
+                print(f"  [DB-SAVE] Precio histórico metal {metal_symbol_yf} para {target_date} ({price_eur} EUR de {actual_fetched_date}) guardado.")
+            except Exception as e_save: # Podría ser UniqueConstraint si otra request lo guardó mientras tanto
+                db.session.rollback()
+                print(f"  [DB-WARN] No se pudo guardar precio histórico metal para {metal_symbol_yf} en {target_date}: {e_save}")
+                # Re-consultar por si se guardó en paralelo
+                cached_price_obj_retry = HistoricalMetalPrice.query.filter_by(metal_symbol_yf=metal_symbol_yf, date=target_date).first()
+                if cached_price_obj_retry: return cached_price_obj_retry.price_eur
+
+            return price_eur
+    
+    print(f"  [API-FAIL] No se pudo obtener precio histórico para metal {metal_symbol_yf} en {target_date}.")
+    return None
+
+
+def get_historical_crypto_price_eur(crypto_symbol_yf: str, target_date: date) -> Union[float, None]:    
+    """
+    Obtiene el precio histórico en EUR para una cripto desde la BD local o yfinance.
+    crypto_symbol_yf: Ej. "BTC-EUR", "ETH-EUR".
+    """
+    # 1. Consultar BD Local
+    cached_price_obj = HistoricalCryptoPrice.query.filter_by(
+        crypto_symbol_yf=crypto_symbol_yf,
+        date=target_date
+    ).first()
+    if cached_price_obj:
+        # print(f"  [DB-HIT] Precio histórico cripto {crypto_symbol_yf} para {target_date}: {cached_price_obj.price_eur} EUR")
+        return cached_price_obj.price_eur
+
+    # 2. Si no está en BD, consultar yfinance
+    print(f"  [API-CALL] Buscando precio histórico cripto {crypto_symbol_yf} para {target_date} en yfinance...")
+    fetched_data = get_historical_price_from_yfinance(crypto_symbol_yf, target_date, 'EUR')
+
+    if fetched_data:
+        price_eur, actual_fetched_date = fetched_data
+        if price_eur is not None and actual_fetched_date is not None:
+            # 3. Guardar en BD Local
+            new_price_entry = HistoricalCryptoPrice(
+                crypto_symbol_yf=crypto_symbol_yf,
+                date=target_date, # Usar la fecha solicitada
+                price_eur=price_eur
+            )
+            try:
+                db.session.add(new_price_entry)
+                db.session.commit()
+                print(f"  [DB-SAVE] Precio histórico cripto {crypto_symbol_yf} para {target_date} ({price_eur} EUR de {actual_fetched_date}) guardado.")
+            except Exception as e_save:
+                db.session.rollback()
+                print(f"  [DB-WARN] No se pudo guardar precio histórico cripto para {crypto_symbol_yf} en {target_date}: {e_save}")
+                cached_price_obj_retry = HistoricalCryptoPrice.query.filter_by(crypto_symbol_yf=crypto_symbol_yf, date=target_date).first()
+                if cached_price_obj_retry: return cached_price_obj_retry.price_eur
+            return price_eur
+            
+    print(f"  [API-FAIL] No se pudo obtener precio histórico para cripto {crypto_symbol_yf} en {target_date}.")
+    return None
 
 
 def parse_ibkr_datetime(datetime_str):
@@ -5863,43 +6038,23 @@ def delete_real_estate_asset(asset_id):
     return redirect(url_for('real_estate'))
 
 
-# En app.py
-# En app.py
 
-# Asegúrate de tener todos estos imports al principio de tu app.py, por ejemplo:
-# from flask import render_template, redirect, url_for, flash, request, jsonify
-# from flask_login import login_required, current_user
-# from .models import (db, User, FinancialSummaryConfig, FixedIncome, SalaryHistory, 
-#                      VariableIncome, VariableIncomeCategory, Expense, ExpenseCategory, 
-#                      DebtInstallmentPlan, DebtCeiling, DebtHistoryRecord,
-#                      BankAccount, CashHistoryRecord, 
-#                      PensionPlan, PensionPlanHistory, UserPortfolio, CryptoTransaction, 
-#                      CryptoHolding, CryptoHistoryRecord,
-#                      PreciousMetalTransaction, PreciousMetalPrice,
-#                      RealEstateAsset, RealEstateMortgage, RealEstateExpense, RealEstateValueHistory)
-# from .forms import FinancialSummaryConfigForm # Y otros formularios que uses
-# from datetime import datetime, date, timedelta
-# import json
-
+# -*- coding: utf-8 -*-
+# ... (TODOS TUS IMPORTS) ...
 
 @app.route('/financial_summary', methods=['GET', 'POST'])
 @login_required
 def financial_summary():
-    """Muestra un resumen financiero global con datos de todas las secciones."""
+    # --- CONFIGURACIÓN INICIAL Y FORMULARIO ---
     config = FinancialSummaryConfig.query.filter_by(user_id=current_user.id).first()
     if not config:
-        config = FinancialSummaryConfig(
-            user_id=current_user.id,
-            include_income=True, include_expenses=True, include_debts=True,
-            include_investments=True, include_crypto=True, include_metals=True,
-            include_bank_accounts=True, include_pension_plans=True, include_real_estate=True
-        )
+        config = FinancialSummaryConfig(user_id=current_user.id) # Valores por defecto del modelo
         db.session.add(config)
-        db.session.commit()
+        db.session.commit() # Guardar config por defecto si es la primera vez
 
     config_form = FinancialSummaryConfigForm(obj=config)
 
-    if config_form.validate_on_submit():
+    if config_form.validate_on_submit() and request.method == 'POST':
         try:
             config_form.populate_obj(config)
             config.last_updated = datetime.utcnow()
@@ -5912,384 +6067,582 @@ def financial_summary():
             app.logger.error(f"Error guardando config resumen: {e}", exc_info=True)
 
     summary_data = {
-        'income': {'available': False, 'data': {}},
-        'variable_income': {'available': False, 'data': {}},
-        'expenses': {'available': False, 'data': { # Inicializar el diccionario de datos para gastos
-            'fixed_monthly': 0,
-            'punctual_last_month': 0,
-            'monthly_avg_expenses': 0, 
-            'by_category': [] 
-        }},
-        'debts': {'available': False, 'data': {}},
-        'investments': {'available': False, 'data': {}},
-        'crypto': {'available': False, 'data': {}},
-        'metals': {'available': False, 'data': {}},
-        'bank_accounts': {'available': False, 'data': {}},
-        'pension_plans': {'available': False, 'data': {}},
-        'real_estate': {'available': False, 'data': {}},
-        'net_worth': {'available': False, 'data': {}},
-        'kpis': {'available': False, 'data': {}},
+        'income': {'available': False, 'data': {}}, 'variable_income': {'available': False, 'data': {}},
+        'expenses': {'available': False, 'data': {'fixed_monthly': 0, 'punctual_last_month': 0, 'monthly_avg_expenses': 0, 'by_category': []}},
+        'debts': {'available': False, 'data': {}}, 'investments': {'available': False, 'data': {}},
+        'crypto': {'available': False, 'data': {}}, 'metals': {'available': False, 'data': {}},
+        'bank_accounts': {'available': False, 'data': {}}, 'pension_plans': {'available': False, 'data': {}},
+        'real_estate': {'available': False, 'data': {}}, 'net_worth': {'available': False, 'data': {}},
+        'kpis': {'available': False, 'data': {}}, 'cash_flow': {'available': False, 'data': {}},
         'charts': {'available': False, 'data': {}}
     }
+    user_id = current_user.id
+    today_date_ref = date.today()
+    historical_data_points = {}
 
     try:
-        # --- INGRESOS (Fijos y Variables) ---
-        current_total_monthly_income_for_kpi = 0 # Para KPIs
-        if config.include_income:
-            fixed_income_db = FixedIncome.query.filter_by(user_id=current_user.id).first()
-            if fixed_income_db and fixed_income_db.annual_net_salary is not None:
-                summary_data['income']['available'] = True
-                monthly_salary_val = fixed_income_db.annual_net_salary / 12
-                current_total_monthly_income_for_kpi += monthly_salary_val
-                summary_data['income']['data'] = {
-                    'annual_net_salary': fixed_income_db.annual_net_salary,
-                    'monthly_salary_12': monthly_salary_val,
-                    'monthly_salary_14': fixed_income_db.annual_net_salary / 14,
-                    'last_updated': fixed_income_db.last_updated, 'history': []
-                }
-                salary_history_db = SalaryHistory.query.filter_by(user_id=current_user.id).order_by(SalaryHistory.year.desc()).all()
-                prev_salary = None
-                for entry in salary_history_db:
-                    variation = None
-                    if prev_salary is not None and prev_salary > 0:
-                        variation = ((entry.annual_net_salary - prev_salary) / prev_salary) * 100
-                    summary_data['income']['data']['history'].append({
-                        'year': entry.year, 'salary': entry.annual_net_salary, 'variation': variation
-                    })
-                    prev_salary = entry.annual_net_salary
-            
-            three_months_ago_inc = date.today() - timedelta(days=90)
-            variable_incomes_total_3m = 0
-            # (Lógica de expansión de ingresos variables recurrentes en los últimos 3 meses)
-            all_var_incomes_expanded_for_summary = []
-            for vi_sum in VariableIncome.query.filter_by(user_id=current_user.id).all():
-                if hasattr(vi_sum, 'is_recurring') and vi_sum.is_recurring and vi_sum.income_type == 'fixed': # Asumiendo que 'fixed' indica recurrente
-                    start_calc_vi_sum = max(vi_sum.start_date or vi_sum.date, three_months_ago_inc)
-                    end_calc_vi_sum = min(vi_sum.end_date or date.today(), date.today())
-                    current_calc_date_vi_sum = start_calc_vi_sum
-                    while current_calc_date_vi_sum <= end_calc_vi_sum:
-                        all_var_incomes_expanded_for_summary.append(vi_sum.amount)
-                        month_vi_sum = current_calc_date_vi_sum.month + (vi_sum.recurrence_months or 1)
-                        year_vi_sum = current_calc_date_vi_sum.year + (month_vi_sum -1) // 12
-                        month_vi_sum = ((month_vi_sum - 1) % 12) + 1
-                        try: current_calc_date_vi_sum = date(year_vi_sum, month_vi_sum, 1)
-                        except ValueError: break
-                elif vi_sum.date >= three_months_ago_inc: # Puntuales en rango
-                     all_var_incomes_expanded_for_summary.append(vi_sum.amount)
-            variable_incomes_total_3m = sum(all_var_incomes_expanded_for_summary)
-
-            if variable_incomes_total_3m > 0:
-                avg_monthly_variable_income = variable_incomes_total_3m / 3
-                current_total_monthly_income_for_kpi += avg_monthly_variable_income
-                summary_data['variable_income']['available'] = True
-                summary_data['variable_income']['data'] = {'total': variable_incomes_total_3m, 'monthly_avg': avg_monthly_variable_income}
-
-        # --- GASTOS ---
-        current_total_monthly_expenses_for_kpi = 0 # Para KPIs y Flujo de Caja
-        if config.include_expenses:
-            all_user_expenses = Expense.query.filter_by(user_id=current_user.id).all()
-            if all_user_expenses: # Solo si hay gastos, marcamos como disponible
-                summary_data['expenses']['available'] = True
-
-                # 1. Gastos Fijos Mensuales (activos)
-                fixed_monthly_sum_val = sum(
-                    e.amount for e in all_user_expenses 
-                    if e.expense_type == 'fixed' and e.is_recurring and (not e.end_date or e.end_date >= date.today())
-                )
-                summary_data['expenses']['data']['fixed_monthly'] = fixed_monthly_sum_val
-                current_total_monthly_expenses_for_kpi += fixed_monthly_sum_val
-
-                # 2. Gastos Puntuales del Último Mes
-                one_month_ago = date.today() - timedelta(days=30)
-                summary_data['expenses']['data']['punctual_last_month'] = sum(
-                    e.amount for e in all_user_expenses
-                    if e.expense_type == 'punctual' and e.date >= one_month_ago
-                )
-
-                # 3. Promedio Mensual de Gastos (Generales directos, últimos 3 meses)
-                three_months_ago_exp = date.today() - timedelta(days=90)
-                punctual_expenses_3m_sum = sum(
-                    e.amount for e in all_user_expenses
-                    if e.expense_type == 'punctual' and e.date >= three_months_ago_exp and e.date <= date.today()
-                )
-                # Incluir gastos fijos expandidos en el periodo de 3 meses para el promedio
-                fixed_expenses_3m_sum = 0
-                for exp_fixed_3m in all_user_expenses:
-                    if exp_fixed_3m.expense_type == 'fixed' and exp_fixed_3m.is_recurring:
-                        start_loop_3m = max(exp_fixed_3m.start_date or exp_fixed_3m.date, three_months_ago_exp)
-                        end_loop_3m = min(exp_fixed_3m.end_date or date.today(), date.today())
-                        current_loop_3m = start_loop_3m
-                        rec_3m = exp_fixed_3m.recurrence_months or 1
-                        while current_loop_3m <= end_loop_3m:
-                            if current_loop_3m >= three_months_ago_exp:
-                                fixed_expenses_3m_sum += exp_fixed_3m.amount
-                            year_next_3m = current_loop_3m.year
-                            month_next_3m = current_loop_3m.month + rec_3m
-                            while month_next_3m > 12: month_next_3m -= 12; year_next_3m += 1
-                            try: current_loop_3m = date(year_next_3m, month_next_3m, 1)
-                            except ValueError: break
-                
-                total_direct_expenses_3m = fixed_expenses_3m_sum + punctual_expenses_3m_sum
-                avg_monthly_direct_expenses = total_direct_expenses_3m / 3 if total_direct_expenses_3m > 0 else 0
-                summary_data['expenses']['data']['monthly_avg_expenses'] = avg_monthly_direct_expenses
-                # Para KPIs, usamos un promedio de gastos variables y los fijos actuales
-                current_total_monthly_expenses_for_kpi += (punctual_expenses_3m_sum / 3)
-
-
-                # 4. Gastos por Categoría (para el gráfico, últimos 6 meses)
-                six_months_ago_exp_cat = date.today() - timedelta(days=180)
-                expenses_in_range_for_cat_chart = []
-                for exp_cat in all_user_expenses: # Iterar sobre todos los gastos del usuario
-                    if exp_cat.expense_type == 'fixed' and exp_cat.is_recurring:
-                        start_loop_date_cat = exp_cat.start_date or exp_cat.date
-                        end_loop_date_cat = exp_cat.end_date or date.today()
-                        start_loop_date_cat = max(start_loop_date_cat, six_months_ago_exp_cat) # Ajustar al inicio del rango de 6 meses
-                        end_loop_date_cat = min(end_loop_date_cat, date.today()) # Ajustar al fin del rango (hoy)
-
-                        current_loop_date_cat = start_loop_date_cat
-                        recurrence_loop_cat = exp_cat.recurrence_months or 1
-                        while current_loop_date_cat <= end_loop_date_cat:
-                            # Solo añadir si la fecha del gasto está dentro del periodo de 6 meses
-                            if current_loop_date_cat >= six_months_ago_exp_cat: 
-                                 expenses_in_range_for_cat_chart.append({'amount': exp_cat.amount, 'category_id': exp_cat.category_id})
-                            
-                            year_next_cat = current_loop_date_cat.year
-                            month_next_cat = current_loop_date_cat.month + recurrence_loop_cat
-                            while month_next_cat > 12: month_next_cat -= 12; year_next_cat +=1
-                            try: current_loop_date_cat = date(year_next_cat, month_next_cat, 1)
-                            except ValueError: break
-                    elif exp_cat.date >= six_months_ago_exp_cat and exp_cat.date <= date.today(): # Puntuales en rango de 6 meses
-                         expenses_in_range_for_cat_chart.append({'amount': exp_cat.amount, 'category_id': exp_cat.category_id})
-                
-                expenses_by_cat_dict = {}
-                for exp_item_cat in expenses_in_range_for_cat_chart:
-                    cat_obj = ExpenseCategory.query.get(exp_item_cat['category_id']) if exp_item_cat['category_id'] else None
-                    cat_name = cat_obj.name if cat_obj else "Sin categoría"
-                    expenses_by_cat_dict[cat_name] = expenses_by_cat_dict.get(cat_name, 0) + exp_item_cat['amount']
-                
-                summary_data['expenses']['data']['by_category'] = sorted(expenses_by_cat_dict.items(), key=lambda x: x[1], reverse=True)
-
-        # --- DEUDAS (No Hipotecarias) ---
-        monthly_debt_payment_val = 0
-        total_general_debt_val = 0
-        if config.include_debts:
-            debt_plans_db = DebtInstallmentPlan.query.filter_by(user_id=current_user.id, is_active=True).all()
-            if debt_plans_db:
-                summary_data['debts']['available'] = True
-                total_general_debt_val = sum(p.remaining_amount for p in debt_plans_db)
-                current_month_date = date(date.today().year, date.today().month, 1)
-                monthly_debt_payment_val = sum(p.monthly_payment for p in debt_plans_db if p.start_date <= current_month_date and (p.end_date is None or p.end_date > current_month_date))
-                summary_data['debts']['data'] = {
-                    'total_debt': total_general_debt_val,
-                    'monthly_payment': monthly_debt_payment_val,
-                    'debt_list': [{'description': p.description, 'remaining': p.remaining_amount, 'progress_pct': p.progress_percentage} for p in debt_plans_db[:3]]
-                }
-        current_total_monthly_expenses_for_kpi += monthly_debt_payment_val
-
-        # --- ACTIVOS ---
-        # Cuentas Bancarias
-        total_cash_val = 0
-        if config.include_bank_accounts:
-            bank_accounts_db = BankAccount.query.filter_by(user_id=current_user.id).all()
-            if bank_accounts_db:
-                summary_data['bank_accounts']['available'] = True
-                total_cash_val = sum(acc.current_balance for acc in bank_accounts_db)
-                summary_data['bank_accounts']['data'] = {
-                    'total_cash': total_cash_val,
-                    'accounts': [{'bank_name': acc.bank_name, 'balance': acc.current_balance} for acc in bank_accounts_db]
-                }
-        # Inversiones
-        total_market_value_inv = 0
-        total_cost_basis_inv = 0
-        if config.include_investments:
-            portfolio_record_db = UserPortfolio.query.filter_by(user_id=current_user.id).first()
-            if portfolio_record_db and portfolio_record_db.portfolio_data:
-                portfolio_data_json = json.loads(portfolio_record_db.portfolio_data)
-                if portfolio_data_json:
-                    summary_data['investments']['available'] = True
-                    total_market_value_inv = sum(float(item.get('market_value_eur', 0) or 0) for item in portfolio_data_json)
-                    total_cost_basis_inv = sum(float(item.get('cost_basis_eur_est', 0) or 0) for item in portfolio_data_json)
-                    summary_data['investments']['data'] = {
-                        'total_market_value': total_market_value_inv,
-                        'total_pl': total_market_value_inv - total_cost_basis_inv,
-                        'total_cost_basis': total_cost_basis_inv,
-                        'top_positions': [{'name': item.get('item_name', item.get('Producto')), 'market_value': float(item.get('market_value_eur',0) or 0)} for item in sorted(portfolio_data_json, key=lambda x: float(x.get('market_value_eur', 0) or 0), reverse=True)[:3]]
-                    }
-        # Crypto
-        current_crypto_value = 0
-        invested_crypto_value = 0
-        if config.include_crypto:
-            # (Lógica de cálculo de valor de crypto como la tenías) ...
-             holdings_summary = {} 
-             for ct in CryptoTransaction.query.filter_by(user_id=current_user.id).all():
-                if ct.ticker_symbol not in holdings_summary:
-                    holdings_summary[ct.ticker_symbol] = {'quantity': 0, 'name': ct.crypto_name, 'current_price': ct.current_price or 0, 'investment':0}
-                if ct.transaction_type == 'buy':
-                    holdings_summary[ct.ticker_symbol]['quantity'] += ct.quantity
-                    holdings_summary[ct.ticker_symbol]['investment'] += ct.quantity * ct.price_per_unit
-                elif ct.transaction_type == 'sell':
-                    holdings_summary[ct.ticker_symbol]['quantity'] -= ct.quantity
-             for ticker, data_crypto in holdings_summary.items():
-                current_crypto_value += data_crypto['quantity'] * data_crypto['current_price']
-                invested_crypto_value += data_crypto['investment']
-             if current_crypto_value > 0 or invested_crypto_value > 0 :
-                summary_data['crypto']['available'] = True
-                summary_data['crypto']['data'] = {
-                    'total_value': current_crypto_value,
-                    'total_pl': current_crypto_value - invested_crypto_value,
-                    'total_investment': invested_crypto_value,
-                    'top_holdings': sorted([{'name': d['name'], 'quantity': d['quantity'], 'current_value': d['quantity'] * d['current_price']} for t, d in holdings_summary.items() if d['quantity'] > 0], key=lambda x: x['current_value'], reverse=True)[:3]
-                }
-        # Metales
-        total_metal_value = 0
-        total_invested_metal = 0
-        if config.include_metals:
-            # (Lógica de cálculo de valor de metales como la tenías) ...
-            gold_price_oz = PreciousMetalPrice.query.filter_by(metal_type='gold').first().price_eur_per_oz if PreciousMetalPrice.query.filter_by(metal_type='gold').first() else 0
-            silver_price_oz = PreciousMetalPrice.query.filter_by(metal_type='silver').first().price_eur_per_oz if PreciousMetalPrice.query.filter_by(metal_type='silver').first() else 0
-            g_to_oz = 0.0321507
-            current_gold_oz = 0; invested_gold = 0
-            current_silver_oz = 0; invested_silver = 0
-            for mt in PreciousMetalTransaction.query.filter_by(user_id=current_user.id).all():
-                qty_oz = mt.quantity if mt.unit_type == 'oz' else mt.quantity * g_to_oz
-                cost = qty_oz * mt.price_per_unit
-                if mt.metal_type == 'gold':
-                    if mt.transaction_type == 'buy': current_gold_oz += qty_oz; invested_gold += cost
-                    else: current_gold_oz -= qty_oz;
-                elif mt.metal_type == 'silver':
-                    if mt.transaction_type == 'buy': current_silver_oz += qty_oz; invested_silver += cost
-                    else: current_silver_oz -= qty_oz;
-            gold_value = current_gold_oz * gold_price_oz
-            silver_value = current_silver_oz * silver_price_oz
-            total_metal_value = gold_value + silver_value
-            total_invested_metal = invested_gold + invested_silver
-            if total_metal_value > 0 or total_invested_metal > 0:
-                summary_data['metals']['available'] = True
-                summary_data['metals']['data'] = {
-                    'total_value': total_metal_value, 'total_pl': total_metal_value - total_invested_metal,
-                    'gold': {'current_value': gold_value, 'total_oz': current_gold_oz},
-                    'silver': {'current_value': silver_value, 'total_oz': current_silver_oz}
-                }
-        # Pensiones
-        total_pension_val = 0
-        if config.include_pension_plans:
-            pension_plans_db = PensionPlan.query.filter_by(user_id=current_user.id).all()
-            if pension_plans_db:
-                summary_data['pension_plans']['available'] = True
-                total_pension_val = sum(p.current_balance for p in pension_plans_db)
-                summary_data['pension_plans']['data'] = {
-                    'total_pension': total_pension_val,
-                    'plans': [{'entity_name': p.entity_name, 'balance': p.current_balance} for p in pension_plans_db]
-                }
-        # Inmuebles
-        total_re_market_value_val = 0
-        total_re_mortgage_balance_val = 0
-        if config.include_real_estate:
-            real_estate_assets_db = RealEstateAsset.query.filter_by(user_id=current_user.id).all()
-            if real_estate_assets_db:
-                summary_data['real_estate']['available'] = True
-                total_re_market_value_val = sum(asset.current_market_value or 0 for asset in real_estate_assets_db)
-                total_re_mortgage_balance_val = sum(asset.mortgage.current_principal_balance or 0 for asset in real_estate_assets_db if asset.mortgage)
-                summary_data['real_estate']['data'] = {
-                    'count': len(real_estate_assets_db),
-                    'total_market_value': total_re_market_value_val,
-                    'total_mortgage_balance': total_re_mortgage_balance_val,
-                    'net_equity': total_re_market_value_val - total_re_mortgage_balance_val,
-                    'assets': [{'name': asset.property_name, 'value': asset.current_market_value or 0} for asset in real_estate_assets_db[:3]]
-                }
-                # Sumar gastos de hipoteca a los gastos totales para KPIs
-                current_total_monthly_expenses_for_kpi += sum(asset_re.mortgage.monthly_payment or 0 for asset_re in real_estate_assets_db if asset_re.mortgage)
-                # Sumar gastos recurrentes de RE para KPIs
-                # (Asumiendo que tienes el modelo RealEstateExpense y la lógica para promediarlos)
-                # monthly_re_expenses_avg = calculate_average_monthly_re_expenses(current_user.id) # Necesitarías esta función
-                # current_total_monthly_expenses_for_kpi += monthly_re_expenses_avg
-
-
-        # --- PATRIMONIO NETO (Cálculo final) ---
-        assets_final = (total_cash_val + total_market_value_inv + current_crypto_value + 
-                        total_metal_value + total_pension_val + total_re_market_value_val)
-        liabilities_final = total_general_debt_val + total_re_mortgage_balance_val
+        # --- CÁLCULO DE DATOS HISTÓRICOS PARA EL GRÁFICO DE EVOLUCIÓN ---
+        print("DEBUG financial_summary: Iniciando cálculo de datos históricos para el gráfico...")
         
-        net_worth_val = assets_final - liabilities_final
-        summary_data['net_worth']['available'] = True
-        summary_data['net_worth']['data'] = {
-            'total_assets': assets_final, 'total_liabilities': liabilities_final, 'net_worth': net_worth_val
-        }
+        # 1. OBTENER SERIES DIARIAS DE get_current_financial_crosstime_metrics para el broker_cash
+        all_metrics_and_series_broker = get_current_financial_crosstime_metrics(user_id)
+        daily_broker_equity_series_map = {} # {date_obj: value}
 
-        # --- KPIs Financieros ---
-        if current_total_monthly_income_for_kpi > 0 or current_total_monthly_expenses_for_kpi > 0 :
-            summary_data['kpis']['available'] = True
-            monthly_savings_val = current_total_monthly_income_for_kpi - current_total_monthly_expenses_for_kpi
-            savings_rate_val = (monthly_savings_val / current_total_monthly_income_for_kpi * 100) if current_total_monthly_income_for_kpi > 0 else (-100 if current_total_monthly_expenses_for_kpi > 0 else 0)
+        if all_metrics_and_series_broker and all_metrics_and_series_broker.get('daily_chart_labels'):
+            daily_labels_str_broker = all_metrics_and_series_broker['daily_chart_labels']
+            daily_cp_acc_broker = all_metrics_and_series_broker['daily_capital_propio_series']
+            daily_rsp_acc_broker = all_metrics_and_series_broker['daily_realized_specific_pnl_series']
+            daily_div_acc_broker = all_metrics_and_series_broker['daily_dividend_pnl_series']
             
-            total_debt_payments_for_ratio = monthly_debt_payment_val # Deudas generales
-            total_debt_payments_for_ratio += sum(asset_re_kpi.mortgage.monthly_payment or 0 for asset_re_kpi in RealEstateAsset.query.filter_by(user_id=current_user.id).all() if asset_re_kpi.mortgage) # Hipotecas
+            for i, label_str in enumerate(daily_labels_str_broker):
+                try:
+                    d_obj = datetime.strptime(label_str, '%Y-%m-%d').date()
+                    broker_equity_val = (-daily_cp_acc_broker[i]) + daily_rsp_acc_broker[i] + daily_div_acc_broker[i]
+                    daily_broker_equity_series_map[d_obj] = broker_equity_val
+                except (IndexError, ValueError) as e_daily_parse:
+                    app.logger.warning(f"Error parseando series diarias de broker: {e_daily_parse} en índice {i}")
+            print(f"DEBUG financial_summary: Mapa de EWC diario del broker creado con {len(daily_broker_equity_series_map)} puntos.")
+        else:
+            app.logger.info(f"No hay datos de get_current_financial_crosstime_metrics para el usuario {user_id} para broker_cash histórico.")
 
-            debt_to_income_val = (total_debt_payments_for_ratio / current_total_monthly_income_for_kpi * 100) if current_total_monthly_income_for_kpi > 0 else 0
-            debt_to_assets_val = (liabilities_final / assets_final * 100) if assets_final > 0 else 0
+
+        first_dates = []
+        # (Lógica completa para poblar first_dates)
+        first_cash_val = db.session.query(func.min(CashHistoryRecord.date)).filter_by(user_id=user_id).scalar()
+        if first_cash_val: first_dates.append(first_cash_val)
+        first_pension_val = db.session.query(func.min(PensionPlanHistory.date)).filter_by(user_id=user_id).scalar()
+        if first_pension_val: first_dates.append(first_pension_val)
+        first_crypto_tx_val = db.session.query(func.min(CryptoTransaction.date)).filter_by(user_id=user_id).scalar()
+        if first_crypto_tx_val: first_dates.append(first_crypto_tx_val)
+        first_re_year_val = db.session.query(func.min(RealEstateAsset.purchase_year)).filter_by(user_id=user_id).scalar()
+        if first_re_year_val: first_dates.append(date(first_re_year_val, 1, 1))
+        if all_metrics_and_series_broker.get('first_event_date'): first_dates.append(all_metrics_and_series_broker['first_event_date'])
+        _, csv_data_list_hist, _ = load_user_portfolio(user_id)
+        if csv_data_list_hist and isinstance(csv_data_list_hist, list):
+            csv_dates_hist_vals = []
+            for m_csv_h in csv_data_list_hist:
+                if m_csv_h.get('Fecha'):
+                    try: csv_dates_hist_vals.append(datetime.strptime(m_csv_h['Fecha'], '%d-%m-%Y').date())
+                    except ValueError: app.logger.warning(f"Fecha CSV malformada (historial): {m_csv_h.get('Fecha')}")
+            if csv_dates_hist_vals: first_dates.append(min(csv_dates_hist_vals))
+        first_metal_tx_val = db.session.query(func.min(PreciousMetalTransaction.date)).filter_by(user_id=user_id).scalar()
+        if first_metal_tx_val: first_dates.append(first_metal_tx_val)
+        first_debt_hist_val = db.session.query(func.min(DebtHistoryRecord.date)).filter_by(user_id=user_id).scalar()
+        if first_debt_hist_val: first_dates.append(first_debt_hist_val)
+        first_debt_plan_start_val = db.session.query(func.min(DebtInstallmentPlan.start_date)).filter_by(user_id=user_id).scalar()
+        if first_debt_plan_start_val: first_dates.append(first_debt_plan_start_val)
+        
+        print(f"DEBUG financial_summary: Contenido de first_dates después de recolección: {first_dates}")
+        valid_first_dates = [d for d in first_dates if d is not None]
+
+        if not valid_first_dates:
+            app.logger.info(f"No hay datos históricos suficientes (first_dates) para usuario {user_id} para gráfico de evolución.")
+            summary_data['charts']['available'] = False
+        else:
+            start_date_hist = min(valid_first_dates).replace(day=1)
+            end_date_hist = today_date_ref.replace(day=1)
+            print(f"DEBUG financial_summary: Rango histórico para gráfico: {start_date_hist} a {end_date_hist}")
+
+            all_cash_history_map = {r.date.strftime('%Y-%m'): r.total_cash for r in CashHistoryRecord.query.filter_by(user_id=user_id).all()}
+            all_pension_history_map = {r.date.strftime('%Y-%m'): r.total_amount for r in PensionPlanHistory.query.filter_by(user_id=user_id).all()}
+            all_crypto_transactions_list = CryptoTransaction.query.filter_by(user_id=user_id).order_by(CryptoTransaction.date.asc()).all()
+            all_re_value_history_map = {str(r.valuation_year): r.market_value for r in RealEstateValueHistory.query.filter_by(user_id=user_id).all()}
+            all_metal_transactions_list = PreciousMetalTransaction.query.filter_by(user_id=user_id).order_by(PreciousMetalTransaction.date.asc()).all()
+            all_debt_history_map = {r.date.strftime('%Y-%m'): r.debt_amount for r in DebtHistoryRecord.query.filter_by(user_id=user_id).all()}
+            all_debt_plans_list = DebtInstallmentPlan.query.filter_by(user_id=user_id).all()
+            print(f"DEBUG financial_summary: Datos históricos pre-cargados (ej. Cash Hist: {len(all_cash_history_map)}).")
+
+            current_month_loop = start_date_hist
+            current_crypto_holdings_running = {}
+            current_metal_holdings_oz_running = {'gold': 0.0, 'silver': 0.0}
+            g_to_oz_const = 0.0321507466
+            last_known_cash_in_bank, last_known_pensions, last_known_re_value, last_known_debt = 0,0,0,0
+            last_known_broker_cash = 0 # Para el fallback del broker_cash
+            ptr_crypto_tx, ptr_metal_tx = 0, 0
+            processed_months_count_hist_loop = 0
+
+            while current_month_loop <= end_date_hist:
+                processed_months_count_hist_loop +=1
+                month_key = current_month_loop.strftime('%Y-%m')
+                _, last_day_this_month = monthrange(current_month_loop.year, current_month_loop.month)
+                current_month_end_date_loop = date(current_month_loop.year, current_month_loop.month, last_day_this_month)
+                is_current_month_point = (current_month_loop.year == today_date_ref.year and current_month_loop.month == today_date_ref.month)
+                date_for_historical_lookup = today_date_ref if is_current_month_point else current_month_end_date_loop
+                
+                components = {
+                    'date_obj': current_month_loop, 'cash_in_bank': 0, 'pensions': 0, 'crypto_value': 0,
+                    'real_estate_value': 0, 'broker_cash': 0, 'metals_value': 0, 'debts_total': 0
+                }
+
+                # Efectivo en Banco
+                if month_key in all_cash_history_map: last_known_cash_in_bank = all_cash_history_map[month_key]
+                components['cash_in_bank'] = last_known_cash_in_bank
+                # Pensiones
+                if month_key in all_pension_history_map: last_known_pensions = all_pension_history_map[month_key]
+                components['pensions'] = last_known_pensions
+                
+                # Broker Cash (EWC del broker)
+                # Buscar el valor de EWC del broker más cercano a current_month_end_date_loop
+                broker_ewc_for_month = None
+                closest_broker_date = None
+                for dt_broker, val_broker in daily_broker_equity_series_map.items():
+                    if dt_broker <= current_month_end_date_loop:
+                        if closest_broker_date is None or dt_broker > closest_broker_date:
+                            closest_broker_date = dt_broker
+                            broker_ewc_for_month = val_broker
+                if broker_ewc_for_month is not None:
+                    components['broker_cash'] = broker_ewc_for_month
+                    last_known_broker_cash = broker_ewc_for_month # Actualizar para fallback
+                else: # Si no hay datos diarios para este mes o antes, usar el último conocido
+                    components['broker_cash'] = last_known_broker_cash
+
+
+                # Criptomonedas (valor de mercado)
+                while ptr_crypto_tx < len(all_crypto_transactions_list) and all_crypto_transactions_list[ptr_crypto_tx].date <= current_month_end_date_loop:
+                    tx_c = all_crypto_transactions_list[ptr_crypto_tx]
+                    current_crypto_holdings_running.setdefault(tx_c.ticker_symbol, 0)
+                    if tx_c.transaction_type == 'buy': current_crypto_holdings_running[tx_c.ticker_symbol] += tx_c.quantity
+                    else: current_crypto_holdings_running[tx_c.ticker_symbol] -= tx_c.quantity
+                    ptr_crypto_tx += 1
+                crypto_month_value_calc = 0
+                for sym_c, qty_c in current_crypto_holdings_running.items():
+                    if qty_c > 1e-9:
+                        price_eur_c = None
+                        if is_current_month_point:
+                            price_eur_c = get_crypto_price(sym_c)
+                            if price_eur_c is None: price_eur_c = get_historical_crypto_price_eur(sym_c, date_for_historical_lookup)
+                        else: price_eur_c = get_historical_crypto_price_eur(sym_c, date_for_historical_lookup)
+                        if price_eur_c is not None: crypto_month_value_calc += qty_c * price_eur_c
+                components['crypto_value'] = crypto_month_value_calc
+                
+                # Inmuebles
+                current_year_str_re = str(current_month_loop.year)
+                if current_year_str_re in all_re_value_history_map: last_known_re_value = all_re_value_history_map[current_year_str_re]
+                elif all_re_value_history_map : 
+                    closest_year_re = max([yr_re for yr_re in all_re_value_history_map.keys() if int(yr_re) <= current_month_loop.year], default=None)
+                    if closest_year_re: last_known_re_value = all_re_value_history_map[closest_year_re]
+                components['real_estate_value'] = last_known_re_value
+                
+                # Metales Preciosos
+                while ptr_metal_tx < len(all_metal_transactions_list) and all_metal_transactions_list[ptr_metal_tx].date <= current_month_end_date_loop:
+                    tx_m_hist = all_metal_transactions_list[ptr_metal_tx]
+                    qty_oz_tx = tx_m_hist.quantity if tx_m_hist.unit_type == 'oz' else tx_m_hist.quantity * g_to_oz_const
+                    if tx_m_hist.metal_type == 'gold':
+                        if tx_m_hist.transaction_type == 'buy': current_metal_holdings_oz_running['gold'] += qty_oz_tx
+                        else: current_metal_holdings_oz_running['gold'] -= qty_oz_tx
+                    elif tx_m_hist.metal_type == 'silver':
+                        if tx_m_hist.transaction_type == 'buy': current_metal_holdings_oz_running['silver'] += qty_oz_tx
+                        else: current_metal_holdings_oz_running['silver'] -= qty_oz_tx
+                    ptr_metal_tx += 1
+                metals_month_value_calc = 0
+                if current_metal_holdings_oz_running['gold'] > 1e-9:
+                    price_g_eur = None
+                    if is_current_month_point:
+                        price_g_eur = get_precious_metal_price('gold')
+                        if price_g_eur is None or price_g_eur == 0: price_g_eur = get_historical_metal_price_eur("GC=F", date_for_historical_lookup)
+                    else: price_g_eur = get_historical_metal_price_eur("GC=F", date_for_historical_lookup)
+                    if price_g_eur is not None and price_g_eur > 0: metals_month_value_calc += current_metal_holdings_oz_running['gold'] * price_g_eur
+                if current_metal_holdings_oz_running['silver'] > 1e-9:
+                    price_s_eur = None
+                    if is_current_month_point:
+                        price_s_eur = get_precious_metal_price('silver')
+                        if price_s_eur is None or price_s_eur == 0: price_s_eur = get_historical_metal_price_eur("SI=F", date_for_historical_lookup)
+                    else: price_s_eur = get_historical_metal_price_eur("SI=F", date_for_historical_lookup)
+                    if price_s_eur is not None and price_s_eur > 0: metals_month_value_calc += current_metal_holdings_oz_running['silver'] * price_s_eur
+                components['metals_value'] = metals_month_value_calc
+
+                # Deudas Totales
+                if month_key in all_debt_history_map: last_known_debt = all_debt_history_map[month_key]
+                elif all_debt_plans_list:
+                    current_month_total_debt_from_plans_hist = 0
+                    for plan_hist in all_debt_plans_list:
+                        plan_start_month_first_day_hist = plan_hist.start_date.replace(day=1)
+                        plan_end_property_hist = plan_hist.end_date 
+                        if plan_start_month_first_day_hist <= current_month_loop:
+                            if plan_end_property_hist is None or current_month_loop < plan_end_property_hist:
+                                months_elapsed_hist = (current_month_loop.year - plan_start_month_first_day_hist.year) * 12 + (current_month_loop.month - plan_start_month_first_day_hist.month)
+                                payments_made_hist = min(months_elapsed_hist + 1, plan_hist.duration_months)
+                                remaining_balance_hist = plan_hist.total_amount - (payments_made_hist * plan_hist.monthly_payment)
+                                current_month_total_debt_from_plans_hist += max(0, remaining_balance_hist)
+                    last_known_debt = current_month_total_debt_from_plans_hist
+                components['debts_total'] = last_known_debt
+                
+                historical_data_points[month_key] = components
+                if processed_months_count_hist_loop <= 2 or is_current_month_point :
+                    print(f"DEBUG financial_summary (hist_loop): Componentes para {month_key}: {components}")
+
+                if current_month_loop.month == 12: current_month_loop = date(current_month_loop.year + 1, 1, 1)
+                else: current_month_loop = date(current_month_loop.year, current_month_loop.month + 1, 1)
             
-            summary_data['kpis']['data'] = {
-                'monthly_income': current_total_monthly_income_for_kpi,
-                'monthly_expenses': current_total_monthly_expenses_for_kpi,
-                'monthly_savings': monthly_savings_val,
-                'savings_rate': savings_rate_val,
-                'debt_to_income': debt_to_income_val,
-                'debt_to_assets': debt_to_assets_val
+            # 4. Preparar series para el gráfico
+            chart_list_intermediate_data = []
+            if historical_data_points:
+                sorted_month_keys_data = sorted(historical_data_points.keys())
+                for mk_data in sorted_month_keys_data:
+                    data_item = historical_data_points[mk_data]
+                    total_assets_month_val = (data_item.get('cash_in_bank',0) + data_item.get('pensions',0) + data_item.get('crypto_value',0) +
+                                          data_item.get('real_estate_value',0) + data_item.get('broker_cash',0) + data_item.get('metals_value',0))
+                    total_liabilities_month_val = data_item.get('debts_total',0)
+                    chart_list_intermediate_data.append({
+                        'date_str': mk_data, 'date_obj': data_item['date_obj'],
+                        'cash_in_bank': data_item.get('cash_in_bank',0), 'pensions': data_item.get('pensions',0),
+                        'crypto': data_item.get('crypto_value',0), 'real_estate': data_item.get('real_estate_value',0),
+                        'broker_cash': data_item.get('broker_cash',0), 'metals': data_item.get('metals_value',0),
+                        'debts': data_item.get('debts_total',0),
+                        'total_net_worth': total_assets_month_val - total_liabilities_month_val
+                    })
+            
+            chart_list_final_data = chart_list_intermediate_data[-60:] if len(chart_list_intermediate_data) > 60 else chart_list_intermediate_data
+            print(f"DEBUG financial_summary: chart_list_final_data (longitud): {len(chart_list_final_data)}")
+            if chart_list_final_data:
+                print(f"DEBUG financial_summary: chart_list_final_data (primer elemento si existe): {chart_list_final_data[0] if chart_list_final_data else 'N/A'}")
+                print(f"DEBUG financial_summary: chart_list_final_data (último elemento si existe): {chart_list_final_data[-1] if chart_list_final_data else 'N/A'}")
+                summary_data['charts']['available'] = True
+                summary_data['charts']['data']['net_worth_evolution'] = {
+                    'dates': [item['date_str'] for item in chart_list_final_data],
+                    'series': {
+                        'cash_in_bank': [item['cash_in_bank'] for item in chart_list_final_data],
+                        'pensions': [item['pensions'] for item in chart_list_final_data],
+                        'crypto': [item['crypto'] for item in chart_list_final_data],
+                        'real_estate': [item['real_estate'] for item in chart_list_final_data],
+                        'broker_cash': [item['broker_cash'] for item in chart_list_final_data],
+                        'metals': [item['metals'] for item in chart_list_final_data],
+                        'debts': [item['debts'] for item in chart_list_final_data],
+                        'total_net_worth': [item['total_net_worth'] for item in chart_list_final_data]
+                    }
+                }
+                summary_data['charts']['data']['cash_history'] = { # Para el gráfico pequeño de cash
+                     'dates': [item['date_str'] for item in chart_list_final_data],
+                     'values_list': [item['cash_in_bank'] for item in chart_list_final_data]
+                }
+                print(f"DEBUG financial_summary: Datos para gráfico net_worth_evolution preparados con {len(summary_data['charts']['data']['net_worth_evolution']['dates'])} puntos.")
+            else:
+                summary_data['charts']['available'] = False
+                app.logger.info("chart_list_final_data está vacía después del bucle, no se generará gráfico de evolución.")
+        # --- FIN DEL BLOQUE DE CÁLCULO HISTÓRICO ---
+
+        # --- CÁLCULO DE VALORES ACTUALES PARA TARJETAS Y KPIs ---
+        print("DEBUG financial_summary: Iniciando cálculo de valores ACTUALES para tarjetas de resumen...")
+        # Ingresos Actuales
+        current_total_monthly_income_for_kpi = 0.0
+        if config.include_income:
+            fixed_income_db_current = FixedIncome.query.filter_by(user_id=user_id).first()
+            if fixed_income_db_current and fixed_income_db_current.annual_net_salary is not None:
+                summary_data['income']['available'] = True
+                monthly_salary_val_current = fixed_income_db_current.annual_net_salary / 12.0
+                current_total_monthly_income_for_kpi += monthly_salary_val_current
+                summary_data['income']['data'] = {
+                    'annual_net_salary': fixed_income_db_current.annual_net_salary,
+                    'monthly_salary_12': monthly_salary_val_current,
+                    'monthly_salary_14': fixed_income_db_current.annual_net_salary / 14.0 if fixed_income_db_current.annual_net_salary else 0,
+                    'last_updated': fixed_income_db_current.last_updated, 'history': []
+                }
+                salary_history_db_current = SalaryHistory.query.filter_by(user_id=user_id).order_by(SalaryHistory.year.desc()).all()
+                prev_salary_current = None
+                for entry_current in salary_history_db_current:
+                    variation_current = None
+                    if prev_salary_current is not None and prev_salary_current > 0:
+                        variation_current = ((entry_current.annual_net_salary - prev_salary_current) / prev_salary_current) * 100
+                    summary_data['income']['data']['history'].append({
+                        'year': entry_current.year, 'salary': entry_current.annual_net_salary, 'variation': variation_current
+                    })
+                    prev_salary_current = entry_current.annual_net_salary
+            
+            three_months_ago_inc_current = today_date_ref - timedelta(days=90)
+            variable_incomes_total_3m_current = 0.0
+            all_var_incomes_expanded_current = []
+            for vi_curr in VariableIncome.query.filter_by(user_id=user_id).all():
+                if hasattr(vi_curr, 'is_recurring') and vi_curr.is_recurring and vi_curr.income_type == 'fixed':
+                    start_calc_vi_curr = max(vi_curr.start_date or vi_curr.date, three_months_ago_inc_current)
+                    end_calc_vi_curr = min(vi_curr.end_date or today_date_ref, today_date_ref)
+                    current_calc_date_vi_curr = start_calc_vi_curr
+                    while current_calc_date_vi_curr <= end_calc_vi_curr:
+                        all_var_incomes_expanded_current.append(vi_curr.amount)
+                        month_vi_curr, year_vi_curr = current_calc_date_vi_curr.month + (vi_curr.recurrence_months or 1), current_calc_date_vi_curr.year
+                        while month_vi_curr > 12: month_vi_curr -=12; year_vi_curr +=1
+                        try: current_calc_date_vi_curr = date(year_vi_curr, month_vi_curr, 1)
+                        except ValueError: break
+                elif vi_curr.date >= three_months_ago_inc_current and vi_curr.date <= today_date_ref:
+                     all_var_incomes_expanded_current.append(vi_curr.amount)
+            variable_incomes_total_3m_current = sum(all_var_incomes_expanded_current)
+            if variable_incomes_total_3m_current > 0:
+                avg_monthly_variable_income_current = variable_incomes_total_3m_current / 3.0
+                current_total_monthly_income_for_kpi += avg_monthly_variable_income_current
+                summary_data['variable_income']['available'] = True
+                summary_data['variable_income']['data'] = {'total': variable_incomes_total_3m_current, 'monthly_avg': avg_monthly_variable_income_current}
+
+        # Gastos Actuales (para tarjetas y KPIs)
+        current_total_monthly_expenses_for_kpi = 0.0
+        if config.include_expenses:
+            all_user_expenses_current = Expense.query.filter_by(user_id=user_id).all()
+            if all_user_expenses_current: summary_data['expenses']['available'] = True
+            fixed_monthly_sum_val_current = sum(e.amount for e in all_user_expenses_current if e.expense_type == 'fixed' and e.is_recurring and (not e.end_date or e.end_date >= today_date_ref))
+            summary_data['expenses']['data']['fixed_monthly'] = fixed_monthly_sum_val_current
+            current_total_monthly_expenses_for_kpi += fixed_monthly_sum_val_current
+            one_month_ago_current = today_date_ref - timedelta(days=30)
+            summary_data['expenses']['data']['punctual_last_month'] = sum(e.amount for e in all_user_expenses_current if e.expense_type == 'punctual' and e.date >= one_month_ago_current and e.date <= today_date_ref)
+            three_months_ago_exp_current = today_date_ref - timedelta(days=90)
+            punctual_expenses_3m_sum_current = sum(e.amount for e in all_user_expenses_current if e.expense_type == 'punctual' and e.date >= three_months_ago_exp_current and e.date <= today_date_ref)
+            fixed_expenses_3m_sum_current = 0.0
+            for exp_fixed_3m_curr in all_user_expenses_current:
+                if exp_fixed_3m_curr.expense_type == 'fixed' and exp_fixed_3m_curr.is_recurring:
+                    start_loop_3m_curr = max(exp_fixed_3m_curr.start_date or exp_fixed_3m_curr.date, three_months_ago_exp_current)
+                    end_loop_3m_curr = min(exp_fixed_3m_curr.end_date or today_date_ref, today_date_ref)
+                    current_loop_3m_curr = start_loop_3m_curr
+                    rec_3m_curr = exp_fixed_3m_curr.recurrence_months or 1
+                    while current_loop_3m_curr <= end_loop_3m_curr:
+                        if current_loop_3m_curr >= three_months_ago_exp_current: fixed_expenses_3m_sum_current += exp_fixed_3m_curr.amount
+                        year_next_3m_curr, month_next_3m_curr = current_loop_3m_curr.year, current_loop_3m_curr.month + rec_3m_curr
+                        while month_next_3m_curr > 12: month_next_3m_curr -= 12; year_next_3m_curr +=1
+                        try: current_loop_3m_curr = date(year_next_3m_curr, month_next_3m_curr, 1)
+                        except ValueError: break
+            total_direct_expenses_3m_current = fixed_expenses_3m_sum_current + punctual_expenses_3m_sum_current
+            summary_data['expenses']['data']['monthly_avg_expenses'] = total_direct_expenses_3m_current / 3.0 if total_direct_expenses_3m_current > 0 else 0.0
+            current_total_monthly_expenses_for_kpi += (punctual_expenses_3m_sum_current / 3.0)
+            six_months_ago_exp_cat_current = today_date_ref - timedelta(days=180)
+            expenses_in_range_for_cat_chart_current = []
+            for exp_cat_curr in all_user_expenses_current:
+                if exp_cat_curr.expense_type == 'fixed' and exp_cat_curr.is_recurring:
+                    start_loop_date_cat_curr = max(exp_cat_curr.start_date or exp_cat_curr.date, six_months_ago_exp_cat_current)
+                    end_loop_date_cat_curr = min(exp_cat_curr.end_date or today_date_ref, today_date_ref)
+                    current_loop_date_cat_curr = start_loop_date_cat_curr
+                    recurrence_loop_cat_curr = exp_cat_curr.recurrence_months or 1
+                    while current_loop_date_cat_curr <= end_loop_date_cat_curr:
+                        if current_loop_date_cat_curr >= six_months_ago_exp_cat_current: expenses_in_range_for_cat_chart_current.append({'amount': exp_cat_curr.amount, 'category_id': exp_cat_curr.category_id})
+                        year_next_cat_curr, month_next_cat_curr = current_loop_date_cat_curr.year, current_loop_date_cat_curr.month + recurrence_loop_cat_curr
+                        while month_next_cat_curr > 12: month_next_cat_curr -=12; year_next_cat_curr+=1
+                        try: current_loop_date_cat_curr = date(year_next_cat_curr, month_next_cat_curr, 1)
+                        except ValueError: break
+                elif exp_cat_curr.date >= six_months_ago_exp_cat_current and exp_cat_curr.date <= today_date_ref:
+                     expenses_in_range_for_cat_chart_current.append({'amount': exp_cat_curr.amount, 'category_id': exp_cat_curr.category_id})
+            expenses_by_cat_dict_current = {}
+            for exp_item_cat_curr in expenses_in_range_for_cat_chart_current:
+                cat_obj_curr = ExpenseCategory.query.get(exp_item_cat_curr['category_id']) if exp_item_cat_curr['category_id'] else None
+                cat_name_curr = cat_obj_curr.name if cat_obj_curr else "Sin categoría"
+                expenses_by_cat_dict_current[cat_name_curr] = expenses_by_cat_dict_current.get(cat_name_curr, 0) + exp_item_cat_curr['amount']
+            summary_data['expenses']['data']['by_category'] = sorted(expenses_by_cat_dict_current.items(), key=lambda x:x[1], reverse=True)
+
+        # Deudas Actuales para tarjetas y KPIs
+        monthly_debt_payment_val_current = 0.0; total_general_debt_val_current = 0.0
+        monthly_mortgage_payments_for_kpi = 0.0; total_re_mortgage_balance_val_current = 0.0
+        current_month_date_cards = date(today_date_ref.year, today_date_ref.month, 1)
+        if config.include_debts:
+            debt_plans_db_cards = DebtInstallmentPlan.query.filter_by(user_id=user_id, is_active=True).all()
+            summary_data['debts']['available'] = bool(debt_plans_db_cards)
+            for plan_card in debt_plans_db_cards:
+                is_payable_this_month_card = plan_card.start_date <= current_month_date_cards and \
+                                             (plan_card.end_date is None or plan_card.end_date > current_month_date_cards)
+                if plan_card.is_mortgage:
+                    total_re_mortgage_balance_val_current += plan_card.remaining_amount
+                    if is_payable_this_month_card: monthly_mortgage_payments_for_kpi += plan_card.monthly_payment
+                else:
+                    total_general_debt_val_current += plan_card.remaining_amount
+                    if is_payable_this_month_card: monthly_debt_payment_val_current += plan_card.monthly_payment
+            summary_data['debts']['data'] = {
+                'total_debt': total_general_debt_val_current, 'monthly_payment': monthly_debt_payment_val_current,
+                'debt_list': [{'description': p.description, 'remaining': p.remaining_amount, 'progress_pct':p.progress_percentage} 
+                              for p in filter(lambda x: not x.is_mortgage, debt_plans_db_cards)][:3]
+            }
+        current_total_monthly_expenses_for_kpi += (monthly_debt_payment_val_current + monthly_mortgage_payments_for_kpi)
+
+        # Activos Actuales (para tarjetas)
+        total_cash_val_current = sum(acc.current_balance for acc in BankAccount.query.filter_by(user_id=user_id).all())
+        if config.include_bank_accounts:
+            summary_data['bank_accounts']['available'] = total_cash_val_current > 0 or BankAccount.query.filter_by(user_id=user_id).first() is not None
+            summary_data['bank_accounts']['data'] = { 'total_cash': total_cash_val_current, 
+                                                   'accounts': [{'bank_name':acc.bank_name, 'account_name':acc.account_name, 'balance':acc.current_balance} 
+                                                                for acc in BankAccount.query.filter_by(user_id=user_id).all()]}
+        
+        total_market_value_inv_current = 0.0; total_cost_basis_inv_current = 0.0
+        if config.include_investments:
+            portfolio_record_db_current = UserPortfolio.query.filter_by(user_id=user_id).first()
+            if portfolio_record_db_current and portfolio_record_db_current.portfolio_data:
+                portfolio_data_json_current = json.loads(portfolio_record_db_current.portfolio_data)
+                if portfolio_data_json_current:
+                    summary_data['investments']['available'] = True
+                    total_market_value_inv_current = sum(float(item.get('market_value_eur', 0) or 0) for item in portfolio_data_json_current)
+                    total_cost_basis_inv_current = sum(float(item.get('cost_basis_eur_est', 0) or 0) for item in portfolio_data_json_current)
+                    summary_data['investments']['data'] = {
+                        'total_market_value': total_market_value_inv_current,
+                        'total_pl': total_market_value_inv_current - total_cost_basis_inv_current,
+                        'total_cost_basis': total_cost_basis_inv_current,
+                        'top_positions': [{'name': item.get('item_name', item.get('Producto')), 'market_value': float(item.get('market_value_eur',0) or 0)} 
+                                          for item in sorted(portfolio_data_json_current, key=lambda x: float(x.get('market_value_eur', 0) or 0), reverse=True)[:3]]
+                    }
+
+        current_crypto_value_live = 0.0; cost_of_remaining_crypto = 0.0
+        if config.include_crypto:
+            holdings_summary_live_card = {} 
+            all_crypto_tx_live = CryptoTransaction.query.filter_by(user_id=user_id).all()
+            if all_crypto_tx_live: summary_data['crypto']['available'] = True # Hay transacciones, así que la sección está disponible
+            
+            unique_tickers_live = {tx.ticker_symbol.upper() for tx in all_crypto_tx_live}
+            live_prices_map = {ticker: get_crypto_price(ticker) for ticker in unique_tickers_live}
+
+            for ct_live in all_crypto_tx_live:
+                ticker_live = ct_live.ticker_symbol.upper()
+                if ticker_live not in holdings_summary_live_card:
+                    holdings_summary_live_card[ticker_live] = {'quantity': 0.0, 'name': ct_live.crypto_name, 
+                                                               'current_price': live_prices_map.get(ticker_live) or 0.0, 
+                                                               'investment':0.0 } # 'fees' no se usa directamente aquí para P/L
+                
+                cost_this_tx = ct_live.quantity * ct_live.price_per_unit + (ct_live.fees or 0)
+                if ct_live.transaction_type == 'buy':
+                    holdings_summary_live_card[ticker_live]['quantity'] += ct_live.quantity
+                    holdings_summary_live_card[ticker_live]['investment'] += cost_this_tx # Sumar coste total de compra
+                elif ct_live.transaction_type == 'sell':
+                    qty_before_sell = holdings_summary_live_card[ticker_live]['quantity']
+                    investment_before_sell = holdings_summary_live_card[ticker_live]['investment']
+                    
+                    # Coste de la porción vendida (asumiendo coste medio)
+                    cost_of_units_sold = 0
+                    if qty_before_sell > 1e-9: # Evitar división por cero
+                        cost_of_units_sold = (investment_before_sell / qty_before_sell) * ct_live.quantity
+                    
+                    holdings_summary_live_card[ticker_live]['quantity'] -= ct_live.quantity
+                    holdings_summary_live_card[ticker_live]['investment'] -= cost_of_units_sold # Reducir inversión por el coste de lo vendido
+                    # Las comisiones de venta se pueden considerar como una reducción del beneficio o un aumento del coste
+                    # Para P/L simple, se puede restar del beneficio o sumar al coste total.
+                    # Aquí, para el coste de lo que queda, ya se ha ajustado.
+
+            for data_crypto_live in holdings_summary_live_card.values():
+                if data_crypto_live['quantity'] > 1e-9: # Considerar solo si hay tenencia
+                    current_crypto_value_live += data_crypto_live['quantity'] * data_crypto_live['current_price']
+                    cost_of_remaining_crypto += data_crypto_live['investment'] # Sumar coste de las tenencias actuales
+
+            if summary_data['crypto']['available']: # Solo poblar si la sección está disponible
+                summary_data['crypto']['data'] = {
+                    'total_value': current_crypto_value_live,
+                    'total_pl': current_crypto_value_live - cost_of_remaining_crypto,
+                    'total_investment': cost_of_remaining_crypto,
+                    'top_holdings': sorted([{'name': d['name'], 'ticker': tkr, 'quantity': d['quantity'], 'current_value': d['quantity'] * d['current_price']} 
+                                           for tkr, d in holdings_summary_live_card.items() if d['quantity'] > 1e-9], 
+                                          key=lambda x: x['current_value'], reverse=True)[:3]
+                }
+        
+        total_metal_value_current = 0.0; total_invested_metal_current = 0.0
+        if config.include_metals:
+            gold_price_curr_card = get_precious_metal_price('gold') or 0.0
+            silver_price_curr_card = get_precious_metal_price('silver') or 0.0
+            current_gold_oz_curr_card = 0.0; invested_gold_curr_card = 0.0
+            current_silver_oz_curr_card = 0.0; invested_silver_curr_card = 0.0
+            all_metal_tx_cards = PreciousMetalTransaction.query.filter_by(user_id=user_id).all()
+            if all_metal_tx_cards: summary_data['metals']['available'] = True
+
+            for mt_curr_card in all_metal_tx_cards:
+                qty_oz_curr_card = mt_curr_card.quantity if mt_curr_card.unit_type == 'oz' else mt_curr_card.quantity * g_to_oz_const
+                # Para P/L de la tarjeta, la inversión es la suma de todos los costes de compra
+                # y las ventas no reducen esta "inversión inicial total" sino que generan P/L.
+                # Simplificamos: 'investment' es la suma de costes de compra.
+                # 'current_value' es el valor de lo que queda. P/L = current_value - total_cost_of_buys_for_what_remains.
+                # Para simplificar la tarjeta, mostremos P/L = current_value - sum_of_all_buy_costs + sum_of_all_sell_proceeds
+                
+                # Lógica de acumulación de cantidad e inversión neta (coste de lo que queda)
+                cost_of_this_transaction = qty_oz_curr_card * mt_curr_card.price_per_unit + (mt_curr_card.taxes_fees or 0)
+
+                if mt_curr_card.metal_type == 'gold':
+                    if mt_curr_card.transaction_type == 'buy':
+                        current_gold_oz_curr_card += qty_oz_curr_card
+                        invested_gold_curr_card += cost_of_this_transaction
+                    else: # sell
+                        avg_cost_before_sell = invested_gold_curr_card / current_gold_oz_curr_card if current_gold_oz_curr_card > 1e-9 else 0
+                        cost_of_sold_units = qty_oz_curr_card * avg_cost_before_sell
+                        current_gold_oz_curr_card -= qty_oz_curr_card
+                        invested_gold_curr_card -= cost_of_sold_units
+                elif mt_curr_card.metal_type == 'silver':
+                    if mt_curr_card.transaction_type == 'buy':
+                        current_silver_oz_curr_card += qty_oz_curr_card
+                        invested_silver_curr_card += cost_of_this_transaction
+                    else: # sell
+                        avg_cost_before_sell_silver = invested_silver_curr_card / current_silver_oz_curr_card if current_silver_oz_curr_card > 1e-9 else 0
+                        cost_of_sold_units_silver = qty_oz_curr_card * avg_cost_before_sell_silver
+                        current_silver_oz_curr_card -= qty_oz_curr_card
+                        invested_silver_curr_card -= cost_of_sold_units_silver
+            
+            gold_value_curr_card = current_gold_oz_curr_card * gold_price_curr_card
+            silver_value_curr_card = current_silver_oz_curr_card * silver_price_curr_card
+            total_metal_value_current = gold_value_curr_card + silver_value_curr_card
+            # Inversión neta en metales que quedan
+            net_investment_in_remaining_metals = invested_gold_curr_card + invested_silver_curr_card
+
+            if summary_data['metals']['available']:
+                 summary_data['metals']['data'] = {
+                    'total_value': total_metal_value_current, 
+                    'total_pl': total_metal_value_current - net_investment_in_remaining_metals,
+                    'gold': {'current_value': gold_value_curr_card, 'total_oz': current_gold_oz_curr_card},
+                    'silver': {'current_value': silver_value_curr_card, 'total_oz': current_silver_oz_curr_card}
+                }
+        
+        total_pension_val_current = sum(p.current_balance for p in PensionPlan.query.filter_by(user_id=user_id).all())
+        if config.include_pension_plans:
+            summary_data['pension_plans']['available'] = PensionPlan.query.filter_by(user_id=user_id).first() is not None
+            summary_data['pension_plans']['data'] = { 'total_pension': total_pension_val_current, 
+                                                   'plans': [{'entity_name': p.entity_name, 'plan_name':p.plan_name or '', 'balance':p.current_balance} 
+                                                             for p in PensionPlan.query.filter_by(user_id=user_id).all()]}
+        
+        total_re_market_value_val_current = sum(asset.current_market_value or 0 for asset in RealEstateAsset.query.filter_by(user_id=user_id).all())
+        if config.include_real_estate:
+            summary_data['real_estate']['available'] = RealEstateAsset.query.filter_by(user_id=user_id).first() is not None
+            summary_data['real_estate']['data'] = {
+                'count': RealEstateAsset.query.filter_by(user_id=user_id).count(), 
+                'total_market_value': total_re_market_value_val_current,
+                'total_mortgage_balance': total_re_mortgage_balance_val_current, # Ya calculado con deudas
+                'net_equity': total_re_market_value_val_current - total_re_mortgage_balance_val_current,
+                'assets': [{'name': asset.property_name, 'value': asset.current_market_value or 0} 
+                           for asset in RealEstateAsset.query.filter_by(user_id=user_id).order_by(db.desc(RealEstateAsset.current_market_value)).limit(3).all()]
             }
 
-        # --- Flujo de Caja Mensual ---
-        if summary_data['kpis'].get('available'):
-            summary_data['cash_flow'] = {'available': True, 'data': {
+        # Efectivo en broker actual (tomado del último punto del historial)
+        current_broker_cash_val_for_summary_card = 0.0
+        if historical_data_points: # Asegurarse que historical_data_points se llenó
+            final_month_key_for_broker_cash = sorted(historical_data_points.keys())[-1] if historical_data_points else None
+            if final_month_key_for_broker_cash:
+                current_broker_cash_val_for_summary_card = historical_data_points[final_month_key_for_broker_cash].get('broker_cash', 0.0)
+        
+        assets_final_current = (total_cash_val_current + total_market_value_inv_current + current_crypto_value_live +
+                               total_metal_value_current + total_pension_val_current + total_re_market_value_val_current +
+                               current_broker_cash_val_for_summary_card) # Efectivo en broker (EWC)
+        liabilities_final_current = total_general_debt_val_current + total_re_mortgage_balance_val_current
+        net_worth_val_current = assets_final_current - liabilities_final_current
+        
+        summary_data['net_worth']['available'] = True
+        summary_data['net_worth']['data'] = {
+            'total_assets': assets_final_current, 
+            'total_liabilities': liabilities_final_current, 
+            'net_worth': net_worth_val_current
+        }
+
+        if current_total_monthly_income_for_kpi > 0 or current_total_monthly_expenses_for_kpi > 0 :
+            summary_data['kpis']['available'] = True
+            monthly_savings_val_current = current_total_monthly_income_for_kpi - current_total_monthly_expenses_for_kpi
+            savings_rate_val_current = (monthly_savings_val_current / current_total_monthly_income_for_kpi * 100) if current_total_monthly_income_for_kpi > 0 else (-100 if current_total_monthly_expenses_for_kpi > 0 else 0)
+            total_debt_payments_for_ratio_current = monthly_debt_payment_val_current + monthly_mortgage_payments_for_kpi
+            debt_to_income_val_current = (total_debt_payments_for_ratio_current / current_total_monthly_income_for_kpi * 100) if current_total_monthly_income_for_kpi > 0 else 0
+            debt_to_assets_val_current = (liabilities_final_current / assets_final_current * 100) if assets_final_current > 0 else 0
+            summary_data['kpis']['data'] = {
+                'monthly_income': current_total_monthly_income_for_kpi, 'monthly_expenses': current_total_monthly_expenses_for_kpi,
+                'monthly_savings': monthly_savings_val_current, 'savings_rate': savings_rate_val_current,
+                'debt_to_income': debt_to_income_val_current, 'debt_to_assets': debt_to_assets_val_current
+            }
+        if summary_data['kpis'].get('available') and summary_data['kpis']['data'].get('monthly_income') is not None : # Chequeo más robusto
+            summary_data['cash_flow']['available'] = True
+            summary_data['cash_flow']['data'] = {
                 'total_income': summary_data['kpis']['data']['monthly_income'],
                 'total_expenses': summary_data['kpis']['data']['monthly_expenses'],
                 'net_cash_flow': summary_data['kpis']['data']['monthly_savings']
-            }}
-        
-        # --- DATOS PARA GRÁFICOS ---
-        if 'charts' not in summary_data: summary_data['charts'] = {'available': True, 'data': {}}
-
-        cash_history_db = CashHistoryRecord.query.filter_by(user_id=current_user.id).order_by(CashHistoryRecord.date.asc()).limit(12).all()
-        if cash_history_db:
-            summary_data['charts']['data']['cash_history'] = {
-                'dates': [rec.date.strftime('%Y-%m') for rec in cash_history_db],
-                'values_list': [rec.total_cash for rec in cash_history_db]
             }
+        print("DEBUG financial_summary: Cálculo de valores ACTUALES para tarjetas completado.")
 
-        # Historial de Patrimonio Neto
-        historical_net_worth_points = {}
-        # (Lógica para poblar historical_net_worth_points como te mostré antes, usando historiales de Cash, Pension, Crypto, REValue, Debt)
-        # ...
-        # Ejemplo simplificado, debes completar esta parte con la lógica de la respuesta anterior
-        for rec in CashHistoryRecord.query.filter_by(user_id=current_user.id).all():
-            month_year = rec.date.strftime('%Y-%m')
-            if month_year not in historical_net_worth_points: historical_net_worth_points[month_year] = {'assets': 0, 'liabilities': 0, 'date_obj': rec.date}
-            historical_net_worth_points[month_year]['assets'] += rec.total_cash
-        # (Añadir pension, crypto, RE value history a assets; debt history a liabilities)
-
-        net_worth_chart_list = []
-        for month_year_str, data_point in historical_net_worth_points.items():
-            net_worth_chart_list.append({
-                'date_str': month_year_str, 'date_obj': data_point['date_obj'],
-                'net_worth': data_point['assets'] - data_point['liabilities']
-            })
-        net_worth_chart_list.sort(key=lambda x: x['date_obj'])
-        net_worth_chart_list = net_worth_chart_list[-12:]
-
-        if net_worth_chart_list:
-            summary_data['charts']['data']['net_worth_history'] = {
-                'dates': [item['date_str'] for item in net_worth_chart_list],
-                'values_list': [item['net_worth'] for item in net_worth_chart_list]
-            }
 
     except Exception as e:
-        app.logger.error(f"Error calculando resumen financiero: {e}", exc_info=True)
-        flash(f"Se produjo un error al calcular algunos datos del resumen: {str(e)}", "warning")
+        app.logger.error(f"Error CRÍTICO calculando datos para resumen financiero: {e}", exc_info=True)
+        flash(f"Se produjo un error muy grave al calcular datos del resumen: {str(e)}. Algunos datos podrían no mostrarse.", "danger")
+        summary_data['charts']['available'] = False 
 
     return render_template('financial_summary.html',
                            config_form=config_form,
                            summary=summary_data,
                            config=config)
-
 
 
 @app.route('/export_financial_summary', methods=['GET'])
