@@ -3744,7 +3744,7 @@ def get_current_financial_crosstime_metrics(user_id):
         gnc_dividendos = div_acc           # ← AÑADIDO: Ganancias dividendos (siempre positivas)
         
         # Fondos disponibles sin deuda = Aportaciones + Ganancias Trading + Ganancias Dividendos
-        fondos_disp_s_d = aport_netas_usr + gnc_trading + gnc_dividendos  # ← ACTUALIZADO
+        fondos_disp_s_d = aport_netas_usr + rsp_acc + gnc_dividendos # Usar rsp_acc en lugar de gnc_trading
         apalancamiento_eod = max(0, val_inv_bruto - fondos_disp_s_d)
         final_apalancamiento_calculated = apalancamiento_eod # Guarda el último apalancamiento calculado
 
@@ -6599,7 +6599,7 @@ def financial_summary():
             if final_month_key_for_broker_cash:
                 current_broker_cash_val_for_summary_card = historical_data_points[final_month_key_for_broker_cash].get('broker_cash', 0.0)
         
-        assets_final_current = (total_cash_val_current + total_market_value_inv_current + current_crypto_value_live +
+        assets_final_current = (total_cash_val_current + current_crypto_value_live +
                                total_metal_value_current + total_pension_val_current + total_re_market_value_val_current +
                                current_broker_cash_val_for_summary_card) # Efectivo en broker (EWC)
         liabilities_final_current = total_general_debt_val_current + total_re_mortgage_balance_val_current
