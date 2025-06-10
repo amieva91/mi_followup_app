@@ -1,0 +1,847 @@
+{% extends "base.html" %}
+
+{% block head %}
+<style>
+    .home-icon {
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        z-index: 1000;
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        background: #007bff;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        transition: all 0.3s ease;
+    }
+
+    .home-icon:hover {
+        background: #0056b3;
+        transform: scale(1.1);
+        color: white;
+        text-decoration: none;
+    }	
+    #.home-icon i {
+     #   font-size: 1.5rem; /* Aumentar tamaño del icono */
+    #}
+    .goal-config-section {
+        display: none !important;
+    }
+    .goal-config-section.active {
+        display: block !important;
+    }
+    /* CARD PRINCIPAL */
+    .goal-card-collapsible {
+        background: #ffffff;
+        border-radius: 15px;
+        border: 1px solid #e9ecef;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        padding: 1.5rem;
+        transition: all 0.3s ease;
+    }
+
+    .goal-card-collapsible:hover {
+        box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+        transform: translateY(-1px);
+    }
+
+    /* VISTA SIMPLE */
+    .goal-summary-view {
+        cursor: default;
+    }
+
+    .goal-title-simple {
+        font-size: 1.4rem;
+        font-weight: 600;
+        margin: 0;
+        color: #333;
+    }
+
+    .goal-title-simple i {
+        font-size: 1.6rem;
+    }
+
+    .goal-meta-simple .badge {
+        font-size: 0.75rem;
+        padding: 0.4rem 0.8rem;
+    }
+
+    /* PROGRESO SIMPLE */
+    .progress-simple .progress {
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    .progress-simple .progress-bar {
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+
+    /* BOTONES DE ACCIÓN */
+    .goal-actions-simple .btn {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+    }
+
+    .toggle-details.active {
+        background-color: #007bff;
+        border-color: #007bff;
+        color: white;
+    }
+
+    .toggle-details.active .details-icon::before {
+        content: "\f658"; /* bi-x-circle */
+    }
+
+    /* VISTA DETALLADA */
+    .goal-detailed-view {
+        animation: slideDown 0.3s ease-out;
+    }
+
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    /* HEADER DETALLADO */
+    .goal-header-detailed h6 {
+        color: #495057;
+        font-weight: 600;
+    }
+
+    /* KPIs SIMPLES */
+    .kpis-simple {
+        display: flex;
+        gap: 2rem;
+        justify-content: flex-end;
+    }
+
+    .kpi-simple {
+        text-align: center;
+    }
+
+    .kpi-value-simple {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #007bff;
+    }
+
+    .kpi-label-simple {
+        font-size: 0.8rem;
+        color: #6c757d;
+        text-transform: uppercase;
+    }
+
+    /* CONTENEDORES DE GRÁFICOS */
+    .chart-container-detailed {
+        background: #f8f9fa;
+        border-radius: 12px;
+        padding: 1.5rem;
+        text-align: center;
+        height: 100%;
+    }
+
+    .chart-container-detailed h6 {
+        color: #495057;
+        margin-bottom: 1rem;
+        font-weight: 600;
+    }
+
+    /* GRÁFICO DE DONA PEQUEÑO */
+    .donut-chart-small {
+        margin: 1rem 0;
+    }
+
+    /* LEYENDA MINI */
+    .legend-mini {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 0.5rem;
+        margin-top: 1rem;
+    }
+
+    .legend-mini-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.85rem;
+    }
+
+    .legend-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+    }
+
+    .legend-bolsa { background: #007bff; }
+    .legend-cash { background: #28a745; }
+    .legend-crypto { background: #ffc107; }
+    .legend-real_estate { background: #17a2b8; }
+    .legend-metales { background: #6f42c1; }
+
+    /* CÍRCULO DE PROGRESO DETALLADO */
+    .progress-circle-detailed {
+        position: relative;
+        display: inline-block;
+        margin: 1rem 0;
+    }
+
+    .progress-center-text {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+    }
+
+    .progress-number {
+        font-size: 1.8rem;
+        font-weight: bold;
+        color: #333;
+    }
+
+    /* MÉTRICAS DETALLADAS */
+    .metrics-detailed {
+        background: #f8f9fa;
+        border-radius: 12px;
+        padding: 1.5rem;
+        height: 100%;
+    }
+
+    .metrics-detailed h6 {
+        color: #495057;
+        margin-bottom: 1rem;
+        font-weight: 600;
+    }
+
+    .metric-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid #e9ecef;
+    }
+
+    .metric-row:last-child {
+        border-bottom: none;
+    }
+
+    .metric-label {
+        font-weight: 500;
+        color: #6c757d;
+    }
+
+    .metric-value {
+        font-weight: 600;
+        font-size: 1.1rem;
+    }
+
+    /* TIMELINE DETALLADO */
+    .timeline-section {
+        background: #f8f9fa;
+        border-radius: 12px;
+        padding: 1.5rem;
+    }
+
+    .timeline-section h6 {
+        color: #495057;
+        margin-bottom: 1rem;
+        font-weight: 600;
+    }
+
+    .timeline-bar-detailed {
+        height: 15px;
+        background: #e9ecef;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .timeline-completed-detailed {
+        height: 100%;
+        background: linear-gradient(90deg, #28a745, #20c997);
+        transition: width 1s ease-out;
+    }
+
+    .timeline-labels-detailed {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 0.5rem;
+    }
+
+    /* RESPONSIVE */
+    @media (max-width: 768px) {
+        .kpis-simple {
+            justify-content: center;
+            margin-top: 1rem;
+        }
+        
+        .goal-actions-simple {
+            text-align: center;
+            margin-top: 1rem;
+        }
+        
+        .chart-container-detailed,
+        .metrics-detailed {
+            margin-bottom: 1rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Icono de casa para volver al buzón -->
+<a href="{{ url_for('office_mailbox') }}" class="home-icon" title="Volver al Buzón">
+    <i class="bi bi-house-fill"></i>
+</a>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mt-4 mb-4">
+        <h1><i class="bi bi-bullseye me-2"></i>Objetivos Financieros</h1>
+        <div>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newGoalModal">
+                <i class="bi bi-plus-circle me-1"></i>Nuevo Objetivo
+            </button>
+        </div>
+    </div>
+    
+    <!-- Lista de objetivos existentes -->
+    <!-- ========================================
+     LAYOUT ULTRA DETALLADO PARA OBJETIVOS
+     ======================================== -->
+
+{% if goals %}
+    <div class="goals-container">
+        {% for goal_data in goals %}
+            {% set goal = goal_data.config %}
+            {% set status = goal_data.status %}
+            
+            <div class="goal-card-collapsible mb-4" data-goal-id="{{ goal.id }}">
+                
+                <!-- VISTA SIMPLE (SIEMPRE VISIBLE) -->
+                <div class="goal-summary-view">
+                    <div class="row align-items-center">
+                        <!-- Información Principal -->
+                        <div class="col-md-6">
+                            <div class="goal-basic-info">
+                                <h5 class="goal-title-simple mb-2">
+                                    {% if goal.goal_type == 'portfolio_percentage' %}
+                                        <i class="bi bi-pie-chart text-primary me-2"></i>{{ goal.goal_name }}
+                                    {% elif goal.goal_type == 'target_amount' %}
+                                        <i class="bi bi-bullseye text-success me-2"></i>{{ goal.goal_name }}
+                                    {% elif goal.goal_type == 'auto_prediction' %}
+                                        <i class="bi bi-magic text-info me-2"></i>{{ goal.goal_name }}
+                                    {% elif goal.goal_type == 'savings_monthly' %}
+                                        <i class="bi bi-piggy-bank text-warning me-2"></i>{{ goal.goal_name }}
+                                    {% elif goal.goal_type == 'debt_threshold' %}
+                                        <i class="bi bi-credit-card text-danger me-2"></i>{{ goal.goal_name }}
+                                    {% endif %}
+                                </h5>
+                                <div class="goal-meta-simple">
+                                    <span class="badge bg-secondary me-2">{{ goal.goal_type.replace('_', ' ')|title }}</span>
+                                    <small class="text-muted">{{ goal.created_at.strftime('%d/%m/%Y') }}</small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Progreso Simple -->
+                        <div class="col-md-4">
+                            {% if status.get('progress_percentage') is not none %}
+                            <div class="progress-simple">
+                                <div class="progress" style="height: 25px;">
+                                    <div class="progress-bar 
+                                        {% if status.progress_percentage >= 100 %}bg-success
+                                        {% elif status.progress_percentage >= 75 %}bg-info
+                                        {% elif status.progress_percentage >= 50 %}bg-warning
+                                        {% else %}bg-danger{% endif %}" 
+                                         style="width: {{ status.progress_percentage|round }}%">
+                                        {{ status.progress_percentage|round }}%
+                                    </div>
+                                </div>
+                                <small class="text-muted mt-1 d-block">Progreso</small>
+                            </div>
+                            {% else %}
+                            <div class="status-simple">
+                                {% if goal.goal_type == 'debt_threshold' %}
+                                    <div class="text-{% if status.get('is_over_limit') %}danger{% else %}success{% endif %}">
+                                        <strong>{{ status.get('current_debt_percentage', 0)|round(1) }}%</strong>
+                                        <small class="d-block">de {{ status.get('target_debt_percentage', 0) }}% límite</small>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Botones de Acción -->
+                        <div class="col-md-2 text-end">
+                            <div class="goal-actions-simple">
+                                <button class="btn btn-outline-info btn-sm me-1 toggle-details" 
+                                        onclick="toggleGoalDetails({{ goal.id }})"
+                                        title="Ver detalles">
+                                    <i class="bi bi-info-circle details-icon"></i>
+                                </button>
+                                <button class="btn btn-outline-danger btn-sm" 
+                                        onclick="deleteGoal({{ goal.id }})"
+                                        title="Eliminar">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- VISTA DETALLADA (COLAPSADA POR DEFECTO) -->
+                <div class="goal-detailed-view" style="display: none;">
+                    <hr class="my-3">
+                    
+                    <!-- Header con KPIs -->
+                    <div class="goal-header-detailed mb-4">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <h6 class="text-primary mb-3">
+                                    <i class="bi bi-graph-up me-2"></i>Análisis Detallado
+                                </h6>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="kpis-simple">
+                                    {% if status.get('progress_percentage') is not none %}
+                                    <div class="kpi-simple">
+                                        <div class="kpi-value-simple">{{ status.progress_percentage|round }}%</div>
+                                        <div class="kpi-label-simple">Completado</div>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    {% if goal.goal_type == 'target_amount' and status.get('months_remaining') %}
+                                    <div class="kpi-simple">
+                                        <div class="kpi-value-simple">{{ status.months_remaining }}</div>
+                                        <div class="kpi-label-simple">Meses</div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Contenido Detallado -->
+                    <div class="row">
+                        <!-- Gráfico Principal -->
+                        <div class="col-lg-6">
+                            <div class="chart-container-detailed">
+                                {% if goal.goal_type == 'portfolio_percentage' and status.gaps %}
+                                    <h6><i class="bi bi-pie-chart me-2"></i>Distribución de Activos</h6>
+                                    <div class="donut-chart-small">
+                                        <canvas id="donutChart{{ goal.id }}" width="250" height="250"></canvas>
+                                    </div>
+                                    
+                                    <!-- Mini leyenda -->
+                                    <div class="legend-mini">
+                                        {% for asset_type, gap_data in status.gaps.items() %}
+                                        <div class="legend-mini-item">
+                                            <span class="legend-dot legend-{{ asset_type }}"></span>
+                                            <span>{{ asset_type.title() }}: {{ gap_data.current_percentage|round(1) }}%</span>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                
+                                {% elif status.get('progress_percentage') is not none %}
+                                    <h6><i class="bi bi-bullseye me-2"></i>Progreso del Objetivo</h6>
+                                    <div class="progress-circle-detailed">
+                                        <svg width="200" height="200" viewBox="0 0 200 200">
+                                            <circle cx="100" cy="100" r="80" stroke="#f0f0f0" stroke-width="15" fill="none"/>
+                                            <circle cx="100" cy="100" r="80" 
+                                                    stroke="{% if goal.goal_type == 'target_amount' %}#28a745{% elif goal.goal_type == 'savings_monthly' %}#17a2b8{% else %}#007bff{% endif %}" 
+                                                    stroke-width="15" fill="none"
+                                                    stroke-linecap="round"
+                                                    stroke-dasharray="{{ (status.progress_percentage * 502.65 / 100)|round(2) }} 502.65"
+                                                    transform="rotate(-90 100 100)"/>
+                                        </svg>
+                                        <div class="progress-center-text">
+                                            <div class="progress-number">{{ status.progress_percentage|round }}%</div>
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <!-- Métricas Detalladas -->
+                        <div class="col-lg-6">
+                            <div class="metrics-detailed">
+                                <h6><i class="bi bi-clipboard-data me-2"></i>Métricas Clave</h6>
+                                
+                                {% if goal.goal_type == 'target_amount' %}
+                                    <div class="metric-row">
+                                        <span class="metric-label">Objetivo:</span>
+                                        <span class="metric-value text-success">{{ status.get('target_amount', 0)|round(0) }}€</span>
+                                    </div>
+                                    <div class="metric-row">
+                                        <span class="metric-label">Actual:</span>
+                                        <span class="metric-value text-primary">{{ status.get('current_value', 0)|round(0) }}€</span>
+                                    </div>
+                                    <div class="metric-row">
+                                        <span class="metric-label">Restante:</span>
+                                        <span class="metric-value text-warning">{{ status.get('amount_needed', 0)|round(0) }}€</span>
+                                    </div>
+                                    {% if status.get('months_remaining') %}
+                                    <div class="metric-row">
+                                        <span class="metric-label">Tiempo:</span>
+                                        <span class="metric-value">{{ status.months_remaining }} meses</span>
+                                    </div>
+                                    {% endif %}
+                                
+                                {% elif goal.goal_type == 'savings_monthly' %}
+                                    <div class="metric-row">
+                                        <span class="metric-label">Meta mensual:</span>
+                                        <span class="metric-value text-info">{{ status.get('monthly_target', 0)|round(0) }}€</span>
+                                    </div>
+                                    <div class="metric-row">
+                                        <span class="metric-label">Este mes:</span>
+                                        <span class="metric-value text-primary">{{ status.get('current_month_savings', 0)|round(0) }}€</span>
+                                    </div>
+                                    <div class="metric-row">
+                                        <span class="metric-label">Acumulado:</span>
+                                        <span class="metric-value text-success">{{ status.get('actual_savings', 0)|round(0) }}€</span>
+                                    </div>
+                                
+                                {% elif goal.goal_type == 'debt_threshold' %}
+                                    <div class="metric-row">
+                                        <span class="metric-label">Límite objetivo:</span>
+                                        <span class="metric-value text-warning">{{ status.get('target_debt_percentage', 0) }}%</span>
+                                    </div>
+                                    <div class="metric-row">
+                                        <span class="metric-label">Uso actual:</span>
+                                        <span class="metric-value {% if status.get('is_over_limit') %}text-danger{% else %}text-success{% endif %}">
+                                            {{ status.get('current_debt_percentage', 0)|round(1) }}%
+                                        </span>
+                                    </div>
+                                    <div class="metric-row">
+                                        <span class="metric-label">Margen:</span>
+                                        <span class="metric-value text-primary">{{ status.get('debt_margin', 0)|round(0) }}€</span>
+                                    </div>
+                                {% endif %}
+                                
+                                {% if status.get('error') %}
+                                <div class="alert alert-warning small mt-3">
+                                    {{ status.error }}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Timeline o Info adicional -->
+                    {% if goal.goal_type == 'target_amount' and status.get('months_remaining') %}
+                    <div class="timeline-section mt-4">
+                        <h6><i class="bi bi-clock me-2"></i>Progreso Temporal</h6>
+                        {% set months_elapsed = ((status.get('target_timeframe_months', 12) - status.get('months_remaining', 0))) %}
+                        {% set total_months = status.get('target_timeframe_months', 12) %}
+                        <div class="timeline-bar-detailed">
+                            <div class="timeline-completed-detailed" style="width: {{ (months_elapsed / total_months * 100)|round }}%"></div>
+                        </div>
+                        <div class="timeline-labels-detailed">
+                            <small>{{ months_elapsed }} meses transcurridos</small>
+                            <small>{{ status.get('months_remaining', 0) }} meses restantes</small>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <!-- Estado vacío sin cambios -->
+    <div class="text-center py-5">
+        <i class="bi bi-bullseye" style="font-size: 4rem; color: #dee2e6;"></i>
+        <h3 class="mt-3">No tienes objetivos configurados</h3>
+        <p class="text-muted">Crea tu primer objetivo financiero para empezar a hacer seguimiento</p>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newGoalModal">
+            <i class="bi bi-plus-circle me-1"></i>Crear Primer Objetivo
+        </button>
+    </div>
+{% endif %}
+</div>
+
+<!-- Modal para nuevo objetivo -->
+<div class="modal fade" id="newGoalModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Nuevo Objetivo Financiero</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form method="POST" id="goalForm">
+                    {{ form.hidden_tag() }}
+                    
+                    <!-- Información básica -->
+                    
+                    <!-- Selector de tipo de objetivo -->
+                    <div class="mb-3">
+                        {{ form.goal_type.label(class="form-label") }}
+                        {{ form.goal_type(class="form-control", id="goalType") }}
+                        {% for error in form.goal_type.errors %}
+                            <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                  
+                    <!-- Sección para distribución de patrimonio -->
+                    <div id="percentage-section" class="goal-config-section">
+                        <h6>Distribución Deseada de Activos</h6>
+                        <div class="alert alert-info small">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Solo puede existir UN objetivo de distribución de activos. Define los porcentajes ideales para tu patrimonio.
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label class="form-label">% Bolsa (Trading + Dividendos)</label>
+                                {{ form.percentage_bolsa(class="form-control", step="0.1", min="0", max="100") }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">% Cash (Cuentas Bancarias)</label>
+                                {{ form.percentage_cash(class="form-control", step="0.1", min="0", max="100") }}
+                            </div>
+                            <div class="col-md-6 mt-2">
+                                <label class="form-label">% Criptomonedas</label>
+                                {{ form.percentage_crypto(class="form-control", step="0.1", min="0", max="100") }}
+                            </div>
+                            <div class="col-md-6 mt-2">
+                                <label class="form-label">% Inmuebles</label>
+                                {{ form.percentage_real_estate(class="form-control", step="0.1", min="0", max="100") }}
+                            </div>
+                            <div class="col-md-6 mt-2">
+                                <label class="form-label">% Metales Preciosos</label>
+                                {{ form.percentage_metales(class="form-control", step="0.1", min="0", max="100") }}
+                            </div>
+                        </div>
+                        <small class="text-muted">La suma no necesita ser 100%. Solo define los porcentajes que te interesan.</small>
+                    </div>
+                    
+                    <!-- Sección para objetivo de cantidad fijo -->
+                    <div id="amount-section" class="goal-config-section">
+                        <h6>Objetivo de Cantidad Fija</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                {{ form.goal_asset_type.label(class="form-label") }}
+                                {{ form.goal_asset_type(class="form-control") }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ form.target_amount.label(class="form-label") }}
+                                {{ form.target_amount(class="form-control", step="0.01", min="0.01") }}
+                            </div>
+                            <div class="col-md-12 mt-2">
+                                {{ form.target_timeframe_months.label(class="form-label") }}
+                                {{ form.target_timeframe_months(class="form-control", min="1", max="600") }}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Sección para predicción automática -->
+                    <div id="prediction-section" class="goal-config-section">
+                        <h6>Predicción Automática Inteligente</h6>
+                        <div class="alert alert-info small">
+                            <i class="bi bi-magic me-1"></i>
+                            El sistema analizará tu historial financiero para hacer predicciones automáticas.
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                {{ form.goal_asset_type.label(class="form-label") }}
+                                {{ form.goal_asset_type(class="form-control", id="predictionAssetType") }}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <!-- MODIFICADO: Solo 2 opciones de predicción -->
+                                <label class="form-label">Tipo de Predicción</label>
+                                <select class="form-control" id="predictionType" name="prediction_type">
+                                    <option value="">Selecciona tipo de predicción</option>
+                                    <option value="amount_to_time">Dime la cantidad → Te digo el tiempo</option>
+                                    <option value="time_to_amount">Dime el tiempo → Te digo la cantidad</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <!-- Campos dinámicos según tipo de predicción -->
+                        <div id="prediction-amount" class="row" style="display:none;">
+                            <div class="col-md-6">
+                                {{ form.target_amount.label(class="form-label") }}
+                                {{ form.target_amount(class="form-control", id="predictionAmountInput", step="0.01", min="0.01") }}
+                            </div>
+                        </div>
+                        
+                        <div id="prediction-time" class="row" style="display:none;">
+                            <div class="col-md-6">
+                                {{ form.target_timeframe_months.label(class="form-label") }}
+                                {{ form.target_timeframe_months(class="form-control", id="predictionTimeInput", min="1", max="600") }}
+                            </div>
+                        </div>
+                        
+                        <!-- NUEVO: Recuadro de predicción en tiempo real -->
+                        <div id="prediction-result" class="mt-3" style="display:none;">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-title">
+                                        <i class="bi bi-calculator me-2"></i>Predicción Automática
+                                    </h6>
+                                    <div id="prediction-content">
+                                        <div class="d-flex justify-content-center">
+                                            <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                                            Calculando predicción...
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Sección para ahorro mensual -->
+                    <div id="savings-section" class="goal-config-section">
+                        <h6>Objetivo de Ahorro Mensual</h6>
+                        {{ form.monthly_savings_target.label(class="form-label") }}
+                        {{ form.monthly_savings_target(class="form-control", step="0.01", min="0.01") }}
+                        <small class="text-muted">Se basará en el crecimiento de tus cuentas bancarias (Cash)</small>
+                    </div>
+                    
+                    <!-- Sección para techo de deuda -->
+                    <div id="debt-section" class="goal-config-section">
+                        <h6>Techo de Deuda Personalizado</h6>
+                        {{ form.debt_ceiling_percentage.label(class="form-label") }}
+                        {{ form.debt_ceiling_percentage(class="form-control", step="0.1", min="0", max="100") }}
+                        <small class="text-muted">Porcentaje del salario mensual destinado a pagos de deuda</small>
+                    </div>
+                    
+                    <!-- Configuración común -->
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-6">
+                            {{ form.start_date.label(class="form-label") }}
+                            {{ form.start_date(class="form-control") }}
+                        </div>
+                    </div>
+                    
+                    <!-- Configuración de alerta opcional -->
+                    <div class="mt-3">
+                        <div class="form-check">
+                            {{ form.create_alert(class="form-check-input", id="createAlert") }}
+                            {{ form.create_alert.label(class="form-check-label") }}
+                        </div>
+                        
+                        <div id="alert-config" style="display:none;" class="mt-3 p-3 border rounded bg-light">
+                            <h6>Configuración de Alerta</h6>
+                            <!-- ELIMINADO: alert_day_of_month -->
+                            <div class="form-check">
+                                {{ form.notify_by_email(class="form-check-input") }}
+                                {{ form.notify_by_email.label(class="form-check-label") }}
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" form="goalForm" class="btn btn-primary">Crear Objetivo</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleGoalDetails(goalId) {
+    const card = document.querySelector(`[data-goal-id="${goalId}"]`);
+    const detailedView = card.querySelector('.goal-detailed-view');
+    const toggleBtn = card.querySelector('.toggle-details');
+    
+    if (detailedView.style.display === 'none') {
+        // Mostrar detalles
+        detailedView.style.display = 'block';
+        toggleBtn.classList.add('active');
+        
+        // Inicializar gráficos solo cuando se muestran
+        setTimeout(() => {
+            initializeGoalChart(goalId);
+        }, 100);
+        
+    } else {
+        // Ocultar detalles
+        detailedView.style.display = 'none';
+        toggleBtn.classList.remove('active');
+    }
+}
+
+function initializeGoalChart(goalId) {
+    // Buscar canvas de gráfico de dona
+    const donutCanvas = document.getElementById(`donutChart${goalId}`);
+    if (donutCanvas) {
+        // Obtener datos del objetivo desde el HTML
+        const card = document.querySelector(`[data-goal-id="${goalId}"]`);
+        // Implementar inicialización del gráfico aquí
+        console.log(`Inicializando gráfico para objetivo ${goalId}`);
+    }
+}
+
+// Función existente
+function deleteGoal(goalId) {
+    if (confirm('¿Estás seguro de que quieres eliminar este objetivo?')) {
+        fetch(`/office/delete_goal/${goalId}`, {
+            method: 'POST',
+            headers: {'X-Requested-With': 'XMLHttpRequest'}
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error al eliminar el objetivo: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Error de conexión');
+        });
+    }
+}
+const goalType = document.getElementById('goalType');
+const goalSections = {
+    'portfolio_percentage': document.getElementById('percentage-section'),
+    'target_amount': document.getElementById('amount-section'),
+    'auto_prediction': document.getElementById('prediction-section'),
+    'savings_monthly': document.getElementById('savings-section'),
+    'debt_threshold': document.getElementById('debt-section')
+};
+
+function showGoalSection(type) {
+    Object.values(goalSections).forEach(section => {
+        if (section) {
+            section.classList.remove('active');
+        }
+    });
+    if (goalSections[type]) {
+        goalSections[type].classList.add('active');
+    }
+}
+
+if (goalType) {
+    goalType.addEventListener('change', function() {
+        showGoalSection(this.value);
+    });
+    // NUEVO: Mostrar sección inicial si hay valor preseleccionado
+    if (goalType.value) {
+        showGoalSection(goalType.value);
+    }
+}
+</script>
+{% endblock %}
