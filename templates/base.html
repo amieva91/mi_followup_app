@@ -75,13 +75,21 @@
                     
                     {# NUEVA PESTAÑA OFICINA #}
                     <li class="nav-item dropdown">
+<<<<<<< HEAD
                         <a class="nav-link dropdown-toggle {% if request.endpoint in ['office_mailbox', 'office_configure_alerts', 'office_goals'] %}active{% endif %}" href="#" id="navbarDropdownOficina" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                         <i class="bi bi-briefcase"></i> Oficina
+=======
+                        <a class="nav-link dropdown-toggle {% if request.endpoint in ['office_mailbox', 'office_configure_alerts'] %}active{% endif %}" href="#" id="navbarDropdownOficina" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                           <i class="bi bi-briefcase"></i> Oficina
+>>>>>>> bbcc9bce9d9aa40b85b57e1be007c80b00a9e31c
                         </a>
                         <ul class="dropdown-menu" aria-labelledby="navbarDropdownOficina">
                             <li><a class="dropdown-item {% if request.endpoint == 'office_mailbox' %}active{% endif %}" href="{{ url_for('office_mailbox') }}"><i class="bi bi-inbox-fill"></i> Buzón</a></li>
                             <li><a class="dropdown-item {% if request.endpoint == 'office_configure_alerts' %}active{% endif %}" href="{{ url_for('office_configure_alerts') }}"><i class="bi bi-bell-fill"></i> Configurar Alertas</a></li>
+<<<<<<< HEAD
                             <li><a class="dropdown-item {% if request.endpoint == 'office_goals' %}active{% endif %}" href="{{ url_for('office_goals') }}"><i class="bi bi-bullseye"></i> Objetivos</a></li>
+=======
+>>>>>>> bbcc9bce9d9aa40b85b57e1be007c80b00a9e31c
                         </ul>
                     </li>
                     

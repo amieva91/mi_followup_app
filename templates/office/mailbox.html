@@ -2,6 +2,7 @@
 
 {% block head %}
 <style>
+<<<<<<< HEAD
     /* CORREGIDO: Aprovechar todo el espacio del recuadro de alertas */
    
     .upcoming-alerts {
@@ -112,6 +113,11 @@
         transition: all 0.3s ease;
         border-left: 4px solid transparent;
         cursor: pointer;
+=======
+    .message-card {
+        transition: all 0.3s ease;
+        border-left: 4px solid transparent;
+>>>>>>> bbcc9bce9d9aa40b85b57e1be007c80b00a9e31c
     }
     .message-card.unread {
         background-color: #f8f9fa;
@@ -125,6 +131,7 @@
         border-left-color: #28a745;
         background-color: #f8fff8;
     }
+<<<<<<< HEAD
     .message-card:hover {
         background-color: #e9ecef;
         transform: translateY(-1px);
@@ -166,6 +173,8 @@
         height: 100%;
         transition: width 0.3s ease;
     }
+=======
+>>>>>>> bbcc9bce9d9aa40b85b57e1be007c80b00a9e31c
     .message-actions {
         opacity: 0.7;
         transition: opacity 0.3s ease;
@@ -173,6 +182,7 @@
     .message-card:hover .message-actions {
         opacity: 1;
     }
+<<<<<<< HEAD
     .nav-shortcuts {
         background: #f8f9fa;
         border-radius: 10px;
@@ -187,11 +197,29 @@
         font-size: 0.9rem;
     }
 </style>    
+=======
+    .message-icon {
+        font-size: 1.2em;
+        margin-right: 8px;
+    }
+    .empty-mailbox {
+        text-align: center;
+        padding: 60px 20px;
+        color: #6c757d;
+    }
+    .empty-mailbox i {
+        font-size: 4rem;
+        margin-bottom: 20px;
+        color: #dee2e6;
+    }
+</style>
+>>>>>>> bbcc9bce9d9aa40b85b57e1be007c80b00a9e31c
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mt-4 mb-4">
+<<<<<<< HEAD
         <h1><i class="bi bi-inbox-fill me-2"></i>Buzón Virtual - Control Central</h1>
         
         <!-- Atajos de navegación -->
@@ -537,11 +565,99 @@
                                     <button class="btn btn-outline-danger btn-sm" onclick="deleteMessage({{ message.id }})">
                                         <i class="bi bi-trash"></i>
                                     </button>
+=======
+        <h1><i class="bi bi-inbox-fill me-2"></i>Buzón Virtual</h1>
+        <div>
+            <button class="btn btn-outline-warning btn-sm" onclick="checkWarnings()">
+                <i class="bi bi-exclamation-triangle me-1"></i>Revisar Warnings
+            <button class="btn btn-primary btn-sm" onclick="generateSummaryNow()">
+                <i class="bi bi-file-earmark-text me-1"></i>Generar Resumen Ahora
+            </button>
+            <button class="btn btn-outline-secondary btn-sm" onclick="sendTestAlert()">
+                <i class="bi bi-bell me-1"></i>Enviar Alerta de Prueba
+            </button>
+        </div>
+    </div>
+    
+    {% if messages %}
+        <div class="row">
+            <div class="col-12">
+                {% for message in messages %}
+                <div class="card message-card mb-3 
+                    {% if not message.is_read %}unread{% endif %}
+                    {% if message.message_type == 'config_warning' %}warning{% endif %}
+                    {% if message.message_type == 'config_resolved' %}resolved{% endif %}">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <div class="d-flex align-items-center mb-2">
+                                    <span class="message-icon">
+                                        {% if message.message_type == 'event_alert' %}
+                                            <i class="bi bi-calendar-event text-primary"></i>
+                                        {% elif message.message_type == 'config_warning' %}
+                                            <i class="bi bi-exclamation-triangle-fill text-danger"></i>
+                                        {% elif message.message_type == 'config_resolved' %}
+                                            <i class="bi bi-check-circle-fill text-success"></i>
+                                        {% elif message.message_type == 'periodic_summary' %}
+                                            <i class="bi bi-bar-chart-line-fill text-info"></i>
+                                        {% elif message.message_type == 'custom_alert' %}
+                                            <i class="bi bi-gear-fill text-warning"></i>
+                                        {% else %}
+                                            <i class="bi bi-envelope-fill text-secondary"></i>
+                                        {% endif %}
+                                    </span>
+                                    <h5 class="card-title mb-0">{{ message.title }}</h5>
+                                    {% if not message.is_read %}
+                                        <span class="badge bg-primary ms-2">Nuevo</span>
+                                    {% endif %}
+                                </div>
+                                
+                                {% if message.content %}
+                                <p class="card-text">{{ message.content }}</p>
+                                {% endif %}
+                                
+                                <div class="d-flex align-items-center text-muted small">
+                                    <i class="bi bi-clock me-1"></i>
+                                    <span>{{ message.created_at.strftime('%d/%m/%Y %H:%M') }}</span>
+                                    {% if message.watchlist_item %}
+                                        <span class="ms-3">
+                                            <i class="bi bi-tag me-1"></i>
+                                            {{ message.watchlist_item.item_name or message.watchlist_item.ticker }}
+                                        </span>
+                                    {% endif %}
+                                    {% if message.trigger_event_date %}
+                                        <span class="ms-3">
+                                            <i class="bi bi-calendar me-1"></i>
+                                            {{ message.trigger_event_date.strftime('%d/%m/%Y') }}
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="message-actions ms-3">
+                                <div class="btn-group-vertical btn-group-sm">
+                                    {% if not message.is_read and message.message_type != 'config_warning' %}
+                                    <form method="POST" action="{{ url_for('mark_message_read', message_id=message.id) }}" class="d-inline">
+                                        <button type="submit" class="btn btn-outline-primary btn-sm" title="Marcar como leído">
+                                            <i class="bi bi-check"></i>
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                    
+                                    {% if message.message_type != 'config_warning' %}
+                                    <form method="POST" action="{{ url_for('delete_message', message_id=message.id) }}" class="d-inline">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm" 
+                                                onclick="return confirm('¿Eliminar este mensaje?')" title="Eliminar">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+>>>>>>> bbcc9bce9d9aa40b85b57e1be007c80b00a9e31c
                                     {% endif %}
                                 </div>
                             </div>
                         </div>
                     </div>
+<<<<<<< HEAD
                     {% endfor %}
                 {% endif %}
             </div>
@@ -585,11 +701,28 @@
             </div>
         </div>
     </div>
+=======
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    {% else %}
+        <div class="empty-mailbox">
+            <i class="bi bi-inbox"></i>
+            <h3>Tu buzón está vacío</h3>
+            <p>Aquí aparecerán tus alertas y notificaciones cuando se generen.</p>
+            <a href="{{ url_for('office_configure_alerts') }}" class="btn btn-primary">
+                <i class="bi bi-bell me-1"></i>Configurar tu primera alerta
+            </a>
+        </div>
+    {% endif %}
+>>>>>>> bbcc9bce9d9aa40b85b57e1be007c80b00a9e31c
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+<<<<<<< HEAD
 let currentAlertId = null;
 let currentGoalId = null;
 
@@ -619,26 +752,46 @@ function updateAllPrices() {
         fetch('/office/update_all_prices', {
             method: 'POST',
             headers: {'X-Requested-With': 'XMLHttpRequest'}
+=======
+function sendTestAlert() {
+    if (confirm('¿Enviar una alerta de prueba a tu buzón?')) {
+        fetch('/office/test_alert', {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+>>>>>>> bbcc9bce9d9aa40b85b57e1be007c80b00a9e31c
         })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
+<<<<<<< HEAD
                 alert('Precios actualizados correctamente');
                 location.reload();
             } else {
                 alert('Error al actualizar precios: ' + data.message);
+=======
+                alert('Alerta de prueba enviada correctamente');
+                location.reload();
+            } else {
+                alert('Error al enviar alerta de prueba: ' + data.message);
+>>>>>>> bbcc9bce9d9aa40b85b57e1be007c80b00a9e31c
             }
         })
         .catch(error => {
             alert('Error de conexión');
+<<<<<<< HEAD
         })
         .finally(() => {
             btn.innerHTML = originalText;
             btn.disabled = false;
+=======
+>>>>>>> bbcc9bce9d9aa40b85b57e1be007c80b00a9e31c
         });
     }
 }
 
+<<<<<<< HEAD
 function markAsRead(messageId) {
     fetch(`/office/mark_message_read/${messageId}`, {
         method: 'POST',
@@ -758,5 +911,58 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+=======
+function generateSummaryNow() {
+    const summaryType = prompt('¿Qué tipo de resumen quieres generar?\n\nOpciones disponibles:\n- patrimonio\n- crypto\n- inmuebles\n- metales\n- inversiones\n- pensiones');
+    
+    if (summaryType) {
+        fetch('/office/generate_summary', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                summary_type: summaryType.toLowerCase()
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Resumen generado correctamente');
+                location.reload();
+            } else {
+                alert('Error al generar resumen: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Error de conexión');
+        });
+    }
+}
+
+function checkWarnings() {
+    if (confirm('¿Revisar y resolver warnings automáticamente?')) {
+        fetch('/office/check_warnings', {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                location.reload();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Error de conexión');
+        });
+    }
+}
+>>>>>>> bbcc9bce9d9aa40b85b57e1be007c80b00a9e31c
 </script>
 {% endblock %}
