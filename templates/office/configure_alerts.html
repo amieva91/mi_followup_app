@@ -2,7 +2,14 @@
 
 {% block head %}
 <style>
+<<<<<<< HEAD
     /* CORREGIDO: Secciones ocultas por defecto */
+=======
+<<<<<<< HEAD
+    /* CORREGIDO: Secciones ocultas por defecto */
+=======
+>>>>>>> bbcc9bce9d9aa40b85b57e1be007c80b00a9e31c
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
     .alert-config-section {
         display: none;
         margin-top: 20px;
@@ -11,6 +18,10 @@
         border-radius: 8px;
         background-color: #f8f9fa;
     }
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
     
     /* CORREGIDO: Mostrar solo cuando están activas */
     .alert-config-section.active {
@@ -34,6 +45,14 @@
     }
     
     /* Resto del CSS existente */
+<<<<<<< HEAD
+=======
+=======
+    .alert-config-section.active {
+        display: block;
+    }
+>>>>>>> bbcc9bce9d9aa40b85b57e1be007c80b00a9e31c
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
     .existing-alerts .card {
         margin-bottom: 15px;
     }
@@ -43,12 +62,28 @@
     .form-section {
         margin-bottom: 25px;
     }
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+=======
+    .form-section h5 {
+        margin-bottom: 15px;
+        color: #495057;
+        border-bottom: 2px solid #007bff;
+        padding-bottom: 5px;
+    }
+>>>>>>> bbcc9bce9d9aa40b85b57e1be007c80b00a9e31c
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
     .metric-value-field {
         display: none;
     }
     .metric-value-field.active {
         display: block;
     }
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
     .goal-config-section {
         display: none;
     }
@@ -78,15 +113,29 @@
         color: white;
         text-decoration: none;
     }
+<<<<<<< HEAD
+=======
+=======
+>>>>>>> bbcc9bce9d9aa40b85b57e1be007c80b00a9e31c
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
 </style>
 {% endblock %}
 
 {% block content %}
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
 <!-- Icono de casa para volver al buzón -->
 <a href="{{ url_for('office_mailbox') }}" class="home-icon" title="Volver al Buzón">
     <i class="bi bi-house-fill"></i>
 </a>
 
+<<<<<<< HEAD
+=======
+=======
+>>>>>>> bbcc9bce9d9aa40b85b57e1be007c80b00a9e31c
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
 <div class="container-fluid">
     <h1 class="mt-4 mb-4">Configurar Alertas</h1>
     
@@ -220,6 +269,10 @@
                             </div>
                         </div>
                         
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
                         <!-- Reemplazar la sección #objetivo-section por esta: -->
                         <div id="objetivo-section" class="alert-config-section">
                             <div class="form-section">
@@ -261,6 +314,11 @@
                         </div>
                         
                         
+<<<<<<< HEAD
+=======
+=======
+>>>>>>> bbcc9bce9d9aa40b85b57e1be007c80b00a9e31c
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
                         {# Sección para Resúmenes #}
                         <div id="summary-section" class="alert-config-section">
                             <div class="form-section">
@@ -373,14 +431,29 @@
                                                 <i class="bi bi-graph-up text-success"></i> Métrica
                                             {% elif alert.alert_reason == 'periodic_summary' %}
                                                 <i class="bi bi-bar-chart-line text-info"></i> Resumen
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
                                             {% elif alert.alert_reason == 'objetivo' %}
                                                 <i class="bi bi-bullseye text-warning"></i> Objetivo
                                             {% elif alert.alert_reason == 'custom' %}
                                                 <i class="bi bi-gear text-secondary"></i> Personalizada
+<<<<<<< HEAD
+=======
+=======
+                                            {% elif alert.alert_reason == 'custom' %}
+                                                <i class="bi bi-gear text-warning"></i> Personalizada
+>>>>>>> bbcc9bce9d9aa40b85b57e1be007c80b00a9e31c
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
                                             {% endif %}
                                         </h6>
                                         <p class="card-text small mb-1">
                                             {% if alert.alert_reason == 'earnings_report' %}
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
                                                 <strong>{{ alert.scope|title }}</strong> - {{ alert.days_notice }} días antes
                                                 {% if alert.scope == 'individual' and alert.watchlist_item %}
                                                     <br><span class="text-muted">Acción: {{ alert.watchlist_item.item_name or alert.watchlist_item.ticker }}</span>
@@ -389,6 +462,13 @@
                                                 {% if alert.watchlist_item %}
                                                     <strong>{{ alert.watchlist_item.item_name or alert.watchlist_item.ticker }}</strong><br>
                                                 {% endif %}
+<<<<<<< HEAD
+=======
+=======
+                                                {{ alert.scope|title }} - {{ alert.days_notice }} días antes
+                                            {% elif alert.alert_reason == 'metric_threshold' %}
+>>>>>>> bbcc9bce9d9aa40b85b57e1be007c80b00a9e31c
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
                                                 {{ alert.metric_name }} {{ alert.metric_operator }} 
                                                 {% if alert.metric_target_text %}
                                                     {{ alert.metric_target_text }}
@@ -396,6 +476,10 @@
                                                     {{ alert.metric_target_value }}
                                                 {% endif %}
                                             {% elif alert.alert_reason == 'periodic_summary' %}
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
                                                 <strong>{{ alert.summary_type|title }}</strong> - {{ alert.summary_frequency or 'Fecha específica' }}
                                                 {% if alert.summary_one_time_date %}
                                                     <br><span class="text-muted">Fecha: {{ alert.summary_one_time_date.strftime('%d/%m/%Y') }}</span>
@@ -420,6 +504,14 @@
                                                 {% if alert.custom_start_date %}
                                                     <br><span class="text-muted">Inicio: {{ alert.custom_start_date.strftime('%d/%m/%Y') }}</span>
                                                 {% endif %}
+<<<<<<< HEAD
+=======
+=======
+                                                {{ alert.summary_type|title }} - {{ alert.summary_frequency or 'Fecha específica' }}
+                                            {% elif alert.alert_reason == 'custom' %}
+                                                {{ alert.custom_title }}
+>>>>>>> bbcc9bce9d9aa40b85b57e1be007c80b00a9e31c
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
                                             {% endif %}
                                         </p>
                                         <small class="text-muted">
@@ -457,6 +549,10 @@ document.addEventListener('DOMContentLoaded', function() {
         'earnings_report': document.getElementById('earnings-section'),
         'metric_threshold': document.getElementById('metrics-section'),
         'periodic_summary': document.getElementById('summary-section'),
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
         'objetivo': document.getElementById('objetivo-section'),
         'custom': document.getElementById('custom-section')
     };
@@ -480,6 +576,19 @@ document.addEventListener('DOMContentLoaded', function() {
         if (sections[reason]) {
             sections[reason].classList.add('active');
             sections[reason].style.display = 'block';
+<<<<<<< HEAD
+=======
+=======
+        'custom': document.getElementById('custom-section')
+    };
+    
+    // Función para mostrar la sección correcta
+    function showSection(reason) {
+        Object.values(sections).forEach(section => section.classList.remove('active'));
+        if (sections[reason]) {
+            sections[reason].classList.add('active');
+>>>>>>> bbcc9bce9d9aa40b85b57e1be007c80b00a9e31c
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
         }
     }
     
@@ -488,6 +597,10 @@ document.addEventListener('DOMContentLoaded', function() {
         showSection(this.value);
     });
     
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
     // NUEVO: Manejar selección de objetivos
     if (existingGoalSelect) {
         existingGoalSelect.addEventListener('change', function() {
@@ -533,6 +646,17 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Resto del JavaScript existente...
+<<<<<<< HEAD
+=======
+=======
+    // Mostrar sección inicial si hay un valor seleccionado
+    if (alertReason.value) {
+        showSection(alertReason.value);
+    }
+    
+    // Lógica para mostrar selector de acción individual en resultados
+>>>>>>> bbcc9bce9d9aa40b85b57e1be007c80b00a9e31c
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
     const earningsScope = document.getElementById('earningsScope');
     const individualSelect = document.getElementById('individual-action-select');
     
@@ -546,6 +670,13 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+=======
+    // Lógica para métricas: cambiar entre operadores y valores según la métrica seleccionada
+>>>>>>> bbcc9bce9d9aa40b85b57e1be007c80b00a9e31c
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
     const metricName = document.getElementById('metricName');
     const metricOperator = document.getElementById('metricOperator');
     const metricValueNumeric = document.getElementById('metric-value-numeric');
@@ -553,13 +684,33 @@ document.addEventListener('DOMContentLoaded', function() {
     
     function updateMetricFields() {
         if (metricName && metricName.value === 'movimiento') {
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+=======
+            // Para movimiento: solo = y !=, y campo de texto
+>>>>>>> bbcc9bce9d9aa40b85b57e1be007c80b00a9e31c
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
             metricOperator.innerHTML = `
                 <option value="=">Igual a (=)</option>
                 <option value="!=">Diferente de (!=)</option>
             `;
+<<<<<<< HEAD
             if (metricValueNumeric) metricValueNumeric.classList.remove('active');
             if (metricValueText) metricValueText.classList.add('active');
         } else {
+=======
+<<<<<<< HEAD
+            if (metricValueNumeric) metricValueNumeric.classList.remove('active');
+            if (metricValueText) metricValueText.classList.add('active');
+        } else {
+=======
+            metricValueNumeric.classList.remove('active');
+            metricValueText.classList.add('active');
+        } else {
+            // Para valores numéricos: todos los operadores
+>>>>>>> bbcc9bce9d9aa40b85b57e1be007c80b00a9e31c
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
             metricOperator.innerHTML = `
                 <option value=">">Mayor que (>)</option>
                 <option value=">=">Mayor o igual (>=)</option>
@@ -568,16 +719,40 @@ document.addEventListener('DOMContentLoaded', function() {
                 <option value="=">Igual a (=)</option>
                 <option value="!=">Diferente de (!=)</option>
             `;
+<<<<<<< HEAD
             if (metricValueText) metricValueText.classList.remove('active');
             if (metricValueNumeric) metricValueNumeric.classList.add('active');
+=======
+<<<<<<< HEAD
+            if (metricValueText) metricValueText.classList.remove('active');
+            if (metricValueNumeric) metricValueNumeric.classList.add('active');
+=======
+            metricValueText.classList.remove('active');
+            metricValueNumeric.classList.add('active');
+>>>>>>> bbcc9bce9d9aa40b85b57e1be007c80b00a9e31c
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
         }
     }
     
     if (metricName) {
         metricName.addEventListener('change', updateMetricFields);
+<<<<<<< HEAD
         updateMetricFields();
     }
     
+=======
+<<<<<<< HEAD
+        updateMetricFields();
+    }
+    
+=======
+        // Actualizar campos al cargar la página
+        updateMetricFields();
+    }
+    
+    // Actualizar texto de ayuda según la frecuencia seleccionada
+>>>>>>> bbcc9bce9d9aa40b85b57e1be007c80b00a9e31c
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
     const summaryFrequency = document.getElementById('summaryFrequency');
     const customFrequency = document.getElementById('customFrequency');
     const summaryHelpText = document.getElementById('summary-frequency-help-text');
@@ -610,7 +785,17 @@ function deleteAlert(alertId) {
     if (confirm('¿Estás seguro de que quieres eliminar esta alerta?')) {
         fetch(`/office/delete_alert/${alertId}`, {
             method: 'POST',
+<<<<<<< HEAD
             headers: {'X-Requested-With': 'XMLHttpRequest'}
+=======
+<<<<<<< HEAD
+            headers: {'X-Requested-With': 'XMLHttpRequest'}
+=======
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+>>>>>>> bbcc9bce9d9aa40b85b57e1be007c80b00a9e31c
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
         })
         .then(response => response.json())
         .then(data => {

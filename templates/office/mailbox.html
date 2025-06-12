@@ -2,6 +2,10 @@
 
 {% block head %}
 <style>
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
     /* CORREGIDO: Aprovechar todo el espacio del recuadro de alertas */
    
     .upcoming-alerts {
@@ -112,6 +116,14 @@
         transition: all 0.3s ease;
         border-left: 4px solid transparent;
         cursor: pointer;
+<<<<<<< HEAD
+=======
+=======
+    .message-card {
+        transition: all 0.3s ease;
+        border-left: 4px solid transparent;
+>>>>>>> bbcc9bce9d9aa40b85b57e1be007c80b00a9e31c
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
     }
     .message-card.unread {
         background-color: #f8f9fa;
@@ -125,6 +137,10 @@
         border-left-color: #28a745;
         background-color: #f8fff8;
     }
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
     .message-card:hover {
         background-color: #e9ecef;
         transform: translateY(-1px);
@@ -166,6 +182,11 @@
         height: 100%;
         transition: width 0.3s ease;
     }
+<<<<<<< HEAD
+=======
+=======
+>>>>>>> bbcc9bce9d9aa40b85b57e1be007c80b00a9e31c
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
     .message-actions {
         opacity: 0.7;
         transition: opacity 0.3s ease;
@@ -173,12 +194,17 @@
     .message-card:hover .message-actions {
         opacity: 1;
     }
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
     .nav-shortcuts {
         background: #f8f9fa;
         border-radius: 10px;
         padding: 1rem;
         margin-bottom: 1rem;
     }
+<<<<<<< HEAD
 
     /* NUEVO: Estilos para el pop-up de mensaje limpio */
     .message-popup-overlay {
@@ -298,11 +324,42 @@
         flex: 1;
     }
 </style>    
+=======
+    .expanded-content {
+        display: none;
+        margin-top: 0.5rem;
+        padding-top: 0.5rem;
+        border-top: 1px solid #dee2e6;
+        font-size: 0.9rem;
+    }
+</style>    
+=======
+    .message-icon {
+        font-size: 1.2em;
+        margin-right: 8px;
+    }
+    .empty-mailbox {
+        text-align: center;
+        padding: 60px 20px;
+        color: #6c757d;
+    }
+    .empty-mailbox i {
+        font-size: 4rem;
+        margin-bottom: 20px;
+        color: #dee2e6;
+    }
+</style>
+>>>>>>> bbcc9bce9d9aa40b85b57e1be007c80b00a9e31c
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mt-4 mb-4">
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
         <h1><i class="bi bi-inbox-fill me-2"></i>Buzón Virtual - Control Central</h1>
         
         <!-- Atajos de navegación -->
@@ -330,7 +387,11 @@
                         {% if messages %}
                             {% for message in messages[:5] %} <!-- Solo mostrar los 5 más recientes -->
                             <div class="message-card {% if not message.is_read %}unread{% endif %} {% if message.message_type == 'config_warning' %}warning{% endif %}" 
+<<<<<<< HEAD
                                  onclick="showMessagePopup({{ message.id }})" data-message-id="{{ message.id }}">
+=======
+                                 onclick="toggleMessage({{ message.id }})" data-message-id="{{ message.id }}">
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
                                 <div class="p-3">
                                     <div class="d-flex align-items-start">
                                         <span class="me-2">
@@ -357,6 +418,23 @@
                                             </div>
                                             <p class="mb-1 small text-muted">{{ (message.content[:50] + '...') if message.content and message.content|length > 50 else (message.content or '') }}</p>
                                             <small class="text-muted">{{ message.created_at.strftime('%d/%m %H:%M') }}</small>
+<<<<<<< HEAD
+=======
+                                            
+                                            <!-- Contenido expandido -->
+                                            <div class="expanded-content" id="expanded-{{ message.id }}">
+                                                {% if message.content %}
+                                                <p class="mb-2"><strong>Contenido completo:</strong></p>
+                                                <p>{{ message.content }}</p>
+                                                {% endif %}
+                                                {% if message.trigger_event_date %}
+                                                <p class="mb-1"><strong>Fecha del evento:</strong> {{ message.trigger_event_date.strftime('%d/%m/%Y') }}</p>
+                                                {% endif %}
+                                                {% if message.watchlist_item %}
+                                                <p class="mb-1"><strong>Relacionado con:</strong> {{ message.watchlist_item.item_name or message.watchlist_item.ticker }}</p>
+                                                {% endif %}
+                                            </div>
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
                                         </div>
                                     </div>
                                 </div>
@@ -420,6 +498,7 @@
                                 <i class="bi bi-arrow-clockwise me-2"></i>Actualizar Precios
                             </button>
                             
+<<<<<<< HEAD
                             <!-- Sección de Exportación MEJORADA -->
                             <div class="export-section mt-3">
                                 <h6><i class="bi bi-download me-2"></i>Generar Informes</h6>
@@ -427,6 +506,15 @@
                                     {{ export_form.hidden_tag() }}
                                     {{ export_form.report_type(class="form-select form-select-sm mb-2") }}
                                     <div class="export-button-group mb-2">
+=======
+                            <!-- Sección de Exportación -->
+                            <div class="export-section mt-3">
+                                <h6><i class="bi bi-download me-2"></i>Generar Informes</h6>
+                                <form method="POST" action="{{ url_for('export_custom_report') }}" class="d-inline">
+                                    {{ export_form.hidden_tag() }}
+                                    {{ export_form.report_type(class="form-select form-select-sm mb-2") }}
+                                    <div class="btn-group w-100">
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
                                         <button type="submit" name="format" value="csv" class="btn btn-sm btn-outline-secondary">
                                             <i class="bi bi-filetype-csv"></i> CSV
                                         </button>
@@ -434,9 +522,12 @@
                                             <i class="bi bi-filetype-xlsx"></i> Excel
                                         </button>
                                     </div>
+<<<<<<< HEAD
                                     <button type="button" class="email-export-btn" onclick="sendReportByEmail()">
                                         <i class="bi bi-envelope-heart me-2"></i>Enviar por Correo
                                     </button>
+=======
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
                                 </form>
                             </div>
                         </div>
@@ -584,6 +675,7 @@
     </div>
 </div>
 
+<<<<<<< HEAD
 <!-- NUEVO: Pop-up limpio para mostrar mensajes completos -->
 <div class="message-popup-overlay" id="messagePopup" onclick="closeMessagePopup()">
     <div class="message-popup-content" onclick="event.stopPropagation()">
@@ -607,6 +699,8 @@
     </div>
 </div>
 
+=======
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
 <!-- Modal para mostrar todos los mensajes -->
 <div class="modal fade" id="allMessagesModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
@@ -660,11 +754,105 @@
                                     <button class="btn btn-outline-danger btn-sm" onclick="deleteMessage({{ message.id }})">
                                         <i class="bi bi-trash"></i>
                                     </button>
+<<<<<<< HEAD
+=======
+=======
+        <h1><i class="bi bi-inbox-fill me-2"></i>Buzón Virtual</h1>
+        <div>
+            <button class="btn btn-outline-warning btn-sm" onclick="checkWarnings()">
+                <i class="bi bi-exclamation-triangle me-1"></i>Revisar Warnings
+            <button class="btn btn-primary btn-sm" onclick="generateSummaryNow()">
+                <i class="bi bi-file-earmark-text me-1"></i>Generar Resumen Ahora
+            </button>
+            <button class="btn btn-outline-secondary btn-sm" onclick="sendTestAlert()">
+                <i class="bi bi-bell me-1"></i>Enviar Alerta de Prueba
+            </button>
+        </div>
+    </div>
+    
+    {% if messages %}
+        <div class="row">
+            <div class="col-12">
+                {% for message in messages %}
+                <div class="card message-card mb-3 
+                    {% if not message.is_read %}unread{% endif %}
+                    {% if message.message_type == 'config_warning' %}warning{% endif %}
+                    {% if message.message_type == 'config_resolved' %}resolved{% endif %}">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <div class="d-flex align-items-center mb-2">
+                                    <span class="message-icon">
+                                        {% if message.message_type == 'event_alert' %}
+                                            <i class="bi bi-calendar-event text-primary"></i>
+                                        {% elif message.message_type == 'config_warning' %}
+                                            <i class="bi bi-exclamation-triangle-fill text-danger"></i>
+                                        {% elif message.message_type == 'config_resolved' %}
+                                            <i class="bi bi-check-circle-fill text-success"></i>
+                                        {% elif message.message_type == 'periodic_summary' %}
+                                            <i class="bi bi-bar-chart-line-fill text-info"></i>
+                                        {% elif message.message_type == 'custom_alert' %}
+                                            <i class="bi bi-gear-fill text-warning"></i>
+                                        {% else %}
+                                            <i class="bi bi-envelope-fill text-secondary"></i>
+                                        {% endif %}
+                                    </span>
+                                    <h5 class="card-title mb-0">{{ message.title }}</h5>
+                                    {% if not message.is_read %}
+                                        <span class="badge bg-primary ms-2">Nuevo</span>
+                                    {% endif %}
+                                </div>
+                                
+                                {% if message.content %}
+                                <p class="card-text">{{ message.content }}</p>
+                                {% endif %}
+                                
+                                <div class="d-flex align-items-center text-muted small">
+                                    <i class="bi bi-clock me-1"></i>
+                                    <span>{{ message.created_at.strftime('%d/%m/%Y %H:%M') }}</span>
+                                    {% if message.watchlist_item %}
+                                        <span class="ms-3">
+                                            <i class="bi bi-tag me-1"></i>
+                                            {{ message.watchlist_item.item_name or message.watchlist_item.ticker }}
+                                        </span>
+                                    {% endif %}
+                                    {% if message.trigger_event_date %}
+                                        <span class="ms-3">
+                                            <i class="bi bi-calendar me-1"></i>
+                                            {{ message.trigger_event_date.strftime('%d/%m/%Y') }}
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="message-actions ms-3">
+                                <div class="btn-group-vertical btn-group-sm">
+                                    {% if not message.is_read and message.message_type != 'config_warning' %}
+                                    <form method="POST" action="{{ url_for('mark_message_read', message_id=message.id) }}" class="d-inline">
+                                        <button type="submit" class="btn btn-outline-primary btn-sm" title="Marcar como leído">
+                                            <i class="bi bi-check"></i>
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                    
+                                    {% if message.message_type != 'config_warning' %}
+                                    <form method="POST" action="{{ url_for('delete_message', message_id=message.id) }}" class="d-inline">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm" 
+                                                onclick="return confirm('¿Eliminar este mensaje?')" title="Eliminar">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+>>>>>>> bbcc9bce9d9aa40b85b57e1be007c80b00a9e31c
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
                                     {% endif %}
                                 </div>
                             </div>
                         </div>
                     </div>
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
                     {% endfor %}
                 {% endif %}
             </div>
@@ -708,11 +896,31 @@
             </div>
         </div>
     </div>
+<<<<<<< HEAD
+=======
+=======
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    {% else %}
+        <div class="empty-mailbox">
+            <i class="bi bi-inbox"></i>
+            <h3>Tu buzón está vacío</h3>
+            <p>Aquí aparecerán tus alertas y notificaciones cuando se generen.</p>
+            <a href="{{ url_for('office_configure_alerts') }}" class="btn btn-primary">
+                <i class="bi bi-bell me-1"></i>Configurar tu primera alerta
+            </a>
+        </div>
+    {% endif %}
+>>>>>>> bbcc9bce9d9aa40b85b57e1be007c80b00a9e31c
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+<<<<<<< HEAD
 let currentAlertId = null;
 let currentGoalId = null;
 
@@ -831,12 +1039,30 @@ function sendReportByEmail() {
 }
 
 // Función existente para mostrar todos los mensajes
+=======
+<<<<<<< HEAD
+let currentAlertId = null;
+let currentGoalId = null;
+
+function toggleMessage(messageId) {
+    const expanded = document.getElementById(`expanded-${messageId}`);
+    if (expanded) {
+        if (expanded.style.display === 'none' || expanded.style.display === '') {
+            expanded.style.display = 'block';
+        } else {
+            expanded.style.display = 'none';
+        }
+    }
+}
+
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
 function showAllMessages() {
     const modal = new bootstrap.Modal(document.getElementById('allMessagesModal'));
     modal.show();
 }
 
 function updateAllPrices() {
+<<<<<<< HEAD
     const btn = event.target;
     const originalText = btn.innerHTML;
     btn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Actualizando...';
@@ -864,6 +1090,58 @@ function updateAllPrices() {
 }
 
 function markAsRead(messageId, fromPopup = false) {
+=======
+    if (confirm('¿Actualizar todos los precios? Esto puede tardar unos minutos.')) {
+        const btn = event.target;
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Actualizando...';
+        btn.disabled = true;
+        
+        fetch('/office/update_all_prices', {
+            method: 'POST',
+            headers: {'X-Requested-With': 'XMLHttpRequest'}
+=======
+function sendTestAlert() {
+    if (confirm('¿Enviar una alerta de prueba a tu buzón?')) {
+        fetch('/office/test_alert', {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+>>>>>>> bbcc9bce9d9aa40b85b57e1be007c80b00a9e31c
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+<<<<<<< HEAD
+                alert('Precios actualizados correctamente');
+                location.reload();
+            } else {
+                alert('Error al actualizar precios: ' + data.message);
+=======
+                alert('Alerta de prueba enviada correctamente');
+                location.reload();
+            } else {
+                alert('Error al enviar alerta de prueba: ' + data.message);
+>>>>>>> bbcc9bce9d9aa40b85b57e1be007c80b00a9e31c
+            }
+        })
+        .catch(error => {
+            alert('Error de conexión');
+<<<<<<< HEAD
+        })
+        .finally(() => {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+=======
+>>>>>>> bbcc9bce9d9aa40b85b57e1be007c80b00a9e31c
+        });
+    }
+}
+
+<<<<<<< HEAD
+function markAsRead(messageId) {
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
     fetch(`/office/mark_message_read/${messageId}`, {
         method: 'POST',
         headers: {'X-Requested-With': 'XMLHttpRequest'}
@@ -871,6 +1149,7 @@ function markAsRead(messageId, fromPopup = false) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
+<<<<<<< HEAD
             // Actualizar estado en messagesData
             if (messagesData[messageId]) {
                 messagesData[messageId].is_read = true;
@@ -897,6 +1176,9 @@ function markAsRead(messageId, fromPopup = false) {
                     popupMeta.textContent = `Fecha: ${messagesData[messageId].created_at}`;
                 }
             }
+=======
+            location.reload();
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
         }
     });
 }
@@ -1006,6 +1288,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+<<<<<<< HEAD
 
     // NUEVO: Cerrar pop-up con tecla Escape
     document.addEventListener('keydown', function(e) {
@@ -1014,5 +1297,61 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 });
+=======
+});
+=======
+function generateSummaryNow() {
+    const summaryType = prompt('¿Qué tipo de resumen quieres generar?\n\nOpciones disponibles:\n- patrimonio\n- crypto\n- inmuebles\n- metales\n- inversiones\n- pensiones');
+    
+    if (summaryType) {
+        fetch('/office/generate_summary', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                summary_type: summaryType.toLowerCase()
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Resumen generado correctamente');
+                location.reload();
+            } else {
+                alert('Error al generar resumen: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Error de conexión');
+        });
+    }
+}
+
+function checkWarnings() {
+    if (confirm('¿Revisar y resolver warnings automáticamente?')) {
+        fetch('/office/check_warnings', {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                location.reload();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Error de conexión');
+        });
+    }
+}
+>>>>>>> bbcc9bce9d9aa40b85b57e1be007c80b00a9e31c
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
 </script>
 {% endblock %}

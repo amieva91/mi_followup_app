@@ -1,6 +1,14 @@
 email-validator
+<<<<<<< HEAD
 xlsxwriter
 openpyxl
+=======
+<<<<<<< HEAD
+xlsxwriter
+openpyxl
+=======
+>>>>>>> bbcc9bce9d9aa40b85b57e1be007c80b00a9e31c
+>>>>>>> 1732c77e3112559af8f5460a148def13690fe91d
 Flask-APScheduler
 Flask-Mail
 Flask
