@@ -1,4 +1,7 @@
 email-validator
+xlsxwriter
+openpyxl
+Flask-APScheduler
 Flask-Mail
 Flask
 Flask-SQLAlchemy

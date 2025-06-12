@@ -19,7 +19,7 @@ import glob
 import requests # Para tipos de cambio
 import yfinance as yf # Para precios acciones
 from flask import (
-    Flask, request, render_template, send_file, flash, redirect, url_for, session, get_flashed_messages, jsonify
+    Flask, request, render_template, send_file, flash, redirect, url_for, session, get_flashed_messages, jsonify, Response
 )
 from flask_wtf.file import FileField, FileRequired, FileAllowed
 from itsdangerous import URLSafeTimedSerializer
@@ -33,6 +33,10 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user, login_required
 import numpy as np
+from flask_apscheduler import APScheduler
+from apscheduler.schedulers.background import BackgroundScheduler
+import atexit
+
 
 # --- Configuración Global ---
 UPLOAD_FOLDER = 'uploads'           # Carpeta para archivos subidos (temporalmente por Flask)
@@ -135,7 +139,7 @@ app.config['MAIL_USE_SSL'] = False # Si usas TLS en puerto 587, SSL es False
 app.config['MAIL_USERNAME'] = 'followup.fit@gmail.com' # el que te da tu proveedor de envío
 app.config['MAIL_PASSWORD'] = 'gbbzbvuvidosrgwy' # la que te da tu proveedor de envío
 app.config['MAIL_DEFAULT_SENDER'] = 'followup.fit@gmail.com' # O un email 'no-reply@tuapp.com'
-
+app.config['SERVER_NAME'] = '127.0.0.1:5000'
 # --- Depuración de la Configuración de Mail ---
 print(f"DEBUG: MAIL_SERVER = {app.config.get('MAIL_SERVER')}")
 print(f"DEBUG: MAIL_PORT = {app.config.get('MAIL_PORT')}")
@@ -186,6 +190,204 @@ login_manager.login_message_category = 'info'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
+
+
+# ===== TAREAS PREDEFINIDAS PARA INICIALIZAR =====
+DEFAULT_SCHEDULER_TASKS = [
+    {
+        'task_key': 'all_tasks',
+        'task_name': 'Procesamiento Completo (Todo en Uno)',
+        'task_function': 'process_daily_alerts_global',
+        'description': 'Ejecuta actualización de precios, generación de alertas y envío de correos secuencialmente',
+        'frequency_type': 'days',
+        'frequency_value': 1,
+        'start_hour': 0,
+        'start_minute': 0,
+        'is_active': True
+    },
+    {
+        'task_key': 'update_prices',
+        'task_name': 'Actualización Global de Precios',
+        'task_function': 'update_all_prices_global',
+        'description': 'Actualiza precios de acciones, criptomonedas y metales preciosos para todos los usuarios',
+        'frequency_type': 'days',
+        'frequency_value': 1,
+        'start_hour': 0,
+        'start_minute': 5,
+        'is_active': False  # Inactiva por defecto si está activa la tarea completa
+    },
+    {
+        'task_key': 'check_alerts', 
+        'task_name': 'Comprobación de Alertas',
+        'task_function': 'generate_alert_messages_global',
+        'description': 'Verifica y genera mensajes de alertas según configuraciones activas',
+        'frequency_type': 'minutes',
+        'frequency_value': 5,
+        'start_hour': 0,
+        'start_minute': 0,
+        'is_active': False
+    },
+    {
+        'task_key': 'send_emails',
+        'task_name': 'Envío de Correos',
+        'task_function': 'send_email_notifications_global', 
+        'description': 'Envía correos electrónicos para alertas pendientes',
+        'frequency_type': 'minutes',
+        'frequency_value': 1,
+        'start_hour': 0,
+        'start_minute': 0,
+        'is_active': False
+    }
+]
+
+
+
+class SchedulerTask(db.Model):
+    """Configuración de tareas programadas del sistema."""
+    __tablename__ = 'scheduler_tasks'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    task_key = db.Column(db.String(50), unique=True, nullable=False)  # 'update_prices', 'check_alerts', etc.
+    task_name = db.Column(db.String(100), nullable=False)  # Nombre para mostrar
+    task_function = db.Column(db.String(100), nullable=False)  # Nombre de la función
+    description = db.Column(db.Text)  # Descripción
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    
+    # Configuración de frecuencia
+    frequency_type = db.Column(db.String(20), nullable=False)  # 'minutes', 'hours', 'days', 'weeks'
+    frequency_value = db.Column(db.Integer, nullable=False)    # Cada X unidades
+    start_hour = db.Column(db.Integer, default=0, nullable=False)     # Hora de inicio (0-23)
+    start_minute = db.Column(db.Integer, default=0, nullable=False)   # Minuto de inicio (0-59)
+    
+    # Metadatos
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_executed = db.Column(db.DateTime)  # Última ejecución registrada
+    execution_count = db.Column(db.Integer, default=0)  # Contador de ejecuciones
+    
+    def __repr__(self):
+        return f'<SchedulerTask {self.task_key}: {self.task_name}>'
+    
+    @property
+    def next_run_time(self):
+        """Calcula la próxima ejecución basada en la configuración."""
+        if not self.is_active:
+            return None
+            
+        # Buscar el job activo en el scheduler
+        try:
+            job = scheduler.get_job(f'task_{self.task_key}')
+            return job.next_run_time if job else None
+        except:
+            return None
+    
+    @property
+    def frequency_display(self):
+        """Texto legible de la frecuencia."""
+        if self.frequency_value == 1:
+            unit_map = {
+                'minutes': 'minuto',
+                'hours': 'hora', 
+                'days': 'día',
+                'weeks': 'semana'
+            }
+            return f"Cada {unit_map.get(self.frequency_type, self.frequency_type)}"
+        else:
+            unit_map = {
+                'minutes': 'minutos',
+                'hours': 'horas',
+                'days': 'días', 
+                'weeks': 'semanas'
+            }
+            return f"Cada {self.frequency_value} {unit_map.get(self.frequency_type, self.frequency_type)}"
+
+# Configurar APScheduler
+class SchedulerConfig:
+    SCHEDULER_API_ENABLED = True
+    SCHEDULER_TIMEZONE = 'Europe/Madrid'
+
+app.config.from_object(SchedulerConfig())
+
+# Inicializar el scheduler
+scheduler = APScheduler()
+scheduler.init_app(app)
+scheduler.start()
+
+print(f"DEBUG: APScheduler inicializado - Jobs: {scheduler.get_jobs()}")
+
+class User(db.Model, UserMixin): # MOSTRAR COMPLETA SI SE MODIFICA
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(128), nullable=True)
+    birth_year = db.Column(db.Integer, nullable=True) # NUEVO CAMPO AÑADIDO
+
+    is_admin = db.Column(db.Boolean, default=False, nullable=False)
+    must_change_password = db.Column(db.Boolean, default=False, nullable=False)
+    last_login_at = db.Column(db.DateTime, nullable=True)
+    current_login_at = db.Column(db.DateTime, nullable=True)
+    login_count = db.Column(db.Integer, default=0, nullable=False)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Configuración de Alertas y Correo
+    alert_configurations = db.relationship('AlertConfiguration', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    mailbox_messages = db.relationship('MailboxMessage', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+
+    # ... (resto de relaciones existentes en el modelo User) ...
+    watchlist_items = db.relationship('WatchlistItem', backref='owner', lazy='dynamic', cascade="all, delete-orphan")
+    fin_summary_config = db.relationship('FinancialSummaryConfig', backref='user', uselist=False, cascade="all, delete-orphan")
+    pension_plans = db.relationship('PensionPlan', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    pension_history = db.relationship('PensionPlanHistory', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    crypto_exchanges = db.relationship('CryptoExchange', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    crypto_transactions = db.relationship('CryptoTransaction', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    crypto_holdings = db.relationship('CryptoHolding', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    crypto_history = db.relationship('CryptoHistoryRecord', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    metal_transactions = db.relationship('PreciousMetalTransaction', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    debt_ceiling = db.relationship('DebtCeiling', backref='user', uselist=False, cascade="all, delete-orphan")
+    debt_plans = db.relationship('DebtInstallmentPlan', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    debt_history = db.relationship('DebtHistoryRecord', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    expense_categories = db.relationship('ExpenseCategory', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    expenses = db.relationship('Expense', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    portfolio = db.relationship('UserPortfolio', backref='user', uselist=False, cascade="all, delete-orphan")
+    fixed_income = db.relationship('FixedIncome', backref='user', uselist=False, cascade="all, delete-orphan")
+    broker_operations = db.relationship('BrokerOperation', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    salary_history = db.relationship('SalaryHistory', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    bank_accounts = db.relationship('BankAccount', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    cash_history = db.relationship('CashHistoryRecord', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    variable_income_categories = db.relationship('VariableIncomeCategory', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    variable_incomes = db.relationship('VariableIncome', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        if self.password_hash is None:
+            return False
+        return check_password_hash(self.password_hash, password)
+
+    def get_reset_token(self, expires_sec=1800):
+        admin_placeholder_email = app.config.get('ADMIN_PLACEHOLDER_EMAIL', 'admin@internal.local')
+        if self.username == 'admin' and self.email == admin_placeholder_email:
+            app.logger.info(f"Se intentó generar token de reseteo para admin principal ({self.username}) con email placeholder.")
+            return None
+        if not self.email:
+            return None
+        s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
+        return s.dumps({'user_id': self.id})
+
+    @staticmethod
+    def verify_reset_token(token, expires_sec=1800):
+        s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
+        try:
+            data = s.loads(token, max_age=expires_sec)
+            user_id = data.get('user_id')
+        except Exception:
+            return None
+        return db.session.get(User, user_id)
+
+    def __repr__(self):
+        return f'<User {self.username} Admin:{self.is_admin} Email:{self.email}>'
 
 class HistoricalCryptoPrice(db.Model):
     __tablename__ = 'historical_crypto_price'
@@ -788,10 +990,116 @@ class PensionPlanForm(FlaskForm):
                               render_kw={"placeholder": "Ej: 15000.75"})
     submit = SubmitField('Guardar Plan')
 
+
+class Goal(db.Model):
+    __tablename__ = 'goals'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=False)
+    goal_name = db.Column(db.String(200), nullable=False)
+    goal_type = db.Column(db.String(50), nullable=False)
+    description = db.Column(db.Text)
+    
+    # Campos para diferentes tipos de objetivos
+    goal_asset_type = db.Column(db.String(50))
+    target_amount = db.Column(db.Float)
+    target_timeframe_months = db.Column(db.Integer)
+    monthly_savings_target = db.Column(db.Float)
+    debt_ceiling_percentage = db.Column(db.Float)  # IMPORTANTE: Este campo debe existir
+    asset_distribution = db.Column(db.Text)  # JSON para distribución de activos
+    
+    # Campos para predicción automática
+    prediction_type = db.Column(db.String(50))
+    
+    # Metadatos
+    start_date = db.Column(db.Date, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    is_active = db.Column(db.Boolean, default=True)
+    
+     
+
+# 2. MODELO GoalProgress para historial (agregar en app.py)
+class GoalProgress(db.Model):
+    """Historial de progreso de objetivos."""
+    
+    id = db.Column(db.Integer, primary_key=True)
+    goal_id = db.Column(db.Integer, nullable=False)
+    
+    # Datos del progreso
+    calculation_date = db.Column(db.Date, nullable=False, index=True)
+    current_value = db.Column(db.Float, nullable=False)
+    target_value = db.Column(db.Float, nullable=False)
+    progress_percentage = db.Column(db.Float, nullable=False)
+    
+    # Predicciones (para objetivos automáticos)
+    estimated_completion_date = db.Column(db.Date, nullable=True)
+    estimated_final_amount = db.Column(db.Float, nullable=True)
+    monthly_growth_rate = db.Column(db.Float, nullable=True)
+    
+    # Metadatos
+    is_on_track = db.Column(db.Boolean, nullable=False, default=True)
+    notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def __repr__(self):
+        return f'<GoalProgress {self.goal_id}: {self.progress_percentage}% on {self.calculation_date}>'
+
+
 class PensionHistoryForm(FlaskForm):
     month_year = StringField('Mes y Año', validators=[DataRequired()],
                           render_kw={"type": "month", "placeholder": "YYYY-MM"})
     submit = SubmitField('Guardar Estado Actual')
+
+class EmailQueue(db.Model):
+    """Cola de correos electrónicos pendientes de envío."""
+    __tablename__ = 'email_queue'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    
+    # Referencia al mensaje original
+    mailbox_message_id = db.Column(db.Integer, db.ForeignKey('mailbox_message.id', ondelete='CASCADE'), nullable=False)
+    alert_config_id = db.Column(db.Integer, db.ForeignKey('alert_configuration.id', ondelete='SET NULL'), nullable=True)
+    
+    # Datos del email
+    recipient_email = db.Column(db.String(120), nullable=False)
+    subject = db.Column(db.String(200), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    
+    # Estado de la cola
+    status = db.Column(db.String(20), default='pending', nullable=False)  # 'pending', 'sent', 'failed', 'cancelled'
+    priority = db.Column(db.Integer, default=5, nullable=False)  # 1=alta, 5=normal, 10=baja
+    
+    # Control de envío
+    attempts = db.Column(db.Integer, default=0, nullable=False)
+    max_attempts = db.Column(db.Integer, default=3, nullable=False)
+    
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    scheduled_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)  # Cuándo enviar
+    sent_at = db.Column(db.DateTime, nullable=True)
+    last_attempt_at = db.Column(db.DateTime, nullable=True)
+    
+    # Logs de error
+    error_message = db.Column(db.Text, nullable=True)
+    
+    # Relaciones
+    mailbox_message = db.relationship('MailboxMessage', backref='email_queue_entries')
+    alert_config = db.relationship('AlertConfiguration', backref='email_queue_entries')
+    
+    def __repr__(self):
+        return f'<EmailQueue {self.id} to {self.recipient_email} status:{self.status}>'
+    
+    @property
+    def can_retry(self):
+        """Determina si se puede reintentar el envío."""
+        return self.status == 'failed' and self.attempts < self.max_attempts
+    
+    @property
+    def is_ready_to_send(self):
+        """Determina si está listo para enviar."""
+        return (self.status == 'pending' and 
+                self.scheduled_at <= datetime.utcnow() and 
+                self.attempts < self.max_attempts)
 
 class CsvUploadForm(FlaskForm):
     exchange = SelectField(
@@ -808,6 +1116,19 @@ class CsvUploadForm(FlaskForm):
         ]
     )
     submit = SubmitField('Cargar CSV')
+
+class SystemLog(db.Model):
+    """Registro de actividades del sistema."""
+    __tablename__ = 'system_logs'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    log_type = db.Column(db.String(50), nullable=False)  # 'daily_alerts', 'price_update', etc.
+    executed_at = db.Column(db.DateTime, default=datetime.utcnow)
+    status = db.Column(db.String(20), default='success')  # 'success', 'error', 'partial'
+    details = db.Column(db.Text)
+    
+    def __repr__(self):
+        return f'<SystemLog {self.log_type} at {self.executed_at}>'
 
 class CryptoExchangeForm(FlaskForm):
     exchange_name = StringField('Nombre del Exchange', validators=[DataRequired()],
@@ -922,7 +1243,192 @@ class PreciousMetalTransactionForm(FlaskForm):
 
 # --- Models for Debt Management ---
 
+class GoalHistory(db.Model):
+    """Historial de progreso de objetivos."""
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=False)
+    alert_configuration_id = db.Column(db.Integer, nullable=False)
+    
+    # Datos del progreso
+    calculation_date = db.Column(db.Date, nullable=False, index=True)
+    current_value = db.Column(db.Float, nullable=False)  # Valor actual del activo/patrimonio
+    target_value = db.Column(db.Float, nullable=False)  # Valor objetivo
+    progress_percentage = db.Column(db.Float, nullable=False)  # Progreso en %
+    
+    # Para objetivos de ahorro mensual
+    monthly_target = db.Column(db.Float, nullable=True)  # Objetivo mensual
+    monthly_actual = db.Column(db.Float, nullable=True)  # Valor real del mes
+    cumulative_target = db.Column(db.Float, nullable=True)  # Objetivo acumulado
+    cumulative_actual = db.Column(db.Float, nullable=True)  # Valor acumulado real
+    
+    # Metadatos
+    is_on_track = db.Column(db.Boolean, nullable=False, default=True)  # Si va por buen camino
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relaciones
+    #alert_config = db.relationship('AlertConfiguration', backref='goal_history_records')
+    
+    def __repr__(self):
+        return f'<GoalHistory {self.id} User:{self.user_id} Progress:{self.progress_percentage}%>'
 
+# 3. FORMULARIO GoalConfigurationForm MEJORADO (reemplazar en app.py)
+class GoalConfigurationForm(FlaskForm):
+    """Formulario simplificado para configurar objetivos financieros."""
+    
+    # Tipo de objetivo
+    goal_type = SelectField('Tipo de Objetivo',
+                           choices=[
+                               ('portfolio_percentage', 'Distribución de Activos'),
+                               ('target_amount', 'Cantidad Objetivo Fija'),
+                               ('auto_prediction', 'Predicción Automática'),
+                               ('savings_monthly', 'Ahorro Mensual'),
+                               ('debt_threshold', 'Techo de Deuda')
+                           ],
+                           validators=[DataRequired()])
+    
+    # Campos para distribución de activos
+    percentage_bolsa = FloatField('% Bolsa', validators=[Optional(), NumberRange(min=0, max=100)], default=0)
+    percentage_cash = FloatField('% Cash', validators=[Optional(), NumberRange(min=0, max=100)], default=0)
+    percentage_crypto = FloatField('% Criptomonedas', validators=[Optional(), NumberRange(min=0, max=100)], default=0)
+    percentage_real_estate = FloatField('% Inmuebles', validators=[Optional(), NumberRange(min=0, max=100)], default=0)
+    percentage_metales = FloatField('% Metales', validators=[Optional(), NumberRange(min=0, max=100)], default=0)
+    
+    # Campos para objetivos de cantidad/predicción
+    goal_asset_type = SelectField('Tipo de Activo',
+                                 choices=[
+                                     ('bolsa', 'Bolsa (Trading + Dividendos)'),
+                                     ('cash', 'Cash (Cuentas Bancarias)'),
+                                     ('crypto', 'Criptomonedas'),
+                                     ('real_estate', 'Inmuebles'),
+                                     ('metales', 'Metales Preciosos'),
+                                     ('total_patrimonio', 'Patrimonio Total')
+                                 ],
+                                 validators=[Optional()])
+    
+    # Solo dos tipos de predicción
+    prediction_type = SelectField('Tipo de Predicción',
+                                 choices=[
+                                     ('amount_to_time', 'Dime la cantidad → Te digo el tiempo'),
+                                     ('time_to_amount', 'Dime el tiempo → Te digo la cantidad')
+                                 ],
+                                 validators=[Optional()])
+    
+    target_amount = FloatField('Cantidad Objetivo (€)', validators=[Optional(), NumberRange(min=0.01)])
+    target_timeframe_months = IntegerField('Plazo (meses)', validators=[Optional(), NumberRange(min=1, max=600)])
+    
+    # Campos para ahorro mensual
+    monthly_savings_target = FloatField('Objetivo de Ahorro Mensual (€)', validators=[Optional(), NumberRange(min=0.01)])
+    
+    # Campos para techo de deuda
+    debt_ceiling_percentage = FloatField('Techo de Deuda (%)', validators=[Optional(), NumberRange(min=0, max=100)])
+    
+    # Configuración
+    start_date = DateField('Fecha de Inicio', validators=[Optional()])
+    
+    # Configuración de alerta (opcional) - SIN alert_day_of_month
+    create_alert = BooleanField('Crear alerta automática para este objetivo', default=False)
+    notify_by_email = BooleanField('Recibir alertas por email', default=False)
+    
+    submit = SubmitField('Crear Objetivo')
+    
+    def validate(self, **kwargs):
+        """Validación personalizada ESPECÍFICA para GoalConfigurationForm."""
+        if not super().validate():
+            return False
+        
+        print(f"DEBUG: Validando goal_type: {self.goal_type.data}")
+        
+        if self.goal_type.data == 'portfolio_percentage':
+            # Validar distribución de activos
+            percentages = [
+                self.percentage_bolsa.data or 0,
+                self.percentage_cash.data or 0,
+                self.percentage_crypto.data or 0,
+                self.percentage_real_estate.data or 0,
+                self.percentage_metales.data or 0
+            ]
+            
+            total_percentage = sum(percentages)
+            if total_percentage == 0:
+                self.percentage_bolsa.errors.append('Debe definir al menos un porcentaje.')
+                return False
+            
+            if total_percentage > 100:
+                self.percentage_bolsa.errors.append(f'La suma ({total_percentage}%) no puede exceder 100%.')
+                return False
+        
+        elif self.goal_type.data in ['target_amount', 'auto_prediction']:
+            if not self.goal_asset_type.data:
+                self.goal_asset_type.errors.append('Debe seleccionar el tipo de activo.')
+                return False
+            
+            if self.goal_type.data == 'auto_prediction':
+                if not self.prediction_type.data:
+                    self.prediction_type.errors.append('Debe seleccionar el tipo de predicción.')
+                    return False
+                
+                if self.prediction_type.data == 'amount_to_time':
+                    if not self.target_amount.data:
+                        self.target_amount.errors.append('Debe especificar la cantidad objetivo.')
+                        return False
+                elif self.prediction_type.data == 'time_to_amount':
+                    if not self.target_timeframe_months.data:
+                        self.target_timeframe_months.errors.append('Debe especificar el tiempo.')
+                        return False
+            else:
+                # target_amount normal
+                if not self.target_amount.data or not self.target_timeframe_months.data:
+                    self.target_amount.errors.append('Debe especificar cantidad y tiempo.')
+                    return False
+        
+        elif self.goal_type.data == 'savings_monthly':
+            if not self.monthly_savings_target.data:
+                self.monthly_savings_target.errors.append('Debe especificar el objetivo mensual.')
+                return False
+        
+        elif self.goal_type.data == 'debt_threshold':
+            print(f"DEBUG: Validando debt_threshold - valor: {self.debt_ceiling_percentage.data}")
+            if not self.debt_ceiling_percentage.data:
+                self.debt_ceiling_percentage.errors.append('Debe especificar el porcentaje.')
+                return False
+            
+            # NUEVA: Validación adicional para debt_threshold
+            if self.debt_ceiling_percentage.data <= 0 or self.debt_ceiling_percentage.data > 100:
+                self.debt_ceiling_percentage.errors.append('El porcentaje debe estar entre 0.1 y 100.')
+                return False
+        
+        # Validar alerta si se solicita
+        if self.create_alert.data:
+            pass
+        
+        print(f"DEBUG: Validación exitosa para {self.goal_type.data}")
+        return True
+
+class ReportExportForm(FlaskForm):
+    """Formulario para exportar informes desde el buzón."""
+    
+    report_type = SelectField('Tipo de Informe',
+                             choices=[
+                                 ('complete', 'Informe Completo de Patrimonio'),
+                                 ('bolsa', 'Solo Inversiones (Bolsa)'),
+                                 ('cash', 'Solo Efectivo (Cuentas Bancarias)'),
+                                 ('crypto', 'Solo Criptomonedas'),
+                                 ('real_estate', 'Solo Inmuebles'),
+                                 ('metales', 'Solo Metales Preciosos'),
+                                 ('debts', 'Solo Deudas'),
+                                 ('income_expenses', 'Solo Ingresos y Gastos')
+                             ],
+                             validators=[DataRequired()])
+    
+    export_format = SelectField('Formato',
+                               choices=[
+                                   ('csv', 'CSV'),
+                                   ('xlsx', 'Excel (XLSX)')
+                               ],
+                               validators=[DataRequired()])
+    
+    submit = SubmitField('Exportar')
 
 # --- Forms for Debt Management ---
 class DebtCeilingForm(FlaskForm):
@@ -1194,6 +1700,476 @@ class CloseAccountForm(FlaskForm): # MOSTRANDO COMPLETA
     confirm = BooleanField('Entiendo que esta acción es irreversible y se borrarán todos mis datos.', validators=[DataRequired()])
     submit = SubmitField('Cerrar mi cuenta permanentemente')
 
+def admin_required(f): # MOSTRANDO COMPLETA
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated or not current_user.is_admin:
+            flash("Acceso no autorizado. Se requieren privilegios de administrador.", "danger")
+            # Redirige a login o a una página de 'no autorizado' más genérica si la tienes
+            return redirect(url_for('login', next=request.url if request.method == 'GET' else None))
+        return f(*args, **kwargs)
+    return decorated_function
+
+def check_and_resolve_warnings():
+    """Verifica y resuelve mensajes de warning automáticamente."""
+    warnings = MailboxMessage.query.filter_by(message_type='config_warning').all()
+    
+    for warning in warnings:
+        if warning.related_watchlist_item_id and warning.related_alert_config_id:
+            item = WatchlistItem.query.get(warning.related_watchlist_item_id)
+            config = AlertConfiguration.query.get(warning.related_alert_config_id)
+            
+            # Si la fecha ahora existe y es futura, resolver el warning
+            if item and item.fecha_resultados and item.fecha_resultados >= date.today():
+                # Crear mensaje de resolución
+                resolved_msg = MailboxMessage(
+                    user_id=warning.user_id,
+                    message_type='config_resolved',
+                    title=f'✅ Fecha actualizada: {item.item_name or item.ticker}',
+                    content=f'La fecha de resultados para {item.item_name or item.ticker} ha sido actualizada correctamente a {item.fecha_resultados.strftime("%d/%m/%Y")}.',
+                    related_watchlist_item_id=item.id,
+                    related_alert_config_id=config.id if config else None
+                )
+                db.session.add(resolved_msg)
+                
+                # Eliminar el mensaje de warning
+                db.session.delete(warning)
+    
+    db.session.commit()
+
+
+@app.route('/admin/email-queue/<int:email_id>/details')
+@login_required
+@admin_required
+def admin_email_details(email_id):
+    """Obtener detalles completos de un email."""
+    try:
+        email = EmailQueue.query.get_or_404(email_id)
+        
+        # Obtener información del mensaje relacionado
+        mailbox_message = None
+        alert_config = None
+        user = None
+        
+        if email.mailbox_message_id:
+            mailbox_message = MailboxMessage.query.get(email.mailbox_message_id)
+            
+        if email.alert_config_id:
+            alert_config = AlertConfiguration.query.get(email.alert_config_id)
+            
+        # Obtener usuario
+        user = User.query.filter_by(email=email.recipient_email).first()
+        
+        details = {
+            'email': {
+                'id': email.id,
+                'recipient': email.recipient_email,
+                'subject': email.subject,
+                'status': email.status,
+                'priority': email.priority,
+                'attempts': email.attempts,
+                'max_attempts': email.max_attempts,
+                'created_at': email.created_at.strftime('%d/%m/%Y %H:%M:%S'),
+                'scheduled_at': email.scheduled_at.strftime('%d/%m/%Y %H:%M:%S'),
+                'sent_at': email.sent_at.strftime('%d/%m/%Y %H:%M:%S') if email.sent_at else None,
+                'last_attempt_at': email.last_attempt_at.strftime('%d/%m/%Y %H:%M:%S') if email.last_attempt_at else None,
+                'error_message': email.error_message,
+                'content': email.content[:500] + '...' if len(email.content) > 500 else email.content
+            },
+            'user': {
+                'id': user.id if user else None,
+                'username': user.username if user else 'Usuario no encontrado',
+                'is_active': user.is_active if user else False
+            } if user else None,
+            'mailbox_message': {
+                'id': mailbox_message.id if mailbox_message else None,
+                'title': mailbox_message.title if mailbox_message else None,
+                'message_type': mailbox_message.message_type if mailbox_message else None,
+                'created_at': mailbox_message.created_at.strftime('%d/%m/%Y %H:%M:%S') if mailbox_message else None
+            } if mailbox_message else None,
+            'alert_config': {
+                'id': alert_config.id if alert_config else None,
+                'alert_reason': alert_config.alert_reason if alert_config else None,
+                'is_active': alert_config.is_active if alert_config else None,
+                'notify_by_email': alert_config.notify_by_email if alert_config else None
+            } if alert_config else None
+        }
+        
+        return jsonify({'success': True, 'details': details})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+# ===== RUTAS DE ADMINISTRACIÓN DEL SCHEDULER =====
+# Agregar estas rutas a app.py junto con las otras rutas /admin/*
+
+@app.route('/admin/scheduler')
+@login_required
+def admin_scheduler():
+    """Panel de gestión del scheduler."""
+    if not current_user.is_admin:
+        flash('Acceso denegado. Se requieren privilegios de administrador.', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    try:
+        # Obtener todas las tareas configuradas
+        tasks = SchedulerTask.query.order_by(SchedulerTask.id).all()
+        
+        # Obtener jobs activos del scheduler
+        active_jobs = {}
+        try:
+            for job in scheduler.get_jobs():
+                task_key = job.id.replace('task_', '') if job.id.startswith('task_') else job.id
+                active_jobs[task_key] = {
+                    'next_run': job.next_run_time,
+                    'job_id': job.id
+                }
+        except Exception as e:
+            print(f"Error obteniendo jobs activos: {e}")
+        
+        # Obtener logs recientes del scheduler (últimos 50)
+        scheduler_logs = SystemLog.query.filter(
+            SystemLog.log_type.like('scheduler_%')
+        ).order_by(SystemLog.executed_at.desc()).limit(50).all()
+        
+        return render_template('admin/scheduler.html',
+                             title='Gestión del Scheduler',
+                             tasks=tasks,
+                             active_jobs=active_jobs,
+                             scheduler_logs=scheduler_logs)
+                             
+    except Exception as e:
+        flash(f'Error cargando panel del scheduler: {str(e)}', 'danger')
+        return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/scheduler/task/<int:task_id>/toggle', methods=['POST'])
+@login_required
+def admin_toggle_scheduler_task(task_id):
+    """Activa o desactiva una tarea del scheduler."""
+    if not current_user.is_admin:
+        return jsonify({'success': False, 'message': 'Acceso denegado'}), 403
+    
+    try:
+        task = SchedulerTask.query.get_or_404(task_id)
+        old_status = task.is_active
+        task.is_active = not task.is_active
+        task.updated_at = datetime.utcnow()
+        
+        db.session.commit()
+        
+        # Recargar el scheduler
+        reload_scheduler_tasks()
+        
+        # Registrar actividad
+        action = 'activó' if task.is_active else 'desactivó'
+        log_entry = ActivityLog(
+            user_id=current_user.id,
+            username=current_user.username,
+            action_type='ADMIN_TOGGLE_SCHEDULER_TASK',
+            message=f'{action} la tarea del scheduler: {task.task_name}',
+            details=f'Cambio de estado: {old_status} → {task.is_active}',
+            ip_address=request.remote_addr
+        )
+        db.session.add(log_entry)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Tarea {action} correctamente',
+            'new_status': task.is_active
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/admin/scheduler/task/<int:task_id>/execute', methods=['POST'])
+@login_required
+def admin_execute_scheduler_task(task_id):
+    """Ejecuta una tarea del scheduler manualmente."""
+    if not current_user.is_admin:
+        return jsonify({'success': False, 'message': 'Acceso denegado'}), 403
+    
+    try:
+        task = SchedulerTask.query.get_or_404(task_id)
+        
+        # Obtener la función correspondiente
+        task_function = get_task_function(task.task_function)
+        if not task_function:
+            return jsonify({'success': False, 'message': f'Función {task.task_function} no encontrada'}), 400
+        
+        # Ejecutar la tarea en un hilo separado para no bloquear la respuesta
+        import threading
+        def execute_task():
+            try:
+                task_function()
+            except Exception as e:
+                print(f"Error ejecutando tarea {task.task_key} manualmente: {e}")
+        
+        thread = threading.Thread(target=execute_task)
+        thread.daemon = True
+        thread.start()
+        
+        # Registrar actividad
+        log_entry = ActivityLog(
+            user_id=current_user.id,
+            username=current_user.username,
+            action_type='ADMIN_EXECUTE_SCHEDULER_TASK',
+            message=f'Ejecutó manualmente la tarea: {task.task_name}',
+            details=f'Función ejecutada: {task.task_function}',
+            ip_address=request.remote_addr
+        )
+        db.session.add(log_entry)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Tarea "{task.task_name}" ejecutada. Revisa los logs del sistema para ver el resultado.'
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/admin/scheduler/task/<int:task_id>/update', methods=['POST'])
+@login_required
+def admin_update_scheduler_task(task_id):
+    """Actualiza la configuración de una tarea del scheduler."""
+    if not current_user.is_admin:
+        return jsonify({'success': False, 'message': 'Acceso denegado'}), 403
+    
+    try:
+        task = SchedulerTask.query.get_or_404(task_id)
+        
+        # Obtener datos del formulario
+        frequency_type = request.form.get('frequency_type')
+        frequency_value = int(request.form.get('frequency_value'))
+        start_hour = int(request.form.get('start_hour'))
+        start_minute = int(request.form.get('start_minute'))
+        
+        # Validaciones
+        if frequency_type not in ['minutes', 'hours', 'days', 'weeks']:
+            return jsonify({'success': False, 'message': 'Tipo de frecuencia inválido'}), 400
+        
+        if frequency_value < 1:
+            return jsonify({'success': False, 'message': 'El valor de frecuencia debe ser mayor a 0'}), 400
+            
+        if not (0 <= start_hour <= 23):
+            return jsonify({'success': False, 'message': 'La hora debe estar entre 0 y 23'}), 400
+            
+        if not (0 <= start_minute <= 59):
+            return jsonify({'success': False, 'message': 'Los minutos deben estar entre 0 y 59'}), 400
+        
+        # Guardar configuración anterior para el log
+        old_config = f"{task.frequency_display} a las {task.start_hour:02d}:{task.start_minute:02d}"
+        
+        # Actualizar tarea
+        task.frequency_type = frequency_type
+        task.frequency_value = frequency_value
+        task.start_hour = start_hour
+        task.start_minute = start_minute
+        task.updated_at = datetime.utcnow()
+        
+        db.session.commit()
+        
+        # Recargar el scheduler si la tarea está activa
+        if task.is_active:
+            reload_scheduler_tasks()
+        
+        # Registrar actividad
+        new_config = f"{task.frequency_display} a las {task.start_hour:02d}:{task.start_minute:02d}"
+        log_entry = ActivityLog(
+            user_id=current_user.id,
+            username=current_user.username,
+            action_type='ADMIN_UPDATE_SCHEDULER_TASK',
+            message=f'Actualizó configuración de tarea: {task.task_name}',
+            details=f'Cambio: {old_config} → {new_config}',
+            ip_address=request.remote_addr
+        )
+        db.session.add(log_entry)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Configuración actualizada correctamente',
+            'new_frequency': task.frequency_display
+        })
+        
+    except ValueError as e:
+        return jsonify({'success': False, 'message': 'Valores numéricos inválidos'}), 400
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/admin/scheduler/reload', methods=['POST'])
+@login_required
+def admin_reload_scheduler():
+    """Recarga todas las tareas del scheduler."""
+    if not current_user.is_admin:
+        return jsonify({'success': False, 'message': 'Acceso denegado'}), 403
+    
+    try:
+        reload_scheduler_tasks()
+        
+        # Registrar actividad
+        log_entry = ActivityLog(
+            user_id=current_user.id,
+            username=current_user.username,
+            action_type='ADMIN_RELOAD_SCHEDULER',
+            message='Recargó todas las tareas del scheduler',
+            ip_address=request.remote_addr
+        )
+        db.session.add(log_entry)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Scheduler recargado correctamente'
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/office/goals', methods=['GET', 'POST'])
+@login_required
+def office_goals():
+    """Pestaña de objetivos financieros con modelo Goal."""
+    form = GoalConfigurationForm()
+    
+    # NUEVO: Función auxiliar para obtener objetivos con estado
+    def get_goals_with_status():
+        user_goals = Goal.query.filter_by(user_id=current_user.id, is_active=True)\
+            .order_by(Goal.created_at.desc()).all()
+        
+        goals_with_status = []
+        for goal in user_goals:
+            try:
+                goal_status = calculate_goal_status_with_model(goal)
+                goals_with_status.append({
+                    'config': goal,
+                    'status': goal_status
+                })
+            except Exception as e:
+                print(f"Error calculando estado de objetivo {goal.id}: {e}")
+                goals_with_status.append({
+                    'config': goal,
+                    'status': {'error': f'Error calculando progreso: {str(e)}'}
+                })
+        return goals_with_status
+    
+    if form.validate_on_submit():
+        try:
+            print(f"DEBUG: Formulario validado exitosamente - goal_type: {form.goal_type.data}")
+            
+            # Validación de unicidad
+            uniqueness_check = validate_goal_uniqueness(form, current_user.id)
+            if uniqueness_check['error']:
+                flash(uniqueness_check['message'], 'warning')
+                # CORREGIDO: Mantener datos existentes en caso de error
+                goals_with_status = get_goals_with_status()
+                return render_template('office/goals.html', form=form, goals=goals_with_status)
+            
+            # Validaciones previas según tipo de objetivo
+            validation_error = validate_goal_prerequisites_updated(form)
+            if validation_error:
+                if validation_error.get('type') == 'info':
+                    flash(validation_error['message'], 'info')
+                else:
+                    flash(validation_error['message'], 'warning')
+                    # CORREGIDO: Mantener datos existentes en caso de error
+                    goals_with_status = get_goals_with_status()
+                    return render_template('office/goals.html', form=form, goals=goals_with_status)
+            
+            # Crear objetivo principal con NOMBRE AUTOMÁTICO
+            new_goal = Goal(
+                user_id=current_user.id,
+                goal_name=generate_automatic_goal_name(form),
+                goal_type=form.goal_type.data,
+                description=None,
+                start_date=form.start_date.data or date.today()
+            )
+            
+            print(f"DEBUG: Creando objetivo - tipo: {new_goal.goal_type}")
+            
+            # Configurar campos específicos según tipo
+            if form.goal_type.data == 'portfolio_percentage':
+                distribution = {
+                    'bolsa': form.percentage_bolsa.data or 0,
+                    'cash': form.percentage_cash.data or 0,
+                    'crypto': form.percentage_crypto.data or 0,
+                    'real_estate': form.percentage_real_estate.data or 0,
+                    'metales': form.percentage_metales.data or 0
+                }
+                new_goal.asset_distribution = json.dumps(distribution)
+                
+            elif form.goal_type.data == 'target_amount':
+                new_goal.goal_asset_type = form.goal_asset_type.data
+                new_goal.target_amount = form.target_amount.data
+                new_goal.target_timeframe_months = form.target_timeframe_months.data
+                
+            elif form.goal_type.data == 'auto_prediction':
+                new_goal.goal_asset_type = form.goal_asset_type.data
+                new_goal.prediction_type = form.prediction_type.data
+                new_goal.target_amount = form.target_amount.data
+                new_goal.target_timeframe_months = form.target_timeframe_months.data
+                
+            elif form.goal_type.data == 'savings_monthly':
+                new_goal.goal_asset_type = 'cash'
+                new_goal.monthly_savings_target = form.monthly_savings_target.data
+                
+            elif form.goal_type.data == 'debt_threshold':
+                print(f"DEBUG: Configurando debt_threshold - valor: {form.debt_ceiling_percentage.data}")
+                new_goal.debt_ceiling_percentage = form.debt_ceiling_percentage.data
+                new_goal.goal_asset_type = None
+            
+            print(f"DEBUG: Objetivo configurado: {new_goal.__dict__}")
+            
+            db.session.add(new_goal)
+            
+            # Crear alerta asociada SI el usuario lo solicita
+            if form.create_alert.data:
+                alert_config = AlertConfiguration(
+                    user_id=current_user.id,
+                    alert_reason='objetivo',
+                    notify_by_email=form.notify_by_email.data,
+                    goal_name=new_goal.goal_name,
+                    goal_type=new_goal.goal_type,
+                    goal_start_date=new_goal.start_date,
+                    custom_frequency_type='monthly',
+                    custom_start_date=new_goal.start_date
+                )
+                db.session.add(alert_config)
+                print(f"DEBUG: Alerta creada para objetivo")
+            
+            db.session.commit()
+            print(f"DEBUG: Objetivo guardado exitosamente en BD")
+            
+            success_msg = f'Objetivo "{new_goal.goal_name}" creado correctamente.'
+            if form.create_alert.data:
+                success_msg += ' Alerta asociada configurada.'
+            
+            flash(success_msg, 'success')
+            return redirect(url_for('office_goals'))
+            
+        except Exception as e:
+            db.session.rollback()
+            print(f"DEBUG ERROR: Error al crear objetivo: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            flash(f'Error al crear el objetivo: {str(e)}', 'error')
+            # CORREGIDO: Mantener datos existentes en caso de error
+            goals_with_status = get_goals_with_status()
+            return render_template('office/goals.html', form=form, goals=goals_with_status)
+    else:
+        # DEBUG: Mostrar errores de validación
+        if form.errors:
+            print(f"DEBUG: Errores de validación: {form.errors}")
+            for field, errors in form.errors.items():
+                for error in errors:
+                    flash(f'Error en {field}: {error}', 'error')
+    
+    # CORREGIDO: Usar la función auxiliar para obtener objetivos
+    goals_with_status = get_goals_with_status()
+    return render_template('office/goals.html', form=form, goals=goals_with_status)
 
 @app.route('/crypto_movements', methods=['GET', 'POST'])
 @login_required
@@ -1505,6 +2481,662 @@ def crypto_movements():
        search_query=search_query
    )
 
+@app.route('/admin/email-queue')
+@login_required
+@admin_required
+def admin_email_queue():
+    """Gestión completa de la cola de emails."""
+    try:
+        # Filtros desde query parameters
+        status_filter = request.args.get('status', 'all')
+        priority_filter = request.args.get('priority', 'all')
+        page = int(request.args.get('page', 1))
+        per_page = 20
+        
+        # Construir consulta base
+        query = EmailQueue.query
+        
+        # Aplicar filtros
+        if status_filter != 'all':
+            query = query.filter_by(status=status_filter)
+            
+        if priority_filter != 'all':
+            query = query.filter_by(priority=int(priority_filter))
+        
+        # Ordenar y paginar
+        emails = query.order_by(
+            EmailQueue.created_at.desc()
+        ).paginate(
+            page=page, 
+            per_page=per_page, 
+            error_out=False
+        )
+        
+        # Estadísticas para la página
+        total_emails = EmailQueue.query.count()
+        pending_count = EmailQueue.query.filter_by(status='pending').count()
+        sent_count = EmailQueue.query.filter_by(status='sent').count()
+        failed_count = EmailQueue.query.filter_by(status='failed').count()
+        cancelled_count = EmailQueue.query.filter_by(status='cancelled').count()
+        
+        return render_template('admin/email-queue.html',
+                             title='Gestión de Cola de Emails',
+                             emails=emails,
+                             status_filter=status_filter,
+                             priority_filter=priority_filter,
+                             total_emails=total_emails,
+                             pending_count=pending_count,
+                             sent_count=sent_count,
+                             failed_count=failed_count,
+                             cancelled_count=cancelled_count)
+                             
+    except Exception as e:
+        flash(f'Error cargando cola de emails: {str(e)}', 'danger')
+        return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/email-queue/<int:email_id>/retry', methods=['POST'])
+@login_required
+@admin_required
+def admin_retry_email(email_id):
+    """Reintentar envío de email fallido."""
+    try:
+        email = EmailQueue.query.get_or_404(email_id)
+
+        if email.status == 'failed' and email.can_retry:
+            email.status = 'pending'
+            email.error_message = None
+            email.scheduled_at = datetime.utcnow()
+
+            db.session.commit()
+
+            flash(f'Email reactivado para reintento: {email.subject}', 'success')
+        else:
+            flash('Este email no puede ser reintentado', 'warning')
+
+    except Exception as e:
+        flash(f'Error reintentando email: {str(e)}', 'danger')
+        db.session.rollback()
+
+    return redirect(url_for('admin_email_queue'))
+
+@app.route('/admin/email-queue/<int:email_id>/cancel', methods=['POST'])
+@login_required
+@admin_required
+def admin_cancel_email(email_id):
+    """Cancelar email pendiente."""
+    try:
+        email = EmailQueue.query.get_or_404(email_id)
+
+        if email.status == 'pending':
+            email.status = 'cancelled'
+            email.error_message = 'Cancelado manualmente por administrador'
+
+            db.session.commit()
+
+            flash(f'Email cancelado: {email.subject}', 'success')
+        else:
+            flash('Solo se pueden cancelar emails pendientes', 'warning')
+
+    except Exception as e:
+        flash(f'Error cancelando email: {str(e)}', 'danger')
+        db.session.rollback()
+
+    return redirect(url_for('admin_email_queue'))
+
+@app.route('/admin/email-queue/<int:email_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def admin_delete_email(email_id):
+    """Eliminar email de la cola."""
+    try:
+        email = EmailQueue.query.get_or_404(email_id)
+
+        db.session.delete(email)
+        db.session.commit()
+
+        flash(f'Email eliminado: {email.subject}', 'success')
+
+    except Exception as e:
+        flash(f'Error eliminando email: {str(e)}', 'danger')
+        db.session.rollback()
+
+    return redirect(url_for('admin_email_queue'))
+
+
+def log_task_execution(task_key, status, details=None, start_time=None):
+    """Registra la ejecución de una tarea del scheduler de forma simple."""
+    try:
+        # Usar la sesión principal de Flask, no crear una nueva
+        with app.app_context():
+            try:
+                # Registrar en SystemLog usando la sesión principal
+                log_entry = SystemLog(
+                    log_type=f'scheduler_{task_key}',
+                    executed_at=start_time or datetime.utcnow(),
+                    status=status,
+                    details=details
+                )
+                db.session.add(log_entry)
+                
+                # Actualizar SchedulerTask si existe
+                task_config = SchedulerTask.query.filter_by(task_key=task_key).first()
+                if task_config:
+                    task_config.last_executed = start_time or datetime.utcnow()
+                    task_config.execution_count = (task_config.execution_count or 0) + 1
+                
+                db.session.commit()
+                print(f"[{datetime.utcnow()}] Tarea {task_key}: {status} - {details}")
+                
+            except Exception as db_error:
+                print(f"⚠️ Error en logging para {task_key}: {db_error}")
+                # NO hacer rollback aquí, solo imprimir el error
+                
+    except Exception as e:
+        print(f"⚠️ Error crítico en logging {task_key}: {e}")
+
+def process_daily_alerts_global():
+    """Versión global de process_daily_alerts para el scheduler."""
+    start_time = datetime.utcnow()
+    task_key = 'all_tasks'
+    
+    try:
+        with app.app_context():
+            print(f"[{start_time}] Iniciando procesamiento completo...")
+            
+            # Fase 1: Actualizar precios globalmente
+            print("Fase 1: Actualizando precios globalmente...")
+            update_all_prices_global()
+            
+            # Fase 2: Generar alertas globalmente  
+            print("Fase 2: Generando alertas...")
+            generate_alert_messages_global()
+            
+            # Fase 3: Enviar emails globalmente
+            print("Fase 3: Enviando emails...")
+            send_email_notifications_global()
+            
+            log_task_execution(
+                task_key=task_key,
+                status='success', 
+                details='Procesamiento completo ejecutado exitosamente',
+                start_time=start_time
+            )
+            
+    except Exception as e:
+        log_task_execution(
+            task_key=task_key,
+            status='error',
+            details=f'Error en procesamiento completo: {str(e)}',
+            start_time=start_time
+        )
+
+def add_email_to_queue(mailbox_message, alert_config, priority=5, delay_minutes=0):
+    """Agrega un email a la cola de envío."""
+    try:
+        # Verificar que el usuario quiere recibir emails
+        if not alert_config or not alert_config.notify_by_email:
+            return False
+            
+        # Buscar email del usuario
+        user = User.query.get(mailbox_message.user_id)
+        if not user or not user.email:
+            print(f"Usuario {mailbox_message.user_id} no tiene email configurado")
+            return False
+        
+        # Verificar si ya existe en la cola para evitar duplicados
+        existing = EmailQueue.query.filter_by(
+            mailbox_message_id=mailbox_message.id,
+            status='pending'
+        ).first()
+        if existing:
+            print(f"Email ya está en cola para mensaje {mailbox_message.id}")
+            return False
+        
+        # Generar contenido del email
+        subject = f"[FollowUp] {mailbox_message.title}"
+        content = generate_email_content(mailbox_message, alert_config)
+        
+        # Calcular cuándo enviar
+        scheduled_at = datetime.utcnow()
+        if delay_minutes > 0:
+            scheduled_at += timedelta(minutes=delay_minutes)
+        
+        # Crear entrada en la cola
+        email_entry = EmailQueue(
+            mailbox_message_id=mailbox_message.id,
+            alert_config_id=alert_config.id,
+            recipient_email=user.email,
+            subject=subject,
+            content=content,
+            priority=priority,
+            scheduled_at=scheduled_at
+        )
+        
+        db.session.add(email_entry)
+        db.session.commit()
+        
+        print(f"✅ Email agregado a cola: {subject} para {user.email}")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error agregando email a cola: {e}")
+        db.session.rollback()
+        return False
+
+def process_email_queue():
+    """Procesa la cola de emails pendientes."""
+    try:
+        # Obtener emails listos para enviar, ordenados por prioridad y fecha
+        pending_emails = EmailQueue.query.filter(
+            EmailQueue.status == 'pending',
+            EmailQueue.scheduled_at <= datetime.utcnow(),
+            EmailQueue.attempts < EmailQueue.max_attempts
+        ).order_by(
+            EmailQueue.priority.asc(),
+            EmailQueue.created_at.asc()
+        ).limit(10).all()  # Procesar máximo 10 emails por ejecución
+        
+        sent_count = 0
+        failed_count = 0
+        
+        for email_entry in pending_emails:
+            try:
+                # Verificar nuevamente que el usuario quiere recibir emails
+                if email_entry.alert_config and not email_entry.alert_config.notify_by_email:
+                    email_entry.status = 'cancelled'
+                    email_entry.error_message = 'Usuario desactivó notificaciones por email'
+                    continue
+                
+                # Intentar enviar
+                send_email_from_queue(email_entry)
+                
+                # Marcar como enviado
+                email_entry.status = 'sent'
+                email_entry.sent_at = datetime.utcnow()
+                email_entry.last_attempt_at = datetime.utcnow()
+                sent_count += 1
+                
+                print(f"✅ Email enviado: {email_entry.subject} a {email_entry.recipient_email}")
+                
+            except Exception as e:
+                # Incrementar intentos
+                email_entry.attempts += 1
+                email_entry.last_attempt_at = datetime.utcnow()
+                email_entry.error_message = str(e)
+                
+                # Si se agotaron los intentos, marcar como fallido
+                if email_entry.attempts >= email_entry.max_attempts:
+                    email_entry.status = 'failed'
+                    failed_count += 1
+                    print(f"❌ Email fallido (max intentos): {email_entry.subject}")
+                else:
+                    print(f"⚠️ Email falló (intento {email_entry.attempts}): {e}")
+        
+        db.session.commit()
+        return {'sent': sent_count, 'failed': failed_count, 'processed': len(pending_emails)}
+        
+    except Exception as e:
+        print(f"❌ Error procesando cola de emails: {e}")
+        db.session.rollback()
+        return {'sent': 0, 'failed': 0, 'processed': 0, 'error': str(e)}
+
+def send_email_from_queue(email_entry):
+    """Envía un email específico desde la cola."""
+    from flask_mail import Message
+    
+    msg = Message(
+        subject=email_entry.subject,
+        recipients=[email_entry.recipient_email],
+        html=email_entry.content,
+        sender=app.config['MAIL_DEFAULT_SENDER']
+    )
+    
+    mail.send(msg)
+
+def generate_email_content(mailbox_message, alert_config):
+    """Genera el contenido HTML del email."""
+    return f"""
+    <html>
+    <body style="font-family: Arial, sans-serif; margin: 20px;">
+        <h2 style="color: #333;">{mailbox_message.title}</h2>
+        <div style="background: #f9f9f9; padding: 15px; border-radius: 5px; margin: 10px 0;">
+            <p>{mailbox_message.content}</p>
+        </div>
+        
+        <div style="margin-top: 20px; padding: 10px; border-top: 1px solid #eee;">
+            <small style="color: #666;">
+                <strong>Fecha:</strong> {mailbox_message.created_at.strftime('%d/%m/%Y %H:%M')}<br>
+                <strong>Tipo de alerta:</strong> {alert_config.alert_reason if alert_config else 'N/A'}<br>
+                <br>
+                Este email fue enviado automáticamente por FollowUp.<br>
+                Para desactivar las notificaciones por email, accede a tu configuración de alertas.
+            </small>
+        </div>
+    </body>
+    </html>
+    """
+
+
+def update_all_prices_global():
+    """Versión global de actualización de precios para todos los usuarios."""
+    start_time = datetime.utcnow()
+    task_key = 'update_prices'
+    
+    try:
+        with app.app_context():
+            updated_items = 0
+            errors = []
+            
+            # 1. Actualizar precios de watchlist para TODOS los usuarios
+            try:
+                all_watchlist_items = WatchlistItem.query.all()
+                for item in all_watchlist_items:
+                    try:
+                        update_watchlist_item_from_yahoo(item.id, force_update=True)
+                        updated_items += 1
+                    except Exception as e:
+                        errors.append(f"Error actualizando {item.ticker}: {str(e)}")
+            except Exception as e:
+                errors.append(f"Error en watchlist global: {str(e)}")
+            
+            # 2. Actualizar metales preciosos (global)
+            try:
+                update_precious_metal_prices()
+                updated_items += 2  # Oro y plata
+            except Exception as e:
+                errors.append(f"Error actualizando metales: {str(e)}")
+            
+            # 3. Actualizar criptomonedas para TODOS los usuarios
+            try:
+                all_users = User.query.filter_by(is_active=True).all()
+                for user in all_users:
+                    try:
+                        update_crypto_prices(user.id)
+                        crypto_count = CryptoTransaction.query.filter_by(user_id=user.id)\
+                            .with_entities(CryptoTransaction.ticker_symbol).distinct().count()
+                        updated_items += crypto_count
+                    except Exception as e:
+                        errors.append(f"Error actualizando criptos para usuario {user.username}: {str(e)}")
+            except Exception as e:
+                errors.append(f"Error en criptos global: {str(e)}")
+            
+            details = f"Actualizados {updated_items} elementos. {len(errors)} errores."
+            status = 'partial' if errors else 'success'
+            
+            log_task_execution(
+                task_key=task_key,
+                status=status,
+                details=details,
+                start_time=start_time
+            )
+            
+    except Exception as e:
+        log_task_execution(
+            task_key=task_key,
+            status='error',
+            details=f'Error en actualización global: {str(e)}',
+            start_time=start_time
+        )
+
+def generate_alert_messages_global():
+    """Versión global de generación de alertas."""
+    start_time = datetime.utcnow()
+    task_key = 'check_alerts'
+    
+    try:
+        with app.app_context():
+            today = date.today()
+            check_and_resolve_warnings()
+            
+            # Obtener todas las configuraciones activas de TODOS los usuarios
+            alert_configs = AlertConfiguration.query.filter_by(is_active=True).all()
+            processed_alerts = 0
+            
+            for config in alert_configs:
+                try:
+                    if config.alert_reason == 'earnings_report':
+                        process_earnings_alerts(config, today)
+                    elif config.alert_reason == 'metric_threshold':
+                        process_metric_alerts(config, today)
+                    elif config.alert_reason == 'periodic_summary':
+                        process_summary_alerts(config, today)
+                    elif config.alert_reason == 'custom':
+                        process_custom_alerts(config, today)
+                    
+                    processed_alerts += 1
+                    
+                except Exception as e:
+                    print(f"Error procesando alerta {config.id}: {e}")
+            
+            log_task_execution(
+                task_key=task_key,
+                status='success',
+                details=f'Procesadas {processed_alerts} configuraciones de alerta',
+                start_time=start_time
+            )
+            
+    except Exception as e:
+        log_task_execution(
+            task_key=task_key,
+            status='error',
+            details=f'Error generando alertas: {str(e)}',
+            start_time=start_time
+        )
+
+def send_email_notifications_global():
+    """Versión que usa la cola de emails."""
+    start_time = datetime.utcnow()
+    task_key = 'send_emails'
+    
+    try:
+        with app.app_context():
+            result = process_email_queue()
+            
+            # Determinar estado basado en resultados
+            if 'error' in result:
+                status = 'error'
+                details = f"Error procesando cola: {result['error']}"
+            else:
+                sent = result.get('sent', 0)
+                failed = result.get('failed', 0)
+                
+                if failed == 0:
+                    status = 'success'
+                    details = f'Enviados {sent} correos electrónicos'
+                else:
+                    status = 'partial'
+                    details = f'Enviados {sent} correos, {failed} fallidos'
+            
+            log_task_execution(
+                task_key=task_key,
+                status=status,
+                details=details,
+                start_time=start_time
+            )
+            
+    except Exception as e:
+        log_task_execution(
+            task_key=task_key,
+            status='error',
+            details=f'Error crítico en cola de emails: {str(e)}',
+            start_time=start_time
+        )
+
+def initialize_default_scheduler_tasks():
+    """Inicializa las tareas predeterminadas del scheduler si no existen."""
+    try:
+        # Verificar si ya existen tareas configuradas
+        existing_tasks = SchedulerTask.query.count()
+        
+        if existing_tasks == 0:
+            print("Inicializando tareas predeterminadas del scheduler...")
+            
+            for task_data in DEFAULT_SCHEDULER_TASKS:
+                task = SchedulerTask(**task_data)
+                db.session.add(task)
+            
+            db.session.commit()
+            print(f"Inicializadas {len(DEFAULT_SCHEDULER_TASKS)} tareas del scheduler.")
+        else:
+            print(f"Ya existen {existing_tasks} tareas configuradas.")
+            
+    except Exception as e:
+        print(f"Error inicializando tareas predeterminadas: {e}")
+        db.session.rollback()
+
+def get_task_function(function_name):
+    """Obtiene la función correspondiente al nombre."""
+    function_map = {
+        'process_daily_alerts_global': process_daily_alerts_global,
+        'update_all_prices_global': update_all_prices_global,
+        'generate_alert_messages_global': generate_alert_messages_global,
+        'send_email_notifications_global': send_email_notifications_global
+    }
+    return function_map.get(function_name)
+
+def setup_dynamic_scheduled_tasks():
+    """Configura las tareas programadas basándose en la configuración de la base de datos."""
+    try:
+        # Eliminar todos los jobs existentes
+        scheduler.remove_all_jobs()
+        print("Jobs anteriores eliminados.")
+        
+        # Obtener tareas activas de la base de datos
+        active_tasks = SchedulerTask.query.filter_by(is_active=True).all()
+        
+        jobs_added = 0
+        for task in active_tasks:
+            try:
+                # Obtener la función correspondiente
+                task_function = get_task_function(task.task_function)
+                if not task_function:
+                    print(f"Función {task.task_function} no encontrada para tarea {task.task_key}")
+                    continue
+                
+                # Configurar el trigger según el tipo de frecuencia
+                if task.frequency_type == 'minutes':
+                    scheduler.add_job(
+                        func=task_function,
+                        trigger='interval',
+                        minutes=task.frequency_value,
+                        start_date=datetime.now().replace(
+                            hour=task.start_hour, 
+                            minute=task.start_minute, 
+                            second=0, 
+                            microsecond=0
+                        ),
+                        id=f'task_{task.task_key}',
+                        name=task.task_name,
+                        replace_existing=True
+                    )
+                    
+                elif task.frequency_type == 'hours':
+                    scheduler.add_job(
+                        func=task_function,
+                        trigger='interval',
+                        hours=task.frequency_value,
+                        start_date=datetime.now().replace(
+                            hour=task.start_hour, 
+                            minute=task.start_minute, 
+                            second=0, 
+                            microsecond=0
+                        ),
+                        id=f'task_{task.task_key}',
+                        name=task.task_name,
+                        replace_existing=True
+                    )
+                    
+                elif task.frequency_type == 'days':
+                    scheduler.add_job(
+                        func=task_function,
+                        trigger='cron',
+                        day='*/{}'.format(task.frequency_value),
+                        hour=task.start_hour,
+                        minute=task.start_minute,
+                        id=f'task_{task.task_key}',
+                        name=task.task_name,
+                        replace_existing=True
+                    )
+                    
+                elif task.frequency_type == 'weeks':
+                    # Para semanas, ejecutar cada N*7 días
+                    scheduler.add_job(
+                        func=task_function,
+                        trigger='cron',
+                        day='*/{}'.format(task.frequency_value * 7),
+                        hour=task.start_hour,
+                        minute=task.start_minute,
+                        id=f'task_{task.task_key}',
+                        name=task.task_name,
+                        replace_existing=True
+                    )
+                
+                jobs_added += 1
+                print(f"Tarea programada: {task.task_name} - {task.frequency_display}")
+                
+            except Exception as e:
+                print(f"Error configurando tarea {task.task_key}: {e}")
+        
+        print(f"Scheduler configurado con {jobs_added} tareas activas.")
+        
+        # Mostrar información de debug
+        for job in scheduler.get_jobs():
+            print(f"Job activo: {job.id} - Próxima ejecución: {job.next_run_time}")
+            
+    except Exception as e:
+        print(f"Error configurando scheduler dinámico: {e}")
+
+def reload_scheduler_tasks():
+    """Recarga las tareas del scheduler desde la base de datos."""
+    setup_dynamic_scheduled_tasks()
+
+
+def generate_automatic_goal_name(form):
+    """Genera nombres automáticos para objetivos."""
+    
+    if form.goal_type.data == 'portfolio_percentage':
+        return "Distribución Ideal de Activos"
+    
+    elif form.goal_type.data == 'target_amount':
+        asset_names = {
+            'bolsa': 'Bolsa',
+            'cash': 'Efectivo',
+            'crypto': 'Criptomonedas',
+            'real_estate': 'Inmuebles',
+            'metales': 'Metales Preciosos',
+            'total_patrimonio': 'Patrimonio Total'
+        }
+        asset_name = asset_names.get(form.goal_asset_type.data, form.goal_asset_type.data)
+        return f"Meta de {asset_name}"
+    
+    elif form.goal_type.data == 'auto_prediction':
+        asset_names = {
+            'bolsa': 'Bolsa',
+            'cash': 'Efectivo',
+            'crypto': 'Criptomonedas',
+            'real_estate': 'Inmuebles',
+            'metales': 'Metales Preciosos',
+            'total_patrimonio': 'Patrimonio Total'
+        }
+        asset_name = asset_names.get(form.goal_asset_type.data, form.goal_asset_type.data)
+        
+        prediction_names = {
+            'amount_to_time': 'Predicción de Tiempo',
+            'time_to_amount': 'Predicción de Cantidad'
+        }
+        prediction_name = prediction_names.get(form.prediction_type.data, form.prediction_type.data)
+        
+        return f"{prediction_name} en {asset_name}"
+    
+    elif form.goal_type.data == 'savings_monthly':
+        return "Ahorro Mensual"
+    
+    elif form.goal_type.data == 'debt_threshold':
+        return "Techo de Deuda"
+    
+    else:
+        return "Objetivo Personalizado"
+
 def process_uploaded_csvs(files):
     """
     Función modificada para soportar tanto DeGiro como IBKR.
@@ -1634,6 +3266,20 @@ def process_uploaded_csvs(files):
         errors.append(f"Error al combinar archivos CSV o parsear fechas: {e_concat}")
         return None, None, errors
 
+def check_and_add_debt_ceiling_column():
+    """Verifica y añade la columna debt_ceiling_percentage si no existe."""
+    try:
+        # Intentar hacer una consulta que use la columna
+        Goal.query.filter(Goal.debt_ceiling_percentage.isnot(None)).first()
+        print("✅ Columna debt_ceiling_percentage ya existe")
+    except Exception as e:
+        print(f"❌ Columna debt_ceiling_percentage no existe, creándola...")
+        try:
+            # Crear la columna manualmente
+            db.engine.execute('ALTER TABLE goals ADD COLUMN debt_ceiling_percentage FLOAT')
+            print("✅ Columna debt_ceiling_percentage creada exitosamente")
+        except Exception as alter_error:
+            print(f"❌ Error creando columna: {alter_error}")
 
 def prepare_dataframe_for_portfolio_calculation(df_input): # Renombrado el parámetro de entrada
     """
@@ -1720,6 +3366,161 @@ def prepare_dataframe_for_portfolio_calculation(df_input): # Renombrado el pará
     print("DEBUG: Fin de prepare_dataframe_for_portfolio_calculation.")
     return df_processed
 
+def calculate_goal_status_with_model(goal):
+    """Calcula estado usando el modelo Goal en lugar de AlertConfiguration."""
+    try:
+        if goal.goal_type == 'portfolio_percentage':
+            return calculate_portfolio_distribution_status(goal)
+        elif goal.goal_type == 'target_amount':
+            return calculate_fixed_target_status(goal)
+        elif goal.goal_type == 'auto_prediction':
+            return calculate_auto_prediction_status(goal)
+        elif goal.goal_type == 'savings_monthly':
+            return calculate_monthly_savings_status(goal)
+        elif goal.goal_type == 'debt_threshold':
+            return calculate_debt_ceiling_status(goal)
+        else:
+            return {'error': 'Tipo de objetivo no reconocido'}
+    except Exception as e:
+        return {'error': f'Error calculando estado: {str(e)}'}
+
+@app.route('/office/delete_goal/<int:goal_id>', methods=['POST'])
+@login_required
+def delete_goal(goal_id):
+    try:
+        goal = Goal.query.filter_by(id=goal_id, user_id=current_user.id).first()
+        if goal:
+            db.session.delete(goal)
+            db.session.commit()
+            return jsonify({'success': True})
+        return jsonify({'success': False})
+    except:
+        return jsonify({'success': False})
+
+
+def calculate_auto_prediction_status(goal):
+    """Calcula objetivos con predicción automática."""
+    try:
+        current_value = get_current_asset_value_simple(goal.user_id, goal.goal_asset_type)
+        
+        # REEMPLAZAR la línea del histórico por estimación simple
+        monthly_growth = current_value * 0.02 if current_value > 0 else 100  # 2% crecimiento estimado
+
+        if monthly_growth <= 0:
+            return {
+                'type': 'auto_prediction',
+                'error': 'Sin crecimiento histórico positivo para predicciones',
+                'current_value': current_value
+            }
+
+        result = {
+            'type': 'auto_prediction',
+            'prediction_type': goal.prediction_type,
+            'current_value': current_value,
+            'monthly_growth_avg': monthly_growth,
+            'last_calculated': datetime.now()
+        }
+
+        if goal.prediction_type == 'amount_to_time':
+            # Usuario dice cantidad, programa predice tiempo
+            target = goal.target_amount
+            amount_needed = target - current_value
+
+            if amount_needed <= 0:
+                result.update({
+                    'target_amount': target,
+                    'progress_percentage': 100,
+                    'estimated_months': 0,
+                    'estimated_completion': 'Ya completado'
+                })
+            else:
+                months_needed = amount_needed / monthly_growth
+                completion_date = (date.today() + timedelta(days=months_needed*30))
+
+                result.update({
+                    'target_amount': target,
+                    'amount_needed': amount_needed,
+                    'progress_percentage': (current_value / target) * 100,
+                    'estimated_months': months_needed,
+                    'estimated_years': months_needed / 12,
+                    'estimated_completion': completion_date.strftime('%B %Y')
+                })
+
+        elif goal.prediction_type == 'time_to_amount':
+            # Usuario dice tiempo, programa predice cantidad
+            months = goal.target_timeframe_months
+            estimated_growth = monthly_growth * months
+            estimated_final = current_value + estimated_growth
+
+            # Calcular progreso temporal
+            months_elapsed = ((date.today().year - goal.start_date.year) * 12 +
+                             (date.today().month - goal.start_date.month)) if goal.start_date else 0
+
+            result.update({
+                'timeframe_months': months,
+                'estimated_final_amount': estimated_final,
+                'estimated_growth': estimated_growth,
+                'progress_percentage': (months_elapsed / months) * 100 if months > 0 else 0,
+                'months_elapsed': months_elapsed,
+                'months_remaining': max(0, months - months_elapsed)
+            })
+
+        elif goal.prediction_type == 'both':
+            # Usuario especifica cantidad Y tiempo - mostrar si es realista
+            target = goal.target_amount
+            months = goal.target_timeframe_months
+            amount_needed = target - current_value
+            required_monthly_growth = amount_needed / months if months > 0 else float('inf')
+
+            is_realistic = required_monthly_growth <= monthly_growth * 1.1  # 10% de margen
+
+            months_elapsed = ((date.today().year - goal.start_date.year) * 12 +
+                             (date.today().month - goal.start_date.month)) if goal.start_date else 0
+
+            result.update({
+                'target_amount': target,
+                'timeframe_months': months,
+                'amount_needed': amount_needed,
+                'required_monthly_growth': required_monthly_growth,
+                'is_realistic': is_realistic,
+                'progress_percentage': (current_value / target) * 100,
+                'time_progress_percentage': (months_elapsed / months) * 100 if months > 0 else 0,
+                'months_elapsed': months_elapsed,
+                'months_remaining': max(0, months - months_elapsed)
+            })
+
+        return result
+
+    except Exception as e:
+        return {'error': f'Error en predicción automática: {str(e)}'}
+
+def diagnose_foreign_key_issues():
+    """Identifica todas las foreign keys problemáticas."""
+    try:
+        with app.app_context():
+            from sqlalchemy import inspect
+
+            # Obtener todos los modelos de SQLAlchemy
+            models = []
+            for attr_name in dir():
+                attr = globals()[attr_name]
+                if hasattr(attr, '__tablename__') and hasattr(attr, '__table__'):
+                    models.append((attr_name, attr))
+
+            print("🔍 MODELOS ENCONTRADOS:")
+            for name, model in models:
+                print(f"  - {name}: {model.__tablename__}")
+
+                # Verificar foreign keys
+                if hasattr(model, '__table__'):
+                    for fk in model.__table__.foreign_keys:
+                        print(f"    FK: {fk.parent.name} -> {fk.target_fullname}")
+
+            return models
+
+    except Exception as e:
+        print(f"Error en diagnóstico: {e}")
+        return []
 
 def detect_csv_format_simple(file):
     """Detecta formato CSV de manera simple y robusta."""
@@ -1773,6 +3574,925 @@ def detect_csv_format_simple(file):
         print(f"Error detectando formato: {e}")
         return 'degiro'  # Fallback a DeGiro
 
+def calculate_goal_status_safe(goal):
+    """Calcula el estado de un objetivo con manejo seguro de errores."""
+    try:
+        if goal.goal_type == 'portfolio_percentage':
+            return calculate_portfolio_percentage_status_safe(goal)
+        elif goal.goal_type == 'target_amount_auto':  # Nuevo tipo
+            return calculate_auto_target_status(goal)
+        elif goal.goal_type == 'time_prediction':  # Nuevo tipo
+            return calculate_time_prediction_status(goal)
+        elif goal.goal_type == 'target_amount':
+            return calculate_target_amount_status_safe(goal)
+        elif goal.goal_type == 'savings_monthly':
+            return calculate_savings_monthly_status_safe(goal)
+        elif goal.goal_type == 'debt_threshold':
+            return calculate_debt_threshold_status_safe(goal)
+        else:
+            return {'error': 'Tipo de objetivo no reconocido'}
+    except Exception as e:
+        return {'error': f'Error calculando estado: {str(e)}'}
+
+@app.route('/office/calculate_prediction', methods=['POST'])
+@login_required
+def calculate_prediction():
+    """Calcula predicciones en tiempo real para objetivos."""
+    try:
+        data = request.get_json()
+        prediction_type = data.get('prediction_type')
+        asset_type = data.get('asset_type')
+        target_amount = data.get('target_amount')
+        timeframe_months = data.get('timeframe_months')
+
+        if not prediction_type or not asset_type:
+            return jsonify({'success': False, 'message': 'Faltan datos requeridos'})
+
+        # Verificar si hay historial suficiente
+        current_value = get_current_asset_value_simple(current_user.id, asset_type)
+
+        # Verificar historial (simplificado - necesitarías implementar esta función)
+        has_sufficient_history = check_asset_history(current_user.id, asset_type)
+
+        if not has_sufficient_history:
+            return jsonify({
+                'success': True,
+                'has_history': False,
+                'message': 'Sin historial suficiente'
+            })
+
+        # Calcular predicción
+        if prediction_type == 'amount_to_time':
+            if not target_amount:
+                return jsonify({'success': False, 'message': 'Falta cantidad objetivo'})
+
+            try:
+                target_amount = float(target_amount)
+            except ValueError:
+                return jsonify({'success': False, 'message': 'Cantidad inválida'})
+
+            # Calcular tiempo necesario
+            monthly_growth = current_value * 0.02 if current_value > 0 else 100  # 2% estimado
+            amount_needed = target_amount - current_value
+
+            if amount_needed <= 0:
+                prediction_html = f"""
+                <div class="text-success">
+                    <i class="bi bi-check-circle me-2"></i>
+                    <strong>¡Meta ya alcanzada!</strong><br>
+                    Valor actual: <strong>{current_value:.2f} €</strong><br>
+                    Meta: <strong>{target_amount:.2f} €</strong>
+                </div>
+                """
+            else:
+                months_needed = amount_needed / monthly_growth if monthly_growth > 0 else 999
+                years_needed = months_needed / 12
+
+                completion_date = date.today() + timedelta(days=months_needed*30)
+
+                prediction_html = f"""
+                <div class="row">
+                    <div class="col-6">
+                        <small class="text-muted">Tiempo estimado</small><br>
+                        <strong>{months_needed:.1f} meses</strong><br>
+                        <small>({years_needed:.1f} años)</small>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted">Fecha estimada</small><br>
+                        <strong>{completion_date.strftime('%B %Y')}</strong>
+                    </div>
+                </div>
+                <hr class="my-2">
+                <div class="small text-muted">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Basado en crecimiento promedio mensual de {monthly_growth:.2f} €
+                </div>
+                """
+
+        elif prediction_type == 'time_to_amount':
+            if not timeframe_months:
+                return jsonify({'success': False, 'message': 'Falta plazo en meses'})
+
+            try:
+                timeframe_months = int(timeframe_months)
+            except ValueError:
+                return jsonify({'success': False, 'message': 'Plazo inválido'})
+
+            # Calcular cantidad estimada
+            monthly_growth = current_value * 0.02 if current_value > 0 else 100  # 2% estimado
+            estimated_growth = monthly_growth * timeframe_months
+            estimated_final = current_value + estimated_growth
+
+            prediction_html = f"""
+            <div class="row">
+                <div class="col-6">
+                    <small class="text-muted">Cantidad estimada</small><br>
+                    <strong>{estimated_final:.2f} €</strong>
+                </div>
+                <div class="col-6">
+                    <small class="text-muted">Crecimiento total</small><br>
+                    <strong>+{estimated_growth:.2f} €</strong>
+                </div>
+            </div>
+            <hr class="my-2">
+            <div class="small text-muted">
+                <i class="bi bi-info-circle me-1"></i>
+                Basado en crecimiento promedio mensual de {monthly_growth:.2f} €
+            </div>
+            """
+
+        else:
+            return jsonify({'success': False, 'message': 'Tipo de predicción no válido'})
+
+        return jsonify({
+            'success': True,
+            'has_history': True,
+            'prediction_html': prediction_html
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+# ========================================
+# 2. FUNCIÓN PARA VERIFICAR HISTORIAL
+# ========================================
+
+def check_asset_history(user_id, asset_type, min_records=2):
+    """Verifica si hay suficiente historial para un activo."""
+    try:
+        if asset_type == 'cash':
+            # Verificar registros de cash
+            records = CashHistoryRecord.query.filter_by(user_id=user_id).count()
+            return records >= min_records
+
+        elif asset_type == 'bolsa':
+            # Verificar portfolio histórico
+            records = PortfolioHistoryRecord.query.filter_by(user_id=user_id).count()
+            return records >= min_records
+
+        elif asset_type == 'crypto':
+            # Verificar crypto histórico
+            crypto_records = CryptoHistoryRecord.query.filter_by(user_id=user_id).count()
+            return crypto_records >= min_records
+
+        # Para otros activos, asumir que hay historial por simplicidad
+        return True
+
+    except Exception as e:
+        print(f"Error verificando historial de {asset_type}: {e}")
+        return False
+
+# ========================================
+# 3. VALIDACIONES DE UNICIDAD PARA OBJETIVOS
+# ========================================
+
+def validate_goal_uniqueness(form, user_id):
+    """Valida que no existan objetivos duplicados según las reglas de unicidad."""
+    
+    goal_type = form.goal_type.data
+    
+    if goal_type == 'portfolio_percentage':
+        # Solo puede haber UN objetivo de distribución
+        existing = Goal.query.filter_by(
+            user_id=user_id,
+            goal_type='portfolio_percentage',
+            is_active=True
+        ).first()
+        
+        if existing:
+            return {
+                'error': True,
+                'message': 'Ya existe un objetivo de Distribución de Activos. Solo puede haber uno activo.'
+            }
+    
+    elif goal_type == 'target_amount':
+        # No puede repetir: tipo + asset_type
+        asset_type = form.goal_asset_type.data
+        existing = Goal.query.filter_by(
+            user_id=user_id,
+            goal_type='target_amount',
+            goal_asset_type=asset_type,
+            is_active=True
+        ).first()
+        
+        if existing:
+            asset_names = {
+                'bolsa': 'Bolsa',
+                'cash': 'Efectivo',
+                'crypto': 'Criptomonedas',
+                'real_estate': 'Inmuebles',
+                'metales': 'Metales Preciosos',
+                'total_patrimonio': 'Patrimonio Total'
+            }
+            asset_name = asset_names.get(asset_type, asset_type)
+            return {
+                'error': True,
+                'message': f'Ya existe un objetivo de cantidad fija para {asset_name}.'
+            }
+    
+    elif goal_type == 'auto_prediction':
+        # No puede repetir: tipo + prediction_type + asset_type
+        prediction_type = form.prediction_type.data
+        asset_type = form.goal_asset_type.data
+        
+        existing = Goal.query.filter_by(
+            user_id=user_id,
+            goal_type='auto_prediction',
+            prediction_type=prediction_type,
+            goal_asset_type=asset_type,
+            is_active=True
+        ).first()
+        
+        if existing:
+            prediction_names = {
+                'amount_to_time': 'Predicción de Tiempo',
+                'time_to_amount': 'Predicción de Cantidad'
+            }
+            asset_names = {
+                'bolsa': 'Bolsa',
+                'cash': 'Efectivo',
+                'crypto': 'Criptomonedas',
+                'real_estate': 'Inmuebles',
+                'metales': 'Metales Preciosos',
+                'total_patrimonio': 'Patrimonio Total'
+            }
+            
+            prediction_name = prediction_names.get(prediction_type, prediction_type)
+            asset_name = asset_names.get(asset_type, asset_type)
+            
+            return {
+                'error': True,
+                'message': f'Ya existe un objetivo de {prediction_name} para {asset_name}.'
+            }
+    
+    elif goal_type == 'savings_monthly':
+        # Solo puede haber UNO de ahorro mensual
+        existing = Goal.query.filter_by(
+            user_id=user_id,
+            goal_type='savings_monthly',
+            is_active=True
+        ).first()
+        
+        if existing:
+            return {
+                'error': True,
+                'message': 'Ya existe un objetivo de Ahorro Mensual. Solo puede haber uno activo.'
+            }
+    
+    elif goal_type == 'debt_threshold':
+        # Solo puede haber UNO de techo de deuda
+        existing = Goal.query.filter_by(
+            user_id=user_id,
+            goal_type='debt_threshold',
+            is_active=True
+        ).first()
+        
+        if existing:
+            return {
+                'error': True,
+                'message': 'Ya existe un objetivo de Techo de Deuda. Solo puede haber uno activo.'
+            }
+    
+    return {'error': False}
+
+def generate_automatic_goal_name(form):
+    """Genera nombres automáticos para objetivos."""
+    
+    if form.goal_type.data == 'portfolio_percentage':
+        return "Distribución Ideal de Activos"
+    
+    elif form.goal_type.data == 'target_amount':
+        asset_names = {
+            'bolsa': 'Bolsa',
+            'cash': 'Efectivo',
+            'crypto': 'Criptomonedas',
+            'real_estate': 'Inmuebles',
+            'metales': 'Metales Preciosos',
+            'total_patrimonio': 'Patrimonio Total'
+        }
+        asset_name = asset_names.get(form.goal_asset_type.data, form.goal_asset_type.data)
+        return f"Meta de {asset_name}"
+    
+    elif form.goal_type.data == 'auto_prediction':
+        asset_names = {
+            'bolsa': 'Bolsa',
+            'cash': 'Efectivo',
+            'crypto': 'Criptomonedas',
+            'real_estate': 'Inmuebles',
+            'metales': 'Metales Preciosos',
+            'total_patrimonio': 'Patrimonio Total'
+        }
+        asset_name = asset_names.get(form.goal_asset_type.data, form.goal_asset_type.data)
+        
+        prediction_names = {
+            'amount_to_time': 'Predicción de Tiempo',
+            'time_to_amount': 'Predicción de Cantidad'
+        }
+        prediction_name = prediction_names.get(form.prediction_type.data, form.prediction_type.data)
+        
+        return f"{prediction_name} en {asset_name}"
+    
+    elif form.goal_type.data == 'savings_monthly':
+        return "Ahorro Mensual"
+    
+    elif form.goal_type.data == 'debt_threshold':
+        return "Techo de Deuda"
+    
+    else:
+        return "Objetivo Personalizado"
+
+def calculate_auto_target_status(goal):
+    """Calcula objetivos automáticos - usuario dice cantidad, programa estima tiempo."""
+    try:
+        asset_type = goal.goal_asset_type
+        target_amount = goal.goal_target_amount
+        current_value = get_current_asset_value(current_user.id, asset_type)
+
+        # Obtener crecimiento histórico
+        historical_data = get_historical_asset_growth(current_user.id, asset_type, months=12)
+        monthly_growth = historical_data.get('monthly_avg', 0)
+
+        if monthly_growth <= 0:
+            return {
+                'type': 'auto_target',
+                'error': 'No hay crecimiento histórico positivo para hacer estimaciones'
+            }
+
+        # Calcular tiempo estimado
+        amount_needed = target_amount - current_value
+        if amount_needed <= 0:
+            months_needed = 0
+            progress_pct = 100
+        else:
+            months_needed = amount_needed / monthly_growth
+            progress_pct = (current_value / target_amount) * 100
+
+        years_needed = months_needed / 12
+
+        return {
+            'type': 'auto_target',
+            'current_value': current_value,
+            'target_amount': target_amount,
+            'progress_percentage': min(100, max(0, progress_pct)),
+            'amount_needed': max(0, amount_needed),
+            'estimated_months': months_needed,
+            'estimated_years': years_needed,
+            'monthly_growth_avg': monthly_growth,
+            'completion_date': (date.today() + timedelta(days=months_needed*30)).strftime('%B %Y') if months_needed > 0 else 'Ya completado',
+            'last_calculated': datetime.now()
+        }
+
+    except Exception as e:
+        return {'error': f'Error en cálculo automático: {str(e)}'}
+
+def calculate_time_prediction_status(goal):
+    """Calcula objetivos de predicción - usuario dice tiempo, programa estima cantidad."""
+    try:
+        asset_type = goal.goal_asset_type
+        timeframe_months = goal.goal_target_timeframe_months
+        current_value = get_current_asset_value(current_user.id, asset_type)
+        
+        # Obtener crecimiento histórico
+        historical_data = get_historical_asset_growth(current_user.id, asset_type, months=12)
+        monthly_growth = historical_data.get('monthly_avg', 0)
+        
+        # Calcular cantidad estimada
+        estimated_growth = monthly_growth * timeframe_months
+        estimated_final_value = current_value + estimated_growth
+        
+        # Calcular progreso (tiempo transcurrido)
+        months_elapsed = ((date.today().year - goal.start_date.year) * 12 + 
+                         (date.today().month - goal.start_date.month)) if goal.start_date else 0
+        progress_pct = (months_elapsed / timeframe_months) * 100 if timeframe_months > 0 else 0
+        
+        return {
+            'type': 'time_prediction',
+            'current_value': current_value,
+            'timeframe_months': timeframe_months,
+            'estimated_final_value': estimated_final_value,
+            'estimated_growth': estimated_growth,
+            'progress_percentage': min(100, max(0, progress_pct)),
+            'months_elapsed': months_elapsed,
+            'months_remaining': max(0, timeframe_months - months_elapsed),
+            'monthly_growth_avg': monthly_growth,
+            'target_date': (goal.start_date + timedelta(days=timeframe_months*30)).strftime('%B %Y') if goal.start_date else 'No definida',
+            'last_calculated': datetime.now()
+        }
+        
+    except Exception as e:
+        return {'error': f'Error en predicción temporal: {str(e)}'}
+
+def validate_goal_prerequisites_updated(form):
+    """Validaciones actualizadas para prerrequisitos de objetivos."""
+
+    if form.goal_type.data == 'debt_threshold':
+        # Verificar que tenga salario configurado
+        income_data = FixedIncome.query.filter_by(user_id=current_user.id).first()
+        if not income_data or not income_data.annual_net_salary:
+            return {
+                'message': 'Para crear objetivos de techo de deuda necesitas configurar tu salario neto anual. '
+                          f'<a href="{url_for("fixed_income")}" class="alert-link">Configurar Salario</a>',
+                'type': 'validation_error'
+            }
+
+    elif form.goal_type.data in ['target_amount', 'auto_prediction', 'savings_monthly']:
+        # Para predicciones automáticas, verificar historial si es necesario
+        if form.goal_type.data == 'auto_prediction':
+            asset_type = form.goal_asset_type.data
+            if asset_type and not check_asset_history(current_user.id, asset_type):
+                return {
+                    'message': f'Para predicciones automáticas en {asset_type} necesitas más historial. '
+                              'El objetivo se creará pero las predicciones se mostrarán cuando tengas más datos.',
+                    'type': 'info'
+                }
+
+    return None  # Sin errores
+
+def calculate_days_until_next_alert(alert_config):
+    """Calcula cuántos días faltan para que salte la próxima alerta."""
+    try:
+        today = date.today()
+        
+        if alert_config.alert_reason == 'objetivo':
+            if alert_config.goal_alert_day_of_month:
+                # Alerta mensual en día específico
+                try:
+                    next_alert_date = date(today.year, today.month, alert_config.goal_alert_day_of_month)
+                    if next_alert_date <= today:
+                        # Si ya pasó este mes, calcular para el próximo
+                        if today.month == 12:
+                            next_alert_date = date(today.year + 1, 1, alert_config.goal_alert_day_of_month)
+                        else:
+                            next_alert_date = date(today.year, today.month + 1, alert_config.goal_alert_day_of_month)
+                    
+                    days_remaining = (next_alert_date - today).days
+                    return days_remaining
+                except ValueError:
+                    # Día inválido para el mes (ej: 31 en febrero)
+                    return None
+        
+        elif alert_config.alert_reason == 'earnings_report':
+            # Para alertas de resultados, buscar próxima fecha
+            if alert_config.watchlist_item and alert_config.watchlist_item.fecha_resultados:
+                earnings_date = alert_config.watchlist_item.fecha_resultados
+                alert_date = earnings_date - timedelta(days=alert_config.days_notice)
+                if alert_date > today:
+                    return (alert_date - today).days
+        
+        elif alert_config.alert_reason == 'periodic_summary':
+            if alert_config.summary_one_time_date:
+                if alert_config.summary_one_time_date > today:
+                    return (alert_config.summary_one_time_date - today).days
+        
+        elif alert_config.alert_reason == 'custom':
+            if alert_config.custom_start_date:
+                if alert_config.custom_start_date > today:
+                    return (alert_config.custom_start_date - today).days
+        
+        return None  # No se puede calcular
+        
+    except Exception as e:
+        print(f"Error calculando días restantes para alerta {alert_config.id}: {e}")
+        return None
+
+@app.route('/office/alert_details/<int:alert_id>', methods=['GET'])
+@login_required
+def alert_details(alert_id):
+    """Obtiene detalles de una alerta específica."""
+    try:
+        alert = AlertConfiguration.query.filter_by(id=alert_id, user_id=current_user.id).first()
+        if not alert:
+            return jsonify({'success': False, 'message': 'Alerta no encontrada'})
+        
+        # Generar HTML con detalles
+        html_content = f"""
+        <div class="alert-details">
+            <h6>Información General</h6>
+            <p><strong>Tipo:</strong> {alert.alert_reason.replace('_', ' ').title()}</p>
+            <p><strong>Creada:</strong> {alert.created_at.strftime('%d/%m/%Y %H:%M')}</p>
+            <p><strong>Email:</strong> {'Sí' if alert.notify_by_email else 'No'}</p>
+        """
+        
+        # Detalles específicos según tipo
+        if alert.alert_reason == 'earnings_report':
+            html_content += f"""
+            <h6>Configuración de Resultados</h6>
+            <p><strong>Alcance:</strong> {alert.scope.title() if alert.scope else 'No definido'}</p>
+            <p><strong>Días de antelación:</strong> {alert.days_notice}</p>
+            <p><strong>Frecuencia:</strong> {alert.frequency or 'No definida'}</p>
+            """
+            if alert.watchlist_item:
+                html_content += f"<p><strong>Acción:</strong> {alert.watchlist_item.item_name or alert.watchlist_item.ticker}</p>"
+        
+        elif alert.alert_reason == 'metric_threshold':
+            html_content += f"""
+            <h6>Configuración de Métrica</h6>
+            <p><strong>Métrica:</strong> {alert.metric_name or 'No definida'}</p>
+            <p><strong>Condición:</strong> {alert.metric_operator or 'No definida'}</p>
+            <p><strong>Valor objetivo:</strong> {alert.metric_target_value or alert.metric_target_text or 'No definido'}</p>
+            """
+            if alert.watchlist_item:
+                html_content += f"<p><strong>Acción:</strong> {alert.watchlist_item.item_name or alert.watchlist_item.ticker}</p>"
+        
+        elif alert.alert_reason == 'periodic_summary':
+            html_content += f"""
+            <h6>Configuración de Resumen</h6>
+            <p><strong>Tipo:</strong> {alert.summary_type.title() if alert.summary_type else 'No definido'}</p>
+            <p><strong>Frecuencia:</strong> {alert.summary_frequency or 'Puntual'}</p>
+            """
+            if alert.summary_one_time_date:
+                html_content += f"<p><strong>Fecha:</strong> {alert.summary_one_time_date.strftime('%d/%m/%Y')}</p>"
+        
+        elif alert.alert_reason == 'objetivo':
+            html_content += f"""
+            <h6>Configuración de Objetivo</h6>
+            <p><strong>Nombre:</strong> {alert.goal_name or 'Sin nombre'}</p>
+            <p><strong>Tipo:</strong> {alert.goal_type.replace('_', ' ').title() if alert.goal_type else 'No definido'}</p>
+            """
+            if alert.goal_alert_day_of_month:
+                html_content += f"<p><strong>Día de alerta:</strong> {alert.goal_alert_day_of_month} de cada mes</p>"
+        
+        elif alert.alert_reason == 'custom':
+            html_content += f"""
+            <h6>Configuración Personalizada</h6>
+            <p><strong>Título:</strong> {alert.custom_title or 'Sin título'}</p>
+            """
+            if alert.custom_description:
+                html_content += f"<p><strong>Descripción:</strong> {alert.custom_description}</p>"
+            if alert.custom_start_date:
+                html_content += f"<p><strong>Fecha inicio:</strong> {alert.custom_start_date.strftime('%d/%m/%Y')}</p>"
+        
+        # Días restantes
+        days_remaining = calculate_days_until_next_alert(alert)
+        if days_remaining is not None:
+            if days_remaining == 0:
+                html_content += f"<p><strong>Próxima ejecución:</strong> <span class='text-danger'>Hoy</span></p>"
+            elif days_remaining == 1:
+                html_content += f"<p><strong>Próxima ejecución:</strong> <span class='text-warning'>Mañana</span></p>"
+            else:
+                html_content += f"<p><strong>Próxima ejecución:</strong> En {days_remaining} días</p>"
+        
+        html_content += "</div>"
+        
+        return jsonify({'success': True, 'html': html_content})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+# 3. FUNCIONES AUXILIARES PARA OBTENER DATOS (agregar en app.py)
+def get_current_patrimony_breakdown(user_id):
+    """Obtiene el desglose actual del patrimonio por tipo de activo."""
+    try:
+        # Obtener datos usando la lógica existente de financial_summary
+        # Simular el llamado a la lógica de financial_summary
+        
+        # Efectivo (Cash)
+        bank_accounts = BankAccount.query.filter_by(user_id=user_id).all()
+        cash_total = sum(account.current_balance for account in bank_accounts) if bank_accounts else 0
+        
+        # Inversiones (Bolsa)
+        portfolio_record = UserPortfolio.query.filter_by(user_id=user_id).first()
+        bolsa_total = 0
+        if portfolio_record and portfolio_record.portfolio_data:
+            portfolio_data = json.loads(portfolio_record.portfolio_data)
+            bolsa_total = sum(float(item.get('market_value_eur', 0)) for item in portfolio_data 
+                            if 'market_value_eur' in item and item['market_value_eur'] is not None)
+        
+        # Criptomonedas
+        crypto_transactions = CryptoTransaction.query.filter_by(user_id=user_id).all()
+        crypto_total = 0
+        if crypto_transactions:
+            crypto_holdings = {}
+            for transaction in crypto_transactions:
+                crypto_key = transaction.ticker_symbol
+                if crypto_key not in crypto_holdings:
+                    crypto_holdings[crypto_key] = {'quantity': 0, 'current_price': transaction.current_price}
+                
+                if transaction.transaction_type == 'buy':
+                    crypto_holdings[crypto_key]['quantity'] += transaction.quantity
+                else:
+                    crypto_holdings[crypto_key]['quantity'] -= transaction.quantity
+                
+                if transaction.current_price is not None:
+                    crypto_holdings[crypto_key]['current_price'] = transaction.current_price
+            
+            crypto_total = sum(crypto['quantity'] * crypto['current_price'] 
+                             for crypto in crypto_holdings.values() 
+                             if crypto['quantity'] > 0 and crypto['current_price'] is not None)
+        
+        # Inmuebles
+        real_estate_assets = RealEstateAsset.query.filter_by(user_id=user_id).all()
+        real_estate_total = sum(asset.current_market_value for asset in real_estate_assets) if real_estate_assets else 0
+        
+        # Metales preciosos
+        gold_record = PreciousMetalPrice.query.filter_by(metal_type='gold').first()
+        silver_record = PreciousMetalPrice.query.filter_by(metal_type='silver').first()
+        gold_price = gold_record.price_eur_per_oz if gold_record else 0
+        silver_price = silver_record.price_eur_per_oz if silver_record else 0
+        
+        metal_transactions = PreciousMetalTransaction.query.filter_by(user_id=user_id).all()
+        metales_total = 0
+        if metal_transactions:
+            g_to_oz = 0.0321507466
+            gold_oz = silver_oz = 0
+            
+            for transaction in metal_transactions:
+                quantity_oz = transaction.quantity if transaction.unit_type == 'oz' else transaction.quantity * g_to_oz
+                
+                if transaction.metal_type == 'gold':
+                    if transaction.transaction_type == 'buy':
+                        gold_oz += quantity_oz
+                    else:
+                        gold_oz -= quantity_oz
+                else:
+                    if transaction.transaction_type == 'buy':
+                        silver_oz += quantity_oz
+                    else:
+                        silver_oz -= quantity_oz
+            
+            metales_total = (gold_oz * gold_price) + (silver_oz * silver_price)
+        
+        total_assets = cash_total + bolsa_total + crypto_total + real_estate_total + metales_total
+        
+        return {
+            'cash': cash_total,
+            'bolsa': bolsa_total,
+            'crypto': crypto_total,
+            'real_estate': real_estate_total,
+            'metales': metales_total,
+            'total_assets': total_assets
+        }
+        
+    except Exception as e:
+        print(f"Error obteniendo desglose de patrimonio: {e}")
+        return {
+            'cash': 0, 'bolsa': 0, 'crypto': 0, 'real_estate': 0, 'metales': 0, 'total_assets': 0
+        }
+
+def get_current_asset_value(user_id, asset_type):
+    """Obtiene el valor actual de un tipo específico de activo."""
+    patrimony = get_current_patrimony_breakdown(user_id)
+    
+    if asset_type == 'total_patrimonio':
+        return patrimony['total_assets']
+    elif asset_type == 'salario':
+        income_data = FixedIncome.query.filter_by(user_id=user_id).first()
+        return income_data.annual_net_salary if income_data else 0
+    else:
+        return patrimony.get(asset_type, 0)
+
+def get_historical_asset_growth(user_id, asset_type, months=3):
+    """Obtiene el crecimiento histórico promedio de un activo."""
+    try:
+        if asset_type == 'cash':
+            # Obtener historial de efectivo
+            history_records = CashHistoryRecord.query.filter_by(user_id=user_id)\
+                .filter(CashHistoryRecord.record_date >= date.today() - timedelta(days=months*30))\
+                .order_by(CashHistoryRecord.record_date.desc()).all()
+            
+            if len(history_records) >= 2:
+                latest_value = history_records[0].total_cash
+                oldest_value = history_records[-1].total_cash
+                months_diff = len(history_records) / 4  # Aproximadamente semanal
+                monthly_growth = (latest_value - oldest_value) / months_diff if months_diff > 0 else 0
+                return {'monthly_avg': monthly_growth}
+        
+        # Para otros activos, implementar lógica similar
+        return {'monthly_avg': 0}
+        
+    except Exception as e:
+        print(f"Error obteniendo crecimiento histórico: {e}")
+        return {'monthly_avg': 0}
+
+def get_friendly_goal_name(goal):
+    """Genera nombres amigables para objetivos automáticamente."""
+    
+    if goal.goal_type == 'portfolio_percentage':
+        return "Distribución Ideal de Activos"
+    
+    elif goal.goal_type == 'target_amount':
+        asset_names = {
+            'bolsa': 'Bolsa',
+            'cash': 'Efectivo',
+            'crypto': 'Criptomonedas',
+            'real_estate': 'Inmuebles',
+            'metales': 'Metales Preciosos',
+            'total_patrimonio': 'Patrimonio Total',
+            'salario': 'Salario'
+        }
+        asset_name = asset_names.get(goal.goal_asset_type, goal.goal_asset_type)
+        return f"Meta de {asset_name}"
+    
+    elif goal.goal_type == 'auto_prediction':
+        asset_names = {
+            'bolsa': 'Bolsa',
+            'cash': 'Efectivo',
+            'crypto': 'Criptomonedas',
+            'real_estate': 'Inmuebles',
+            'metales': 'Metales Preciosos',
+            'total_patrimonio': 'Patrimonio Total'
+        }
+        asset_name = asset_names.get(goal.goal_asset_type, goal.goal_asset_type)
+        
+        prediction_names = {
+            'amount_to_time': 'Predicción de Tiempo',
+            'time_to_amount': 'Predicción de Cantidad'
+        }
+        prediction_name = prediction_names.get(goal.prediction_type, goal.prediction_type)
+        
+        return f"{prediction_name} en {asset_name}"
+    
+    elif goal.goal_type == 'savings_monthly':
+        return "Ahorro Mensual"
+    
+    elif goal.goal_type == 'debt_threshold':
+        return "Techo de Deuda"
+    
+    else:
+        return "Objetivo Personalizado"
+
+@app.route('/office/send_report_by_email', methods=['POST'])
+@login_required
+def send_report_by_email():
+    """Envía informes por correo electrónico al buzón virtual y al email del usuario."""
+    try:
+        report_type = request.form.get('report_type', 'complete')
+        
+        # Generar datos del informe
+        export_data = generate_custom_report_data(current_user.id, report_type)
+        
+        if not export_data:
+            return jsonify({'success': False, 'message': 'No hay datos para generar el informe'})
+        
+        # Crear contenido HTML del informe
+        report_html = generate_report_html(export_data, report_type)
+        
+        # Crear contenido de texto plano
+        report_text = generate_report_text(export_data, report_type)
+        
+        # Obtener título del informe
+        report_titles = {
+            'complete': 'Informe Completo de Patrimonio',
+            'bolsa': 'Informe de Inversiones (Bolsa)',
+            'cash': 'Informe de Efectivo (Cuentas Bancarias)',
+            'crypto': 'Informe de Criptomonedas',
+            'real_estate': 'Informe de Inmuebles',
+            'metales': 'Informe de Metales Preciosos',
+            'debts': 'Informe de Deudas',
+            'income_expenses': 'Informe de Ingresos y Gastos'
+        }
+        report_title = report_titles.get(report_type, 'Informe Personalizado')
+        
+        # 1. Crear mensaje en el buzón virtual
+        mailbox_message = MailboxMessage(
+            user_id=current_user.id,
+            message_type='periodic_summary',
+            title=f'📊 {report_title}',
+            content=report_text[:500] + '...' if len(report_text) > 500 else report_text
+        )
+        db.session.add(mailbox_message)
+        
+        # 2. Enviar email al usuario (si tiene email configurado)
+        if current_user.email:
+            try:
+                msg = Message(
+                    subject=f'FollowUp - {report_title}',
+                    recipients=[current_user.email]
+                )
+                
+                # Contenido de texto plano
+                msg.body = f"""Hola {current_user.username},
+
+Adjunto encontrarás tu {report_title.lower()} generado automáticamente.
+
+{report_text}
+
+Este informe ha sido generado el {datetime.now().strftime('%d/%m/%Y %H:%M')}.
+
+Puedes acceder a más informes y configurar alertas en tu panel de control: {url_for('office_mailbox', _external=True)}
+
+Saludos,
+FollowUp App"""
+
+                # Contenido HTML
+                msg.html = f"""
+                <html>
+                <head>
+                    <style>
+                        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                        .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; text-align: center; }}
+                        .content {{ padding: 20px; }}
+                        .report-table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
+                        .report-table th, .report-table td {{ padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }}
+                        .report-table th {{ background-color: #f8f9fa; font-weight: bold; }}
+                        .highlight {{ background-color: #e3f2fd; padding: 15px; border-radius: 5px; margin: 15px 0; }}
+                        .footer {{ background-color: #f8f9fa; padding: 15px; text-align: center; font-size: 0.9em; color: #666; }}
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <h1>📊 {report_title}</h1>
+                        <p>Generado el {datetime.now().strftime('%d/%m/%Y %H:%M')}</p>
+                    </div>
+                    <div class="content">
+                        <p>Hola <strong>{current_user.username}</strong>,</p>
+                        <p>Adjunto encontrarás tu {report_title.lower()} generado automáticamente.</p>
+                        
+                        <div class="highlight">
+                            <h3>📈 Resumen del Informe</h3>
+                            {report_html}
+                        </div>
+                        
+                        <p>Puedes acceder a más informes y configurar alertas en tu <a href="{url_for('office_mailbox', _external=True)}">panel de control</a>.</p>
+                    </div>
+                    <div class="footer">
+                        <p>Este mensaje fue generado automáticamente por FollowUp App</p>
+                    </div>
+                </body>
+                </html>
+                """
+                
+                mail.send(msg)
+                app.logger.info(f"Informe {report_type} enviado por email a {current_user.email}")
+                
+            except Exception as e:
+                app.logger.error(f"Error enviando email del informe: {e}")
+                # No fallar si el email falla, el mensaje del buzón ya se creó
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True, 
+            'message': f'Informe enviado correctamente. Revisa tu buzón virtual y tu email.'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error en send_report_by_email: {e}")
+        return jsonify({'success': False, 'message': f'Error al enviar informe: {str(e)}'})
+
+
+def generate_report_html(export_data, report_type):
+    """Genera contenido HTML del informe para email."""
+    if not export_data:
+        return "<p>No hay datos disponibles para este informe.</p>"
+    
+    html = "<table class='report-table'>\n"
+    
+    # Encabezados (primera fila)
+    if export_data:
+        html += "<thead><tr>\n"
+        for header in export_data[0]:
+            html += f"<th>{header}</th>\n"
+        html += "</tr></thead>\n"
+        
+        # Datos (resto de filas)
+        html += "<tbody>\n"
+        for row in export_data[1:]:  # Saltar encabezados
+            html += "<tr>\n"
+            for cell in row:
+                html += f"<td>{cell}</td>\n"
+            html += "</tr>\n"
+        html += "</tbody>\n"
+    
+    html += "</table>\n"
+    
+    return html
+
+
+def generate_report_text(export_data, report_type):
+    """Genera contenido de texto plano del informe para email."""
+    if not export_data:
+        return "No hay datos disponibles para este informe."
+    
+    text = f"INFORME: {report_type.upper()}\n"
+    text += "=" * 50 + "\n\n"
+    
+    if export_data:
+        # Calcular ancho de columnas
+        col_widths = []
+        for i in range(len(export_data[0])):
+            max_width = max(len(str(row[i])) if i < len(row) else 0 for row in export_data)
+            col_widths.append(min(max_width + 2, 20))  # Máximo 20 caracteres por columna
+        
+        # Generar tabla de texto
+        for row_idx, row in enumerate(export_data):
+            line = ""
+            for col_idx, cell in enumerate(row):
+                if col_idx < len(col_widths):
+                    cell_str = str(cell)[:col_widths[col_idx]-2]  # Truncar si es muy largo
+                    line += cell_str.ljust(col_widths[col_idx])
+            text += line + "\n"
+            
+            # Línea separadora después de encabezados
+            if row_idx == 0:
+                text += "-" * sum(col_widths) + "\n"
+    
+    text += "\n" + "=" * 50 + "\n"
+    text += f"Generado el {datetime.now().strftime('%d/%m/%Y %H:%M')}\n"
+    
+    return text
 
 def validate_filename_format_flexible(filename):
     """Validación de archivo más flexible que acepta tanto DeGiro como IBKR."""
@@ -1852,6 +4572,259 @@ def get_yahoo_suffix_mapping():
         'DRCTEDGE': '', 'IBKR': '', 'IBKRATS': '', 'TSXDARK': '.TO',
         'TRIACT': '.TO', 'ALPHA': '.TO', 'CAIBFRSH': '.TO'
     }
+
+
+def validate_goal_prerequisites(form):
+    """Valida que el usuario tenga los datos necesarios para crear el objetivo."""
+    
+    if form.goal_type.data == 'debt_threshold':
+        # Verificar que tenga salario configurado
+        income_data = FixedIncome.query.filter_by(user_id=current_user.id).first()
+        if not income_data or not income_data.annual_net_salary:
+            return {
+                'message': 'Para crear objetivos de techo de deuda necesitas configurar tu salario neto anual. '
+                          f'<a href="{url_for("fixed_income")}" class="alert-link">Configurar Salario</a>',
+                'type': 'validation_error'
+            }
+    
+    elif form.goal_type.data in ['target_amount', 'auto_prediction', 'savings_monthly']:
+        # Verificar que tenga datos históricos suficientes para predicciones
+        if form.goal_asset_type.data == 'cash':
+            cash_records = CashHistoryRecord.query.filter_by(user_id=current_user.id).count()
+            if cash_records < 2:
+                return {
+                    'message': 'Para objetivos basados en efectivo necesitas al menos 2 registros históricos. '
+                              f'<a href="{url_for("bank_accounts")}" class="alert-link">Gestionar Cuentas</a>',
+                    'type': 'validation_error'
+                }
+    
+    return None  # Sin errores
+
+def calculate_portfolio_distribution_status(goal):
+    """Calcula distribución de patrimonio usando modelo Goal."""
+    try:
+        if not goal.asset_distribution:
+            return {'error': 'Sin configuración de distribución'}
+        
+        target_percentages = json.loads(goal.asset_distribution)
+        patrimony = get_current_patrimony_breakdown_simple(goal.user_id)
+        total_assets = patrimony.get('total_assets', 0)
+        
+        if total_assets <= 0:
+            return {'error': 'Sin patrimonio suficiente'}
+        
+        gaps = {}
+        overall_progress = 0
+        
+        for asset_type, target_pct in target_percentages.items():
+            if target_pct > 0:
+                current_value = patrimony.get(asset_type, 0)
+                current_pct = (current_value / total_assets) * 100
+                gap_pct = target_pct - current_pct
+                
+                gaps[asset_type] = {
+                    'target_percentage': target_pct,
+                    'current_percentage': current_pct,
+                    'percentage_gap': gap_pct,
+                    'current_value': current_value
+                }
+                
+                # Calcular progreso: qué tan cerca está del objetivo
+                if target_pct > 0:
+                    asset_progress = min(100, (current_pct / target_pct) * 100)
+                    overall_progress += asset_progress * (target_pct / 100)  # Ponderado
+        
+        return {
+            'type': 'portfolio_percentage',
+            'total_assets': total_assets,
+            'gaps': gaps,
+            'progress_percentage': min(100, overall_progress)
+        }
+        
+    except Exception as e:
+        return {'error': f'Error en distribución: {str(e)}'}
+
+def calculate_fixed_target_status(goal):
+    """Calcula objetivo de cantidad fija usando modelo Goal."""
+    try:
+        target_amount = goal.target_amount or 0
+        current_value = get_current_asset_value_simple(goal.user_id, goal.goal_asset_type)
+
+        progress_pct = (current_value / target_amount) * 100 if target_amount > 0 else 0
+        amount_needed = max(0, target_amount - current_value)
+
+        # Calcular tiempo
+        timeframe_months = goal.target_timeframe_months or 12
+        start_date = goal.start_date or goal.created_at.date()
+        today = date.today()
+        months_elapsed = ((today.year - start_date.year) * 12 + (today.month - start_date.month))
+        months_remaining = max(0, timeframe_months - months_elapsed)
+
+        # Crecimiento necesario
+        monthly_growth_needed = amount_needed / months_remaining if months_remaining > 0 else 0
+
+        return {
+            'type': 'target_amount',
+            'current_value': current_value,
+            'target_amount': target_amount,
+            'progress_percentage': min(100, progress_pct),
+            'amount_needed': amount_needed,
+            'months_remaining': months_remaining,
+            'monthly_growth_needed': monthly_growth_needed
+        }
+
+    except Exception as e:
+        return {'error': f'Error en objetivo cantidad: {str(e)}'}
+
+def calculate_monthly_savings_status(goal):
+    """Calcula ahorro mensual usando modelo Goal."""
+    try:
+        monthly_target = goal.monthly_savings_target or 0
+        start_date = goal.start_date or goal.created_at.date()
+        current_cash = get_current_asset_value_simple(goal.user_id, 'cash')
+
+        # Calcular meses transcurridos
+        today = date.today()
+        months_elapsed = ((today.year - start_date.year) * 12 + (today.month - start_date.month)) + 1
+
+        # Objetivo acumulado
+        cumulative_target = monthly_target * months_elapsed
+
+        # Progreso simplificado (asumiendo que partió de 0)
+        progress_pct = min(100, (current_cash / cumulative_target) * 100) if cumulative_target > 0 else 0
+
+        return {
+            'type': 'savings_monthly',
+            'monthly_target': monthly_target,
+            'current_cash': current_cash,
+            'months_elapsed': months_elapsed,
+            'cumulative_target': cumulative_target,
+            'actual_savings': current_cash,  # Simplificado
+            'progress_percentage': progress_pct,
+            'current_month_savings': 0,  # Simplificado
+            'current_month_gap': monthly_target  # Simplificado
+        }
+
+    except Exception as e:
+        return {'error': f'Error en ahorro mensual: {str(e)}'}
+
+def calculate_debt_ceiling_status(goal):
+    """Calcula techo de deuda usando modelo Goal."""
+    try:
+        target_percentage = goal.debt_ceiling_percentage or 0
+        
+        # Obtener datos de deuda
+        income_data = FixedIncome.query.filter_by(user_id=goal.user_id).first()
+        monthly_salary = (income_data.annual_net_salary / 12) if income_data and income_data.annual_net_salary else 0
+        
+        debt_plans = DebtInstallmentPlan.query.filter_by(user_id=goal.user_id, is_active=True).all()
+        monthly_debt_payment = sum(plan.monthly_payment for plan in debt_plans) if debt_plans else 0
+        
+        current_debt_percentage = (monthly_debt_payment / monthly_salary * 100) if monthly_salary > 0 else 0
+        
+        target_debt_amount = (target_percentage / 100) * monthly_salary
+        debt_margin = target_debt_amount - monthly_debt_payment
+        is_over_limit = current_debt_percentage > target_percentage
+        
+        return {
+            'type': 'debt_threshold',
+            'target_debt_percentage': target_percentage,
+            'current_debt_percentage': current_debt_percentage,
+            'monthly_salary': monthly_salary,
+            'target_debt_amount': target_debt_amount,
+            'current_debt_payment': monthly_debt_payment,
+            'debt_margin': debt_margin,
+            'is_over_limit': is_over_limit,
+            'utilization_percentage': (monthly_debt_payment / target_debt_amount) * 100 if target_debt_amount > 0 else 0
+        }
+        
+    except Exception as e:
+        return {'error': f'Error en techo de deuda: {str(e)}'}
+
+def get_current_patrimony_breakdown_simple(user_id):
+    """Obtiene desglose básico del patrimonio."""
+    try:
+        # Efectivo
+        bank_accounts = BankAccount.query.filter_by(user_id=user_id).all()
+        cash_total = sum(account.current_balance for account in bank_accounts) if bank_accounts else 0
+        
+        # Inversiones
+        portfolio_record = UserPortfolio.query.filter_by(user_id=user_id).first()
+        bolsa_total = 0
+        if portfolio_record and portfolio_record.portfolio_data:
+            try:
+                portfolio_data = json.loads(portfolio_record.portfolio_data)
+                bolsa_total = sum(float(item.get('market_value_eur', 0)) for item in portfolio_data 
+                                if 'market_value_eur' in item and item['market_value_eur'] is not None)
+            except:
+                bolsa_total = 0
+        
+        # Criptomonedas (simplificado por ahora)
+        crypto_total = 0
+        try:
+            crypto_transactions = CryptoTransaction.query.filter_by(user_id=user_id).all()
+            if crypto_transactions:
+                crypto_holdings = {}
+                for transaction in crypto_transactions:
+                    crypto_key = transaction.ticker_symbol
+                    if crypto_key not in crypto_holdings:
+                        crypto_holdings[crypto_key] = {'quantity': 0, 'current_price': transaction.current_price or 0}
+                    
+                    if transaction.transaction_type == 'buy':
+                        crypto_holdings[crypto_key]['quantity'] += transaction.quantity
+                    else:
+                        crypto_holdings[crypto_key]['quantity'] -= transaction.quantity
+                    
+                    if transaction.current_price is not None:
+                        crypto_holdings[crypto_key]['current_price'] = transaction.current_price
+                
+                crypto_total = sum(crypto['quantity'] * crypto['current_price'] 
+                                 for crypto in crypto_holdings.values() 
+                                 if crypto['quantity'] > 0 and crypto['current_price'] is not None)
+        except:
+            crypto_total = 0
+        
+        # Inmuebles
+        real_estate_total = 0
+        try:
+            real_estate_assets = RealEstateAsset.query.filter_by(user_id=user_id).all()
+            real_estate_total = sum(asset.current_market_value for asset in real_estate_assets) if real_estate_assets else 0
+        except:
+            real_estate_total = 0
+        
+        # Metales (simplificado por ahora)
+        metales_total = 0
+        
+        total_assets = cash_total + bolsa_total + crypto_total + real_estate_total + metales_total
+        
+        return {
+            'cash': cash_total,
+            'bolsa': bolsa_total,
+            'crypto': crypto_total,
+            'real_estate': real_estate_total,
+            'metales': metales_total,
+            'total_assets': total_assets
+        }
+        
+    except Exception as e:
+        print(f"Error obteniendo patrimonio: {e}")
+        return {'cash': 0, 'bolsa': 0, 'crypto': 0, 'real_estate': 0, 'metales': 0, 'total_assets': 0}
+
+def get_current_asset_value_simple(user_id, asset_type):
+    """Obtiene valor actual de un activo."""
+    patrimony = get_current_patrimony_breakdown_simple(user_id)
+
+    if asset_type == 'total_patrimonio':
+        return patrimony['total_assets']
+    elif asset_type == 'salario':
+        try:
+            income_data = FixedIncome.query.filter_by(user_id=user_id).first()
+            return income_data.annual_net_salary if income_data else 0
+        except:
+            return 0
+    else:
+        return patrimony.get(asset_type, 0)
+
 
 def detect_csv_format_simple(file):
     """Detecta formato CSV de manera simple y robusta."""
@@ -3744,7 +6717,7 @@ def get_current_financial_crosstime_metrics(user_id):
         gnc_dividendos = div_acc           # ← AÑADIDO: Ganancias dividendos (siempre positivas)
         
         # Fondos disponibles sin deuda = Aportaciones + Ganancias Trading + Ganancias Dividendos
-        fondos_disp_s_d = aport_netas_usr + gnc_trading + gnc_dividendos  # ← ACTUALIZADO
+        fondos_disp_s_d = aport_netas_usr + rsp_acc + gnc_dividendos # Usar rsp_acc en lugar de gnc_trading
         apalancamiento_eod = max(0, val_inv_bruto - fondos_disp_s_d)
         final_apalancamiento_calculated = apalancamiento_eod # Guarda el último apalancamiento calculado
 
@@ -3823,6 +6796,102 @@ def get_current_financial_crosstime_metrics(user_id):
         'daily_twr_ewc_index_series': daily_twr_ewc_index_series, # Serie del índice TWRR (base 100)
         'daily_twr_percentage_series': daily_twr_percentage_series # Serie del TWRR en %
     }
+
+
+
+@app.route('/office/goal_details/<int:goal_id>', methods=['GET'])
+@login_required
+def goal_details(goal_id):
+    """Obtiene detalles de un objetivo específico usando modelo Goal."""
+    try:
+        # CORREGIDO: Buscar en modelo Goal en lugar de AlertConfiguration
+        goal = Goal.query.filter_by(id=goal_id, user_id=current_user.id).first()
+        
+        if not goal:
+            return jsonify({'success': False, 'message': 'Objetivo no encontrado'})
+        
+        # Calcular estado actual
+        try:
+            goal_status = calculate_goal_status_with_model(goal)
+        except Exception as e:
+            goal_status = {'error': f'Error calculando estado: {str(e)}'}
+        
+        # Generar HTML con detalles
+        html_content = f"""
+        <div class="goal-details">
+            <h6>Información General</h6>
+            <p><strong>Tipo:</strong> {get_friendly_goal_name(goal)}</p>
+            <p><strong>Creado:</strong> {goal.created_at.strftime('%d/%m/%Y %H:%M')}</p>
+        """
+        
+        # Estado actual
+        if goal_status.get('error'):
+            html_content += f"<div class='alert alert-warning'>{goal_status['error']}</div>"
+        else:
+            html_content += "<h6>Estado Actual</h6>"
+            
+            if goal_status.get('progress_percentage') is not None:
+                progress = goal_status['progress_percentage']
+                html_content += f"""
+                <div class="progress mb-2">
+                    <div class="progress-bar bg-{'success' if progress >= 80 else 'warning' if progress >= 50 else 'danger'}" 
+                         style="width: {progress}%">{progress:.1f}%</div>
+                </div>
+                """
+            
+            # Detalles específicos por tipo
+            if goal.goal_type == 'target_amount':
+                html_content += f"""
+                <p><strong>Objetivo:</strong> {goal_status.get('target_amount', 0):.2f} €</p>
+                <p><strong>Actual:</strong> {goal_status.get('current_value', 0):.2f} €</p>
+                <p><strong>Falta:</strong> {goal_status.get('amount_needed', 0):.2f} €</p>
+                """
+                if goal_status.get('months_remaining'):
+                    html_content += f"<p><strong>Tiempo restante:</strong> {goal_status['months_remaining']} meses</p>"
+            
+            elif goal.goal_type == 'savings_monthly':
+                html_content += f"""
+                <p><strong>Meta mensual:</strong> {goal_status.get('monthly_target', 0):.2f} €</p>
+                <p><strong>Este mes:</strong> {goal_status.get('current_month_savings', 0):.2f} €</p>
+                <p><strong>Acumulado:</strong> {goal_status.get('actual_savings', 0):.2f} € / {goal_status.get('cumulative_target', 0):.2f} €</p>
+                """
+            
+            elif goal.goal_type == 'debt_threshold':
+                html_content += f"""
+                <p><strong>Límite objetivo:</strong> {goal_status.get('target_debt_percentage', 0)}% del salario</p>
+                <p><strong>Uso actual:</strong> {goal_status.get('current_debt_percentage', 0):.1f}%</p>
+                <p><strong>Margen disponible:</strong> {goal_status.get('debt_margin', 0):.2f} €/mes</p>
+                """
+        
+        html_content += "</div>"
+        
+        return jsonify({'success': True, 'html': html_content})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/test_scheduler_status')
+@login_required
+def test_scheduler_status():
+    """Ruta temporal para verificar el estado del scheduler."""
+    if current_user.username != 'admin':
+        return "No autorizado", 403
+    
+    jobs = scheduler.get_jobs()
+    status = f"""
+    <h2>Estado del Scheduler</h2>
+    <p>Jobs activos: {len(jobs)}</p>
+    """
+    
+    for job in jobs:
+        status += f"""
+        <p><strong>{job.id}</strong>: {job.name}<br>
+        Próxima ejecución: {job.next_run_time}<br>
+        Trigger: {job.trigger}</p>
+        """
+    
+    status += '<br><a href="/">Volver al inicio</a>'
+    return status
 
 @app.route('/edit_crypto_movement/<int:movement_id>', methods=['GET', 'POST'])
 @login_required
@@ -4313,17 +7382,6 @@ def add_expense_category_ajax():
         return jsonify({'success': False, 'message': 'Errores de validación.', 'errors': errors})
 
 
-# --- Decorador para rutas de Administrador (NUEVO) ---
-def admin_required(f): # MOSTRANDO COMPLETA
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated or not current_user.is_admin:
-            flash("Acceso no autorizado. Se requieren privilegios de administrador.", "danger")
-            # Redirige a login o a una página de 'no autorizado' más genérica si la tienes
-            return redirect(url_for('login', next=request.url if request.method == 'GET' else None))
-        return f(*args, **kwargs)
-    return decorated_function
-
 # --- Hook @app.before_request para forzar cambio de contraseña (NUEVO) ---
 @app.before_request
 @app.before_request
@@ -4672,75 +7730,6 @@ class RealEstateValueHistory(db.Model):
         return f'<RealEstateValueHistory AssetID:{self.asset_id} Year:{self.valuation_year} Value:{self.market_value}>'
 
 
-class User(db.Model, UserMixin): # MOSTRAR COMPLETA SI SE MODIFICA
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False) 
-    password_hash = db.Column(db.String(128), nullable=True)
-    birth_year = db.Column(db.Integer, nullable=True) # NUEVO CAMPO AÑADIDO
-    
-    is_admin = db.Column(db.Boolean, default=False, nullable=False)
-    must_change_password = db.Column(db.Boolean, default=False, nullable=False)
-    last_login_at = db.Column(db.DateTime, nullable=True)
-    current_login_at = db.Column(db.DateTime, nullable=True)
-    login_count = db.Column(db.Integer, default=0, nullable=False)
-    is_active = db.Column(db.Boolean, default=True, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    # ... (resto de relaciones existentes en el modelo User) ...
-    watchlist_items = db.relationship('WatchlistItem', backref='owner', lazy='dynamic', cascade="all, delete-orphan")
-    fin_summary_config = db.relationship('FinancialSummaryConfig', backref='user', uselist=False, cascade="all, delete-orphan")
-    pension_plans = db.relationship('PensionPlan', backref='user', lazy='dynamic', cascade="all, delete-orphan")
-    pension_history = db.relationship('PensionPlanHistory', backref='user', lazy='dynamic', cascade="all, delete-orphan")
-    crypto_exchanges = db.relationship('CryptoExchange', backref='user', lazy='dynamic', cascade="all, delete-orphan")
-    crypto_transactions = db.relationship('CryptoTransaction', backref='user', lazy='dynamic', cascade="all, delete-orphan")
-    crypto_holdings = db.relationship('CryptoHolding', backref='user', lazy='dynamic', cascade="all, delete-orphan")
-    crypto_history = db.relationship('CryptoHistoryRecord', backref='user', lazy='dynamic', cascade="all, delete-orphan")
-    metal_transactions = db.relationship('PreciousMetalTransaction', backref='user', lazy='dynamic', cascade="all, delete-orphan")
-    debt_ceiling = db.relationship('DebtCeiling', backref='user', uselist=False, cascade="all, delete-orphan")
-    debt_plans = db.relationship('DebtInstallmentPlan', backref='user', lazy='dynamic', cascade="all, delete-orphan")
-    debt_history = db.relationship('DebtHistoryRecord', backref='user', lazy='dynamic', cascade="all, delete-orphan")
-    expense_categories = db.relationship('ExpenseCategory', backref='user', lazy='dynamic', cascade="all, delete-orphan")
-    expenses = db.relationship('Expense', backref='user', lazy='dynamic', cascade="all, delete-orphan")
-    portfolio = db.relationship('UserPortfolio', backref='user', uselist=False, cascade="all, delete-orphan")
-    fixed_income = db.relationship('FixedIncome', backref='user', uselist=False, cascade="all, delete-orphan")
-    broker_operations = db.relationship('BrokerOperation', backref='user', lazy='dynamic', cascade="all, delete-orphan")
-    salary_history = db.relationship('SalaryHistory', backref='user', lazy='dynamic', cascade="all, delete-orphan")
-    bank_accounts = db.relationship('BankAccount', backref='user', lazy='dynamic', cascade="all, delete-orphan")
-    cash_history = db.relationship('CashHistoryRecord', backref='user', lazy='dynamic', cascade="all, delete-orphan")
-    variable_income_categories = db.relationship('VariableIncomeCategory', backref='user', lazy='dynamic', cascade="all, delete-orphan")
-    variable_incomes = db.relationship('VariableIncome', backref='user', lazy='dynamic', cascade="all, delete-orphan")
-
-    def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
-
-    def check_password(self, password):
-        if self.password_hash is None:
-            return False
-        return check_password_hash(self.password_hash, password)
-
-    def get_reset_token(self, expires_sec=1800):
-        admin_placeholder_email = app.config.get('ADMIN_PLACEHOLDER_EMAIL', 'admin@internal.local')
-        if self.username == 'admin' and self.email == admin_placeholder_email:
-            app.logger.info(f"Se intentó generar token de reseteo para admin principal ({self.username}) con email placeholder.")
-            return None
-        if not self.email:
-            return None
-        s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
-        return s.dumps({'user_id': self.id})
-
-    @staticmethod
-    def verify_reset_token(token, expires_sec=1800):
-        s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
-        try:
-            data = s.loads(token, max_age=expires_sec)
-            user_id = data.get('user_id')
-        except Exception:
-            return None
-        return db.session.get(User, user_id)
-
-    def __repr__(self):
-        return f'<User {self.username} Admin:{self.is_admin} Email:{self.email}>'
 class AccountManagementForm(FlaskForm):
     username = StringField('Nombre de Usuario', validators=[DataRequired(), Length(min=4, max=80)])
     email = StringField('Correo Electrónico', validators=[DataRequired(), Email(message="Correo electrónico no válido.")])
@@ -4761,6 +7750,746 @@ class AccountManagementForm(FlaskForm):
             user = User.query.filter_by(email=email.data).first()
             if user:
                 raise ValidationError('Ese correo electrónico ya está registrado. Por favor, elige otro.')
+
+class AlertConfiguration(db.Model):
+    """Configuración de alertas definida por el usuario."""
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
+    
+    # Tipo de alerta
+    alert_reason = db.Column(db.String(50), nullable=False)  # 'earnings_report', 'metric_threshold', 'periodic_summary', 'custom'
+    
+    # Configuración de alcance (para earnings_report y metric_threshold)
+    scope = db.Column(db.String(20), nullable=True)  # 'all', 'portfolio', 'watchlist', 'individual'
+    watchlist_item_id = db.Column(db.Integer, db.ForeignKey('watchlist_item.id', ondelete='CASCADE'), nullable=True, index=True)
+    
+    # Configuración para alertas de resultados
+    days_notice = db.Column(db.Integer, nullable=True)  # 1, 7, 15
+    frequency = db.Column(db.String(20), nullable=True)  # 'once', 'recurring'
+    last_triggered_for_date = db.Column(db.Date, nullable=True)
+    
+    # Configuración para alertas de métricas
+    metric_name = db.Column(db.String(50), nullable=True)  # 'ntm_pe', 'roe', etc.
+    metric_operator = db.Column(db.String(10), nullable=True)  # '>', '>=', '<', '<=', '='
+    metric_target_value = db.Column(db.Float, nullable=True)
+    metric_target_text = db.Column(db.String(10), nullable=True)  # Para valores como 'Buy', 'Hold', 'Sell'
+
+    # Configuración para resúmenes
+    summary_type = db.Column(db.String(50), nullable=True)  # 'patrimonio', 'crypto', 'inmuebles', etc.
+    summary_frequency = db.Column(db.String(20), nullable=True)  # 'weekly', 'monthly', 'annual'
+    summary_one_time_date = db.Column(db.Date, nullable=True)
+    last_summary_sent = db.Column(db.Date, nullable=True)
+    
+    # Configuración para alertas custom
+    custom_title = db.Column(db.String(200), nullable=True)
+    custom_description = db.Column(db.Text, nullable=True)
+    custom_frequency_type = db.Column(db.String(20), nullable=True)  # 'one_time', 'recurring'
+    custom_start_date = db.Column(db.Date, nullable=True)
+    custom_interval_days = db.Column(db.Integer, nullable=True)
+    last_custom_triggered = db.Column(db.Date, nullable=True)
+    
+    # Configuración de notificaciones
+    notify_in_app_mailbox = db.Column(db.Boolean, nullable=False, default=True)
+    notify_by_email = db.Column(db.Boolean, nullable=False, default=False)
+    
+    # Estado
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relación con WatchlistItem
+    watchlist_item = db.relationship('WatchlistItem', backref='alert_configs')
+    
+    # Campos para objetivos
+    goal_type = db.Column(db.String(50), nullable=True)  # 'portfolio_percentage', 'target_amount', 'savings_monthly', 'debt_threshold'
+    goal_asset_type = db.Column(db.String(50), nullable=True)  # 'bolsa', 'cash', 'crypto', 'real_estate', 'metales', 'total_patrimonio'
+    goal_target_percentage = db.Column(db.Float, nullable=True)  # Para objetivos de porcentaje
+    goal_target_amount = db.Column(db.Float, nullable=True)  # Para objetivos de cantidad
+    goal_target_timeframe_months = db.Column(db.Integer, nullable=True)  # Plazo en meses
+    goal_savings_monthly_amount = db.Column(db.Float, nullable=True)  # Para objetivos de ahorro mensual
+    goal_debt_ceiling_percentage = db.Column(db.Float, nullable=True)  # Para objetivos de techo de deuda personalizado
+    goal_start_date = db.Column(db.Date, nullable=True)  # Fecha de inicio del objetivo
+    goal_alert_day_of_month = db.Column(db.Integer, nullable=True)  # Día del mes para alertas (1-31)
+    goal_name = db.Column(db.String(200), nullable=True)  # Nombre descriptivo del objetivo
+   
+        # NUEVOS CAMPOS para mejorar control de duplicados
+    last_triggered_date = db.Column(db.Date, nullable=True)  # Última fecha de envío (cualquier tipo)
+    times_triggered_total = db.Column(db.Integer, default=0)  # Contador total de envíos
+    daily_send_count = db.Column(db.Integer, default=0)  # Cuántas veces se envió HOY
+    last_daily_reset = db.Column(db.Date, nullable=True)  # Para resetear contador diario
+    
+    def should_send_today(self, today):
+        """Determina si esta alerta debe enviarse hoy basándose en el tipo y frecuencia."""
+        
+        # Resetear contador diario si es un nuevo día
+        if self.last_daily_reset != today:
+            self.daily_send_count = 0
+            self.last_daily_reset = today
+        
+        # Si ya se envió hoy, verificar según el tipo de alerta
+        if self.last_triggered_date == today:
+            
+            # Para alertas de métricas: enviar solo UNA vez cuando se alcance
+            if self.alert_reason == 'metric_threshold':
+                return False
+                
+            # Para alertas de resultados: enviar solo UNA vez por fecha de resultado
+            if self.alert_reason == 'earnings_report':
+                return False
+                
+            # Para alertas custom puntuales: enviar solo UNA vez
+            if self.alert_reason == 'custom' and self.custom_frequency_type == 'puntual':
+                return False
+                
+            # Para resúmenes puntuales: enviar solo UNA vez
+            if self.alert_reason == 'periodic_summary' and self.summary_frequency == 'puntual':
+                return False
+        
+        return True
+    
+    def mark_as_sent(self, today):
+        """Marca la alerta como enviada hoy."""
+        self.last_triggered_date = today
+        self.times_triggered_total = (self.times_triggered_total or 0) + 1
+        self.daily_send_count = (self.daily_send_count or 0) + 1
+        
+        # Para alertas puntuales o de métrica, desactivar automáticamente
+        if (self.alert_reason == 'metric_threshold' or 
+            (self.alert_reason == 'custom' and self.custom_frequency_type == 'puntual') or
+            (self.alert_reason == 'periodic_summary' and self.summary_frequency == 'puntual')):
+            self.is_active = False
+
+    def __repr__(self):
+        return f'<AlertConfiguration {self.id} User:{self.user_id} Reason:{self.alert_reason} Active:{self.is_active}>'
+
+
+class MailboxMessage(db.Model):
+    """Mensajes del buzón virtual del usuario."""
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
+    
+    # Tipo y contenido del mensaje
+    message_type = db.Column(db.String(30), nullable=False)  # 'event_alert', 'config_warning', 'config_resolved', 'periodic_summary', 'custom_alert'
+    title = db.Column(db.String(300), nullable=False)
+    content = db.Column(db.Text, nullable=True)
+    
+    # Referencias opcionales
+    related_watchlist_item_id = db.Column(db.Integer, db.ForeignKey('watchlist_item.id', ondelete='CASCADE'), nullable=True, index=True)
+    related_alert_config_id = db.Column(db.Integer, db.ForeignKey('alert_configuration.id', ondelete='CASCADE'), nullable=True, index=True)
+    
+    # Metadatos del evento
+    trigger_event_date = db.Column(db.Date, nullable=True)  # Fecha de resultados para la que se generó el mensaje
+    
+    # Estado
+    is_read = db.Column(db.Boolean, nullable=False, default=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    read_at = db.Column(db.DateTime, nullable=True)
+    
+    # Relaciones
+    watchlist_item = db.relationship('WatchlistItem', backref='mailbox_messages')
+    alert_config = db.relationship('AlertConfiguration', backref='mailbox_messages')
+    
+    def __repr__(self):
+        return f'<MailboxMessage {self.id} User:{self.user_id} Type:{self.message_type} Read:{self.is_read}>'
+
+class AlertConfigurationForm(FlaskForm):
+    """Formulario para configurar alertas."""
+    
+    # Campo principal: tipo de alerta
+    alert_reason = SelectField('Motivo de la Alerta', 
+                              choices=[
+                                  ('earnings_report', 'Presentación de Resultados'),
+                                  ('metric_threshold', 'Métricas de Acción'),
+                                  ('periodic_summary', 'Resumen Periódico'),
+                                  ('objetivo', 'Objetivo'),
+                                  ('custom', 'Alerta Personalizada')
+                              ],
+                              validators=[DataRequired()])
+    
+    # NUEVO: Campo para seleccionar objetivo existente
+    existing_goal_id = SelectField('Seleccionar Objetivo Existente',
+                                  choices=[],  # Se llenará dinámicamente
+                                  coerce=int,
+                                  validators=[Optional()])
+    
+    # Mantener campos existentes...
+    scope = SelectField('Aplicar a',
+                       choices=[
+                           ('all', 'Todas las acciones'),
+                           ('portfolio', 'Solo acciones en Portfolio'),
+                           ('watchlist', 'Solo acciones en Seguimiento'),
+                           ('individual', 'Acción Individual')
+                       ],
+                       validators=[Optional()])
+    
+    watchlist_item_id = SelectField('Acción', coerce=int, validators=[Optional()])
+    
+    # Para alertas de resultados
+    days_notice = SelectField('Antelación',
+                             choices=[
+                                 (1, '1 día antes'),
+                                 (7, '7 días antes'),
+                                 (15, '15 días antes')
+                             ],
+                             coerce=int,
+                             validators=[Optional()])
+    
+    frequency = SelectField('Frecuencia',
+                           choices=[
+                               ('once', 'Solo para la próxima presentación'),
+                               ('recurring', 'Para todas las futuras presentaciones')
+                           ],
+                           validators=[Optional()])
+    
+    # Para alertas de métricas
+    metric_watchlist_item_id = SelectField('Acción', coerce=int, validators=[Optional()])
+    metric_name = SelectField('Métrica a vigilar',
+                             choices=[
+                                 ('profitability_calc', 'Profitability (%)'),
+                                 ('riesgo', 'Upside (%)'),
+                                 ('stake', 'Stake'),
+                                 ('movimiento', 'Movimiento'),
+                                 ('ntm_ps', 'P/S'),
+                                 ('ntm_pe', 'P/E'),
+                                 ('ntm_div_yield', 'DivYld (%)'),
+                                 ('ltm_pbv', 'P/BV'),
+                                 ('eps_yield_calc', 'EPS Yld 5Y(%)')
+                             ],
+                             validators=[Optional()])
+    
+    metric_operator = SelectField('Condición',
+                                 choices=[
+                                     ('>', 'Mayor que (>)'),
+                                     ('>=', 'Mayor o igual (>=)'),
+                                     ('<', 'Menor que (<)'),
+                                     ('<=', 'Menor o igual (<=)'),
+                                     ('=', 'Igual a (=)'),
+                                     ('!=', 'Diferente de (!=)')
+                                 ],
+                                 validators=[Optional()])
+    
+    metric_target_value = StringField('Valor objetivo', validators=[Optional()])
+    metric_target_text = SelectField('Valor objetivo',
+                                    choices=[
+                                        ('Buy', 'Buy'),
+                                        ('Hold', 'Hold'),
+                                        ('Sell', 'Sell')
+                                    ],
+                                    validators=[Optional()])
+    
+    current_metric_value = StringField('Valor actual (solo información)', 
+                                      render_kw={'readonly': True})
+    
+    # Para resúmenes
+    summary_type = SelectField('Tipo de resumen',
+                              choices=[
+                                  ('patrimonio', 'Patrimonio Neto Completo'),
+                                  ('crypto', 'Criptomonedas'),
+                                  ('inmuebles', 'Inmuebles'),
+                                  ('metales', 'Metales Preciosos'),
+                                  ('inversiones', 'Inversiones (Portfolio)'),
+                                  ('pensiones', 'Planes de Pensiones')
+                              ],
+                              validators=[Optional()])
+    
+    summary_frequency = SelectField('Frecuencia',
+                                   choices=[
+                                       ('puntual', 'Puntual (una sola vez)'),
+                                       ('weekly', 'Semanal'),
+                                       ('monthly', 'Mensual'),
+                                       ('quarterly', 'Trimestral'),
+                                       ('semiannual', 'Semestral'),
+                                       ('annual', 'Anual')
+                                   ],
+                                   validators=[Optional()])
+    
+    summary_date = StringField('Fecha de inicio/ejecución',
+                              render_kw={"type": "date"},
+                              validators=[Optional()])
+    
+    # Para alertas personalizadas
+    custom_title = StringField('Título de la alerta', validators=[Optional(), Length(max=200)])
+    custom_description = TextAreaField('Descripción (opcional)', validators=[Optional()])
+    custom_frequency = SelectField('Frecuencia',
+                                  choices=[
+                                      ('puntual', 'Puntual (una sola vez)'),
+                                      ('weekly', 'Semanal'),
+                                      ('monthly', 'Mensual'),
+                                      ('quarterly', 'Trimestral'),
+                                      ('semiannual', 'Semestral'),
+                                      ('annual', 'Anual')
+                                  ],
+                                  validators=[Optional()])
+    
+    custom_date = StringField('Fecha de inicio/ejecución',
+                             render_kw={"type": "date"},
+                             validators=[Optional()])
+    
+    # Campo común para permitir editar fecha de resultados si no existe
+    earnings_date_override = StringField('Fecha de resultados (si no está definida)',
+                                        render_kw={"type": "date"},
+                                        validators=[Optional()])
+    
+    # Configuración de notificaciones
+    notify_by_email = BooleanField('Recibir también por email', default=False)
+    
+    submit = SubmitField('Crear Alerta')
+    
+    def validate(self, **kwargs):
+        """Validación personalizada según el tipo de alerta."""
+        if not super().validate():
+            return False
+        
+        # Validaciones específicas según el tipo de alerta
+        if self.alert_reason.data == 'earnings_report':
+            if not self.scope.data:
+                self.scope.errors.append('Debe seleccionar el alcance para alertas de resultados.')
+                return False
+            if not self.days_notice.data:
+                self.days_notice.errors.append('Debe seleccionar la antelación.')
+                return False
+            if not self.frequency.data:
+                self.frequency.errors.append('Debe seleccionar la frecuencia.')
+                return False
+            if self.scope.data == 'individual' and not self.watchlist_item_id.data:
+                self.watchlist_item_id.errors.append('Debe seleccionar una acción específica.')
+                return False
+        
+        elif self.alert_reason.data == 'metric_threshold':
+            if not self.metric_watchlist_item_id.data:
+                self.metric_watchlist_item_id.errors.append('Debe seleccionar una acción específica.')
+                return False
+            if not self.metric_name.data:
+                self.metric_name.errors.append('Debe seleccionar una métrica.')
+                return False
+            if not self.metric_operator.data:
+                self.metric_operator.errors.append('Debe seleccionar una condición.')
+                return False
+            
+            if self.metric_name.data == 'movimiento':
+                if self.metric_operator.data not in ['=', '!=']:
+                    self.metric_operator.errors.append('Para movimiento solo se permite "=" o "!=".')
+                    return False
+                if not self.metric_target_text.data:
+                    self.metric_target_text.errors.append('Debe seleccionar un valor de movimiento.')
+                    return False
+            else:
+                if not self.metric_target_value.data:
+                    self.metric_target_value.errors.append('Debe especificar el valor objetivo.')
+                    return False
+                try:
+                    float(self.metric_target_value.data)
+                except (ValueError, TypeError):
+                    self.metric_target_value.errors.append('El valor objetivo debe ser un número válido.')
+                    return False
+        
+        elif self.alert_reason.data == 'periodic_summary':
+            if not self.summary_type.data:
+                self.summary_type.errors.append('Debe seleccionar el tipo de resumen.')
+                return False
+            if not self.summary_frequency.data:
+                self.summary_frequency.errors.append('Debe seleccionar la frecuencia.')
+                return False
+            if not self.summary_date.data:
+                self.summary_date.errors.append('Debe especificar la fecha de inicio/ejecución.')
+                return False
+        
+        elif self.alert_reason.data == 'objetivo':
+            # NUEVA VALIDACIÓN: Solo verificar que se seleccione un objetivo existente
+            if not self.existing_goal_id.data:
+                self.existing_goal_id.errors.append('Debe seleccionar un objetivo existente.')
+                return False
+        
+        elif self.alert_reason.data == 'custom':
+            if not self.custom_title.data:
+                self.custom_title.errors.append('Debe especificar un título para la alerta personalizada.')
+                return False
+            if not self.custom_frequency.data:
+                self.custom_frequency.errors.append('Debe seleccionar la frecuencia.')
+                return False
+            if not self.custom_date.data:
+                self.custom_date.errors.append('Debe especificar la fecha de inicio/ejecución.')
+                return False
+        
+        return True
+
+@app.context_processor
+def inject_unread_messages_count():
+    """Inyecta el número de mensajes no leídos en todas las plantillas."""
+    if current_user.is_authenticated:
+        unread_count = MailboxMessage.query.filter_by(
+            user_id=current_user.id, 
+            is_read=False
+        ).count()
+        return {'unread_messages_count': unread_count}
+    return {'unread_messages_count': 0}
+
+
+
+@app.route('/office/configure_alerts', methods=['GET', 'POST'])
+@login_required
+def office_configure_alerts():
+    """Configuración de alertas del usuario."""
+    form = AlertConfigurationForm()
+    
+    # Poblar las opciones de acciones para el formulario
+    user_watchlist = WatchlistItem.query.filter_by(user_id=current_user.id).all()
+    watchlist_choices = [(0, 'Selecciona una acción')] + [
+        (item.id, item.item_name or f"{item.ticker}{item.yahoo_suffix or ''}") 
+        for item in user_watchlist
+    ]
+    
+    # Aplicar las opciones a ambos campos de watchlist
+    form.watchlist_item_id.choices = watchlist_choices
+    form.metric_watchlist_item_id.choices = watchlist_choices
+    
+    # NUEVO: Poblar objetivos existentes
+    user_goals = Goal.query.filter_by(user_id=current_user.id, is_active=True).all()
+    goal_choices = [(0, 'Selecciona un objetivo')] + [
+        (goal.id, goal.goal_name) for goal in user_goals
+    ]
+    form.existing_goal_id.choices = goal_choices
+    
+    if form.validate_on_submit():
+        try:
+            # Crear nueva configuración de alerta
+            alert_config = AlertConfiguration(
+                user_id=current_user.id,
+                alert_reason=form.alert_reason.data,
+                notify_by_email=form.notify_by_email.data
+            )
+            
+            # Configurar campos específicos según el tipo de alerta
+            if form.alert_reason.data == 'earnings_report':
+                alert_config.scope = form.scope.data
+                alert_config.days_notice = form.days_notice.data
+                alert_config.frequency = form.frequency.data
+                if form.scope.data == 'individual':
+                    alert_config.watchlist_item_id = form.watchlist_item_id.data
+                    
+                # Si se proporcionó una fecha de resultados override, actualizarla
+                if form.earnings_date_override.data:
+                    if form.scope.data == 'individual' and form.watchlist_item_id.data:
+                        item = WatchlistItem.query.get(form.watchlist_item_id.data)
+                        if item and item.user_id == current_user.id:
+                            item.fecha_resultados = datetime.strptime(form.earnings_date_override.data, '%Y-%m-%d').date()
+            
+            elif form.alert_reason.data == 'metric_threshold':
+                alert_config.scope = 'individual'  # Siempre individual para métricas
+                alert_config.watchlist_item_id = form.metric_watchlist_item_id.data
+                alert_config.metric_name = form.metric_name.data
+                alert_config.metric_operator = form.metric_operator.data
+                
+                # Determinar el valor objetivo según el tipo de métrica
+                if form.metric_name.data == 'movimiento':
+                    alert_config.metric_target_value = 0  # Placeholder numérico
+                    alert_config.metric_target_text = form.metric_target_text.data
+                else:
+                    try:
+                        alert_config.metric_target_value = float(form.metric_target_value.data)
+                    except (ValueError, TypeError):
+                        flash('El valor objetivo debe ser un número válido.', 'error')
+                        return render_template('office/configure_alerts.html', form=form, 
+                                             user_alerts=get_user_alerts())
+            
+            elif form.alert_reason.data == 'periodic_summary':
+                alert_config.summary_type = form.summary_type.data
+                alert_config.summary_frequency = form.summary_frequency.data
+                alert_config.summary_one_time_date = datetime.strptime(form.summary_date.data, '%Y-%m-%d').date()
+            
+            elif form.alert_reason.data == 'custom':
+                alert_config.custom_title = form.custom_title.data
+                alert_config.custom_description = form.custom_description.data
+                alert_config.custom_frequency_type = form.custom_frequency.data
+                alert_config.custom_start_date = datetime.strptime(form.custom_date.data, '%Y-%m-%d').date()
+
+            elif form.alert_reason.data == 'objetivo':
+                # NUEVA LÓGICA: Asociar alerta a objetivo existente
+                selected_goal = Goal.query.get(form.existing_goal_id.data)
+                if not selected_goal or selected_goal.user_id != current_user.id:
+                    flash('Objetivo no válido.', 'error')
+                    return render_template('office/configure_alerts.html', form=form, 
+                                         user_alerts=get_user_alerts())
+                
+                # Configurar alerta basada en el objetivo existente
+                alert_config.goal_name = selected_goal.goal_name
+                alert_config.goal_type = selected_goal.goal_type
+                alert_config.goal_start_date = selected_goal.start_date
+                alert_config.custom_frequency_type = 'monthly'
+                alert_config.custom_start_date = selected_goal.start_date
+                
+                # Copiar información específica del objetivo
+                if selected_goal.goal_type == 'portfolio_percentage':
+                    alert_config.custom_description = selected_goal.asset_distribution
+                elif selected_goal.goal_type == 'target_amount':
+                    alert_config.goal_asset_type = selected_goal.goal_asset_type
+                    alert_config.goal_target_amount = selected_goal.target_amount
+                    alert_config.goal_target_timeframe_months = selected_goal.target_timeframe_months
+                elif selected_goal.goal_type == 'savings_monthly':
+                    alert_config.goal_asset_type = 'cash'
+                    alert_config.goal_savings_monthly_amount = selected_goal.monthly_savings_target
+                elif selected_goal.goal_type == 'debt_threshold':
+                    alert_config.goal_debt_ceiling_percentage = selected_goal.debt_ceiling_percentage
+                elif selected_goal.goal_type == 'auto_prediction':
+                    alert_config.goal_asset_type = selected_goal.goal_asset_type
+                    alert_config.goal_target_amount = selected_goal.target_amount
+                    alert_config.goal_target_timeframe_months = selected_goal.target_timeframe_months
+            
+            db.session.add(alert_config)
+            db.session.commit()
+            
+            flash(f'Alerta "{form.alert_reason.data}" configurada correctamente.', 'success')
+            return redirect(url_for('office_configure_alerts'))
+            
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error al crear la alerta: {str(e)}', 'error')
+    
+    # Obtener alertas existentes del usuario
+    user_alerts = get_user_alerts()
+    
+    return render_template('office/configure_alerts.html', form=form, user_alerts=user_alerts)
+
+def get_user_alerts():
+    """Obtiene las alertas configuradas del usuario actual."""
+    return AlertConfiguration.query.filter_by(
+        user_id=current_user.id,
+        is_active=True
+    ).order_by(AlertConfiguration.created_at.desc()).all()
+
+
+@app.route('/office/mailbox')
+@login_required
+def office_mailbox():
+    """Buzón virtual del usuario - control central con modelo Goal."""
+    # Obtener mensajes ordenados
+    messages = MailboxMessage.query.filter_by(user_id=current_user.id).order_by(
+        db.case(
+            (MailboxMessage.message_type == 'config_warning', 1),
+            (MailboxMessage.is_read == False, 2),
+            else_=3
+        ),
+        MailboxMessage.created_at.desc()
+    ).all()
+    
+    # Obtener datos de resumen DINÁMICOS
+    summary_data = get_mailbox_summary_data_enhanced(current_user.id)
+    
+    # Obtener alertas activas (sin objetivos)
+    active_alerts = AlertConfiguration.query.filter(
+        AlertConfiguration.user_id == current_user.id,
+        AlertConfiguration.is_active == True,
+        AlertConfiguration.alert_reason != 'objetivo'  # Excluir objetivos
+    ).all()
+    
+    # Obtener alertas próximas ordenadas por días restantes
+    upcoming_alerts = []
+    for alert in active_alerts:
+        days_remaining = calculate_days_until_next_alert(alert)
+        upcoming_alerts.append({
+            'config': alert,
+            'days_remaining': days_remaining
+        })
+    
+    # Ordenar por días restantes (nulls al final)
+    upcoming_alerts.sort(key=lambda x: x['days_remaining'] if x['days_remaining'] is not None else 9999)
+    upcoming_alerts = upcoming_alerts[:10]  # Solo top 5
+    
+    # Obtener objetivos activos con progreso usando modelo Goal
+    active_goals = Goal.query.filter_by(user_id=current_user.id, is_active=True)\
+        .order_by(Goal.created_at.desc()).limit(5).all()
+    
+    goals_summary = []
+    for goal in active_goals:
+        try:
+            goal_status = calculate_goal_status_with_model(goal)
+            if not goal_status.get('error'):
+                goals_summary.append({
+                    'config': goal,
+                    'status': goal_status
+                })
+        except Exception as e:
+            print(f"Error calculando estado de objetivo {goal.id}: {e}")
+    
+    # Formulario de exportación
+    export_form = ReportExportForm()
+    
+    return render_template('office/mailbox.html', 
+                         messages=messages,
+                         summary_data=summary_data,
+                         active_alerts_count=len(active_alerts),
+                         upcoming_alerts=upcoming_alerts,
+                         goals_summary=goals_summary,
+                         export_form=export_form)
+
+def migrate_goals_safely():
+    """Migra objetivos existentes de forma segura."""
+    try:
+        # Verificar que las tablas existen
+        if not db.engine.dialect.has_table(db.engine, 'goal'):
+            print("❌ Tabla Goal no existe. Ejecuta db.create_all() primero.")
+            return
+        
+        # Contar objetivos existentes
+        existing_goals_count = Goal.query.count()
+        existing_alerts_count = AlertConfiguration.query.filter_by(alert_reason='objetivo').count()
+        
+        print(f"📊 Estado actual:")
+        print(f"   - Objetivos en tabla Goal: {existing_goals_count}")
+        print(f"   - Alertas de objetivo: {existing_alerts_count}")
+        
+        if existing_goals_count >= existing_alerts_count:
+            print("✅ Migración ya completada o no necesaria.")
+            return
+        
+        # Migrar solo las que faltan
+        goal_alerts = AlertConfiguration.query.filter_by(alert_reason='objetivo').all()
+        migrated_count = 0
+        
+        for alert in goal_alerts:
+            # Verificar que no existe ya
+            existing = Goal.query.filter_by(
+                user_id=alert.user_id,
+                goal_name=alert.goal_name or f"Objetivo {alert.id}"
+            ).first()
+            
+            if not existing:
+                new_goal = Goal(
+                    user_id=alert.user_id,
+                    goal_name=alert.goal_name or f"Objetivo {alert.id}",
+                    goal_type=alert.goal_type or 'target_amount',
+                    goal_asset_type=alert.goal_asset_type,
+                    target_amount=alert.goal_target_amount,
+                    target_timeframe_months=alert.goal_target_timeframe_months,
+                    monthly_savings_target=alert.goal_savings_monthly_amount,
+                    debt_ceiling_percentage=alert.goal_debt_ceiling_percentage,
+                    start_date=alert.goal_start_date or alert.created_at.date(),
+                    created_at=alert.created_at,
+                    is_active=alert.is_active
+                )
+                
+                # Migrar distribución de activos
+                if alert.custom_description:
+                    try:
+                        json.loads(alert.custom_description)  # Verificar que es JSON válido
+                        new_goal.asset_distribution = alert.custom_description
+                    except:
+                        pass
+                
+                db.session.add(new_goal)
+                migrated_count += 1
+        
+        db.session.commit()
+        print(f"✅ Migración completada: {migrated_count} objetivos migrados.")
+        
+        # Verificar resultado
+        final_count = Goal.query.count()
+        print(f"📊 Total objetivos después de migración: {final_count}")
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Error en migración: {e}")
+
+def get_mailbox_summary_data_enhanced(user_id):
+    """Obtiene datos de resumen DINÁMICOS mejorados para el buzón."""
+    try:
+        # Obtener patrimonio usando la función existente
+        patrimony = get_current_patrimony_breakdown(user_id)
+        total_assets = patrimony['total_assets']
+        
+        # Obtener deudas activas REALES
+        debt_plans = DebtInstallmentPlan.query.filter_by(user_id=user_id, is_active=True).all()
+        total_debt_remaining = sum(plan.remaining_amount for plan in debt_plans) if debt_plans else 0
+        monthly_debt_payment = sum(plan.monthly_payment for plan in debt_plans) if debt_plans else 0
+        
+        # Calcular tasa de ahorro REAL
+        income_data = FixedIncome.query.filter_by(user_id=user_id).first()
+        monthly_salary = (income_data.annual_net_salary / 12) if income_data and income_data.annual_net_salary else 0
+        
+        # Gastos fijos mensuales REALES
+        fixed_expenses = Expense.query.filter_by(user_id=user_id, expense_type='fixed', is_recurring=True).all()
+        monthly_fixed_expenses = sum(expense.amount for expense in fixed_expenses) if fixed_expenses else 0
+        
+        # Gastos variables promedio (últimos 3 meses)
+        three_months_ago = date.today() - timedelta(days=90)
+        variable_expenses = Expense.query.filter_by(user_id=user_id, expense_type='punctual')\
+            .filter(Expense.date >= three_months_ago).all()
+        monthly_variable_expenses = (sum(expense.amount for expense in variable_expenses) / 3) if variable_expenses else 0
+        
+        # Calcular tasa de ahorro real
+        total_monthly_expenses = monthly_fixed_expenses + monthly_variable_expenses + monthly_debt_payment
+        monthly_savings = monthly_salary - total_monthly_expenses
+        savings_rate = (monthly_savings / monthly_salary * 100) if monthly_salary > 0 else 0
+        
+        # NUEVO: Obtener fecha de última ejecución de alertas
+        last_execution = SystemLog.query.filter_by(
+            log_type='daily_alerts', 
+            status='success'
+        ).order_by(SystemLog.executed_at.desc()).first()
+        
+        if last_execution:
+            last_update = last_execution.executed_at.strftime('%d/%m/%Y %H:%M')
+        else:
+            last_update = 'Nunca ejecutado'
+        
+        return {
+            'total_assets': total_assets,
+            'total_debts': total_debt_remaining,
+            'savings_rate': max(0, savings_rate),
+            'monthly_salary': monthly_salary,
+            'monthly_savings': monthly_savings,
+            'debt_to_income_ratio': (monthly_debt_payment / monthly_salary * 100) if monthly_salary > 0 else 0,
+            'last_update': last_update
+        }
+        
+    except Exception as e:
+        print(f"Error obteniendo datos de resumen del buzón: {e}")
+        return {
+            'total_assets': 0,
+            'total_debts': 0,
+            'savings_rate': 0,
+            'monthly_salary': 0,
+            'monthly_savings': 0,
+            'debt_to_income_ratio': 0,
+            'last_update': 'Error al obtener'
+        }
+
+@app.route('/office/mark_message_read/<int:message_id>', methods=['POST'])
+@login_required
+def mark_message_read(message_id):
+    """Marca un mensaje como leído."""
+    try:
+        message = MailboxMessage.query.filter_by(id=message_id, user_id=current_user.id).first()
+        if message:
+            message.is_read = True
+            message.read_at = datetime.utcnow()
+            db.session.commit()
+            return jsonify({'success': True})
+        else:
+            return jsonify({'success': False, 'message': 'Mensaje no encontrado'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)})
+
+
+
+@app.route('/office/delete_message/<int:message_id>', methods=['POST'])
+@login_required
+def delete_message(message_id):
+    """Elimina un mensaje del buzón."""
+    try:
+        message = MailboxMessage.query.filter_by(id=message_id, user_id=current_user.id).first()
+        if message and message.message_type != 'config_warning':  # No permitir eliminar warnings
+            db.session.delete(message)
+            db.session.commit()
+            return jsonify({'success': True})
+        else:
+            return jsonify({'success': False, 'message': 'Mensaje no encontrado o no se puede eliminar'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)})
 
 @app.route('/manage_account', methods=['GET', 'POST'])
 @login_required
@@ -4818,6 +8547,7 @@ def manage_account():
 
     # Para una ruta GET normal (si se accediera directamente, aunque el modal es lo principal)
     return render_template('manage_account_page.html', title='Gestionar Mi Cuenta', form=form)
+
 
 
 
@@ -4879,6 +8609,71 @@ El equipo de Mi Portfolio App
         # Podrías añadir un reintento aquí o una notificación más específica si falla
         return False
 
+@app.route('/office/delete_alert/<int:alert_id>', methods=['POST'])
+@login_required
+def delete_alert(alert_id):
+    """Eliminar una configuración de alerta."""
+    alert = AlertConfiguration.query.get_or_404(alert_id)
+
+    if alert.user_id != current_user.id:
+        return jsonify({'success': False, 'message': 'No autorizado'}), 403
+
+    try:
+        db.session.delete(alert)
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/office/test_alert', methods=['POST'])
+@login_required
+def send_test_alert():
+    """Enviar una alerta de prueba al buzón del usuario."""
+    try:
+        test_message = MailboxMessage(
+            user_id=current_user.id,
+            message_type='custom_alert',
+            title='🧪 Alerta de Prueba',
+            content=f'Esta es una alerta de prueba generada el {datetime.now().strftime("%d/%m/%Y a las %H:%M")}. Tu sistema de alertas está funcionando correctamente.'
+        )
+
+        db.session.add(test_message)
+        db.session.commit()
+
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/office/generate_summary', methods=['POST'])
+@login_required
+def generate_summary_now():
+    """Generar un resumen on-demand."""
+    try:
+        data = request.get_json()
+        summary_type = data.get('summary_type', 'patrimonio')
+
+        # Aquí generarías el contenido del resumen según el tipo
+        # Por ahora, un placeholder
+        summary_content = f"Resumen de {summary_type} generado el {datetime.now().strftime('%d/%m/%Y a las %H:%M')}."
+
+        message = MailboxMessage(
+            user_id=current_user.id,
+            message_type='periodic_summary',
+            title=f'📊 Resumen de {summary_type.title()}',
+            content=summary_content
+        )
+
+        db.session.add(message)
+        db.session.commit()
+
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)})
 
 @app.route("/request_reset_password", methods=['GET', 'POST']) # NUEVA RUTA
 def request_reset_password(): # MOSTRANDO COMPLETA
@@ -4972,56 +8767,156 @@ def close_account():
 @app.route('/admin/dashboard')
 @login_required
 @admin_required
-def admin_dashboard(): # MOSTRANDO COMPLETA CON CAMBIOS PARA LOGS
-    users = User.query.order_by(User.username).all()
-    user_count = User.query.count()
-    active_user_count = User.query.filter_by(is_active=True).count()
-    admin_user_count = User.query.filter_by(is_admin=True).count()
-    
-    # Obtener los últimos N logs de actividad, ordenados por más reciente primero
-    # Puedes ajustar el .limit() al número de logs que quieras mostrar
-    recent_activity_logs = ActivityLog.query.order_by(ActivityLog.timestamp.desc()).limit(50).all()
-    
-    # Para la plantilla, es útil procesar los detalles si son JSON
-    # Esto es opcional, podrías simplemente mostrar el string details directamente
-    processed_logs = []
-    for log_entry in recent_activity_logs:
-        details_parsed = log_entry.details
-        if log_entry.details:
-            try:
-                # Intenta cargar como JSON si se guardó así
-                parsed = json.loads(log_entry.details)
-                # Formatear el JSON para mejor visualización (opcional)
-                details_parsed = json.dumps(parsed, indent=2, ensure_ascii=False)
-            except json.JSONDecodeError:
-                # Si no es JSON válido, se muestra como texto plano
-                details_parsed = log_entry.details
+def admin_dashboard(): # MOSTRANDO COMPLETA CON CAMBIOS PARA LOGS Y SCHEDULER
+    try:
+        users = User.query.order_by(User.username).all()
+        user_count = User.query.count()
+        active_user_count = User.query.filter_by(is_active=True).count()
+        admin_user_count = User.query.filter_by(is_admin=True).count()
         
-        processed_logs.append({
-            'timestamp': log_entry.timestamp,
-            'username': log_entry.username or "Sistema",
-            'action_type': log_entry.action_type,
-            'message': log_entry.message,
-            'target_username': log_entry.target_username,
-            'details': details_parsed, # Detalles procesados o en crudo
-            'ip_address': log_entry.ip_address
-        })
-
-    # Placeholder para los logs "simplificados" que tenías antes, por si aún los quieres
-    # admin_simple_logs = [
-    #     f"({datetime.now().strftime('%Y-%m-%d %H:%M:%S')}) Acceso al panel de administración por {current_user.username}.",
-    # ]
-    
-    admin_placeholder_email = app.config.get('ADMIN_PLACEHOLDER_EMAIL')
-
-    return render_template('admin/dashboard.html', 
-                           title="Panel de Administración", 
-                           users=users,
-                           user_count=user_count,
-                           active_user_count=active_user_count,
-                           admin_user_count=admin_user_count,
-                           admin_placeholder_email=admin_placeholder_email,
-                           activity_logs=processed_logs) # Pasar los logs procesados
+        # Obtener los últimos N logs de actividad, ordenados por más reciente primero
+        recent_activity_logs = ActivityLog.query.order_by(ActivityLog.timestamp.desc()).limit(50).all()
+        
+        # Para la plantilla, es útil procesar los detalles si son JSON
+        processed_logs = []
+        for log_entry in recent_activity_logs:
+            details_parsed = log_entry.details
+            if log_entry.details:
+                try:
+                    # Intenta cargar como JSON si se guardó así
+                    parsed = json.loads(log_entry.details)
+                    # Formatear el JSON para mejor visualización (opcional)
+                    details_parsed = json.dumps(parsed, indent=2, ensure_ascii=False)
+                except json.JSONDecodeError:
+                    # Si no es JSON válido, se muestra como texto plano
+                    details_parsed = log_entry.details
+            
+            processed_logs.append({
+                'timestamp': log_entry.timestamp,
+                'username': log_entry.username or "Sistema",
+                'action_type': log_entry.action_type,
+                'message': log_entry.message,
+                'target_username': log_entry.target_username,
+                'details': details_parsed, # Detalles procesados o en crudo
+                'ip_address': log_entry.ip_address
+            })
+        
+        # === NUEVAS VARIABLES PARA EL SCHEDULER ===
+        
+        # Estadísticas del scheduler
+        try:
+            scheduler_tasks = SchedulerTask.query.order_by(SchedulerTask.id).all()
+            active_scheduler_tasks = len([task for task in scheduler_tasks if task.is_active])
+            total_scheduler_tasks = len(scheduler_tasks)
+        except Exception as e:
+            print(f"Error obteniendo tareas del scheduler: {e}")
+            scheduler_tasks = []
+            active_scheduler_tasks = 0
+            total_scheduler_tasks = 0
+        
+        # Jobs activos del scheduler
+        active_scheduler_jobs = {}
+        try:
+            for job in scheduler.get_jobs():
+                task_key = job.id.replace('task_', '') if job.id.startswith('task_') else job.id
+                active_scheduler_jobs[task_key] = {
+                    'next_run': job.next_run_time,
+                    'job_id': job.id
+                }
+        except Exception as e:
+            print(f"Error obteniendo jobs activos: {e}")
+        
+        # Logs recientes del scheduler (para la sección del dashboard)
+        try:
+            recent_scheduler_logs = SystemLog.query.filter(
+                SystemLog.log_type.like('scheduler_%')
+            ).order_by(SystemLog.executed_at.desc()).limit(5).all()
+            
+            # Todos los logs del scheduler (para el tab)
+            all_scheduler_logs = SystemLog.query.filter(
+                SystemLog.log_type.like('scheduler_%')
+            ).order_by(SystemLog.executed_at.desc()).limit(100).all()
+        except Exception as e:
+            print(f"Error obteniendo logs del scheduler: {e}")
+            recent_scheduler_logs = []
+            all_scheduler_logs = []
+            
+        try:
+                from datetime import timedelta
+                
+                # Estadísticas generales
+                total_emails = EmailQueue.query.count()
+                pending_emails = EmailQueue.query.filter_by(status='pending').count()
+                sent_emails = EmailQueue.query.filter_by(status='sent').count()
+                failed_emails = EmailQueue.query.filter_by(status='failed').count()
+                
+                # Emails de las últimas 24 horas
+                yesterday = datetime.utcnow() - timedelta(hours=24)
+                emails_24h = EmailQueue.query.filter(EmailQueue.created_at >= yesterday).count()
+                sent_24h = EmailQueue.query.filter(
+                    EmailQueue.status == 'sent',
+                    EmailQueue.sent_at >= yesterday
+                ).count()
+                
+                # Emails recientes para mostrar en dashboard (últimos 5)
+                recent_emails = EmailQueue.query.order_by(
+                    EmailQueue.created_at.desc()
+                ).limit(5).all()
+                
+                # Emails pendientes (para mostrar cola)
+                pending_queue = EmailQueue.query.filter_by(status='pending').order_by(
+                    EmailQueue.priority.asc(),
+                    EmailQueue.scheduled_at.asc()
+                ).limit(10).all()
+                
+        except Exception as e:
+                print(f"Error obteniendo estadísticas de email queue: {e}")
+                total_emails = pending_emails = sent_emails = failed_emails = 0
+                emails_24h = sent_24h = 0
+                recent_emails = []
+                pending_queue = []
+            
+        admin_placeholder_email = app.config.get('ADMIN_PLACEHOLDER_EMAIL')   
+            
+        return render_template('admin/dashboard.html',
+                            title="Panel de Administración",
+                            users=users,
+                            user_count=user_count,
+                            active_user_count=active_user_count,
+                            admin_user_count=admin_user_count,
+                            admin_placeholder_email=admin_placeholder_email,
+                            activity_logs=processed_logs, # Tu variable existente
+                            # Variables del scheduler (existentes)
+                            scheduler_tasks=scheduler_tasks,
+                            active_scheduler_tasks=active_scheduler_tasks,
+                            total_scheduler_tasks=total_scheduler_tasks,
+                            active_scheduler_jobs=active_scheduler_jobs,
+                            recent_scheduler_logs=recent_scheduler_logs,
+                            all_scheduler_logs=all_scheduler_logs,
+                            # NUEVAS VARIABLES DE EMAIL QUEUE
+                            total_emails=total_emails,
+                            pending_emails=pending_emails,
+                            sent_emails=sent_emails,
+                            failed_emails=failed_emails,
+                            emails_24h=emails_24h,
+                            sent_24h=sent_24h,
+                            recent_emails=recent_emails,
+                            pending_queue=pending_queue)       
+                             
+    except Exception as e:
+        flash(f'Error cargando el panel de administración: {str(e)}', 'danger')
+        return render_template('admin/dashboard.html',
+                                title='Panel de Administración',
+                                # ... valores por defecto existentes ...
+                                # Valores por defecto para email queue
+                                total_emails=0,
+                                pending_emails=0,
+                                sent_emails=0,
+                                failed_emails=0,
+                                emails_24h=0,
+                                sent_24h=0,
+                                recent_emails=[],
+                                pending_queue=[])       
 
 @app.route('/admin/user/<int:user_id>/toggle_active', methods=['POST']) # NUEVA RUTA
 @login_required
@@ -5164,7 +9059,945 @@ class FinancialSummaryConfigForm(FlaskForm):
     submit = SubmitField('Guardar Configuración')
 
 
-# Función correcta para calcular la fecha de fin de un plan
+
+def process_daily_alerts():
+    """Función principal que se ejecuta diariamente para procesar alertas."""
+    start_time = datetime.utcnow()
+    
+    try:
+        with app.app_context():
+            print(f"[{start_time}] Iniciando procesamiento diario de alertas...")
+            
+            # Fase 1: Actualizar todos los precios
+            print("Fase 1: Actualizando precios desde APIs externas...")
+            update_all_prices()
+            
+            # Fase 2: Generar mensajes de alertas
+            print("Fase 2: Generando mensajes de alertas...")
+            generate_alert_messages()
+            
+            # Fase 3: Enviar emails (si están configurados)
+            print("Fase 3: Enviando notificaciones por email...")
+            send_email_notifications()
+            
+            # NUEVO: Registrar ejecución exitosa
+            log_entry = SystemLog(
+                log_type='daily_alerts',
+                executed_at=start_time,
+                status='success',
+                details='Procesamiento diario completado exitosamente'
+            )
+            db.session.add(log_entry)
+            db.session.commit()
+            
+            print(f"[{datetime.utcnow()}] Procesamiento diario completado exitosamente.")
+            
+    except Exception as e:
+        # NUEVO: Registrar error
+        log_entry = SystemLog(
+            log_type='daily_alerts',
+            executed_at=start_time,
+            status='error',
+            details=f'Error en procesamiento diario: {str(e)}'
+        )
+        db.session.add(log_entry)
+        db.session.commit()
+        
+        print(f"[{datetime.utcnow()}] Error en procesamiento diario: {str(e)}")
+
+@app.route('/office/update_all_prices', methods=['POST'])
+@login_required
+def update_all_prices():
+    """Actualiza todos los precios de mercado."""
+    try:
+        updated_items = 0
+        errors = []
+        
+        # 1. Actualizar precios de watchlist
+        try:
+            watchlist_items = WatchlistItem.query.filter_by(user_id=current_user.id).all()
+            for item in watchlist_items:
+                try:
+                    ticker_with_suffix = f"{item.ticker}{item.yahoo_suffix or ''}"
+                    update_watchlist_item_from_yahoo(item.id, force_update=True)
+                    updated_items += 1
+                except Exception as e:
+                    errors.append(f"Error actualizando {item.ticker}: {str(e)}")
+        except Exception as e:
+            errors.append(f"Error general en watchlist: {str(e)}")
+        
+        # 2. Actualizar precios de metales preciosos
+        try:
+            update_precious_metal_prices()
+            updated_items += 2  # Oro y plata
+        except Exception as e:
+            errors.append(f"Error actualizando metales: {str(e)}")
+        
+        # 3. Actualizar precios de criptomonedas
+        try:
+            update_crypto_prices(current_user.id)
+            crypto_count = CryptoTransaction.query.filter_by(user_id=current_user.id)\
+                .with_entities(CryptoTransaction.ticker_symbol).distinct().count()
+            updated_items += crypto_count
+        except Exception as e:
+            errors.append(f"Error actualizando criptos: {str(e)}")
+        
+        # Crear mensaje en el buzón
+        success_message = f"Actualización completada: {updated_items} elementos actualizados."
+        if errors:
+            success_message += f" {len(errors)} errores encontrados."
+        
+        mailbox_msg = MailboxMessage(
+            user_id=current_user.id,
+            message_type='system_update',
+            title='Actualización de Precios Completada',
+            content=success_message
+        )
+        db.session.add(mailbox_msg)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': success_message,
+            'updated_items': updated_items,
+            'errors': errors
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error durante la actualización: {str(e)}'
+        })
+
+@app.route('/office/export_custom_report', methods=['POST'])
+@login_required
+def export_custom_report():
+    """Exporta informes personalizados desde el buzón."""
+    try:
+        report_type = request.form.get('report_type', 'complete')
+        export_format = request.form.get('format', 'csv')
+        
+        if export_format not in ['csv', 'xlsx']:
+            export_format = 'csv'
+        
+        # Generar datos según el tipo de informe
+        export_data = generate_custom_report_data(current_user.id, report_type)
+        
+        # Crear archivo
+        today_str = datetime.now().strftime('%Y%m%d')
+        filename = f"informe_{report_type}_{today_str}.{export_format}"
+        
+        if export_format == 'csv':
+            output = io.StringIO()
+            writer = csv.writer(output, delimiter=';')
+            for row in export_data:
+                writer.writerow(row)
+            
+            output.seek(0)
+            return Response(
+                output.getvalue(),
+                mimetype="text/csv",
+                headers={"Content-Disposition": f"attachment;filename={filename}"}
+            )
+        
+        else:  # xlsx
+            try:
+                import pandas as pd
+                from io import BytesIO
+                
+                df = pd.DataFrame(export_data)
+                output = BytesIO()
+                
+                # Usar el motor xlsxwriter que es más confiable
+                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                    df.to_excel(writer, sheet_name='Informe', header=False, index=False)
+                    
+                    workbook = writer.book
+                    worksheet = writer.sheets['Informe']
+                    
+                    # Formato para encabezados
+                    header_format = workbook.add_format({
+                        'bold': True,
+                        'font_size': 12,
+                        'bg_color': '#4F81BD',
+                        'font_color': 'white'
+                    })
+                    
+                    # Aplicar formato a la primera fila si hay datos
+                    if export_data:
+                        for col, value in enumerate(export_data[0]):
+                            worksheet.write(0, col, value, header_format)
+                    
+                    worksheet.set_column('A:A', 40)
+                    worksheet.set_column('B:B', 20)
+                    worksheet.set_column('C:C', 20)
+                
+                output.seek(0)
+                return Response(
+                    output.getvalue(),
+                    mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f"attachment;filename={filename}"}
+                )
+            
+            except ImportError:
+                flash("Para exportar a Excel necesitas instalar: pip install pandas xlsxwriter", "warning")
+                return redirect(url_for('office_mailbox'))
+        
+    except Exception as e:
+        flash(f"Error al exportar informe: {e}", "danger")
+        return redirect(url_for('office_mailbox'))
+
+def generate_custom_report_data(user_id, report_type):
+    """Genera datos para informes personalizados."""
+    try:
+        export_data = []
+        
+        # Información general
+        export_data.append([f"INFORME {report_type.upper()}", "", ""])
+        export_data.append([f"Fecha: {datetime.now().strftime('%d/%m/%Y %H:%M')}", "", ""])
+        export_data.append(["", "", ""])
+        
+        if report_type == 'complete':
+            # Usar la lógica existente de export_financial_summary
+            # (reutilizar la función existente pero adaptada)
+            return generate_complete_financial_report(user_id)
+            
+        elif report_type == 'bolsa':
+            return generate_investment_report(user_id)
+            
+        elif report_type == 'cash':
+            return generate_cash_report(user_id)
+            
+        elif report_type == 'crypto':
+            return generate_crypto_report(user_id)
+            
+        elif report_type == 'real_estate':
+            return generate_real_estate_report(user_id)
+            
+        elif report_type == 'metales':
+            return generate_metals_report(user_id)
+            
+        elif report_type == 'debts':
+            return generate_debts_report(user_id)
+            
+        elif report_type == 'income_expenses':
+            return generate_income_expenses_report(user_id)
+        
+        else:
+            export_data.append(["Error: Tipo de informe no reconocido", "", ""])
+            return export_data
+            
+    except Exception as e:
+        return [["Error generando informe", str(e), ""]]
+
+# 5. FUNCIONES ESPECÍFICAS PARA CADA TIPO DE INFORME (agregar en app.py)
+def generate_investment_report(user_id):
+    """Genera informe específico de inversiones."""
+    export_data = []
+    export_data.append(["INFORME DE INVERSIONES (BOLSA)", "", ""])
+    export_data.append([f"Fecha: {datetime.now().strftime('%d/%m/%Y %H:%M')}", "", ""])
+    export_data.append(["", "", ""])
+    
+    try:
+        # Obtener datos del portfolio
+        portfolio_record = UserPortfolio.query.filter_by(user_id=user_id).first()
+        if portfolio_record and portfolio_record.portfolio_data:
+            portfolio_data = json.loads(portfolio_record.portfolio_data)
+            
+            export_data.append(["RESUMEN GENERAL", "", ""])
+            total_market_value = sum(float(item.get('market_value_eur', 0)) for item in portfolio_data 
+                                   if 'market_value_eur' in item and item['market_value_eur'] is not None)
+            export_data.append(["Valor Total del Portfolio", f"{total_market_value:.2f} €", ""])
+            export_data.append(["", "", ""])
+            
+            export_data.append(["DETALLE POR POSICIÓN", "", ""])
+            export_data.append(["Nombre", "Valor de Mercado", "P&L"])
+            
+            # Ordenar por valor de mercado
+            sorted_items = sorted(
+                [item for item in portfolio_data if 'market_value_eur' in item and item['market_value_eur'] is not None],
+                key=lambda x: float(x['market_value_eur']),
+                reverse=True
+            )
+            
+            for item in sorted_items:
+                name = item.get('item_name') or item.get('Producto', 'Desconocido')
+                market_value = item.get('market_value_eur', 0)
+                pl = item.get('profitability_calc', 0) or 0
+                export_data.append([name, f"{market_value:.2f} €", f"{pl:.2f}%"])
+        else:
+            export_data.append(["No hay datos de inversiones disponibles", "", ""])
+        
+    except Exception as e:
+        export_data.append(["Error generando informe de inversiones", str(e), ""])
+    
+    return export_data
+
+def generate_cash_report(user_id):
+    """Genera informe específico de efectivo."""
+    export_data = []
+    export_data.append(["INFORME DE EFECTIVO", "", ""])
+    export_data.append([f"Fecha: {datetime.now().strftime('%d/%m/%Y %H:%M')}", "", ""])
+    export_data.append(["", "", ""])
+    
+    try:
+        bank_accounts = BankAccount.query.filter_by(user_id=user_id).all()
+        if bank_accounts:
+            total_cash = sum(account.current_balance for account in bank_accounts)
+            export_data.append(["RESUMEN", "", ""])
+            export_data.append(["Total en Cuentas Bancarias", f"{total_cash:.2f} €", ""])
+            export_data.append(["", "", ""])
+            
+            export_data.append(["DETALLE POR CUENTA", "", ""])
+            export_data.append(["Banco", "Saldo", "Tipo"])
+            
+            for account in bank_accounts:
+                export_data.append([
+                    account.bank_name,
+                    f"{account.current_balance:.2f} €",
+                    account.account_type or "No especificado"
+                ])
+        else:
+            export_data.append(["No hay cuentas bancarias registradas", "", ""])
+            
+    except Exception as e:
+        export_data.append(["Error generando informe de efectivo", str(e), ""])
+    
+    return export_data
+
+def generate_crypto_report(user_id):
+    """Genera informe específico de criptomonedas."""
+    export_data = []
+    export_data.append(["INFORME DE CRIPTOMONEDAS", "", ""])
+    export_data.append([f"Fecha: {datetime.now().strftime('%d/%m/%Y %H:%M')}", "", ""])
+    export_data.append(["", "", ""])
+    
+    try:
+        crypto_transactions = CryptoTransaction.query.filter_by(user_id=user_id).all()
+        if crypto_transactions:
+            # Calcular holdings actuales
+            crypto_holdings = {}
+            for transaction in crypto_transactions:
+                crypto_key = transaction.ticker_symbol
+                if crypto_key not in crypto_holdings:
+                    crypto_holdings[crypto_key] = {
+                        'name': transaction.crypto_name,
+                        'quantity': 0,
+                        'current_price': transaction.current_price
+                    }
+                
+                if transaction.transaction_type == 'buy':
+                    crypto_holdings[crypto_key]['quantity'] += transaction.quantity
+                else:
+                    crypto_holdings[crypto_key]['quantity'] -= transaction.quantity
+                
+                if transaction.current_price is not None:
+                    crypto_holdings[crypto_key]['current_price'] = transaction.current_price
+            
+            # Filtrar holdings activos
+            active_holdings = {k: v for k, v in crypto_holdings.items() if v['quantity'] > 0}
+            
+            if active_holdings:
+                total_value = sum(crypto['quantity'] * (crypto['current_price'] or 0) 
+                                for crypto in active_holdings.values())
+                
+                export_data.append(["RESUMEN", "", ""])
+                export_data.append(["Valor Total Portfolio Crypto", f"{total_value:.2f} €", ""])
+                export_data.append(["", "", ""])
+                
+                export_data.append(["DETALLE POR CRIPTOMONEDA", "", ""])
+                export_data.append(["Nombre", "Cantidad", "Valor"])
+                
+                for ticker, crypto in active_holdings.items():
+                    current_value = crypto['quantity'] * (crypto['current_price'] or 0)
+                    export_data.append([
+                        crypto['name'],
+                        f"{crypto['quantity']:.6f} {ticker}",
+                        f"{current_value:.2f} €"
+                    ])
+            else:
+                export_data.append(["No hay criptomonedas en cartera", "", ""])
+        else:
+            export_data.append(["No hay transacciones de criptomonedas registradas", "", ""])
+            
+    except Exception as e:
+        export_data.append(["Error generando informe de criptomonedas", str(e), ""])
+    
+    return export_data
+
+def get_mailbox_summary_data(user_id):
+    """Obtiene datos de resumen DINÁMICOS para mostrar en el buzón."""
+    try:
+        # Obtener patrimonio usando la función existente
+        patrimony = get_current_patrimony_breakdown(user_id)
+        total_assets = patrimony['total_assets']
+        
+        # Obtener deudas activas REALES
+        debt_plans = DebtInstallmentPlan.query.filter_by(user_id=user_id, is_active=True).all()
+        total_debt_remaining = sum(plan.remaining_amount for plan in debt_plans) if debt_plans else 0
+        monthly_debt_payment = sum(plan.monthly_payment for plan in debt_plans) if debt_plans else 0
+        
+        # Calcular tasa de ahorro REAL
+        income_data = FixedIncome.query.filter_by(user_id=user_id).first()
+        monthly_salary = (income_data.annual_net_salary / 12) if income_data and income_data.annual_net_salary else 0
+        
+        # Gastos fijos mensuales REALES
+        fixed_expenses = Expense.query.filter_by(user_id=user_id, expense_type='fixed', is_recurring=True).all()
+        monthly_fixed_expenses = sum(expense.amount for expense in fixed_expenses) if fixed_expenses else 0
+        
+        # Gastos variables promedio (últimos 3 meses)
+        three_months_ago = date.today() - timedelta(days=90)
+        variable_expenses = Expense.query.filter_by(user_id=user_id, expense_type='punctual')\
+            .filter(Expense.date >= three_months_ago).all()
+        monthly_variable_expenses = (sum(expense.amount for expense in variable_expenses) / 3) if variable_expenses else 0
+        
+        # Calcular tasa de ahorro real
+        total_monthly_expenses = monthly_fixed_expenses + monthly_variable_expenses + monthly_debt_payment
+        monthly_savings = monthly_salary - total_monthly_expenses
+        savings_rate = (monthly_savings / monthly_salary * 100) if monthly_salary > 0 else 0
+        
+        return {
+            'total_assets': total_assets,
+            'total_debts': total_debt_remaining,  # Deuda restante, no pagos anuales
+            'savings_rate': max(0, savings_rate),
+            'monthly_salary': monthly_salary,
+            'monthly_savings': monthly_savings,
+            'debt_to_income_ratio': (monthly_debt_payment / monthly_salary * 100) if monthly_salary > 0 else 0
+        }
+        
+    except Exception as e:
+        print(f"Error obteniendo datos de resumen del buzón: {e}")
+        return {
+            'total_assets': 0,
+            'total_debts': 0,
+            'savings_rate': 0,
+            'monthly_salary': 0,
+            'monthly_savings': 0,
+            'debt_to_income_ratio': 0
+        }
+
+def generate_alert_messages():
+    """Genera mensajes de alerta según las configuraciones activas."""
+    try:
+        today = date.today()
+        check_and_resolve_warnings()
+        alert_configs = AlertConfiguration.query.filter_by(is_active=True).all()
+        
+        for config in alert_configs:
+            try:
+                if config.alert_reason == 'earnings_report':
+                    process_earnings_alerts(config, today)
+                elif config.alert_reason == 'metric_threshold':
+                    process_metric_alerts(config, today)
+                elif config.alert_reason == 'periodic_summary':
+                    process_summary_alerts(config, today)
+                elif config.alert_reason == 'custom':
+                    process_custom_alerts(config, today)
+                    
+            except Exception as e:
+                print(f"Error procesando alerta {config.id}: {e}")
+                
+        print("Generación de mensajes completada.")
+        
+    except Exception as e:
+        print(f"Error generando mensajes: {e}")
+
+
+def send_email_notifications():
+    """Envía notificaciones por email para mensajes recién creados."""
+    try:
+        # CORREGIR: Obtener solo mensajes de HOY que tienen configuración activa
+        today_start = datetime.combine(date.today(), datetime.min.time())
+        
+        # Subconsulta para verificar que la configuración sigue activa
+        messages_to_email = db.session.query(MailboxMessage).filter(
+            MailboxMessage.created_at >= today_start,
+            MailboxMessage.related_alert_config_id.isnot(None)
+        ).all()
+        
+        emails_sent = 0
+        for message in messages_to_email:
+            # Verificar que la configuración de alerta sigue activa
+            if message.related_alert_config_id:
+                config = AlertConfiguration.query.get(message.related_alert_config_id)
+                if config and config.is_active and config.notify_by_email:
+                    try:
+                        send_alert_email(message)
+                        emails_sent += 1
+                    except Exception as e:
+                        print(f"Error enviando email para mensaje {message.id}: {e}")
+                        
+        print(f"Enviados {emails_sent} emails de notificación.")
+        
+    except Exception as e:
+        print(f"Error enviando emails: {e}")
+
+# Programar la tarea para que se ejecute diariamente a las 00:00
+# Configurar las tareas programadas (AL FINAL, después de definir todas las funciones)
+def setup_scheduled_tasks():
+    """Configura las tareas programadas."""
+    try:
+        # Eliminar trabajos existentes para evitar duplicados
+        scheduler.remove_all_jobs()
+        
+        # Añadir la tarea diaria
+        scheduler.add_job(
+            func=process_daily_alerts,
+            trigger='cron',
+            hour=0,
+            minute=0,
+            id='daily_alerts_job',
+            name='Procesamiento diario de alertas',
+            replace_existing=True
+        )
+        
+        print(f"DEBUG: Tarea programada añadida. Jobs activos: {len(scheduler.get_jobs())}")
+        for job in scheduler.get_jobs():
+            print(f"DEBUG: Job: {job.id} - Próxima ejecución: {job.next_run_time}")
+            
+    except Exception as e:
+        print(f"Error configurando tareas programadas: {e}")
+
+
+def process_daily_alerts():
+    """Función principal que se ejecuta diariamente para procesar alertas."""
+    try:
+        with app.app_context():
+            print(f"[{datetime.now()}] Iniciando procesamiento diario de alertas...")
+            
+            # Fase 1: Actualizar todos los precios
+            print("Fase 1: Actualizando precios desde APIs externas...")
+            update_all_prices()
+            
+            # Fase 2: Generar mensajes de alertas
+            print("Fase 2: Generando mensajes de alertas...")
+            generate_alert_messages()
+            
+            # Fase 3: Enviar emails (si están configurados)
+            print("Fase 3: Enviando notificaciones por email...")
+            send_email_notifications()
+            
+            print(f"[{datetime.now()}] Procesamiento diario completado exitosamente.")
+            
+    except Exception as e:
+        print(f"[{datetime.now()}] Error en procesamiento diario: {str(e)}")
+
+
+
+def process_earnings_alerts(config, today):
+    """Procesa alertas de resultados con cola de emails."""
+    
+    if not config.should_send_today(today):
+        return
+    
+    # Obtener acciones aplicables según el scope
+    if config.scope == 'individual':
+        items = [config.watchlist_item] if config.watchlist_item else []
+    elif config.scope == 'portfolio':
+        items = WatchlistItem.query.filter_by(user_id=config.user_id, is_in_portfolio=True).all()
+    elif config.scope == 'watchlist':
+        items = WatchlistItem.query.filter_by(user_id=config.user_id, is_in_followup=True).all()
+    else:  # scope == 'all'
+        items = WatchlistItem.query.filter_by(user_id=config.user_id).all()
+    
+    alerts_sent = 0
+    
+    for item in items:
+        if not item.fecha_resultados:
+            existing_warning = MailboxMessage.query.filter_by(
+                user_id=config.user_id,
+                message_type='config_warning',
+                related_watchlist_item_id=item.id,
+                related_alert_config_id=config.id
+            ).first()
+            
+            if not existing_warning:
+                warning_msg = MailboxMessage(
+                    user_id=config.user_id,
+                    message_type='config_warning',
+                    title=f'⚠️ Revisar fecha de resultados: {item.item_name or item.ticker}',
+                    content=f'La alerta de resultados para {item.item_name or item.ticker} no puede activarse porque no hay fecha de resultados definida.',
+                    related_watchlist_item_id=item.id,
+                    related_alert_config_id=config.id
+                )
+                db.session.add(warning_msg)
+            continue
+        
+        if item.fecha_resultados < today:
+            continue
+            
+        days_until = (item.fecha_resultados - today).days
+        
+        if days_until == config.days_notice:
+            if config.frequency == 'once' and config.last_triggered_for_date == item.fecha_resultados:
+                continue
+                
+            alert_msg = MailboxMessage(
+                user_id=config.user_id,
+                message_type='event_alert',
+                title=f'📅 Resultados próximos: {item.item_name or item.ticker}',
+                content=f'Los resultados de {item.item_name or item.ticker} se presentarán el {item.fecha_resultados.strftime("%d/%m/%Y")} (en {days_until} día{"s" if days_until != 1 else ""}).',
+                related_watchlist_item_id=item.id,
+                related_alert_config_id=config.id,
+                trigger_event_date=item.fecha_resultados
+            )
+            db.session.add(alert_msg)
+            db.session.flush()  # Para obtener el ID
+            
+            # NUEVO: Agregar a cola de emails
+            add_email_to_queue(alert_msg, config)
+            
+            config.last_triggered_for_date = item.fecha_resultados
+            alerts_sent += 1
+    
+    if alerts_sent > 0:
+        config.mark_as_sent(today)
+    
+    db.session.commit()
+
+def process_metric_alerts(config, today):
+    """Procesa alertas de métricas con cola de emails."""
+    
+    if not config.should_send_today(today):
+        return
+        
+    item = config.watchlist_item
+    if not item:
+        return
+    
+    current_value = getattr(item, config.metric_name, None)
+    if current_value is None:
+        return
+    
+    target_value = config.metric_target_text if config.metric_name == 'movimiento' else config.metric_target_value
+    condition_met = False
+    
+    if config.metric_operator == '>':
+        condition_met = float(current_value) > float(target_value)
+    elif config.metric_operator == '>=':
+        condition_met = float(current_value) >= float(target_value)
+    elif config.metric_operator == '<':
+        condition_met = float(current_value) < float(target_value)
+    elif config.metric_operator == '<=':
+        condition_met = float(current_value) <= float(target_value)
+    elif config.metric_operator == '=':
+        if config.metric_name == 'movimiento':
+            condition_met = str(current_value) == str(target_value)
+        else:
+            condition_met = float(current_value) == float(target_value)
+    elif config.metric_operator == '!=':
+        if config.metric_name == 'movimiento':
+            condition_met = str(current_value) != str(target_value)
+        else:
+            condition_met = float(current_value) != float(target_value)
+    
+    if condition_met:
+        alert_msg = MailboxMessage(
+            user_id=config.user_id,
+            message_type='event_alert',
+            title=f'🎯 Métrica alcanzada: {item.item_name or item.ticker}',
+            content=f'La métrica {config.metric_name} de {item.item_name or item.ticker} ha alcanzado el valor objetivo: {current_value} {config.metric_operator} {target_value}',
+            related_watchlist_item_id=item.id,
+            related_alert_config_id=config.id
+        )
+        db.session.add(alert_msg)
+        db.session.flush()  # Para obtener el ID
+        
+        # NUEVO: Agregar a cola de emails
+        add_email_to_queue(alert_msg, config)
+        
+        config.mark_as_sent(today)
+        
+        db.session.commit()
+
+def process_summary_alerts(config, today):
+    """Procesa alertas de resúmenes con cola de emails."""
+    
+    if not config.should_send_today(today):
+        return
+        
+    should_send = False
+    
+    if config.summary_frequency == 'puntual':
+        should_send = config.summary_one_time_date == today
+    elif config.summary_frequency == 'weekly':
+        if config.summary_one_time_date and today.weekday() == config.summary_one_time_date.weekday():
+            should_send = config.last_summary_sent != today
+    elif config.summary_frequency == 'monthly':
+        if config.summary_one_time_date and today.day == config.summary_one_time_date.day:
+            should_send = config.last_summary_sent != today
+    
+    if should_send:
+        summary_content = generate_summary_content(config.summary_type, config.user_id)
+        
+        summary_msg = MailboxMessage(
+            user_id=config.user_id,
+            message_type='periodic_summary',
+            title=f'📊 Resumen {config.summary_frequency}: {config.summary_type.title()}',
+            content=summary_content,
+            related_alert_config_id=config.id
+        )
+        db.session.add(summary_msg)
+        db.session.flush()  # Para obtener el ID
+        
+        # NUEVO: Agregar a cola de emails
+        add_email_to_queue(summary_msg, config)
+        
+        config.last_summary_sent = today
+        config.mark_as_sent(today)
+        
+        db.session.commit()
+
+
+def process_custom_alerts(config, today):
+    """Procesa alertas personalizadas con cola de emails."""
+    
+    if not config.should_send_today(today):
+        return
+        
+    should_send = False
+    
+    if config.custom_frequency_type == 'puntual':
+        should_send = config.custom_start_date == today
+    elif config.custom_frequency_type in ['weekly', 'monthly', 'quarterly', 'semiannual', 'annual']:
+        if config.custom_start_date and config.custom_start_date <= today:
+            should_send = config.last_custom_triggered != today
+    
+    if should_send:
+        custom_msg = MailboxMessage(
+            user_id=config.user_id,
+            message_type='custom_alert',
+            title=f'🔔 {config.custom_title}',
+            content=config.custom_description or f'Recordatorio programado: {config.custom_title}',
+            related_alert_config_id=config.id
+        )
+        db.session.add(custom_msg)
+        db.session.flush()  # Para obtener el ID
+        
+        # NUEVO: Agregar a cola de emails
+        add_email_to_queue(custom_msg, config)
+        
+        config.last_custom_triggered = today
+        config.mark_as_sent(today)
+            
+        db.session.commit()
+
+def generate_summary_content(summary_type, user_id):
+    """Genera el contenido del resumen según el tipo."""
+    # Implementación básica - puedes expandir con tus funciones existentes
+    return f"Resumen de {summary_type} generado automáticamente el {date.today().strftime('%d/%m/%Y')}."
+
+
+def send_alert_email(message):
+    """Envía un email de notificación para un mensaje de alerta."""
+    user = db.session.get(User, message.user_id)
+    if not user or not user.email:
+        return
+    
+    try:
+        msg = Message(
+            f'FollowUp - {message.title}',
+            recipients=[user.email]
+        )
+        msg.body = f"""Hola {user.username},
+
+{message.content}
+
+Fecha: {message.created_at.strftime('%d/%m/%Y %H:%M')}
+
+Puedes ver más detalles en tu buzón virtual: {url_for('office_mailbox', _external=True)}
+
+Saludos,
+FollowUp App"""
+        
+        mail.send(msg)
+        print(f"Email enviado a {user.email} para mensaje {message.id}")
+        
+    except Exception as e:
+        print(f"Error enviando email: {e}")
+
+
+@app.route('/office/check_warnings', methods=['POST'])
+@login_required
+def check_warnings_now():
+    """Resolver warnings manualmente."""
+    try:
+        warnings_resolved = 0
+        warnings_deleted = 0
+        
+        warnings = MailboxMessage.query.filter_by(
+            user_id=current_user.id,  # Para el usuario actual, no solo admin
+            message_type='config_warning'
+        ).all()
+        
+        print(f"DEBUG: Revisando {len(warnings)} warnings para usuario {current_user.username}")
+        
+        for warning in warnings:
+            print(f"DEBUG: Procesando warning {warning.id}")
+            
+            # Si no tiene configuración relacionada, eliminar el warning huérfano
+            if not warning.related_alert_config_id:
+                db.session.delete(warning)
+                warnings_deleted += 1
+                continue
+            
+            # Verificar si la configuración aún existe
+            config = AlertConfiguration.query.get(warning.related_alert_config_id)
+            if not config or not config.is_active:
+                db.session.delete(warning)
+                warnings_deleted += 1
+                continue
+            
+            # Verificar si el item de watchlist existe y tiene fecha válida
+            if warning.related_watchlist_item_id:
+                item = WatchlistItem.query.get(warning.related_watchlist_item_id)
+                if not item:
+                    db.session.delete(warning)
+                    warnings_deleted += 1
+                    continue
+                
+                print(f"DEBUG: Item {item.ticker} - fecha_resultados: {item.fecha_resultados}")
+                
+                # CONDICIÓN: Si ahora tiene fecha Y es futura (o hoy)
+                if item.fecha_resultados and item.fecha_resultados >= date.today():
+                    print(f"DEBUG: Resolviendo warning para {item.ticker}")
+                    
+                    # Crear mensaje de resolución (que aparece como leído)
+                    resolved_msg = MailboxMessage(
+                        user_id=current_user.id,
+                        message_type='config_resolved',
+                        title=f'✅ Problema resuelto: {item.item_name or item.ticker}',
+                        content=f'La fecha de resultados para {item.item_name or item.ticker} ahora está definida ({item.fecha_resultados.strftime("%d/%m/%Y")}). La alerta de resultados está activa.',
+                        related_watchlist_item_id=item.id,
+                        related_alert_config_id=config.id,
+                        is_read=True  # MARCARLO COMO LEÍDO PARA QUE SE ARCHIVE
+                    )
+                    db.session.add(resolved_msg)
+                    
+                    # Eliminar el warning
+                    db.session.delete(warning)
+                    warnings_resolved += 1
+        
+        db.session.commit()
+        
+        message = f'Resueltos: {warnings_resolved}, Eliminados: {warnings_deleted} warnings.'
+        print(f"DEBUG: {message}")
+        
+        return jsonify({
+            'success': True, 
+            'warnings_resolved': warnings_resolved,
+            'warnings_deleted': warnings_deleted,
+            'message': message
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"DEBUG: Error resolviendo warnings: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+def check_for_past_dates_alerts():
+    """Crea warnings para fechas de resultados que están en el pasado."""
+    try:
+        today = date.today()
+        
+        # Buscar configuraciones activas de resultados
+        earnings_configs = AlertConfiguration.query.filter_by(
+            is_active=True,
+            alert_reason='earnings_report'
+        ).all()
+        
+        for config in earnings_configs:
+            # Obtener acciones aplicables según el scope
+            if config.scope == 'individual':
+                items = [config.watchlist_item] if config.watchlist_item else []
+            elif config.scope == 'portfolio':
+                items = WatchlistItem.query.filter_by(user_id=config.user_id, is_in_portfolio=True).all()
+            elif config.scope == 'watchlist':
+                items = WatchlistItem.query.filter_by(user_id=config.user_id, is_in_followup=True).all()
+            else:  # scope == 'all'
+                items = WatchlistItem.query.filter_by(user_id=config.user_id).all()
+            
+            for item in items:
+                if item.fecha_resultados and item.fecha_resultados < today:
+                    # Verificar si ya existe un warning para fecha pasada
+                    existing_warning = MailboxMessage.query.filter_by(
+                        user_id=config.user_id,
+                        message_type='config_warning',
+                        related_watchlist_item_id=item.id,
+                        related_alert_config_id=config.id
+                    ).filter(
+                        MailboxMessage.title.contains('fecha pasada')
+                    ).first()
+                    
+                    if not existing_warning:
+                        warning_msg = MailboxMessage(
+                            user_id=config.user_id,
+                            message_type='config_warning',
+                            title=f'⚠️ Fecha pasada: {item.item_name or item.ticker}',
+                            content=f'La fecha de resultados de {item.item_name or item.ticker} ({item.fecha_resultados.strftime("%d/%m/%Y")}) ya pasó. Por favor, actualízala para que la alerta funcione correctamente.',
+                            related_watchlist_item_id=item.id,
+                            related_alert_config_id=config.id
+                        )
+                        db.session.add(warning_msg)
+        
+        db.session.commit()
+        
+    except Exception as e:
+        print(f"Error verificando fechas pasadas: {e}")
+
+@app.route('/debug_warnings')
+@login_required  
+def debug_warnings():
+    """Debug temporal para entender los warnings."""
+    if current_user.username != 'admin':
+        return "No autorizado", 403
+    
+    warnings = MailboxMessage.query.filter_by(
+        user_id=current_user.id,
+        message_type='config_warning'
+    ).all()
+    
+    debug_info = f"<h2>Debug Warnings (Total: {len(warnings)})</h2>"
+    
+    for warning in warnings:
+        debug_info += f"<div style='border: 1px solid #ccc; margin: 10px; padding: 10px;'>"
+        debug_info += f"<h3>Warning ID: {warning.id}</h3>"
+        debug_info += f"<p><strong>Título:</strong> {warning.title}</p>"
+        debug_info += f"<p><strong>Contenido:</strong> {warning.content}</p>"
+        debug_info += f"<p><strong>related_watchlist_item_id:</strong> {warning.related_watchlist_item_id}</p>"
+        debug_info += f"<p><strong>related_alert_config_id:</strong> {warning.related_alert_config_id}</p>"
+        
+        if warning.related_watchlist_item_id:
+            item = WatchlistItem.query.get(warning.related_watchlist_item_id)
+            if item:
+                debug_info += f"<p><strong>Acción:</strong> {item.item_name or item.ticker}</p>"
+                debug_info += f"<p><strong>Fecha resultados actual:</strong> {item.fecha_resultados}</p>"
+                debug_info += f"<p><strong>Fecha es futura:</strong> {item.fecha_resultados >= date.today() if item.fecha_resultados else 'No tiene fecha'}</p>"
+            else:
+                debug_info += f"<p style='color: red;'>ERROR: No se encontró WatchlistItem con ID {warning.related_watchlist_item_id}</p>"
+        
+        if warning.related_alert_config_id:
+            config = AlertConfiguration.query.get(warning.related_alert_config_id)
+            if config:
+                debug_info += f"<p><strong>Configuración activa:</strong> {config.is_active}</p>"
+                debug_info += f"<p><strong>Configuración existe:</strong> Sí</p>"
+            else:
+                debug_info += f"<p style='color: red;'>ERROR: No se encontró AlertConfiguration con ID {warning.related_alert_config_id}</p>"
+        
+        debug_info += "</div>"
+    
+    debug_info += '<br><a href="/office/mailbox">Volver al buzón</a>'
+    return debug_info
+
+@app.route('/test_alerts_processing')
+@login_required
+def test_alerts_processing():
+    """Ruta temporal para probar el procesamiento de alertas."""
+    if current_user.username != 'admin':
+        return "No autorizado", 403
+    
+    process_daily_alerts()
+    return "Procesamiento de alertas ejecutado. Revisa tu buzón y la consola."
 
 def calculate_end_date(start_date, duration_months):
     """
@@ -6599,7 +11432,7 @@ def financial_summary():
             if final_month_key_for_broker_cash:
                 current_broker_cash_val_for_summary_card = historical_data_points[final_month_key_for_broker_cash].get('broker_cash', 0.0)
         
-        assets_final_current = (total_cash_val_current + total_market_value_inv_current + current_crypto_value_live +
+        assets_final_current = (total_cash_val_current + current_crypto_value_live +
                                total_metal_value_current + total_pension_val_current + total_re_market_value_val_current +
                                current_broker_cash_val_for_summary_card) # Efectivo en broker (EWC)
         liabilities_final_current = total_general_debt_val_current + total_re_mortgage_balance_val_current
@@ -7982,6 +12815,8 @@ def get_category_analysis():
         range_description=range_description,
         months_in_range=months_in_range 
     )
+
+
 
 @app.route('/delete_expense/<int:expense_id>', methods=['POST'])
 @login_required
@@ -12145,6 +16980,10 @@ def edit_watchlist_item(item_id):
     # Si es POST (se envió el formulario de edición)
     if request.method == 'POST':
         print(f"Procesando POST para editar item ID: {item_id}")
+        
+        # GUARDAR LA FECHA ANTERIOR PARA COMPARAR
+        old_fecha_resultados = item_to_edit.fecha_resultados
+        
         try:
             # Actualizar todos los campos manuales/opcionales desde el formulario
             # Procesar flags de actualización automática primero (excepto fecha)
@@ -12245,6 +17084,16 @@ def edit_watchlist_item(item_id):
 
             # Guardar cambios en la DB
             db.session.commit()
+            
+            # *** NUEVA FUNCIONALIDAD: RESOLVER WARNINGS AUTOMÁTICAMENTE ***
+            print(f"Verificando si hay warnings para resolver para item {item_id}")
+            warnings_resolved = resolve_warnings_for_item(current_user.id, item_to_edit, old_fecha_resultados)
+            if warnings_resolved > 0:
+                print(f"Se resolvieron automáticamente {warnings_resolved} warnings")
+            
+            # *** NUEVA FUNCIONALIDAD: DETECTAR FECHAS PASADAS ***
+            check_past_date_for_item(current_user.id, item_to_edit)
+            
             flash(f"Datos para '{item_to_edit.item_name}' actualizados correctamente.", "success")
             print(f"Item watchlist ID {item_id} actualizado en DB.")
             # Redirigir de vuelta a la watchlist
@@ -12261,6 +17110,100 @@ def edit_watchlist_item(item_id):
     print(f"Mostrando formulario de edición para item ID: {item_id}")
     return render_template('edit_watchlist_item.html', item=item_to_edit, title=f"Editar {item_to_edit.item_name}")
 
+def resolve_warnings_for_item(user_id, item, old_fecha_resultados):
+    """Resuelve warnings automáticamente cuando se edita un item de watchlist."""
+    warnings_resolved = 0
+    today = date.today()
+
+    try:
+        # Buscar warnings relacionados con este item
+        warnings = MailboxMessage.query.filter_by(
+            user_id=user_id,
+            message_type='config_warning',
+            related_watchlist_item_id=item.id
+        ).all()
+
+        for warning in warnings:
+            should_resolve = False
+
+            # Caso 1: Warning por fecha faltante - ahora tiene fecha válida
+            if 'no hay fecha de resultados definida' in warning.content:
+                if item.fecha_resultados and item.fecha_resultados >= today:
+                    should_resolve = True
+
+            # Caso 2: Warning por fecha pasada - ahora tiene fecha futura
+            elif 'fecha pasada' in warning.title.lower():
+                if item.fecha_resultados and item.fecha_resultados >= today:
+                    should_resolve = True
+
+            if should_resolve:
+                # Crear mensaje de resolución
+                resolved_msg = MailboxMessage(
+                    user_id=user_id,
+                    message_type='config_resolved',
+                    title=f'✅ Problema resuelto: {item.item_name or item.ticker}',
+                    content=f'La fecha de resultados para {item.item_name or item.ticker} ha sido actualizada a {item.fecha_resultados.strftime("%d/%m/%Y")}. Las alertas están ahora activas.',
+                    related_watchlist_item_id=item.id,
+                    related_alert_config_id=warning.related_alert_config_id,
+                    is_read=True  # Marcar como leído para archivar
+                )
+                db.session.add(resolved_msg)
+
+                # Eliminar el warning
+                db.session.delete(warning)
+                warnings_resolved += 1
+
+        db.session.commit()
+
+    except Exception as e:
+        print(f"Error resolviendo warnings para item {item.id}: {e}")
+        db.session.rollback()
+
+    return warnings_resolved
+
+
+def check_past_date_for_item(user_id, item):
+    """Verifica si la fecha actualizada es pasada y crea warning si es necesario."""
+    if not item.fecha_resultados:
+        return
+
+    today = date.today()
+    if item.fecha_resultados < today:
+        try:
+            # Verificar si ya existe un warning de fecha pasada para este item
+            existing_warning = MailboxMessage.query.filter_by(
+                user_id=user_id,
+                message_type='config_warning',
+                related_watchlist_item_id=item.id
+            ).filter(
+                MailboxMessage.title.contains('fecha pasada')
+            ).first()
+
+            if not existing_warning:
+                # Buscar si hay configuraciones de alertas activas para este item
+                has_active_alerts = AlertConfiguration.query.filter_by(
+                    user_id=user_id,
+                    is_active=True,
+                    alert_reason='earnings_report'
+                ).filter(
+                    (AlertConfiguration.scope == 'individual') & (AlertConfiguration.watchlist_item_id == item.id) |
+                    (AlertConfiguration.scope.in_(['all', 'portfolio', 'watchlist']))
+                ).first()
+
+                if has_active_alerts:
+                    warning_msg = MailboxMessage(
+                        user_id=user_id,
+                        message_type='config_warning',
+                        title=f'⚠️ Fecha pasada: {item.item_name or item.ticker}',
+                        content=f'La fecha de resultados de {item.item_name or item.ticker} ({item.fecha_resultados.strftime("%d/%m/%Y")}) ya pasó. Por favor, actualízala para que las alertas funcionen correctamente.',
+                        related_watchlist_item_id=item.id
+                    )
+                    db.session.add(warning_msg)
+                    db.session.commit()
+
+        except Exception as e:
+            print(f"Error verificando fecha pasada para item {item.id}: {e}")
+            db.session.rollback()
 
 @app.route('/update_watchlist_yahoo_data', methods=['GET'])
 @login_required
@@ -13994,20 +18937,83 @@ def delete_watchlist_item():
     return redirect(url_for('show_watchlist'))
 
 
+def setup_scheduled_tasks():
+    """Configura las tareas programadas."""
+    try:
+        with app.app_context():
+            # Inicializar tareas predeterminadas si no existen
+            initialize_default_scheduler_tasks()
+            # Configurar scheduler con tareas dinámicas
+            setup_dynamic_scheduled_tasks()
+    except Exception as e:
+        print(f"Error configurando tareas programadas: {e}")
+
+def create_scheduler_task_table():
+    """Crea la tabla scheduler_tasks y inicializa datos predeterminados."""
+    try:
+        with app.app_context():
+            # Crear todas las tablas (incluida la nueva SchedulerTask)
+            db.create_all()
+            print("✅ Tabla scheduler_tasks creada.")
+            
+            # Inicializar tareas predeterminadas
+            initialize_default_scheduler_tasks()
+            print("✅ Tareas predeterminadas inicializadas.")
+            
+            # Reconfigurar scheduler
+            setup_dynamic_scheduled_tasks()
+            print("✅ Scheduler reconfigurado.")
+            
+    except Exception as e:
+        print(f"❌ Error en migración: {e}")
+
+def configure_sqlite_for_concurrency():
+    """Configura SQLite para mejor manejo de concurrencia."""
+    try:
+        # Usar conexión directa de SQLAlchemy
+        from sqlalchemy import text
+        
+        # WAL mode permite lecturas concurrentes con escrituras
+        db.session.execute(text('PRAGMA journal_mode=WAL'))
+        
+        # Modo normal es más rápido y permite más concurrencia
+        db.session.execute(text('PRAGMA synchronous=NORMAL'))
+        
+        # Cache más grande en memoria
+        db.session.execute(text('PRAGMA cache_size=10000'))
+        
+        # Usar memoria para tablas temporales
+        db.session.execute(text('PRAGMA temp_store=MEMORY'))
+        
+        # Timeout para operaciones bloqueadas
+        db.session.execute(text('PRAGMA busy_timeout=30000'))
+        
+        db.session.commit()
+        print("✅ SQLite configurado para mejor concurrencia")
+        
+        # Verificar configuración
+        result = db.session.execute(text('PRAGMA journal_mode')).fetchone()
+        print(f"Journal mode: {result[0]}")
+        
+    except Exception as e:
+        print(f"❌ Error configurando SQLite: {e}")
 
 # --- Ejecución Principal ---
 if __name__ == '__main__': # MOSTRANDO COMPLETA CON CAMBIOS
     # Define el email placeholder para el admin en la config para fácil acceso
     app.config['ADMIN_PLACEHOLDER_EMAIL'] = 'admin@no-reply.internal'
-
-
+    
     with app.app_context():
         print("Verificando/Creando tablas de la base de datos...")
         db.create_all()
         print("Tablas verificadas/creadas.")
 
+        configure_sqlite_for_concurrency()
+        initialize_default_scheduler_tasks()
+
         admin_user = User.query.filter_by(username='admin').first()
         admin_email_placeholder = app.config['ADMIN_PLACEHOLDER_EMAIL']
+        
 
         if not admin_user:
             print(f"Creando usuario administrador por defecto ('admin') con email placeholder: {admin_email_placeholder}...")
@@ -14043,6 +19049,7 @@ if __name__ == '__main__': # MOSTRANDO COMPLETA CON CAMBIOS
             except Exception as e:
                 db.session.rollback()
                 app.logger.error(f"Error al asegurar estado del admin: {e}", exc_info=True)
-
+    
+    setup_scheduled_tasks()
     # ... (app.run) ...
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=False, host='0.0.0.0', port=5000)

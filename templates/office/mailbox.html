@@ -1,0 +1,1018 @@
+{% extends "base.html" %}
+
+{% block head %}
+<style>
+    /* CORREGIDO: Aprovechar todo el espacio del recuadro de alertas */
+   
+    .upcoming-alerts {
+        height: 400px; /* Altura FIJA */
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .card.dashboard-card .card-body {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        padding: 0;
+    }
+    .card.dashboard-card {
+        height: 100%;
+        border-radius: 10px;
+        transition: transform 0.2s ease;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .card.dashboard-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+ 
+
+    /* CORREGIDO: Eliminar restricciones de altura heredadas */
+    .alert-item, .goal-item {
+        padding: 0.75rem;
+        border-bottom: 1px solid #dee2e6;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+        min-height: auto; /* Eliminado min-height fijo */
+        flex-shrink: 0; /* Evitar que se compriman */
+    }
+    
+    .alert-item:hover, .goal-item:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .alert-item:last-child, .goal-item:last-child {
+        border-bottom: none;
+    }
+    
+    .upcoming-alerts, .goals-summary {
+        flex: 1; /* CLAVE: Esto hace que use todo el espacio disponible */
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        min-height: 0; /* Permite que flex funcione correctamente */
+    } 
+    /* CORREGIDO: Optimizar espacio de badges y contenido */
+    .days-badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+        white-space: nowrap;
+    }
+    .col-md-6 {
+        display: flex;
+        flex-direction: column;
+    }
+    .row {
+        flex: 1;
+    }
+    .card-header {
+        flex-shrink: 0;
+        padding: 0.75rem 1rem;
+    }
+    .alert-item strong {
+        display: block;
+        margin-bottom: 0.25rem;
+        line-height: 1.2;
+    }
+    .upcoming-alerts:empty::after,
+    .goals-summary:empty::after {
+        content: "No hay elementos";
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex: 1;
+        color: #6c757d;
+        font-style: italic;
+        text-align: center;
+    } 
+    .alert-item .d-flex {
+        align-items: flex-start;
+        gap: 0.5rem;
+    } 
+    .alert-item .small {
+        line-height: 1.3; /* Menor espaciado entre líneas */
+        margin-bottom: 0.25rem;
+    }
+    .alert-item .flex-grow-1 {
+        min-width: 0; /* Permite que el texto se ajuste */
+    }
+
+    /* CORREGIDO: Eliminar márgenes innecesarios */
+    .alert-item .text-end {
+        margin-left: auto;
+        flex-shrink: 0;
+    }
+    
+    /* Resto del CSS existente... */
+    .message-card {
+        transition: all 0.3s ease;
+        border-left: 4px solid transparent;
+        cursor: pointer;
+    }
+    .message-card.unread {
+        background-color: #f8f9fa;
+        border-left-color: #007bff;
+    }
+    .message-card.warning {
+        border-left-color: #dc3545;
+        background-color: #fff5f5;
+    }
+    .message-card.resolved {
+        border-left-color: #28a745;
+        background-color: #f8fff8;
+    }
+    .message-card:hover {
+        background-color: #e9ecef;
+        transform: translateY(-1px);
+    }
+    .mailbox-container {
+        max-height: 600px;
+        overflow-y: auto;
+    }
+    .dashboard-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .quick-action-btn {
+        width: 100%;
+        margin-bottom: 0.5rem;
+        border-radius: 8px;
+    }
+    .metric-box {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 10px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+    .export-section {
+        background: #f8f9fa;
+        border-radius: 10px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+    .progress-mini {
+        height: 4px;
+        border-radius: 2px;
+        background-color: #e9ecef;
+        overflow: hidden;
+        margin-top: 0.25rem;
+    }
+    .progress-mini-bar {
+        height: 100%;
+        transition: width 0.3s ease;
+    }
+    .message-actions {
+        opacity: 0.7;
+        transition: opacity 0.3s ease;
+    }
+    .message-card:hover .message-actions {
+        opacity: 1;
+    }
+    .nav-shortcuts {
+        background: #f8f9fa;
+        border-radius: 10px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    /* NUEVO: Estilos para el pop-up de mensaje limpio */
+    .message-popup-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 1050;
+        display: none;
+        justify-content: center;
+        align-items: center;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+
+    .message-popup-overlay.show {
+        display: flex;
+        opacity: 1;
+    }
+
+    .message-popup-content {
+        background: white;
+        border-radius: 12px;
+        min-width: 300px;
+        max-width: 900px;
+        min-height: 200px;
+        max-height: 90vh;
+        width: auto;
+        height: auto;
+        margin: 20px;
+        overflow: hidden;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        transform: scale(0.8);
+        transition: transform 0.3s ease;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .message-popup-overlay.show .message-popup-content {
+        transform: scale(1);
+    }
+
+    .message-popup-header {
+        padding: 1.5rem;
+        border-bottom: 1px solid #dee2e6;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        flex-shrink: 0;
+    }
+
+    .message-popup-body {
+        padding: 1.5rem;
+        overflow-y: auto;
+        flex: 1;
+    }
+
+    .message-popup-title {
+        margin: 0;
+        font-size: 1.25rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .message-popup-meta {
+        margin-top: 0.5rem;
+        opacity: 0.9;
+        font-size: 0.9rem;
+    }
+
+    .message-popup-content-text {
+        line-height: 1.6;
+        color: #333;
+        margin-bottom: 1rem;
+    }
+
+    .message-popup-details {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 8px;
+        margin-top: 1rem;
+    }
+
+    .message-popup-details strong {
+        color: #495057;
+    }
+
+    /* NUEVO: Estilos para el botón de envío por correo */
+    .email-export-btn {
+        width: 100%;
+        margin-top: 0.5rem;
+        border-radius: 8px;
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        border: none;
+        color: white;
+        padding: 0.5rem 1rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+
+    .email-export-btn:hover {
+        background: linear-gradient(135deg, #218838 0%, #1ea384 100%);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
+        color: white;
+    }
+
+    .export-button-group {
+        display: flex;
+        gap: 0.25rem;
+    }
+
+    .export-button-group .btn {
+        flex: 1;
+    }
+</style>    
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mt-4 mb-4">
+        <h1><i class="bi bi-inbox-fill me-2"></i>Buzón Virtual - Control Central</h1>
+        
+        <!-- Atajos de navegación -->
+        <div class="nav-shortcuts">
+            <div class="btn-group" role="group">
+                <a href="{{ url_for('office_configure_alerts') }}" class="btn btn-outline-primary btn-sm">
+                    <i class="bi bi-bell-fill"></i> Alertas
+                </a>
+                <a href="{{ url_for('office_goals') }}" class="btn btn-outline-success btn-sm">
+                    <i class="bi bi-bullseye"></i> Objetivos
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <!-- Columna izquierda: Buzón Virtual (más pequeño) -->
+        <div class="col-md-4">
+            <div class="card dashboard-card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-envelope-fill me-2"></i>Mensajes Recientes</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="mailbox-container">
+                        {% if messages %}
+                            {% for message in messages[:5] %} <!-- Solo mostrar los 5 más recientes -->
+                            <div class="message-card {% if not message.is_read %}unread{% endif %} {% if message.message_type == 'config_warning' %}warning{% endif %}" 
+                                 onclick="showMessagePopup({{ message.id }})" data-message-id="{{ message.id }}">
+                                <div class="p-3">
+                                    <div class="d-flex align-items-start">
+                                        <span class="me-2">
+                                            {% if message.message_type == 'event_alert' %}
+                                                <i class="bi bi-calendar-event text-primary"></i>
+                                            {% elif message.message_type == 'config_warning' %}
+                                                <i class="bi bi-exclamation-triangle-fill text-danger"></i>
+                                            {% elif message.message_type == 'objetivo' %}
+                                                <i class="bi bi-bullseye text-success"></i>
+                                            {% else %}
+                                                <i class="bi bi-envelope-fill text-secondary"></i>
+                                            {% endif %}
+                                        </span>
+                                        <div class="flex-grow-1">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <h6 class="mb-1 small">{{ message.title }}</h6>
+                                                <div class="message-actions">
+                                                    {% if not message.is_read and message.message_type != 'config_warning' %}
+                                                    <button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); markAsRead({{ message.id }})" title="Marcar como leído">
+                                                        <i class="bi bi-check"></i>
+                                                    </button>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                            <p class="mb-1 small text-muted">{{ (message.content[:50] + '...') if message.content and message.content|length > 50 else (message.content or '') }}</p>
+                                            <small class="text-muted">{{ message.created_at.strftime('%d/%m %H:%M') }}</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                            {% if messages|length > 5 %}
+                            <div class="p-2 text-center">
+                                <a href="#" onclick="showAllMessages()" class="btn btn-sm btn-outline-primary">Ver todos los mensajes ({{ messages|length }})</a>
+                            </div>
+                            {% endif %}
+                        {% else %}
+                            <div class="p-4 text-center text-muted">
+                                <i class="bi bi-inbox d-block mb-2" style="font-size: 2rem;"></i>
+                                <p class="mb-0">No hay mensajes</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Columna derecha: Dashboard y Acciones Rápidas -->
+        <div class="col-md-8">
+            <!-- Resumen de Patrimonio -->
+            <div class="metric-box mb-3">
+                <div class="row">
+                    <div class="col-md-3 text-center">
+                        <h6 class="mb-1">Patrimonio Neto</h6>
+                        <h4 class="mb-0">{{ (summary_data.total_assets - summary_data.total_debts)|round(0) }} €</h4>
+                    </div>
+                    <div class="col-md-3 text-center border-start">
+                        <h6 class="mb-1">Tasa Ahorro</h6>
+                        <h4 class="mb-0">{{ summary_data.savings_rate|round(1) }}%</h4>
+                    </div>
+                    <div class="col-md-3 text-center border-start">
+                        <h6 class="mb-1">Alertas Activas</h6>
+                        <h4 class="mb-0">{{ active_alerts_count }}</h4>
+                    </div>
+                    <div class="col-md-3 text-center border-start">
+                        <h6 class="mb-1">Última Actualización</h6>
+                        <small class="mb-0">{{ summary_data.last_update }}</small>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <!-- Acciones Rápidas -->
+                <div class="col-md-6">
+                    <div class="card dashboard-card">
+                        <div class="card-header bg-success text-white">
+                            <h6 class="mb-0"><i class="bi bi-lightning-fill me-2"></i>Acciones Rápidas</h6>
+                        </div>
+                        <div class="card-body">
+                            <button class="btn btn-outline-primary quick-action-btn" onclick="window.location.href='{{ url_for('office_goals') }}'">
+                                <i class="bi bi-bullseye me-2"></i>Fijar Objetivos
+                            </button>
+                            <button class="btn btn-outline-warning quick-action-btn" onclick="window.location.href='{{ url_for('office_configure_alerts') }}'">
+                                <i class="bi bi-bell me-2"></i>Crear Alerta
+                            </button>
+                            <button class="btn btn-outline-info quick-action-btn" onclick="updateAllPrices()">
+                                <i class="bi bi-arrow-clockwise me-2"></i>Actualizar Precios
+                            </button>
+                            
+                            <!-- Sección de Exportación MEJORADA -->
+                            <div class="export-section mt-3">
+                                <h6><i class="bi bi-download me-2"></i>Generar Informes</h6>
+                                <form method="POST" action="{{ url_for('export_custom_report') }}" class="d-inline" id="exportForm">
+                                    {{ export_form.hidden_tag() }}
+                                    {{ export_form.report_type(class="form-select form-select-sm mb-2") }}
+                                    <div class="export-button-group mb-2">
+                                        <button type="submit" name="format" value="csv" class="btn btn-sm btn-outline-secondary">
+                                            <i class="bi bi-filetype-csv"></i> CSV
+                                        </button>
+                                        <button type="submit" name="format" value="xlsx" class="btn btn-sm btn-outline-secondary">
+                                            <i class="bi bi-filetype-xlsx"></i> Excel
+                                        </button>
+                                    </div>
+                                    <button type="button" class="email-export-btn" onclick="sendReportByEmail()">
+                                        <i class="bi bi-envelope-heart me-2"></i>Enviar por Correo
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Próximas Alertas y Objetivos -->
+                <div class="col-md-6">
+                    <!-- Próximas Alertas -->
+                    <div class="card dashboard-card mb-3">
+                        <div class="card-header bg-warning text-dark">
+                            <h6 class="mb-0"><i class="bi bi-bell me-2"></i>Próximas Alertas</h6>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="upcoming-alerts">
+                                {% if upcoming_alerts %}
+                                    {% for alert_data in upcoming_alerts %}
+                                    {% set alert = alert_data.config %}
+                                    {% set days = alert_data.days_remaining %}
+                                    <div class="alert-item" onclick="showAlertDetails({{ alert.id }})">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <strong class="small">
+                                                    {% if alert.alert_reason == 'earnings_report' %}
+                                                        <i class="bi bi-calendar-event text-primary"></i> Resultados
+                                                        {% if alert.watchlist_item %}
+                                                            - {{ alert.watchlist_item.item_name or alert.watchlist_item.ticker }}
+                                                        {% endif %}
+                                                    {% elif alert.alert_reason == 'metric_threshold' %}
+                                                        <i class="bi bi-graph-up text-warning"></i> Métrica
+                                                        {% if alert.watchlist_item %}
+                                                            - {{ alert.watchlist_item.item_name or alert.watchlist_item.ticker }}
+                                                        {% endif %}
+                                                    {% elif alert.alert_reason == 'periodic_summary' %}
+                                                        <i class="bi bi-bar-chart-line text-info"></i> Resumen {{ alert.summary_type|title }}
+                                                    {% elif alert.alert_reason == 'custom' %}
+                                                        <i class="bi bi-gear text-secondary"></i> {{ alert.custom_title }}
+                                                    {% endif %}
+                                                </strong>
+                                                <div class="small text-muted">
+                                                    {% if alert.alert_reason == 'earnings_report' %}
+                                                        {{ alert.scope|title }} - {{ alert.days_notice }} días antes
+                                                    {% elif alert.alert_reason == 'metric_threshold' %}
+                                                        {{ alert.metric_name }} {{ alert.metric_operator }} {{ alert.metric_target_value or alert.metric_target_text }}
+                                                    {% elif alert.alert_reason == 'periodic_summary' %}
+                                                        Frecuencia: {{ alert.summary_frequency or 'Puntual' }}
+                                                    {% elif alert.alert_reason == 'custom' %}
+                                                        {{ alert.custom_description[:50] + '...' if alert.custom_description and alert.custom_description|length > 50 else (alert.custom_description or '') }}
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                            <div class="text-end">
+                                                {% if days is not none %}
+                                                    <span class="badge days-badge bg-{{ 'danger' if days <= 3 else 'warning' if days <= 7 else 'secondary' }}">
+                                                        {% if days == 0 %}
+                                                            Hoy
+                                                        {% elif days == 1 %}
+                                                            Mañana
+                                                        {% else %}
+                                                            {{ days }} días
+                                                        {% endif %}
+                                                    </span>
+                                                {% else %}
+                                                    <span class="badge days-badge bg-secondary">Activa</span>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <div class="text-center py-3">
+                                        <i class="bi bi-bell-slash text-muted d-block mb-2" style="font-size: 2rem;"></i>
+                                        <p class="text-muted mb-0">No hay alertas configuradas</p>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Objetivos -->
+                    <div class="card dashboard-card">
+                        <div class="card-header bg-info text-white">
+                            <h6 class="mb-0"><i class="bi bi-bullseye me-2"></i>Objetivos</h6>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="goals-summary">
+                                {% if goals_summary %}
+                                    {% for goal_data in goals_summary %}
+                                    {% set goal = goal_data.config %}
+                                    {% set status = goal_data.status %}
+                                    <div class="goal-item" onclick="showGoalDetails({{ goal.id }})">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div class="flex-grow-1">
+                                                <strong class="small">
+                                                    {% if goal.goal_type == 'portfolio_percentage' %}
+                                                        <i class="bi bi-pie-chart text-primary"></i> {{ goal.goal_name or 'Distribución de Activos' }}
+                                                    {% elif goal.goal_type == 'target_amount' %}
+                                                        <i class="bi bi-bullseye text-success"></i> {{ goal.goal_asset_type|title }}
+                                                    {% elif goal.goal_type == 'savings_monthly' %}
+                                                        <i class="bi bi-piggy-bank text-info"></i> Ahorro Mensual
+                                                    {% elif goal.goal_type == 'debt_threshold' %}
+                                                        <i class="bi bi-credit-card text-warning"></i> Techo de Deuda
+                                                    {% endif %}
+                                                </strong>
+                                                <div class="small text-muted">
+                                                    {% if goal.goal_type == 'target_amount' %}
+                                                        Objetivo: {{ status.target_amount|round(0) if status.target_amount else 'N/A' }} €
+                                                    {% elif goal.goal_type == 'savings_monthly' %}
+                                                        Meta mensual: {{ status.monthly_target|round(0) if status.monthly_target else 'N/A' }} €
+                                                    {% elif goal.goal_type == 'debt_threshold' %}
+                                                        Límite: {{ status.target_debt_percentage if status.target_debt_percentage else 'N/A' }}% del salario
+                                                    {% endif %}
+                                                </div>
+                                                <!-- Barra de progreso mini -->
+                                                {% if status.progress_percentage is defined and status.progress_percentage is not none %}
+                                                <div class="progress-mini">
+                                                    <div class="progress-mini-bar bg-{{ 'success' if status.progress_percentage >= 80 else 'warning' if status.progress_percentage >= 50 else 'danger' }}"
+                                                         style="width: {{ status.progress_percentage|round }}%"></div>
+                                                </div>
+                                                {% endif %}
+                                            </div>
+                                            <div class="text-end">
+                                                {% if status.progress_percentage is defined and status.progress_percentage is not none %}
+                                                <span class="badge bg-{{ 'success' if status.progress_percentage >= 80 else 'warning' if status.progress_percentage >= 50 else 'danger' }}">
+                                                    {{ status.progress_percentage|round }}%
+                                                </span>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <div class="text-center py-3">
+                                        <i class="bi bi-bullseye text-muted d-block mb-2" style="font-size: 2rem;"></i>
+                                        <p class="text-muted mb-0">No hay objetivos definidos</p>
+                                        <a href="{{ url_for('office_goals') }}" class="btn btn-sm btn-outline-primary mt-2">Crear Objetivo</a>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- NUEVO: Pop-up limpio para mostrar mensajes completos -->
+<div class="message-popup-overlay" id="messagePopup" onclick="closeMessagePopup()">
+    <div class="message-popup-content" onclick="event.stopPropagation()">
+        <div class="message-popup-header">
+            <div class="message-popup-title" id="popupTitle">
+                <i class="bi bi-envelope-fill"></i>
+                <span>Cargando...</span>
+            </div>
+            <div class="message-popup-meta" id="popupMeta">
+                Fecha: --
+            </div>
+        </div>
+        <div class="message-popup-body">
+            <div class="message-popup-content-text" id="popupContent">
+                Cargando contenido...
+            </div>
+            <div class="message-popup-details" id="popupDetails" style="display: none;">
+                <!-- Detalles adicionales se cargan aquí -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para mostrar todos los mensajes -->
+<div class="modal fade" id="allMessagesModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Todos los Mensajes</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                {% if messages %}
+                    {% for message in messages %}
+                    <div class="card message-card mb-3 {% if not message.is_read %}unread{% endif %} {% if message.message_type == 'config_warning' %}warning{% endif %}">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <div class="d-flex align-items-center mb-2">
+                                        <span class="me-2">
+                                            {% if message.message_type == 'event_alert' %}
+                                                <i class="bi bi-calendar-event text-primary"></i>
+                                            {% elif message.message_type == 'config_warning' %}
+                                                <i class="bi bi-exclamation-triangle-fill text-danger"></i>
+                                            {% elif message.message_type == 'objetivo' %}
+                                                <i class="bi bi-bullseye text-success"></i>
+                                            {% else %}
+                                                <i class="bi bi-envelope-fill text-secondary"></i>
+                                            {% endif %}
+                                        </span>
+                                        <h6 class="mb-0">{{ message.title }}</h6>
+                                        {% if not message.is_read %}
+                                            <span class="badge bg-primary ms-2">Nuevo</span>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    {% if message.content %}
+                                    <p class="card-text">{{ message.content }}</p>
+                                    {% endif %}
+                                    
+                                    <small class="text-muted">
+                                        {{ message.created_at.strftime('%d/%m/%Y %H:%M') }}
+                                    </small>
+                                </div>
+                                
+                                <div class="ms-3">
+                                    {% if not message.is_read and message.message_type != 'config_warning' %}
+                                    <button class="btn btn-outline-primary btn-sm" onclick="markAsRead({{ message.id }})">
+                                        <i class="bi bi-check"></i>
+                                    </button>
+                                    {% endif %}
+                                    
+                                    {% if message.message_type != 'config_warning' %}
+                                    <button class="btn btn-outline-danger btn-sm" onclick="deleteMessage({{ message.id }})">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para detalles de alertas -->
+<div class="modal fade" id="alertDetailsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Detalles de la Alerta</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="alertDetailsContent">
+                <!-- Se llena dinámicamente -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-danger" id="deleteAlertBtn">Eliminar Alerta</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para detalles de objetivos -->
+<div class="modal fade" id="goalDetailsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Detalles del Objetivo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="goalDetailsContent">
+                <!-- Se llena dinámicamente -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-danger" id="deleteGoalBtn">Eliminar Objetivo</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentAlertId = null;
+let currentGoalId = null;
+
+// NUEVO: Datos de mensajes para el pop-up
+const messagesData = {
+    {% for message in messages %}
+    {{ message.id }}: {
+        id: {{ message.id }},
+        title: {{ message.title|tojson }},
+        content: {{ message.content|tojson }},
+        message_type: {{ message.message_type|tojson }},
+        created_at: {{ message.created_at.strftime('%d/%m/%Y %H:%M')|tojson }},
+        trigger_event_date: {% if message.trigger_event_date %}{{ message.trigger_event_date.strftime('%d/%m/%Y')|tojson }}{% else %}null{% endif %},
+        watchlist_item: {% if message.watchlist_item %}{{ (message.watchlist_item.item_name or message.watchlist_item.ticker)|tojson }}{% else %}null{% endif %},
+        is_read: {{ message.is_read|tojson }}
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+};
+
+// NUEVO: Función para mostrar el pop-up de mensaje
+function showMessagePopup(messageId) {
+    const message = messagesData[messageId];
+    if (!message) return;
+
+    // Obtener elementos del pop-up
+    const popup = document.getElementById('messagePopup');
+    const title = document.getElementById('popupTitle');
+    const meta = document.getElementById('popupMeta');
+    const content = document.getElementById('popupContent');
+    const details = document.getElementById('popupDetails');
+
+    // Configurar icono según tipo de mensaje
+    let icon = 'bi-envelope-fill';
+    if (message.message_type === 'event_alert') {
+        icon = 'bi-calendar-event text-primary';
+    } else if (message.message_type === 'config_warning') {
+        icon = 'bi-exclamation-triangle-fill text-danger';
+    } else if (message.message_type === 'objetivo') {
+        icon = 'bi-bullseye text-success';
+    }
+
+    // Llenar contenido
+    title.innerHTML = `<i class="bi ${icon}"></i><span>${message.title}</span>`;
+    meta.textContent = `Fecha: ${message.created_at}${!message.is_read ? ' • Nuevo' : ''}`;
+    content.textContent = message.content || 'Sin contenido adicional';
+
+    // Mostrar detalles adicionales solo si tienen valor y no son null
+    let hasDetails = false;
+    let detailsHTML = '';
+    
+    if (message.trigger_event_date && message.trigger_event_date !== 'null') {
+        detailsHTML += `<p><strong>Fecha del evento:</strong> ${message.trigger_event_date}</p>`;
+        hasDetails = true;
+    }
+    
+    if (message.watchlist_item && message.watchlist_item !== 'null') {
+        detailsHTML += `<p><strong>Relacionado con:</strong> ${message.watchlist_item}</p>`;
+        hasDetails = true;
+    }
+    
+    if (hasDetails) {
+        details.innerHTML = detailsHTML;
+        details.style.display = 'block';
+    } else {
+        details.style.display = 'none';
+    }
+
+    // Mostrar pop-up
+    popup.classList.add('show');
+
+    // Marcar como leído automáticamente si no está leído
+    if (!message.is_read && message.message_type !== 'config_warning') {
+        markAsRead(messageId, true); // true indica que se llama desde el pop-up
+    }
+}
+
+// NUEVO: Función para cerrar el pop-up
+function closeMessagePopup() {
+    const popup = document.getElementById('messagePopup');
+    popup.classList.remove('show');
+}
+
+// NUEVO: Función para enviar informe por correo
+function sendReportByEmail() {
+    const form = document.getElementById('exportForm');
+    const reportType = form.querySelector('[name="report_type"]').value;
+    
+    const btn = event.target;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Enviando...';
+    btn.disabled = true;
+    
+    fetch('/office/send_report_by_email', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: `report_type=${encodeURIComponent(reportType)}`
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Error al enviar informe: ' + data.message);
+        }
+    })
+    .catch(error => {
+        alert('Error de conexión');
+    })
+    .finally(() => {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    });
+}
+
+// Función existente para mostrar todos los mensajes
+function showAllMessages() {
+    const modal = new bootstrap.Modal(document.getElementById('allMessagesModal'));
+    modal.show();
+}
+
+function updateAllPrices() {
+    const btn = event.target;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Actualizando...';
+    btn.disabled = true;
+    
+    fetch('/office/update_all_prices', {
+        method: 'POST',
+        headers: {'X-Requested-With': 'XMLHttpRequest'}
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Error al actualizar precios: ' + data.message);
+        }
+    })
+    .catch(error => {
+        alert('Error de conexión');
+    })
+    .finally(() => {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    });
+}
+
+function markAsRead(messageId, fromPopup = false) {
+    fetch(`/office/mark_message_read/${messageId}`, {
+        method: 'POST',
+        headers: {'X-Requested-With': 'XMLHttpRequest'}
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Actualizar estado en messagesData
+            if (messagesData[messageId]) {
+                messagesData[messageId].is_read = true;
+            }
+            
+            // Si se llama desde el pop-up, no recargar la página
+            if (!fromPopup) {
+                location.reload();
+            } else {
+                // Solo actualizar visualmente el mensaje en la lista
+                const messageCard = document.querySelector(`[data-message-id="${messageId}"]`);
+                if (messageCard) {
+                    messageCard.classList.remove('unread');
+                    // Remover el botón de "marcar como leído" si existe
+                    const readBtn = messageCard.querySelector('.btn-outline-primary');
+                    if (readBtn) {
+                        readBtn.remove();
+                    }
+                }
+                
+                // Actualizar el meta del pop-up para quitar "• Nuevo"
+                const popupMeta = document.getElementById('popupMeta');
+                if (popupMeta && messagesData[messageId]) {
+                    popupMeta.textContent = `Fecha: ${messagesData[messageId].created_at}`;
+                }
+            }
+        }
+    });
+}
+
+function deleteMessage(messageId) {
+    fetch(`/office/delete_message/${messageId}`, {
+        method: 'POST',
+        headers: {'X-Requested-With': 'XMLHttpRequest'}
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        }
+    });
+}
+
+function showAlertDetails(alertId) {
+    currentAlertId = alertId;
+    
+    fetch(`/office/alert_details/${alertId}`, {
+        method: 'GET',
+        headers: {'X-Requested-With': 'XMLHttpRequest'}
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('alertDetailsContent').innerHTML = data.html;
+            const modal = new bootstrap.Modal(document.getElementById('alertDetailsModal'));
+            modal.show();
+        } else {
+            alert('Error al cargar detalles: ' + data.message);
+        }
+    })
+    .catch(error => {
+        alert('Error de conexión');
+    });
+}
+
+function showGoalDetails(goalId) {
+    currentGoalId = goalId;
+    
+    fetch(`/office/goal_details/${goalId}`, {
+        method: 'GET',
+        headers: {'X-Requested-With': 'XMLHttpRequest'}
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('goalDetailsContent').innerHTML = data.html;
+            const modal = new bootstrap.Modal(document.getElementById('goalDetailsModal'));
+            modal.show();
+        } else {
+            alert('Error al cargar detalles: ' + data.message);
+        }
+    })
+    .catch(error => {
+        alert('Error de conexión');
+    });
+}
+
+// Event listeners para botones de eliminar en modales
+document.addEventListener('DOMContentLoaded', function() {
+    const deleteAlertBtn = document.getElementById('deleteAlertBtn');
+    const deleteGoalBtn = document.getElementById('deleteGoalBtn');
+    
+    if (deleteAlertBtn) {
+        deleteAlertBtn.addEventListener('click', function() {
+            if (currentAlertId) {
+                fetch(`/office/delete_alert/${currentAlertId}`, {
+                    method: 'POST',
+                    headers: {'X-Requested-With': 'XMLHttpRequest'}
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        location.reload();
+                    } else {
+                        alert('Error al eliminar alerta: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    alert('Error de conexión');
+                });
+            }
+        });
+    }
+    
+    if (deleteGoalBtn) {
+        deleteGoalBtn.addEventListener('click', function() {
+            if (currentGoalId) {
+                fetch(`/office/delete_goal/${currentGoalId}`, {
+                    method: 'POST',
+                    headers: {'X-Requested-With': 'XMLHttpRequest'}
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        location.reload();
+                    } else {
+                        alert('Error al eliminar objetivo: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    alert('Error de conexión');
+                });
+            }
+        });
+    }
+
+    // NUEVO: Cerrar pop-up con tecla Escape
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeMessagePopup();
+        }
+    });
+});
+</script>
+{% endblock %}

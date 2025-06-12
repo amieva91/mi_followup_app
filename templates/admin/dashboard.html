@@ -4,7 +4,6 @@
 
 {% block content %}
 <div class="container mt-5">
-    {# ... (Cabecera y tarjetas de estadísticas como antes) ... #}
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
         <h1 class="h2">{{ title|default("Panel de Administración") }}</h1>
     </div>
@@ -32,6 +31,16 @@
                 <div class="card-header"><i class="bi bi-shield-shaded"></i> Administradores</div>
                 <div class="card-body text-center">
                     <h3 class="card-title display-4">{{ admin_user_count }}</h3>
+                </div>
+            </div>
+        </div>
+        <!-- NUEVA TARJETA DEL SCHEDULER -->
+        <div class="col-md-4 col-lg-3 mb-3">
+            <div class="card text-white bg-warning h-100 shadow-sm">
+                <div class="card-header"><i class="bi bi-clock-history"></i> Tareas del Scheduler</div>
+                <div class="card-body text-center">
+                    <h3 class="card-title display-4">{{ active_scheduler_tasks }}</h3>
+                    <small>{{ total_scheduler_tasks }} total</small>
                 </div>
             </div>
         </div>
@@ -102,13 +111,12 @@
                                 </button>
                             {% endif %}
 
-                            {# --- NUEVO BOTÓN PARA ELIMINAR USUARIO --- #}
+                            {# --- BOTÓN PARA ELIMINAR USUARIO --- #}
                             <form action="{{ url_for('admin_delete_user', user_id=user_item.id) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Estás SEGURO de que quieres eliminar al usuario {{ user_item.username }} y todos sus datos? Esta acción es irreversible.');">
                                 <button type="submit" class="btn btn-danger" title="Eliminar usuario permanentemente">
                                     <i class="bi bi-trash3-fill"></i>
                                 </button>
                             </form>
-                            {# --- FIN NUEVO BOTÓN --- #}
                         </div>
                         {% else %}
                             <span class="text-muted fst-italic">Admin Principal</span>
@@ -124,40 +132,326 @@
         </table>
     </div>
 
-    {# ... (Sección de Logs y Gráficos Placeholder como antes) ... #}
+    <!-- NUEVA SECCIÓN DEL SCHEDULER -->
+    <div class="mt-5">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3><i class="bi bi-clock-history"></i> Estado del Scheduler</h3>
+            <a href="{{ url_for('admin_scheduler') }}" class="btn btn-outline-primary">
+                <i class="bi bi-gear-fill"></i> Gestionar Scheduler
+            </a>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-8">
+                <div class="card shadow-sm">
+                    <div class="card-header">
+                        <h6 class="mb-0">Tareas Programadas</h6>
+                    </div>
+                    <div class="card-body">
+                        {% if scheduler_tasks %}
+                            <div class="table-responsive">
+                                <table class="table table-sm table-borderless">
+                                    <thead>
+                                        <tr>
+                                            <th>Tarea</th>
+                                            <th>Estado</th>
+                                            <th>Frecuencia</th>
+                                            <th>Próxima Ejecución</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for task in scheduler_tasks %}
+                                        <tr>
+                                            <td>
+                                                <strong>{{ task.task_name }}</strong>
+                                            </td>
+                                            <td>
+                                                {% if task.is_active %}
+                                                    <span class="badge bg-success rounded-pill">Activa</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary rounded-pill">Inactiva</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <small>{{ task.frequency_display }}</small>
+                                            </td>
+                                            <td>
+                                                {% if task.task_key in active_scheduler_jobs %}
+                                                    {% if active_scheduler_jobs[task.task_key].next_run %}
+                                                        <small>{{ active_scheduler_jobs[task.task_key].next_run.strftime('%d/%m %H:%M') }}</small>
+                                                    {% else %}
+                                                        <span class="text-muted">-</span>
+                                                    {% endif %}
+                                                {% else %}
+                                                    <span class="text-muted">No programada</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <p class="text-center text-muted fst-italic py-3">No hay tareas configuradas.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="card shadow-sm">
+                    <div class="card-header">
+                        <h6 class="mb-0">Últimas Ejecuciones</h6>
+                    </div>
+                    <div class="card-body">
+                        {% if recent_scheduler_logs %}
+                            <div style="max-height: 200px; overflow-y: auto;">
+                                {% for log in recent_scheduler_logs %}
+                                <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                                    <div>
+                                        <small class="text-muted">{{ log.executed_at.strftime('%H:%M') }}</small>
+                                        <br>
+                                        <strong class="small">{{ log.log_type.replace('scheduler_', '').title() }}</strong>
+                                    </div>
+                                    <span class="badge bg-{{ 'success' if log.status == 'success' else 'danger' if log.status == 'error' else 'warning' }}">
+                                        {{ log.status }}
+                                    </span>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="text-center text-muted fst-italic small">Sin ejecuciones recientes</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- NUEVA SECCIÓN: COLA DE EMAILS -->
+    <div class="mt-5">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3><i class="bi bi-envelope-heart"></i> Cola de Correos Electrónicos</h3>
+            <a href="{{ url_for('admin_email_queue') }}" class="btn btn-outline-primary">
+                <i class="bi bi-envelope-gear"></i> Gestionar Cola
+            </a>
+        </div>
+        
+        <!-- Estadísticas de Email Queue -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card text-white bg-warning h-100 shadow-sm">
+                    <div class="card-header"><i class="bi bi-clock-history"></i> Pendientes</div>
+                    <div class="card-body text-center">
+                        <h3 class="card-title display-4">{{ pending_emails }}</h3>
+                        <small>{{ total_emails }} total</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-white bg-success h-100 shadow-sm">
+                    <div class="card-header"><i class="bi bi-check-circle"></i> Enviados (24h)</div>
+                    <div class="card-body text-center">
+                        <h3 class="card-title display-4">{{ sent_24h }}</h3>
+                        <small>{{ sent_emails }} total</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-white bg-danger h-100 shadow-sm">
+                    <div class="card-header"><i class="bi bi-x-circle"></i> Fallidos</div>
+                    <div class="card-body text-center">
+                        <h3 class="card-title display-4">{{ failed_emails }}</h3>
+                        <small>Requieren atención</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-white bg-info h-100 shadow-sm">
+                    <div class="card-header"><i class="bi bi-graph-up"></i> Actividad (24h)</div>
+                    <div class="card-body text-center">
+                        <h3 class="card-title display-4">{{ emails_24h }}</h3>
+                        <small>Emails procesados</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <!-- Cola Pendiente -->
+            <div class="col-md-6">
+                <div class="card shadow-sm">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="bi bi-clock-history"></i> Cola Pendiente</h6>
+                    </div>
+                    <div class="card-body">
+                        {% if pending_queue %}
+                            <div class="table-responsive">
+                                <table class="table table-sm table-borderless">
+                                    <thead>
+                                        <tr>
+                                            <th>Destinatario</th>
+                                            <th>Asunto</th>
+                                            <th>Programado</th>
+                                            <th>Prioridad</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for email in pending_queue %}
+                                        <tr>
+                                            <td>
+                                                <small>{{ email.recipient_email }}</small>
+                                            </td>
+                                            <td>
+                                                <small><strong>{{ email.subject[:30] }}{% if email.subject|length > 30 %}...{% endif %}</strong></small>
+                                            </td>
+                                            <td>
+                                                <small>{{ email.scheduled_at.strftime('%d/%m %H:%M') }}</small>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-{{ 'danger' if email.priority <= 2 else 'warning' if email.priority <= 5 else 'secondary' }}">
+                                                    {{ email.priority }}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <p class="text-center text-muted fst-italic py-3">No hay emails pendientes</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Actividad Reciente -->
+            <div class="col-md-6">
+                <div class="card shadow-sm">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="bi bi-activity"></i> Actividad Reciente</h6>
+                    </div>
+                    <div class="card-body">
+                        {% if recent_emails %}
+                            <div style="max-height: 200px; overflow-y: auto;">
+                                {% for email in recent_emails %}
+                                <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                                    <div>
+                                        <small class="text-muted">{{ email.created_at.strftime('%H:%M') }}</small>
+                                        <br>
+                                        <strong class="small">{{ email.recipient_email }}</strong>
+                                        <br>
+                                        <span class="small text-muted">{{ email.subject[:40] }}{% if email.subject|length > 40 %}...{% endif %}</span>
+                                    </div>
+                                    <div class="text-end">
+                                        <span class="badge bg-{{ 'success' if email.status == 'sent' else 'warning' if email.status == 'pending' else 'danger' if email.status == 'failed' else 'secondary' }}">
+                                            {% if email.status == 'sent' %}
+                                                <i class="bi bi-check-circle"></i>
+                                            {% elif email.status == 'pending' %}
+                                                <i class="bi bi-clock-history"></i>
+                                            {% elif email.status == 'failed' %}
+                                                <i class="bi bi-x-circle"></i>
+                                            {% else %}
+                                                <i class="bi bi-question-circle"></i>
+                                            {% endif %}
+                                        </span>
+                                        {% if email.status == 'failed' and email.attempts > 0 %}
+                                            <br><small class="text-muted">{{ email.attempts }}/{{ email.max_attempts }}</small>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="text-center text-muted fst-italic small">Sin actividad reciente</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SECCIÓN DE LOGS MODIFICADA CON TABS -->
     <div class="mt-5">
         <h3 class="mb-3"><i class="bi bi-clipboard-data"></i> Registros de Actividad del Sistema</h3>
-        <div class="card shadow-sm">
-            <div class="card-body">
-                <div style="max-height: 400px; overflow-y: auto; font-size: 0.8em;">
-                    {% if activity_logs %}
-                        <ul class="list-group list-group-flush">
-                        {% for log_entry in activity_logs %}
-                            <li class="list-group-item px-2 py-1">
-                                <span class="text-muted">{{ log_entry.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</span> -
-                                <strong class="text-primary">{{ log_entry.username or "Sistema" }}</strong>
-                                <span class="badge bg-light text-dark">{{ log_entry.action_type }}</span>
-                                {{ log_entry.message }}
-                                {% if log_entry.target_username %}
-                                    <span class="text-info">(Objetivo: {{ log_entry.target_username }})</span>
-                                {% endif %}
-                                {% if log_entry.ip_address %}
-                                    <small class="text-muted ms-2">[IP: {{ log_entry.ip_address }}]</small>
-                                {% endif %}
-                                {% if log_entry.details and log_entry.details != 'null' and log_entry.details != '{}' %}
-                                    <button class="btn btn-outline-secondary btn-sm py-0 px-1 ms-2" type="button" data-bs-toggle="collapse" data-bs-target="#logDetails{{ loop.index }}" aria-expanded="false" aria-controls="logDetails{{ loop.index }}">
-                                        <i class="bi bi-info-circle"></i>
-                                    </button>
-                                    <div class="collapse mt-1" id="logDetails{{ loop.index }}">
-                                        <pre class="p-2 bg-light border rounded" style="font-size: 0.95em; white-space: pre-wrap; word-wrap: break-word;">{{ log_entry.details }}</pre>
-                                    </div>
-                                {% endif %}
-                            </li>
-                        {% endfor %}
-                        </ul>
-                    {% else %}
-                        <p class="text-center text-muted fst-italic py-3">No hay actividad registrada para mostrar.</p>
-                    {% endif %}
+        
+        <!-- Tabs para separar logs de actividad y scheduler -->
+        <ul class="nav nav-tabs" id="logsTab" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="activity-tab" data-bs-toggle="tab" data-bs-target="#activity-logs" type="button" role="tab">
+                    <i class="bi bi-person-gear"></i> Actividad de Usuarios
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="scheduler-tab" data-bs-toggle="tab" data-bs-target="#scheduler-logs" type="button" role="tab">
+                    <i class="bi bi-clock-history"></i> Logs del Scheduler
+                </button>
+            </li>
+        </ul>
+        
+        <div class="tab-content" id="logsTabContent">
+            <!-- Tab de Actividad de Usuarios (contenido existente) -->
+            <div class="tab-pane fade show active" id="activity-logs" role="tabpanel">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div style="max-height: 400px; overflow-y: auto; font-size: 0.8em;">
+                            {% if activity_logs %}
+                                <ul class="list-group list-group-flush">
+                                {% for log_entry in activity_logs %}
+                                    <li class="list-group-item px-2 py-1">
+                                        <span class="text-muted">{{ log_entry.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</span> -
+                                        <strong class="text-primary">{{ log_entry.username or "Sistema" }}</strong>
+                                        <span class="badge bg-light text-dark">{{ log_entry.action_type }}</span>
+                                        {{ log_entry.message }}
+                                        {% if log_entry.target_username %}
+                                            <span class="text-info">(Objetivo: {{ log_entry.target_username }})</span>
+                                        {% endif %}
+                                        {% if log_entry.ip_address %}
+                                            <small class="text-muted ms-2">[IP: {{ log_entry.ip_address }}]</small>
+                                        {% endif %}
+                                        {% if log_entry.details and log_entry.details != 'null' and log_entry.details != '{}' %}
+                                            <button class="btn btn-outline-secondary btn-sm py-0 px-1 ms-2" type="button" data-bs-toggle="collapse" data-bs-target="#logDetails{{ loop.index }}" aria-expanded="false" aria-controls="logDetails{{ loop.index }}">
+                                                <i class="bi bi-info-circle"></i>
+                                            </button>
+                                            <div class="collapse mt-1" id="logDetails{{ loop.index }}">
+                                                <pre class="p-2 bg-light border rounded" style="font-size: 0.95em; white-space: pre-wrap; word-wrap: break-word;">{{ log_entry.details }}</pre>
+                                            </div>
+                                        {% endif %}
+                                    </li>
+                                {% endfor %}
+                                </ul>
+                            {% else %}
+                                <p class="text-center text-muted fst-italic py-3">No hay actividad registrada para mostrar.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Tab de Logs del Scheduler (nuevo) -->
+            <div class="tab-pane fade" id="scheduler-logs" role="tabpanel">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div style="max-height: 400px; overflow-y: auto; font-size: 0.8em;">
+                            {% if all_scheduler_logs %}
+                                <ul class="list-group list-group-flush">
+                                {% for log in all_scheduler_logs %}
+                                    <li class="list-group-item px-2 py-1">
+                                        <span class="text-muted">{{ log.executed_at.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+                                        <span class="badge bg-{{ 'success' if log.status == 'success' else 'danger' if log.status == 'error' else 'warning' }} ms-2">
+                                            {{ log.status.upper() }}
+                                        </span>
+                                        <strong class="text-primary ms-2">{{ log.log_type.replace('scheduler_', '').title() }}</strong>
+                                        {% if log.details %}
+                                            <br><small class="text-muted ms-4">{{ log.details }}</small>
+                                        {% endif %}
+                                    </li>
+                                {% endfor %}
+                                </ul>
+                            {% else %}
+                                <p class="text-center text-muted fst-italic py-3">No hay logs del scheduler para mostrar.</p>
+                            {% endif %}
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

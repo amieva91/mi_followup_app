@@ -48,6 +48,17 @@
                         <i class="bi bi-speedometer2"></i> Panel Admin
                       </a>
                     </li>
+                    <!-- NUEVO ENLACE AL SCHEDULER -->
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'admin_scheduler' %}active{% endif %}" href="{{ url_for('admin_scheduler') }}">
+                            <i class="bi bi-clock-history"></i> Scheduler
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'admin_email_queue' %}active{% endif %}" href="{{ url_for('admin_email_queue') }}">
+                            <i class="bi bi-envelope-heart"></i> Cola Emails
+                        </a>
+                    </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'manage_mapping' %}active{% endif %}" href="{{ url_for('manage_mapping') }}">
                             <i class="bi bi-shuffle"></i> Gestionar Mapeo
@@ -62,7 +73,18 @@
                         <i class="bi bi-speedometer2"></i> Panel Admin
                       </a>
                     </li>
-                     <li class="nav-item">
+                    <!-- NUEVO ENLACE AL SCHEDULER PARA OTROS ADMINS -->
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'admin_scheduler' %}active{% endif %}" href="{{ url_for('admin_scheduler') }}">
+                            <i class="bi bi-clock-history"></i> Scheduler
+                        </a>
+                    </li>
+		    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'admin_email_queue' %}active{% endif %}" href="{{ url_for('admin_email_queue') }}">
+                            <i class="bi bi-envelope-heart"></i> Cola Emails
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'manage_mapping' %}active{% endif %}" href="{{ url_for('manage_mapping') }}">
                             <i class="bi bi-shuffle"></i> Gestionar Mapeo
                         </a>
@@ -71,6 +93,18 @@
                     
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'financial_summary' %}active{% endif %}" href="{{ url_for('financial_summary') }}"><i class="bi bi-clipboard-data"></i> Resumen</a>
+                    </li>
+                    
+                    {# NUEVA PESTAÑA OFICINA #}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {% if request.endpoint in ['office_mailbox', 'office_configure_alerts', 'office_goals'] %}active{% endif %}" href="#" id="navbarDropdownOficina" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-briefcase"></i> Oficina
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="navbarDropdownOficina">
+                            <li><a class="dropdown-item {% if request.endpoint == 'office_mailbox' %}active{% endif %}" href="{{ url_for('office_mailbox') }}"><i class="bi bi-inbox-fill"></i> Buzón</a></li>
+                            <li><a class="dropdown-item {% if request.endpoint == 'office_configure_alerts' %}active{% endif %}" href="{{ url_for('office_configure_alerts') }}"><i class="bi bi-bell-fill"></i> Configurar Alertas</a></li>
+                            <li><a class="dropdown-item {% if request.endpoint == 'office_goals' %}active{% endif %}" href="{{ url_for('office_goals') }}"><i class="bi bi-bullseye"></i> Objetivos</a></li>
+                        </ul>
                     </li>
                     
                     <li class="nav-item dropdown">
@@ -135,6 +169,12 @@
                     <a class="nav-link dropdown-toggle" href="#" id="userDropdownMenuLink" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                         <i class="bi bi-person-circle"></i> {{ current_user.username }}
                         {% if current_user.is_admin %}<span class="badge bg-warning text-dark ms-1 rounded-pill">Admin</span>{% endif %}
+                        {# CONTADOR DE NOTIFICACIONES #}
+                        {% if unread_messages_count > 0 %}
+                            <span class="badge bg-danger ms-1 rounded-pill">
+                                <i class="bi bi-bell-fill"></i> {{ unread_messages_count }}
+                            </span>
+                        {% endif %}
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="userDropdownMenuLink">
                         <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#accountModal"><i class="bi bi-person-fill-gear me-2"></i>Mi Cuenta</a></li>

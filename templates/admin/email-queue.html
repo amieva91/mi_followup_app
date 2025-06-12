@@ -1,0 +1,380 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2"><i class="bi bi-envelope-heart"></i> Gestión de Cola de Emails</h1>
+        <div class="btn-group" role="group">
+            <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Volver al Dashboard
+            </a>
+            <button type="button" class="btn btn-primary" onclick="location.reload()">
+                <i class="bi bi-arrow-clockwise"></i> Actualizar
+            </button>
+        </div>
+    </div>
+
+    <!-- Estadísticas Resumidas -->
+    <div class="row mb-4">
+        <div class="col-md-2">
+            <div class="card text-white bg-secondary h-100 shadow-sm">
+                <div class="card-header"><i class="bi bi-envelope"></i> Total</div>
+                <div class="card-body text-center">
+                    <h4 class="card-title">{{ total_emails }}</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-white bg-warning h-100 shadow-sm">
+                <div class="card-header"><i class="bi bi-clock-history"></i> Pendientes</div>
+                <div class="card-body text-center">
+                    <h4 class="card-title">{{ pending_count }}</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-white bg-success h-100 shadow-sm">
+                <div class="card-header"><i class="bi bi-check-circle"></i> Enviados</div>
+                <div class="card-body text-center">
+                    <h4 class="card-title">{{ sent_count }}</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-white bg-danger h-100 shadow-sm">
+                <div class="card-header"><i class="bi bi-x-circle"></i> Fallidos</div>
+                <div class="card-body text-center">
+                    <h4 class="card-title">{{ failed_count }}</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-white bg-dark h-100 shadow-sm">
+                <div class="card-header"><i class="bi bi-dash-circle"></i> Cancelados</div>
+                <div class="card-body text-center">
+                    <h4 class="card-title">{{ cancelled_count }}</h4>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h6 class="mb-0"><i class="bi bi-funnel"></i> Filtros</h6>
+        </div>
+        <div class="card-body">
+            <form method="GET" class="row g-3">
+                <div class="col-md-4">
+                    <label for="status" class="form-label">Estado</label>
+                    <select class="form-select" id="status" name="status">
+                        <option value="all" {% if status_filter == 'all' %}selected{% endif %}>Todos los estados</option>
+                        <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>Pendientes</option>
+                        <option value="sent" {% if status_filter == 'sent' %}selected{% endif %}>Enviados</option>
+                        <option value="failed" {% if status_filter == 'failed' %}selected{% endif %}>Fallidos</option>
+                        <option value="cancelled" {% if status_filter == 'cancelled' %}selected{% endif %}>Cancelados</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="priority" class="form-label">Prioridad</label>
+                    <select class="form-select" id="priority" name="priority">
+                        <option value="all" {% if priority_filter == 'all' %}selected{% endif %}>Todas las prioridades</option>
+                        <option value="1" {% if priority_filter == '1' %}selected{% endif %}>Alta (1)</option>
+                        <option value="5" {% if priority_filter == '5' %}selected{% endif %}>Normal (5)</option>
+                        <option value="10" {% if priority_filter == '10' %}selected{% endif %}>Baja (10)</option>
+                    </select>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary me-2">
+                        <i class="bi bi-search"></i> Filtrar
+                    </button>
+                    <a href="{{ url_for('admin_email_queue') }}" class="btn btn-outline-secondary">
+                        <i class="bi bi-x-circle"></i> Limpiar
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tabla de Emails -->
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <h6 class="mb-0"><i class="bi bi-table"></i> Cola de Emails ({{ emails.total }} resultados)</h6>
+        </div>
+        <div class="card-body p-0">
+            {% if emails.items %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover mb-0">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>ID</th>
+                                <th>Destinatario</th>
+                                <th>Asunto</th>
+                                <th>Estado</th>
+                                <th>Prioridad</th>
+                                <th>Creado</th>
+                                <th>Programado</th>
+                                <th>Intentos</th>
+                                <th class="text-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for email in emails.items %}
+                            <tr>
+                                <td>{{ email.id }}</td>
+                                <td>
+                                    <small>{{ email.recipient_email }}</small>
+                                </td>
+                                <td>
+                                    <strong>{{ email.subject[:40] }}{% if email.subject|length > 40 %}...{% endif %}</strong>
+                                    {% if email.mailbox_message %}
+                                        <br><small class="text-muted">Mensaje ID: {{ email.mailbox_message_id }}</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge bg-{{ 'success' if email.status == 'sent' else 'warning' if email.status == 'pending' else 'danger' if email.status == 'failed' else 'dark' if email.status == 'cancelled' else 'secondary' }}">
+                                        {% if email.status == 'sent' %}
+                                            <i class="bi bi-check-circle"></i> Enviado
+                                        {% elif email.status == 'pending' %}
+                                            <i class="bi bi-clock-history"></i> Pendiente
+                                        {% elif email.status == 'failed' %}
+                                            <i class="bi bi-x-circle"></i> Fallido
+                                        {% elif email.status == 'cancelled' %}
+                                            <i class="bi bi-dash-circle"></i> Cancelado
+                                        {% else %}
+                                            {{ email.status }}
+                                        {% endif %}
+                                    </span>
+                                    {% if email.sent_at %}
+                                        <br><small class="text-muted">{{ email.sent_at.strftime('%d/%m %H:%M') }}</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge bg-{{ 'danger' if email.priority <= 2 else 'warning' if email.priority <= 5 else 'secondary' }}">
+                                        {{ email.priority }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <small>{{ email.created_at.strftime('%d/%m/%Y %H:%M') }}</small>
+                                </td>
+                                <td>
+                                    <small>{{ email.scheduled_at.strftime('%d/%m/%Y %H:%M') }}</small>
+                                </td>
+                                <td>
+                                    {{ email.attempts }}/{{ email.max_attempts }}
+                                    {% if email.error_message and email.status == 'failed' %}
+                                        <br><button class="btn btn-sm btn-outline-danger" onclick="showError({{ email.id }}, '{{ email.error_message|escape }}')">
+                                            <i class="bi bi-exclamation-triangle"></i>
+                                        </button>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        {% if email.status == 'failed' and email.can_retry %}
+                                            <form action="{{ url_for('admin_retry_email', email_id=email.id) }}" method="POST" class="d-inline">
+                                                <button type="submit" class="btn btn-outline-success" title="Reintentar envío">
+                                                    <i class="bi bi-arrow-clockwise"></i>
+                                                </button>
+                                            </form>
+                                        {% endif %}
+                                        
+                                        {% if email.status == 'pending' %}
+                                            <form action="{{ url_for('admin_cancel_email', email_id=email.id) }}" method="POST" class="d-inline">
+                                                <button type="submit" class="btn btn-outline-warning" title="Cancelar email">
+                                                    <i class="bi bi-x-circle"></i>
+                                                </button>
+                                            </form>
+                                        {% endif %}
+                                        
+                                        {% if email.status in ['sent', 'failed', 'cancelled'] %}
+                                            <form action="{{ url_for('admin_delete_email', email_id=email.id) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Eliminar este email de la cola?')">
+                                                <button type="submit" class="btn btn-outline-danger" title="Eliminar de cola">
+                                                    <i class="bi bi-trash3"></i>
+                                                </button>
+                                            </form>
+                                        {% endif %}
+                                        
+                                        <button type="button" class="btn btn-outline-info" onclick="showEmailDetails({{ email.id }})" title="Ver detalles">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Paginación -->
+                {% if emails.pages > 1 %}
+                <div class="card-footer">
+                    <nav aria-label="Paginación de emails">
+                        <ul class="pagination justify-content-center mb-0">
+                            {% if emails.has_prev %}
+                                <li class="page-item">
+                                    <a class="page-link" href="{{ url_for('admin_email_queue', page=emails.prev_num, status=status_filter, priority=priority_filter) }}">Anterior</a>
+                                </li>
+                            {% endif %}
+                            
+                            {% for page_num in emails.iter_pages() %}
+                                {% if page_num %}
+                                    {% if page_num != emails.page %}
+                                        <li class="page-item">
+                                            <a class="page-link" href="{{ url_for('admin_email_queue', page=page_num, status=status_filter, priority=priority_filter) }}">{{ page_num }}</a>
+                                        </li>
+                                    {% else %}
+                                        <li class="page-item active">
+                                            <span class="page-link">{{ page_num }}</span>
+                                        </li>
+                                    {% endif %}
+                                {% else %}
+                                    <li class="page-item disabled">
+                                        <span class="page-link">...</span>
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% if emails.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="{{ url_for('admin_email_queue', page=emails.next_num, status=status_filter, priority=priority_filter) }}">Siguiente</a>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                </div>
+                {% endif %}
+            {% else %}
+                <div class="p-4 text-center text-muted">
+                    <i class="bi bi-inbox d-block mb-2" style="font-size: 3rem;"></i>
+                    <h5>No hay emails en la cola</h5>
+                    <p>No se encontraron emails con los filtros seleccionados.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal para mostrar errores -->
+<div class="modal fade" id="errorModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Error en Email</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="errorContent">
+                <!-- Se llena dinámicamente -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para detalles del email -->
+<div class="modal fade" id="detailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Detalles del Email</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="detailsContent">
+                <!-- Se llena dinámicamente -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function showError(emailId, errorMessage) {
+    document.getElementById('errorContent').innerHTML = `
+        <p><strong>Email ID:</strong> ${emailId}</p>
+        <p><strong>Error:</strong></p>
+        <pre class="bg-light p-2 rounded">${errorMessage}</pre>
+    `;
+    new bootstrap.Modal(document.getElementById('errorModal')).show();
+}
+function showEmailDetails(emailId) {
+    document.getElementById('detailsContent').innerHTML = `
+        <div class="text-center">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Cargando...</span>
+            </div>
+        </div>
+    `;
+    
+    fetch(`/admin/email-queue/${emailId}/details`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const details = data.details;
+                const html = `
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6><i class="bi bi-envelope"></i> Información del Email</h6>
+                            <table class="table table-sm">
+                                <tr><td><strong>ID:</strong></td><td>${details.email.id}</td></tr>
+                                <tr><td><strong>Destinatario:</strong></td><td>${details.email.recipient}</td></tr>
+                                <tr><td><strong>Estado:</strong></td><td><span class="badge bg-${details.email.status === 'sent' ? 'success' : details.email.status === 'pending' ? 'warning' : 'danger'}">${details.email.status}</span></td></tr>
+                                <tr><td><strong>Prioridad:</strong></td><td>${details.email.priority}</td></tr>
+                                <tr><td><strong>Intentos:</strong></td><td>${details.email.attempts}/${details.email.max_attempts}</td></tr>
+                                <tr><td><strong>Creado:</strong></td><td>${details.email.created_at}</td></tr>
+                                <tr><td><strong>Programado:</strong></td><td>${details.email.scheduled_at}</td></tr>
+                                ${details.email.sent_at ? `<tr><td><strong>Enviado:</strong></td><td>${details.email.sent_at}</td></tr>` : ''}
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            ${details.user ? `
+                                <h6><i class="bi bi-person"></i> Usuario</h6>
+                                <table class="table table-sm">
+                                    <tr><td><strong>ID:</strong></td><td>${details.user.id}</td></tr>
+                                    <tr><td><strong>Username:</strong></td><td>${details.user.username}</td></tr>
+                                    <tr><td><strong>Activo:</strong></td><td>${details.user.is_active ? 'Sí' : 'No'}</td></tr>
+                                </table>
+                            ` : '<p class="text-muted">Usuario no encontrado</p>'}
+                            
+                            ${details.alert_config ? `
+                                <h6><i class="bi bi-bell"></i> Configuración de Alerta</h6>
+                                <table class="table table-sm">
+                                    <tr><td><strong>Tipo:</strong></td><td>${details.alert_config.alert_reason}</td></tr>
+                                    <tr><td><strong>Activa:</strong></td><td>${details.alert_config.is_active ? 'Sí' : 'No'}</td></tr>
+                                    <tr><td><strong>Email activado:</strong></td><td>${details.alert_config.notify_by_email ? 'Sí' : 'No'}</td></tr>
+                                </table>
+                            ` : ''}
+                        </div>
+                    </div>
+                    
+                    ${details.email.error_message ? `
+                        <h6><i class="bi bi-exclamation-triangle text-danger"></i> Error</h6>
+                        <pre class="bg-light p-2 rounded">${details.email.error_message}</pre>
+                    ` : ''}
+                    
+                    <h6><i class="bi bi-file-text"></i> Contenido del Email</h6>
+                    <div class="bg-light p-3 rounded" style="max-height: 200px; overflow-y: auto;">
+                        ${details.email.content}
+                    </div>
+                `;
+                
+                document.getElementById('detailsContent').innerHTML = html;
+            } else {
+                document.getElementById('detailsContent').innerHTML = `
+                    <div class="alert alert-danger">Error: ${data.error}</div>
+                `;
+            }
+        })
+        .catch(error => {
+            document.getElementById('detailsContent').innerHTML = `
+                <div class="alert alert-danger">Error de conexión: ${error}</div>
+            `;
+        });
+    
+    new bootstrap.Modal(document.getElementById('detailsModal')).show();
+}
+
+</script>
+{% endblock %}
