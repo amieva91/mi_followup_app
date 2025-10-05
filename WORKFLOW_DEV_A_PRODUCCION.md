@@ -1,20 +1,21 @@
 # 🔄 WORKFLOW: Desarrollo → Producción
 
-**Actualizado**: 5 Octubre 2025
+**Actualizado**: 5 Octubre 2025 - 22:40 UTC  
+**Estado**: ✅ WORKFLOW VALIDADO Y FUNCIONANDO
 
 ---
 
 ## 🎯 FILOSOFÍA
 
 ```
-Desarrollo Local (WSL) → Tests → Git → Producción → Validación
+Desarrollo Local (WSL) → Git (develop) → Git (main) → Producción → Validación
 ```
 
 **Reglas de Oro**:
 1. ❌ Nunca codificar directamente en producción
-2. ✅ Siempre testear antes de hacer commit
-3. ✅ Siempre hacer backup antes de deploy
-4. ✅ Validar en producción después de deploy
+2. ✅ Siempre testear en desarrollo antes de mergear
+3. ✅ Siempre probar en producción después de deploy
+4. ✅ Mantener develop y main sincronizados
 
 ---
 
@@ -25,10 +26,11 @@ Desarrollo Local (WSL) → Tests → Git → Producción → Validación
 ```bash
 # Tu entorno de desarrollo
 Host: ssoo@ES-5CD52753T5
-Path: /home/ssoo/www/followup
-DB: followup_dev (PostgreSQL local)
-Puerto: 5000 (Flask development server)
-URL local: http://localhost:5000
+Path: /home/ssoo/www
+DB: SQLite - /home/ssoo/www/instance/followup.db
+Puerto: 5000 (Flask development server con debug)
+URL local: http://localhost:5000 o http://172.23.77.32:5000
+Branch: develop
 ```
 
 ### Producción (Oracle Cloud)
@@ -37,66 +39,64 @@ URL local: http://localhost:5000
 # Tu servidor de producción
 IP: 140.238.120.92
 User: ubuntu
-Path: /home/ubuntu/www/followup
-DB: followup_prod (PostgreSQL)
+Path: /home/ubuntu/www
+DB: SQLite - /home/ubuntu/www/instance/followup.db
 Dominio: https://followup.fit/
-Puerto: 5000 (Gunicorn) → 80/443 (Nginx)
+Puerto: 5000 (Flask directo, sin Nginx/Gunicorn por ahora)
+Branch: main
+Servicio: followup.service (systemd)
 ```
 
 ---
 
-## 🚀 PROCESO COMPLETO POR FEATURE
+## 🚀 PROCESO COMPLETO (EL QUE USAMOS HOY)
 
 ### FASE 1: Desarrollo Local
 
 ```bash
 # 1. Entrar a tu directorio de trabajo
-cd /home/ssoo/www/followup
+cd /home/ssoo/www
 
 # 2. Activar entorno virtual
 source venv/bin/activate
 
-# 3. Asegurarte de estar en main actualizado
-git checkout main
-git pull origin main
+# 3. Asegurarte de estar en develop
+git checkout develop
+git status
 
-# 4. Crear rama para el feature
-git checkout -b feature/descripcion-corta
-# Ejemplos:
-# feature/user-auth
-# feature/expense-crud
-# feature/csv-processor
-```
-
-```bash
-# 5. Desarrollar el feature
+# 4. Desarrollar el feature
 # ... editar archivos ...
-# ... escribir tests ...
-
-# 6. Ejecutar tests
-pytest tests/ -v --cov=app --cov-report=term-missing
-
-# Debe pasar con cobertura ≥ 70%
-# Si falla, arreglar hasta que pasen todos
+# ... escribir tests (cuando corresponda) ...
 ```
 
 ```bash
-# 7. Probar manualmente en navegador
-flask run --debug
+# 5. Probar en desarrollo
+python run.py
+
 # Abrir http://localhost:5000
 # Probar todas las funcionalidades nuevas
 # Probar edge cases
+# Presionar Ctrl+C para detener
 ```
 
 ```bash
-# 8. Commit del feature
+# 6. Commit en develop
 git add .
 git status  # Verificar qué archivos se añaden
+
 git commit -m "feat: descripción del feature
 
 - Detalle 1
 - Detalle 2
-- Tests añadidos"
+- Tests añadidos (si corresponde)"
+
+# Ejemplo real de hoy:
+# git commit -m "feat: Sprint 1 - Complete authentication system
+# 
+# - Created User model with password hashing
+# - Implemented auth forms and routes
+# - Built elegant templates with Tailwind CSS"
+```
 
 # Convención de mensajes:
 # feat: nueva funcionalidad
@@ -107,79 +107,71 @@ git commit -m "feat: descripción del feature
 # style: formato de código
 ```
 
-### FASE 2: Merge a Main
+### FASE 2: Subir a GitHub
 
 ```bash
-# 9. Cambiar a main
-git checkout main
+# 7. Subir develop a GitHub
+git push origin develop
 
-# 10. Merge del feature
-git merge feature/descripcion-corta
-
-# 11. Resolver conflictos si hay
-# (Si hay conflictos, editarlos manualmente y luego)
-git add .
-git commit -m "merge: feature/descripcion-corta"
-
-# 12. Push a repositorio remoto
-git push origin main
-
-# 13. Eliminar rama de feature (opcional, limpieza)
-git branch -d feature/descripcion-corta
+# Te pedirá usuario y token/password
+# Username: tu-email@gmail.com
+# Password: tu-personal-access-token (o contraseña)
 ```
 
-### FASE 3: Deploy a Producción
+### FASE 3: Merge a Main
 
 ```bash
-# 14. Conectar a servidor de producción
+# 8. Cambiar a main
+git checkout main
+
+# 9. Mergear develop en main
+git merge develop
+
+# 10. Push main a GitHub
+git push origin main
+```
+
+### FASE 4: Deploy a Producción
+
+```bash
+# 11. Conectar a servidor de producción
 ssh -i ~/.ssh/ssh-key-2025-08-21.key ubuntu@140.238.120.92
 ```
 
 ```bash
 # === AHORA ESTÁS EN EL SERVIDOR DE PRODUCCIÓN ===
 
-# 15. Ir al directorio del proyecto
-cd /home/ubuntu/www/followup
+# 12. Ir al directorio del proyecto
+cd ~/www
 
-# 16. BACKUP de la base de datos (IMPORTANTE)
-./scripts/backup.sh
-# O manualmente:
-pg_dump followup_prod > ~/backups/followup_$(date +%Y%m%d_%H%M%S).sql
-
-# 17. Pull del código nuevo
+# 13. Pull del código nuevo desde main
 git pull origin main
 
-# 18. Activar entorno virtual
+# 14. Activar entorno virtual
 source venv/bin/activate
 
-# 19. Instalar/actualizar dependencias (si cambió requirements.txt)
+# 15. Instalar/actualizar dependencias (si cambió requirements.txt)
 pip install -r requirements.txt
 
-# 20. Ejecutar migraciones de BD (si hay nuevas tablas/campos)
-alembic upgrade head
+# 16. Ejecutar migraciones de BD (si hay nuevas tablas/campos)
+flask db upgrade
 
-# 21. Compilar TailwindCSS (si cambió CSS)
-npm run build:css
+# 17. Reiniciar la aplicación
+sudo systemctl restart followup.service
 
-# 22. Recolectar archivos estáticos (si cambió JS/CSS/imgs)
-# (Si implementas collectstatic, sino skip)
-
-# 23. Reiniciar la aplicación
-sudo systemctl restart followup
-
-# 24. Verificar que arrancó bien
-sudo systemctl status followup
+# 18. Verificar que arrancó bien
+sudo systemctl status followup.service
 # Debe decir "active (running)"
 
-# 25. Ver logs en tiempo real (para detectar errores)
-sudo journalctl -u followup -f
+# 19. Ver logs en tiempo real (para detectar errores)
+sudo journalctl -u followup.service -f
 # Ctrl+C para salir
 ```
 
-### FASE 4: Validación en Producción
+### FASE 5: Validación en Producción
 
 ```bash
-# 26. Abrir navegador y probar
+# 20. Abrir navegador y probar
 # URL: https://followup.fit/
 
 # Checklist de validación:
@@ -189,22 +181,22 @@ sudo journalctl -u followup -f
 # [ ] No hay errores en la consola del navegador
 # [ ] No hay errores en los logs del servidor
 
-# 27. Si algo falla:
-# - Revisar logs: sudo journalctl -u followup -n 100
+# 21. Si algo falla:
+# - Revisar logs: sudo journalctl -u followup.service -n 100
 # - Rollback si es crítico (ver sección ROLLBACK abajo)
 ```
 
-### FASE 5: Tag de Versión (Si es hito importante)
+### FASE 6: Tag de Versión (Opcional - si es hito importante)
 
 ```bash
 # En desarrollo (WSL)
-cd /home/ssoo/www/followup
+cd /home/ssoo/www
 
 # Crear tag
 git tag v0.X-nombre-descriptivo
 # Ejemplos:
 # v0.1-auth
-# v0.2-accounts
+# v0.2-expenses
 # v0.5-dashboard
 
 # Push del tag
