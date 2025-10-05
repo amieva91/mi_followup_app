@@ -1,0 +1,123 @@
+{% extends "base/layout.html" %}
+
+{% block title %}Inicio{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-12">
+    
+    <!-- Hero Section -->
+    <div class="text-center mb-16">
+        <h1 class="text-5xl font-bold text-gray-800 mb-4">
+            🚀 ¡Bienvenido a FollowUp v2.0!
+        </h1>
+        <p class="text-xl text-gray-600 mb-8">
+            Tu sistema de gestión financiera personal ha sido completamente reconstruido
+        </p>
+        <div class="inline-flex items-center space-x-2 bg-green-100 text-green-800 px-6 py-3 rounded-lg">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <span class="font-semibold">Sistema operativo y funcionando correctamente</span>
+        </div>
+    </div>
+    
+    <!-- Estado del Sistema -->
+    <div class="max-w-4xl mx-auto">
+        <h2 class="text-2xl font-bold text-gray-800 mb-6">📊 Estado del Sistema</h2>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+            <!-- Card: Infraestructura -->
+            <div class="bg-white rounded-lg shadow-md p-6 border-t-4 border-green-500">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="font-semibold text-gray-800">Infraestructura</h3>
+                    <span class="text-2xl">✅</span>
+                </div>
+                <ul class="text-sm text-gray-600 space-y-1">
+                    <li>• Desarrollo (WSL): OK</li>
+                    <li>• Producción: OK</li>
+                    <li>• GitHub: Sincronizado</li>
+                </ul>
+            </div>
+            
+            <!-- Card: Arquitectura -->
+            <div class="bg-white rounded-lg shadow-md p-6 border-t-4 border-green-500">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="font-semibold text-gray-800">Arquitectura</h3>
+                    <span class="text-2xl">✅</span>
+                </div>
+                <ul class="text-sm text-gray-600 space-y-1">
+                    <li>• Factory Pattern</li>
+                    <li>• Estructura Modular</li>
+                    <li>• Blueprints</li>
+                </ul>
+            </div>
+            
+            <!-- Card: Funcionalidades -->
+            <div class="bg-white rounded-lg shadow-md p-6 border-t-4 border-yellow-500">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="font-semibold text-gray-800">Funcionalidades</h3>
+                    <span class="text-2xl">🚧</span>
+                </div>
+                <ul class="text-sm text-gray-600 space-y-1">
+                    <li>• En desarrollo</li>
+                    <li>• Sprint 1: Auth</li>
+                    <li>• Próximamente...</li>
+                </ul>
+            </div>
+        </div>
+        
+        <!-- Próximos Pasos -->
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+            <h2 class="text-xl font-bold text-blue-900 mb-4">🎯 Próximos Pasos - Sprint 1</h2>
+            <div class="space-y-3">
+                <div class="flex items-start">
+                    <span class="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm mr-3 mt-0.5">1</span>
+                    <div>
+                        <p class="font-semibold text-gray-800">Sistema de Autenticación</p>
+                        <p class="text-sm text-gray-600">Login, registro, recuperación de contraseña</p>
+                    </div>
+                </div>
+                <div class="flex items-start">
+                    <span class="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm mr-3 mt-0.5">2</span>
+                    <div>
+                        <p class="font-semibold text-gray-800">Modelos de Base de Datos</p>
+                        <p class="text-sm text-gray-600">Modelo User con permisos y roles</p>
+                    </div>
+                </div>
+                <div class="flex items-start">
+                    <span class="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm mr-3 mt-0.5">3</span>
+                    <div>
+                        <p class="font-semibold text-gray-800">Dashboard Inicial</p>
+                        <p class="text-sm text-gray-600">Vista principal con KPIs básicos</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Información Técnica -->
+        <div class="mt-8 bg-gray-800 text-gray-300 rounded-lg p-6">
+            <h3 class="text-lg font-semibold mb-3 text-white">💻 Información Técnica</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm font-mono">
+                <div>
+                    <span class="text-gray-500">Versión:</span> 
+                    <span class="text-white">2.0.0</span>
+                </div>
+                <div>
+                    <span class="text-gray-500">Framework:</span> 
+                    <span class="text-white">Flask</span>
+                </div>
+                <div>
+                    <span class="text-gray-500">Frontend:</span> 
+                    <span class="text-white">Tailwind + Alpine.js</span>
+                </div>
+                <div>
+                    <span class="text-gray-500">Base de datos:</span> 
+                    <span class="text-white">SQLite</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+</div>
+{% endblock %}
+

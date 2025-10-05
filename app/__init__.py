@@ -35,9 +35,9 @@ def create_app(config_name='default'):
     login_manager.login_message = 'Por favor inicia sesión para acceder a esta página.'
     login_manager.login_message_category = 'info'
     
-    # Registrar blueprints (cuando los creemos)
-    # from app.routes.auth import auth_bp
-    # app.register_blueprint(auth_bp)
+    # Registrar blueprints
+    from app.routes import main_bp
+    app.register_blueprint(main_bp)
     
     # Crear carpetas necesarias
     import os
