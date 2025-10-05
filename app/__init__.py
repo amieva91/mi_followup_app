@@ -26,14 +26,14 @@ def create_app(config_name='default'):
     # Inicializar extensiones
     db.init_app(app)
     migrate.init_app(app, db)
-    login_manager.init_app(app)
+    # login_manager.init_app(app)  # Deshabilitado hasta Sprint 1 (Auth)
     bcrypt.init_app(app)
     mail.init_app(app)
     
-    # Configurar Flask-Login
-    login_manager.login_view = 'auth.login'
-    login_manager.login_message = 'Por favor inicia sesión para acceder a esta página.'
-    login_manager.login_message_category = 'info'
+    # Configurar Flask-Login (deshabilitado temporalmente)
+    # login_manager.login_view = 'auth.login'
+    # login_manager.login_message = 'Por favor inicia sesión para acceder a esta página.'
+    # login_manager.login_message_category = 'info'
     
     # Registrar blueprints
     from app.routes import main_bp
