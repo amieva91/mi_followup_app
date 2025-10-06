@@ -2,23 +2,34 @@
 
 **Fecha de inicio**: 5 Octubre 2025  
 **Timeline**: 6 meses (26 semanas)  
-**Última actualización**: 5 Octubre 2025 - 22:30 UTC  
-**Estado actual**: ✅ Sprint 0 y Sprint 1 COMPLETADOS - Sistema funcionando en producción
+**Última actualización**: 6 Octubre 2025 - 12:30 UTC  
+**Estado actual**: ✅ Sprint 0, Sprint 1 y Sprint 2 COMPLETADOS - Sistema funcionando en producción
 
-## 🎉 PROGRESO HOY (5 Oct 2025)
+## 🎉 PROGRESO RECIENTE
 
-**✅ SPRINT 0 - Infraestructura (COMPLETADO)**
+**✅ SPRINT 0 - Infraestructura (COMPLETADO - 5 Oct)**
 - Entornos limpiados (desarrollo + producción)
 - Estructura modular creada (Factory Pattern)
 - Git configurado (branches: develop, main)
 - Primera página funcionando en https://followup.fit/
 
-**✅ SPRINT 1 - Autenticación (COMPLETADO)**
+**✅ SPRINT 1 - Autenticación (COMPLETADO - 5 Oct)**
 - Modelo User con password hashing
 - Registro, Login, Logout, Reset Password
 - Dashboard protegido
 - Templates elegantes con Tailwind CSS
 - ¡Sistema 100% funcional en producción!
+
+**✅ SPRINT 2 - Gastos e Ingresos (COMPLETADO - 6 Oct)**
+- Categorías de gastos con jerarquía padre-hijo
+- Categorías de ingresos
+- Gastos y ingresos puntuales y recurrentes (daily/weekly/monthly/yearly)
+- Generación automática de instancias recurrentes históricas
+- Edición de series recurrentes completas
+- Eliminación inteligente (entrada individual vs serie completa)
+- Vista de tabla jerárquica para categorías
+- Emoji picker con sugerencias clickeables
+- Dashboard con KPIs en tiempo real (ingresos/gastos/balance del mes)
 
 **🔗 URLs Funcionales:**
 - **Producción**: https://followup.fit/

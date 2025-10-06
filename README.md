@@ -2,6 +2,16 @@
 
 Sistema completo de gestión financiera personal.
 
+## ✅ Estado Actual (6 Oct 2025)
+
+**Funcionalidades Implementadas:**
+- ✅ **Autenticación completa** - Registro, Login, Reset Password
+- ✅ **Gestión de Gastos** - Categorías jerárquicas, gastos puntuales y recurrentes
+- ✅ **Gestión de Ingresos** - Categorías, ingresos puntuales y recurrentes  
+- ✅ **Dashboard** - KPIs en tiempo real (ingresos/gastos/balance mensual)
+- ✅ **Recurrencias inteligentes** - Daily/Weekly/Monthly/Yearly con gestión completa
+- ✅ **Sistema desplegado** - Funcionando en https://followup.fit/
+
 ## 🚀 Entornos
 
 ### Desarrollo (WSL)

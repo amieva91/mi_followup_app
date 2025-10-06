@@ -1,6 +1,7 @@
 # 🚀 INICIO RÁPIDO - Primeros Pasos
 
-**Fecha**: 5 Octubre 2025  
+**Fecha de creación**: 5 Octubre 2025  
+**Última actualización**: 6 Octubre 2025  
 **Tiempo estimado**: 30 minutos de lectura + 3 días de setup
 
 ---
@@ -56,7 +57,10 @@ Total: 6 meses (26 semanas)
 ### Hito Actual
 
 ```
-📍 ESTÁS AQUÍ: Sprint 0 - Setup Inicial (3 días)
+✅ COMPLETADO: Sprint 0 (Infraestructura)
+✅ COMPLETADO: Sprint 1 (Autenticación)  
+✅ COMPLETADO: Sprint 2 (Gastos e Ingresos)
+📍 PRÓXIMO: Sprint 3 (CSV Processor) o refinamiento
 ```
 
 ---
