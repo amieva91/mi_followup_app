@@ -26,64 +26,105 @@
     </div>
 
     <!-- Quick Stats -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <!-- Card 1 -->
-        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-green-500">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <!-- Card 1: Ingresos del Mes -->
+        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-green-500 hover:shadow-lg transition">
             <div class="flex items-center justify-between">
                 <div>
-                    <p class="text-gray-600 text-sm font-medium">Total Activos</p>
-                    <p class="text-2xl font-bold text-gray-800">€0.00</p>
+                    <p class="text-gray-600 text-sm font-medium">Ingresos ({{ current_month_name }})</p>
+                    <p class="text-2xl font-bold text-green-600">+€{{ '%.2f'|format(incomes_this_month) }}</p>
                 </div>
                 <div class="bg-green-100 rounded-full p-3">
-                    <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
-                    </svg>
+                    <span class="text-2xl">💵</span>
                 </div>
             </div>
+            <a href="{{ url_for('incomes.list') }}" class="mt-3 text-sm text-green-600 hover:text-green-800 inline-flex items-center">
+                Ver todos →
+            </a>
         </div>
 
-        <!-- Card 2 -->
-        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-blue-500">
+        <!-- Card 2: Gastos del Mes -->
+        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-red-500 hover:shadow-lg transition">
             <div class="flex items-center justify-between">
                 <div>
-                    <p class="text-gray-600 text-sm font-medium">Inversiones</p>
-                    <p class="text-2xl font-bold text-gray-800">€0.00</p>
-                </div>
-                <div class="bg-blue-100 rounded-full p-3">
-                    <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
-                    </svg>
-                </div>
-            </div>
-        </div>
-
-        <!-- Card 3 -->
-        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-yellow-500">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-gray-600 text-sm font-medium">Gastos del mes</p>
-                    <p class="text-2xl font-bold text-gray-800">€0.00</p>
-                </div>
-                <div class="bg-yellow-100 rounded-full p-3">
-                    <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>
-                    </svg>
-                </div>
-            </div>
-        </div>
-
-        <!-- Card 4 -->
-        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-red-500">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-gray-600 text-sm font-medium">Deudas</p>
-                    <p class="text-2xl font-bold text-gray-800">€0.00</p>
+                    <p class="text-gray-600 text-sm font-medium">Gastos ({{ current_month_name }})</p>
+                    <p class="text-2xl font-bold text-red-600">-€{{ '%.2f'|format(expenses_this_month) }}</p>
                 </div>
                 <div class="bg-red-100 rounded-full p-3">
-                    <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
+                    <span class="text-2xl">💸</span>
                 </div>
+            </div>
+            <a href="{{ url_for('expenses.list') }}" class="mt-3 text-sm text-red-600 hover:text-red-800 inline-flex items-center">
+                Ver todos →
+            </a>
+        </div>
+
+        <!-- Card 3: Balance del Mes -->
+        <div class="bg-white rounded-lg shadow p-6 border-l-4 {% if balance_this_month >= 0 %}border-blue-500{% else %}border-yellow-500{% endif %} hover:shadow-lg transition">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-gray-600 text-sm font-medium">Balance ({{ current_month_name }})</p>
+                    <p class="text-2xl font-bold {% if balance_this_month >= 0 %}text-blue-600{% else %}text-yellow-600{% endif %}">
+                        €{{ '%.2f'|format(balance_this_month) }}
+                    </p>
+                </div>
+                <div class="{% if balance_this_month >= 0 %}bg-blue-100{% else %}bg-yellow-100{% endif %} rounded-full p-3">
+                    <span class="text-2xl">{% if balance_this_month >= 0 %}📈{% else %}📊{% endif %}</span>
+                </div>
+            </div>
+            <p class="mt-3 text-xs text-gray-500">
+                {% if balance_this_month >= 0 %}
+                    ✅ Estás ahorrando este mes
+                {% else %}
+                    ⚠️ Gastos superan a ingresos
+                {% endif %}
+            </p>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <!-- Acciones de Gastos -->
+        <div class="bg-gradient-to-br from-red-50 to-red-100 rounded-lg shadow p-6">
+            <h3 class="font-bold text-gray-800 mb-4 flex items-center">
+                <span class="text-2xl mr-2">💸</span>
+                Gestión de Gastos
+            </h3>
+            <div class="space-y-2">
+                <a href="{{ url_for('expenses.new') }}" 
+                   class="block bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition text-center">
+                    + Registrar Gasto
+                </a>
+                <a href="{{ url_for('expenses.list') }}" 
+                   class="block bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg transition text-center">
+                    📋 Ver Todos los Gastos
+                </a>
+                <a href="{{ url_for('expenses.categories') }}" 
+                   class="block bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg transition text-center">
+                    📂 Categorías de Gastos
+                </a>
+            </div>
+        </div>
+
+        <!-- Acciones de Ingresos -->
+        <div class="bg-gradient-to-br from-green-50 to-green-100 rounded-lg shadow p-6">
+            <h3 class="font-bold text-gray-800 mb-4 flex items-center">
+                <span class="text-2xl mr-2">💵</span>
+                Gestión de Ingresos
+            </h3>
+            <div class="space-y-2">
+                <a href="{{ url_for('incomes.new') }}" 
+                   class="block bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition text-center">
+                    + Registrar Ingreso
+                </a>
+                <a href="{{ url_for('incomes.list') }}" 
+                   class="block bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg transition text-center">
+                    📋 Ver Todos los Ingresos
+                </a>
+                <a href="{{ url_for('incomes.categories') }}" 
+                   class="block bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg transition text-center">
+                    📂 Categorías de Ingresos
+                </a>
             </div>
         </div>
     </div>
@@ -167,17 +208,19 @@
         </div>
     </div>
 
-    <!-- Note about Sprint 1 -->
+    <!-- Progress Note -->
     <div class="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-6">
         <div class="flex items-start">
             <svg class="w-6 h-6 text-blue-600 mr-3 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
             </svg>
             <div>
-                <h3 class="font-semibold text-blue-900 mb-1">Sprint 1 - Autenticación Completado ✅</h3>
-                <p class="text-sm text-blue-800">
-                    El sistema de autenticación está funcionando. Los módulos financieros (gastos, inversiones, etc.) se implementarán en los siguientes sprints.
-                </p>
+                <h3 class="font-semibold text-blue-900 mb-2">Estado del Proyecto</h3>
+                <ul class="text-sm text-blue-800 space-y-1">
+                    <li>✅ <strong>Sprint 1 - Autenticación:</strong> Completado</li>
+                    <li>🚀 <strong>Sprint 2 - Gastos e Ingresos:</strong> ¡Funcionando ahora!</li>
+                    <li>⏳ <strong>Sprint 3 - CSV Processor:</strong> Próximamente</li>
+                </ul>
             </div>
         </div>
     </div>

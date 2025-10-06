@@ -1,0 +1,95 @@
+{% extends 'base/layout.html' %}
+
+{% block title %}Categorías de Gastos{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-3xl font-bold text-gray-800">💸 Categorías de Gastos</h1>
+        <a href="{{ url_for('expenses.new_category') }}" 
+           class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition">
+            + Nueva Categoría
+        </a>
+    </div>
+
+    {% if categories %}
+        <!-- Grid de Categorías -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {% for category in categories %}
+                <div class="bg-white rounded-lg shadow-md p-5 hover:shadow-lg transition">
+                    <!-- Header -->
+                    <div class="flex items-start justify-between mb-3">
+                        <div class="flex items-center space-x-3">
+                            <span class="text-3xl">{{ category.icon }}</span>
+                            <div>
+                                <h3 class="font-semibold text-lg text-gray-800">{{ category.name }}</h3>
+                                {% if category.parent %}
+                                    <p class="text-xs text-gray-500">
+                                        Subcategoría de: {{ category.parent.name }}
+                                    </p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <!-- Badge Color -->
+                        <span class="px-3 py-1 rounded-full text-xs font-medium
+                            {% if category.color == 'red' %}bg-red-100 text-red-800
+                            {% elif category.color == 'yellow' %}bg-yellow-100 text-yellow-800
+                            {% elif category.color == 'green' %}bg-green-100 text-green-800
+                            {% elif category.color == 'blue' %}bg-blue-100 text-blue-800
+                            {% elif category.color == 'indigo' %}bg-indigo-100 text-indigo-800
+                            {% elif category.color == 'purple' %}bg-purple-100 text-purple-800
+                            {% elif category.color == 'pink' %}bg-pink-100 text-pink-800
+                            {% else %}bg-gray-100 text-gray-800{% endif %}">
+                            {{ category.color }}
+                        </span>
+                    </div>
+
+                    <!-- Stats -->
+                    <div class="mb-4">
+                        <p class="text-sm text-gray-600">
+                            <span class="font-semibold">{{ category.expenses.count() }}</span> gastos registrados
+                        </p>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="flex space-x-2">
+                        <a href="{{ url_for('expenses.edit_category', id=category.id) }}" 
+                           class="flex-1 text-center bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded transition text-sm">
+                            ✏️ Editar
+                        </a>
+                        <form method="POST" action="{{ url_for('expenses.delete_category', id=category.id) }}" 
+                              onsubmit="return confirm('¿Eliminar esta categoría?')" class="flex-1">
+                            <button type="submit" 
+                                    class="w-full bg-red-100 hover:bg-red-200 text-red-700 px-3 py-2 rounded transition text-sm">
+                                🗑️ Eliminar
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <!-- Empty State -->
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-8 text-center">
+            <p class="text-xl text-blue-800 mb-4">📂 No tienes categorías de gastos aún</p>
+            <p class="text-gray-600 mb-6">
+                Crea tu primera categoría para empezar a organizar tus gastos
+            </p>
+            <a href="{{ url_for('expenses.new_category') }}" 
+               class="inline-block bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition">
+                + Crear Primera Categoría
+            </a>
+        </div>
+    {% endif %}
+
+    <!-- Back Link -->
+    <div class="mt-8 text-center">
+        <a href="{{ url_for('expenses.list') }}" class="text-blue-600 hover:text-blue-800">
+            ← Volver a Gastos
+        </a>
+    </div>
+</div>
+{% endblock %}
+

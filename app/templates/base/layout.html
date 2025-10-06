@@ -44,17 +44,66 @@
                     <span class="text-xl font-bold">FollowUp</span>
                 </a>
                 
-                <!-- Right Side -->
-                <div class="flex items-center space-x-4">
+                <!-- Navigation & Right Side -->
+                <div class="flex items-center space-x-6">
                     <span class="bg-green-500 text-white px-3 py-1 rounded-full text-sm">v2.0.0</span>
                     
                     {% if current_user.is_authenticated %}
-                        <!-- User Menu -->
-                        <div class="flex items-center space-x-3">
+                        <!-- Main Navigation -->
+                        <div class="flex items-center space-x-4">
                             <a href="{{ url_for('main.dashboard') }}" class="hover:text-blue-200 transition">
-                                Dashboard
+                                🏠 Dashboard
                             </a>
-                            <div class="border-l border-blue-700 h-6"></div>
+                            
+                            <!-- Dropdown Gastos -->
+                            <div class="relative" x-data="{ open: false }">
+                                <button @click="open = !open" class="hover:text-blue-200 transition flex items-center space-x-1">
+                                    <span>💸 Gastos</span>
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                    </svg>
+                                </button>
+                                <div x-show="open" @click.away="open = false" x-transition 
+                                     class="absolute left-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2 z-50">
+                                    <a href="{{ url_for('expenses.list') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
+                                        📋 Ver Gastos
+                                    </a>
+                                    <a href="{{ url_for('expenses.new') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
+                                        + Nuevo Gasto
+                                    </a>
+                                    <a href="{{ url_for('expenses.categories') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
+                                        📂 Categorías
+                                    </a>
+                                </div>
+                            </div>
+                            
+                            <!-- Dropdown Ingresos -->
+                            <div class="relative" x-data="{ open: false }">
+                                <button @click="open = !open" class="hover:text-blue-200 transition flex items-center space-x-1">
+                                    <span>💵 Ingresos</span>
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                    </svg>
+                                </button>
+                                <div x-show="open" @click.away="open = false" x-transition 
+                                     class="absolute left-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2 z-50">
+                                    <a href="{{ url_for('incomes.list') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
+                                        📋 Ver Ingresos
+                                    </a>
+                                    <a href="{{ url_for('incomes.new') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
+                                        + Nuevo Ingreso
+                                    </a>
+                                    <a href="{{ url_for('incomes.categories') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
+                                        📂 Categorías
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="border-l border-blue-700 h-6"></div>
+                        
+                        <!-- User Info -->
+                        <div class="flex items-center space-x-3">
                             <span class="text-blue-200">{{ current_user.username }}</span>
                             <a href="{{ url_for('auth.logout') }}" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg transition text-sm">
                                 Salir

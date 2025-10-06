@@ -1,0 +1,90 @@
+{% extends 'base/layout.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8 max-w-2xl">
+    <!-- Header -->
+    <h1 class="text-3xl font-bold text-gray-800 mb-6">{{ title }}</h1>
+
+    <!-- Formulario -->
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <form method="POST" action="">
+            {{ form.hidden_tag() }}
+
+            <!-- Nombre -->
+            <div class="mb-4">
+                {{ form.name.label(class="block text-gray-700 font-semibold mb-2") }}
+                {{ form.name(class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500") }}
+                {% if form.name.errors %}
+                    <div class="text-red-600 text-sm mt-1">
+                        {% for error in form.name.errors %}
+                            <p>{{ error }}</p>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- Icono y Color en Grid -->
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <!-- Icono -->
+                <div>
+                    {{ form.icon.label(class="block text-gray-700 font-semibold mb-2") }}
+                    {{ form.icon(class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-2xl text-center") }}
+                    {% if form.icon.errors %}
+                        <div class="text-red-600 text-sm mt-1">
+                            {% for error in form.icon.errors %}
+                                <p>{{ error }}</p>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- Color -->
+                <div>
+                    {{ form.color.label(class="block text-gray-700 font-semibold mb-2") }}
+                    {{ form.color(class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500") }}
+                </div>
+            </div>
+
+            <!-- Categoría Padre -->
+            <div class="mb-6">
+                {{ form.parent_id.label(class="block text-gray-700 font-semibold mb-2") }}
+                {{ form.parent_id(class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500") }}
+                <p class="text-sm text-gray-500 mt-1">
+                    Opcional: Permite crear subcategorías (ej: Comida > Restaurantes)
+                </p>
+            </div>
+
+            <!-- Botones -->
+            <div class="flex space-x-3">
+                {{ form.submit(class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition font-semibold") }}
+                <a href="{{ url_for('expenses.categories') }}" 
+                   class="flex-1 text-center bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-3 rounded-lg transition font-semibold">
+                    Cancelar
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Referencia de Emojis -->
+    <div class="mt-6 bg-gray-50 rounded-lg p-4">
+        <p class="font-semibold text-gray-700 mb-2">💡 Sugerencias de emojis:</p>
+        <div class="grid grid-cols-4 gap-2 text-center text-2xl">
+            <span title="Comida">🍔</span>
+            <span title="Transporte">🚗</span>
+            <span title="Hogar">🏠</span>
+            <span title="Salud">💊</span>
+            <span title="Ocio">🎮</span>
+            <span title="Ropa">👕</span>
+            <span title="Educación">📚</span>
+            <span title="Mascotas">🐕</span>
+            <span title="Viajes">✈️</span>
+            <span title="Facturas">📄</span>
+            <span title="Suscripciones">📱</span>
+            <span title="Otros">💰</span>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

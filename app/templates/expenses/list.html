@@ -1,0 +1,174 @@
+{% extends 'base/layout.html' %}
+
+{% block title %}Gastos{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-3xl font-bold text-gray-800">💸 Mis Gastos</h1>
+        <div class="flex space-x-3">
+            <a href="{{ url_for('expenses.categories') }}" 
+               class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition">
+                📂 Categorías
+            </a>
+            <a href="{{ url_for('expenses.new') }}" 
+               class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition">
+                + Nuevo Gasto
+            </a>
+        </div>
+    </div>
+
+    <!-- Filtro por categoría -->
+    {% if categories %}
+        <div class="bg-white rounded-lg shadow-md p-4 mb-6">
+            <form method="GET" action="{{ url_for('expenses.list') }}" class="flex items-center space-x-3">
+                <label class="font-semibold text-gray-700">Filtrar por categoría:</label>
+                <select name="category" onchange="this.form.submit()" 
+                        class="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">-- Todas --</option>
+                    {% for cat in categories %}
+                        <option value="{{ cat.id }}" {% if selected_category == cat.id %}selected{% endif %}>
+                            {{ cat.icon }} {{ cat.full_name }}
+                        </option>
+                    {% endfor %}
+                </select>
+                {% if selected_category %}
+                    <a href="{{ url_for('expenses.list') }}" 
+                       class="text-blue-600 hover:text-blue-800">
+                        ✖ Limpiar filtro
+                    </a>
+                {% endif %}
+            </form>
+        </div>
+    {% endif %}
+
+    {% if expenses.items %}
+        <!-- Tabla de Gastos -->
+        <div class="bg-white rounded-lg shadow-md overflow-hidden">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Fecha
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Categoría
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Descripción
+                        </th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Monto
+                        </th>
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Acciones
+                        </th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for expense in expenses.items %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                                {{ expense.date.strftime('%d/%m/%Y') }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="inline-flex items-center space-x-2">
+                                    <span>{{ expense.category.icon }}</span>
+                                    <span class="text-sm text-gray-700">{{ expense.category.name }}</span>
+                                </span>
+                                {% if expense.is_recurring %}
+                                    <span class="ml-2 text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
+                                        🔄 {{ expense.recurrence_frequency }}
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-700">
+                                <div>{{ expense.description }}</div>
+                                {% if expense.notes %}
+                                    <div class="text-xs text-gray-500 mt-1">{{ expense.notes[:50] }}...</div>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-semibold text-red-600">
+                                -€{{ '%.2f'|format(expense.amount) }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-center text-sm">
+                                <div class="flex justify-center space-x-2">
+                                    <a href="{{ url_for('expenses.edit', id=expense.id) }}" 
+                                       class="text-blue-600 hover:text-blue-800" title="Editar">
+                                        ✏️
+                                    </a>
+                                    <form method="POST" action="{{ url_for('expenses.delete', id=expense.id) }}" 
+                                          onsubmit="return confirm('¿Eliminar este gasto?')" class="inline">
+                                        <button type="submit" class="text-red-600 hover:text-red-800" title="Eliminar">
+                                            🗑️
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="bg-gray-50">
+                    <tr>
+                        <td colspan="3" class="px-6 py-4 text-right font-bold text-gray-700">
+                            Total en esta página:
+                        </td>
+                        <td class="px-6 py-4 text-right font-bold text-red-600">
+                            -€{{ '%.2f'|format(expenses.items|sum(attribute='amount')) }}
+                        </td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <!-- Paginación -->
+        {% if expenses.pages > 1 %}
+            <div class="mt-6 flex justify-center space-x-2">
+                {% if expenses.has_prev %}
+                    <a href="{{ url_for('expenses.list', page=expenses.prev_num, category=selected_category) }}" 
+                       class="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded transition">
+                        ← Anterior
+                    </a>
+                {% endif %}
+                
+                <span class="px-4 py-2 bg-blue-600 text-white rounded">
+                    Página {{ expenses.page }} de {{ expenses.pages }}
+                </span>
+                
+                {% if expenses.has_next %}
+                    <a href="{{ url_for('expenses.list', page=expenses.next_num, category=selected_category) }}" 
+                       class="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded transition">
+                        Siguiente →
+                    </a>
+                {% endif %}
+            </div>
+        {% endif %}
+    {% else %}
+        <!-- Empty State -->
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-8 text-center">
+            <p class="text-xl text-blue-800 mb-4">📝 No tienes gastos registrados aún</p>
+            <p class="text-gray-600 mb-6">
+                {% if selected_category %}
+                    No hay gastos en esta categoría. <a href="{{ url_for('expenses.list') }}" class="text-blue-600 hover:underline">Ver todos</a>
+                {% else %}
+                    Comienza registrando tu primer gasto para llevar control de tus finanzas
+                {% endif %}
+            </p>
+            {% if categories %}
+                <a href="{{ url_for('expenses.new') }}" 
+                   class="inline-block bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition">
+                    + Registrar Primer Gasto
+                </a>
+            {% else %}
+                <a href="{{ url_for('expenses.new_category') }}" 
+                   class="inline-block bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition">
+                    📂 Crear Primera Categoría
+                </a>
+            {% endif %}
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
