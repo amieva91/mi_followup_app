@@ -158,11 +158,6 @@ class ExpenseForm(FlaskForm):
         """Validar que si es recurrente, tenga frecuencia"""
         if self.is_recurring.data and not field.data:
             raise ValidationError('Debes seleccionar una frecuencia para gastos recurrentes')
-    
-    def validate_recurrence_end_date(self, field):
-        """Validar que la fecha fin sea posterior a la fecha inicial"""
-        if field.data and self.date.data and field.data <= self.date.data:
-            raise ValidationError('La fecha de fin debe ser posterior a la fecha inicial')
 
 
 class IncomeForm(FlaskForm):
@@ -235,9 +230,4 @@ class IncomeForm(FlaskForm):
         """Validar que si es recurrente, tenga frecuencia"""
         if self.is_recurring.data and not field.data:
             raise ValidationError('Debes seleccionar una frecuencia para ingresos recurrentes')
-    
-    def validate_recurrence_end_date(self, field):
-        """Validar que la fecha fin sea posterior a la fecha inicial"""
-        if field.data and self.date.data and field.data <= self.date.data:
-            raise ValidationError('La fecha de fin debe ser posterior a la fecha inicial')
 

@@ -30,7 +30,7 @@
                 <!-- Icono -->
                 <div>
                     {{ form.icon.label(class="block text-gray-700 font-semibold mb-2") }}
-                    {{ form.icon(class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-2xl text-center") }}
+                    {{ form.icon(id="icon", class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-2xl text-center") }}
                     {% if form.icon.errors %}
                         <div class="text-red-600 text-sm mt-1">
                             {% for error in form.icon.errors %}
@@ -68,21 +68,49 @@
     </div>
 
     <!-- Referencia de Emojis -->
-    <div class="mt-6 bg-gray-50 rounded-lg p-4">
-        <p class="font-semibold text-gray-700 mb-2">💡 Sugerencias de emojis:</p>
-        <div class="grid grid-cols-4 gap-2 text-center text-2xl">
-            <span title="Comida">🍔</span>
-            <span title="Transporte">🚗</span>
-            <span title="Hogar">🏠</span>
-            <span title="Salud">💊</span>
-            <span title="Ocio">🎮</span>
-            <span title="Ropa">👕</span>
-            <span title="Educación">📚</span>
-            <span title="Mascotas">🐕</span>
-            <span title="Viajes">✈️</span>
-            <span title="Facturas">📄</span>
-            <span title="Suscripciones">📱</span>
-            <span title="Otros">💰</span>
+    <div class="mt-6 bg-gray-50 rounded-lg p-4" x-data>
+        <p class="font-semibold text-gray-700 mb-3">💡 Haz clic en un emoji para usarlo:</p>
+        <div class="grid grid-cols-5 gap-3">
+            <button type="button" @click="document.getElementById('icon').value = '🍔'" 
+                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Comida">🍔</button>
+            <button type="button" @click="document.getElementById('icon').value = '🚗'" 
+                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Transporte">🚗</button>
+            <button type="button" @click="document.getElementById('icon').value = '🏠'" 
+                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Hogar">🏠</button>
+            <button type="button" @click="document.getElementById('icon').value = '💊'" 
+                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Salud">💊</button>
+            <button type="button" @click="document.getElementById('icon').value = '🎮'" 
+                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Ocio">🎮</button>
+            <button type="button" @click="document.getElementById('icon').value = '👕'" 
+                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Ropa">👕</button>
+            <button type="button" @click="document.getElementById('icon').value = '📚'" 
+                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Educación">📚</button>
+            <button type="button" @click="document.getElementById('icon').value = '🐕'" 
+                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Mascotas">🐕</button>
+            <button type="button" @click="document.getElementById('icon').value = '✈️'" 
+                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Viajes">✈️</button>
+            <button type="button" @click="document.getElementById('icon').value = '📄'" 
+                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Facturas">📄</button>
+            <button type="button" @click="document.getElementById('icon').value = '📱'" 
+                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Suscripciones">📱</button>
+            <button type="button" @click="document.getElementById('icon').value = '💰'" 
+                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Otros">💰</button>
+            <button type="button" @click="document.getElementById('icon').value = '🛒'" 
+                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Supermercado">🛒</button>
+            <button type="button" @click="document.getElementById('icon').value = '☕'" 
+                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Cafetería">☕</button>
+            <button type="button" @click="document.getElementById('icon').value = '💳'" 
+                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Tarjetas">💳</button>
+            <button type="button" @click="document.getElementById('icon').value = '🎬'" 
+                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Entretenimiento">🎬</button>
+            <button type="button" @click="document.getElementById('icon').value = '🏋️'" 
+                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Gimnasio">🏋️</button>
+            <button type="button" @click="document.getElementById('icon').value = '💅'" 
+                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Belleza">💅</button>
+            <button type="button" @click="document.getElementById('icon').value = '🎁'" 
+                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Regalos">🎁</button>
+            <button type="button" @click="document.getElementById('icon').value = '🔧'" 
+                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Reparaciones">🔧</button>
         </div>
     </div>
 </div>

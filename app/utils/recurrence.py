@@ -3,6 +3,7 @@ Utilidades para manejar gastos/ingresos recurrentes
 """
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
+import uuid
 
 
 def generate_recurrence_dates(start_date, frequency, end_date=None):
@@ -73,6 +74,9 @@ def create_recurrence_instances(model_class, base_instance, user_id):
         instances.append(base_instance)
         return instances
     
+    # Generar un UUID único para agrupar esta serie recurrente
+    group_id = str(uuid.uuid4())
+    
     # Generar fechas de recurrencia
     dates = generate_recurrence_dates(
         base_instance.date,
@@ -91,7 +95,8 @@ def create_recurrence_instances(model_class, base_instance, user_id):
             notes=base_instance.notes,
             is_recurring=True,  # Mantener el flag para identificarlas
             recurrence_frequency=base_instance.recurrence_frequency,
-            recurrence_end_date=base_instance.recurrence_end_date
+            recurrence_end_date=base_instance.recurrence_end_date,
+            recurrence_group_id=group_id  # Asignar el mismo grupo a todas
         )
         instances.append(instance)
     

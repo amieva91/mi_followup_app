@@ -17,10 +17,23 @@ expenses_bp = Blueprint('expenses', __name__, url_prefix='/expenses')
 @expenses_bp.route('/categories')
 @login_required
 def categories():
-    """Listar categorías de gastos"""
-    categories = ExpenseCategory.query.filter_by(
-        user_id=current_user.id
+    """Listar categorías de gastos (agrupadas jerárquicamente)"""
+    # Obtener categorías principales ordenadas alfabéticamente
+    parent_categories = ExpenseCategory.query.filter_by(
+        user_id=current_user.id,
+        parent_id=None
     ).order_by(ExpenseCategory.name).all()
+    
+    # Construir lista con categorías padre e hijos
+    categories = []
+    for parent in parent_categories:
+        categories.append(parent)
+        # Agregar subcategorías ordenadas alfabéticamente
+        subcategories = ExpenseCategory.query.filter_by(
+            user_id=current_user.id,
+            parent_id=parent.id
+        ).order_by(ExpenseCategory.name).all()
+        categories.extend(subcategories)
     
     return render_template(
         'expenses/categories.html',
@@ -216,7 +229,7 @@ def new():
 @expenses_bp.route('/<int:id>/edit', methods=['GET', 'POST'])
 @login_required
 def edit(id):
-    """Editar gasto"""
+    """Editar gasto (si es recurrente, edita toda la serie)"""
     expense = Expense.query.get_or_404(id)
     
     if expense.user_id != current_user.id:
@@ -232,26 +245,96 @@ def edit(id):
     
     form.category_id.choices = [(c.id, f"{c.icon} {c.full_name}") for c in categories]
     
+    # Verificar si es parte de una serie recurrente
+    is_part_of_series = expense.is_recurring and expense.recurrence_group_id
+    
     if form.validate_on_submit():
-        expense.category_id = form.category_id.data
-        expense.amount = form.amount.data
-        expense.description = form.description.data
-        expense.date = form.date.data
-        expense.notes = form.notes.data
-        expense.is_recurring = form.is_recurring.data
-        expense.recurrence_frequency = form.recurrence_frequency.data if form.is_recurring.data else None
-        expense.recurrence_end_date = form.recurrence_end_date.data if form.is_recurring.data else None
+        # Detectar si cambió de puntual a recurrente
+        was_not_recurring = not expense.is_recurring
+        will_be_recurring = form.is_recurring.data
         
-        db.session.commit()
+        if was_not_recurring and will_be_recurring:
+            # Cambió de puntual a recurrente: generar nuevas instancias
+            temp_expense = Expense(
+                user_id=current_user.id,
+                category_id=form.category_id.data,
+                amount=form.amount.data,
+                description=form.description.data,
+                date=form.date.data,
+                notes=form.notes.data,
+                is_recurring=True,
+                recurrence_frequency=form.recurrence_frequency.data,
+                recurrence_end_date=form.recurrence_end_date.data
+            )
+            
+            expense_instances = create_recurrence_instances(Expense, temp_expense, current_user.id)
+            db.session.delete(expense)
+            
+            for new_expense in expense_instances:
+                db.session.add(new_expense)
+            
+            db.session.commit()
+            flash(f'✅ Gasto convertido a recurrente: {len(expense_instances)} entradas generadas', 'success')
         
-        flash(f'Gasto actualizado', 'success')
+        elif is_part_of_series:
+            # Es parte de una serie: actualizar TODA la serie
+            series_expenses = Expense.query.filter_by(
+                user_id=current_user.id,
+                recurrence_group_id=expense.recurrence_group_id
+            ).all()
+            
+            # Si la fecha de fin cambió a una anterior, eliminar entradas posteriores
+            new_end_date = form.recurrence_end_date.data if form.is_recurring.data else None
+            deleted_count = 0
+            
+            for series_expense in series_expenses[:]:  # Copia para iterar mientras modificamos
+                # Si hay nueva fecha de fin y esta entrada es posterior, eliminarla
+                if new_end_date and series_expense.date > new_end_date:
+                    db.session.delete(series_expense)
+                    series_expenses.remove(series_expense)
+                    deleted_count += 1
+                else:
+                    # Actualizar la entrada
+                    series_expense.category_id = form.category_id.data
+                    series_expense.amount = form.amount.data
+                    series_expense.description = form.description.data
+                    series_expense.notes = form.notes.data
+                    series_expense.recurrence_frequency = form.recurrence_frequency.data if form.is_recurring.data else None
+                    series_expense.recurrence_end_date = new_end_date
+                    # NO actualizar la fecha, cada entrada mantiene su fecha
+            
+            db.session.commit()
+            
+            if deleted_count > 0:
+                flash(f'✅ Serie actualizada: {len(series_expenses)} gastos actualizados, {deleted_count} eliminados', 'success')
+            else:
+                flash(f'✅ Serie completa actualizada ({len(series_expenses)} gastos)', 'success')
+        
+        else:
+            # Actualización normal (gasto puntual)
+            expense.category_id = form.category_id.data
+            expense.amount = form.amount.data
+            expense.description = form.description.data
+            expense.date = form.date.data
+            expense.notes = form.notes.data
+            expense.is_recurring = form.is_recurring.data
+            expense.recurrence_frequency = form.recurrence_frequency.data if form.is_recurring.data else None
+            expense.recurrence_end_date = form.recurrence_end_date.data if form.is_recurring.data else None
+            
+            db.session.commit()
+            flash(f'Gasto actualizado', 'success')
+        
         return redirect(url_for('expenses.list'))
+    
+    # Agregar información en el título si es parte de una serie
+    title = 'Editar Serie de Gastos' if is_part_of_series else 'Editar Gasto'
     
     return render_template(
         'expenses/form.html',
         form=form,
-        title='Editar Gasto',
-        expense=expense
+        title=title,
+        expense=expense,
+        is_part_of_series=is_part_of_series
     )
 
 
@@ -265,9 +348,23 @@ def delete(id):
         flash('No tienes permiso para eliminar este gasto', 'error')
         return redirect(url_for('expenses.list'))
     
-    db.session.delete(expense)
-    db.session.commit()
+    # Verificar si es parte de una serie recurrente
+    delete_series = request.form.get('delete_series') == 'true'
     
-    flash('Gasto eliminado', 'info')
+    if expense.is_recurring and expense.recurrence_group_id and delete_series:
+        # Eliminar toda la serie
+        count = Expense.query.filter_by(
+            user_id=current_user.id,
+            recurrence_group_id=expense.recurrence_group_id
+        ).delete()
+        
+        db.session.commit()
+        flash(f'✅ Serie completa eliminada ({count} gastos)', 'info')
+    else:
+        # Eliminar solo esta entrada
+        db.session.delete(expense)
+        db.session.commit()
+        flash('Gasto eliminado', 'info')
+    
     return redirect(url_for('expenses.list'))
 

@@ -196,7 +196,7 @@ def new():
 @incomes_bp.route('/<int:id>/edit', methods=['GET', 'POST'])
 @login_required
 def edit(id):
-    """Editar ingreso"""
+    """Editar ingreso (si es recurrente, edita toda la serie)"""
     income = Income.query.get_or_404(id)
     
     if income.user_id != current_user.id:
@@ -212,26 +212,96 @@ def edit(id):
     
     form.category_id.choices = [(c.id, f"{c.icon} {c.name}") for c in categories]
     
+    # Verificar si es parte de una serie recurrente
+    is_part_of_series = income.is_recurring and income.recurrence_group_id
+    
     if form.validate_on_submit():
-        income.category_id = form.category_id.data
-        income.amount = form.amount.data
-        income.description = form.description.data
-        income.date = form.date.data
-        income.notes = form.notes.data
-        income.is_recurring = form.is_recurring.data
-        income.recurrence_frequency = form.recurrence_frequency.data if form.is_recurring.data else None
-        income.recurrence_end_date = form.recurrence_end_date.data if form.is_recurring.data else None
+        # Detectar si cambió de puntual a recurrente
+        was_not_recurring = not income.is_recurring
+        will_be_recurring = form.is_recurring.data
         
-        db.session.commit()
+        if was_not_recurring and will_be_recurring:
+            # Cambió de puntual a recurrente: generar nuevas instancias
+            temp_income = Income(
+                user_id=current_user.id,
+                category_id=form.category_id.data,
+                amount=form.amount.data,
+                description=form.description.data,
+                date=form.date.data,
+                notes=form.notes.data,
+                is_recurring=True,
+                recurrence_frequency=form.recurrence_frequency.data,
+                recurrence_end_date=form.recurrence_end_date.data
+            )
+            
+            income_instances = create_recurrence_instances(Income, temp_income, current_user.id)
+            db.session.delete(income)
+            
+            for new_income in income_instances:
+                db.session.add(new_income)
+            
+            db.session.commit()
+            flash(f'✅ Ingreso convertido a recurrente: {len(income_instances)} entradas generadas', 'success')
         
-        flash(f'Ingreso actualizado', 'success')
+        elif is_part_of_series:
+            # Es parte de una serie: actualizar TODA la serie
+            series_incomes = Income.query.filter_by(
+                user_id=current_user.id,
+                recurrence_group_id=income.recurrence_group_id
+            ).all()
+            
+            # Si la fecha de fin cambió a una anterior, eliminar entradas posteriores
+            new_end_date = form.recurrence_end_date.data if form.is_recurring.data else None
+            deleted_count = 0
+            
+            for series_income in series_incomes[:]:  # Copia para iterar mientras modificamos
+                # Si hay nueva fecha de fin y esta entrada es posterior, eliminarla
+                if new_end_date and series_income.date > new_end_date:
+                    db.session.delete(series_income)
+                    series_incomes.remove(series_income)
+                    deleted_count += 1
+                else:
+                    # Actualizar la entrada
+                    series_income.category_id = form.category_id.data
+                    series_income.amount = form.amount.data
+                    series_income.description = form.description.data
+                    series_income.notes = form.notes.data
+                    series_income.recurrence_frequency = form.recurrence_frequency.data if form.is_recurring.data else None
+                    series_income.recurrence_end_date = new_end_date
+                    # NO actualizar la fecha, cada entrada mantiene su fecha
+            
+            db.session.commit()
+            
+            if deleted_count > 0:
+                flash(f'✅ Serie actualizada: {len(series_incomes)} ingresos actualizados, {deleted_count} eliminados', 'success')
+            else:
+                flash(f'✅ Serie completa actualizada ({len(series_incomes)} ingresos)', 'success')
+        
+        else:
+            # Actualización normal (ingreso puntual)
+            income.category_id = form.category_id.data
+            income.amount = form.amount.data
+            income.description = form.description.data
+            income.date = form.date.data
+            income.notes = form.notes.data
+            income.is_recurring = form.is_recurring.data
+            income.recurrence_frequency = form.recurrence_frequency.data if form.is_recurring.data else None
+            income.recurrence_end_date = form.recurrence_end_date.data if form.is_recurring.data else None
+            
+            db.session.commit()
+            flash(f'Ingreso actualizado', 'success')
+        
         return redirect(url_for('incomes.list'))
+    
+    # Agregar información en el título si es parte de una serie
+    title = 'Editar Serie de Ingresos' if is_part_of_series else 'Editar Ingreso'
     
     return render_template(
         'incomes/form.html',
         form=form,
-        title='Editar Ingreso',
-        income=income
+        title=title,
+        income=income,
+        is_part_of_series=is_part_of_series
     )
 
 
@@ -245,9 +315,23 @@ def delete(id):
         flash('No tienes permiso para eliminar este ingreso', 'error')
         return redirect(url_for('incomes.list'))
     
-    db.session.delete(income)
-    db.session.commit()
+    # Verificar si es parte de una serie recurrente
+    delete_series = request.form.get('delete_series') == 'true'
     
-    flash('Ingreso eliminado', 'info')
+    if income.is_recurring and income.recurrence_group_id and delete_series:
+        # Eliminar toda la serie
+        count = Income.query.filter_by(
+            user_id=current_user.id,
+            recurrence_group_id=income.recurrence_group_id
+        ).delete()
+        
+        db.session.commit()
+        flash(f'✅ Serie completa eliminada ({count} ingresos)', 'info')
+    else:
+        # Eliminar solo esta entrada
+        db.session.delete(income)
+        db.session.commit()
+        flash('Ingreso eliminado', 'info')
+    
     return redirect(url_for('incomes.list'))
 

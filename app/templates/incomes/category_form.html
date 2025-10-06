@@ -30,7 +30,7 @@
                 <!-- Icono -->
                 <div>
                     {{ form.icon.label(class="block text-gray-700 font-semibold mb-2") }}
-                    {{ form.icon(class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-2xl text-center") }}
+                    {{ form.icon(id="icon", class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-2xl text-center") }}
                     {% if form.icon.errors %}
                         <div class="text-red-600 text-sm mt-1">
                             {% for error in form.icon.errors %}
@@ -59,17 +59,33 @@
     </div>
 
     <!-- Referencia de Emojis -->
-    <div class="mt-6 bg-gray-50 rounded-lg p-4">
-        <p class="font-semibold text-gray-700 mb-2">💡 Sugerencias de emojis:</p>
-        <div class="grid grid-cols-4 gap-2 text-center text-2xl">
-            <span title="Salario">💼</span>
-            <span title="Freelance">💻</span>
-            <span title="Inversiones">📈</span>
-            <span title="Alquiler">🏠</span>
-            <span title="Bonos">🎁</span>
-            <span title="Venta">🛍️</span>
-            <span title="Dividendos">💰</span>
-            <span title="Otros">💵</span>
+    <div class="mt-6 bg-gray-50 rounded-lg p-4" x-data>
+        <p class="font-semibold text-gray-700 mb-3">💡 Haz clic en un emoji para usarlo:</p>
+        <div class="grid grid-cols-4 gap-3">
+            <button type="button" @click="document.getElementById('icon').value = '💼'" 
+                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Salario">💼</button>
+            <button type="button" @click="document.getElementById('icon').value = '💻'" 
+                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Freelance">💻</button>
+            <button type="button" @click="document.getElementById('icon').value = '📈'" 
+                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Inversiones">📈</button>
+            <button type="button" @click="document.getElementById('icon').value = '🏠'" 
+                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Alquiler">🏠</button>
+            <button type="button" @click="document.getElementById('icon').value = '🎁'" 
+                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Bonos">🎁</button>
+            <button type="button" @click="document.getElementById('icon').value = '🛍️'" 
+                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Venta">🛍️</button>
+            <button type="button" @click="document.getElementById('icon').value = '💰'" 
+                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Dividendos">💰</button>
+            <button type="button" @click="document.getElementById('icon').value = '💵'" 
+                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Otros">💵</button>
+            <button type="button" @click="document.getElementById('icon').value = '🎓'" 
+                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Beca">🎓</button>
+            <button type="button" @click="document.getElementById('icon').value = '🏆'" 
+                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Premio">🏆</button>
+            <button type="button" @click="document.getElementById('icon').value = '🎯'" 
+                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Comisión">🎯</button>
+            <button type="button" @click="document.getElementById('icon').value = '💳'" 
+                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Reembolso">💳</button>
         </div>
     </div>
 </div>

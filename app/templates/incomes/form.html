@@ -7,6 +7,24 @@
     <!-- Header -->
     <h1 class="text-3xl font-bold text-gray-800 mb-6">{{ title }}</h1>
 
+    <!-- Advertencia para series -->
+    {% if is_part_of_series %}
+        <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <span class="text-2xl">⚠️</span>
+                </div>
+                <div class="ml-3">
+                    <h3 class="text-sm font-medium text-yellow-800">Estás editando una serie recurrente</h3>
+                    <p class="text-sm text-yellow-700 mt-1">
+                        Los cambios que realices se aplicarán a <strong>TODAS las entradas de esta serie</strong>.
+                        Las fechas individuales se mantendrán, pero el resto de campos (monto, descripción, etc.) se actualizarán en todas las entradas.
+                    </p>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+
     <!-- Formulario -->
     <div class="bg-white rounded-lg shadow-md p-6">
         <form method="POST" action="" x-data="{ is_recurring: {{ 'true' if form.is_recurring.data else 'false' }} }">
