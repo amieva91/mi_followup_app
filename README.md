@@ -12,13 +12,18 @@ Sistema completo de gestión financiera personal.
   - Generación automática de instancias históricas
   - Edición y eliminación de series completas
   - Emoji picker interactivo
-- ✅ **Sprint 3 - Portfolio Manager (HITO 1 y 2)**
-  - Base de datos completa (8 modelos)
+- ✅ **Sprint 3 - CSV Processor** 
+  - Base de datos completa (8 modelos para portfolio)
   - CRUD de cuentas de broker
-  - Entrada manual de transacciones (BUY/SELL/DIVIDEND/etc)
+  - Entrada manual de transacciones (BUY/SELL/DIVIDEND/FEE)
+  - Parser CSV para IBKR (formato jerárquico)
+  - Parser CSV para DeGiro (formato cronológico europeo)
+  - Importador a BD con detección automática de duplicados
+  - Filtrado de transacciones FX (Forex)
   - Actualización automática de holdings con FIFO
-  - Cálculo de P&L realizadas
-  - Dashboard de portfolio
+  - Cálculo de P&L realizadas y no realizadas
+  - Interfaz web para subir CSV con drag & drop
+  - Dashboard de portfolio con holdings y transacciones
 - ✅ **Dashboard** - KPIs en tiempo real (ingresos/gastos/balance mensual)
 - ✅ **Sistema desplegado** - Funcionando en https://followup.fit/
 
@@ -141,8 +146,8 @@ sudo systemctl status followup.service
 
 ## 📊 Estado del Proyecto
 
-**Fase actual**: Sprint 3 - CSV Processor (HITO 2 completado)  
+**Fase actual**: Sprint 4 - Calculadora de Métricas  
 **Última actualización**: 7 Octubre 2025  
-**Versión**: 2.0.0  
-**Progreso**: Sprint 0 ✅ | Sprint 1 ✅ | Sprint 2 ✅ | Sprint 3 🔄 (33%)
+**Versión**: 3.0.0  
+**Progreso**: Sprint 0 ✅ | Sprint 1 ✅ | Sprint 2 ✅ | Sprint 3 ✅ (100%)
 
