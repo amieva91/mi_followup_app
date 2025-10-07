@@ -231,10 +231,13 @@ class CSVImporter:
         
         # Agrupar por asset y usar FIFOCalculator
         fifo_calculators = {}
+        asset_symbols = {}  # Para debugging
         
         for tx in transactions:
             if tx.asset_id not in fifo_calculators:
-                fifo_calculators[tx.asset_id] = FIFOCalculator()
+                symbol = tx.asset.symbol if tx.asset else 'Unknown'
+                fifo_calculators[tx.asset_id] = FIFOCalculator(symbol)
+                asset_symbols[tx.asset_id] = symbol
             
             calc = fifo_calculators[tx.asset_id]
             
@@ -246,10 +249,13 @@ class CSVImporter:
                     total_cost=tx.amount
                 )
             elif tx.transaction_type == 'SELL':
-                calc.add_sell(
-                    quantity=tx.quantity,
-                    date=tx.transaction_date
-                )
+                try:
+                    calc.add_sell(
+                        quantity=tx.quantity,
+                        date=tx.transaction_date
+                    )
+                except Exception as e:
+                    print(f"⚠️  Error procesando venta de {asset_symbols.get(tx.asset_id, 'Unknown')}: {e}")
         
         # Eliminar todos los holdings existentes de esta cuenta
         PortfolioHolding.query.filter_by(

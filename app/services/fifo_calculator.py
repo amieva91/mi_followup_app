@@ -22,7 +22,8 @@ class FIFOLot:
 class FIFOCalculator:
     """Calculadora FIFO robusta para holdings"""
     
-    def __init__(self):
+    def __init__(self, symbol: str = "Unknown"):
+        self.symbol = symbol
         self.lots: deque = deque()  # Cola FIFO de lotes de compra
         self.first_purchase_date = None
         self.last_transaction_date = None
@@ -68,7 +69,7 @@ class FIFOCalculator:
         self.last_transaction_date = date
         
         if remaining_to_sell > 0:
-            print(f"⚠️  Advertencia: Se intentó vender {remaining_to_sell} más de lo disponible")
+            print(f"⚠️  Advertencia ({self.symbol}): Se intentó vender {remaining_to_sell} más de lo disponible en fecha {date}")
         
         return total_cost_sold
     
