@@ -2,8 +2,8 @@
 
 **Fecha de inicio**: 5 Octubre 2025  
 **Timeline**: 6 meses (26 semanas)  
-**Última actualización**: 6 Octubre 2025 - 12:30 UTC  
-**Estado actual**: ✅ Sprint 0, Sprint 1 y Sprint 2 COMPLETADOS - Sistema funcionando en producción
+**Última actualización**: 7 Octubre 2025 - 11:30 UTC  
+**Estado actual**: ✅ Sprint 0, Sprint 1, Sprint 2 COMPLETADOS + Sprint 3 (HITO 1 y 2) - Sistema funcionando en producción
 
 ## 🎉 PROGRESO RECIENTE
 
@@ -30,6 +30,20 @@
 - Vista de tabla jerárquica para categorías
 - Emoji picker con sugerencias clickeables
 - Dashboard con KPIs en tiempo real (ingresos/gastos/balance del mes)
+
+**🔄 SPRINT 3 - CSV Processor (EN PROGRESO - 7 Oct)**
+- ✅ HITO 1: Base de Datos y Arquitectura (COMPLETADO)
+  - 8 modelos creados: Broker, BrokerAccount, Asset, PriceHistory, PortfolioHolding, Transaction, CashFlow, PortfolioMetrics
+  - Migraciones aplicadas en dev y prod
+  - Seeders de brokers (IBKR, DeGiro, Manual)
+- ✅ HITO 2: Entrada Manual de Posiciones (COMPLETADO)
+  - CRUD de cuentas de broker
+  - Entrada manual de transacciones (BUY/SELL/DIVIDEND/FEE/etc)
+  - Actualización automática de holdings con FIFO
+  - Cálculo de P&L realizadas
+  - Dashboard de portfolio
+  - Eliminación destructiva de cuentas
+- ⏳ HITO 3-6: Parsers CSV y Métricas (PENDIENTE)
 
 **🔗 URLs Funcionales:**
 - **Producción**: https://followup.fit/

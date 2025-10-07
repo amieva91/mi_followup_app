@@ -475,13 +475,137 @@ CREATE INDEX idx_price_history_asset_date ON price_history(asset_id, date);
 
 ## ✅ CRITERIOS DE ACEPTACIÓN
 
-- [ ] Todos los modelos creados con sus relaciones
-- [ ] Migraciones ejecutadas en desarrollo
-- [ ] Arquitectura documentada
-- [ ] Sin errores de sintaxis o linting
-- [ ] Aprobación del usuario
+- [x] Todos los modelos creados con sus relaciones
+- [x] Migraciones ejecutadas en desarrollo
+- [x] Arquitectura documentada
+- [x] Sin errores de sintaxis o linting
+- [x] Aprobación del usuario
 
 ---
 
-**Siguiente paso**: Crear los archivos de modelos e implementar
+## 📋 PROGRESO DE IMPLEMENTACIÓN
+
+### ✅ HITO 1: Base de Datos y Arquitectura (COMPLETADO - 7 Oct 2025)
+
+**Estado**: ✅ COMPLETADO
+
+**Archivos creados**:
+- `app/models/broker.py` - Modelos `Broker` y `BrokerAccount`
+- `app/models/asset.py` - Modelos `Asset` y `PriceHistory`
+- `app/models/portfolio.py` - Modelo `PortfolioHolding`
+- `app/models/transaction.py` - Modelos `Transaction` y `CashFlow`
+- `app/models/metrics.py` - Modelo `PortfolioMetrics`
+- `app/utils/seed_brokers.py` - Script de seed para brokers iniciales
+- `migrations/versions/31e169453e43_add_portfolio_models.py` - Migración de DB
+
+**Validación**:
+- ✅ Migraciones aplicadas en desarrollo
+- ✅ Migraciones aplicadas en producción
+- ✅ Seeders ejecutados (IBKR, DeGiro, Manual)
+- ✅ Sin errores en dev ni prod
+
+---
+
+### ✅ HITO 2: Entrada Manual de Posiciones (COMPLETADO - 7 Oct 2025)
+
+**Estado**: ✅ COMPLETADO
+
+**Funcionalidades implementadas**:
+- ✅ CRUD completo de cuentas de broker
+- ✅ Entrada manual de transacciones (BUY/SELL/DIVIDEND/etc)
+- ✅ Actualización automática de holdings con lógica FIFO
+- ✅ Cálculo de P&L realizadas en ventas
+- ✅ Eliminación destructiva de cuentas con confirmación
+- ✅ Dashboard de portfolio con métricas básicas
+- ✅ Lista de holdings y transacciones
+- ✅ Integración en navbar
+
+**Archivos creados**:
+- `app/forms/portfolio_forms.py` - `BrokerAccountForm`, `ManualTransactionForm`
+- `app/routes/portfolio.py` - Blueprint completo de portfolio
+- `app/templates/portfolio/` - 7 templates (dashboard, accounts, holdings, transactions, forms)
+
+**Decisiones de diseño**:
+- ❌ Removed "Cuenta con Margen" checkbox (se calculará automáticamente)
+- ❌ Removed "Añadir Posición Rápida" (todas las posiciones vía transacciones para integridad)
+- ✅ Destructive deletion con confirmación modal
+- ✅ Cálculo simplificado FIFO para P&L
+
+**Validación**:
+- ✅ Probado en desarrollo
+- ✅ Desplegado en producción (https://followup.fit/)
+- ✅ 4 cuentas de prueba creadas
+- ✅ 2 transacciones registradas
+- ✅ Holdings actualizados correctamente
+
+**Commits**:
+```
+df50b7a - fix: corregir eliminación de cuenta y protección CSRF
+7faec7f - fix: remove QuickHoldingForm and margin_enabled
+3b58b7d - feat(sprint3): HITO 2 - entrada manual posiciones completa
+```
+
+---
+
+### 🔄 HITO 3: Parser de CSV IBKR (PENDIENTE)
+
+**Estado**: ⏳ PENDIENTE
+
+**Tareas**:
+- [ ] Crear `app/services/csv_detector.py`
+- [ ] Crear `app/services/parsers/ibkr_parser.py`
+- [ ] Extraer secciones del CSV: Holdings, Trades, Cash Report, Performance
+- [ ] Normalizar datos a formato común
+- [ ] Tests con CSVs reales (IBKR.csv, IBKR1.csv, IBKR2.csv)
+- [ ] Crear vista de previsualización antes de importar
+
+---
+
+### 🔄 HITO 4: Parser de CSV DeGiro (PENDIENTE)
+
+**Estado**: ⏳ PENDIENTE
+
+**Tareas**:
+- [ ] Crear `app/services/parsers/degiro_parser.py`
+- [ ] Identificar todos los tipos de transacción
+- [ ] Normalizar datos a formato común
+- [ ] Unificar con el formato de IBKR
+- [ ] Tests con CSV real (Degiro.csv)
+
+---
+
+### 🔄 HITO 5: Procesamiento y Normalización (PENDIENTE)
+
+**Estado**: ⏳ PENDIENTE
+
+**Tareas**:
+- [ ] Crear `app/services/normalizer.py`
+- [ ] Crear `app/services/importer.py`
+- [ ] Importar transacciones desde CSV
+- [ ] Crear/actualizar assets automáticamente
+- [ ] Actualizar holdings con lógica FIFO
+- [ ] Registrar cash flows
+- [ ] Deduplicación de transacciones
+
+---
+
+### 🔄 HITO 6: Cálculo de Métricas y Dashboard (PENDIENTE)
+
+**Estado**: ⏳ PENDIENTE
+
+**Tareas**:
+- [ ] Crear `app/services/metrics_calculator.py`
+- [ ] Crear `app/services/price_updater.py` (Yahoo Finance)
+- [ ] Implementar Time-Weighted Return
+- [ ] Implementar Money-Weighted Return (IRR)
+- [ ] Calcular Sharpe Ratio
+- [ ] Calcular Max Drawdown
+- [ ] Calcular Volatilidad
+- [ ] Dashboard con gráficos interactivos
+- [ ] Análisis fiscal (corto/largo plazo)
+- [ ] Métricas de apalancamiento
+
+---
+
+**Siguiente paso**: Comenzar HITO 3 - Parser de CSV IBKR
 
