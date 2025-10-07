@@ -129,11 +129,80 @@ def test_full_export():
         traceback.print_exc()
 
 
+def test_degiro_parser():
+    """Prueba el parser de DeGiro con archivo real"""
+    print("=" * 80)
+    print("TEST 4: DeGiro Parser")
+    print("=" * 80)
+    
+    file_path = 'uploads/Degiro.csv'
+    
+    if not os.path.exists(file_path):
+        print(f"❌ Archivo no encontrado: {file_path}")
+        return
+    
+    print(f"\n📄 Parseando: {file_path}")
+    print("-" * 80)
+    
+    try:
+        # Usar el detector automático
+        data = detect_and_parse(file_path)
+        
+        # Mostrar resumen
+        print(f"\n🏦 Broker: {data['broker']}")
+        
+        # Trades
+        if data['trades']:
+            print(f"\n💱 Trades encontrados: {len(data['trades'])}")
+            print(f"  Mostrando primeros 5:")
+            for i, trade in enumerate(data['trades'][:5], 1):
+                print(f"    {i}. {trade['transaction_type']} {trade['quantity']} {trade['symbol']} @ {trade['price']} {trade['currency']}")
+        
+        # Holdings
+        if data['holdings']:
+            print(f"\n📊 Holdings calculados: {len(data['holdings'])}")
+            print(f"  Mostrando primeros 5:")
+            for i, holding in enumerate(data['holdings'][:5], 1):
+                print(f"    {i}. {holding['symbol']}: {holding['quantity']} @ avg {holding['average_buy_price']} {holding['currency']}")
+        
+        # Dividends
+        if data['dividends']:
+            dividends = [d for d in data['dividends'] if not d.get('is_tax', False)]
+            taxes = [d for d in data['dividends'] if d.get('is_tax', False)]
+            print(f"\n💰 Dividendos encontrados: {len(dividends)} (Retenciones: {len(taxes)})")
+            print(f"  Mostrando primeros 5 dividendos:")
+            for i, div in enumerate(dividends[:5], 1):
+                print(f"    {i}. {div['symbol']} ({div['date']}): {div['amount']} {div['currency']}")
+        
+        # Fees
+        if data['fees']:
+            print(f"\n💳 Comisiones encontradas: {len(data['fees'])}")
+            print(f"  Total comisiones: {sum(f['amount'] for f in data['fees']):.2f} EUR")
+        
+        # FX
+        if data['fx_transactions']:
+            print(f"\n💱 Transacciones FX: {len(data['fx_transactions'])}")
+        
+        print()
+        
+        # Exportar a JSON
+        output_file = 'uploads/Degiro_parsed.json'
+        with open(output_file, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False, default=str)
+        print(f"✅ Datos exportados a: {output_file}")
+        
+    except Exception as e:
+        print(f"❌ Error parseando {file_path}: {e}")
+        import traceback
+        traceback.print_exc()
+
+
 if __name__ == '__main__':
     print("\n🧪 PRUEBAS DE PARSERS CSV\n")
     
     test_detector()
     test_ibkr_parser()
+    test_degiro_parser()
     test_full_export()
     
     print("\n✅ Tests completados\n")
