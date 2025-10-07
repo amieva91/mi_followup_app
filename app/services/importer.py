@@ -131,6 +131,9 @@ class CSVImporter:
     
     def _import_transactions(self, parsed_data: Dict[str, Any]):
         """Importa transacciones evitando duplicados"""
+        # Set para detectar duplicados dentro del mismo batch
+        batch_duplicates = set()
+        
         for trade_data in parsed_data.get('trades', []):
             # Filtrar transacciones FX (cambio de divisa) - no son posiciones reales
             asset_type = trade_data.get('asset_type', '').lower()
@@ -144,10 +147,29 @@ class CSVImporter:
                 print(f"⚠️  Asset no encontrado: {trade_data.get('symbol')}")
                 continue
             
-            # Verificar si ya existe (por external_id o fecha+cantidad+precio)
+            # Crear clave única para detectar duplicados en el batch
+            date_time = trade_data.get('date_time')
+            batch_key = (
+                asset.id,
+                trade_data.get('transaction_type'),
+                date_time,
+                float(trade_data.get('quantity', 0)),
+                float(trade_data.get('price', 0))
+            )
+            
+            # Verificar duplicado en el batch actual
+            if batch_key in batch_duplicates:
+                print(f"⚠️  Duplicado detectado en batch: {asset.symbol} {trade_data.get('transaction_type')} {trade_data.get('quantity')} @ {date_time}")
+                self.stats['transactions_skipped'] += 1
+                continue
+            
+            # Verificar si ya existe en BD (por external_id o fecha+cantidad+precio)
             if self._transaction_exists(trade_data, asset.id):
                 self.stats['transactions_skipped'] += 1
                 continue
+            
+            # Añadir al set de duplicados del batch
+            batch_duplicates.add(batch_key)
             
             # Calcular el monto correcto (siempre positivo para BUY, calculado desde cantidad*precio)
             quantity = float(trade_data['quantity'])
@@ -310,7 +332,7 @@ class CSVImporter:
         return None
     
     def _transaction_exists(self, trade_data: Dict, asset_id: int) -> bool:
-        """Verifica si una transacción ya existe"""
+        """Verifica si una transacción ya existe (mejorado para detectar duplicados entre archivos)"""
         # Por external_id
         if trade_data.get('order_id'):
             exists = Transaction.query.filter_by(
@@ -320,11 +342,14 @@ class CSVImporter:
             if exists:
                 return True
         
-        # Por fecha + cantidad + precio
+        # Por fecha + cantidad + precio + tipo (más estricto para evitar duplicados)
         date = self._parse_datetime(trade_data.get('date_time') or trade_data.get('date'))
+        tx_type = trade_data.get('transaction_type')
+        
         exists = Transaction.query.filter_by(
             account_id=self.broker_account_id,
             asset_id=asset_id,
+            transaction_type=tx_type,
             transaction_date=date,
             quantity=float(trade_data['quantity']),
             price=float(trade_data['price'])
