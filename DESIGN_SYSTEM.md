@@ -2,8 +2,8 @@
 
 **Filosofía**: Elegante, Profesional, Financiero, Minimalista
 
-**Última actualización**: 5 Octubre 2025 - 22:45 UTC  
-**Estado**: ✅ Componentes base implementados en Sprint 1
+**Última actualización**: 7 Octubre 2025 - 11:30 UTC  
+**Estado**: ✅ Componentes base + avanzados implementados (Sprint 1, 2, 3)
 
 ---
 
@@ -32,6 +32,28 @@
 - ✅ Cards con sombras
 - ✅ Íconos Heroicons (SVG inline)
 - ✅ Badges y tags
+
+## ✅ COMPONENTES IMPLEMENTADOS (Sprint 2)
+
+**Gastos e Ingresos**
+- ✅ Tablas jerárquicas con subcategorías indentadas
+- ✅ Emoji picker interactivo
+- ✅ Formularios de recurrencia (daily/weekly/monthly/yearly)
+- ✅ Modal de confirmación para eliminación de series
+- ✅ KPI cards con iconos y porcentajes de cambio
+- ✅ Badges de estado para recurrencias
+
+## ✅ COMPONENTES IMPLEMENTADOS (Sprint 3)
+
+**Portfolio Manager**
+- ✅ Dropdown de navegación en navbar
+- ✅ Dashboard de portfolio con métricas
+- ✅ Tablas de holdings y transacciones
+- ✅ Formularios multi-step para transacciones
+- ✅ Modal de confirmación destructiva (con Alpine.js)
+- ✅ Cards de cuentas con acciones de editar/eliminar
+- ✅ Badges de divisa y tipo de activo
+- ✅ Formularios con selects dinámicos
 
 ---
 
@@ -761,6 +783,151 @@ Al crear un nuevo componente/página, verificar:
 
 ---
 
-**Última actualización**: 5 Octubre 2025  
-**Próxima revisión**: Después del primer sprint (Sprint 1)
+## 🆕 COMPONENTES AVANZADOS (Sprints 2-3)
+
+### 7. Modal de Confirmación (Alpine.js)
+
+```html
+<!-- Botón que abre el modal -->
+<button @click="$refs.confirmModal.showModal()" 
+        class="px-3 py-1 bg-danger-600 text-white text-sm rounded hover:bg-danger-700">
+  🗑️ Eliminar
+</button>
+
+<!-- Modal -->
+<dialog x-ref="confirmModal" class="rounded-lg shadow-xl p-0 backdrop:bg-gray-900 backdrop:bg-opacity-50">
+  <div class="bg-white rounded-lg p-6 max-w-md">
+    <h3 class="text-lg font-semibold text-gray-900 mb-2">
+      Confirmar eliminación
+    </h3>
+    <p class="text-sm text-gray-600 mb-4">
+      ¿Estás seguro de que deseas eliminar esta cuenta? Esta acción es irreversible.
+    </p>
+    <div class="flex justify-end gap-3">
+      <button @click="$refs.confirmModal.close()" 
+              class="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+        Cancelar
+      </button>
+      <button @click="$refs.confirmModal.close(); submitDelete()" 
+              class="px-4 py-2 bg-danger-600 text-white rounded-lg hover:bg-danger-700">
+        Sí, eliminar
+      </button>
+    </div>
+  </div>
+</dialog>
+```
+
+### 8. Dropdown de Navegación
+
+```html
+<!-- En navbar -->
+<div class="relative" x-data="{ open: false }">
+  <button @click="open = !open" 
+          class="flex items-center gap-1 px-3 py-2 text-gray-700 hover:text-gray-900">
+    📊 Portfolio
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+    </svg>
+  </button>
+  
+  <div x-show="open" @click.away="open = false"
+       class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1">
+    <a href="/portfolio/" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+      Dashboard
+    </a>
+    <a href="/portfolio/holdings" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+      Posiciones
+    </a>
+    <a href="/portfolio/transactions" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+      Transacciones
+    </a>
+  </div>
+</div>
+```
+
+### 9. Emoji Picker
+
+```html
+<div class="mb-4">
+  <label class="block text-sm font-medium text-gray-700 mb-1">
+    Icono
+  </label>
+  <div class="flex gap-2 items-center">
+    <input type="text" 
+           id="icon-input"
+           class="w-20 px-3 py-2 border border-gray-300 rounded-lg text-center text-2xl"
+           placeholder="💰"
+           maxlength="2">
+    <div class="flex gap-1">
+      <button type="button" 
+              onclick="document.getElementById('icon-input').value = '💸'"
+              class="px-2 py-1 text-2xl hover:bg-gray-100 rounded">
+        💸
+      </button>
+      <button type="button" 
+              onclick="document.getElementById('icon-input').value = '🏦'"
+              class="px-2 py-1 text-2xl hover:bg-gray-100 rounded">
+        🏦
+      </button>
+      <!-- Más emojis... -->
+    </div>
+  </div>
+  <p class="text-xs text-gray-500 mt-1">Haz clic en un emoji para usarlo</p>
+</div>
+```
+
+### 10. Tabla Jerárquica
+
+```html
+<table class="min-w-full">
+  <thead class="bg-gray-50">
+    <tr>
+      <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Categoría</th>
+      <th class="px-4 py-3 text-right text-sm font-semibold text-gray-700">Acciones</th>
+    </tr>
+  </thead>
+  <tbody class="divide-y divide-gray-200">
+    <!-- Categoría padre -->
+    <tr class="hover:bg-gray-50">
+      <td class="px-4 py-3">
+        <span class="text-2xl mr-2">🏠</span>
+        <span class="font-medium text-gray-900">Hogar</span>
+      </td>
+      <td class="px-4 py-3 text-right">
+        <button class="text-primary-600 hover:text-primary-900">Editar</button>
+      </td>
+    </tr>
+    <!-- Subcategoría (indentada) -->
+    <tr class="hover:bg-gray-50 bg-gray-25">
+      <td class="px-4 py-3 pl-12">
+        <span class="text-gray-400 mr-2">↳</span>
+        <span class="text-2xl mr-2">💡</span>
+        <span class="text-gray-700">Electricidad</span>
+      </td>
+      <td class="px-4 py-3 text-right">
+        <button class="text-primary-600 hover:text-primary-900">Editar</button>
+      </td>
+    </tr>
+  </tbody>
+</table>
+```
+
+### 11. Badge de Recurrencia
+
+```html
+<!-- Badge simple -->
+<span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
+  📅 Mensual
+</span>
+
+<!-- Badge con cantidad -->
+<span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800">
+  🔄 Recurrente (12 entradas)
+</span>
+```
+
+---
+
+**Última actualización**: 7 Octubre 2025  
+**Próxima revisión**: Después de Sprint 4
 
