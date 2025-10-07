@@ -126,7 +126,7 @@ def account_delete(id):
     # Borrar en cascada manual (por si las FK no tienen CASCADE)
     # 1. Borrar métricas
     from app.models.metrics import PortfolioMetrics
-    PortfolioMetrics.query.filter_by(broker_account_id=id).delete()
+    PortfolioMetrics.query.filter_by(account_id=id).delete()
     
     # 2. Borrar cash flows
     from app.models.transaction import CashFlow
