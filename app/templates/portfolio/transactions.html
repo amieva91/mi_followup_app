@@ -15,6 +15,87 @@
         </a>
     </div>
 
+    <!-- Filtros de búsqueda -->
+    <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
+        <form method="GET" action="{{ url_for('portfolio.transactions_list') }}" class="space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <!-- Filtro por símbolo -->
+                <div>
+                    <label for="symbol" class="block text-sm font-medium text-gray-700 mb-1">
+                        🔍 Símbolo o ISIN
+                    </label>
+                    <input type="text" id="symbol" name="symbol" 
+                           value="{{ request.args.get('symbol', '') }}"
+                           placeholder="Ej: AAPL, IGC..."
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                </div>
+
+                <!-- Filtro por tipo -->
+                <div>
+                    <label for="type" class="block text-sm font-medium text-gray-700 mb-1">
+                        💱 Tipo de operación
+                    </label>
+                    <select id="type" name="type" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <option value="">Todos</option>
+                        <option value="BUY" {% if request.args.get('type') == 'BUY' %}selected{% endif %}>Compra</option>
+                        <option value="SELL" {% if request.args.get('type') == 'SELL' %}selected{% endif %}>Venta</option>
+                        <option value="DIVIDEND" {% if request.args.get('type') == 'DIVIDEND' %}selected{% endif %}>Dividendo</option>
+                    </select>
+                </div>
+
+                <!-- Filtro por cuenta -->
+                <div>
+                    <label for="account" class="block text-sm font-medium text-gray-700 mb-1">
+                        🏦 Cuenta
+                    </label>
+                    <select id="account" name="account" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <option value="">Todas las cuentas</option>
+                        {% for account in accounts %}
+                        <option value="{{ account.id }}" {% if request.args.get('account')|int == account.id %}selected{% endif %}>
+                            {{ account.broker.name }} - {{ account.account_name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Filtro por fecha desde -->
+                <div>
+                    <label for="date_from" class="block text-sm font-medium text-gray-700 mb-1">
+                        📅 Desde
+                    </label>
+                    <input type="date" id="date_from" name="date_from" 
+                           value="{{ request.args.get('date_from', '') }}"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                </div>
+
+                <!-- Filtro por fecha hasta -->
+                <div>
+                    <label for="date_to" class="block text-sm font-medium text-gray-700 mb-1">
+                        📅 Hasta
+                    </label>
+                    <input type="date" id="date_to" name="date_to" 
+                           value="{{ request.args.get('date_to', '') }}"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                </div>
+            </div>
+
+            <!-- Botones de acción -->
+            <div class="flex gap-3">
+                <button type="submit" class="btn-primary">
+                    🔍 Buscar
+                </button>
+                <a href="{{ url_for('portfolio.transactions_list') }}" class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition font-medium text-gray-700">
+                    ✖️ Limpiar filtros
+                </a>
+                {% if filtered %}
+                <span class="px-4 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium">
+                    {{ transactions|length }} resultado(s) encontrado(s)
+                </span>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+
     {% if transactions %}
     <div class="bg-white rounded-xl shadow-sm overflow-hidden">
         <div class="overflow-x-auto">
@@ -44,6 +125,9 @@
                         </th>
                         <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                             P&L
+                        </th>
+                        <th class="px-6 py-4 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Acciones
                         </th>
                     </tr>
                 </thead>
@@ -113,6 +197,12 @@
                             {% else %}
                                 <div class="text-sm text-gray-400">-</div>
                             {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                            <a href="{{ url_for('portfolio.transaction_edit', id=txn.id) }}" 
+                               class="inline-flex items-center px-3 py-1 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition text-sm font-medium">
+                                ✏️ Editar
+                            </a>
                         </td>
                     </tr>
                     {% endfor %}

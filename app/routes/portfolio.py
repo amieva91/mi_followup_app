@@ -172,12 +172,164 @@ def holdings_list():
 @portfolio_bp.route('/transactions')
 @login_required
 def transactions_list():
-    """Lista de transacciones"""
-    transactions = Transaction.query.filter_by(
-        user_id=current_user.id
-    ).order_by(Transaction.transaction_date.desc()).limit(100).all()
+    """Lista de transacciones con filtros"""
+    from datetime import datetime
     
-    return render_template('portfolio/transactions.html', transactions=transactions)
+    # Query base
+    query = Transaction.query.filter_by(user_id=current_user.id)
+    
+    # Aplicar filtros
+    filtered = False
+    
+    # Filtro por símbolo o ISIN
+    symbol = request.args.get('symbol', '').strip()
+    if symbol:
+        filtered = True
+        # Buscar assets que coincidan con el símbolo o ISIN
+        assets = Asset.query.filter(
+            db.or_(
+                Asset.symbol.ilike(f'%{symbol}%'),
+                Asset.isin.ilike(f'%{symbol}%')
+            )
+        ).all()
+        asset_ids = [a.id for a in assets]
+        if asset_ids:
+            query = query.filter(Transaction.asset_id.in_(asset_ids))
+        else:
+            # No hay assets que coincidan, retornar lista vacía
+            query = query.filter(Transaction.asset_id == -1)
+    
+    # Filtro por tipo de transacción
+    txn_type = request.args.get('type', '').strip()
+    if txn_type:
+        filtered = True
+        query = query.filter_by(transaction_type=txn_type)
+    
+    # Filtro por cuenta
+    account_id = request.args.get('account', '').strip()
+    if account_id:
+        filtered = True
+        try:
+            query = query.filter_by(account_id=int(account_id))
+        except ValueError:
+            pass
+    
+    # Filtro por fecha desde
+    date_from = request.args.get('date_from', '').strip()
+    if date_from:
+        filtered = True
+        try:
+            date_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
+            query = query.filter(Transaction.transaction_date >= date_obj)
+        except ValueError:
+            pass
+    
+    # Filtro por fecha hasta
+    date_to = request.args.get('date_to', '').strip()
+    if date_to:
+        filtered = True
+        try:
+            date_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
+            query = query.filter(Transaction.transaction_date <= date_obj)
+        except ValueError:
+            pass
+    
+    # Ordenar y limitar
+    transactions = query.order_by(Transaction.transaction_date.desc()).limit(100).all()
+    
+    # Obtener todas las cuentas para el selector
+    accounts = BrokerAccount.query.filter_by(
+        user_id=current_user.id,
+        is_active=True
+    ).order_by(BrokerAccount.broker_id, BrokerAccount.account_name).all()
+    
+    return render_template('portfolio/transactions.html', 
+                          transactions=transactions,
+                          accounts=accounts,
+                          filtered=filtered)
+
+
+@portfolio_bp.route('/transactions/<int:id>/edit', methods=['GET', 'POST'])
+@login_required
+def transaction_edit(id):
+    """Editar transacción existente"""
+    transaction = Transaction.query.filter_by(
+        id=id,
+        user_id=current_user.id
+    ).first_or_404()
+    
+    form = ManualTransactionForm()
+    
+    # Poblar choices dinámicamente
+    form.account_id.choices = [
+        (acc.id, f'{acc.broker.name} - {acc.account_name}')
+        for acc in BrokerAccount.query.filter_by(user_id=current_user.id, is_active=True).all()
+    ]
+    
+    if form.validate_on_submit():
+        # Actualizar datos del asset si cambió
+        asset = transaction.asset
+        if asset:
+            asset.symbol = form.symbol.data
+            asset.isin = form.isin.data if form.isin.data else asset.isin
+            asset.name = form.asset_name.data
+            asset.asset_type = form.asset_type.data
+            asset.currency = form.currency.data
+        
+        # Actualizar transacción
+        old_account_id = transaction.account_id
+        transaction.account_id = form.account_id.data
+        transaction.transaction_type = form.transaction_type.data
+        transaction.transaction_date = form.transaction_date.data
+        transaction.quantity = form.quantity.data
+        transaction.price = form.price.data
+        transaction.amount = form.quantity.data * form.price.data
+        transaction.currency = form.currency.data
+        transaction.commission = form.commission.data
+        transaction.fees = form.fees.data
+        transaction.tax = form.tax.data
+        transaction.notes = form.notes.data
+        
+        db.session.commit()
+        
+        # Recalcular holdings de la(s) cuenta(s) afectada(s)
+        from app.services.importer import CSVImporter
+        
+        # Recalcular cuenta antigua si cambió
+        if old_account_id != transaction.account_id:
+            importer_old = CSVImporter(current_user.id, old_account_id, None)
+            importer_old._recalculate_holdings()
+        
+        # Recalcular cuenta actual
+        importer = CSVImporter(current_user.id, transaction.account_id, None)
+        importer._recalculate_holdings()
+        
+        db.session.commit()
+        
+        flash('✅ Transacción actualizada correctamente. Holdings recalculados.', 'success')
+        return redirect(url_for('portfolio.transactions_list'))
+    
+    # Prellenar formulario en GET
+    if request.method == 'GET' and transaction.asset:
+        form.account_id.data = transaction.account_id
+        form.symbol.data = transaction.asset.symbol
+        form.isin.data = transaction.asset.isin
+        form.asset_name.data = transaction.asset.name
+        form.asset_type.data = transaction.asset.asset_type
+        form.currency.data = transaction.currency
+        form.transaction_type.data = transaction.transaction_type
+        form.transaction_date.data = transaction.transaction_date
+        form.quantity.data = transaction.quantity
+        form.price.data = float(transaction.price) if transaction.price else 0
+        form.commission.data = float(transaction.commission) if transaction.commission else 0
+        form.fees.data = float(transaction.fees) if transaction.fees else 0
+        form.tax.data = float(transaction.tax) if transaction.tax else 0
+        form.notes.data = transaction.notes
+    
+    return render_template('portfolio/transaction_form.html', 
+                          form=form, 
+                          title='Editar Transacción',
+                          action='edit')
 
 
 @portfolio_bp.route('/transactions/new', methods=['GET', 'POST'])
