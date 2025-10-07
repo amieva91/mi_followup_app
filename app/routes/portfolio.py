@@ -161,12 +161,62 @@ def account_delete(id):
 @portfolio_bp.route('/holdings')
 @login_required
 def holdings_list():
-    """Lista de posiciones actuales"""
-    holdings = PortfolioHolding.query.filter_by(
+    """Lista de posiciones actuales (agrupadas por asset)"""
+    from collections import defaultdict
+    
+    # Obtener todos los holdings
+    all_holdings = PortfolioHolding.query.filter_by(
         user_id=current_user.id
     ).filter(PortfolioHolding.quantity > 0).all()
     
-    return render_template('portfolio/holdings.html', holdings=holdings)
+    # Agrupar por asset_id
+    grouped = defaultdict(lambda: {
+        'asset': None,
+        'total_quantity': 0,
+        'total_cost': 0,
+        'accounts': [],
+        'first_purchase_date': None,
+        'last_transaction_date': None
+    })
+    
+    for holding in all_holdings:
+        asset_id = holding.asset_id
+        group = grouped[asset_id]
+        
+        # Datos del asset (tomar del primer holding)
+        if group['asset'] is None:
+            group['asset'] = holding.asset
+        
+        # Sumar cantidades y costes
+        group['total_quantity'] += holding.quantity
+        group['total_cost'] += holding.total_cost
+        
+        # Agregar cuenta a la lista
+        group['accounts'].append({
+            'broker': holding.account.broker.name,
+            'account_name': holding.account.account_name,
+            'quantity': holding.quantity,
+            'average_buy_price': holding.average_buy_price
+        })
+        
+        # Fechas (usar la más antigua para first_purchase y la más reciente para last_transaction)
+        if group['first_purchase_date'] is None or holding.first_purchase_date < group['first_purchase_date']:
+            group['first_purchase_date'] = holding.first_purchase_date
+        
+        if group['last_transaction_date'] is None or holding.last_transaction_date > group['last_transaction_date']:
+            group['last_transaction_date'] = holding.last_transaction_date
+    
+    # Convertir a lista y calcular precio medio ponderado
+    holdings_unified = []
+    for asset_id, data in grouped.items():
+        data['average_buy_price'] = data['total_cost'] / data['total_quantity'] if data['total_quantity'] > 0 else 0
+        data['asset_id'] = asset_id
+        holdings_unified.append(data)
+    
+    # Ordenar por símbolo
+    holdings_unified.sort(key=lambda x: x['asset'].symbol if x['asset'] else '')
+    
+    return render_template('portfolio/holdings.html', holdings=holdings_unified, unified=True)
 
 
 @portfolio_bp.route('/transactions')
@@ -454,21 +504,23 @@ def import_csv():
 @portfolio_bp.route('/import/process', methods=['POST'])
 @login_required
 def import_csv_process():
-    """Procesa el archivo CSV subido"""
-    # Verificar que se envió un archivo
-    if 'csv_file' not in request.files:
+    """Procesa uno o múltiples archivos CSV subidos"""
+    # Verificar que se enviaron archivos
+    if 'csv_files' not in request.files:
         flash('❌ No se seleccionó ningún archivo', 'error')
         return redirect(url_for('portfolio.import_csv'))
     
-    file = request.files['csv_file']
+    files = request.files.getlist('csv_files')
     
-    if file.filename == '':
+    if not files or len(files) == 0 or files[0].filename == '':
         flash('❌ No se seleccionó ningún archivo', 'error')
         return redirect(url_for('portfolio.import_csv'))
     
-    if not allowed_file(file.filename):
-        flash('❌ Solo se permiten archivos CSV', 'error')
-        return redirect(url_for('portfolio.import_csv'))
+    # Validar que todos son CSV
+    for file in files:
+        if not allowed_file(file.filename):
+            flash(f'❌ Archivo no válido: {file.filename} (solo se permiten archivos CSV)', 'error')
+            return redirect(url_for('portfolio.import_csv'))
     
     # Obtener cuenta seleccionada
     account_id = request.form.get('account_id')
@@ -481,40 +533,78 @@ def import_csv_process():
         flash('❌ Cuenta no válida', 'error')
         return redirect(url_for('portfolio.import_csv'))
     
-    try:
-        # Guardar archivo temporalmente
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(UPLOAD_FOLDER, f"temp_{current_user.id}_{filename}")
+    # Asegurar que existe el directorio de uploads
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+    
+    # Procesar cada archivo
+    total_stats = {
+        'files_processed': 0,
+        'files_failed': 0,
+        'transactions_created': 0,
+        'transactions_skipped': 0,
+        'holdings_created': 0,
+        'dividends_created': 0,
+        'assets_created': 0
+    }
+    
+    failed_files = []
+    
+    for file in files:
+        filepath = None
+        try:
+            # Guardar archivo temporalmente
+            filename = secure_filename(file.filename)
+            filepath = os.path.join(UPLOAD_FOLDER, f"temp_{current_user.id}_{filename}")
+            file.save(filepath)
+            
+            # Detectar y parsear
+            parsed_data = detect_and_parse(filepath)
+            
+            # Importar a BD (el importer detecta automáticamente duplicados entre archivos)
+            importer = CSVImporter(user_id=current_user.id, broker_account_id=account.id)
+            stats = importer.import_data(parsed_data)
+            
+            # Acumular estadísticas
+            total_stats['files_processed'] += 1
+            total_stats['transactions_created'] += stats['transactions_created']
+            total_stats['transactions_skipped'] += stats['transactions_skipped']
+            total_stats['holdings_created'] += stats['holdings_created']
+            total_stats['dividends_created'] += stats['dividends_created']
+            total_stats['assets_created'] += stats['assets_created']
+            
+            # Eliminar archivo temporal
+            if os.path.exists(filepath):
+                os.remove(filepath)
+                
+        except Exception as e:
+            # Registrar archivo fallido
+            total_stats['files_failed'] += 1
+            failed_files.append((file.filename, str(e)))
+            
+            # Eliminar archivo temporal si existe
+            if filepath and os.path.exists(filepath):
+                os.remove(filepath)
+    
+    # Mensajes de resultado
+    if total_stats['files_processed'] > 0:
+        if len(files) == 1:
+            flash(f'✅ CSV importado correctamente', 'success')
+        else:
+            flash(f'✅ {total_stats["files_processed"]} archivos importados correctamente', 'success')
         
-        # Asegurar que existe el directorio
-        os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+        flash(f'📊 {total_stats["transactions_created"]} transacciones | {total_stats["holdings_created"]} holdings nuevos | {total_stats["dividends_created"]} dividendos', 'info')
         
-        file.save(filepath)
-        
-        # Detectar y parsear
-        parsed_data = detect_and_parse(filepath)
-        
-        # Importar a BD
-        importer = CSVImporter(user_id=current_user.id, broker_account_id=account.id)
-        stats = importer.import_data(parsed_data)
-        
-        # Eliminar archivo temporal
-        os.remove(filepath)
-        
-        # Mensaje de éxito
-        flash(f'✅ CSV importado correctamente', 'success')
-        flash(f'📊 {stats["transactions_created"]} transacciones | {stats["holdings_created"]} holdings nuevos | {stats["dividends_created"]} dividendos', 'info')
-        
-        if stats['transactions_skipped'] > 0:
-            flash(f'ℹ️  {stats["transactions_skipped"]} transacciones duplicadas (omitidas)', 'info')
-        
-        return redirect(url_for('portfolio.dashboard'))
-        
-    except Exception as e:
-        # Eliminar archivo temporal si existe
-        if os.path.exists(filepath):
-            os.remove(filepath)
-        
-        flash(f'❌ Error al procesar CSV: {str(e)}', 'error')
+        if total_stats['transactions_skipped'] > 0:
+            flash(f'ℹ️  {total_stats["transactions_skipped"]} transacciones duplicadas (omitidas entre archivos)', 'info')
+    
+    if total_stats['files_failed'] > 0:
+        flash(f'⚠️  {total_stats["files_failed"]} archivos fallaron al importarse:', 'warning')
+        for filename, error in failed_files:
+            flash(f'  • {filename}: {error}', 'error')
+    
+    if total_stats['files_processed'] == 0:
+        flash('❌ No se pudo importar ningún archivo', 'error')
         return redirect(url_for('portfolio.import_csv'))
+    
+    return redirect(url_for('portfolio.dashboard'))
 

@@ -51,24 +51,24 @@
                 {% endif %}
             </div>
 
-            <!-- Selector de archivo -->
+            <!-- Selector de archivos (múltiples) -->
             <div class="mb-6">
                 <label class="block text-sm font-medium text-gray-700 mb-2">
-                    📄 Archivo CSV
+                    📄 Archivos CSV (puedes seleccionar múltiples)
                 </label>
                 <div class="flex items-center justify-center w-full">
-                    <label for="csv_file" class="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
+                    <label for="csv_files" class="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
                         <div class="flex flex-col items-center justify-center pt-5 pb-6">
                             <svg class="w-10 h-10 mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                             </svg>
                             <p class="mb-2 text-sm text-gray-500"><span class="font-semibold">Clic para subir</span> o arrastra aquí</p>
-                            <p class="text-xs text-gray-500">Solo archivos CSV (IBKR o DeGiro)</p>
+                            <p class="text-xs text-gray-500">Uno o varios archivos CSV (IBKR o DeGiro)</p>
                         </div>
-                        <input id="csv_file" name="csv_file" type="file" accept=".csv" required class="hidden" onchange="showFileName(this)" />
+                        <input id="csv_files" name="csv_files" type="file" accept=".csv" multiple required class="hidden" onchange="showFileNames(this)" />
                     </label>
                 </div>
-                <p id="file-name" class="text-sm text-gray-600 mt-2"></p>
+                <div id="file-names" class="text-sm text-gray-600 mt-2"></div>
             </div>
 
             <!-- Botón de envío -->
@@ -101,14 +101,24 @@
 </div>
 
 <script>
-function showFileName(input) {
-    const fileName = input.files[0]?.name || '';
-    const fileNameElement = document.getElementById('file-name');
-    if (fileName) {
-        fileNameElement.textContent = `📎 Archivo seleccionado: ${fileName}`;
-        fileNameElement.classList.add('font-medium');
+function showFileNames(input) {
+    const files = input.files;
+    const fileNamesElement = document.getElementById('file-names');
+    
+    if (files.length === 0) {
+        fileNamesElement.innerHTML = '';
+        return;
+    }
+    
+    if (files.length === 1) {
+        fileNamesElement.innerHTML = `<p class="font-medium">📎 Archivo seleccionado: ${files[0].name}</p>`;
     } else {
-        fileNameElement.textContent = '';
+        let html = `<p class="font-medium mb-2">📎 ${files.length} archivos seleccionados:</p><ul class="list-disc list-inside space-y-1 ml-2">`;
+        for (let i = 0; i < files.length; i++) {
+            html += `<li class="text-gray-700">${files[i].name}</li>`;
+        }
+        html += '</ul>';
+        fileNamesElement.innerHTML = html;
     }
 }
 </script>

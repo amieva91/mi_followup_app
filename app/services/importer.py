@@ -130,10 +130,7 @@ class CSVImporter:
         return asset
     
     def _import_transactions(self, parsed_data: Dict[str, Any]):
-        """Importa transacciones evitando duplicados"""
-        # Set para detectar duplicados dentro del mismo batch
-        batch_duplicates = set()
-        
+        """Importa transacciones evitando duplicados solo entre archivos diferentes"""
         for trade_data in parsed_data.get('trades', []):
             # Filtrar transacciones FX (cambio de divisa) - no son posiciones reales
             asset_type = trade_data.get('asset_type', '').lower()
@@ -147,29 +144,10 @@ class CSVImporter:
                 print(f"⚠️  Asset no encontrado: {trade_data.get('symbol')}")
                 continue
             
-            # Crear clave única para detectar duplicados en el batch
-            date_time = trade_data.get('date_time')
-            batch_key = (
-                asset.id,
-                trade_data.get('transaction_type'),
-                date_time,
-                float(trade_data.get('quantity', 0)),
-                float(trade_data.get('price', 0))
-            )
-            
-            # Verificar duplicado en el batch actual
-            if batch_key in batch_duplicates:
-                print(f"⚠️  Duplicado detectado en batch: {asset.symbol} {trade_data.get('transaction_type')} {trade_data.get('quantity')} @ {date_time}")
-                self.stats['transactions_skipped'] += 1
-                continue
-            
-            # Verificar si ya existe en BD (por external_id o fecha+cantidad+precio)
+            # Verificar si ya existe en BD (prevenir duplicados entre archivos)
             if self._transaction_exists(trade_data, asset.id):
                 self.stats['transactions_skipped'] += 1
                 continue
-            
-            # Añadir al set de duplicados del batch
-            batch_duplicates.add(batch_key)
             
             # Calcular el monto correcto (siempre positivo para BUY, calculado desde cantidad*precio)
             quantity = float(trade_data['quantity'])
