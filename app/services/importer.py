@@ -58,6 +58,9 @@ class CSVImporter:
         # Recalcular holdings desde transacciones
         self._recalculate_holdings()
         
+        # Limpieza final: eliminar holdings con quantity <= 0 o negativa
+        self._cleanup_zero_holdings()
+        
         db.session.commit()
         
         return self.stats
@@ -290,6 +293,17 @@ class CSVImporter:
                 )
                 db.session.add(holding)
                 self.stats['holdings_created'] += 1
+    
+    def _cleanup_zero_holdings(self):
+        """Elimina todos los holdings con quantity <= 0 de esta cuenta"""
+        deleted_count = PortfolioHolding.query.filter_by(
+            account_id=self.broker_account_id
+        ).filter(
+            PortfolioHolding.quantity <= 0
+        ).delete()
+        
+        if deleted_count > 0:
+            print(f"🧹 Limpieza: {deleted_count} holdings con quantity <= 0 eliminados")
     
     # Helper methods
     
