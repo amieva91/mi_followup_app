@@ -18,6 +18,7 @@ class IBKRParser:
         self.dividends = []
         self.deposits = []
         self.fees = []
+        self.symbol_isin_map = {}  # Mapeo símbolo -> ISIN
     
     @staticmethod
     def _normalize_symbol(symbol: str) -> str:
@@ -65,6 +66,7 @@ class IBKRParser:
         
         # Parsear cada sección
         self._parse_account_info()
+        self._parse_financial_instruments()  # Primero ISINs
         self._parse_trades()
         self._parse_holdings()
         self._parse_dividends()
@@ -140,6 +142,40 @@ class IBKRParser:
                 english_field = field_map.get(field, field.lower().replace(' ', '_'))
                 self.account_info[english_field] = value
     
+    def _parse_financial_instruments(self):
+        """Parsea información de instrumentos financieros para extraer ISINs"""
+        section = self.sections.get('Información de instrumento financiero') or \
+                  self.sections.get('Financial Instrument Information')
+        
+        if not section or not section['headers']:
+            return
+        
+        headers = section['headers']
+        
+        for row in section['data']:
+            if len(row) < len(headers):
+                continue
+            
+            instrument_dict = dict(zip(headers, row))
+            
+            try:
+                # Extraer símbolo (normalizado) e ISIN
+                raw_symbol = instrument_dict.get('Símbolo', instrument_dict.get('Symbol', ''))
+                normalized_symbol = self._normalize_symbol(raw_symbol)
+                isin = instrument_dict.get('Id. de seguridad', instrument_dict.get('Security ID', ''))
+                
+                if normalized_symbol and isin:
+                    # Guardar mapeo (el ISIN prevalece)
+                    self.symbol_isin_map[normalized_symbol] = isin
+                    
+                    # También guardar el símbolo sin normalizar por si acaso
+                    if raw_symbol != normalized_symbol:
+                        self.symbol_isin_map[raw_symbol] = isin
+                        
+            except Exception as e:
+                print(f"Error parseando instrumento: {e}")
+                continue
+    
     def _parse_trades(self):
         """Parsea las operaciones/trades"""
         section = self.sections.get('Operaciones') or \
@@ -166,11 +202,13 @@ class IBKRParser:
             try:
                 raw_symbol = trade_dict.get('Símbolo', trade_dict.get('Symbol', ''))
                 normalized_symbol = self._normalize_symbol(raw_symbol)
+                isin = self.symbol_isin_map.get(normalized_symbol, '')
                 
                 trade = {
                     'asset_type': trade_dict.get('Categoría de activo', trade_dict.get('Asset Category', '')),
                     'currency': trade_dict.get('Divisa', trade_dict.get('Currency', '')),
                     'symbol': normalized_symbol,
+                    'isin': isin,
                     'date_time': self._parse_datetime(trade_dict.get('Fecha/Hora', trade_dict.get('Date/Time', ''))),
                     'quantity': self._parse_decimal(trade_dict.get('Cantidad', trade_dict.get('Quantity', '0'))),
                     'price': self._parse_decimal(trade_dict.get('Precio trans.', trade_dict.get('T. Price', '0'))),
@@ -220,11 +258,13 @@ class IBKRParser:
             try:
                 raw_symbol = holding_dict.get('Símbolo', holding_dict.get('Symbol', ''))
                 normalized_symbol = self._normalize_symbol(raw_symbol)
+                isin = self.symbol_isin_map.get(normalized_symbol, '')
                 
                 holding = {
                     'asset_type': holding_dict.get('Categoría de activo', holding_dict.get('Asset Category', '')),
                     'currency': holding_dict.get('Divisa', holding_dict.get('Currency', '')),
                     'symbol': normalized_symbol,
+                    'isin': isin,
                     'quantity': self._parse_decimal(holding_dict.get('Cantidad', holding_dict.get('Quantity', '0'))),
                     'cost_price': self._parse_decimal(holding_dict.get('Precio de coste', holding_dict.get('Cost Price', '0'))),
                     'cost_basis': self._parse_decimal(holding_dict.get('Base de coste', holding_dict.get('Cost Basis', '0'))),
@@ -267,12 +307,14 @@ class IBKRParser:
                 description = dividend_dict.get('Descripción', dividend_dict.get('Description', ''))
                 raw_symbol = self._extract_symbol_from_description(description)
                 normalized_symbol = self._normalize_symbol(raw_symbol)
+                isin = self.symbol_isin_map.get(normalized_symbol, '')
                 
                 dividend = {
                     'currency': dividend_dict.get('Divisa', dividend_dict.get('Currency', '')),
                     'date': self._parse_date(dividend_dict.get('Fecha', dividend_dict.get('Date', ''))),
                     'description': description,
                     'symbol': normalized_symbol,
+                    'isin': isin,
                     'amount': self._parse_decimal(dividend_dict.get('Cantidad', dividend_dict.get('Amount', '0')))
                 }
                 
