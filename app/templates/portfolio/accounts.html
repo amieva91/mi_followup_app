@@ -39,16 +39,73 @@
                 Creada: {{ account.created_at.strftime('%d/%m/%Y') }}
             </div>
 
-            <div class="flex gap-2 pt-4 border-t border-gray-100">
+            <div class="grid grid-cols-3 gap-2 pt-4 border-t border-gray-100">
                 <a href="{{ url_for('portfolio.account_edit', id=account.id) }}" 
-                   class="flex-1 text-center px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 text-sm font-medium transition">
+                   class="text-center px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 text-sm font-medium transition">
                     ✏️ Editar
                 </a>
                 <a href="{{ url_for('portfolio.holdings_list') }}?account={{ account.id }}" 
-                   class="flex-1 text-center px-3 py-2 bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 text-sm font-medium transition">
-                    📊 Ver Posiciones
+                   class="text-center px-3 py-2 bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 text-sm font-medium transition">
+                    📊 Posiciones
                 </a>
+                <button onclick="confirmDelete{{ account.id }}()" 
+                        class="text-center px-3 py-2 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 text-sm font-medium transition">
+                    🗑️ Eliminar
+                </button>
             </div>
+            
+            <!-- Modal de Confirmación de Borrado -->
+            <div id="deleteModal{{ account.id }}" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50" onclick="if(event.target==this) closeDeleteModal{{ account.id }}()">
+                <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+                    <div class="mt-3 text-center">
+                        <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
+                            <svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                            </svg>
+                        </div>
+                        <h3 class="text-lg leading-6 font-medium text-gray-900 mt-5">⚠️ Eliminar Cuenta</h3>
+                        <div class="mt-2 px-7 py-3">
+                            <p class="text-sm text-gray-500 mb-3">
+                                ¿Estás seguro de que quieres eliminar la cuenta <strong>"{{ account.account_name }}"</strong>?
+                            </p>
+                            <div class="bg-red-50 border border-red-200 rounded-lg p-3 mb-3 text-left">
+                                <p class="text-sm text-red-800 font-semibold mb-2">⚠️ Esta acción es PERMANENTE e IRREVERSIBLE</p>
+                                <p class="text-xs text-red-700">Se eliminarán:</p>
+                                <ul class="text-xs text-red-700 list-disc list-inside mt-1">
+                                    <li>Todas las transacciones</li>
+                                    <li>Todas las posiciones (holdings)</li>
+                                    <li>Todo el histórico de operaciones</li>
+                                    <li>Todas las métricas asociadas</li>
+                                </ul>
+                            </div>
+                            <p class="text-xs text-gray-600">
+                                No podrás recuperar estos datos una vez eliminados.
+                            </p>
+                        </div>
+                        <div class="items-center px-4 py-3">
+                            <form method="POST" action="{{ url_for('portfolio.account_delete', id=account.id) }}" class="inline">
+                                <button type="submit"
+                                        class="px-4 py-2 bg-red-600 text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-300">
+                                    Sí, eliminar permanentemente
+                                </button>
+                            </form>
+                            <button onclick="closeDeleteModal{{ account.id }}()"
+                                    class="mt-3 px-4 py-2 bg-white text-gray-700 text-base font-medium rounded-md w-full shadow-sm border border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300">
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <script>
+                function confirmDelete{{ account.id }}() {
+                    document.getElementById('deleteModal{{ account.id }}').classList.remove('hidden');
+                }
+                function closeDeleteModal{{ account.id }}() {
+                    document.getElementById('deleteModal{{ account.id }}').classList.add('hidden');
+                }
+            </script>
         </div>
         {% endfor %}
     </div>

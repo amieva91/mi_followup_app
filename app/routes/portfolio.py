@@ -107,6 +107,49 @@ def account_edit(id):
     return render_template('portfolio/account_form.html', form=form, title='Editar Cuenta', account=account)
 
 
+@portfolio_bp.route('/accounts/<int:id>/delete', methods=['POST'])
+@login_required
+def account_delete(id):
+    """Eliminar cuenta de broker y todos sus datos asociados"""
+    account = BrokerAccount.query.get_or_404(id)
+    
+    if account.user_id != current_user.id:
+        flash('❌ No tienes permiso para eliminar esta cuenta', 'error')
+        return redirect(url_for('portfolio.accounts_list'))
+    
+    # Contar datos asociados para mostrar en el mensaje
+    num_holdings = PortfolioHolding.query.filter_by(account_id=id).count()
+    num_transactions = Transaction.query.filter_by(account_id=id).count()
+    
+    account_name = account.account_name
+    
+    # Borrar en cascada manual (por si las FK no tienen CASCADE)
+    # 1. Borrar métricas
+    from app.models.metrics import PortfolioMetrics
+    PortfolioMetrics.query.filter_by(broker_account_id=id).delete()
+    
+    # 2. Borrar cash flows
+    from app.models.transaction import CashFlow
+    CashFlow.query.filter_by(account_id=id).delete()
+    
+    # 3. Borrar transacciones
+    Transaction.query.filter_by(account_id=id).delete()
+    
+    # 4. Borrar holdings
+    PortfolioHolding.query.filter_by(account_id=id).delete()
+    
+    # 5. Borrar la cuenta
+    db.session.delete(account)
+    db.session.commit()
+    
+    flash(
+        f'🗑️ Cuenta "{account_name}" eliminada permanentemente. '
+        f'Se borraron {num_transactions} transacciones y {num_holdings} posiciones.',
+        'success'
+    )
+    return redirect(url_for('portfolio.accounts_list'))
+
+
 @portfolio_bp.route('/holdings')
 @login_required
 def holdings_list():
