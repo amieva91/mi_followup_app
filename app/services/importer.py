@@ -51,6 +51,20 @@ class CSVImporter:
         Returns:
             Dict con estadísticas de importación
         """
+        # Crear snapshot de transacciones existentes ANTES de importar
+        # Solo verificaremos duplicados contra este snapshot, no contra transacciones recién creadas
+        self.existing_transactions_snapshot = set()
+        for tx in Transaction.query.filter_by(account_id=self.broker_account_id).all():
+            # Crear clave única para cada transacción existente
+            tx_key = (
+                tx.asset_id,
+                tx.transaction_type,
+                tx.transaction_date.isoformat() if tx.transaction_date else None,
+                float(tx.quantity),
+                float(tx.price)
+            )
+            self.existing_transactions_snapshot.add(tx_key)
+        
         # Importar en orden: assets, transactions, dividends
         self._import_assets(parsed_data)
         self._import_transactions(parsed_data)
@@ -310,30 +324,24 @@ class CSVImporter:
         return None
     
     def _transaction_exists(self, trade_data: Dict, asset_id: int) -> bool:
-        """Verifica si una transacción ya existe (mejorado para detectar duplicados entre archivos)"""
-        # Por external_id
-        if trade_data.get('order_id'):
-            exists = Transaction.query.filter_by(
-                account_id=self.broker_account_id,
-                external_id=trade_data['order_id']
-            ).first()
-            if exists:
-                return True
-        
-        # Por fecha + cantidad + precio + tipo (más estricto para evitar duplicados)
+        """
+        Verifica si una transacción ya existía ANTES de esta importación.
+        Usa un snapshot para evitar detectar como duplicadas las transacciones que acabamos de crear.
+        """
+        # Crear clave única de la transacción actual
         date = self._parse_datetime(trade_data.get('date_time') or trade_data.get('date'))
         tx_type = trade_data.get('transaction_type')
         
-        exists = Transaction.query.filter_by(
-            account_id=self.broker_account_id,
-            asset_id=asset_id,
-            transaction_type=tx_type,
-            transaction_date=date,
-            quantity=float(trade_data['quantity']),
-            price=float(trade_data['price'])
-        ).first()
+        tx_key = (
+            asset_id,
+            tx_type,
+            date.isoformat() if date else None,
+            float(trade_data['quantity']),
+            float(trade_data['price'])
+        )
         
-        return exists is not None
+        # Verificar solo contra el snapshot (transacciones que existían ANTES de esta importación)
+        return tx_key in self.existing_transactions_snapshot
     
     def _dividend_exists(self, div_data: Dict, asset_id: int) -> bool:
         """Verifica si un dividendo ya existe"""
