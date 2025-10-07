@@ -4,6 +4,8 @@ Rutas para gestión de portfolio
 from flask import render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
 from datetime import datetime, date
+from werkzeug.utils import secure_filename
+import os
 from app.routes import portfolio_bp
 from app import db
 from app.models import (
@@ -13,6 +15,12 @@ from app.models import (
 from app.forms import (
     BrokerAccountForm, ManualTransactionForm
 )
+from app.services.csv_detector import detect_and_parse
+from app.services.importer import CSVImporter
+
+# Configuración de uploads
+UPLOAD_FOLDER = 'uploads'
+ALLOWED_EXTENSIONS = {'csv'}
 
 
 @portfolio_bp.route('/')
@@ -269,4 +277,92 @@ def transaction_new():
         return redirect(url_for('portfolio.transactions_list'))
     
     return render_template('portfolio/transaction_form.html', form=form, title='Nueva Transacción')
+
+
+# ==================== CSV IMPORT ====================
+
+def allowed_file(filename):
+    """Verifica si el archivo tiene extensión permitida"""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+@portfolio_bp.route('/import')
+@login_required
+def import_csv():
+    """Formulario para subir CSV"""
+    # Obtener cuentas del usuario
+    accounts = BrokerAccount.query.filter_by(
+        user_id=current_user.id,
+        is_active=True
+    ).all()
+    
+    return render_template('portfolio/import_csv.html', accounts=accounts, title='Importar CSV')
+
+
+@portfolio_bp.route('/import/process', methods=['POST'])
+@login_required
+def import_csv_process():
+    """Procesa el archivo CSV subido"""
+    # Verificar que se envió un archivo
+    if 'csv_file' not in request.files:
+        flash('❌ No se seleccionó ningún archivo', 'error')
+        return redirect(url_for('portfolio.import_csv'))
+    
+    file = request.files['csv_file']
+    
+    if file.filename == '':
+        flash('❌ No se seleccionó ningún archivo', 'error')
+        return redirect(url_for('portfolio.import_csv'))
+    
+    if not allowed_file(file.filename):
+        flash('❌ Solo se permiten archivos CSV', 'error')
+        return redirect(url_for('portfolio.import_csv'))
+    
+    # Obtener cuenta seleccionada
+    account_id = request.form.get('account_id')
+    if not account_id:
+        flash('❌ Debes seleccionar una cuenta', 'error')
+        return redirect(url_for('portfolio.import_csv'))
+    
+    account = BrokerAccount.query.get(account_id)
+    if not account or account.user_id != current_user.id:
+        flash('❌ Cuenta no válida', 'error')
+        return redirect(url_for('portfolio.import_csv'))
+    
+    try:
+        # Guardar archivo temporalmente
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(UPLOAD_FOLDER, f"temp_{current_user.id}_{filename}")
+        
+        # Asegurar que existe el directorio
+        os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+        
+        file.save(filepath)
+        
+        # Detectar y parsear
+        parsed_data = detect_and_parse(filepath)
+        
+        # Importar a BD
+        importer = CSVImporter(user_id=current_user.id, broker_account_id=account.id)
+        stats = importer.import_data(parsed_data)
+        
+        # Eliminar archivo temporal
+        os.remove(filepath)
+        
+        # Mensaje de éxito
+        flash(f'✅ CSV importado correctamente', 'success')
+        flash(f'📊 {stats["transactions_created"]} transacciones | {stats["holdings_created"]} holdings nuevos | {stats["dividends_created"]} dividendos', 'info')
+        
+        if stats['transactions_skipped'] > 0:
+            flash(f'ℹ️  {stats["transactions_skipped"]} transacciones duplicadas (omitidas)', 'info')
+        
+        return redirect(url_for('portfolio.dashboard'))
+        
+    except Exception as e:
+        # Eliminar archivo temporal si existe
+        if os.path.exists(filepath):
+            os.remove(filepath)
+        
+        flash(f'❌ Error al procesar CSV: {str(e)}', 'error')
+        return redirect(url_for('portfolio.import_csv'))
 

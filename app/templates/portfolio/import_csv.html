@@ -1,0 +1,116 @@
+{% extends "base/layout.html" %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-6">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900">📥 Importar CSV</h1>
+            <p class="text-gray-600 mt-1">Sube tu reporte de actividad de IBKR o DeGiro</p>
+        </div>
+        <a href="{{ url_for('portfolio.dashboard') }}" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg">
+            ← Volver
+        </a>
+    </div>
+
+    <!-- Instrucciones -->
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+        <h3 class="font-semibold text-blue-900 mb-2">📌 Instrucciones</h3>
+        <div class="text-sm text-blue-800 space-y-1">
+            <p><strong>IBKR:</strong> Activity Statement (Official) → Formato CSV</p>
+            <p><strong>DeGiro:</strong> Estado de cuenta → Formato CSV</p>
+            <p class="mt-2 text-blue-600">✅ El sistema detecta automáticamente el formato y evita duplicados.</p>
+        </div>
+    </div>
+
+    <!-- Formulario -->
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <form action="{{ url_for('portfolio.import_csv_process') }}" method="POST" enctype="multipart/form-data">
+            {{ csrf_input }}
+            
+            <!-- Seleccionar cuenta -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    🏦 Cuenta de Broker
+                </label>
+                <select name="account_id" required 
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    <option value="">Selecciona una cuenta...</option>
+                    {% for account in accounts %}
+                    <option value="{{ account.id }}">
+                        {{ account.broker.name }} - {{ account.account_name }}
+                        {% if account.account_number %}({{ account.account_number }}){% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+                {% if not accounts %}
+                <p class="text-sm text-red-600 mt-2">
+                    ⚠️  No tienes cuentas creadas. 
+                    <a href="{{ url_for('portfolio.account_new') }}" class="underline">Crear una cuenta</a>
+                </p>
+                {% endif %}
+            </div>
+
+            <!-- Selector de archivo -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    📄 Archivo CSV
+                </label>
+                <div class="flex items-center justify-center w-full">
+                    <label for="csv_file" class="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
+                        <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                            <svg class="w-10 h-10 mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                            </svg>
+                            <p class="mb-2 text-sm text-gray-500"><span class="font-semibold">Clic para subir</span> o arrastra aquí</p>
+                            <p class="text-xs text-gray-500">Solo archivos CSV (IBKR o DeGiro)</p>
+                        </div>
+                        <input id="csv_file" name="csv_file" type="file" accept=".csv" required class="hidden" onchange="showFileName(this)" />
+                    </label>
+                </div>
+                <p id="file-name" class="text-sm text-gray-600 mt-2"></p>
+            </div>
+
+            <!-- Botón de envío -->
+            <div class="flex justify-end gap-3">
+                <a href="{{ url_for('portfolio.dashboard') }}" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-2 rounded-lg">
+                    Cancelar
+                </a>
+                <button type="submit" 
+                        class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium"
+                        {% if not accounts %}disabled{% endif %}>
+                    🚀 Importar CSV
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Info adicional -->
+    <div class="mt-6 bg-gray-50 rounded-lg p-4">
+        <h4 class="font-semibold text-gray-900 mb-2">ℹ️  ¿Qué se importa?</h4>
+        <ul class="text-sm text-gray-700 space-y-1 list-disc list-inside">
+            <li>Transacciones de compra y venta</li>
+            <li>Dividendos recibidos</li>
+            <li>Comisiones y tarifas</li>
+            <li>Holdings/Posiciones actuales (calculadas automáticamente)</li>
+        </ul>
+        <p class="text-xs text-gray-500 mt-3">
+            ⚠️  Las transacciones duplicadas se omiten automáticamente. Puedes importar el mismo archivo múltiples veces sin preocuparte.
+        </p>
+    </div>
+</div>
+
+<script>
+function showFileName(input) {
+    const fileName = input.files[0]?.name || '';
+    const fileNameElement = document.getElementById('file-name');
+    if (fileName) {
+        fileNameElement.textContent = `📎 Archivo seleccionado: ${fileName}`;
+        fileNameElement.classList.add('font-medium');
+    } else {
+        fileNameElement.textContent = '';
+    }
+}
+</script>
+{% endblock %}
+
