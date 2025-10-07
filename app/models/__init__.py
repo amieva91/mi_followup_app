@@ -4,6 +4,20 @@ Modelos de la aplicación
 from app.models.user import User
 from app.models.expense import ExpenseCategory, Expense
 from app.models.income import IncomeCategory, Income
+from app.models.broker import Broker, BrokerAccount
+from app.models.asset import Asset, PriceHistory
+from app.models.portfolio import PortfolioHolding
+from app.models.transaction import Transaction, CashFlow
+from app.models.metrics import PortfolioMetrics
 
-__all__ = ['User', 'ExpenseCategory', 'Expense', 'IncomeCategory', 'Income']
+__all__ = [
+    'User', 
+    'ExpenseCategory', 'Expense', 
+    'IncomeCategory', 'Income',
+    'Broker', 'BrokerAccount',
+    'Asset', 'PriceHistory',
+    'PortfolioHolding',
+    'Transaction', 'CashFlow',
+    'PortfolioMetrics'
+]
 
