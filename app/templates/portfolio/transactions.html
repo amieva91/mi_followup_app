@@ -1,0 +1,144 @@
+{% extends "base/layout.html" %}
+
+{% block title %}Transacciones - FollowUp{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-8">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900">📝 Mis Transacciones</h1>
+            <p class="text-gray-600 mt-1">Historial completo de operaciones</p>
+        </div>
+        <a href="{{ url_for('portfolio.transaction_new') }}" class="btn-primary">
+            ➕ Nueva Transacción
+        </a>
+    </div>
+
+    {% if transactions %}
+    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Fecha
+                        </th>
+                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Tipo
+                        </th>
+                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Activo
+                        </th>
+                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Cuenta
+                        </th>
+                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Cantidad
+                        </th>
+                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Precio
+                        </th>
+                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Total
+                        </th>
+                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            P&L
+                        </th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for txn in transactions %}
+                    <tr class="hover:bg-gray-50 transition">
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm text-gray-900">{{ txn.transaction_date.strftime('%d/%m/%Y') }}</div>
+                            <div class="text-xs text-gray-500">{{ txn.transaction_date.strftime('%H:%M') }}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                {% if txn.transaction_type == 'BUY' %}bg-green-100 text-green-800
+                                {% elif txn.transaction_type == 'SELL' %}bg-red-100 text-red-800
+                                {% elif txn.transaction_type == 'DIVIDEND' %}bg-blue-100 text-blue-800
+                                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                {{ txn.transaction_type }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4">
+                            {% if txn.asset %}
+                                <div class="font-semibold text-gray-900">{{ txn.asset.symbol }}</div>
+                                <div class="text-xs text-gray-500">{{ txn.asset.name[:30] }}...</div>
+                            {% else %}
+                                <div class="text-sm text-gray-500">Operación de efectivo</div>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm text-gray-900">{{ txn.account.account_name }}</div>
+                            <div class="text-xs text-gray-500">{{ txn.account.broker.name }}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right">
+                            {% if txn.quantity %}
+                                <div class="text-sm text-gray-900">{{ "%.4f"|format(txn.quantity) }}</div>
+                            {% else %}
+                                <div class="text-sm text-gray-400">-</div>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right">
+                            {% if txn.price %}
+                                <div class="text-sm text-gray-900">{{ "%.2f"|format(txn.price) }}</div>
+                                <div class="text-xs text-gray-500">{{ txn.currency }}</div>
+                            {% else %}
+                                <div class="text-sm text-gray-400">-</div>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right">
+                            <div class="text-sm font-medium {% if txn.amount >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                                {{ "%+.2f"|format(txn.amount) }}
+                            </div>
+                            {% if txn.commission > 0 or txn.fees > 0 or txn.tax > 0 %}
+                                <div class="text-xs text-gray-500">
+                                    Costes: {{ "%.2f"|format(txn.commission + txn.fees + txn.tax) }}
+                                </div>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right">
+                            {% if txn.realized_pl is not none %}
+                                <div class="text-sm font-bold {% if txn.realized_pl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                                    {{ "%+.2f"|format(txn.realized_pl) }}
+                                </div>
+                                {% if txn.realized_pl_pct is not none %}
+                                    <div class="text-xs {% if txn.realized_pl_pct >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                                        {{ "%+.2f"|format(txn.realized_pl_pct) }}%
+                                    </div>
+                                {% endif %}
+                            {% else %}
+                                <div class="text-sm text-gray-400">-</div>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="mt-6 flex items-center justify-between">
+        <a href="{{ url_for('portfolio.dashboard') }}" class="text-blue-600 hover:text-blue-700 text-sm font-medium">
+            ← Volver al Dashboard
+        </a>
+        <div class="text-sm text-gray-500">
+            Mostrando las últimas 100 transacciones
+        </div>
+    </div>
+    {% else %}
+    <div class="bg-white rounded-xl shadow-sm p-12 text-center">
+        <div class="text-6xl mb-4">📝</div>
+        <h3 class="text-lg font-medium text-gray-900 mb-2">No hay transacciones registradas</h3>
+        <p class="text-gray-600 mb-6">Registra tu primera operación para empezar el seguimiento</p>
+        <a href="{{ url_for('portfolio.transaction_new') }}" class="btn-primary inline-block">
+            ➕ Registrar Primera Transacción
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+

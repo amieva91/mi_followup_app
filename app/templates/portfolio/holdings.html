@@ -1,0 +1,129 @@
+{% extends "base/layout.html" %}
+
+{% block title %}Mis Posiciones - FollowUp{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-8">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900">📈 Mis Posiciones</h1>
+            <p class="text-gray-600 mt-1">Holdings actuales de tu portfolio</p>
+        </div>
+        <a href="{{ url_for('portfolio.transaction_new') }}" class="btn-primary">
+            📝 Nueva Transacción
+        </a>
+    </div>
+
+    {% if holdings %}
+    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Activo
+                        </th>
+                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Cuenta
+                        </th>
+                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Cantidad
+                        </th>
+                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Precio Medio
+                        </th>
+                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Coste Total
+                        </th>
+                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Valor Actual
+                        </th>
+                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            P&L No Realizado
+                        </th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for holding in holdings %}
+                    <tr class="hover:bg-gray-50 transition">
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="flex items-center">
+                                <div>
+                                    <div class="font-semibold text-gray-900">{{ holding.asset.symbol }}</div>
+                                    <div class="text-sm text-gray-500">{{ holding.asset.name[:40] }}...</div>
+                                    <div class="text-xs text-gray-400 mt-1">
+                                        {{ holding.asset.asset_type }} • {{ holding.asset.currency }}
+                                        {% if holding.asset.isin %}
+                                        • {{ holding.asset.isin }}
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm text-gray-900">{{ holding.account.account_name }}</div>
+                            <div class="text-xs text-gray-500">{{ holding.account.broker.name }}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right">
+                            <div class="text-sm font-medium text-gray-900">{{ "%.4f"|format(holding.quantity) }}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right">
+                            <div class="text-sm text-gray-900">{{ "%.2f"|format(holding.average_buy_price) }}</div>
+                            <div class="text-xs text-gray-500">{{ holding.asset.currency }}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right">
+                            <div class="text-sm font-medium text-gray-900">{{ "%.2f"|format(holding.total_cost) }}</div>
+                            <div class="text-xs text-gray-500">{{ holding.asset.currency }}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right">
+                            {% if holding.current_value %}
+                                <div class="text-sm font-medium text-gray-900">{{ "%.2f"|format(holding.current_value) }}</div>
+                                <div class="text-xs text-gray-500">
+                                    @ {{ "%.2f"|format(holding.current_price) }}
+                                </div>
+                            {% else %}
+                                <div class="text-sm text-gray-400">Sin precio</div>
+                                <div class="text-xs text-gray-400">Actualizar</div>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right">
+                            {% if holding.unrealized_pl is not none %}
+                                <div class="text-sm font-bold {% if holding.unrealized_pl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                                    {{ "%+.2f"|format(holding.unrealized_pl) }}
+                                </div>
+                                <div class="text-xs font-medium {% if holding.unrealized_pl_pct >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                                    {{ "%+.2f"|format(holding.unrealized_pl_pct) }}%
+                                </div>
+                            {% else %}
+                                <div class="text-sm text-gray-400">-</div>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="mt-6 flex items-center justify-between">
+        <a href="{{ url_for('portfolio.dashboard') }}" class="text-blue-600 hover:text-blue-700 text-sm font-medium">
+            ← Volver al Dashboard
+        </a>
+        <div class="text-sm text-gray-500">
+            Total: {{ holdings|length }} posicion{{ 'es' if holdings|length != 1 else '' }}
+        </div>
+    </div>
+    {% else %}
+    <div class="bg-white rounded-xl shadow-sm p-12 text-center">
+        <div class="text-6xl mb-4">📊</div>
+        <h3 class="text-lg font-medium text-gray-900 mb-2">No tienes posiciones todavía</h3>
+        <p class="text-gray-600 mb-6">Registra tu primera transacción para empezar a gestionar tu portfolio</p>
+        <a href="{{ url_for('portfolio.transaction_new') }}" class="btn-primary">
+            📝 Registrar Primera Transacción
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+

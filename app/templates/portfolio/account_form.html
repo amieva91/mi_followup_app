@@ -1,0 +1,71 @@
+{% extends "base/layout.html" %}
+
+{% block title %}{{ title }} - FollowUp{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <!-- Header -->
+    <div class="mb-8">
+        <a href="{{ url_for('portfolio.accounts_list') }}" class="text-blue-600 hover:text-blue-700 text-sm font-medium mb-4 inline-block">
+            ← Volver a cuentas
+        </a>
+        <h1 class="text-3xl font-bold text-gray-900">{{ title }}</h1>
+        <p class="text-gray-600 mt-1">Configura tu cuenta de broker para empezar a registrar transacciones</p>
+    </div>
+
+    <!-- Formulario -->
+    <div class="bg-white rounded-xl shadow-sm p-8">
+        <form method="POST" action="">
+            {{ form.hidden_tag() }}
+            
+            <!-- Broker -->
+            <div class="mb-6">
+                {{ form.broker_id.label(class="block text-sm font-medium text-gray-700 mb-2") }}
+                {{ form.broker_id(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent") }}
+                {% if form.broker_id.errors %}
+                    <div class="mt-1 text-sm text-red-600">{{ form.broker_id.errors[0] }}</div>
+                {% endif %}
+            </div>
+
+            <!-- Nombre de la Cuenta -->
+            <div class="mb-6">
+                {{ form.account_name.label(class="block text-sm font-medium text-gray-700 mb-2") }}
+                {{ form.account_name(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent", placeholder="Ej: Mi IBKR Principal") }}
+                <p class="mt-1 text-sm text-gray-500">Un nombre descriptivo para identificar esta cuenta</p>
+                {% if form.account_name.errors %}
+                    <div class="mt-1 text-sm text-red-600">{{ form.account_name.errors[0] }}</div>
+                {% endif %}
+            </div>
+
+            <!-- Número de Cuenta -->
+            <div class="mb-6">
+                {{ form.account_number.label(class="block text-sm font-medium text-gray-700 mb-2") }}
+                {{ form.account_number(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent", placeholder="Ej: U12345678") }}
+                <p class="mt-1 text-sm text-gray-500">Número de cuenta del broker (opcional)</p>
+                {% if form.account_number.errors %}
+                    <div class="mt-1 text-sm text-red-600">{{ form.account_number.errors[0] }}</div>
+                {% endif %}
+            </div>
+
+            <!-- Divisa Base -->
+            <div class="mb-8">
+                {{ form.base_currency.label(class="block text-sm font-medium text-gray-700 mb-2") }}
+                {{ form.base_currency(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent") }}
+                <p class="mt-1 text-sm text-gray-500">Divisa principal de la cuenta</p>
+                {% if form.base_currency.errors %}
+                    <div class="mt-1 text-sm text-red-600">{{ form.base_currency.errors[0] }}</div>
+                {% endif %}
+            </div>
+
+            <!-- Botones -->
+            <div class="flex justify-between items-center pt-6 border-t border-gray-200">
+                <a href="{{ url_for('portfolio.accounts_list') }}" class="text-gray-600 hover:text-gray-700 font-medium">
+                    Cancelar
+                </a>
+                {{ form.submit(class="btn-primary cursor-pointer") }}
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
