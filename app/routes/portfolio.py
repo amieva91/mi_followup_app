@@ -297,11 +297,11 @@ def transaction_edit(id):
         
         # Recalcular cuenta antigua si cambió
         if old_account_id != transaction.account_id:
-            importer_old = CSVImporter(current_user.id, old_account_id, None)
+            importer_old = CSVImporter(current_user.id, old_account_id)
             importer_old._recalculate_holdings()
         
         # Recalcular cuenta actual
-        importer = CSVImporter(current_user.id, transaction.account_id, None)
+        importer = CSVImporter(current_user.id, transaction.account_id)
         importer._recalculate_holdings()
         
         db.session.commit()
