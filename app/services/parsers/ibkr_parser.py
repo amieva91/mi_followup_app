@@ -18,6 +18,37 @@ class IBKRParser:
         self.dividends = []
         self.deposits = []
         self.fees = []
+    
+    @staticmethod
+    def _normalize_symbol(symbol: str) -> str:
+        """
+        Normaliza símbolos de IBKR eliminando sufijos comunes.
+        
+        IBKR a veces añade sufijos a los símbolos (ej: IGC -> IGCl, NKR -> NKRo)
+        que causan problemas al matching de compras/ventas.
+        
+        Args:
+            symbol: Símbolo original del CSV
+            
+        Returns:
+            Símbolo normalizado sin sufijos
+        """
+        if not symbol:
+            return symbol
+        
+        # Lista de sufijos conocidos de IBKR
+        # 'l' = listed, 'o' = old/option, etc.
+        suffixes = ['l', 'o']
+        
+        # Ignorar símbolos de forex (contienen '.')
+        if '.' in symbol:
+            return symbol
+        
+        # Si termina en un sufijo de 1 caracter, verificar si es un sufijo conocido
+        if len(symbol) > 1 and symbol[-1].lower() in suffixes:
+            return symbol[:-1]
+        
+        return symbol
         
     def parse(self, file_path: str) -> Dict[str, Any]:
         """
@@ -133,10 +164,13 @@ class IBKRParser:
             
             # Extraer información relevante
             try:
+                raw_symbol = trade_dict.get('Símbolo', trade_dict.get('Symbol', ''))
+                normalized_symbol = self._normalize_symbol(raw_symbol)
+                
                 trade = {
                     'asset_type': trade_dict.get('Categoría de activo', trade_dict.get('Asset Category', '')),
                     'currency': trade_dict.get('Divisa', trade_dict.get('Currency', '')),
-                    'symbol': trade_dict.get('Símbolo', trade_dict.get('Symbol', '')),
+                    'symbol': normalized_symbol,
                     'date_time': self._parse_datetime(trade_dict.get('Fecha/Hora', trade_dict.get('Date/Time', ''))),
                     'quantity': self._parse_decimal(trade_dict.get('Cantidad', trade_dict.get('Quantity', '0'))),
                     'price': self._parse_decimal(trade_dict.get('Precio trans.', trade_dict.get('T. Price', '0'))),
@@ -184,10 +218,13 @@ class IBKRParser:
                 continue
             
             try:
+                raw_symbol = holding_dict.get('Símbolo', holding_dict.get('Symbol', ''))
+                normalized_symbol = self._normalize_symbol(raw_symbol)
+                
                 holding = {
                     'asset_type': holding_dict.get('Categoría de activo', holding_dict.get('Asset Category', '')),
                     'currency': holding_dict.get('Divisa', holding_dict.get('Currency', '')),
-                    'symbol': holding_dict.get('Símbolo', holding_dict.get('Symbol', '')),
+                    'symbol': normalized_symbol,
                     'quantity': self._parse_decimal(holding_dict.get('Cantidad', holding_dict.get('Quantity', '0'))),
                     'cost_price': self._parse_decimal(holding_dict.get('Precio de coste', holding_dict.get('Cost Price', '0'))),
                     'cost_basis': self._parse_decimal(holding_dict.get('Base de coste', holding_dict.get('Cost Basis', '0'))),
@@ -228,13 +265,14 @@ class IBKRParser:
             try:
                 # Extraer símbolo de la descripción
                 description = dividend_dict.get('Descripción', dividend_dict.get('Description', ''))
-                symbol = self._extract_symbol_from_description(description)
+                raw_symbol = self._extract_symbol_from_description(description)
+                normalized_symbol = self._normalize_symbol(raw_symbol)
                 
                 dividend = {
                     'currency': dividend_dict.get('Divisa', dividend_dict.get('Currency', '')),
                     'date': self._parse_date(dividend_dict.get('Fecha', dividend_dict.get('Date', ''))),
                     'description': description,
-                    'symbol': symbol,
+                    'symbol': normalized_symbol,
                     'amount': self._parse_decimal(dividend_dict.get('Cantidad', dividend_dict.get('Amount', '0')))
                 }
                 
