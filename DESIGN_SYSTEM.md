@@ -2,8 +2,8 @@
 
 **Filosofía**: Elegante, Profesional, Financiero, Minimalista
 
-**Última actualización**: 7 Octubre 2025 - 11:30 UTC  
-**Estado**: ✅ Componentes base + avanzados implementados (Sprint 1, 2, 3)
+**Última actualización**: 7 Octubre 2025 - 23:00 UTC  
+**Estado**: ✅ Componentes base + avanzados implementados (Sprint 1, 2, 3 - COMPLETO)
 
 ---
 
@@ -46,7 +46,7 @@
 ## ✅ COMPONENTES IMPLEMENTADOS (Sprint 3)
 
 **Portfolio Manager**
-- ✅ Dropdown de navegación en navbar
+- ✅ Dropdown de navegación en navbar (con link a "Importar CSV")
 - ✅ Dashboard de portfolio con métricas
 - ✅ Tablas de holdings y transacciones
 - ✅ Formularios multi-step para transacciones
@@ -54,6 +54,16 @@
 - ✅ Cards de cuentas con acciones de editar/eliminar
 - ✅ Badges de divisa y tipo de activo
 - ✅ Formularios con selects dinámicos
+
+**CSV Processor (HITO 3-6)**
+- ✅ Formulario de subida de CSV con drag & drop
+- ✅ Selector de archivo con preview de nombre
+- ✅ Validación de extensión .csv
+- ✅ Flash messages con estadísticas de importación
+- ✅ Cards informativas con instrucciones
+- ✅ Select de cuenta de broker
+- ✅ Feedback visual de proceso de importación
+- ✅ Mensajes diferenciados por tipo (success, error, info)
 
 ---
 
