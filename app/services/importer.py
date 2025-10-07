@@ -9,6 +9,7 @@ from app.models import (
     User, BrokerAccount, Broker, Asset, 
     PortfolioHolding, Transaction, CashFlow
 )
+from app.services.fifo_calculator import FIFOCalculator
 
 
 class CSVImporter:
@@ -55,11 +56,8 @@ class CSVImporter:
         self._import_transactions(parsed_data)
         self._import_dividends(parsed_data)
         
-        # Recalcular holdings desde transacciones
+        # Recalcular holdings desde transacciones (FIFO robusto)
         self._recalculate_holdings()
-        
-        # Limpieza final: eliminar holdings con quantity <= 0 o negativa
-        self._cleanup_zero_holdings()
         
         db.session.commit()
         
@@ -218,7 +216,9 @@ class CSVImporter:
             self.stats['dividends_created'] += 1
     
     def _recalculate_holdings(self):
-        """Recalcula holdings desde las transacciones de la cuenta"""
+        """Recalcula holdings desde las transacciones usando FIFO robusto"""
+        print("🔄 Recalculando holdings con FIFO robusto...")
+        
         # Obtener todas las transacciones BUY/SELL de esta cuenta
         transactions = Transaction.query.filter_by(
             account_id=self.broker_account_id,
@@ -227,72 +227,60 @@ class CSVImporter:
             Transaction.transaction_type.in_(['BUY', 'SELL'])
         ).order_by(Transaction.transaction_date).all()
         
-        # Agrupar por asset
-        holdings_dict = {}
+        print(f"   📝 Procesando {len(transactions)} transacciones...")
+        
+        # Agrupar por asset y usar FIFOCalculator
+        fifo_calculators = {}
         
         for tx in transactions:
-            if tx.asset_id not in holdings_dict:
-                holdings_dict[tx.asset_id] = {
-                    'quantity': 0,
-                    'total_cost': 0,
-                    'first_date': tx.transaction_date,
-                    'last_date': tx.transaction_date
-                }
+            if tx.asset_id not in fifo_calculators:
+                fifo_calculators[tx.asset_id] = FIFOCalculator()
             
-            h = holdings_dict[tx.asset_id]
+            calc = fifo_calculators[tx.asset_id]
             
             if tx.transaction_type == 'BUY':
-                h['quantity'] += tx.quantity
-                h['total_cost'] += tx.amount
+                calc.add_buy(
+                    quantity=tx.quantity,
+                    price=tx.price,
+                    date=tx.transaction_date,
+                    total_cost=tx.amount
+                )
             elif tx.transaction_type == 'SELL':
-                # Reducir cantidad y coste proporcionalmente (FIFO simplificado)
-                if h['quantity'] > 0:
-                    cost_per_share = h['total_cost'] / h['quantity']
-                    h['quantity'] -= tx.quantity
-                    h['total_cost'] -= cost_per_share * tx.quantity
-            
-            h['last_date'] = tx.transaction_date
+                calc.add_sell(
+                    quantity=tx.quantity,
+                    date=tx.transaction_date
+                )
         
-        # Crear o actualizar holdings
-        for asset_id, data in holdings_dict.items():
-            if data['quantity'] <= 0:
-                # Eliminar holding si la cantidad es 0
-                PortfolioHolding.query.filter_by(
-                    account_id=self.broker_account_id,
-                    asset_id=asset_id,
-                    user_id=self.user_id
-                ).delete()
-                continue
+        # Eliminar todos los holdings existentes de esta cuenta
+        PortfolioHolding.query.filter_by(
+            account_id=self.broker_account_id,
+            user_id=self.user_id
+        ).delete()
+        
+        # Crear holdings solo para posiciones abiertas
+        for asset_id, calc in fifo_calculators.items():
+            if calc.is_closed():
+                continue  # No crear holding si la posición está cerrada
             
-            holding = PortfolioHolding.query.filter_by(
+            position = calc.get_current_position()
+            
+            if position['quantity'] <= 0:
+                continue  # Saltar holdings con cantidad 0 o negativa
+            
+            holding = PortfolioHolding(
+                user_id=self.user_id,
                 account_id=self.broker_account_id,
                 asset_id=asset_id,
-                user_id=self.user_id
-            ).first()
-            
-            asset = Asset.query.get(asset_id)
-            
-            if holding:
-                # Actualizar
-                holding.quantity = data['quantity']
-                holding.total_cost = data['total_cost']
-                holding.average_buy_price = data['total_cost'] / data['quantity']
-                holding.last_transaction_date = data['last_date'].date() if isinstance(data['last_date'], datetime) else data['last_date']
-                self.stats['holdings_updated'] += 1
-            else:
-                # Crear
-                holding = PortfolioHolding(
-                    user_id=self.user_id,
-                    account_id=self.broker_account_id,
-                    asset_id=asset_id,
-                    quantity=data['quantity'],
-                    total_cost=data['total_cost'],
-                    average_buy_price=data['total_cost'] / data['quantity'],
-                    first_purchase_date=data['first_date'].date() if isinstance(data['first_date'], datetime) else data['first_date'],
-                    last_transaction_date=data['last_date'].date() if isinstance(data['last_date'], datetime) else data['last_date']
-                )
-                db.session.add(holding)
-                self.stats['holdings_created'] += 1
+                quantity=position['quantity'],
+                total_cost=position['total_cost'],
+                average_buy_price=position['average_buy_price'],
+                first_purchase_date=position['first_purchase_date'].date() if isinstance(position['first_purchase_date'], datetime) else position['first_purchase_date'],
+                last_transaction_date=position['last_transaction_date'].date() if isinstance(position['last_transaction_date'], datetime) else position['last_transaction_date']
+            )
+            db.session.add(holding)
+            self.stats['holdings_created'] += 1
+        
+        print(f"   ✅ {self.stats['holdings_created']} holdings creados (solo posiciones abiertas)")
     
     def _cleanup_zero_holdings(self):
         """Elimina todos los holdings con quantity <= 0 de esta cuenta"""
