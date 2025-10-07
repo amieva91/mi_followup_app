@@ -2,14 +2,24 @@
 
 Sistema completo de gestión financiera personal.
 
-## ✅ Estado Actual (6 Oct 2025)
+## ✅ Estado Actual (7 Oct 2025)
 
 **Funcionalidades Implementadas:**
-- ✅ **Autenticación completa** - Registro, Login, Reset Password
-- ✅ **Gestión de Gastos** - Categorías jerárquicas, gastos puntuales y recurrentes
-- ✅ **Gestión de Ingresos** - Categorías, ingresos puntuales y recurrentes  
+- ✅ **Sprint 1 - Autenticación** - Registro, Login, Reset Password
+- ✅ **Sprint 2 - Gastos e Ingresos** 
+  - Categorías jerárquicas con padre/hijo
+  - Gastos y ingresos puntuales y recurrentes
+  - Generación automática de instancias históricas
+  - Edición y eliminación de series completas
+  - Emoji picker interactivo
+- ✅ **Sprint 3 - Portfolio Manager (HITO 1 y 2)**
+  - Base de datos completa (8 modelos)
+  - CRUD de cuentas de broker
+  - Entrada manual de transacciones (BUY/SELL/DIVIDEND/etc)
+  - Actualización automática de holdings con FIFO
+  - Cálculo de P&L realizadas
+  - Dashboard de portfolio
 - ✅ **Dashboard** - KPIs en tiempo real (ingresos/gastos/balance mensual)
-- ✅ **Recurrencias inteligentes** - Daily/Weekly/Monthly/Yearly con gestión completa
 - ✅ **Sistema desplegado** - Funcionando en https://followup.fit/
 
 ## 🚀 Entornos
@@ -85,13 +95,21 @@ flask db upgrade
 python run.py
 ```
 
-## 📚 Documentación Completa
+## 📚 Documentación
 
-Ver carpeta `/docs` para:
-- Plan maestro: `TU_PLAN_MAESTRO.md`
-- Workflow dev→prod: `WORKFLOW_DEV_A_PRODUCCION.md`
-- Sistema de diseño: `DESIGN_SYSTEM.md`
-- Guía de inicio: `INICIO_RAPIDO.md`
+### 📄 Documentos Principales (Raíz)
+
+1. **`TU_PLAN_MAESTRO.md`** - Plan general del proyecto y estado actual
+2. **`WORKFLOW_DEV_A_PRODUCCION.md`** - Proceso de deploy
+3. **`DESIGN_SYSTEM.md`** - Sistema de diseño y componentes UI
+4. **`SPRINT3_DISEÑO_BD.md`** - Diseño y progreso del Sprint 3 (Portfolio/CSV)
+
+### 📁 Documentación Organizada (`docs/`)
+
+- **`docs/sesiones/`** - Bitácora de sesiones de trabajo
+- **`docs/archivo/`** - Análisis inicial y propuestas
+- **`docs/migraciones/`** - Documentos de migraciones históricas
+- **`docs/indices/`** - Índices de documentación
 
 ## 📝 Git Workflow
 
@@ -123,7 +141,8 @@ sudo systemctl status followup.service
 
 ## 📊 Estado del Proyecto
 
-**Fase actual**: Sprint 0 - Setup inicial
-**Última actualización**: Oct 2025
-**Versión**: 2.0.0 (rebuild desde cero)
+**Fase actual**: Sprint 3 - CSV Processor (HITO 2 completado)  
+**Última actualización**: 7 Octubre 2025  
+**Versión**: 2.0.0  
+**Progreso**: Sprint 0 ✅ | Sprint 1 ✅ | Sprint 2 ✅ | Sprint 3 🔄 (33%)
 
