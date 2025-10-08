@@ -81,9 +81,9 @@ class DeGiroParser:
         #     self._process_trade(row)
         # ↑ DESHABILITADO: Las compras/ventas deben venir del CSV "Transacciones"
         
-        if 'Dividendo' == row.get('Producto', '').strip() or row.get('Descripción', '') == 'Dividendo':
+        if description == 'Dividendo':
             self._process_dividend(row)
-        elif 'Retención del dividendo' in description:
+        elif 'Retención del dividendo' in description or description == 'Retención del dividendo':
             self._process_dividend_tax(row)
         elif 'Costes de transacción' in description or 'Comisión' in description:
             # IMPORTANTE: Filtrar "Costes de transacción" que hacen referencia a un asset
