@@ -409,15 +409,17 @@ class DeGiroParser:
                     try:
                         deposit_date = datetime.strptime(fx_d['date'], '%d-%m-%Y')
                         if abs((deposit_date - dividend_date).days) <= 5:
-                            # El dividendo se queda en moneda local
+                            # El dividendo se convierte a EUR (monto del Ingreso Cambio de Divisa)
                             self.dividends.append({
                                 'symbol': symbol,
                                 'isin': isin,
                                 'date': date_str,
-                                'amount': float(amount_original),
-                                'currency': currency_original,
-                                'tax': float(tax_amount),
-                                'tax_eur': float(tax_eur),
+                                'amount': float(fx_d['amount']),  # Monto en EUR del "Ingreso Cambio de Divisa"
+                                'currency': 'EUR',  # Convertido a EUR
+                                'amount_original': float(amount_original),  # Guardar monto original para referencia
+                                'currency_original': currency_original,
+                                'tax': float(tax_amount),  # Tax en divisa original
+                                'tax_eur': float(tax_eur),  # Tax convertido a EUR
                                 'description': 'Dividendo'
                             })
                             processed_dividends.add(key)
@@ -433,7 +435,7 @@ class DeGiroParser:
                     'amount': float(amount_original),
                     'currency': currency_original,
                     'tax': float(tax_amount),
-                    'tax_eur': float(tax_eur),
+                    'tax_eur': 0.0,
                     'description': 'Dividendo'
                 })
                 processed_dividends.add(key)

@@ -27,6 +27,10 @@ class Transaction(db.Model):
     amount = db.Column(db.Float, nullable=False)  # Monto total (+ ingreso, - gasto)
     currency = db.Column(db.String(3), nullable=False)
     
+    # Montos originales (para dividendos con conversión FX)
+    amount_original = db.Column(db.Float)  # Monto en divisa original antes de conversión
+    currency_original = db.Column(db.String(3))  # Divisa original antes de conversión
+    
     # Costes asociados
     commission = db.Column(db.Float, default=0.0)  # Comisión
     fees = db.Column(db.Float, default=0.0)  # Otros gastos

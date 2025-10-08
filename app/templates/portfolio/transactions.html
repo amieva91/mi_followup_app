@@ -189,12 +189,15 @@
                             <div class="text-sm font-medium {% if txn.amount >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
                                 {{ "%.2f"|format(txn.amount) }} <span class="text-xs text-gray-600">{{ txn.currency }}</span>
                             </div>
+                            {% if txn.amount_original and txn.currency_original %}
+                                <div class="text-xs text-gray-500">({{ "%.2f"|format(txn.amount_original) }} {{ txn.currency_original }})</div>
+                            {% endif %}
                             {% if txn.commission > 0 or txn.fees > 0 or txn.tax > 0 %}
                                 <div class="text-xs text-gray-500">
                                     {% if txn.commission > 0 %}Comisión: {{ "%.2f"|format(txn.commission) }} {{txn.currency}}<br>{% endif %}
                                     {% if txn.fees > 0 %}Gastos: {{ "%.2f"|format(txn.fees) }} {{txn.currency}}<br>{% endif %}
                                     {% if txn.tax > 0 %}
-                                        Retención: {{ "%.2f"|format(txn.tax) }} {{txn.currency}}
+                                        Retención: {{ "%.2f"|format(txn.tax) }} {{ txn.currency_original if txn.currency_original else txn.currency }}
                                         {% if txn.tax_eur and txn.tax_eur > 0 %} ({{ "%.2f"|format(txn.tax_eur) }} EUR){% endif %}
                                     {% endif %}
                                 </div>
