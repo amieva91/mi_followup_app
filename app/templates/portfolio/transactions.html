@@ -190,11 +190,13 @@
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right">
                             <div class="text-sm font-medium {% if txn.amount >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
-                                {{ "%+.2f"|format(txn.amount) }}
+                                {{ "%+.2f"|format(txn.amount) }} <span class="text-xs text-gray-600">{{ txn.currency }}</span>
                             </div>
                             {% if txn.commission > 0 or txn.fees > 0 or txn.tax > 0 %}
                                 <div class="text-xs text-gray-500">
-                                    Costes: {{ "%.2f"|format(txn.commission + txn.fees + txn.tax) }}
+                                    {% if txn.commission > 0 %}Comisión: {{ "%.2f"|format(txn.commission) }}<br>{% endif %}
+                                    {% if txn.fees > 0 %}Gastos: {{ "%.2f"|format(txn.fees) }}<br>{% endif %}
+                                    {% if txn.tax > 0 %}Retención: {{ "%.2f"|format(txn.tax) }}{% endif %}
                                 </div>
                             {% endif %}
                         </td>

@@ -196,7 +196,7 @@ class CSVImporter:
             self.stats['transactions_created'] += 1
     
     def _import_dividends(self, parsed_data: Dict[str, Any]):
-        """Importa dividendos y retenciones fiscales como transacciones"""
+        """Importa dividendos como transacciones, incluyendo retención fiscal (tax)"""
         for div_data in parsed_data.get('dividends', []):
             # Buscar asset
             asset = self._find_asset(div_data.get('symbol'), div_data.get('isin'))
@@ -209,23 +209,20 @@ class CSVImporter:
             if self._dividend_exists(div_data, asset.id):
                 continue
             
-            # Determinar tipo: TAX para retenciones, DIVIDEND para dividendos
-            is_tax = div_data.get('is_tax', False)
-            transaction_type = 'TAX' if is_tax else 'DIVIDEND'
-            description = 'Retención fiscal sobre dividendo' if is_tax else div_data.get('description', 'Dividendo')
-            
-            # Crear transacción de dividendo o retención
+            # Crear transacción de dividendo
+            # tax se registra en el mismo registro (campo tax de Transaction)
             transaction = Transaction(
                 user_id=self.user_id,
                 account_id=self.broker_account_id,
                 asset_id=asset.id,
-                transaction_type=transaction_type,
+                transaction_type='DIVIDEND',
                 transaction_date=self._parse_datetime(div_data.get('date')),
-                quantity=0,  # Los dividendos/retenciones no tienen cantidad
+                quantity=0,  # Los dividendos no tienen cantidad
                 price=0,
                 amount=float(div_data['amount']),
                 currency=div_data['currency'],
-                description=description,
+                tax=float(div_data.get('tax', 0)),  # Retención fiscal
+                description=div_data.get('description', 'Dividendo'),
                 source=f"CSV_{parsed_data['broker']}"
             )
             
@@ -281,41 +278,25 @@ class CSVImporter:
             self.stats.setdefault('deposits_created', 0)
             self.stats['deposits_created'] += 1
         
-        # Retiros (extraer de FX o buscar en descripción)
-        for fx_data in parsed_data.get('fx_transactions', []):
-            # Si la descripción contiene "Ingreso" o "Retirada", tratarlo como DEPOSIT/WITHDRAWAL
-            description = fx_data.get('description', '')
-            if 'Ingreso' in description or 'Depósito' in description:
-                transaction_type = 'DEPOSIT'
-                amount = abs(float(fx_data['amount']))
-            elif 'Retirada' in description or 'Retiro' in description:
-                transaction_type = 'WITHDRAWAL'
-                amount = -abs(float(fx_data['amount']))
-            else:
-                # No es un movimiento de efectivo, skip
-                continue
-            
+        # Retiros (ahora vienen directamente parseados)
+        for withdrawal_data in parsed_data.get('withdrawals', []):
             transaction = Transaction(
                 user_id=self.user_id,
                 account_id=self.broker_account_id,
                 asset_id=None,
-                transaction_type=transaction_type,
-                transaction_date=self._parse_datetime(fx_data.get('date')),
+                transaction_type='WITHDRAWAL',
+                transaction_date=self._parse_datetime(withdrawal_data.get('date')),
                 quantity=0,
                 price=0,
-                amount=amount,
-                currency=fx_data.get('currency', 'EUR'),
-                description=description,
+                amount=abs(float(withdrawal_data['amount'])),  # Positivo (ya se maneja con signo en la UI)
+                currency=withdrawal_data.get('currency', 'EUR'),
+                description=withdrawal_data.get('description', 'Retiro'),
                 source=f"CSV_{parsed_data['broker']}"
             )
             
             db.session.add(transaction)
-            if transaction_type == 'DEPOSIT':
-                self.stats.setdefault('deposits_created', 0)
-                self.stats['deposits_created'] += 1
-            else:
-                self.stats.setdefault('withdrawals_created', 0)
-                self.stats['withdrawals_created'] += 1
+            self.stats.setdefault('withdrawals_created', 0)
+            self.stats['withdrawals_created'] += 1
     
     def _recalculate_holdings(self):
         """Recalcula holdings desde las transacciones usando FIFO robusto"""

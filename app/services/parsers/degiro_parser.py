@@ -34,8 +34,14 @@ class DeGiroParser:
         self.holdings = {}  # Se calcularán desde trades
         self.dividends = []
         self.deposits = []
+        self.withdrawals = []
         self.fees = []
         self.fx_transactions = []
+        
+        # Para agrupar dividendos con su conversión FX
+        self.dividend_fx_map = {}  # {monto_divisa_producto: {'dividend': {...}, 'fx_eur': {...}, 'tax': {...}}}
+        self.fx_withdrawals = []  # Todas las "Retirada Cambio de Divisa"
+        self.fx_deposits = []  # Todas las "Ingreso Cambio de Divisa" (sin producto)
         
     def parse(self, file_path: str) -> Dict[str, Any]:
         """
@@ -47,14 +53,32 @@ class DeGiroParser:
         Returns:
             Dict con datos parseados y normalizados
         """
+        # Leer CSV con `reader` para acceder por índice (dos columnas sin nombre)
         with open(file_path, 'r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
+            raw_reader = csv.reader(f)
+            header = next(raw_reader)  # Leer header
             
-            for row in reader:
+            # Procesar cada fila
+            for raw_values in raw_reader:
+                # Crear dict manual con índices correctos
+                row = {}
+                for i, col_name in enumerate(header):
+                    if i < len(raw_values):
+                        if col_name:  # Si la columna tiene nombre
+                            row[col_name] = raw_values[i]
+                        # Columnas sin nombre las guardamos con nombres especiales
+                        elif i == 8:  # Primera columna sin nombre (monto)
+                            row['__amount__'] = raw_values[i]
+                        elif i == 10:  # Segunda columna sin nombre (saldo)
+                            row['__balance__'] = raw_values[i]
+                
                 self._process_row(row)
         
         # Calcular holdings desde trades
         self._calculate_holdings()
+        
+        # Consolidar dividendos con su conversión FX y retención
+        self._consolidate_dividends()
         
         # Retornar datos normalizados
         return {
@@ -64,6 +88,7 @@ class DeGiroParser:
             'holdings': list(self.holdings.values()),
             'dividends': self.dividends,
             'deposits': self.deposits,
+            'withdrawals': self.withdrawals,
             'fees': self.fees,
             'fx_transactions': self.fx_transactions
         }
@@ -71,36 +96,52 @@ class DeGiroParser:
     def _process_row(self, row: Dict[str, str]):
         """Procesa una fila del CSV"""
         description = row.get('Descripción', '').strip()
+        producto = row.get('Producto', '').strip()
         
         # Detectar tipo de transacción
         # IMPORTANTE: El CSV "Estado de Cuenta" NO debe importar compras/ventas
         # porque ya están en el CSV "Transacciones" (más completo y preciso)
-        # Solo procesamos: dividendos, comisiones generales, depósitos, cambios FX
         
-        # if 'Compra' in description or 'Venta' in description:
-        #     self._process_trade(row)
-        # ↑ DESHABILITADO: Las compras/ventas deben venir del CSV "Transacciones"
-        
+        # 1. DIVIDENDOS
         if description == 'Dividendo':
-            self._process_dividend(row)
+            self._store_dividend_for_consolidation(row)
+        
+        # 2. RETENCIÓN DE DIVIDENDOS
         elif 'Retención del dividendo' in description or description == 'Retención del dividendo':
-            self._process_dividend_tax(row)
+            self._store_dividend_tax_for_consolidation(row)
+        
+        # 3. CONVERSIÓN DE DIVISA (para dividendos)
+        elif 'Cambio de Divisa' in description:
+            # Si NO tiene producto, guardar para emparejar con dividendos
+            if not producto:
+                if 'Ingreso' in description:
+                    self._store_fx_deposit(row)
+                elif 'Retirada' in description:
+                    self._store_fx_withdrawal(row)
+            # Si tiene producto, ignorar (no parece ocurrir en tu CSV)
+        
+        # 4. INTERÉS (Apalancamiento)
+        elif 'Interés' in description or description == 'Interés':
+            self._process_interest(row)
+        
+        # 5. RETIROS (flatex Withdrawal)
+        elif 'flatex Withdrawal' in description:
+            self._process_withdrawal(row)
+        
+        # 6. DEPÓSITOS (solo "Ingreso", NO "Ingreso Cambio de Divisa")
+        elif description == 'Ingreso':
+            self._process_deposit(row)
+        
+        # 7. COMISIONES GENERALES (conectividad, etc.)
         elif 'Costes de transacción' in description or 'Comisión' in description:
             # IMPORTANTE: Filtrar "Costes de transacción" que hacen referencia a un asset
             # porque ya están incluidos en el CSV de Transacciones
-            producto = row.get('Producto', '').strip()
-            
-            # Solo procesar comisiones si:
-            # 1. NO es "Costes de transacción" con producto (duplicado del CSV Transacciones)
-            # 2. O SI es otro tipo de comisión (conectividad, etc.)
             if 'Costes de transacción' in description and producto:
                 # Es una comisión de transacción específica → IGNORAR (duplicado)
                 pass
             else:
                 # Es una comisión general (conectividad, etc.) → REGISTRAR
                 self._process_fee(row)
-        elif 'Cambio de Divisa' in description:
-            self._process_fx(row)
     
     def _process_trade(self, row: Dict[str, str]):
         """Procesa una compra o venta"""
@@ -156,66 +197,11 @@ class DeGiroParser:
         
         self.trades.append(trade)
     
-    def _process_dividend(self, row: Dict[str, str]):
-        """Procesa un dividendo"""
-        # IMPORTANTE: En el CSV Estado de Cuenta de DeGiro:
-        # - Columna "Variación" contiene la DIVISA (EUR, HKD, USD)
-        # - Columna SIN NOMBRE (siguiente a "Variación") contiene el MONTO
-        amount_value = Decimal('0')
-        currency = row.get('Variación', 'EUR').strip()  # La divisa está en "Variación"
-        
-        # Buscar la columna sin nombre que tiene el monto
-        for key, value in row.items():
-            if key == '' and value:  # Columna sin nombre con valor
-                amount_value = self._parse_decimal(value)
-                break
-        
-        dividend = {
-            'symbol': row.get('Producto', '').strip(),
-            'isin': row.get('ISIN', '').strip(),
-            'date': self._parse_date(row.get('Fecha', '')),
-            'amount': amount_value,
-            'currency': currency,
-            'description': row.get('Descripción', '').strip()
-        }
-        
-        if dividend['amount'] > 0:
-            self.dividends.append(dividend)
-    
-    def _process_dividend_tax(self, row: Dict[str, str]):
-        """Procesa retención de dividendo"""
-        # Extraer monto de columna sin nombre (igual que dividendos)
-        amount_value = Decimal('0')
-        currency = row.get('Variación', 'EUR').strip()
-        
-        for key, value in row.items():
-            if key == '' and value:
-                amount_value = self._parse_decimal(value)
-                break
-        
-        # Añadir a dividendos con monto negativo para indicar retención
-        tax = {
-            'symbol': row.get('Producto', '').strip(),
-            'isin': row.get('ISIN', '').strip(),
-            'date': self._parse_date(row.get('Fecha', '')),
-            'amount': amount_value,  # Ya es negativo del CSV
-            'currency': currency,
-            'description': 'Retención de impuestos',
-            'is_tax': True
-        }
-        
-        self.dividends.append(tax)
-    
     def _process_fee(self, row: Dict[str, str]):
         """Procesa comisiones y costes"""
         # Extraer monto de columna sin nombre
-        amount_value = Decimal('0')
+        amount_value = self._extract_first_unnamed_column(row)
         currency = row.get('Variación', 'EUR').strip()
-        
-        for key, value in row.items():
-            if key == '' and value:
-                amount_value = self._parse_decimal(value)
-                break
         
         fee = {
             'date': self._parse_date(row.get('Fecha', '')),
@@ -230,13 +216,8 @@ class DeGiroParser:
     def _process_fx(self, row: Dict[str, str]):
         """Procesa cambio de divisa"""
         # Extraer monto de columna sin nombre
-        amount_value = Decimal('0')
+        amount_value = self._extract_first_unnamed_column(row)
         currency = row.get('Variación', 'EUR').strip()
-        
-        for key, value in row.items():
-            if key == '' and value:
-                amount_value = self._parse_decimal(value)
-                break
         
         fx = {
             'date': self._parse_date(row.get('Fecha', '')),
@@ -247,6 +228,196 @@ class DeGiroParser:
         }
         
         self.fx_transactions.append(fx)
+    
+    def _store_dividend_for_consolidation(self, row: Dict[str, str]):
+        """Almacena un dividendo para consolidar con su conversión FX"""
+        producto = row.get('Producto', '').strip()
+        fecha = row.get('Fecha', '').strip()
+        
+        # Extraer monto en divisa original
+        amount_value = self._extract_first_unnamed_column(row)
+        currency = row.get('Variación', '').strip()
+        
+        # Clave única: monto_absoluto + divisa + símbolo (para emparejar con FX)
+        # Usamos el monto redondeado para evitar problemas de precisión
+        key = f"{abs(amount_value):.2f}_{currency}_{producto}"
+        
+        if key not in self.dividend_fx_map:
+            self.dividend_fx_map[key] = {}
+        
+        self.dividend_fx_map[key]['dividend'] = {
+            'symbol': producto,
+            'isin': row.get('ISIN', '').strip(),
+            'date': self._parse_date(fecha),
+            'amount_original': amount_value,
+            'currency_original': currency,
+            'amount_eur': Decimal('0'),  # Se llenará con FX
+            'tax': Decimal('0')  # Se llenará con retención
+        }
+    
+    def _store_dividend_tax_for_consolidation(self, row: Dict[str, str]):
+        """Almacena retención de dividendo para consolidar"""
+        producto = row.get('Producto', '').strip()
+        
+        # Extraer monto de retención
+        tax_value = abs(self._extract_first_unnamed_column(row))  # Absoluto
+        currency = row.get('Variación', 'EUR').strip()
+        
+        # Buscar la clave del dividendo correspondiente
+        # Intentar emparejar con dividendo existente por símbolo
+        for dict_key in self.dividend_fx_map.keys():
+            if producto in dict_key:
+                if 'dividend' not in self.dividend_fx_map[dict_key]:
+                    self.dividend_fx_map[dict_key]['dividend'] = {}
+                self.dividend_fx_map[dict_key]['dividend']['tax'] = tax_value
+                break
+    
+    def _store_fx_withdrawal(self, row: Dict[str, str]):
+        """Almacena Retirada Cambio de Divisa (conversión FROM divisa extranjera)"""
+        # Extraer monto y divisa
+        amount_value = self._extract_first_unnamed_column(row)
+        currency = row.get('Variación', '').strip()
+        
+        self.fx_withdrawals.append({
+            'amount': abs(amount_value),
+            'currency': currency,
+            'date': row.get('Fecha', '')
+        })
+    
+    def _store_fx_deposit(self, row: Dict[str, str]):
+        """Almacena Ingreso Cambio de Divisa (monto en EUR)"""
+        # Extraer monto en EUR
+        amount_eur = self._extract_first_unnamed_column(row)
+        currency = row.get('Variación', 'EUR').strip()
+        
+        self.fx_deposits.append({
+            'amount': abs(amount_eur),
+            'currency': currency,
+            'date': row.get('Fecha', '')
+        })
+    
+    def _consolidate_dividends(self):
+        """Consolida dividendos con su conversión FX y retención"""
+        self.dividends = []  # Limpiar lista temporal
+        
+        for key, data in self.dividend_fx_map.items():
+            dividend_data = data.get('dividend', {})
+            
+            if not dividend_data:
+                continue
+            
+            amount_original = dividend_data.get('amount_original', Decimal('0'))
+            currency_original = dividend_data.get('currency_original', 'EUR')
+            
+            # Si NO es EUR, buscar la conversión FX correspondiente
+            if currency_original != 'EUR':
+                # Buscar "Retirada Cambio de Divisa" con mismo monto y divisa
+                matched_withdrawal = None
+                for fx_w in self.fx_withdrawals:
+                    if (abs(fx_w['amount'] - abs(amount_original)) < Decimal('0.01') and 
+                        fx_w['currency'] == currency_original):
+                        matched_withdrawal = fx_w
+                        break
+                
+                # Si encontramos la retirada, buscar el ingreso EUR cercano (±3 días)
+                if matched_withdrawal:
+                    # Buscar "Ingreso Cambio de Divisa" con fecha cercana
+                    from datetime import datetime, timedelta
+                    withdrawal_date_str = matched_withdrawal['date']
+                    
+                    # Buscar el ingreso más cercano en fecha
+                    best_match = None
+                    min_diff = timedelta(days=999)
+                    
+                    for fx_d in self.fx_deposits:
+                        deposit_date_str = fx_d['date']
+                        
+                        # Parsear fechas (formato DD-MM-YYYY)
+                        try:
+                            w_date = datetime.strptime(withdrawal_date_str, '%d-%m-%Y')
+                            d_date = datetime.strptime(deposit_date_str, '%d-%m-%Y')
+                            diff = abs(d_date - w_date)
+                            
+                            if diff <= timedelta(days=3) and diff < min_diff:
+                                best_match = fx_d
+                                min_diff = diff
+                        except:
+                            pass
+                    
+                    if best_match:
+                        amount = best_match['amount']
+                        currency = 'EUR'
+                    else:
+                        # No encontramos ingreso cercano, usar monto original
+                        amount = amount_original
+                        currency = currency_original
+                else:
+                    # No encontramos conversión FX, usar monto original
+                    amount = amount_original
+                    currency = currency_original
+            else:
+                # Ya es EUR
+                amount = amount_original
+                currency = 'EUR'
+            
+            dividend = {
+                'symbol': dividend_data.get('symbol', ''),
+                'isin': dividend_data.get('isin', ''),
+                'date': dividend_data.get('date', ''),
+                'amount': float(amount),
+                'currency': currency,
+                'tax': float(dividend_data.get('tax', Decimal('0'))),
+                'description': 'Dividendo'
+            }
+            
+            if dividend['amount'] > 0:
+                self.dividends.append(dividend)
+    
+    def _process_interest(self, row: Dict[str, str]):
+        """Procesa interés (comisión por apalancamiento)"""
+        # Extraer monto
+        amount_value = self._extract_first_unnamed_column(row)
+        currency = row.get('Variación', 'EUR').strip()
+        
+        fee = {
+            'date': self._parse_date(row.get('Fecha', '')),
+            'amount': abs(amount_value),
+            'currency': currency,
+            'description': 'Apalancamiento DeGiro',
+            'related_symbol': ''  # Sin asset específico
+        }
+        
+        self.fees.append(fee)
+    
+    def _process_withdrawal(self, row: Dict[str, str]):
+        """Procesa retiro (flatex Withdrawal)"""
+        # Extraer monto
+        amount_value = self._extract_first_unnamed_column(row)
+        currency = row.get('Variación', 'EUR').strip()
+        
+        withdrawal = {
+            'date': self._parse_date(row.get('Fecha', '')),
+            'amount': abs(amount_value),  # Absoluto
+            'currency': currency,
+            'description': row.get('Descripción', '').strip()
+        }
+        
+        self.withdrawals.append(withdrawal)
+    
+    def _process_deposit(self, row: Dict[str, str]):
+        """Procesa depósito (solo 'Ingreso', NO 'Ingreso Cambio de Divisa')"""
+        # Extraer monto
+        amount_value = self._extract_first_unnamed_column(row)
+        currency = row.get('Variación', 'EUR').strip()
+        
+        deposit = {
+            'date': self._parse_date(row.get('Fecha', '')),
+            'amount': abs(amount_value),
+            'currency': currency,
+            'description': row.get('Descripción', '').strip()
+        }
+        
+        self.deposits.append(deposit)
     
     def _calculate_holdings(self):
         """Calcula holdings actuales desde las transacciones"""
@@ -295,6 +466,12 @@ class DeGiroParser:
         self.holdings = {k: v for k, v in self.holdings.items() if v['quantity'] > 0}
     
     # Helper methods
+    
+    def _extract_first_unnamed_column(self, row: Dict[str, str]) -> Decimal:
+        """Extrae el valor de la primera columna sin nombre (monto de transacción)"""
+        # La columna sin nombre (monto) está en '__amount__'
+        amount_str = row.get('__amount__', '0')
+        return self._parse_decimal(amount_str)
     
     def _parse_decimal(self, value: str) -> Decimal:
         """Convierte string a Decimal, manejando formato europeo"""
