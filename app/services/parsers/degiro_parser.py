@@ -257,20 +257,50 @@ class DeGiroParser:
     
     def _store_dividend_tax_for_consolidation(self, row: Dict[str, str]):
         """Almacena retención de dividendo para consolidar"""
+        from datetime import datetime, timedelta
+        
         producto = row.get('Producto', '').strip()
+        fecha = row.get('Fecha', '').strip()
         
         # Extraer monto de retención
         tax_value = abs(self._extract_first_unnamed_column(row))  # Absoluto
         currency = row.get('Variación', 'EUR').strip()
         
-        # Buscar la clave del dividendo correspondiente
-        # Intentar emparejar con dividendo existente por símbolo
+        # Parsear fecha de la retención
+        try:
+            tax_date = datetime.strptime(fecha, '%d-%m-%Y')
+        except:
+            return
+        
+        # Buscar el dividendo correspondiente por producto, divisa y fecha cercana
+        best_match = None
+        min_date_diff = float('inf')
+        
         for dict_key in self.dividend_fx_map.keys():
-            if producto in dict_key:
-                if 'dividend' not in self.dividend_fx_map[dict_key]:
-                    self.dividend_fx_map[dict_key]['dividend'] = {}
-                self.dividend_fx_map[dict_key]['dividend']['tax'] = tax_value
-                break
+            # Verificar que sea el mismo producto y divisa
+            if producto in dict_key and currency in dict_key:
+                dividend_data = self.dividend_fx_map[dict_key].get('dividend', {})
+                if not dividend_data:
+                    continue
+                
+                # Comparar fechas (la retención suele estar en la misma fecha que el dividendo)
+                try:
+                    div_date_str = dividend_data.get('date', '')
+                    div_date = datetime.strptime(div_date_str, '%Y-%m-%d')
+                    date_diff = abs((tax_date - div_date).days)
+                    
+                    # Buscar el dividendo más cercano (típicamente mismo día, máx 1 día)
+                    if date_diff <= 1 and date_diff < min_date_diff:
+                        best_match = dict_key
+                        min_date_diff = date_diff
+                except:
+                    continue
+        
+        # Asignar la retención al mejor match
+        if best_match:
+            if 'dividend' not in self.dividend_fx_map[best_match]:
+                self.dividend_fx_map[best_match]['dividend'] = {}
+            self.dividend_fx_map[best_match]['dividend']['tax'] = tax_value
     
     def _store_fx_withdrawal(self, row: Dict[str, str]):
         """Almacena Retirada Cambio de Divisa (conversión FROM divisa extranjera)"""
