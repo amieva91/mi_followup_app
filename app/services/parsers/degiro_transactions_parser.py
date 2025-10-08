@@ -98,6 +98,22 @@ class DeGiroTransactionsParser:
         except:
             price = Decimal('0')
         
+        # Extraer comisión de "Costes de transacción"
+        commission = Decimal('0')
+        commission_str = ''
+        for i, col in enumerate(cols):
+            if 'Costes de transacción' in col or col == 'Costes de transacción':
+                commission_str = row.get(col, '0')
+                break
+        
+        if commission_str:
+            # Limpiar y convertir (formato: "-2,00" o "2,00")
+            commission_str = commission_str.replace('.', '').replace(',', '.').replace('-', '')
+            try:
+                commission = Decimal(commission_str) if commission_str else Decimal('0')
+            except:
+                commission = Decimal('0')
+        
         # Crear trade
         trade = {
             'transaction_type': 'BUY' if quantity > 0 else 'SELL',
@@ -108,6 +124,7 @@ class DeGiroTransactionsParser:
             'quantity': abs(int(quantity)),  # Convertir a positivo
             'price': price,
             'currency': precio_divisa if precio_divisa else 'EUR',
+            'commission': commission,  # Añadir comisión
             'order_id': row.get('ID Orden', '').strip(),
             'description': f"{'Compra' if quantity > 0 else 'Venta'} {abs(quantity)} {symbol}"
         }
