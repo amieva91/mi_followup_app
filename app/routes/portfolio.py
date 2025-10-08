@@ -544,7 +544,10 @@ def import_csv_process():
         'transactions_skipped': 0,
         'holdings_created': 0,
         'dividends_created': 0,
-        'assets_created': 0
+        'assets_created': 0,
+        'fees_created': 0,
+        'deposits_created': 0,
+        'withdrawals_created': 0
     }
     
     failed_files = []
@@ -571,6 +574,9 @@ def import_csv_process():
             total_stats['holdings_created'] += stats['holdings_created']
             total_stats['dividends_created'] += stats['dividends_created']
             total_stats['assets_created'] += stats['assets_created']
+            total_stats['fees_created'] += stats.get('fees_created', 0)
+            total_stats['deposits_created'] += stats.get('deposits_created', 0)
+            total_stats['withdrawals_created'] += stats.get('withdrawals_created', 0)
             
             # Eliminar archivo temporal
             if os.path.exists(filepath):
@@ -592,7 +598,19 @@ def import_csv_process():
         else:
             flash(f'✅ {total_stats["files_processed"]} archivos importados correctamente', 'success')
         
-        flash(f'📊 {total_stats["transactions_created"]} transacciones | {total_stats["holdings_created"]} holdings nuevos | {total_stats["dividends_created"]} dividendos', 'info')
+        # Desglose detallado
+        details = []
+        details.append(f'{total_stats["transactions_created"]} transacciones')
+        details.append(f'{total_stats["holdings_created"]} holdings nuevos')
+        details.append(f'{total_stats["dividends_created"]} dividendos')
+        if total_stats['fees_created'] > 0:
+            details.append(f'{total_stats["fees_created"]} comisiones')
+        if total_stats['deposits_created'] > 0:
+            details.append(f'{total_stats["deposits_created"]} depósitos')
+        if total_stats['withdrawals_created'] > 0:
+            details.append(f'{total_stats["withdrawals_created"]} retiros')
+        
+        flash(f'📊 {" | ".join(details)}', 'info')
         
         if total_stats['transactions_skipped'] > 0:
             flash(f'ℹ️  {total_stats["transactions_skipped"]} transacciones duplicadas (omitidas entre archivos)', 'info')

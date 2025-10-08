@@ -65,10 +65,12 @@ class CSVImporter:
             )
             self.existing_transactions_snapshot.add(tx_key)
         
-        # Importar en orden: assets, transactions, dividends
+        # Importar en orden: assets, transactions, dividends, fees, deposits
         self._import_assets(parsed_data)
         self._import_transactions(parsed_data)
-        self._import_dividends(parsed_data)
+        self._import_dividends(parsed_data)  # Incluye dividendos y retenciones fiscales
+        self._import_fees(parsed_data)  # Comisiones generales
+        self._import_cash_movements(parsed_data)  # Depósitos y retiros
         
         # Recalcular holdings desde transacciones (FIFO robusto)
         self._recalculate_holdings()
@@ -194,12 +196,8 @@ class CSVImporter:
             self.stats['transactions_created'] += 1
     
     def _import_dividends(self, parsed_data: Dict[str, Any]):
-        """Importa dividendos como transacciones tipo DIVIDEND"""
+        """Importa dividendos y retenciones fiscales como transacciones"""
         for div_data in parsed_data.get('dividends', []):
-            # Ignorar retenciones de impuestos (las registraremos en la transacción principal)
-            if div_data.get('is_tax'):
-                continue
-            
             # Buscar asset
             asset = self._find_asset(div_data.get('symbol'), div_data.get('isin'))
             
@@ -211,23 +209,113 @@ class CSVImporter:
             if self._dividend_exists(div_data, asset.id):
                 continue
             
-            # Crear transacción de dividendo
+            # Determinar tipo: TAX para retenciones, DIVIDEND para dividendos
+            is_tax = div_data.get('is_tax', False)
+            transaction_type = 'TAX' if is_tax else 'DIVIDEND'
+            description = 'Retención fiscal sobre dividendo' if is_tax else div_data.get('description', 'Dividendo')
+            
+            # Crear transacción de dividendo o retención
             transaction = Transaction(
                 user_id=self.user_id,
                 account_id=self.broker_account_id,
                 asset_id=asset.id,
-                transaction_type='DIVIDEND',
+                transaction_type=transaction_type,
                 transaction_date=self._parse_datetime(div_data.get('date')),
-                quantity=0,  # Los dividendos no tienen cantidad
+                quantity=0,  # Los dividendos/retenciones no tienen cantidad
                 price=0,
                 amount=float(div_data['amount']),
                 currency=div_data['currency'],
-                description=div_data.get('description', 'Dividendo'),
+                description=description,
                 source=f"CSV_{parsed_data['broker']}"
             )
             
             db.session.add(transaction)
             self.stats['dividends_created'] += 1
+    
+    def _import_fees(self, parsed_data: Dict[str, Any]):
+        """Importa comisiones generales como transacciones tipo FEE"""
+        for fee_data in parsed_data.get('fees', []):
+            # Las comisiones generales no tienen asset, usar el campo related_symbol si existe
+            asset = None
+            if fee_data.get('related_symbol'):
+                asset = self._find_asset(fee_data.get('related_symbol'), None)
+            
+            # Crear transacción de comisión
+            transaction = Transaction(
+                user_id=self.user_id,
+                account_id=self.broker_account_id,
+                asset_id=asset.id if asset else None,
+                transaction_type='FEE',
+                transaction_date=self._parse_datetime(fee_data.get('date')),
+                quantity=0,
+                price=0,
+                amount=-abs(float(fee_data['amount'])),  # Negativo porque es un gasto
+                currency=fee_data['currency'],
+                description=fee_data.get('description', 'Comisión'),
+                source=f"CSV_{parsed_data['broker']}"
+            )
+            
+            db.session.add(transaction)
+            self.stats.setdefault('fees_created', 0)
+            self.stats['fees_created'] += 1
+    
+    def _import_cash_movements(self, parsed_data: Dict[str, Any]):
+        """Importa depósitos y retiros como transacciones"""
+        # Depósitos
+        for deposit_data in parsed_data.get('deposits', []):
+            transaction = Transaction(
+                user_id=self.user_id,
+                account_id=self.broker_account_id,
+                asset_id=None,  # Los depósitos no tienen asset
+                transaction_type='DEPOSIT',
+                transaction_date=self._parse_datetime(deposit_data.get('date')),
+                quantity=0,
+                price=0,
+                amount=abs(float(deposit_data['amount'])),  # Positivo
+                currency=deposit_data.get('currency', 'EUR'),
+                description=deposit_data.get('description', 'Depósito'),
+                source=f"CSV_{parsed_data['broker']}"
+            )
+            
+            db.session.add(transaction)
+            self.stats.setdefault('deposits_created', 0)
+            self.stats['deposits_created'] += 1
+        
+        # Retiros (extraer de FX o buscar en descripción)
+        for fx_data in parsed_data.get('fx_transactions', []):
+            # Si la descripción contiene "Ingreso" o "Retirada", tratarlo como DEPOSIT/WITHDRAWAL
+            description = fx_data.get('description', '')
+            if 'Ingreso' in description or 'Depósito' in description:
+                transaction_type = 'DEPOSIT'
+                amount = abs(float(fx_data['amount']))
+            elif 'Retirada' in description or 'Retiro' in description:
+                transaction_type = 'WITHDRAWAL'
+                amount = -abs(float(fx_data['amount']))
+            else:
+                # No es un movimiento de efectivo, skip
+                continue
+            
+            transaction = Transaction(
+                user_id=self.user_id,
+                account_id=self.broker_account_id,
+                asset_id=None,
+                transaction_type=transaction_type,
+                transaction_date=self._parse_datetime(fx_data.get('date')),
+                quantity=0,
+                price=0,
+                amount=amount,
+                currency=fx_data.get('currency', 'EUR'),
+                description=description,
+                source=f"CSV_{parsed_data['broker']}"
+            )
+            
+            db.session.add(transaction)
+            if transaction_type == 'DEPOSIT':
+                self.stats.setdefault('deposits_created', 0)
+                self.stats['deposits_created'] += 1
+            else:
+                self.stats.setdefault('withdrawals_created', 0)
+                self.stats['withdrawals_created'] += 1
     
     def _recalculate_holdings(self):
         """Recalcula holdings desde las transacciones usando FIFO robusto"""
