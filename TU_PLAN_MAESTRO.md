@@ -2,8 +2,8 @@
 
 **Fecha de inicio**: 5 Octubre 2025  
 **Timeline**: 6 meses (26 semanas)  
-**Última actualización**: 7 Octubre 2025 - 23:00 UTC  
-**Estado actual**: ✅ Sprint 0, 1, 2, 3 COMPLETADOS - Sistema funcionando en producción
+**Última actualización**: 8 Octubre 2025 - 23:05 UTC  
+**Estado actual**: ✅ Sprint 0, 1, 2, 3 COMPLETADOS (v3.1.0) - Sistema funcionando en producción
 
 ## 🎉 PROGRESO RECIENTE
 
@@ -31,7 +31,7 @@
 - Emoji picker con sugerencias clickeables
 - Dashboard con KPIs en tiempo real (ingresos/gastos/balance del mes)
 
-**✅ SPRINT 3 - CSV Processor (COMPLETADO - 7 Oct)**
+**✅ SPRINT 3 - CSV Processor & Portfolio Management (COMPLETADO - 8 Oct)**
 - ✅ HITO 1: Base de Datos y Arquitectura
   - 8 modelos: Broker, BrokerAccount, Asset, PriceHistory, PortfolioHolding, Transaction, CashFlow, PortfolioMetrics
   - Migraciones aplicadas en dev y prod
@@ -62,10 +62,22 @@
   - Detección automática de formato (IBKR/DeGiro)
   - Feedback con estadísticas de importación
   - Integración completa con dashboard de portfolio
+- ✅ HITO 7: Búsqueda y Edición de Transacciones
+  - Filtros combinables (símbolo, tipo, cuenta, fechas)
+  - Edición individual con recálculo automático
+  - Vista unificada de holdings por asset (múltiples brokers)
+- ✅ MEJORAS FINALES:
+  - **FIFO robusto** con posiciones cortas temporales
+  - Parser completo DeGiro (Transacciones + Estado de Cuenta)
+  - Normalización de símbolos IBKR + extracción ISINs
+  - Import múltiple de archivos simultáneos
+  - Detección inteligente de duplicados (snapshot)
+  - Eliminación destructiva de cuentas broker
+- **Métricas finales**: 29 holdings, 0 errores, 100% precisión FIFO
 
 **🔗 URLs Funcionales:**
 - **Producción**: https://followup.fit/
-- **Desarrollo**: http://localhost:5000
+- **Desarrollo**: http://localhost:5001
 
 ---
 

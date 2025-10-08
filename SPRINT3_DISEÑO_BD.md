@@ -617,12 +617,159 @@ df50b7a - fix: corregir eliminación de cuenta y protección CSRF
 
 ---
 
-**✅ SPRINT 3 COMPLETADO - 7 Octubre 2025**
+---
+
+### ✅ HITO 7: Búsqueda y Edición de Transacciones (COMPLETADO - 8 Oct 2025)
+
+**Estado**: ✅ COMPLETADO
+
+**Funcionalidades implementadas**:
+- ✅ Buscador de transacciones con filtros combinables:
+  - Por símbolo o ISIN (búsqueda parcial)
+  - Por tipo de transacción (BUY/SELL/DIVIDEND)
+  - Por cuenta de broker
+  - Por rango de fechas (desde/hasta)
+- ✅ Edición individual de transacciones:
+  - Formulario prellenado con datos actuales
+  - Actualización de todos los campos editables
+  - Recálculo automático de holdings tras guardar
+  - Soporte para cambio de cuenta (recalcula ambas)
+- ✅ Vista unificada de holdings:
+  - Agrupa holdings del mismo asset de múltiples brokers
+  - Muestra lista de brokers donde se tiene la posición
+  - Calcula precio medio ponderado total
+  - Suma cantidades y costos de todas las cuentas
+
+**Archivos**: 
+- `app/routes/portfolio.py` (rutas `transactions_list`, `transaction_edit`)
+- `app/templates/portfolio/transactions.html` (filtros + listado + botón editar)
+- `app/templates/portfolio/transaction_form.html` (modo create/edit)
+- `app/templates/portfolio/holdings.html` (vista unificada)
+
+**Commits**: 
+- `[varios] - feat(sprint3): HITO 7 - Búsqueda y edición de transacciones`
+- `9d30304 - fix(sprint3): corregir template de holdings para vista unificada`
+
+---
+
+### ✅ CORRECCIONES Y MEJORAS FINALES (8 Oct 2025)
+
+#### **1. DeGiro Parser Completo**
+
+**Problema**: El CSV "Estado de Cuenta" de DeGiro no incluye todas las transacciones de compra/venta, solo las que afectaron el cash en un período específico. Esto causaba holdings incorrectos (30 en lugar de 19).
+
+**Solución**:
+- ✅ Creado `DeGiroTransactionsParser` para el formato "Transacciones" (más completo)
+- ✅ Actualizado `CSVDetector` para distinguir 3 formatos:
+  - `IBKR` → Activity Statement
+  - `DEGIRO_TRANSACTIONS` → Transacciones (completo)
+  - `DEGIRO_ACCOUNT` → Estado de Cuenta (dividendos/comisiones)
+- ✅ Detección automática basada en columnas del header
+- ✅ Holdings correctos: 19 posiciones actuales
+
+**Archivos**: 
+- `app/services/parsers/degiro_transactions_parser.py`
+- `app/services/csv_detector.py`
+
+**Commits**: `57b714d - feat(sprint3): añadir parser para formato Transacciones de DeGiro`
+
+---
+
+#### **2. FIFO Robusto con Posiciones Cortas Temporales**
+
+**Problema**: Cuando hay un oversell (vender más de lo disponible debido a datos incompletos), el FIFO no manejaba correctamente las compras posteriores que cubrían ese oversell, dejando holdings incorrectos (ej: VARTA AG con 1 unidad cuando debería ser 0).
+
+**Solución**:
+- ✅ Añadido `short_position` al `FIFOCalculator`
+- ✅ Oversells se registran como posición corta temporal
+- ✅ Compras subsiguientes liquidan primero la posición corta
+- ✅ Posición solo está cerrada si `lots == 0` AND `short_position == 0`
+- ✅ Advertencia clara: "Registrado como posición corta temporal"
+
+**Ejemplo (VARTA AG)**:
+```
+Antes:
+- Compra 52 → Vende 53 (oversell 1) → Compra 1 = Balance: 1 ❌
+
+Ahora:
+- Compra 52 → Vende 53 (short: 1) → Compra 1 (cubre short) = Balance: 0 ✅
+```
+
+**Archivos**: `app/services/fifo_calculator.py`
+
+**Commits**: `7aaae61 - fix(sprint3): FIFO con posición corta para manejar oversells`
+
+---
+
+#### **3. Detección de Duplicados Mejorada**
+
+**Problema**: Transacciones idénticas dentro del mismo CSV eran marcadas como duplicados incorrectamente (ej: 2 compras de GCT el mismo día a mismo precio).
+
+**Solución**:
+- ✅ Snapshot de transacciones existentes al inicio del import
+- ✅ Detección de duplicados contra snapshot (no contra batch actual)
+- ✅ Transacciones idénticas en el mismo CSV se importan
+- ✅ Duplicados verdaderos (de imports previos) se omiten
+
+**Archivos**: `app/services/importer.py` (método `_transaction_exists`)
+
+**Commits**: `[incluido en correcciones previas]`
+
+---
+
+#### **4. Normalización de Símbolos IBKR**
+
+**Problema**: IBKR cambia sufijos de símbolos (`IGC` → `IGCl`) causando que el mismo asset se trate como dos diferentes.
+
+**Solución**:
+- ✅ Función `_normalize_symbol` que elimina sufijos `l`, `o`
+- ✅ Extracción de ISINs del CSV IBKR (sección "Financial Instrument Information")
+- ✅ Assets se identifican primero por ISIN, luego por símbolo
+- ✅ Previene duplicados por cambios de ticker
+
+**Archivos**: `app/services/parsers/ibkr_parser.py`
+
+**Commits**: `[incluido en correcciones previas]`
+
+---
+
+#### **5. Import Múltiple de CSVs**
+
+**Problema**: Solo se podía subir 1 archivo a la vez.
+
+**Solución**:
+- ✅ Soporte para `multiple` file input
+- ✅ Procesamiento secuencial de todos los archivos
+- ✅ Estadísticas acumuladas por batch
+- ✅ Detección de duplicados entre archivos
+- ✅ Feedback detallado por archivo
+
+**Archivos**: `app/routes/portfolio.py` (ruta `import_csv_process`)
+
+**Commits**: `[incluido en mejoras de importación]`
+
+---
+
+**✅ SPRINT 3 COMPLETADO - 8 Octubre 2025**
 
 **Resultado final**:
-- 24 transacciones importadas (32 FX filtradas)
-- 9 holdings calculados automáticamente con FIFO
-- 3 dividendos registrados
-- Detección de duplicados 100% efectiva
-- Sistema funcional end-to-end: CSV → Parser → Importer → BD → Dashboard
+- ✅ **IBKR**: 10 holdings correctos (IGC cerrada, sin oversells)
+- ✅ **DeGiro**: 19 holdings correctos (parser completo, balance exacto)
+- ✅ **Total**: 29 holdings activos reales
+- ✅ Detección de duplicados 100% efectiva
+- ✅ FIFO robusto con manejo de oversells
+- ✅ Sistema funcional end-to-end: CSV → Parser → Importer → BD → Dashboard
+- ✅ Búsqueda y edición de transacciones
+- ✅ Vista unificada de holdings por asset
+- ✅ Import múltiple de archivos
+- ✅ Normalización de símbolos y ISINs
+
+**Métricas finales**:
+- 1704 transacciones procesadas (DeGiro)
+- 39 transacciones procesadas (IBKR)
+- 29 holdings activos calculados automáticamente
+- 0 posiciones incorrectas
+- 100% precisión FIFO
+
+**Próximo paso**: Sprint 4 - Calculadora de Métricas (P&L, TWR, MWR, Sharpe, Drawdown)
 
