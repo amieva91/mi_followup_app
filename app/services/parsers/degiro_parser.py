@@ -197,12 +197,14 @@ class DeGiroParser:
             symbol = trade['symbol']
             isin = trade['isin']
             
-            # Crear key única por símbolo
-            key = f"{symbol}_{isin}" if isin else symbol
+            # Usar ISIN como key principal (nunca cambia), fallback a símbolo si no hay ISIN
+            # Esto asegura que compras/ventas del mismo activo se agrupen correctamente
+            # incluso si el nombre del símbolo varía ligeramente
+            key = isin if isin else symbol
             
             if key not in self.holdings:
                 self.holdings[key] = {
-                    'symbol': symbol,
+                    'symbol': symbol,  # Guardar el primer símbolo encontrado
                     'isin': isin,
                     'currency': trade['currency'],
                     'quantity': 0,
