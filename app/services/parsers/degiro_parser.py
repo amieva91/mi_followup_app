@@ -80,7 +80,19 @@ class DeGiroParser:
         elif 'Retención del dividendo' in description:
             self._process_dividend_tax(row)
         elif 'Costes de transacción' in description or 'Comisión' in description:
-            self._process_fee(row)
+            # IMPORTANTE: Filtrar "Costes de transacción" que hacen referencia a un asset
+            # porque ya están incluidos en el CSV de Transacciones
+            producto = row.get('Producto', '').strip()
+            
+            # Solo procesar comisiones si:
+            # 1. NO es "Costes de transacción" con producto (duplicado del CSV Transacciones)
+            # 2. O SI es otro tipo de comisión (conectividad, etc.)
+            if 'Costes de transacción' in description and producto:
+                # Es una comisión de transacción específica → IGNORAR (duplicado)
+                pass
+            else:
+                # Es una comisión general (conectividad, etc.) → REGISTRAR
+                self._process_fee(row)
         elif 'Cambio de Divisa' in description:
             self._process_fx(row)
     
