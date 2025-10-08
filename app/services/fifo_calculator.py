@@ -25,13 +25,34 @@ class FIFOCalculator:
     def __init__(self, symbol: str = "Unknown"):
         self.symbol = symbol
         self.lots: deque = deque()  # Cola FIFO de lotes de compra
+        self.short_position = Decimal('0')  # Posición en corto (oversells)
         self.first_purchase_date = None
         self.last_transaction_date = None
     
     def add_buy(self, quantity: float, price: float, date: datetime, total_cost: float):
-        """Añade una compra como un nuevo lote"""
-        lot = FIFOLot(quantity, price, date, total_cost)
-        self.lots.append(lot)
+        """Añade una compra como un nuevo lote, liquidando primero cualquier posición corta"""
+        qty_decimal = Decimal(str(quantity))
+        cost_decimal = Decimal(str(total_cost))
+        
+        # Si hay posición en corto, primero liquidarla
+        if self.short_position > 0:
+            if qty_decimal >= self.short_position:
+                # La compra cubre completamente el short
+                qty_decimal -= self.short_position
+                # Ajustar el costo proporcionalmente
+                if quantity > 0:
+                    cost_decimal = cost_decimal * (qty_decimal / Decimal(str(quantity)))
+                self.short_position = Decimal('0')
+            else:
+                # La compra solo cubre parcialmente el short
+                self.short_position -= qty_decimal
+                qty_decimal = Decimal('0')
+                cost_decimal = Decimal('0')
+        
+        # Si queda cantidad después de liquidar el short, crear lote
+        if qty_decimal > 0:
+            lot = FIFOLot(float(qty_decimal), price, date, float(cost_decimal))
+            self.lots.append(lot)
         
         if self.first_purchase_date is None or date < self.first_purchase_date:
             self.first_purchase_date = date
@@ -41,6 +62,7 @@ class FIFOCalculator:
     def add_sell(self, quantity: float, date: datetime) -> Decimal:
         """
         Procesa una venta consumiendo lotes FIFO.
+        Si no hay suficientes lotes, registra el oversell como posición corta.
         Retorna el coste de las acciones vendidas (para P&L).
         """
         remaining_to_sell = Decimal(str(quantity))
@@ -68,8 +90,10 @@ class FIFOCalculator:
         
         self.last_transaction_date = date
         
+        # Si aún queda cantidad por vender, registrar como posición corta
         if remaining_to_sell > 0:
-            print(f"⚠️  Advertencia ({self.symbol}): Se intentó vender {remaining_to_sell} más de lo disponible en fecha {date}")
+            print(f"⚠️  Advertencia ({self.symbol}): Se intentó vender {remaining_to_sell} más de lo disponible en fecha {date} - Registrado como posición corta temporal")
+            self.short_position += remaining_to_sell
         
         return total_cost_sold
     
@@ -96,8 +120,8 @@ class FIFOCalculator:
         }
     
     def is_closed(self) -> bool:
-        """Verifica si la posición está cerrada (vendida completamente)"""
-        return len(self.lots) == 0
+        """Verifica si la posición está cerrada (vendida completamente y sin shorts pendientes)"""
+        return len(self.lots) == 0 and self.short_position == 0
     
     def __repr__(self):
         pos = self.get_current_position()
