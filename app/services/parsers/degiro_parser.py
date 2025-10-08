@@ -158,12 +158,24 @@ class DeGiroParser:
     
     def _process_dividend(self, row: Dict[str, str]):
         """Procesa un dividendo"""
+        # IMPORTANTE: En el CSV Estado de Cuenta de DeGiro:
+        # - Columna "Variación" contiene la DIVISA (EUR, HKD, USD)
+        # - Columna SIN NOMBRE (siguiente a "Variación") contiene el MONTO
+        amount_value = Decimal('0')
+        currency = row.get('Variación', 'EUR').strip()  # La divisa está en "Variación"
+        
+        # Buscar la columna sin nombre que tiene el monto
+        for key, value in row.items():
+            if key == '' and value:  # Columna sin nombre con valor
+                amount_value = self._parse_decimal(value)
+                break
+        
         dividend = {
             'symbol': row.get('Producto', '').strip(),
             'isin': row.get('ISIN', '').strip(),
             'date': self._parse_date(row.get('Fecha', '')),
-            'amount': self._parse_decimal(row.get('Variación', '0')),
-            'currency': self._extract_currency(row),
+            'amount': amount_value,
+            'currency': currency,
             'description': row.get('Descripción', '').strip()
         }
         
@@ -172,13 +184,22 @@ class DeGiroParser:
     
     def _process_dividend_tax(self, row: Dict[str, str]):
         """Procesa retención de dividendo"""
+        # Extraer monto de columna sin nombre (igual que dividendos)
+        amount_value = Decimal('0')
+        currency = row.get('Variación', 'EUR').strip()
+        
+        for key, value in row.items():
+            if key == '' and value:
+                amount_value = self._parse_decimal(value)
+                break
+        
         # Añadir a dividendos con monto negativo para indicar retención
         tax = {
             'symbol': row.get('Producto', '').strip(),
             'isin': row.get('ISIN', '').strip(),
             'date': self._parse_date(row.get('Fecha', '')),
-            'amount': self._parse_decimal(row.get('Variación', '0')),  # Ya es negativo
-            'currency': self._extract_currency(row),
+            'amount': amount_value,  # Ya es negativo del CSV
+            'currency': currency,
             'description': 'Retención de impuestos',
             'is_tax': True
         }
@@ -187,10 +208,19 @@ class DeGiroParser:
     
     def _process_fee(self, row: Dict[str, str]):
         """Procesa comisiones y costes"""
+        # Extraer monto de columna sin nombre
+        amount_value = Decimal('0')
+        currency = row.get('Variación', 'EUR').strip()
+        
+        for key, value in row.items():
+            if key == '' and value:
+                amount_value = self._parse_decimal(value)
+                break
+        
         fee = {
             'date': self._parse_date(row.get('Fecha', '')),
-            'amount': abs(self._parse_decimal(row.get('Variación', '0'))),
-            'currency': self._extract_currency(row),
+            'amount': abs(amount_value),
+            'currency': currency,
             'description': row.get('Descripción', '').strip(),
             'related_symbol': row.get('Producto', '').strip()
         }
@@ -199,10 +229,19 @@ class DeGiroParser:
     
     def _process_fx(self, row: Dict[str, str]):
         """Procesa cambio de divisa"""
+        # Extraer monto de columna sin nombre
+        amount_value = Decimal('0')
+        currency = row.get('Variación', 'EUR').strip()
+        
+        for key, value in row.items():
+            if key == '' and value:
+                amount_value = self._parse_decimal(value)
+                break
+        
         fx = {
             'date': self._parse_date(row.get('Fecha', '')),
-            'amount': self._parse_decimal(row.get('Variación', '0')),
-            'currency': self._extract_currency(row),
+            'amount': amount_value,
+            'currency': currency,
             'exchange_rate': self._parse_decimal(row.get('Tipo', '0')),
             'description': row.get('Descripción', '').strip()
         }
