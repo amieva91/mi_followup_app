@@ -278,10 +278,15 @@ class DeGiroParser:
         amount_value = self._extract_first_unnamed_column(row)
         currency = row.get('Variación', '').strip()
         
+        # Extraer tipo de cambio (está en la columna "Tipo")
+        exchange_rate_str = row.get('Tipo', '0').strip()
+        exchange_rate = self._parse_decimal(exchange_rate_str) if exchange_rate_str else Decimal('0')
+        
         self.fx_withdrawals.append({
             'amount': abs(amount_value),
             'currency': currency,
-            'date': row.get('Fecha', '')
+            'date': row.get('Fecha', ''),
+            'exchange_rate': exchange_rate
         })
     
     def _store_fx_deposit(self, row: Dict[str, str]):
@@ -334,6 +339,7 @@ class DeGiroParser:
                     'amount': float(amount_original),
                     'currency': 'EUR',
                     'tax': float(tax_amount),
+                    'tax_eur': 0.0,  # No aplica conversión, ya está en EUR
                     'description': 'Dividendo'
                 })
                 processed_dividends.add(key)
@@ -358,6 +364,14 @@ class DeGiroParser:
                     except:
                         pass
             
+            # Calcular tax en EUR si hay tipo de cambio disponible
+            tax_eur = Decimal('0')
+            if matched_withdrawal and matched_withdrawal.get('exchange_rate', Decimal('0')) > 0:
+                exchange_rate = matched_withdrawal['exchange_rate']
+                # La tasa es: 1 EUR = X divisa_extranjera
+                # Por lo tanto: tax_eur = tax_amount / exchange_rate
+                tax_eur = tax_amount / exchange_rate
+            
             # Si encontramos withdrawal, buscar ingreso EUR y validar numéricamente
             if matched_withdrawal:
                 # Buscar ingreso EUR cercano
@@ -373,6 +387,7 @@ class DeGiroParser:
                                 'amount': float(amount_original),
                                 'currency': currency_original,
                                 'tax': float(tax_amount),
+                                'tax_eur': float(tax_eur),
                                 'description': 'Dividendo'
                             })
                             processed_dividends.add(key)
@@ -388,6 +403,7 @@ class DeGiroParser:
                     'amount': float(amount_original),
                     'currency': currency_original,
                     'tax': float(tax_amount),
+                    'tax_eur': float(tax_eur),
                     'description': 'Dividendo'
                 })
                 processed_dividends.add(key)

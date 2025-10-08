@@ -30,7 +30,8 @@ class Transaction(db.Model):
     # Costes asociados
     commission = db.Column(db.Float, default=0.0)  # Comisión
     fees = db.Column(db.Float, default=0.0)  # Otros gastos
-    tax = db.Column(db.Float, default=0.0)  # Impuestos/retenciones
+    tax = db.Column(db.Float, default=0.0)  # Impuestos/retenciones en divisa original
+    tax_eur = db.Column(db.Float, default=0.0)  # Impuestos/retenciones en EUR (para conversión)
     
     # P&L (para ventas)
     realized_pl = db.Column(db.Float)  # P&L realizada en esta transacción

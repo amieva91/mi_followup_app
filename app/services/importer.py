@@ -221,7 +221,8 @@ class CSVImporter:
                 price=0,
                 amount=float(div_data['amount']),
                 currency=div_data['currency'],
-                tax=float(div_data.get('tax', 0)),  # Retención fiscal
+                tax=float(div_data.get('tax', 0)),  # Retención fiscal en divisa original
+                tax_eur=float(div_data.get('tax_eur', 0)),  # Retención en EUR (solo para divisas extranjeras)
                 description=div_data.get('description', 'Dividendo'),
                 source=f"CSV_{parsed_data['broker']}"
             )

@@ -193,7 +193,10 @@
                                 <div class="text-xs text-gray-500">
                                     {% if txn.commission > 0 %}Comisión: {{ "%.2f"|format(txn.commission) }} {{txn.currency}}<br>{% endif %}
                                     {% if txn.fees > 0 %}Gastos: {{ "%.2f"|format(txn.fees) }} {{txn.currency}}<br>{% endif %}
-                                    {% if txn.tax > 0 %}Retención: {{ "%.2f"|format(txn.tax) }} {{txn.currency}}{% endif %}
+                                    {% if txn.tax > 0 %}
+                                        Retención: {{ "%.2f"|format(txn.tax) }} {{txn.currency}}
+                                        {% if txn.tax_eur and txn.tax_eur > 0 %} ({{ "%.2f"|format(txn.tax_eur) }} EUR){% endif %}
+                                    {% endif %}
                                 </div>
                             {% endif %}
                         </td>
