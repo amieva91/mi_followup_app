@@ -39,10 +39,20 @@ class CSVDetector:
                 return 'IBKR'
         
         # Detectar DeGiro
-        # DeGiro tiene columnas específicas en el header
-        degiro_columns = ['Fecha', 'Hora', 'Producto', 'ISIN', 'Descripción']
-        if all(col in first_line for col in degiro_columns[:3]):
-            return 'DEGIRO'
+        # DeGiro tiene dos formatos:
+        # 1. "Transacciones" - tiene columna "Número" y "ID Orden"
+        # 2. "Estado de Cuenta" - tiene columna "Descripción" y "Saldo"
+        
+        degiro_basic_columns = ['Fecha', 'Hora', 'Producto', 'ISIN']
+        
+        if all(col in first_line for col in degiro_basic_columns):
+            # Es DeGiro, ahora determinar qué formato
+            if 'Número' in first_line and 'ID Orden' in first_line:
+                return 'DEGIRO_TRANSACTIONS'  # Formato "Transacciones" (más completo)
+            elif 'Descripción' in first_line and 'Saldo' in first_line:
+                return 'DEGIRO_ACCOUNT'  # Formato "Estado de Cuenta"
+            else:
+                return 'DEGIRO'  # Formato genérico por compatibilidad
         
         return 'UNKNOWN'
     
@@ -72,7 +82,7 @@ class CSVDetector:
         Obtiene la clase de parser apropiada para el formato
         
         Args:
-            format_type: 'IBKR' o 'DEGIRO'
+            format_type: 'IBKR', 'DEGIRO_TRANSACTIONS', 'DEGIRO_ACCOUNT', o 'DEGIRO'
             
         Returns:
             Clase del parser apropiado
@@ -80,7 +90,10 @@ class CSVDetector:
         if format_type == 'IBKR':
             from app.services.parsers.ibkr_parser import IBKRParser
             return IBKRParser
-        elif format_type == 'DEGIRO':
+        elif format_type == 'DEGIRO_TRANSACTIONS':
+            from app.services.parsers.degiro_transactions_parser import DeGiroTransactionsParser
+            return DeGiroTransactionsParser
+        elif format_type in ('DEGIRO_ACCOUNT', 'DEGIRO'):
             from app.services.parsers.degiro_parser import DeGiroParser
             return DeGiroParser
         else:
