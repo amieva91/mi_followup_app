@@ -73,9 +73,15 @@ class DeGiroParser:
         description = row.get('Descripción', '').strip()
         
         # Detectar tipo de transacción
-        if 'Compra' in description or 'Venta' in description:
-            self._process_trade(row)
-        elif 'Dividendo' == row.get('Producto', '').strip() or row.get('Descripción', '') == 'Dividendo':
+        # IMPORTANTE: El CSV "Estado de Cuenta" NO debe importar compras/ventas
+        # porque ya están en el CSV "Transacciones" (más completo y preciso)
+        # Solo procesamos: dividendos, comisiones generales, depósitos, cambios FX
+        
+        # if 'Compra' in description or 'Venta' in description:
+        #     self._process_trade(row)
+        # ↑ DESHABILITADO: Las compras/ventas deben venir del CSV "Transacciones"
+        
+        if 'Dividendo' == row.get('Producto', '').strip() or row.get('Descripción', '') == 'Dividendo':
             self._process_dividend(row)
         elif 'Retención del dividendo' in description:
             self._process_dividend_tax(row)
