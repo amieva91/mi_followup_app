@@ -42,6 +42,7 @@ class DeGiroParser:
         self.dividend_fx_map = {}  # {monto_divisa_producto: {'dividend': {...}, 'fx_eur': {...}, 'tax': {...}}}
         self.fx_withdrawals = []  # Todas las "Retirada Cambio de Divisa"
         self.fx_deposits = []  # Todas las "Ingreso Cambio de Divisa" (sin producto)
+        self.dividend_related_rows = []  # Todas las filas relacionadas con dividendos (para casos complejos como Alibaba)
         
     def parse(self, file_path: str) -> Dict[str, Any]:
         """
@@ -102,15 +103,16 @@ class DeGiroParser:
         # IMPORTANTE: El CSV "Estado de Cuenta" NO debe importar compras/ventas
         # porque ya están en el CSV "Transacciones" (más completo y preciso)
         
-        # 1. DIVIDENDOS
-        if description == 'Dividendo':
-            self._store_dividend_for_consolidation(row)
+        # NUEVA LÓGICA UNIFICADA: Almacenar todas las filas relacionadas con dividendos
+        # Criterios: tienen ISIN, NO tienen ID Orden (excepto FX que no tienen producto)
+        isin = row.get('ISIN', '').strip()
+        id_orden = row.get('ID Orden', '').strip()
         
-        # 2. RETENCIÓN DE DIVIDENDOS
-        elif 'Retención del dividendo' in description or description == 'Retención del dividendo':
-            self._store_dividend_tax_for_consolidation(row)
+        # 1. FILAS RELACIONADAS CON DIVIDENDOS (tienen ISIN, no tienen ID Orden)
+        if isin and not id_orden:
+            self._store_dividend_related_row(row)
         
-        # 3. CONVERSIÓN DE DIVISA (para dividendos)
+        # 2. CONVERSIÓN DE DIVISA (para dividendos, NO tienen producto ni ISIN)
         elif 'Cambio de Divisa' in description:
             # Si NO tiene producto, guardar para emparejar con dividendos
             if not producto:
@@ -229,6 +231,41 @@ class DeGiroParser:
         
         self.fx_transactions.append(fx)
     
+    def _store_dividend_related_row(self, row: Dict[str, str]):
+        """
+        Almacena una fila relacionada con dividendos (nueva lógica unificada)
+        Incluye: Dividendo, Retención, Rendimiento de capital, Pass-Through Fee, etc.
+        """
+        from datetime import datetime
+        
+        fecha = row.get('Fecha', '').strip()
+        hora = row.get('Hora', '').strip()
+        isin = row.get('ISIN', '').strip()
+        producto = row.get('Producto', '').strip()
+        description = row.get('Descripción', '').strip()
+        currency = row.get('Variación', '').strip()
+        amount_value = self._extract_first_unnamed_column(row)
+        
+        # Parsear fecha y hora
+        try:
+            fecha_hora = datetime.strptime(f"{fecha} {hora}", '%d-%m-%Y %H:%M')
+        except:
+            # Si no tiene hora, usar solo fecha
+            try:
+                fecha_hora = datetime.strptime(fecha, '%d-%m-%Y')
+            except:
+                return
+        
+        self.dividend_related_rows.append({
+            'fecha_hora': fecha_hora,
+            'isin': isin,
+            'producto': producto,
+            'description': description,
+            'currency': currency,
+            'amount': amount_value,  # Puede ser positivo o negativo
+            'fecha_str': self._parse_date(fecha)
+        })
+    
     def _store_dividend_for_consolidation(self, row: Dict[str, str]):
         """Almacena un dividendo para consolidar con su conversión FX"""
         producto = row.get('Producto', '').strip()
@@ -334,138 +371,183 @@ class DeGiroParser:
         })
     
     def _consolidate_dividends(self):
-        """Consolida dividendos con validación numérica estricta"""
+        """
+        NUEVA LÓGICA UNIFICADA: Consolida dividendos agrupando por ISIN + ventana de tiempo
+        
+        1. Agrupa filas por ISIN + ventana de ±2 horas
+        2. Suma positivos - negativos = neto
+        3. Busca FX que coincida con ese neto (dentro de 5 días)
+        4. Crea UN dividendo consolidado
+        """
         from datetime import datetime, timedelta
         
-        self.dividends = []  # Limpiar lista temporal
-        processed_dividends = set()  # Para evitar duplicados
+        self.dividends = []
+        processed_rows = set()
         
-        for key, data in self.dividend_fx_map.items():
-            if key in processed_dividends:
-                continue
-                
-            dividend_data = data.get('dividend', {})
-            if not dividend_data:
-                continue
-            
-            symbol = dividend_data.get('symbol', '')
-            amount_original = dividend_data.get('amount_original', Decimal('0'))
-            currency_original = dividend_data.get('currency_original', 'EUR')
-            date_str = dividend_data.get('date', '')
-            isin = dividend_data.get('isin', '')
-            
-            # El tax ya está almacenado en dividend_data por _store_dividend_tax_for_consolidation
-            tax_amount = dividend_data.get('tax', Decimal('0'))
-            
-            try:
-                dividend_date = datetime.strptime(date_str, '%Y-%m-%d')
-            except:
+        # Ordenar por fecha/hora
+        self.dividend_related_rows.sort(key=lambda x: x['fecha_hora'])
+        
+        # Agrupar por ISIN + ventana de tiempo
+        for i, row in enumerate(self.dividend_related_rows):
+            if i in processed_rows:
                 continue
             
-            # CASO 3: Dividendo en EUR (moneda base)
-            if currency_original == 'EUR':
-                self.dividends.append({
-                    'symbol': symbol,
-                    'isin': isin,
-                    'date': date_str,
-                    'amount': float(amount_original),
-                    'currency': 'EUR',
-                    'tax': float(tax_amount),
-                    'tax_eur': 0.0,  # No aplica conversión, ya está en EUR
-                    'description': 'Dividendo'
-                })
-                processed_dividends.add(key)
-                continue
+            # Iniciar un nuevo grupo
+            grupo = [row]
+            isin = row['isin']
+            fecha_hora_ref = row['fecha_hora']
+            processed_rows.add(i)
             
-            # CASO 1 y 2: Dividendo en divisa extranjera
-            # Calcular monto neto para buscar en FX Withdrawal
-            net_amount = amount_original - tax_amount
+            # Buscar filas relacionadas (mismo ISIN, dentro de ±2 horas)
+            for j in range(i + 1, len(self.dividend_related_rows)):
+                if j in processed_rows:
+                    continue
+                
+                other_row = self.dividend_related_rows[j]
+                
+                # Verificar mismo ISIN
+                if other_row['isin'] != isin:
+                    continue
+                
+                # Verificar ventana de tiempo (±2 horas)
+                time_diff = abs((other_row['fecha_hora'] - fecha_hora_ref).total_seconds() / 3600)
+                if time_diff <= 2:
+                    grupo.append(other_row)
+                    processed_rows.add(j)
             
-            # Buscar "Retirada Cambio de Divisa" que coincida
-            matched_withdrawal = None
-            for fx_w in self.fx_withdrawals:
-                # Verificar monto y divisa
-                if (abs(fx_w['amount'] - abs(net_amount)) < Decimal('0.5') and 
-                    fx_w['currency'] == currency_original):
-                    # Verificar fecha (dentro de 5 días)
-                    try:
-                        fx_date = datetime.strptime(fx_w['date'], '%d-%m-%Y')
-                        if abs((fx_date - dividend_date).days) <= 5:
-                            matched_withdrawal = fx_w
-                            break
-                    except:
-                        pass
-            
-            # Calcular tax en EUR si hay tipo de cambio disponible
-            tax_eur = Decimal('0')
-            if matched_withdrawal and matched_withdrawal.get('exchange_rate', Decimal('0')) > 0:
-                exchange_rate = matched_withdrawal['exchange_rate']
-                # La tasa es: 1 EUR = X divisa_extranjera
-                # Por lo tanto: tax_eur = tax_amount / exchange_rate
-                tax_eur = tax_amount / exchange_rate
-            
-            # Si encontramos withdrawal, buscar ingreso EUR y validar numéricamente
-            if matched_withdrawal:
-                exchange_rate = matched_withdrawal.get('exchange_rate', Decimal('0'))
-                withdrawal_amount = matched_withdrawal['amount']
-                
-                # Calcular el EUR esperado: withdrawal_amount / exchange_rate
-                if exchange_rate > 0:
-                    expected_eur = withdrawal_amount / exchange_rate
-                else:
-                    expected_eur = Decimal('0')
-                
-                # Buscar ingreso EUR cercano que coincida numéricamente
-                best_match = None
-                min_diff = float('inf')
-                
-                for fx_d in self.fx_deposits:
-                    try:
-                        deposit_date = datetime.strptime(fx_d['date'], '%d-%m-%Y')
-                        deposit_amount = fx_d['amount']
-                        
-                        # Verificar fecha (dentro de 5 días)
-                        if abs((deposit_date - dividend_date).days) <= 5:
-                            # Verificar relación numérica: expected_eur ≈ deposit_amount
-                            diff = abs(expected_eur - deposit_amount)
-                            
-                            # Tolerancia: 1% o 0.5 EUR (lo que sea mayor)
-                            tolerance = max(Decimal('0.5'), abs(expected_eur) * Decimal('0.01'))
-                            
-                            if diff < tolerance and diff < min_diff:
-                                best_match = fx_d
-                                min_diff = diff
-                    except:
-                        pass
-                
-                # Si encontramos un match válido, registrar dividendo
-                if best_match:
-                    self.dividends.append({
-                        'symbol': symbol,
-                        'isin': isin,
-                        'date': date_str,
-                        'amount': float(best_match['amount']),  # Monto en EUR del "Ingreso Cambio de Divisa"
-                        'currency': 'EUR',  # Convertido a EUR
-                        'amount_original': float(amount_original),  # Guardar monto original para referencia
-                        'currency_original': currency_original,
-                        'tax': float(tax_amount),  # Tax en divisa original
-                        'tax_eur': float(tax_eur),  # Tax convertido a EUR
-                        'description': 'Dividendo'
-                    })
-                    processed_dividends.add(key)
+            # Consolidar el grupo
+            self._consolidate_dividend_group(grupo)
+    
+    def _consolidate_dividend_group(self, grupo):
+        """Consolida un grupo de filas relacionadas en un solo dividendo"""
+        from datetime import datetime, timedelta
+        from decimal import Decimal
+        
+        if not grupo:
+            return
+        
+        # Extraer información común
+        isin = grupo[0]['isin']
+        producto = grupo[0]['producto']
+        currency = grupo[0]['currency']
+        fecha_str = grupo[0]['fecha_str']
+        fecha_hora_ref = grupo[0]['fecha_hora']
+        
+        # Sumar todos los montos (positivos y negativos)
+        total_gross = Decimal('0')
+        total_negative = Decimal('0')
+        
+        for row in grupo:
+            amount = row['amount']
+            if amount > 0:
+                total_gross += amount
             else:
-                # No se encontró conversión FX, usar monto original
-                self.dividends.append({
-                    'symbol': symbol,
-                    'isin': isin,
-                    'date': date_str,
-                    'amount': float(amount_original),
-                    'currency': currency_original,
-                    'tax': float(tax_amount),
-                    'tax_eur': 0.0,
-                    'description': 'Dividendo'
-                })
-                processed_dividends.add(key)
+                total_negative += abs(amount)
+        
+        # Neto = bruto - retenciones/comisiones
+        net_amount = total_gross - total_negative
+        
+        # CASO 1: Dividendo en EUR (moneda base)
+        if currency == 'EUR':
+            self.dividends.append({
+                'symbol': producto,
+                'isin': isin,
+                'date': fecha_str,
+                'amount': float(net_amount),
+                'currency': 'EUR',
+                'tax': 0.0,  # No mostramos retenciones en casos complejos
+                'tax_eur': 0.0,
+                'description': 'Dividendo'
+            })
+            return
+        
+        # CASO 2: Dividendo en divisa extranjera → Buscar FX
+        # Buscar "Retirada Cambio de Divisa" que coincida
+        matched_withdrawal = None
+        for fx_w in self.fx_withdrawals:
+            # Verificar monto y divisa
+            if (abs(fx_w['amount'] - abs(net_amount)) < Decimal('0.5') and 
+                fx_w['currency'] == currency):
+                # Verificar fecha (dentro de 5 días)
+                try:
+                    fx_date = datetime.strptime(fx_w['date'], '%d-%m-%Y')
+                    dividend_date = datetime.strptime(fecha_str, '%Y-%m-%d')
+                    if abs((fx_date - dividend_date).days) <= 5:
+                        matched_withdrawal = fx_w
+                        break
+                except:
+                    pass
+        
+        if not matched_withdrawal:
+            # No se encontró conversión FX, usar monto original
+            self.dividends.append({
+                'symbol': producto,
+                'isin': isin,
+                'date': fecha_str,
+                'amount': float(net_amount),
+                'currency': currency,
+                'tax': 0.0,
+                'tax_eur': 0.0,
+                'description': 'Dividendo'
+            })
+            return
+        
+        # Buscar "Ingreso Cambio de Divisa" con validación numérica
+        exchange_rate = matched_withdrawal.get('exchange_rate', Decimal('0'))
+        withdrawal_amount = matched_withdrawal['amount']
+        
+        if exchange_rate > 0:
+            expected_eur = withdrawal_amount / exchange_rate
+        else:
+            expected_eur = Decimal('0')
+        
+        # Buscar ingreso EUR cercano que coincida numéricamente
+        best_match = None
+        min_diff = float('inf')
+        
+        for fx_d in self.fx_deposits:
+            try:
+                deposit_date = datetime.strptime(fx_d['date'], '%d-%m-%Y')
+                deposit_amount = fx_d['amount']
+                dividend_date = datetime.strptime(fecha_str, '%Y-%m-%d')
+                
+                # Verificar fecha (dentro de 5 días)
+                if abs((deposit_date - dividend_date).days) <= 5:
+                    # Verificar relación numérica
+                    diff = abs(expected_eur - deposit_amount)
+                    tolerance = max(Decimal('0.5'), abs(expected_eur) * Decimal('0.01'))
+                    
+                    if diff < tolerance and diff < min_diff:
+                        best_match = fx_d
+                        min_diff = diff
+            except:
+                pass
+        
+        if best_match:
+            self.dividends.append({
+                'symbol': producto,
+                'isin': isin,
+                'date': fecha_str,
+                'amount': float(best_match['amount']),  # EUR del "Ingreso Cambio de Divisa"
+                'currency': 'EUR',
+                'amount_original': float(total_gross),  # Bruto original
+                'currency_original': currency,
+                'tax': 0.0,  # No mostramos retenciones en casos complejos
+                'tax_eur': 0.0,
+                'description': 'Dividendo'
+            })
+        else:
+            # Fallback
+            self.dividends.append({
+                'symbol': producto,
+                'isin': isin,
+                'date': fecha_str,
+                'amount': float(net_amount),
+                'currency': currency,
+                'tax': 0.0,
+                'tax_eur': 0.0,
+                'description': 'Dividendo'
+            })
     
     def _process_interest(self, row: Dict[str, str]):
         """Procesa interés (comisión por apalancamiento)"""
