@@ -238,9 +238,9 @@ class DeGiroParser:
         amount_value = self._extract_first_unnamed_column(row)
         currency = row.get('Variación', '').strip()
         
-        # Clave única: monto_absoluto + divisa + símbolo (para emparejar con FX)
-        # Usamos el monto redondeado para evitar problemas de precisión
-        key = f"{abs(amount_value):.2f}_{currency}_{producto}"
+        # Clave única: fecha + monto + divisa + símbolo (para emparejar con FX)
+        # Incluimos fecha para evitar colisiones cuando hay múltiples dividendos del mismo monto
+        key = f"{fecha}_{abs(amount_value):.2f}_{currency}_{producto}"
         
         if key not in self.dividend_fx_map:
             self.dividend_fx_map[key] = {}
@@ -272,11 +272,13 @@ class DeGiroParser:
         except:
             return
         
-        # Buscar el dividendo correspondiente por producto, divisa y fecha cercana
+        # Buscar el dividendo correspondiente por fecha, producto y divisa
+        # Ahora que la clave incluye fecha, podemos buscar más eficientemente
         best_match = None
         min_date_diff = float('inf')
         
         for dict_key in self.dividend_fx_map.keys():
+            # La clave es: fecha_monto_divisa_producto
             # Verificar que sea el mismo producto y divisa
             if producto in dict_key and currency in dict_key:
                 dividend_data = self.dividend_fx_map[dict_key].get('dividend', {})
