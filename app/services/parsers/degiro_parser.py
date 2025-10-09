@@ -449,13 +449,14 @@ class DeGiroParser:
         
         # CASO 1: Dividendo en EUR (moneda base)
         if currency == 'EUR':
+            # Para EUR, mostramos el bruto y la retención por separado
             self.dividends.append({
                 'symbol': producto,
                 'isin': isin,
                 'date': fecha_str,
-                'amount': float(net_amount),
+                'amount': float(total_gross),  # Bruto
                 'currency': 'EUR',
-                'tax': 0.0,  # No mostramos retenciones en casos complejos
+                'tax': float(total_negative),  # Retención/comisiones
                 'tax_eur': 0.0,
                 'description': 'Dividendo'
             })
