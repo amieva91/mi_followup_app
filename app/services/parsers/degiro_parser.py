@@ -404,28 +404,53 @@ class DeGiroParser:
             
             # Si encontramos withdrawal, buscar ingreso EUR y validar numéricamente
             if matched_withdrawal:
-                # Buscar ingreso EUR cercano
+                exchange_rate = matched_withdrawal.get('exchange_rate', Decimal('0'))
+                withdrawal_amount = matched_withdrawal['amount']
+                
+                # Calcular el EUR esperado: withdrawal_amount / exchange_rate
+                if exchange_rate > 0:
+                    expected_eur = withdrawal_amount / exchange_rate
+                else:
+                    expected_eur = Decimal('0')
+                
+                # Buscar ingreso EUR cercano que coincida numéricamente
+                best_match = None
+                min_diff = float('inf')
+                
                 for fx_d in self.fx_deposits:
                     try:
                         deposit_date = datetime.strptime(fx_d['date'], '%d-%m-%Y')
+                        deposit_amount = fx_d['amount']
+                        
+                        # Verificar fecha (dentro de 5 días)
                         if abs((deposit_date - dividend_date).days) <= 5:
-                            # El dividendo se convierte a EUR (monto del Ingreso Cambio de Divisa)
-                            self.dividends.append({
-                                'symbol': symbol,
-                                'isin': isin,
-                                'date': date_str,
-                                'amount': float(fx_d['amount']),  # Monto en EUR del "Ingreso Cambio de Divisa"
-                                'currency': 'EUR',  # Convertido a EUR
-                                'amount_original': float(amount_original),  # Guardar monto original para referencia
-                                'currency_original': currency_original,
-                                'tax': float(tax_amount),  # Tax en divisa original
-                                'tax_eur': float(tax_eur),  # Tax convertido a EUR
-                                'description': 'Dividendo'
-                            })
-                            processed_dividends.add(key)
-                            break
+                            # Verificar relación numérica: expected_eur ≈ deposit_amount
+                            diff = abs(expected_eur - deposit_amount)
+                            
+                            # Tolerancia: 1% o 0.5 EUR (lo que sea mayor)
+                            tolerance = max(Decimal('0.5'), abs(expected_eur) * Decimal('0.01'))
+                            
+                            if diff < tolerance and diff < min_diff:
+                                best_match = fx_d
+                                min_diff = diff
                     except:
                         pass
+                
+                # Si encontramos un match válido, registrar dividendo
+                if best_match:
+                    self.dividends.append({
+                        'symbol': symbol,
+                        'isin': isin,
+                        'date': date_str,
+                        'amount': float(best_match['amount']),  # Monto en EUR del "Ingreso Cambio de Divisa"
+                        'currency': 'EUR',  # Convertido a EUR
+                        'amount_original': float(amount_original),  # Guardar monto original para referencia
+                        'currency_original': currency_original,
+                        'tax': float(tax_amount),  # Tax en divisa original
+                        'tax_eur': float(tax_eur),  # Tax convertido a EUR
+                        'description': 'Dividendo'
+                    })
+                    processed_dividends.add(key)
             else:
                 # No se encontró conversión FX, usar monto original
                 self.dividends.append({
