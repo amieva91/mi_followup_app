@@ -2,8 +2,8 @@
 
 **Filosofía**: Elegante, Profesional, Financiero, Minimalista
 
-**Última actualización**: 7 Octubre 2025 - 23:00 UTC  
-**Estado**: ✅ Componentes base + avanzados implementados (Sprint 1, 2, 3 - COMPLETO)
+**Última actualización**: 10 Octubre 2025 - 23:20 UTC  
+**Estado**: ✅ Componentes base + avanzados implementados (Sprint 1, 2, 3 - COMPLETO v3.2.0)
 
 ---
 
@@ -64,6 +64,16 @@
 - ✅ Select de cuenta de broker
 - ✅ Feedback visual de proceso de importación
 - ✅ Mensajes diferenciados por tipo (success, error, info)
+
+**Mejoras Finales Sprint 3 (v3.2.0)**
+- ✅ **Formato Europeo**: Números con punto como separador de miles y coma como decimal (1.234,56)
+- ✅ **Filtros Jinja2 personalizados**: `number_eu` y `decimal_eu(2)` para formateo consistente
+- ✅ **Visualización de Assets**: Línea gris con formato `Type • Currency • ISIN` en lugar de nombre duplicado
+- ✅ **Jerarquía visual mejorada**: Símbolos en bold, información secundaria en gris claro
+- ✅ **Búsqueda avanzada**: Filtros real-time sin botón "Buscar"
+- ✅ **Tablas ordenables**: Click en encabezados para ordenar columnas
+- ✅ **Visualización de moneda**: Mostrada junto a precios y costes totales
+- ✅ **Iconos de advertencia**: ⚠️ en dividendos no-EUR que requieren revisión
 
 ---
 

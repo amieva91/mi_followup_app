@@ -750,26 +750,36 @@ Ahora:
 
 ---
 
-**✅ SPRINT 3 COMPLETADO - 8 Octubre 2025**
+**✅ SPRINT 3 COMPLETADO - 10 Octubre 2025 (v3.2.0)**
 
 **Resultado final**:
 - ✅ **IBKR**: 10 holdings correctos (IGC cerrada, sin oversells)
 - ✅ **DeGiro**: 19 holdings correctos (parser completo, balance exacto)
-- ✅ **Total**: 29 holdings activos reales
+- ✅ **Total**: 19 holdings activos reales (consolidados por asset)
 - ✅ Detección de duplicados 100% efectiva
 - ✅ FIFO robusto con manejo de oversells
 - ✅ Sistema funcional end-to-end: CSV → Parser → Importer → BD → Dashboard
 - ✅ Búsqueda y edición de transacciones
-- ✅ Vista unificada de holdings por asset
+- ✅ Vista unificada de holdings por asset (múltiples brokers)
 - ✅ Import múltiple de archivos
 - ✅ Normalización de símbolos y ISINs
+- ✅ **Corrección extracción monedas** (csv.reader por índices, columna 8)
+- ✅ **Consolidación unificada de dividendos** (3-4 líneas + FX)
+- ✅ **Formato europeo** en UI (1.234,56)
+- ✅ **Visualización mejorada**: Type • Currency • ISIN
 
 **Métricas finales**:
 - 1704 transacciones procesadas (DeGiro)
 - 39 transacciones procesadas (IBKR)
-- 29 holdings activos calculados automáticamente
+- 19 holdings únicos (consolidados por asset + ISIN)
 - 0 posiciones incorrectas
 - 100% precisión FIFO
+- 100% monedas correctas (HKD, USD, AUD, EUR)
+
+**Pendientes de refinamiento**:
+- Pruebas exhaustivas con CSVs completos de ambos brokers
+- Integración API Yahoo Finance (exchange, sector, precios)
+- Revisión de campos vacíos: `exchange` (0%), `sector` (0%)
 
 **Próximo paso**: Sprint 4 - Calculadora de Métricas (P&L, TWR, MWR, Sharpe, Drawdown)
 
