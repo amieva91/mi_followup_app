@@ -35,7 +35,7 @@
                     <label for="type" class="block text-sm font-medium text-gray-700 mb-1">
                         💱 Tipo de operación
                     </label>
-                    <select id="type" name="type" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    <select id="type" name="type" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 auto-submit">
                         <option value="">Todos</option>
                         <option value="BUY" {% if request.args.get('type') == 'BUY' %}selected{% endif %}>Compra</option>
                         <option value="SELL" {% if request.args.get('type') == 'SELL' %}selected{% endif %}>Venta</option>
@@ -51,7 +51,7 @@
                     <label for="account" class="block text-sm font-medium text-gray-700 mb-1">
                         🏦 Cuenta
                     </label>
-                    <select id="account" name="account" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    <select id="account" name="account" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 auto-submit">
                         <option value="">Todas las cuentas</option>
                         {% for account in accounts %}
                         <option value="{{ account.id }}" {% if request.args.get('account')|int == account.id %}selected{% endif %}>
@@ -68,7 +68,7 @@
                     </label>
                     <input type="date" id="date_from" name="date_from" 
                            value="{{ request.args.get('date_from', '') }}"
-                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 auto-submit">
                 </div>
 
                 <!-- Filtro por fecha hasta -->
@@ -78,26 +78,53 @@
                     </label>
                     <input type="date" id="date_to" name="date_to" 
                            value="{{ request.args.get('date_to', '') }}"
-                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 auto-submit">
+                </div>
+                
+                <!-- Filtro: A revisar -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        ⚠️ Estado
+                    </label>
+                    <label class="flex items-center px-4 py-2 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
+                        <input type="checkbox" name="needs_review" value="1" 
+                               {% if request.args.get('needs_review') %}checked{% endif %}
+                               class="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded auto-submit">
+                        <span class="text-sm text-gray-700">Solo transacciones a revisar</span>
+                    </label>
                 </div>
             </div>
 
             <!-- Botones de acción -->
             <div class="flex gap-3">
-                <button type="submit" class="btn-primary">
-                    🔍 Buscar
-                </button>
                 <a href="{{ url_for('portfolio.transactions_list') }}" class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition font-medium text-gray-700">
                     ✖️ Limpiar filtros
                 </a>
-                {% if filtered %}
                 <span class="px-4 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium">
-                    {{ transactions|length }} resultado(s) encontrado(s)
+                    {{ transactions|length }} transacción/es
                 </span>
-                {% endif %}
             </div>
         </form>
     </div>
+    
+    <script>
+        // Auto-submit form cuando cambian los filtros
+        document.querySelectorAll('.auto-submit').forEach(element => {
+            element.addEventListener('change', function() {
+                this.form.submit();
+            });
+        });
+        
+        // Auto-submit para el campo de texto con debounce
+        const symbolInput = document.getElementById('symbol');
+        let timeout = null;
+        symbolInput.addEventListener('input', function() {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => {
+                this.form.submit();
+            }, 500); // Espera 500ms después de dejar de escribir
+        });
+    </script>
 
     {% if transactions %}
     <div class="bg-white rounded-xl shadow-sm overflow-hidden">
@@ -105,33 +132,27 @@
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
+                        {% macro sortable_header(label, field) %}
                         <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Fecha
+                            <a href="?{{ request.query_string.decode() | replace('sort_by=' + request.args.get('sort_by', ''), '') | replace('sort_order=' + request.args.get('sort_order', ''), '') | replace('&&', '&') | replace('?&', '?') }}&sort_by={{ field }}&sort_order={% if request.args.get('sort_by') == field and request.args.get('sort_order') == 'asc' %}desc{% else %}asc{% endif %}" 
+                               class="flex items-center hover:text-gray-700 transition">
+                                {{ label }}
+                                {% if request.args.get('sort_by') == field %}
+                                    {% if request.args.get('sort_order') == 'asc' %}↑{% else %}↓{% endif %}
+                                {% endif %}
+                            </a>
                         </th>
-                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Tipo
-                        </th>
-                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Activo
-                        </th>
-                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Cuenta
-                        </th>
-                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Cantidad
-                        </th>
-                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Precio
-                        </th>
-                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Total
-                        </th>
-                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            P&L
-                        </th>
-                        <th class="px-6 py-4 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Acciones
-                        </th>
+                        {% endmacro %}
+                        
+                        {{ sortable_header('Fecha', 'transaction_date') }}
+                        {{ sortable_header('Tipo', 'transaction_type') }}
+                        {{ sortable_header('Activo', 'asset') }}
+                        {{ sortable_header('Cuenta', 'account') }}
+                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Cantidad</th>
+                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Precio</th>
+                        {{ sortable_header('Total', 'amount') }}
+                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">P&L</th>
+                        <th class="px-6 py-4 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
@@ -142,19 +163,24 @@
                             <div class="text-xs text-gray-500">{{ txn.transaction_date.strftime('%H:%M') }}</div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
-                                {% if txn.transaction_type == 'BUY' %}bg-green-100 text-green-800
-                                {% elif txn.transaction_type == 'SELL' %}bg-red-100 text-red-800
-                                {% elif txn.transaction_type == 'DIVIDEND' %}bg-blue-100 text-blue-800
-                                {% elif txn.transaction_type == 'FEE' %}bg-yellow-100 text-yellow-800
-                                {% elif txn.transaction_type == 'DEPOSIT' %}bg-teal-100 text-teal-800
-                                {% elif txn.transaction_type == 'WITHDRAWAL' %}bg-purple-100 text-purple-800
-                                {% else %}bg-gray-100 text-gray-800{% endif %}">
-                                {% if txn.transaction_type == 'FEE' %}COMISIÓN
-                                {% elif txn.transaction_type == 'DEPOSIT' %}DEPÓSITO
-                                {% elif txn.transaction_type == 'WITHDRAWAL' %}RETIRO
-                                {% else %}{{ txn.transaction_type }}{% endif %}
-                            </span>
+                            <div class="flex items-center gap-2">
+                                {% if txn.transaction_type == 'DIVIDEND' and txn.currency != 'EUR' %}
+                                <span class="text-red-500 text-lg font-bold" title="Transacción a revisar: No está en EUR">⚠️</span>
+                                {% endif %}
+                                <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                    {% if txn.transaction_type == 'BUY' %}bg-green-100 text-green-800
+                                    {% elif txn.transaction_type == 'SELL' %}bg-red-100 text-red-800
+                                    {% elif txn.transaction_type == 'DIVIDEND' %}bg-blue-100 text-blue-800
+                                    {% elif txn.transaction_type == 'FEE' %}bg-yellow-100 text-yellow-800
+                                    {% elif txn.transaction_type == 'DEPOSIT' %}bg-teal-100 text-teal-800
+                                    {% elif txn.transaction_type == 'WITHDRAWAL' %}bg-purple-100 text-purple-800
+                                    {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                    {% if txn.transaction_type == 'FEE' %}COMISIÓN
+                                    {% elif txn.transaction_type == 'DEPOSIT' %}DEPÓSITO
+                                    {% elif txn.transaction_type == 'WITHDRAWAL' %}RETIRO
+                                    {% else %}{{ txn.transaction_type }}{% endif %}
+                                </span>
+                            </div>
                         </td>
                         <td class="px-6 py-4">
                             {% if txn.asset %}

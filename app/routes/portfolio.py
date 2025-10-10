@@ -284,8 +284,48 @@ def transactions_list():
         except ValueError:
             pass
     
-    # Ordenar y limitar
-    transactions = query.order_by(Transaction.transaction_date.desc()).limit(100).all()
+    # Filtro: Solo transacciones a revisar (dividendos no EUR)
+    needs_review = request.args.get('needs_review', '').strip()
+    if needs_review:
+        filtered = True
+        query = query.filter(
+            Transaction.transaction_type == 'DIVIDEND',
+            Transaction.currency != 'EUR'
+        )
+    
+    # Ordenamiento dinámico
+    sort_by = request.args.get('sort_by', 'transaction_date').strip()
+    sort_order = request.args.get('sort_order', 'desc').strip()
+    
+    # Mapeo de campos de ordenamiento
+    sort_fields = {
+        'transaction_date': Transaction.transaction_date,
+        'transaction_type': Transaction.transaction_type,
+        'amount': Transaction.amount,
+        'asset': Asset.symbol,  # Join con Asset
+        'account': BrokerAccount.account_name  # Join con BrokerAccount
+    }
+    
+    # Aplicar joins si es necesario
+    if sort_by in ['asset', 'account']:
+        if sort_by == 'asset':
+            query = query.outerjoin(Asset, Transaction.asset_id == Asset.id)
+        elif sort_by == 'account':
+            query = query.join(BrokerAccount, Transaction.account_id == BrokerAccount.id)
+    
+    # Aplicar ordenamiento
+    if sort_by in sort_fields:
+        order_field = sort_fields[sort_by]
+        if sort_order == 'asc':
+            query = query.order_by(order_field.asc())
+        else:
+            query = query.order_by(order_field.desc())
+    else:
+        # Ordenamiento por defecto
+        query = query.order_by(Transaction.transaction_date.desc())
+    
+    # SIN LÍMITE - Mostrar todas las transacciones
+    transactions = query.all()
     
     # Obtener todas las cuentas para el selector
     accounts = BrokerAccount.query.filter_by(
