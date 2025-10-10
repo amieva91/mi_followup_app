@@ -499,7 +499,7 @@ class DeGiroParser:
             })
             return
         
-        # Buscar "Ingreso Cambio de Divisa" con validación numérica
+        # Buscar conversión a EUR con validación numérica
         exchange_rate = matched_withdrawal.get('exchange_rate', Decimal('0'))
         withdrawal_amount = matched_withdrawal['amount']
         
@@ -508,10 +508,12 @@ class DeGiroParser:
         else:
             expected_eur = Decimal('0')
         
-        # Buscar ingreso EUR cercano que coincida numéricamente
+        # CASO A: Buscar "Ingreso Cambio de Divisa" (formato tradicional)
+        # CASO B: Buscar "Retirada Cambio de Divisa" en EUR (nuevo formato Accenture)
         best_match = None
         min_diff = float('inf')
         
+        # Primero intentar con fx_deposits (Ingreso Cambio de Divisa)
         for fx_d in self.fx_deposits:
             try:
                 deposit_date = datetime.strptime(fx_d['date'], '%d-%m-%Y')
@@ -529,6 +531,30 @@ class DeGiroParser:
                         min_diff = diff
             except:
                 pass
+        
+        # Si no se encontró en fx_deposits, buscar en fx_withdrawals que sean EUR (CASO B: Accenture)
+        if not best_match:
+            for fx_w_eur in self.fx_withdrawals:
+                # Solo considerar "Retirada" que sea en EUR
+                if fx_w_eur['currency'] != 'EUR':
+                    continue
+                
+                try:
+                    withdrawal_eur_date = datetime.strptime(fx_w_eur['date'], '%d-%m-%Y')
+                    withdrawal_eur_amount = fx_w_eur['amount']
+                    dividend_date = datetime.strptime(fecha_str, '%Y-%m-%d')
+                    
+                    # Verificar fecha (dentro de 5 días)
+                    if abs((withdrawal_eur_date - dividend_date).days) <= 5:
+                        # Verificar relación numérica
+                        diff = abs(expected_eur - withdrawal_eur_amount)
+                        tolerance = max(Decimal('0.5'), abs(expected_eur) * Decimal('0.01'))
+                        
+                        if diff < tolerance and diff < min_diff:
+                            best_match = fx_w_eur
+                            min_diff = diff
+                except:
+                    pass
         
         if best_match:
             self.dividends.append({
