@@ -2,7 +2,7 @@
 
 {% block title %}Mis Posiciones - FollowUp{% endblock %}
 
-<!-- Template actualizada: 2025-10-10 22:35 - Formato Europeo v2 -->
+<!-- Template actualizada: 2025-10-10 23:18 - Asset info: Type • Currency • ISIN -->
 
 {% block content %}
 <div class="max-w-7xl mx-auto">
@@ -57,16 +57,12 @@
                     <tr class="hover:bg-gray-50 transition">
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="flex items-center">
-                                <div>
-                                    <div class="font-semibold text-gray-900">{{ holding.asset.symbol }}</div>
-                                    <div class="text-sm text-gray-500">{{ holding.asset.name[:40] if holding.asset.name else '' }}{% if holding.asset.name and holding.asset.name|length > 40 %}...{% endif %}</div>
-                                    <div class="text-xs text-gray-400 mt-1">
-                                        {{ holding.asset.asset_type }} • {{ holding.asset.currency }}
-                                        {% if holding.asset.isin %}
-                                        • {{ holding.asset.isin }}
-                                        {% endif %}
-                                    </div>
+                            <div>
+                                <div class="font-bold text-gray-900">{{ holding.asset.symbol }}</div>
+                                <div class="text-sm text-gray-400">
+                                    {{ holding.asset.asset_type }} • {{ holding.asset.currency }}{% if holding.asset.isin %} • {{ holding.asset.isin }}{% endif %}
                                 </div>
+                            </div>
                             </div>
                         </td>
                         {% if unified %}
