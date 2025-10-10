@@ -2,8 +2,8 @@
 
 **Fecha de inicio**: 5 Octubre 2025  
 **Timeline**: 6 meses (26 semanas)  
-**Última actualización**: 8 Octubre 2025 - 23:05 UTC  
-**Estado actual**: ✅ Sprint 0, 1, 2, 3 COMPLETADOS (v3.1.0) - Sistema funcionando en producción
+**Última actualización**: 10 Octubre 2025 - 23:20 UTC  
+**Estado actual**: ✅ Sprint 0, 1, 2, 3 COMPLETADOS (v3.2.0) - Sistema funcionando en producción
 
 ## 🎉 PROGRESO RECIENTE
 
@@ -31,23 +31,25 @@
 - Emoji picker con sugerencias clickeables
 - Dashboard con KPIs en tiempo real (ingresos/gastos/balance del mes)
 
-**✅ SPRINT 3 - CSV Processor & Portfolio Management (COMPLETADO - 8 Oct)**
+**✅ SPRINT 3 - CSV Processor & Portfolio Management (COMPLETADO - 10 Oct)**
 - ✅ HITO 1: Base de Datos y Arquitectura
   - 8 modelos: Broker, BrokerAccount, Asset, PriceHistory, PortfolioHolding, Transaction, CashFlow, PortfolioMetrics
   - Migraciones aplicadas en dev y prod
   - Seeders de brokers (IBKR, DeGiro, Manual)
 - ✅ HITO 2: Entrada Manual de Posiciones
   - CRUD de cuentas de broker
-  - Entrada manual de transacciones (BUY/SELL/DIVIDEND/FEE)
+  - Entrada manual de transacciones (BUY/SELL/DIVIDEND/FEE/DEPOSIT/WITHDRAWAL)
   - Actualización automática de holdings con FIFO
   - Cálculo de P&L realizadas y no realizadas
   - Eliminación destructiva de cuentas
 - ✅ HITO 3: Parser CSV IBKR
   - Formato jerárquico con secciones (Account Info, Trades, Holdings, Dividends)
-  - Extracción de 56 transacciones, 9 holdings, 3 dividendos
+  - Extracción de ISINs de "Financial Instrument Information"
+  - Normalización de símbolos (IGCl → IGC)
   - Soporte para múltiples divisas (USD, EUR, HKD, SGD, NOK, GBP)
 - ✅ HITO 4: Parser CSV DeGiro
-  - Formato cronológico europeo (coma decimal)
+  - **Transacciones CSV**: Lectura por índices (csv.reader), columna 8 = moneda
+  - **Estado de Cuenta CSV**: Consolidación unificada de dividendos con FX
   - Detección de tipos de transacción por descripción
   - Cálculo automático de holdings con FIFO
   - Extracción de ISIN de descripciones
@@ -69,11 +71,22 @@
 - ✅ MEJORAS FINALES:
   - **FIFO robusto** con posiciones cortas temporales
   - Parser completo DeGiro (Transacciones + Estado de Cuenta)
+  - **Corrección extracción monedas**: csv.reader por índices (columna 8)
+  - **Consolidación unificada de dividendos** (3-4 líneas relacionadas + FX)
   - Normalización de símbolos IBKR + extracción ISINs
   - Import múltiple de archivos simultáneos
-  - Detección inteligente de duplicados (snapshot)
+  - Detección inteligente de duplicados (snapshot, no batch)
   - Eliminación destructiva de cuentas broker
-- **Métricas finales**: 29 holdings, 0 errores, 100% precisión FIFO
+  - **Formato europeo**: 1.234,56 en todos los números
+  - **Visualización mejorada**: Type • Currency • ISIN (en lugar de nombre)
+  - Búsqueda con sorting + filtros real-time
+- **Métricas finales**: 19 holdings, 0 errores, 100% precisión FIFO
+
+**⚠️ PENDIENTES DE REFINAMIENTO:**
+- Pruebas exhaustivas con CSVs completos de ambos brokers
+- Revisión de campos vacíos: `exchange` (0%), `sector` (0%)
+- Integración API Yahoo Finance (precios/exchange/sector)
+- Sprint 4: Calculadora de Métricas
 
 **🔗 URLs Funcionales:**
 - **Producción**: https://followup.fit/

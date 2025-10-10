@@ -2,9 +2,10 @@
 
 Sistema completo de gestión financiera personal.
 
-## ✅ Estado Actual (8 Oct 2025)
+## ✅ Estado Actual (10 Oct 2025)
 
 **Funcionalidades Implementadas:**
+- ✅ **Sprint 0 - Arquitectura Base** - Configuración inicial, estructura modular
 - ✅ **Sprint 1 - Autenticación** - Registro, Login, Reset Password
 - ✅ **Sprint 2 - Gastos e Ingresos** 
   - Categorías jerárquicas con padre/hijo
@@ -15,21 +16,24 @@ Sistema completo de gestión financiera personal.
 - ✅ **Sprint 3 - CSV Processor & Portfolio Management** 
   - Base de datos completa (8 modelos para portfolio)
   - CRUD de cuentas de broker con eliminación destructiva
-  - Entrada manual de transacciones (BUY/SELL/DIVIDEND/FEE)
+  - Entrada manual de transacciones (BUY/SELL/DIVIDEND/FEE/DEPOSIT/WITHDRAWAL)
   - Parser CSV para IBKR (formato jerárquico + extracción ISIN)
-  - Parser CSV para DeGiro Transacciones (formato completo)
-  - Parser CSV para DeGiro Estado de Cuenta (dividendos/comisiones)
-  - Importador a BD con detección inteligente de duplicados
+  - Parser CSV para DeGiro Transacciones (lectura por índices, monedas correctas)
+  - Parser CSV para DeGiro Estado de Cuenta (dividendos/comisiones/FX)
+  - Consolidación unificada de dividendos (3-4 líneas relacionadas)
+  - Importador a BD con detección inteligente de duplicados (snapshot)
   - Filtrado de transacciones FX (Forex)
   - **FIFO robusto con posiciones cortas temporales**
   - Normalización de símbolos (IGC/IGCl → IGC)
   - Cálculo de P&L realizadas y no realizadas
   - Interfaz web para subir múltiples CSV con drag & drop
   - Dashboard de portfolio con holdings y transacciones
-  - **Búsqueda y edición de transacciones** con filtros combinables
+  - **Búsqueda y edición de transacciones** con filtros combinables + sorting
   - **Vista unificada de holdings** por asset (múltiples brokers)
   - Import de múltiples archivos simultáneos
   - Recálculo automático de holdings tras edición
+  - **Formato europeo** en todos los números (1.234,56)
+  - **Visualización mejorada**: Type • Currency • ISIN
 - ✅ **Dashboard** - KPIs en tiempo real (ingresos/gastos/balance mensual)
 - ✅ **Sistema desplegado** - Funcionando en https://followup.fit/
 
@@ -152,17 +156,26 @@ sudo systemctl status followup.service
 
 ## 📊 Estado del Proyecto
 
-**Fase actual**: Sprint 4 - Calculadora de Métricas  
-**Última actualización**: 8 Octubre 2025  
-**Versión**: 3.1.0  
+**Fase actual**: Sprint 3 - Finalizado / Sprint 4 - Próximamente  
+**Última actualización**: 10 Octubre 2025  
+**Versión**: 3.2.0  
 **Progreso**: Sprint 0 ✅ | Sprint 1 ✅ | Sprint 2 ✅ | Sprint 3 ✅ (100%)
 
 **Highlights Sprint 3:**
 - FIFO robusto con manejo de posiciones cortas temporales
 - Parser completo de DeGiro (Transacciones + Estado de Cuenta)
+- Corrección de extracción de monedas (csv.reader por índices)
+- Consolidación unificada de dividendos con FX conversion
 - Normalización de símbolos y extracción de ISINs de IBKR
 - Búsqueda y edición de transacciones con recálculo automático
 - Vista unificada de holdings por asset (múltiples brokers)
-- Import múltiple de archivos CSV
-- 29 holdings reales, 0 posiciones incorrectas, 100% precisión FIFO
+- Import múltiple de archivos CSV con snapshot de duplicados
+- Formato europeo en números (1.234,56) y visualización Type • Currency • ISIN
+- 19 holdings correctos, 0 posiciones incorrectas, 100% precisión FIFO
+
+**Próximos Pasos (Pendientes para refinamiento):**
+- 🔍 Pruebas exhaustivas con CSVs de ambos brokers (IBKR + DeGiro completos)
+- 📋 Revisión de información faltante: `exchange` (0%), `sector` (0%)
+- 🔌 Integración APIs externas (Yahoo Finance) para exchange/sector/precios
+- 📊 Sprint 4: Calculadora de Métricas (IRR, Sharpe, Max Drawdown, etc.)
 
