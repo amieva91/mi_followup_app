@@ -185,7 +185,7 @@
                         <td class="px-6 py-4">
                             {% if txn.asset %}
                                 <div class="font-semibold text-gray-900">{{ txn.asset.symbol }}</div>
-                                <div class="text-xs text-gray-500">{{ txn.asset.name[:30] }}...</div>
+                                <div class="text-xs text-gray-500">{{ txn.asset.name[:40] }}</div>
                             {% elif txn.description %}
                                 <div class="text-sm text-gray-700">{{ txn.description[:60] }}</div>
                             {% else %}
@@ -193,38 +193,37 @@
                             {% endif %}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm text-gray-900">{{ txn.account.account_name }}</div>
-                            <div class="text-xs text-gray-500">{{ txn.account.broker.name }}</div>
+                            <div class="text-sm text-gray-900">{{ txn.account.broker.name }}</div>
+                            <div class="text-xs text-gray-500">{{ txn.account.account_name }}</div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right">
                             {% if txn.quantity %}
-                                <div class="text-sm text-gray-900">{{ "%.4f"|format(txn.quantity) }}</div>
+                                <div class="text-sm text-gray-900">{{ txn.quantity|number_eu }}</div>
                             {% else %}
                                 <div class="text-sm text-gray-400">-</div>
                             {% endif %}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right">
                             {% if txn.price %}
-                                <div class="text-sm text-gray-900">{{ "%.2f"|format(txn.price) }}</div>
-                                <div class="text-xs text-gray-500">{{ txn.currency }}</div>
+                                <div class="text-sm text-gray-900">{{ txn.price|decimal_eu(2) }} <span class="text-xs text-gray-600">{{txn.currency}}</span></div>
                             {% else %}
                                 <div class="text-sm text-gray-400">-</div>
                             {% endif %}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right">
                             <div class="text-sm font-medium {% if txn.amount >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
-                                {{ "%.2f"|format(txn.amount) }} <span class="text-xs text-gray-600">{{ txn.currency }}</span>
+                                {{ txn.amount|decimal_eu(2) }} <span class="text-xs text-gray-600">{{ txn.currency }}</span>
                             </div>
                             {% if txn.amount_original and txn.currency_original %}
-                                <div class="text-xs text-gray-500">({{ "%.2f"|format(txn.amount_original) }} {{ txn.currency_original }})</div>
+                                <div class="text-xs text-gray-500">({{ txn.amount_original|decimal_eu(2) }} {{ txn.currency_original }})</div>
                             {% endif %}
                             {% if txn.commission > 0 or txn.fees > 0 or txn.tax > 0 %}
-                                <div class="text-xs text-gray-500">
-                                    {% if txn.commission > 0 %}Comisión: {{ "%.2f"|format(txn.commission) }} {{txn.currency}}<br>{% endif %}
-                                    {% if txn.fees > 0 %}Gastos: {{ "%.2f"|format(txn.fees) }} {{txn.currency}}<br>{% endif %}
+                                <div class="text-xs text-gray-500 mt-1">
+                                    {% if txn.commission > 0 %}Comisión: {{ txn.commission|decimal_eu(2) }} {{txn.currency}}<br>{% endif %}
+                                    {% if txn.fees > 0 %}Gastos: {{ txn.fees|decimal_eu(2) }} {{txn.currency}}<br>{% endif %}
                                     {% if txn.tax > 0 %}
-                                        Retención: {{ "%.2f"|format(txn.tax) }} {{ txn.currency_original if txn.currency_original else txn.currency }}
-                                        {% if txn.tax_eur and txn.tax_eur > 0 %} ({{ "%.2f"|format(txn.tax_eur) }} EUR){% endif %}
+                                        Retención: {{ txn.tax|decimal_eu(2) }} {{ txn.currency_original if txn.currency_original else txn.currency }}
+                                        {% if txn.tax_eur and txn.tax_eur > 0 %} ({{ txn.tax_eur|decimal_eu(2) }} EUR){% endif %}
                                     {% endif %}
                                 </div>
                             {% endif %}

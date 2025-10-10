@@ -42,6 +42,10 @@ def create_app(config_name='default'):
     def load_user(user_id):
         return User.query.get(int(user_id))
     
+    # Registrar filtros personalizados para templates
+    from app.utils.template_filters import register_filters
+    register_filters(app)
+    
     # Registrar blueprints
     from app.routes import main_bp, portfolio_bp
     from app.routes.auth import auth_bp

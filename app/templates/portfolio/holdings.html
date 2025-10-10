@@ -73,7 +73,7 @@
                             <div class="text-sm text-gray-900">
                                 <span class="font-medium">{{ acc.broker }}</span>
                                 {% if holding.accounts|length > 1 %}
-                                <span class="text-xs text-gray-500">({{ "%.0f"|format(acc.quantity) }})</span>
+                                <span class="text-xs text-gray-500">({{ acc.quantity|number_eu }})</span>
                                 {% endif %}
                             </div>
                             {% endfor %}
@@ -86,22 +86,20 @@
                         {% endif %}
                         <td class="px-6 py-4 whitespace-nowrap text-right">
                             {% if unified %}
-                            <div class="text-sm font-medium text-gray-900">{{ "%.4f"|format(holding.total_quantity) }}</div>
+                            <div class="text-sm font-medium text-gray-900">{{ holding.total_quantity|number_eu }}</div>
                             {% else %}
-                            <div class="text-sm font-medium text-gray-900">{{ "%.4f"|format(holding.quantity) }}</div>
+                            <div class="text-sm font-medium text-gray-900">{{ holding.quantity|number_eu }}</div>
                             {% endif %}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right">
-                            <div class="text-sm text-gray-900">{{ "%.2f"|format(holding.average_buy_price) }}</div>
-                            <div class="text-xs text-gray-500">{{ holding.asset.currency }}</div>
+                            <div class="text-sm text-gray-900">{{ holding.average_buy_price|decimal_eu(2) }} <span class="text-xs text-gray-600">{{ holding.asset.currency }}</span></div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right">
                             {% if unified %}
-                            <div class="text-sm font-medium text-gray-900">{{ "%.2f"|format(holding.total_cost) }}</div>
+                            <div class="text-sm font-medium text-gray-900">{{ holding.total_cost|decimal_eu(2) }} <span class="text-xs text-gray-600">{{ holding.asset.currency }}</span></div>
                             {% else %}
-                            <div class="text-sm font-medium text-gray-900">{{ "%.2f"|format(holding.total_cost) }}</div>
+                            <div class="text-sm font-medium text-gray-900">{{ holding.total_cost|decimal_eu(2) }} <span class="text-xs text-gray-600">{{ holding.asset.currency }}</span></div>
                             {% endif %}
-                            <div class="text-xs text-gray-500">{{ holding.asset.currency }}</div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right">
                             <div class="text-sm text-gray-400">Sin precio</div>
