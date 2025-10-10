@@ -409,9 +409,9 @@ class DeGiroParser:
                 if other_row['isin'] != isin:
                     continue
                 
-                # Verificar ventana de tiempo (±2 horas)
+                # Verificar ventana de tiempo (±12 horas para capturar reversals del mismo día)
                 time_diff = abs((other_row['fecha_hora'] - fecha_hora_ref).total_seconds() / 3600)
-                if time_diff <= 2:
+                if time_diff <= 12:
                     grupo.append(other_row)
                     processed_rows.add(j)
             
@@ -452,6 +452,10 @@ class DeGiroParser:
         
         # Neto = bruto - retenciones/comisiones
         net_amount = total_gross - total_negative
+        
+        # Si el neto es 0 (o casi 0), no crear dividendo (reversals/correcciones)
+        if abs(net_amount) < Decimal('0.01'):
+            return
         
         # CASO 1: Dividendo en EUR (moneda base)
         if currency == 'EUR':
