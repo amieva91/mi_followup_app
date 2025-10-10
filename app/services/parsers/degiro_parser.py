@@ -415,6 +415,12 @@ class DeGiroParser:
                     grupo.append(other_row)
                     processed_rows.add(j)
             
+            # Verificar que el grupo tenga al menos UNA fila con "Dividendo"
+            has_dividend = any(row['description'] == 'Dividendo' for row in grupo)
+            if not has_dividend:
+                # Este grupo son solo comisiones/fees sin dividendo real
+                continue
+            
             # Consolidar el grupo
             self._consolidate_dividend_group(grupo)
     
