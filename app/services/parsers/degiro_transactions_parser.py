@@ -21,8 +21,19 @@ class DeGiroTransactionsParser:
         """
         Parsea un archivo CSV de Transacciones de DeGiro
         
-        Formato esperado:
-        Fecha,Hora,Producto,ISIN,Bolsa de,Centro de,Número,Precio,,Valor local,,Valor,,Tipo de cambio,Costes de transacción,,Total,,ID Orden
+        Formato esperado (por índice de columna):
+        0: Fecha
+        1: Hora
+        2: Producto
+        3: ISIN
+        4: Bolsa de
+        5: Centro de
+        6: Número
+        7: Precio
+        8: [MONEDA] - sin nombre en header
+        9: Valor local
+        10: [MONEDA] - sin nombre en header
+        ...
         
         Args:
             file_path: Ruta al archivo CSV
@@ -31,9 +42,12 @@ class DeGiroTransactionsParser:
             Dict con datos parseados y normalizados
         """
         with open(file_path, 'r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
+            reader = csv.reader(f)
+            header = next(reader)  # Leer header pero no lo usamos
             
             for row in reader:
+                if len(row) < 9:  # Validar que tenga suficientes columnas
+                    continue
                 self._process_row(row)
         
         # Calcular holdings desde trades
@@ -51,11 +65,19 @@ class DeGiroTransactionsParser:
             'fx_transactions': []
         }
     
-    def _process_row(self, row: Dict[str, str]):
-        """Procesa una fila del CSV de Transacciones"""
-        # Número = cantidad (positivo = compra, negativo = venta)
-        numero_str = row.get('Número', '0').replace(',', '.')
+    def _process_row(self, row: List[str]):
+        """
+        Procesa una fila del CSV de Transacciones usando índices de columna
+        
+        Índices:
+        0: Fecha, 1: Hora, 2: Producto, 3: ISIN, 4: Bolsa, 5: Centro,
+        6: Número, 7: Precio, 8: [MONEDA], 9: Valor local, 10: [MONEDA],
+        11: Valor, 12: [MONEDA EUR], 13: Tipo cambio, 14: Costes, 15: [MONEDA],
+        16: Total, 17: [MONEDA EUR], 18: ID Orden
+        """
         try:
+            # Columna 6: Número (cantidad)
+            numero_str = row[6].replace(',', '.') if len(row) > 6 else '0'
             quantity = float(numero_str)
         except:
             return
@@ -64,55 +86,35 @@ class DeGiroTransactionsParser:
             return
         
         # Extraer datos básicos
-        fecha = row.get('Fecha', '')
-        hora = row.get('Hora', '')
-        symbol = row.get('Producto', '').strip()
-        isin = row.get('ISIN', '').strip()
+        fecha = row[0] if len(row) > 0 else ''
+        hora = row[1] if len(row) > 1 else ''
+        symbol = row[2].strip() if len(row) > 2 else ''
+        isin = row[3].strip() if len(row) > 3 else ''
         
-        # Precio: puede estar en múltiples columnas dependiendo del formato
-        # El CSV tiene: Precio,,[Divisa],Valor local,,[Divisa]...
-        # Necesitamos encontrar el precio y su divisa
-        precio_str = ''
-        precio_divisa = ''
+        # Columna 7: Precio
+        precio_str = row[7] if len(row) > 7 else '0'
+        # Columna 8: MONEDA (¡aquí está la moneda correcta!)
+        precio_divisa = row[8].strip() if len(row) > 8 else 'EUR'
         
-        # Buscar en las columnas
-        cols = list(row.keys())
-        for i, col in enumerate(cols):
-            if col == 'Precio':
-                precio_str = row[col]
-                # La divisa está en la siguiente columna no vacía
-                if i+1 < len(cols):
-                    next_col = cols[i+1]
-                    if next_col and not next_col.startswith('Unnamed'):
-                        precio_divisa = row[next_col]
-                    elif i+2 < len(cols):
-                        precio_divisa = row[cols[i+2]]
-                break
-        
-        # Limpiar precio (convertir coma a punto)
-        if precio_str:
-            precio_str = precio_str.replace('.', '').replace(',', '.')
+        # Limpiar precio (convertir coma a punto, quitar separadores de miles)
+        precio_str = precio_str.replace('.', '').replace(',', '.')
         
         try:
             price = Decimal(precio_str) if precio_str else Decimal('0')
         except:
             price = Decimal('0')
         
-        # Extraer comisión de "Costes de transacción"
+        # Columna 14: Costes de transacción (comisión)
         commission = Decimal('0')
-        commission_str = ''
-        for i, col in enumerate(cols):
-            if 'Costes de transacción' in col or col == 'Costes de transacción':
-                commission_str = row.get(col, '0')
-                break
-        
-        if commission_str:
-            # Limpiar y convertir (formato: "-2,00" o "2,00")
-            commission_str = commission_str.replace('.', '').replace(',', '.').replace('-', '')
+        if len(row) > 14:
+            commission_str = row[14].replace(',', '.').replace('-', '')
             try:
                 commission = Decimal(commission_str) if commission_str else Decimal('0')
             except:
                 commission = Decimal('0')
+        
+        # Columna 18: ID Orden
+        order_id = row[18].strip() if len(row) > 18 else ''
         
         # Crear trade
         trade = {
@@ -121,12 +123,12 @@ class DeGiroTransactionsParser:
             'isin': isin,
             'date': self._parse_date(fecha),
             'date_time': self._parse_datetime(fecha, hora),
-            'quantity': abs(int(quantity)),  # Convertir a positivo
+            'quantity': abs(int(quantity)),
             'price': price,
-            'currency': precio_divisa if precio_divisa else 'EUR',
-            'commission': commission,  # Añadir comisión
-            'order_id': row.get('ID Orden', '').strip(),
-            'description': f"{'Compra' if quantity > 0 else 'Venta'} {abs(quantity)} {symbol}"
+            'currency': precio_divisa,  # ¡Ahora lee la columna correcta!
+            'commission': commission,
+            'order_id': order_id,
+            'description': f"{'Compra' if quantity > 0 else 'Venta'} {abs(int(quantity))} {symbol}"
         }
         
         # Calcular monto total
