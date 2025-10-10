@@ -468,20 +468,22 @@ class DeGiroParser:
             })
             return
         
-        # CASO 2: Dividendo en divisa extranjera → Buscar FX
-        # Buscar "Retirada Cambio de Divisa" que coincida
+        # CASO 2: Dividendo en divisa extranjera → Calcular con tasa de cambio
+        # Buscar "Retirada Cambio de Divisa" solo por moneda + fecha (SIN validar monto)
+        # Esto funciona para casos individuales Y agrupados
         matched_withdrawal = None
         for fx_w in self.fx_withdrawals:
-            # Verificar monto y divisa
-            if (abs(fx_w['amount'] - abs(net_amount)) < Decimal('0.5') and 
-                fx_w['currency'] == currency):
+            # Solo verificar moneda (no monto, para soportar FX agrupadas)
+            if fx_w['currency'] == currency:
                 # Verificar fecha (dentro de 5 días)
                 try:
                     fx_date = datetime.strptime(fx_w['date'], '%d-%m-%Y')
                     dividend_date = datetime.strptime(fecha_str, '%Y-%m-%d')
                     if abs((fx_date - dividend_date).days) <= 5:
-                        matched_withdrawal = fx_w
-                        break
+                        # Verificar que tenga tasa de cambio válida
+                        if fx_w.get('exchange_rate', Decimal('0')) > 0:
+                            matched_withdrawal = fx_w
+                            break
                 except:
                     pass
         
@@ -499,88 +501,23 @@ class DeGiroParser:
             })
             return
         
-        # Buscar conversión a EUR con validación numérica
+        # Calcular directamente con tasa de cambio
+        # Esto funciona para casos individuales Y agrupados
         exchange_rate = matched_withdrawal.get('exchange_rate', Decimal('0'))
-        withdrawal_amount = matched_withdrawal['amount']
+        eur_amount = net_amount / exchange_rate
         
-        if exchange_rate > 0:
-            expected_eur = withdrawal_amount / exchange_rate
-        else:
-            expected_eur = Decimal('0')
-        
-        # CASO A: Buscar "Ingreso Cambio de Divisa" (formato tradicional)
-        # CASO B: Buscar "Retirada Cambio de Divisa" en EUR (nuevo formato Accenture)
-        best_match = None
-        min_diff = float('inf')
-        
-        # Primero intentar con fx_deposits (Ingreso Cambio de Divisa)
-        for fx_d in self.fx_deposits:
-            try:
-                deposit_date = datetime.strptime(fx_d['date'], '%d-%m-%Y')
-                deposit_amount = fx_d['amount']
-                dividend_date = datetime.strptime(fecha_str, '%Y-%m-%d')
-                
-                # Verificar fecha (dentro de 5 días)
-                if abs((deposit_date - dividend_date).days) <= 5:
-                    # Verificar relación numérica
-                    diff = abs(expected_eur - deposit_amount)
-                    tolerance = max(Decimal('0.5'), abs(expected_eur) * Decimal('0.01'))
-                    
-                    if diff < tolerance and diff < min_diff:
-                        best_match = fx_d
-                        min_diff = diff
-            except:
-                pass
-        
-        # Si no se encontró en fx_deposits, buscar en fx_withdrawals que sean EUR (CASO B: Accenture)
-        if not best_match:
-            for fx_w_eur in self.fx_withdrawals:
-                # Solo considerar "Retirada" que sea en EUR
-                if fx_w_eur['currency'] != 'EUR':
-                    continue
-                
-                try:
-                    withdrawal_eur_date = datetime.strptime(fx_w_eur['date'], '%d-%m-%Y')
-                    withdrawal_eur_amount = fx_w_eur['amount']
-                    dividend_date = datetime.strptime(fecha_str, '%Y-%m-%d')
-                    
-                    # Verificar fecha (dentro de 5 días)
-                    if abs((withdrawal_eur_date - dividend_date).days) <= 5:
-                        # Verificar relación numérica
-                        diff = abs(expected_eur - withdrawal_eur_amount)
-                        tolerance = max(Decimal('0.5'), abs(expected_eur) * Decimal('0.01'))
-                        
-                        if diff < tolerance and diff < min_diff:
-                            best_match = fx_w_eur
-                            min_diff = diff
-                except:
-                    pass
-        
-        if best_match:
-            self.dividends.append({
-                'symbol': producto,
-                'isin': isin,
-                'date': fecha_str,
-                'amount': float(best_match['amount']),  # EUR del "Ingreso Cambio de Divisa"
-                'currency': 'EUR',
-                'amount_original': float(total_gross),  # Bruto original
-                'currency_original': currency,
-                'tax': 0.0,  # No mostramos retenciones en casos complejos
-                'tax_eur': 0.0,
-                'description': 'Dividendo'
-            })
-        else:
-            # Fallback
-            self.dividends.append({
-                'symbol': producto,
-                'isin': isin,
-                'date': fecha_str,
-                'amount': float(net_amount),
-                'currency': currency,
-                'tax': 0.0,
-                'tax_eur': 0.0,
-                'description': 'Dividendo'
-            })
+        self.dividends.append({
+            'symbol': producto,
+            'isin': isin,
+            'date': fecha_str,
+            'amount': float(eur_amount),  # Calculado directamente
+            'currency': 'EUR',
+            'amount_original': float(total_gross),  # Bruto original
+            'currency_original': currency,
+            'tax': 0.0,  # No mostramos retenciones en casos complejos
+            'tax_eur': 0.0,
+            'description': 'Dividendo'
+        })
     
     def _process_interest(self, row: Dict[str, str]):
         """Procesa interés (comisión por apalancamiento)"""
