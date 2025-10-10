@@ -21,7 +21,7 @@ def test():
         ('GQG PARTNERS CDI', '2025-09-29', 72.64, 152.74, 'AUD'),
         ('CONSUN PHARMACEUTICAL', '2025-09-22', 323.22, 2970.0, 'HKD'),
         ('PAX GLOBAL', '2025-09-26', 164.29, 1500.0, 'HKD'),
-        ('GRIFOLS SA', '2025-08-15', 41.55, None, 'EUR'),
+        ('GRIFOLS SA', '2025-08-15', 33.66, None, 'EUR'),  # Neto: 41.55 - 7.89
         ('ALIBABA', '2025-07-11', None, None, 'USD'),  # Caso complejo
     ]
     
