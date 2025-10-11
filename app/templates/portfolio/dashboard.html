@@ -1,4 +1,4 @@
-<!-- Template actualizada: 2025-10-10 23:18 - Asset info: Type • Currency • ISIN -->
+<!-- Template actualizada: 2025-10-11 10:00 - Holdings unificados + brokers verticales + wrap -->
 {% extends "base/layout.html" %}
 
 {% block title %}Portfolio - FollowUp{% endblock %}
@@ -106,17 +106,18 @@
                     {% for holding in holdings %}
                     <tr class="hover:bg-gray-50">
                         <td class="px-4 py-3">
-                            <div class="font-bold text-gray-900">{{ holding.asset.symbol }}</div>
-                            <div class="text-sm text-gray-400">
+                            <div class="font-bold text-gray-900 break-words max-w-xs">{{ holding.asset.symbol }}</div>
+                            <div class="text-sm text-gray-400 break-words">
                                 {{ holding.asset.asset_type }} • {{ holding.asset.currency }}{% if holding.asset.isin %} • {{ holding.asset.isin }}{% endif %}
                             </div>
                         </td>
                         <td class="px-4 py-3">
-                            <div class="font-semibold text-gray-900">{{ holding.account.broker.name }}</div>
-                            <div class="text-sm text-gray-400">{{ holding.account.account_name }}</div>
+                            {% for acc in holding.accounts %}
+                            <div class="text-sm font-semibold text-gray-900">{{ acc.broker }}</div>
+                            {% endfor %}
                         </td>
                         <td class="px-4 py-3 text-right text-sm text-gray-900">
-                            {{ holding.quantity|number_eu }}
+                            {{ holding.total_quantity|number_eu }}
                         </td>
                         <td class="px-4 py-3 text-right text-sm text-gray-900">
                             {{ holding.average_buy_price|decimal_eu(2) }} {{ holding.asset.currency }}
@@ -125,23 +126,10 @@
                             {{ holding.total_cost|decimal_eu(2) }} {{ holding.asset.currency }}
                         </td>
                         <td class="px-4 py-3 text-right text-sm text-gray-900">
-                            {% if holding.current_value %}
-                                {{ holding.current_value|decimal_eu(2) }} {{ holding.asset.currency }}
-                            {% else %}
-                                <span class="text-gray-400">-</span>
-                            {% endif %}
+                            <span class="text-gray-400">-</span>
                         </td>
                         <td class="px-4 py-3 text-right text-sm">
-                            {% if holding.unrealized_pl is not none %}
-                                <div class="{% if holding.unrealized_pl >= 0 %}text-green-600{% else %}text-red-600{% endif %} font-medium">
-                                    {% if holding.unrealized_pl >= 0 %}+{% endif %}{{ holding.unrealized_pl|decimal_eu(2) }} {{ holding.asset.currency }}
-                                </div>
-                                <div class="text-xs {% if holding.unrealized_pl_pct >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
-                                    {% if holding.unrealized_pl_pct >= 0 %}+{% endif %}{{ holding.unrealized_pl_pct|decimal_eu(2) }}%
-                                </div>
-                            {% else %}
-                                <span class="text-gray-400">-</span>
-                            {% endif %}
+                            <span class="text-gray-400">-</span>
                         </td>
                     </tr>
                     {% endfor %}

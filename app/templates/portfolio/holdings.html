@@ -2,7 +2,7 @@
 
 {% block title %}Mis Posiciones - FollowUp{% endblock %}
 
-<!-- Template actualizada: 2025-10-10 23:18 - Asset info: Type • Currency • ISIN -->
+<!-- Template actualizada: 2025-10-11 10:00 - Holdings unificados + brokers verticales + wrap -->
 
 {% block content %}
 <div class="max-w-7xl mx-auto">
@@ -55,33 +55,21 @@
                 <tbody class="bg-white divide-y divide-gray-200">
                     {% for holding in holdings %}
                     <tr class="hover:bg-gray-50 transition">
-                        <td class="px-6 py-4 whitespace-nowrap">
+                        <td class="px-6 py-4">
                             <div class="flex items-center">
                             <div>
-                                <div class="font-bold text-gray-900">{{ holding.asset.symbol }}</div>
-                                <div class="text-sm text-gray-400">
+                                <div class="font-bold text-gray-900 break-words max-w-xs">{{ holding.asset.symbol }}</div>
+                                <div class="text-sm text-gray-400 break-words">
                                     {{ holding.asset.asset_type }} • {{ holding.asset.currency }}{% if holding.asset.isin %} • {{ holding.asset.isin }}{% endif %}
                                 </div>
                             </div>
                             </div>
                         </td>
-                        {% if unified %}
-                        <td class="px-6 py-4 whitespace-nowrap">
+                        <td class="px-6 py-4">
                             {% for acc in holding.accounts %}
-                            <div class="text-sm text-gray-900">
-                                <span class="font-medium">{{ acc.broker }}</span>
-                                {% if holding.accounts|length > 1 %}
-                                <span class="text-xs text-gray-500">({{ acc.quantity|number_eu }})</span>
-                                {% endif %}
-                            </div>
+                            <div class="text-sm font-semibold text-gray-900">{{ acc.broker }}</div>
                             {% endfor %}
                         </td>
-                        {% else %}
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm text-gray-900">{{ holding.account.account_name }}</div>
-                            <div class="text-xs text-gray-500">{{ holding.account.broker.name }}</div>
-                        </td>
-                        {% endif %}
                         <td class="px-6 py-4 whitespace-nowrap text-right">
                             {% if unified %}
                             <div class="text-sm font-medium text-gray-900">{{ holding.total_quantity|number_eu }}</div>

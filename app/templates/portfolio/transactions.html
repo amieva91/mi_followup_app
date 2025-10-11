@@ -2,7 +2,7 @@
 
 {% block title %}Transacciones - FollowUp{% endblock %}
 
-<!-- Template actualizada: 2025-10-10 23:18 - Asset info: Type • Currency • ISIN -->
+<!-- Template actualizada: 2025-10-11 10:00 - Broker sin nombre de cuenta + wrap -->
 
 {% block content %}
 <div class="max-w-7xl mx-auto">
@@ -197,8 +197,7 @@
                             {% endif %}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm text-gray-900">{{ txn.account.broker.name }}</div>
-                            <div class="text-xs text-gray-500">{{ txn.account.account_name }}</div>
+                            <div class="text-sm font-semibold text-gray-900">{{ txn.account.broker.name }}</div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right">
                             {% if txn.quantity %}

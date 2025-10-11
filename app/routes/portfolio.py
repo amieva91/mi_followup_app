@@ -26,32 +26,79 @@ ALLOWED_EXTENSIONS = {'csv'}
 @portfolio_bp.route('/')
 @login_required
 def dashboard():
-    """Dashboard del portfolio"""
+    """Dashboard del portfolio con holdings unificados"""
+    from collections import defaultdict
+    
     # Obtener todas las cuentas del usuario
     accounts = BrokerAccount.query.filter_by(
         user_id=current_user.id,
         is_active=True
     ).all()
     
-    # Obtener todas las posiciones actuales
-    holdings = PortfolioHolding.query.filter_by(
+    # Obtener todos los holdings individuales
+    all_holdings = PortfolioHolding.query.filter_by(
         user_id=current_user.id
     ).filter(PortfolioHolding.quantity > 0).all()
     
+    # Agrupar por asset_id (unificar)
+    grouped = defaultdict(lambda: {
+        'asset': None,
+        'total_quantity': 0,
+        'total_cost': 0,
+        'accounts': [],
+        'first_purchase_date': None,
+        'last_transaction_date': None
+    })
+    
+    for holding in all_holdings:
+        asset_id = holding.asset_id
+        group = grouped[asset_id]
+        
+        # Datos del asset
+        if group['asset'] is None:
+            group['asset'] = holding.asset
+        
+        # Sumar cantidades y costes
+        group['total_quantity'] += holding.quantity
+        group['total_cost'] += holding.total_cost
+        
+        # Agregar cuenta a la lista
+        group['accounts'].append({
+            'broker': holding.account.broker.name,
+            'account_name': holding.account.account_name,
+            'quantity': holding.quantity,
+            'average_buy_price': holding.average_buy_price
+        })
+        
+        # Fechas
+        if group['first_purchase_date'] is None or holding.first_purchase_date < group['first_purchase_date']:
+            group['first_purchase_date'] = holding.first_purchase_date
+        
+        if group['last_transaction_date'] is None or holding.last_transaction_date > group['last_transaction_date']:
+            group['last_transaction_date'] = holding.last_transaction_date
+    
+    # Convertir a lista
+    holdings_unified = []
+    for asset_id, data in grouped.items():
+        data['average_buy_price'] = data['total_cost'] / data['total_quantity'] if data['total_quantity'] > 0 else 0
+        data['asset_id'] = asset_id
+        holdings_unified.append(data)
+    
     # Calcular totales
-    total_value = sum(h.current_value or 0 for h in holdings)
-    total_cost = sum(h.total_cost for h in holdings)
-    total_pl = total_value - total_cost if total_value > 0 else 0
-    total_pl_pct = (total_pl / total_cost * 100) if total_cost > 0 else 0
+    total_value = 0  # Por ahora sin precios
+    total_cost = sum(h['total_cost'] for h in holdings_unified)
+    total_pl = 0
+    total_pl_pct = 0
     
     return render_template(
         'portfolio/dashboard.html',
         accounts=accounts,
-        holdings=holdings,
+        holdings=holdings_unified,
         total_value=total_value,
         total_cost=total_cost,
         total_pl=total_pl,
-        total_pl_pct=total_pl_pct
+        total_pl_pct=total_pl_pct,
+        unified=True  # Flag para indicar que son holdings unificados
     )
 
 
