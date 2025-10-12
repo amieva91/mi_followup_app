@@ -228,15 +228,14 @@ class IBKRParser:
                 name = instrument.get('name', normalized_symbol)
                 exchange = instrument.get('exchange', '')
                 
-                # Para asset_type: priorizar CSV (puede ser "Fórex"), luego instrument_info, luego 'Stock'
+                # Para asset_type: usar instrument_info (normalizado: ETF o Stock)
+                # Pero pasar también la categoría del CSV para filtrar Forex en el importer
+                asset_type = instrument.get('asset_type', 'Stock')
                 asset_type_csv = trade_dict.get('Categoría de activo', trade_dict.get('Asset Category', ''))
-                if asset_type_csv:
-                    asset_type = asset_type_csv
-                else:
-                    asset_type = instrument.get('asset_type', 'Stock')
                 
                 trade = {
                     'asset_type': asset_type,
+                    'asset_type_csv': asset_type_csv,  # Categoría original del CSV (para filtrar Forex)
                     'currency': trade_dict.get('Divisa', trade_dict.get('Currency', '')),
                     'symbol': normalized_symbol,
                     'isin': isin,

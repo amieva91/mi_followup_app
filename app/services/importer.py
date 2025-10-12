@@ -202,14 +202,11 @@ class CSVImporter:
         """Importa transacciones evitando duplicados solo entre archivos diferentes"""
         for trade_data in parsed_data.get('trades', []):
             # Filtrar transacciones FX (cambio de divisa) - no son posiciones reales
-            # Usar asset_type directamente del CSV (más explícito que filtrar por símbolo)
-            asset_type = trade_data.get('asset_type', '')
+            # Usar asset_type_csv que viene directamente del CSV (puede ser "Fórex", "Acciones", etc)
+            asset_type_csv = trade_data.get('asset_type_csv', '')
             
-            if not asset_type:
-                continue
-            
-            # Filtrar Forex por categoría de activo
-            if 'fórex' in asset_type.lower() or 'forex' in asset_type.lower():
+            # Filtrar Forex por categoría de activo del CSV
+            if asset_type_csv and ('fórex' in asset_type_csv.lower() or 'forex' in asset_type_csv.lower()):
                 continue
             
             # Buscar asset
