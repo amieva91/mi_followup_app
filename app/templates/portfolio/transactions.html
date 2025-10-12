@@ -2,7 +2,7 @@
 
 {% block title %}Transacciones - FollowUp{% endblock %}
 
-<!-- Template actualizada: 2025-10-11 10:00 - Broker sin nombre de cuenta + wrap -->
+<!-- Template actualizada: 2025-10-12 00:15 - Formato: Tipo • Symbol • Exchange • Moneda • ISIN -->
 
 {% block content %}
 <div class="max-w-7xl mx-auto">
@@ -186,9 +186,9 @@
                         </td>
                         <td class="px-6 py-4">
                             {% if txn.asset %}
-                                <div class="font-bold text-gray-900">{{ txn.asset.symbol }}</div>
-                                <div class="text-sm text-gray-400">
-                                    {{ txn.asset.asset_type }} • {{ txn.asset.currency }}{% if txn.asset.isin %} • {{ txn.asset.isin }}{% endif %}
+                                <div class="font-bold text-gray-900 break-words max-w-xs">{{ txn.asset.name or txn.asset.symbol }}</div>
+                                <div class="text-sm text-gray-400 break-words max-w-xs">
+                                    {{ txn.asset.asset_type }} • {{ txn.asset.symbol }}{% if txn.asset.exchange %} • {{ txn.asset.exchange }}{% endif %} • {{ txn.asset.currency }}{% if txn.asset.isin %} • {{ txn.asset.isin }}{% endif %}
                                 </div>
                             {% elif txn.description %}
                                 <div class="text-sm text-gray-700">{{ txn.description[:60] }}</div>

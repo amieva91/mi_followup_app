@@ -1,4 +1,4 @@
-<!-- Template actualizada: 2025-10-11 10:00 - Holdings unificados + brokers verticales + wrap -->
+<!-- Template actualizada: 2025-10-12 00:15 - Formato: Tipo • Symbol • Exchange • Moneda • ISIN -->
 {% extends "base/layout.html" %}
 
 {% block title %}Portfolio - FollowUp{% endblock %}
@@ -106,9 +106,9 @@
                     {% for holding in holdings %}
                     <tr class="hover:bg-gray-50">
                         <td class="px-4 py-3">
-                            <div class="font-bold text-gray-900 break-words max-w-xs">{{ holding.asset.symbol }}</div>
-                            <div class="text-sm text-gray-400 break-words">
-                                {{ holding.asset.asset_type }} • {{ holding.asset.currency }}{% if holding.asset.isin %} • {{ holding.asset.isin }}{% endif %}
+                            <div class="font-bold text-gray-900 break-words max-w-xs">{{ holding.asset.name or holding.asset.symbol }}</div>
+                            <div class="text-sm text-gray-400 break-words max-w-xs">
+                                {{ holding.asset.asset_type }} • {{ holding.asset.symbol }}{% if holding.asset.exchange %} • {{ holding.asset.exchange }}{% endif %} • {{ holding.asset.currency }}{% if holding.asset.isin %} • {{ holding.asset.isin }}{% endif %}
                             </div>
                         </td>
                         <td class="px-4 py-3">

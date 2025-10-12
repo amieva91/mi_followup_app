@@ -165,7 +165,7 @@ class IBKRParser:
                 normalized_symbol = self._normalize_symbol(raw_symbol)
                 isin = instrument_dict.get('Id. de seguridad', instrument_dict.get('Security ID', ''))
                 name = instrument_dict.get('Descripción', instrument_dict.get('Description', ''))
-                exchange = instrument_dict.get('Merc. de cotiz.', instrument_dict.get('Listing Exch', ''))
+                exchange = instrument_dict.get('Merc. de cotización', instrument_dict.get('Listing Exch', ''))
                 tipo = instrument_dict.get('Tipo', instrument_dict.get('Type', ''))
                 
                 # Determinar asset_type: ETF o Stock
@@ -320,24 +320,26 @@ class IBKRParser:
         """
         Parsea dividendos con conversión EUR y agrupación inteligente
         
+        ESTRUCTURA DEL CSV:
+        row[0] = Divisa (HKD, USD, Total, Total en EUR)
+        row[1] = Fecha
+        row[2] = Descripción
+        row[3] = Cantidad
+        
         Lógica:
         1. Agrupar por moneda (la sección viene ordenada así)
         2. Para cada moneda, extraer: dividendos individuales + Total + Total en EUR
         3. Calcular exchange_rate = total_eur / total_local
-        4. Agrupar dividendos por (fecha + moneda + símbolo)
+        4. Agrupar dividendos por (fecha + símbolo)
         5. Aplicar exchange_rate a cada grupo
         """
         section = self.sections.get('Dividendos') or \
                   self.sections.get('Dividends')
         
-        if not section or not section['headers']:
+        if not section or not section['data']:
             return
         
-        headers = section['headers']
-        
-        # Paso 1: Leer todas las filas y agrupar por moneda
         from collections import defaultdict
-        import re
         
         currency_groups = []  # [(currency, [dividends], total_local, total_eur)]
         current_currency = None
@@ -346,14 +348,16 @@ class IBKRParser:
         total_eur = Decimal('0')
         
         for row in section['data']:
-            if len(row) < len(headers):
+            if len(row) < 4:
                 continue
             
-            dividend_dict = dict(zip(headers, row))
-            currency_field = dividend_dict.get('Divisa', dividend_dict.get('Currency', ''))
+            currency_field = row[0]  # Divisa
+            date_field = row[1]      # Fecha
+            description = row[2]     # Descripción
+            amount_str = row[3]      # Cantidad
             
-            # Detectar nueva moneda (Data con moneda real)
-            if dividend_dict.get('Header') == 'Data' and currency_field and currency_field not in ['Total', 'Total en EUR']:
+            # Detectar dividendo individual (con moneda real: HKD, USD, etc.)
+            if currency_field and currency_field not in ['Total', 'Total en EUR', 'Total Dividendos en EUR'] and date_field:
                 # Si cambia la moneda, guardar el grupo anterior
                 if current_currency and current_currency != currency_field:
                     currency_groups.append((current_currency, current_dividends, total_local, total_eur))
@@ -365,17 +369,16 @@ class IBKRParser:
                 
                 # Extraer dividendo individual
                 try:
-                    description = dividend_dict.get('Descripción', dividend_dict.get('Description', ''))
                     raw_symbol, isin = self._extract_symbol_and_isin_from_div_description(description)
                     normalized_symbol = self._normalize_symbol(raw_symbol)
                     
                     dividend = {
                         'currency': currency_field,
-                        'date': self._parse_date(dividend_dict.get('Fecha', dividend_dict.get('Date', ''))),
+                        'date': self._parse_date(date_field),
                         'description': description,
                         'symbol': normalized_symbol,
                         'isin': isin,
-                        'amount_local': self._parse_decimal(dividend_dict.get('Cantidad', dividend_dict.get('Amount', '0')))
+                        'amount_local': self._parse_decimal(amount_str)
                     }
                     
                     if dividend['amount_local'] > 0:
@@ -384,12 +387,12 @@ class IBKRParser:
                     print(f"Error parseando dividendo individual: {e}")
                     
             # Detectar Total (en moneda local)
-            elif 'Total' in currency_field and 'EUR' not in currency_field:
-                total_local = self._parse_decimal(dividend_dict.get('Cantidad', dividend_dict.get('Amount', '0')))
+            elif currency_field == 'Total' and amount_str:
+                total_local = self._parse_decimal(amount_str)
                 
             # Detectar Total en EUR
-            elif 'Total en EUR' in currency_field or 'Total en EUR' in str(row):
-                total_eur = self._parse_decimal(dividend_dict.get('Cantidad', dividend_dict.get('Amount', '0')))
+            elif currency_field == 'Total en EUR' and amount_str:
+                total_eur = self._parse_decimal(amount_str)
         
         # Guardar el último grupo
         if current_currency and current_dividends:
