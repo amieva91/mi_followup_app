@@ -154,6 +154,9 @@ class CSVImporter:
                 if exchange and asset.exchange != exchange:
                     asset.exchange = exchange
                     updated = True
+                if asset_type and asset.asset_type != asset_type:
+                    asset.asset_type = asset_type
+                    updated = True
                 if updated:
                     self.stats['assets_updated'] += 1
                 return asset
@@ -172,6 +175,9 @@ class CSVImporter:
                 updated = True
             if exchange and not asset.exchange:
                 asset.exchange = exchange
+                updated = True
+            if asset_type and asset.asset_type != asset_type:
+                asset.asset_type = asset_type
                 updated = True
             if updated:
                 self.stats['assets_updated'] += 1
@@ -197,7 +203,12 @@ class CSVImporter:
         for trade_data in parsed_data.get('trades', []):
             # Filtrar transacciones FX (cambio de divisa) - no son posiciones reales
             asset_type = trade_data.get('asset_type', '').lower()
+            symbol = trade_data.get('symbol', '')
+            
+            # Filtrar por asset_type o por símbolo con punto (EUR.USD, EUR.GBP, etc.)
             if 'fórex' in asset_type or 'forex' in asset_type or 'fx' in asset_type:
+                continue
+            if '.' in symbol:  # Forex siempre tiene punto en el símbolo
                 continue
             
             # Buscar asset
