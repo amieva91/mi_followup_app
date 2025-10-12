@@ -227,7 +227,13 @@ class IBKRParser:
                 isin = instrument.get('isin', '')
                 name = instrument.get('name', normalized_symbol)
                 exchange = instrument.get('exchange', '')
-                asset_type = instrument.get('asset_type', 'Stock')
+                
+                # Para asset_type: priorizar CSV (puede ser "Fórex"), luego instrument_info, luego 'Stock'
+                asset_type_csv = trade_dict.get('Categoría de activo', trade_dict.get('Asset Category', ''))
+                if asset_type_csv:
+                    asset_type = asset_type_csv
+                else:
+                    asset_type = instrument.get('asset_type', 'Stock')
                 
                 trade = {
                     'asset_type': asset_type,

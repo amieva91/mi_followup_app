@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script para limpiar assets con monedas incorrectas
+Script para limpiar assets incorrectos (Forex y asset_type incorrecto)
 """
 
 import sys
@@ -8,51 +8,51 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from app import create_app, db
-from app.models import Asset
+from app.models.asset import Asset
 
-app = create_app('development')
+app = create_app()
 
 with app.app_context():
     print("\n" + "="*80)
-    print("LIMPIEZA DE ASSETS CON MONEDAS INCORRECTAS")
+    print("LIMPIEZA DE ASSETS INCORRECTOS")
     print("="*80 + "\n")
     
-    # Contar todos los assets
-    total_assets = Asset.query.count()
-    print(f"📊 Total assets antes de limpieza: {total_assets}\n")
+    # 1. Eliminar assets Forex (con punto en el símbolo)
+    forex_assets = Asset.query.filter(Asset.symbol.like('%.%')).all()
     
-    # Identificar assets con monedas sospechosas
-    # Las monedas válidas son códigos de 3 letras (USD, EUR, HKD, etc.)
-    valid_currency_codes = [
-        'USD', 'EUR', 'GBP', 'HKD', 'CNY', 'JPY', 'AUD', 'PLN', 'BG',
-        'SGD', 'NOK', 'CAD', 'SEK', 'GBX', 'DKK'
-    ]
-    
-    # Buscar assets problemáticos
-    problem_assets = []
-    for asset in Asset.query.all():
-        if asset.currency not in valid_currency_codes:
-            problem_assets.append(asset)
-    
-    print(f"⚠️  Assets con monedas incorrectas: {len(problem_assets)}\n")
-    
-    if problem_assets:
-        print("🗑️  Eliminando assets problemáticos:\n")
-        for asset in problem_assets[:10]:  # Mostrar primeros 10
-            print(f"   - {asset.symbol}: currency='{asset.currency}'")
+    if forex_assets:
+        print(f"📋 Assets Forex encontrados (símbolo con punto): {len(forex_assets)}")
+        for asset in forex_assets:
+            print(f"  - {asset.symbol} ({asset.currency})")
         
-        if len(problem_assets) > 10:
-            print(f"   ... y {len(problem_assets) - 10} más")
-        
-        # Eliminar
-        for asset in problem_assets:
+        for asset in forex_assets:
             db.session.delete(asset)
         
-        db.session.commit()
-        print(f"\n✅ {len(problem_assets)} assets eliminados")
+        print(f"\n✅ {len(forex_assets)} assets Forex eliminados\n")
+    else:
+        print("✅ No se encontraron assets Forex\n")
     
-    # Contar assets restantes
-    remaining_assets = Asset.query.count()
-    print(f"\n📊 Assets restantes: {remaining_assets}")
-    print("\n✅ Limpieza completada. Ahora puedes reimportar los CSVs.\n")
-
+    # 2. Eliminar R2US para que se vuelva a crear correctamente
+    r2us = Asset.query.filter_by(symbol='R2US').first()
+    if r2us:
+        print(f"📋 R2US encontrado:")
+        print(f"  - Nombre: {r2us.name}")
+        print(f"  - Tipo actual: {r2us.asset_type}")
+        print(f"  - ISIN: {r2us.isin}")
+        
+        db.session.delete(r2us)
+        print(f"\n✅ R2US eliminado (se recreará como ETF en la importación)\n")
+    else:
+        print("ℹ️  R2US no encontrado en BD\n")
+    
+    # Commit
+    db.session.commit()
+    
+    print("="*80)
+    print("✅ Limpieza completada")
+    print("="*80 + "\n")
+    
+    print("💡 Ahora puedes reimportar los CSVs:")
+    print("   1. Los assets Forex NO se crearán")
+    print("   2. R2US se creará correctamente como ETF")
+    print()
