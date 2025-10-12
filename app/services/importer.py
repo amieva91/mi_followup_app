@@ -81,43 +81,80 @@ class CSVImporter:
     
     def _import_assets(self, parsed_data: Dict[str, Any]):
         """Crea o actualiza assets desde los datos parseados"""
-        # Recopilar todos los símbolos únicos de trades y holdings
-        symbols = set()
+        # Recopilar todos los activos únicos con su información completa
+        # Usar dict con ISIN como clave (o symbol+currency si no hay ISIN)
+        assets_dict = {}
         
         for trade in parsed_data.get('trades', []):
             if trade.get('symbol'):
-                symbols.add((
-                    trade['symbol'],
-                    trade.get('isin', ''),
-                    trade.get('currency', 'USD')
-                ))
+                key = trade.get('isin') or f"{trade['symbol']}_{trade.get('currency', 'USD')}"
+                # Guardar el más completo (con más campos)
+                if key not in assets_dict or len(trade.get('name', '')) > len(assets_dict[key].get('name', '')):
+                    assets_dict[key] = {
+                        'symbol': trade['symbol'],
+                        'isin': trade.get('isin', ''),
+                        'currency': trade.get('currency', 'USD'),
+                        'name': trade.get('name', ''),
+                        'exchange': trade.get('exchange', ''),
+                        'asset_type': trade.get('asset_type', 'Stock')
+                    }
         
         for holding in parsed_data.get('holdings', []):
             if holding.get('symbol'):
-                symbols.add((
-                    holding['symbol'],
-                    holding.get('isin', ''),
-                    holding.get('currency', 'USD')
-                ))
+                key = holding.get('isin') or f"{holding['symbol']}_{holding.get('currency', 'USD')}"
+                if key not in assets_dict or len(holding.get('name', '')) > len(assets_dict[key].get('name', '')):
+                    assets_dict[key] = {
+                        'symbol': holding['symbol'],
+                        'isin': holding.get('isin', ''),
+                        'currency': holding.get('currency', 'USD'),
+                        'name': holding.get('name', ''),
+                        'exchange': holding.get('exchange', ''),
+                        'asset_type': holding.get('asset_type', 'Stock')
+                    }
+        
+        for dividend in parsed_data.get('dividends', []):
+            if dividend.get('symbol'):
+                key = dividend.get('isin') or f"{dividend['symbol']}_{dividend.get('currency', 'USD')}"
+                if key not in assets_dict or len(dividend.get('name', '')) > len(assets_dict[key].get('name', '')):
+                    assets_dict[key] = {
+                        'symbol': dividend['symbol'],
+                        'isin': dividend.get('isin', ''),
+                        'currency': dividend.get('currency_original', dividend.get('currency', 'USD')),
+                        'name': dividend.get('name', ''),
+                        'exchange': dividend.get('exchange', ''),
+                        'asset_type': dividend.get('asset_type', 'Stock')
+                    }
         
         # Crear o actualizar assets
-        for symbol, isin, currency in symbols:
+        for asset_data in assets_dict.values():
             asset = self._get_or_create_asset(
-                symbol=symbol,
-                isin=isin,
-                currency=currency,
-                asset_type=parsed_data.get('asset_type', 'Stock')
+                symbol=asset_data['symbol'],
+                isin=asset_data['isin'],
+                currency=asset_data['currency'],
+                asset_type=asset_data['asset_type'],
+                name=asset_data['name'] or None,
+                exchange=asset_data['exchange'] or None
             )
     
-    def _get_or_create_asset(self, symbol: str, isin: str, currency: str, asset_type: str = 'Stock') -> Asset:
+    def _get_or_create_asset(self, symbol: str, isin: str, currency: str, asset_type: str = 'Stock', 
+                              name: str = None, exchange: str = None) -> Asset:
         """Obtiene o crea un asset (catálogo global)"""
         # Buscar por ISIN (si existe) - tiene prioridad porque es único
         if isin:
             asset = Asset.query.filter_by(isin=isin).first()
             if asset:
-                # Actualizar símbolo si es diferente
+                # Actualizar campos si son diferentes y no están vacíos
+                updated = False
                 if asset.symbol != symbol:
                     asset.symbol = symbol
+                    updated = True
+                if name and asset.name != name:
+                    asset.name = name
+                    updated = True
+                if exchange and asset.exchange != exchange:
+                    asset.exchange = exchange
+                    updated = True
+                if updated:
                     self.stats['assets_updated'] += 1
                 return asset
         
@@ -125,9 +162,18 @@ class CSVImporter:
         asset = Asset.query.filter_by(symbol=symbol, currency=currency).first()
         
         if asset:
-            # Actualizar ISIN si no lo tiene
+            # Actualizar campos faltantes
+            updated = False
             if isin and not asset.isin:
                 asset.isin = isin
+                updated = True
+            if name and asset.name == asset.symbol:  # Solo actualizar si aún tiene el símbolo como nombre
+                asset.name = name
+                updated = True
+            if exchange and not asset.exchange:
+                asset.exchange = exchange
+                updated = True
+            if updated:
                 self.stats['assets_updated'] += 1
             return asset
         
@@ -135,9 +181,10 @@ class CSVImporter:
         asset = Asset(
             symbol=symbol,
             isin=isin or None,
-            name=symbol,  # Usar símbolo como nombre por defecto
+            name=name or symbol,  # Usar nombre si está disponible, sino símbolo
             asset_type=asset_type,
-            currency=currency
+            currency=currency,
+            exchange=exchange or None
         )
         db.session.add(asset)
         db.session.flush()  # Para obtener el ID

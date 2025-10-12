@@ -19,6 +19,7 @@ class IBKRParser:
         self.deposits = []
         self.fees = []
         self.symbol_isin_map = {}  # Mapeo símbolo -> ISIN
+        self.instrument_info = {}  # Mapeo símbolo -> {isin, name, exchange, type}
     
     @staticmethod
     def _normalize_symbol(symbol: str) -> str:
@@ -143,7 +144,7 @@ class IBKRParser:
                 self.account_info[english_field] = value
     
     def _parse_financial_instruments(self):
-        """Parsea información de instrumentos financieros para extraer ISINs"""
+        """Parsea información de instrumentos financieros para extraer ISINs, nombre, exchange, tipo"""
         section = self.sections.get('Información de instrumento financiero') or \
                   self.sections.get('Financial Instrument Information')
         
@@ -159,17 +160,35 @@ class IBKRParser:
             instrument_dict = dict(zip(headers, row))
             
             try:
-                # Extraer símbolo (normalizado) e ISIN
+                # Extraer datos (soporte español e inglés)
                 raw_symbol = instrument_dict.get('Símbolo', instrument_dict.get('Symbol', ''))
                 normalized_symbol = self._normalize_symbol(raw_symbol)
                 isin = instrument_dict.get('Id. de seguridad', instrument_dict.get('Security ID', ''))
+                name = instrument_dict.get('Descripción', instrument_dict.get('Description', ''))
+                exchange = instrument_dict.get('Merc. de cotiz.', instrument_dict.get('Listing Exch', ''))
+                tipo = instrument_dict.get('Tipo', instrument_dict.get('Type', ''))
+                
+                # Determinar asset_type: ETF o Stock
+                if 'ETF' in tipo.upper():
+                    asset_type = 'ETF'
+                else:
+                    asset_type = 'Stock'
                 
                 if normalized_symbol and isin:
-                    # Guardar mapeo (el ISIN prevalece)
+                    # Guardar mapeo completo
+                    self.instrument_info[normalized_symbol] = {
+                        'isin': isin,
+                        'name': name,
+                        'exchange': exchange,
+                        'asset_type': asset_type
+                    }
+                    
+                    # Mantener el mapeo simple para compatibilidad
                     self.symbol_isin_map[normalized_symbol] = isin
                     
-                    # También guardar el símbolo sin normalizar por si acaso
+                    # También guardar el símbolo sin normalizar
                     if raw_symbol != normalized_symbol:
+                        self.instrument_info[raw_symbol] = self.instrument_info[normalized_symbol]
                         self.symbol_isin_map[raw_symbol] = isin
                         
             except Exception as e:
@@ -202,13 +221,21 @@ class IBKRParser:
             try:
                 raw_symbol = trade_dict.get('Símbolo', trade_dict.get('Symbol', ''))
                 normalized_symbol = self._normalize_symbol(raw_symbol)
-                isin = self.symbol_isin_map.get(normalized_symbol, '')
+                
+                # Obtener info completa del instrumento
+                instrument = self.instrument_info.get(normalized_symbol, {})
+                isin = instrument.get('isin', '')
+                name = instrument.get('name', normalized_symbol)
+                exchange = instrument.get('exchange', '')
+                asset_type = instrument.get('asset_type', 'Stock')
                 
                 trade = {
-                    'asset_type': trade_dict.get('Categoría de activo', trade_dict.get('Asset Category', '')),
+                    'asset_type': asset_type,
                     'currency': trade_dict.get('Divisa', trade_dict.get('Currency', '')),
                     'symbol': normalized_symbol,
                     'isin': isin,
+                    'name': name,
+                    'exchange': exchange,
                     'date_time': self._parse_datetime(trade_dict.get('Fecha/Hora', trade_dict.get('Date/Time', ''))),
                     'quantity': self._parse_decimal(trade_dict.get('Cantidad', trade_dict.get('Quantity', '0'))),
                     'price': self._parse_decimal(trade_dict.get('Precio trans.', trade_dict.get('T. Price', '0'))),
@@ -258,13 +285,21 @@ class IBKRParser:
             try:
                 raw_symbol = holding_dict.get('Símbolo', holding_dict.get('Symbol', ''))
                 normalized_symbol = self._normalize_symbol(raw_symbol)
-                isin = self.symbol_isin_map.get(normalized_symbol, '')
+                
+                # Obtener info completa del instrumento
+                instrument = self.instrument_info.get(normalized_symbol, {})
+                isin = instrument.get('isin', '')
+                name = instrument.get('name', normalized_symbol)
+                exchange = instrument.get('exchange', '')
+                asset_type = instrument.get('asset_type', 'Stock')
                 
                 holding = {
-                    'asset_type': holding_dict.get('Categoría de activo', holding_dict.get('Asset Category', '')),
+                    'asset_type': asset_type,
                     'currency': holding_dict.get('Divisa', holding_dict.get('Currency', '')),
                     'symbol': normalized_symbol,
                     'isin': isin,
+                    'name': name,
+                    'exchange': exchange,
                     'quantity': self._parse_decimal(holding_dict.get('Cantidad', holding_dict.get('Quantity', '0'))),
                     'cost_price': self._parse_decimal(holding_dict.get('Precio de coste', holding_dict.get('Cost Price', '0'))),
                     'cost_basis': self._parse_decimal(holding_dict.get('Base de coste', holding_dict.get('Cost Basis', '0'))),
@@ -282,7 +317,16 @@ class IBKRParser:
                 continue
     
     def _parse_dividends(self):
-        """Parsea los dividendos"""
+        """
+        Parsea dividendos con conversión EUR y agrupación inteligente
+        
+        Lógica:
+        1. Agrupar por moneda (la sección viene ordenada así)
+        2. Para cada moneda, extraer: dividendos individuales + Total + Total en EUR
+        3. Calcular exchange_rate = total_eur / total_local
+        4. Agrupar dividendos por (fecha + moneda + símbolo)
+        5. Aplicar exchange_rate a cada grupo
+        """
         section = self.sections.get('Dividendos') or \
                   self.sections.get('Dividends')
         
@@ -291,39 +335,110 @@ class IBKRParser:
         
         headers = section['headers']
         
+        # Paso 1: Leer todas las filas y agrupar por moneda
+        from collections import defaultdict
+        import re
+        
+        currency_groups = []  # [(currency, [dividends], total_local, total_eur)]
+        current_currency = None
+        current_dividends = []
+        total_local = Decimal('0')
+        total_eur = Decimal('0')
+        
         for row in section['data']:
             if len(row) < len(headers):
                 continue
             
             dividend_dict = dict(zip(headers, row))
+            currency_field = dividend_dict.get('Divisa', dividend_dict.get('Currency', ''))
             
-            # Ignorar líneas de Total
-            if 'Total' in dividend_dict.get('Divisa', '') or \
-               'Total' in dividend_dict.get('Currency', ''):
-                continue
-            
-            try:
-                # Extraer símbolo de la descripción
-                description = dividend_dict.get('Descripción', dividend_dict.get('Description', ''))
-                raw_symbol = self._extract_symbol_from_description(description)
-                normalized_symbol = self._normalize_symbol(raw_symbol)
-                isin = self.symbol_isin_map.get(normalized_symbol, '')
+            # Detectar nueva moneda (Data con moneda real)
+            if dividend_dict.get('Header') == 'Data' and currency_field and currency_field not in ['Total', 'Total en EUR']:
+                # Si cambia la moneda, guardar el grupo anterior
+                if current_currency and current_currency != currency_field:
+                    currency_groups.append((current_currency, current_dividends, total_local, total_eur))
+                    current_dividends = []
+                    total_local = Decimal('0')
+                    total_eur = Decimal('0')
                 
-                dividend = {
-                    'currency': dividend_dict.get('Divisa', dividend_dict.get('Currency', '')),
-                    'date': self._parse_date(dividend_dict.get('Fecha', dividend_dict.get('Date', ''))),
-                    'description': description,
-                    'symbol': normalized_symbol,
+                current_currency = currency_field
+                
+                # Extraer dividendo individual
+                try:
+                    description = dividend_dict.get('Descripción', dividend_dict.get('Description', ''))
+                    raw_symbol, isin = self._extract_symbol_and_isin_from_div_description(description)
+                    normalized_symbol = self._normalize_symbol(raw_symbol)
+                    
+                    dividend = {
+                        'currency': currency_field,
+                        'date': self._parse_date(dividend_dict.get('Fecha', dividend_dict.get('Date', ''))),
+                        'description': description,
+                        'symbol': normalized_symbol,
+                        'isin': isin,
+                        'amount_local': self._parse_decimal(dividend_dict.get('Cantidad', dividend_dict.get('Amount', '0')))
+                    }
+                    
+                    if dividend['amount_local'] > 0:
+                        current_dividends.append(dividend)
+                except Exception as e:
+                    print(f"Error parseando dividendo individual: {e}")
+                    
+            # Detectar Total (en moneda local)
+            elif 'Total' in currency_field and 'EUR' not in currency_field:
+                total_local = self._parse_decimal(dividend_dict.get('Cantidad', dividend_dict.get('Amount', '0')))
+                
+            # Detectar Total en EUR
+            elif 'Total en EUR' in currency_field or 'Total en EUR' in str(row):
+                total_eur = self._parse_decimal(dividend_dict.get('Cantidad', dividend_dict.get('Amount', '0')))
+        
+        # Guardar el último grupo
+        if current_currency and current_dividends:
+            currency_groups.append((current_currency, current_dividends, total_local, total_eur))
+        
+        # Paso 2: Procesar cada grupo de moneda
+        for currency, dividends_list, total_local, total_eur in currency_groups:
+            # Calcular exchange_rate
+            if total_local > 0 and total_eur > 0:
+                exchange_rate = total_eur / total_local
+            else:
+                exchange_rate = Decimal('1')  # Fallback
+            
+            # Agrupar por (fecha + símbolo)
+            grouped_dividends = defaultdict(list)
+            for div in dividends_list:
+                key = (div['date'], div['symbol'])
+                grouped_dividends[key].append(div)
+            
+            # Crear dividendos finales
+            for (date, symbol), divs in grouped_dividends.items():
+                # Sumar montos locales del mismo día/símbolo
+                amount_local_total = sum(d['amount_local'] for d in divs)
+                
+                # Convertir a EUR
+                amount_eur = amount_local_total * exchange_rate
+                
+                # Obtener info del instrumento
+                instrument = self.instrument_info.get(symbol, {})
+                isin = divs[0]['isin'] or instrument.get('isin', '')
+                name = instrument.get('name', symbol)
+                exchange = instrument.get('exchange', '')
+                asset_type = instrument.get('asset_type', 'Stock')
+                
+                final_dividend = {
+                    'currency': 'EUR',  # Moneda convertida
+                    'currency_original': currency,  # Moneda local
+                    'date': date,
+                    'symbol': symbol,
                     'isin': isin,
-                    'amount': self._parse_decimal(dividend_dict.get('Cantidad', dividend_dict.get('Amount', '0')))
+                    'name': name,
+                    'exchange': exchange,
+                    'asset_type': asset_type,
+                    'amount': float(amount_eur),  # EUR
+                    'amount_original': float(amount_local_total),  # Moneda local
+                    'description': f"Dividendo {symbol}"
                 }
                 
-                if dividend['amount'] > 0:
-                    self.dividends.append(dividend)
-                    
-            except Exception as e:
-                print(f"Error parseando dividendo: {e}")
-                continue
+                self.dividends.append(final_dividend)
     
     # Helper methods
     
@@ -376,4 +491,33 @@ class IBKRParser:
             return parts[0].strip()
         
         return ''
+    
+    def _extract_symbol_and_isin_from_div_description(self, description: str) -> tuple:
+        """
+        Extrae símbolo e ISIN de la descripción del dividendo
+        
+        Formato esperado: "SYMBOL(ISIN) ..."
+        Ejemplo: "9997(KYG5215A1004) Dividendo en efectivo HKD 0.2613 por acción (Dividendo ordinario)"
+        
+        Returns:
+            (symbol, isin)
+        """
+        import re
+        
+        if not description:
+            return ('', '')
+        
+        # Patrón: SYMBOL(ISIN)
+        # El ISIN está entre paréntesis después del símbolo
+        pattern = r'^([^\(]+)\(([A-Z0-9]+)\)'
+        match = re.match(pattern, description)
+        
+        if match:
+            symbol = match.group(1).strip()
+            isin = match.group(2).strip()
+            return (symbol, isin)
+        
+        # Fallback: extraer solo símbolo
+        symbol = self._extract_symbol_from_description(description)
+        return (symbol, '')
 
