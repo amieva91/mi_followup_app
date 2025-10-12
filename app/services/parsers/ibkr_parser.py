@@ -73,6 +73,7 @@ class IBKRParser:
         self._parse_holdings()
         self._parse_dividends()
         self._parse_deposits_withdrawals()
+        self._parse_interest()
         
         # Retornar datos normalizados
         return {
@@ -505,6 +506,127 @@ class IBKRParser:
             except Exception as e:
                 print(f"Error parseando depósito/retiro: {e}")
                 continue
+    
+    def _parse_interest(self):
+        """
+        Parsea intereses (apalancamiento) con conversión EUR
+        
+        ESTRUCTURA DEL CSV (similar a dividendos):
+        row[0] = Divisa (CAD, EUR, Total, Total en EUR)
+        row[1] = Fecha
+        row[2] = Descripción
+        row[3] = Cantidad (negativo = coste apalancamiento, positivo = interés ganado)
+        
+        Lógica:
+        1. Agrupar por moneda
+        2. Extraer Total local + Total en EUR
+        3. Calcular exchange_rate = total_eur / total_local
+        4. Agrupar intereses por fecha (misma fecha, diferentes monedas)
+        5. Aplicar exchange_rate a cada interés individual
+        """
+        section = self.sections.get('Interés') or self.sections.get('Interest')
+        
+        if not section or not section['data']:
+            return
+        
+        from collections import defaultdict
+        
+        # Paso 1: Agrupar por moneda (similar a dividendos)
+        currency_groups = []  # [(currency, [interests], total_local, total_eur)]
+        current_currency = None
+        current_interests = []
+        total_local = Decimal('0')
+        total_eur = Decimal('0')
+        
+        for row in section['data']:
+            if len(row) < 4:
+                continue
+            
+            currency_field = row[0]
+            date_field = row[1]
+            description = row[2]
+            amount_str = row[3]
+            
+            # Detectar entrada individual (con moneda real: CAD, EUR, USD, etc.)
+            if currency_field and currency_field not in ['Total', 'Total en EUR', 'Total Interés en EUR'] and date_field:
+                # Si cambia la moneda, guardar el grupo anterior
+                if current_currency and current_currency != currency_field:
+                    if current_interests:
+                        currency_groups.append((current_currency, current_interests, total_local, total_eur))
+                    current_interests = []
+                    total_local = Decimal('0')
+                    total_eur = Decimal('0')
+                
+                current_currency = currency_field
+                
+                # Extraer interés individual
+                try:
+                    interest = {
+                        'currency': currency_field,
+                        'date': self._parse_date(date_field),
+                        'description': description,
+                        'amount_local': self._parse_decimal(amount_str)
+                    }
+                    current_interests.append(interest)
+                except Exception as e:
+                    print(f"Error parseando interés individual: {e}")
+            
+            # Detectar Total (en moneda local)
+            elif currency_field == 'Total' and amount_str:
+                total_local = self._parse_decimal(amount_str)
+            
+            # Detectar Total en EUR
+            elif currency_field == 'Total en EUR' and amount_str:
+                total_eur = self._parse_decimal(amount_str)
+        
+        # Guardar el último grupo
+        if current_currency and current_interests:
+            currency_groups.append((current_currency, current_interests, total_local, total_eur))
+        
+        # Paso 2: Convertir cada interés individual a EUR
+        all_interests = []  # Lista de todos los intereses con EUR
+        
+        for currency, interests_list, total_local, total_eur in currency_groups:
+            # Calcular exchange_rate
+            if abs(total_local) > 0 and abs(total_eur) > 0:
+                exchange_rate = total_eur / total_local
+            else:
+                exchange_rate = Decimal('1')
+            
+            for interest in interests_list:
+                amount_local = interest['amount_local']
+                amount_eur = amount_local * exchange_rate
+                
+                all_interests.append({
+                    'date': interest['date'],
+                    'currency': currency,
+                    'amount_local': amount_local,
+                    'amount_eur': amount_eur,
+                    'description': interest['description']
+                })
+        
+        # Paso 3: Agrupar por fecha (mismo día, diferentes monedas)
+        grouped_by_date = defaultdict(list)
+        for interest in all_interests:
+            grouped_by_date[interest['date']].append(interest)
+        
+        # Paso 4: Crear FEEs agrupados por fecha
+        for date, interests in grouped_by_date.items():
+            # Sumar todos los intereses del mismo día
+            total_eur = sum(i['amount_eur'] for i in interests)
+            
+            # Descripción: listar las monedas
+            currencies = list(set(i['currency'] for i in interests))
+            description = f"Interés {', '.join(currencies)}"
+            
+            fee = {
+                'date': date,
+                'currency': 'EUR',
+                'amount': float(abs(total_eur)),  # Positivo (coste)
+                'description': description
+            }
+            
+            self.fees.append(fee)
     
     # Helper methods
     
