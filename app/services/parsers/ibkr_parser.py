@@ -17,6 +17,7 @@ class IBKRParser:
         self.holdings = []
         self.dividends = []
         self.deposits = []
+        self.withdrawals = []
         self.fees = []
         self.symbol_isin_map = {}  # Mapeo símbolo -> ISIN
         self.instrument_info = {}  # Mapeo símbolo -> {isin, name, exchange, type}
@@ -71,6 +72,7 @@ class IBKRParser:
         self._parse_trades()
         self._parse_holdings()
         self._parse_dividends()
+        self._parse_deposits_withdrawals()
         
         # Retornar datos normalizados
         return {
@@ -80,6 +82,7 @@ class IBKRParser:
             'holdings': self.holdings,
             'dividends': self.dividends,
             'deposits': self.deposits,
+            'withdrawals': self.withdrawals,
             'fees': self.fees
         }
     
@@ -447,6 +450,61 @@ class IBKRParser:
                 }
                 
                 self.dividends.append(final_dividend)
+    
+    def _parse_deposits_withdrawals(self):
+        """
+        Parsea depósitos y retiros
+        
+        ESTRUCTURA DEL CSV:
+        row[0] = Divisa
+        row[1] = Fecha de liquidación
+        row[2] = Descripción
+        row[3] = Cantidad (positivo = depósito, negativo = retiro)
+        """
+        section = self.sections.get('Depósitos y retiradas') or \
+                  self.sections.get('Deposits & Withdrawals')
+        
+        if not section or not section['data']:
+            return
+        
+        for row in section['data']:
+            if len(row) < 4:
+                continue
+            
+            currency = row[0]
+            date = row[1]
+            description = row[2]
+            amount_str = row[3]
+            
+            # Filtrar líneas de Total
+            if currency in ['Total', 'Total en EUR'] or not date:
+                continue
+            
+            try:
+                amount = self._parse_decimal(amount_str)
+                
+                # Determinar si es depósito o retiro
+                if amount > 0:
+                    # DEPÓSITO
+                    deposit = {
+                        'currency': currency,
+                        'date': self._parse_date(date),
+                        'description': description,
+                        'amount': float(amount)
+                    }
+                    self.deposits.append(deposit)
+                elif amount < 0:
+                    # RETIRO (convertir a positivo)
+                    withdrawal = {
+                        'currency': currency,
+                        'date': self._parse_date(date),
+                        'description': description,
+                        'amount': float(abs(amount))
+                    }
+                    self.withdrawals.append(withdrawal)
+            except Exception as e:
+                print(f"Error parseando depósito/retiro: {e}")
+                continue
     
     # Helper methods
     
