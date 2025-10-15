@@ -2,7 +2,7 @@
 
 {% block title %}Mis Posiciones - FollowUp{% endblock %}
 
-<!-- Template actualizada: 2025-10-12 00:15 - Formato: Tipo • Symbol • Exchange • Moneda • ISIN -->
+<!-- Template actualizada: 2025-10-12 14:30 - Symbol condicional (solo si != name y < 15 chars) -->
 
 {% block content %}
 <div class="max-w-7xl mx-auto">
@@ -60,7 +60,7 @@
                             <div>
                                 <div class="font-bold text-gray-900 break-words max-w-xs">{{ holding.asset.name or holding.asset.symbol }}</div>
                                 <div class="text-sm text-gray-400 break-words max-w-xs">
-                                    {{ holding.asset.asset_type }} • {{ holding.asset.symbol }}{% if holding.asset.exchange %} • {{ holding.asset.exchange }}{% endif %} • {{ holding.asset.currency }}{% if holding.asset.isin %} • {{ holding.asset.isin }}{% endif %}
+                                    {{ holding.asset.asset_type }}{% if holding.asset.symbol and holding.asset.symbol != holding.asset.name and holding.asset.symbol|length < 15 %} • {{ holding.asset.symbol }}{% endif %}{% if holding.asset.exchange %} • {{ holding.asset.exchange }}{% endif %} • {{ holding.asset.currency }}{% if holding.asset.isin %} • {{ holding.asset.isin }}{% endif %}
                                 </div>
                             </div>
                             </div>
