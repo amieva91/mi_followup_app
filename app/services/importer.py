@@ -86,12 +86,13 @@ class CSVImporter:
         assets_dict = {}
         
         for trade in parsed_data.get('trades', []):
-            if trade.get('symbol'):
-                key = trade.get('isin') or f"{trade['symbol']}_{trade.get('currency', 'USD')}"
+            # Procesar si hay symbol O ISIN (DeGiro solo tiene ISIN, no symbol)
+            if trade.get('symbol') or trade.get('isin'):
+                key = trade.get('isin') or f"{trade.get('symbol', '')}_{trade.get('currency', 'USD')}"
                 # Guardar el más completo (con más campos)
                 if key not in assets_dict or len(trade.get('name', '')) > len(assets_dict[key].get('name', '')):
                     assets_dict[key] = {
-                        'symbol': trade['symbol'],
+                        'symbol': trade.get('symbol', '') or None,  # None si vacío
                         'isin': trade.get('isin', ''),
                         'currency': trade.get('currency', 'USD'),
                         'name': trade.get('name', ''),
@@ -100,11 +101,12 @@ class CSVImporter:
                     }
         
         for holding in parsed_data.get('holdings', []):
-            if holding.get('symbol'):
-                key = holding.get('isin') or f"{holding['symbol']}_{holding.get('currency', 'USD')}"
+            # Procesar si hay symbol O ISIN (DeGiro solo tiene ISIN, no symbol)
+            if holding.get('symbol') or holding.get('isin'):
+                key = holding.get('isin') or f"{holding.get('symbol', '')}_{holding.get('currency', 'USD')}"
                 if key not in assets_dict or len(holding.get('name', '')) > len(assets_dict[key].get('name', '')):
                     assets_dict[key] = {
-                        'symbol': holding['symbol'],
+                        'symbol': holding.get('symbol', '') or None,  # None si vacío
                         'isin': holding.get('isin', ''),
                         'currency': holding.get('currency', 'USD'),
                         'name': holding.get('name', ''),
@@ -113,11 +115,12 @@ class CSVImporter:
                     }
         
         for dividend in parsed_data.get('dividends', []):
-            if dividend.get('symbol'):
-                key = dividend.get('isin') or f"{dividend['symbol']}_{dividend.get('currency', 'USD')}"
+            # Procesar si hay symbol O ISIN (DeGiro solo tiene ISIN, no symbol)
+            if dividend.get('symbol') or dividend.get('isin'):
+                key = dividend.get('isin') or f"{dividend.get('symbol', '')}_{dividend.get('currency', 'USD')}"
                 if key not in assets_dict or len(dividend.get('name', '')) > len(assets_dict[key].get('name', '')):
                     assets_dict[key] = {
-                        'symbol': dividend['symbol'],
+                        'symbol': dividend.get('symbol', '') or None,  # None si vacío
                         'isin': dividend.get('isin', ''),
                         'currency': dividend.get('currency_original', dividend.get('currency', 'USD')),
                         'name': dividend.get('name', ''),
@@ -145,7 +148,8 @@ class CSVImporter:
             if asset:
                 # Actualizar campos si son diferentes y no están vacíos
                 updated = False
-                if asset.symbol != symbol:
+                # Solo actualizar symbol si hay uno nuevo y no está vacío
+                if symbol and asset.symbol != symbol:
                     asset.symbol = symbol
                     updated = True
                 if name and asset.name != name:
@@ -161,33 +165,35 @@ class CSVImporter:
                     self.stats['assets_updated'] += 1
                 return asset
         
-        # Buscar por símbolo + divisa
-        asset = Asset.query.filter_by(symbol=symbol, currency=currency).first()
-        
-        if asset:
-            # Actualizar campos faltantes
-            updated = False
-            if isin and not asset.isin:
-                asset.isin = isin
-                updated = True
-            if name and asset.name == asset.symbol:  # Solo actualizar si aún tiene el símbolo como nombre
-                asset.name = name
-                updated = True
-            if exchange and not asset.exchange:
-                asset.exchange = exchange
-                updated = True
-            if asset_type and asset.asset_type != asset_type:
-                asset.asset_type = asset_type
-                updated = True
-            if updated:
-                self.stats['assets_updated'] += 1
-            return asset
+        # Buscar por símbolo + divisa (solo si hay symbol)
+        if symbol:
+            asset = Asset.query.filter_by(symbol=symbol, currency=currency).first()
+            
+            if asset:
+                # Actualizar campos faltantes
+                updated = False
+                if isin and not asset.isin:
+                    asset.isin = isin
+                    updated = True
+                if name and asset.name == asset.symbol:  # Solo actualizar si aún tiene el símbolo como nombre
+                    asset.name = name
+                    updated = True
+                if exchange and not asset.exchange:
+                    asset.exchange = exchange
+                    updated = True
+                if asset_type and asset.asset_type != asset_type:
+                    asset.asset_type = asset_type
+                    updated = True
+                if updated:
+                    self.stats['assets_updated'] += 1
+                return asset
         
         # Crear nuevo asset
+        # Para DeGiro (sin symbol), usar name o ISIN como identificador
         asset = Asset(
-            symbol=symbol,
+            symbol=symbol or None,
             isin=isin or None,
-            name=name or symbol,  # Usar nombre si está disponible, sino símbolo
+            name=name or symbol or isin,  # Prioridad: name > symbol > ISIN
             asset_type=asset_type,
             currency=currency,
             exchange=exchange or None

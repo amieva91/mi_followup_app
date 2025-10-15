@@ -88,8 +88,10 @@ class DeGiroTransactionsParser:
         # Extraer datos básicos
         fecha = row[0] if len(row) > 0 else ''
         hora = row[1] if len(row) > 1 else ''
-        symbol = row[2].strip() if len(row) > 2 else ''
+        # row[2] es el nombre del producto, NO un ticker - DeGiro no proporciona tickers
+        product_name = row[2].strip() if len(row) > 2 else ''
         isin = row[3].strip() if len(row) > 3 else ''
+        symbol = ''  # DeGiro no proporciona tickers/symbols en sus CSVs
         
         # Columna 7: Precio
         precio_str = row[7] if len(row) > 7 else '0'
@@ -119,7 +121,8 @@ class DeGiroTransactionsParser:
         # Crear trade
         trade = {
             'transaction_type': 'BUY' if quantity > 0 else 'SELL',
-            'symbol': symbol,
+            'symbol': symbol,  # Vacío para DeGiro (no proporciona tickers)
+            'name': product_name,  # Nombre del producto para identificación
             'isin': isin,
             'date': self._parse_date(fecha),
             'date_time': self._parse_datetime(fecha, hora),
@@ -128,7 +131,7 @@ class DeGiroTransactionsParser:
             'currency': precio_divisa,  # ¡Ahora lee la columna correcta!
             'commission': commission,
             'order_id': order_id,
-            'description': f"{'Compra' if quantity > 0 else 'Venta'} {abs(int(quantity))} {symbol}"
+            'description': f"{'Compra' if quantity > 0 else 'Venta'} {abs(int(quantity))} {product_name}"
         }
         
         # Calcular monto total
@@ -140,6 +143,7 @@ class DeGiroTransactionsParser:
         """Calcula holdings actuales desde las transacciones usando ISIN como key"""
         for trade in self.trades:
             symbol = trade['symbol']
+            name = trade.get('name', '')
             isin = trade['isin']
             
             # Usar ISIN como key principal (nunca cambia)
@@ -148,6 +152,7 @@ class DeGiroTransactionsParser:
             if key not in self.holdings:
                 self.holdings[key] = {
                     'symbol': symbol,
+                    'name': name,  # Incluir nombre del producto
                     'isin': isin,
                     'currency': trade['currency'],
                     'quantity': 0,
