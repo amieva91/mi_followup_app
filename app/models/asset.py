@@ -12,7 +12,7 @@ class Asset(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     
     # Identificadores
-    symbol = db.Column(db.String(20), nullable=False, index=True)  # 'AAPL', '9997'
+    symbol = db.Column(db.String(20), nullable=True, index=True)  # 'AAPL', '9997' - Nullable para DeGiro
     isin = db.Column(db.String(12), unique=True, nullable=True, index=True)  # 'US0378331005'
     name = db.Column(db.String(200), nullable=False)  # 'Apple Inc.'
     
