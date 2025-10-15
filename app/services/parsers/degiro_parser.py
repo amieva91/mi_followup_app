@@ -178,7 +178,8 @@ class DeGiroParser:
         
         trade = {
             'transaction_type': 'BUY' if action == 'Compra' else 'SELL',
-            'symbol': row.get('Producto', product).strip(),
+            'symbol': '',  # DeGiro no proporciona tickers
+            'name': row.get('Producto', product).strip(),
             'isin': isin,
             'date': self._parse_date(row.get('Fecha', '')),
             'date_time': self._parse_datetime(row.get('Fecha', ''), row.get('Hora', '')),
@@ -283,7 +284,8 @@ class DeGiroParser:
             self.dividend_fx_map[key] = {}
         
         self.dividend_fx_map[key]['dividend'] = {
-            'symbol': producto,
+            'symbol': '',  # DeGiro no proporciona tickers
+            'name': producto,
             'isin': row.get('ISIN', '').strip(),
             'date': self._parse_date(fecha),
             'amount_original': amount_value,
@@ -461,7 +463,8 @@ class DeGiroParser:
         if currency == 'EUR':
             # Mostrar el NETO (igual que los casos con conversión FX)
             self.dividends.append({
-                'symbol': producto,
+                'symbol': '',  # DeGiro no proporciona tickers
+                'name': producto,
                 'isin': isin,
                 'date': fecha_str,
                 'amount': float(net_amount),  # Neto (bruto - retención)
@@ -494,7 +497,8 @@ class DeGiroParser:
         if not matched_withdrawal:
             # No se encontró conversión FX, usar monto original
             self.dividends.append({
-                'symbol': producto,
+                'symbol': '',  # DeGiro no proporciona tickers
+                'name': producto,
                 'isin': isin,
                 'date': fecha_str,
                 'amount': float(net_amount),
@@ -511,7 +515,8 @@ class DeGiroParser:
         eur_amount = net_amount / exchange_rate
         
         self.dividends.append({
-            'symbol': producto,
+            'symbol': '',  # DeGiro no proporciona tickers
+            'name': producto,
             'isin': isin,
             'date': fecha_str,
             'amount': float(eur_amount),  # Calculado directamente
@@ -573,6 +578,7 @@ class DeGiroParser:
         """Calcula holdings actuales desde las transacciones"""
         for trade in self.trades:
             symbol = trade['symbol']
+            name = trade.get('name', '')
             isin = trade['isin']
             
             # Usar ISIN como key principal (nunca cambia), fallback a símbolo si no hay ISIN
@@ -582,7 +588,8 @@ class DeGiroParser:
             
             if key not in self.holdings:
                 self.holdings[key] = {
-                    'symbol': symbol,  # Guardar el primer símbolo encontrado
+                    'symbol': symbol,  # Vacío para DeGiro
+                    'name': name,  # Nombre del producto
                     'isin': isin,
                     'currency': trade['currency'],
                     'quantity': 0,
