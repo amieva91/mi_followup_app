@@ -6,6 +6,8 @@ from app.models.expense import ExpenseCategory, Expense
 from app.models.income import IncomeCategory, Income
 from app.models.broker import Broker, BrokerAccount
 from app.models.asset import Asset, PriceHistory
+from app.models.asset_registry import AssetRegistry
+from app.models.mapping_registry import MappingRegistry
 from app.models.portfolio import PortfolioHolding
 from app.models.transaction import Transaction, CashFlow
 from app.models.metrics import PortfolioMetrics
@@ -16,6 +18,8 @@ __all__ = [
     'IncomeCategory', 'Income',
     'Broker', 'BrokerAccount',
     'Asset', 'PriceHistory',
+    'AssetRegistry',
+    'MappingRegistry',
     'PortfolioHolding',
     'Transaction', 'CashFlow',
     'PortfolioMetrics'

@@ -89,10 +89,17 @@
                         ⚠️ Estado
                     </label>
                     <label class="flex items-center px-4 py-2 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
-                        <input type="checkbox" name="needs_review" value="1" 
-                               {% if request.args.get('needs_review') %}checked{% endif %}
+                        <input type="checkbox" name="dividends_review" value="1" 
+                               {% if request.args.get('dividends_review') %}checked{% endif %}
                                class="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded auto-submit">
-                        <span class="text-sm text-gray-700">Solo transacciones a revisar</span>
+                        <span class="text-sm text-gray-700">Dividendos a revisar</span>
+                    </label>
+                    
+                    <label class="flex items-center px-4 py-2 border border-orange-300 rounded-lg cursor-pointer hover:bg-orange-50">
+                        <input type="checkbox" name="unenriched_assets" value="1" 
+                               {% if request.args.get('unenriched_assets') %}checked{% endif %}
+                               class="mr-2 h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded auto-submit">
+                        <span class="text-sm text-gray-700">Assets sin enriquecer 🔧</span>
                     </label>
                 </div>
             </div>
@@ -107,6 +114,22 @@
                 </span>
             </div>
         </form>
+    </div>
+    
+    <!-- Acceso a Registro Global -->
+    <div class="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <h3 class="font-semibold text-purple-900">🗄️ Registro Global de Assets</h3>
+                <p class="text-sm text-purple-700 mt-1">
+                    Gestiona la base de datos compartida de mapeos ISIN → Symbol, Exchange, MIC
+                </p>
+            </div>
+            <a href="{{ url_for('portfolio.asset_registry') }}" 
+               class="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium transition whitespace-nowrap">
+                📊 Ver Registro Global →
+            </a>
+        </div>
     </div>
     
     <script>

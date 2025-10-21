@@ -106,7 +106,17 @@
                     {% for holding in holdings %}
                     <tr class="hover:bg-gray-50">
                         <td class="px-4 py-3">
-                            <div class="font-bold text-gray-900 break-words max-w-xs">{{ holding.asset.name or holding.asset.symbol }}</div>
+                            <div class="font-bold text-gray-900 break-words max-w-xs">
+                                {{ holding.asset.name or holding.asset.symbol }}
+                                {% if holding.asset.mic and not holding.asset.symbol %}
+                                <button class="fix-yahoo-btn text-orange-600 hover:text-orange-700 ml-2" 
+                                        data-asset-id="{{ holding.asset.id }}" 
+                                        data-asset-name="{{ holding.asset.name }}"
+                                        title="Corregir con URL de Yahoo Finance">
+                                    🔧
+                                </button>
+                                {% endif %}
+                            </div>
                             <div class="text-sm text-gray-400 break-words max-w-xs">
                                 {{ holding.asset.asset_type }}{% if holding.asset.symbol and holding.asset.symbol != holding.asset.name and holding.asset.symbol|length < 15 %} • {{ holding.asset.symbol }}{% endif %}{% if holding.asset.exchange %} • {{ holding.asset.exchange }}{% endif %} • {{ holding.asset.currency }}{% if holding.asset.isin %} • {{ holding.asset.isin }}{% endif %}
                             </div>
@@ -155,6 +165,99 @@
         </div>
         {% endif %}
     </div>
+    
+    <!-- Modal para corregir con Yahoo URL -->
+    <div id="fixYahooModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+        <div class="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
+            <div class="mt-3">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">
+                    🔧 Corregir Ticker con URL de Yahoo
+                </h3>
+                <p class="text-sm text-gray-600 mb-4">
+                    Busca el asset en <a href="https://finance.yahoo.com" target="_blank" class="text-blue-600 underline">Yahoo Finance</a> y pega la URL completa aquí:
+                </p>
+                <input type="text" id="yahooUrlInput" placeholder="https://finance.yahoo.com/quote/AAPL/" 
+                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 mb-4">
+                <div class="flex justify-end gap-2">
+                    <button id="cancelFixBtn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">
+                        Cancelar
+                    </button>
+                    <button id="confirmFixBtn" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        Aplicar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+    // Modal logic
+    const modal = document.getElementById('fixYahooModal');
+    const urlInput = document.getElementById('yahooUrlInput');
+    const confirmBtn = document.getElementById('confirmFixBtn');
+    const cancelBtn = document.getElementById('cancelFixBtn');
+    let currentAssetId = null;
+    
+    // Abrir modal
+    document.querySelectorAll('.fix-yahoo-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            currentAssetId = this.dataset.assetId;
+            const assetName = this.dataset.assetName;
+            modal.classList.remove('hidden');
+            urlInput.focus();
+        });
+    });
+    
+    // Cerrar modal
+    cancelBtn.addEventListener('click', () => {
+        modal.classList.add('hidden');
+        urlInput.value = '';
+    });
+    
+    // Aplicar corrección
+    confirmBtn.addEventListener('click', async () => {
+        const url = urlInput.value.trim();
+        if (!url) {
+            alert('Por favor ingresa una URL');
+            return;
+        }
+        
+        try {
+            confirmBtn.disabled = true;
+            confirmBtn.textContent = 'Procesando...';
+            
+            const response = await fetch(`/portfolio/asset/${currentAssetId}/fix-yahoo`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `yahoo_url=${encodeURIComponent(url)}`
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                alert(`✅ Asset actualizado:\nSymbol: ${data.symbol}\nYahoo Ticker: ${data.yahoo_ticker}`);
+                location.reload();
+            } else {
+                alert(`❌ Error: ${data.error}`);
+            }
+        } catch (error) {
+            alert(`❌ Error de conexión: ${error.message}`);
+        } finally {
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = 'Aplicar';
+        }
+    });
+    
+    // Cerrar con ESC
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+            modal.classList.add('hidden');
+            urlInput.value = '';
+        }
+    });
+    </script>
 </div>
 {% endblock %}
 

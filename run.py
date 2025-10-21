@@ -24,6 +24,7 @@ if __name__ == '__main__':
     app.run(
         host='0.0.0.0',
         port=port,
-        debug=is_debug
+        debug=is_debug,
+        threaded=True  # Permite múltiples peticiones simultáneas (necesario para barra de progreso)
     )
 

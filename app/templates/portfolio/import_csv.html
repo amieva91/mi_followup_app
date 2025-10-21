@@ -13,6 +13,31 @@
         </a>
     </div>
 
+    <!-- Banner de resultado (se muestra si hay query params) -->
+    <div id="resultBanner" class="hidden bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+        <div class="flex items-start">
+            <span class="text-2xl mr-3">✅</span>
+            <div class="flex-1">
+                <h3 class="font-semibold text-green-900 mb-2">Importación Completada</h3>
+                <div id="resultDetails" class="text-sm text-green-800 space-y-1"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Banner de error (se muestra si hay errores) -->
+    <div id="errorBanner" class="hidden bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+        <div class="flex items-start">
+            <span class="text-2xl mr-3">❌</span>
+            <div class="flex-1">
+                <h3 class="font-semibold text-red-900 mb-2">Error en la Importación</h3>
+                <div id="errorDetails" class="text-sm text-red-800 space-y-1"></div>
+                <div class="mt-3 p-3 bg-red-100 rounded text-xs text-red-900">
+                    <strong>💡 Consejo:</strong> Revisa la consola del servidor para ver el error completo (traceback).
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Instrucciones -->
     <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
         <h3 class="font-semibold text-blue-900 mb-2">📌 Instrucciones</h3>
@@ -23,10 +48,48 @@
         </div>
     </div>
 
+    <!-- Barra de Progreso (oculta inicialmente) -->
+    <div id="progressContainer" class="bg-white rounded-lg shadow-md p-6 mb-6 hidden">
+        <h3 class="text-lg font-semibold mb-4">📊 Importando archivos...</h3>
+        
+        <!-- Información de archivos -->
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 text-sm">
+            <div class="grid grid-cols-3 gap-4">
+                <div>
+                    <p class="text-gray-600 font-medium mb-1">📁 Procesando:</p>
+                    <p id="currentFileInfo" class="text-blue-900 font-semibold">-</p>
+                </div>
+                <div>
+                    <p class="text-gray-600 font-medium mb-1">✅ Completados:</p>
+                    <div id="completedFilesList" class="text-green-700">Ninguno</div>
+                </div>
+                <div>
+                    <p class="text-gray-600 font-medium mb-1">⏳ En cola:</p>
+                    <div id="pendingFilesList" class="text-gray-600">-</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Barra de progreso principal -->
+        <div class="mb-4">
+            <div class="flex justify-between text-sm text-gray-600 mb-2">
+                <span id="progressMessage">Iniciando importación...</span>
+                <span id="progressPercentage">0%</span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+                <div id="progressBar" class="bg-blue-600 h-4 transition-all duration-300" style="width: 0%"></div>
+            </div>
+        </div>
+        
+        <div class="text-sm text-gray-500 mb-4">
+            <p id="progressDetails">Por favor espera mientras procesamos tus archivos...</p>
+        </div>
+    </div>
+
     <!-- Formulario -->
-    <div class="bg-white rounded-lg shadow-md p-6">
-        <form action="{{ url_for('portfolio.import_csv_process') }}" method="POST" enctype="multipart/form-data">
-            {{ csrf_input }}
+    <div class="bg-white rounded-lg shadow-md p-6" id="importForm">
+        <form id="csvForm" action="{{ url_for('portfolio.import_csv_process') }}" method="POST" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
             
             <!-- Seleccionar cuenta -->
             <div class="mb-6">
@@ -101,6 +164,58 @@
 </div>
 
 <script>
+let progressInterval = null;
+
+// Mostrar resultados si hay query params
+window.addEventListener('DOMContentLoaded', function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    
+    // Mostrar banner de éxito
+    if (urlParams.get('success')) {
+        const files = urlParams.get('files') || 0;
+        const trans = urlParams.get('trans') || 0;
+        const holdings = urlParams.get('holdings') || 0;
+        const divs = urlParams.get('divs') || 0;
+        const fees = urlParams.get('fees') || 0;
+        const deps = urlParams.get('deps') || 0;
+        const withs = urlParams.get('withs') || 0;
+        const enrich = urlParams.get('enrich') || 0;
+        const enrichTotal = urlParams.get('enrich_total') || 0;
+        
+        const details = [];
+        details.push(`<strong>${files} archivo(s)</strong> procesados`);
+        details.push(`<strong>${trans}</strong> transacciones importadas`);
+        details.push(`<strong>${holdings}</strong> posiciones detectadas`);
+        if (divs > 0) details.push(`<strong>${divs}</strong> dividendos registrados`);
+        if (fees > 0) details.push(`<strong>${fees}</strong> comisiones`);
+        if (deps + withs > 0) details.push(`<strong>${deps + withs}</strong> depósitos/retiros`);
+        if (enrich > 0) details.push(`<strong>${enrich}/${enrichTotal}</strong> assets enriquecidos con OpenFIGI`);
+        
+        document.getElementById('resultDetails').innerHTML = details.map(d => `<p>• ${d}</p>`).join('');
+        document.getElementById('resultBanner').classList.remove('hidden');
+        
+        // Limpiar query params de la URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
+    
+    // Mostrar banner de error
+    if (urlParams.get('error')) {
+        const filesFailed = urlParams.get('files_failed') || 0;
+        const errorMsg = urlParams.get('error_msg') || 'Error desconocido';
+        
+        const errorDetails = [];
+        errorDetails.push(`<p><strong>${filesFailed} archivo(s)</strong> fallaron al importarse</p>`);
+        errorDetails.push(`<p class="mt-2"><strong>Errores:</strong></p>`);
+        errorDetails.push(`<pre class="mt-1 text-xs bg-red-100 p-2 rounded overflow-x-auto">${errorMsg}</pre>`);
+        
+        document.getElementById('errorDetails').innerHTML = errorDetails.join('');
+        document.getElementById('errorBanner').classList.remove('hidden');
+        
+        // Limpiar query params de la URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
+});
+
 function showFileNames(input) {
     const files = input.files;
     const fileNamesElement = document.getElementById('file-names');
@@ -119,6 +234,134 @@ function showFileNames(input) {
         }
         html += '</ul>';
         fileNamesElement.innerHTML = html;
+    }
+}
+
+// Interceptar submit del formulario
+document.getElementById('csvForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    
+    // Ocultar formulario y mostrar barra de progreso
+    document.getElementById('importForm').classList.add('hidden');
+    document.getElementById('progressContainer').classList.remove('hidden');
+    
+    // Iniciar polling de progreso
+    startProgressPolling();
+    
+    try {
+        // Enviar formulario con AJAX
+        const response = await fetch('{{ url_for("portfolio.import_csv_process") }}', {
+            method: 'POST',
+            body: formData
+        });
+        
+        console.log('Respuesta del servidor:', response.status, response.statusText);
+        console.log('URL final después de redirects:', response.url);
+        
+        // Detener polling
+        stopProgressPolling();
+        
+        // Esperar brevemente para que el último estado se muestre
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        // El servidor hizo redirect a /portfolio/import?success=1&...
+        // La URL final está en response.url
+        // Navegar a esa URL para mostrar el banner de éxito
+        window.location.href = response.url;
+        
+    } catch (error) {
+        stopProgressPolling();
+        console.error('Error durante importación:', error);
+        alert('❌ Error al importar archivos. Por favor, intenta de nuevo.');
+        document.getElementById('progressContainer').classList.add('hidden');
+        document.getElementById('importForm').classList.remove('hidden');
+    }
+});
+
+function startProgressPolling() {
+    // Consultar progreso cada 500ms
+    progressInterval = setInterval(async () => {
+        try {
+            const response = await fetch('{{ url_for("portfolio.import_progress") }}');
+            const data = await response.json();
+            
+            if (data.status === 'processing') {
+                updateProgressBar(data.current, data.total, data.message, data.percentage);
+                updateFileInfo(data);
+            } else if (data.status === 'file_completed') {
+                // Archivo completado, actualizar UI para mostrar en "Completados"
+                console.log('Archivo completado:', data.current_file);
+                updateFileInfo(data);
+                // Mantener la barra de progreso en 100% para este archivo
+                updateProgressBar(100, 100, data.message, 100);
+            }
+        } catch (error) {
+            console.error('Error consultando progreso:', error);
+        }
+    }, 500);
+}
+
+function stopProgressPolling() {
+    if (progressInterval) {
+        clearInterval(progressInterval);
+        progressInterval = null;
+    }
+}
+
+function updateProgressBar(current, total, message, percentage) {
+    document.getElementById('progressBar').style.width = percentage + '%';
+    document.getElementById('progressPercentage').textContent = percentage + '%';
+    document.getElementById('progressMessage').textContent = message;
+    
+    if (total > 0) {
+        const remaining = total - current;
+        const estimatedSeconds = remaining * 2.5;  // 2.5s por asset
+        const minutes = Math.floor(estimatedSeconds / 60);
+        const seconds = Math.floor(estimatedSeconds % 60);
+        
+        let timeText = `Procesando: ${current} de ${total} assets`;
+        if (remaining > 0) {
+            if (minutes > 0) {
+                timeText += ` • Tiempo estimado: ${minutes}m ${seconds}s`;
+            } else {
+                timeText += ` • Tiempo estimado: ${seconds}s`;
+            }
+        }
+        
+        document.getElementById('progressDetails').textContent = timeText;
+    }
+}
+
+function updateFileInfo(data) {
+    console.log('updateFileInfo called with data:', data);
+    
+    // Actualizar archivo actual
+    if (data.current_file && data.file_number && data.total_files) {
+        const text = `${data.file_number}/${data.total_files}: ${data.current_file}`;
+        console.log('Actualizando archivo actual:', text);
+        document.getElementById('currentFileInfo').textContent = text;
+    } else {
+        console.log('No hay datos de current_file');
+    }
+    
+    // Actualizar archivos completados
+    if (data.completed_files && data.completed_files.length > 0) {
+        const completedHtml = data.completed_files.map(f => `<div class="text-xs">✓ ${f}</div>`).join('');
+        console.log('Actualizando completados:', data.completed_files);
+        document.getElementById('completedFilesList').innerHTML = completedHtml;
+    } else {
+        document.getElementById('completedFilesList').textContent = 'Ninguno';
+    }
+    
+    // Actualizar archivos pendientes
+    if (data.pending_files && data.pending_files.length > 0) {
+        const pendingHtml = data.pending_files.map(f => `<div class="text-xs">• ${f}</div>`).join('');
+        console.log('Actualizando pendientes:', data.pending_files);
+        document.getElementById('pendingFilesList').innerHTML = pendingHtml;
+    } else {
+        document.getElementById('pendingFilesList').textContent = 'Ninguno';
     }
 }
 </script>

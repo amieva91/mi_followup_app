@@ -1,11 +1,89 @@
 # 📊 Sprint 3 - Diseño de Base de Datos y Arquitectura
 
-**Fecha**: 6 Octubre 2025  
-**Objetivo**: Portfolio Manager con CSV Processor (IBKR + DeGiro)
+**Fecha**: 6 Octubre 2025 | **Actualizado**: 21 Octubre 2025  
+**Objetivo**: Portfolio Manager con CSV Processor (IBKR + DeGiro) + AssetRegistry Global + MappingRegistry
 
 ---
 
 ## 🗄️ MODELOS DE BASE DE DATOS
+
+### **NUEVO: AssetRegistry** (Tabla Global Compartida)
+
+**Implementado**: 19 Octubre 2025
+
+```python
+class AssetRegistry(db.Model):
+    """
+    Registro global de assets - Compartido entre todos los usuarios
+    Cache de mapeos ISIN → Symbol, Exchange, MIC, Yahoo Suffix
+    """
+    __tablename__ = 'asset_registry'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    
+    # Identificadores únicos
+    isin = db.Column(db.String(12), unique=True, nullable=False, index=True)
+    
+    # Información del mercado
+    mic = db.Column(db.String(4), index=True)  # XMAD, XNAS, XLON
+    degiro_exchange = db.Column(db.String(10))  # MAD, NDQ, LSE (DeGiro col 4)
+    ibkr_exchange = db.Column(db.String(10))  # BM, NASDAQ, LSE (IBKR unificado)
+    
+    # Yahoo Finance
+    symbol = db.Column(db.String(20), index=True)  # AAPL, GRF, 0700
+    yahoo_suffix = db.Column(db.String(5))  # .MC, .L, .HK, '' (vacío para US)
+    
+    # Información adicional
+    name = db.Column(db.String(200))
+    asset_type = db.Column(db.String(20))  # 'Stock', 'ETF'
+    currency = db.Column(db.String(3), nullable=False)
+    
+    # Metadata de enriquecimiento
+    is_enriched = db.Column(db.Boolean, default=False, index=True)
+    enrichment_source = db.Column(db.String(20))  # 'OPENFIGI', 'YAHOO_URL', 'CSV_IMPORT', 'MANUAL'
+    enrichment_date = db.Column(db.DateTime)
+    
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Contador de uso (estadísticas)
+    usage_count = db.Column(db.Integer, default=1)
+    
+    @property
+    def yahoo_ticker(self):
+        """Construye el ticker completo para Yahoo Finance"""
+        if not self.symbol:
+            return None
+        return f"{self.symbol}{self.yahoo_suffix or ''}"
+    
+    @property
+    def needs_enrichment(self):
+        """Indica si necesita ser enriquecido"""
+        return not self.symbol or not self.ibkr_exchange
+    
+    def mark_as_enriched(self, source: str):
+        """Marca el asset como enriquecido"""
+        self.is_enriched = True
+        self.enrichment_source = source
+        self.enrichment_date = datetime.utcnow()
+```
+
+**Propósito**:
+- Base de datos global compartida entre todos los usuarios
+- Cache de mapeos ISIN → Symbol, Exchange, MIC, Yahoo Suffix
+- Evita llamadas repetidas a OpenFIGI para assets ya procesados
+- Alimentación automática desde CSVs (IBKR con symbol, DeGiro sin symbol)
+- Enriquecimiento automático con OpenFIGI para assets sin symbol
+- Actualización inteligente: reutiliza datos existentes y mejora campos vacíos
+
+**Índices**:
+- `isin` (único, clave de búsqueda)
+- `symbol` (búsqueda por ticker)
+- `mic` (búsqueda por mercado)
+- `is_enriched` (filtrado de pendientes)
+
+---
 
 ### 1. **Broker** (Catálogo de Brokers)
 
@@ -782,4 +860,239 @@ Ahora:
 - Revisión de campos vacíos: `exchange` (0%), `sector` (0%)
 
 **Próximo paso**: Sprint 4 - Calculadora de Métricas (P&L, TWR, MWR, Sharpe, Drawdown)
+
+
+---
+
+###  HITO 8: AssetRegistry - Sistema Global de Enriquecimiento (NUEVO - 19 Oct 2025)
+
+**Estado**:  COMPLETADO
+
+**Implementaciones**:
+
+#### **1. Modelo AssetRegistry**
+-  Tabla global compartida entre todos los usuarios
+-  Cache de mapeos ISIN  Symbol, Exchange, MIC, Yahoo Suffix
+-  Propiedades: \yahoo_ticker\, eeds_enrichment-  Método: \mark_as_enriched(source)-  Contador de uso: \usage_count
+**Archivo**: \pp/models/asset_registry.py
+#### **2. Servicio AssetRegistryService**
+-  \get_or_create_from_isin()\: Obtiene o crea registro con actualización inteligente
+-  \enrich_from_openfigi()\: Enriquece usando OpenFIGI API
+-  \enrich_from_yahoo_url()\: Enriquece desde URL de Yahoo Finance
+-  \create_asset_from_registry()\: Crea Asset local desde registro
+-  \sync_asset_from_registry()\: Sincroniza Asset local con registro
+-  \get_enrichment_stats()\: Estadísticas de enriquecimiento
+
+**Lógica de actualización inteligente**:
+- Si registro existe: actualiza campos vacíos (IBKR aporta symbol/exchange)
+- Si no existe: crea con todos los datos disponibles
+- Incrementa \usage_count\ en cada uso
+- Marca como enriquecido si viene con symbol (CSV_IMPORT)
+
+**Archivo**: \pp/services/asset_registry_service.py
+#### **3. CSVImporterV2**
+-  Nuevo importer que usa AssetRegistry
+-  Progreso en tiempo real (callback)
+-  Flujo: procesa assets  enriquece  importa  recalcula FIFO
+-  Estadísticas: \
+egistry_created\, \
+egistry_reused\, \enrichment_needed\, \enrichment_success\, \enrichment_failed
+**Archivos**: \pp/services/importer_v2.py\, \pp/routes/portfolio.py
+#### **4. Interfaz de Gestión**
+-  Ruta: \/portfolio/asset-registry-  Panel de estadísticas (Total/Enriquecidos/Pendientes/Completitud %)
+-  Búsqueda por ISIN, Symbol, Nombre
+-  Filtro: 
+
+
+---
+
+### ✅ HITO 8: AssetRegistry - Sistema Global de Enriquecimiento (NUEVO - 19 Oct 2025)
+
+**Estado**: ✅ COMPLETADO
+
+**Implementaciones**:
+
+#### **1. Modelo AssetRegistry**
+- ✅ Tabla global compartida entre todos los usuarios
+- ✅ Cache de mapeos ISIN → Symbol, Exchange, MIC, Yahoo Suffix
+- ✅ Propiedades: yahoo_ticker, needs_enrichment
+- ✅ Método: mark_as_enriched(source)
+- ✅ Contador de uso: usage_count
+
+**Archivo**: app/models/asset_registry.py
+
+#### **2. Servicio AssetRegistryService**
+- ✅ get_or_create_from_isin(): Obtiene o crea registro con actualización inteligente
+- ✅ enrich_from_openfigi(): Enriquece usando OpenFIGI API
+- ✅ enrich_from_yahoo_url(): Enriquece desde URL de Yahoo Finance
+- ✅ create_asset_from_registry(): Crea Asset local desde registro
+- ✅ sync_asset_from_registry(): Sincroniza Asset local con registro
+- ✅ get_enrichment_stats(): Estadísticas de enriquecimiento
+
+**Lógica**: Actualización inteligente (IBKR aporta symbol/exchange), incrementa usage_count
+
+**Archivo**: app/services/asset_registry_service.py
+
+#### **3. CSVImporterV2**
+- ✅ Nuevo importer que usa AssetRegistry
+- ✅ Progreso en tiempo real (callback)
+- ✅ Flujo: procesa assets → enriquece → importa → recalcula FIFO
+- ✅ Estadísticas: registry_created, registry_reused, enrichment_needed, enrichment_success, enrichment_failed
+
+**Archivos**: app/services/importer_v2.py, app/routes/portfolio.py
+
+#### **4. Interfaz de Gestión**
+- ✅ Ruta: /portfolio/asset-registry
+- ✅ Panel de estadísticas (Total/Enriquecidos/Pendientes/Completitud %)
+- ✅ Búsqueda por ISIN, Symbol, Nombre
+- ✅ Filtro: Solo sin enriquecer
+- ✅ Tabla con 10 columnas ordenables
+- ✅ Modal de edición + eliminación
+
+**Archivo**: app/templates/portfolio/asset_registry.html
+
+#### **5. Enriquecimiento Manual**
+- ✅ Botones en edición de transacciones (OpenFIGI + Yahoo URL)
+- ✅ AJAX sin recargar página
+- ✅ Autocompletado de campos
+
+#### **6. Filtros Actualizados**
+- ✅ Dividendos a revisar
+- ✅ Assets sin enriquecer 🔧 (NUEVO)
+
+**Beneficios**:
+- ⚡ Cache global: evita llamadas repetidas a OpenFIGI
+- 🔄 Actualización automática: IBKR alimenta con symbol/exchange completos
+- 📊 Visibilidad: interfaz para gestionar mapeos
+- ✏️ Corrección manual desde UI
+- 📈 Contador de uso para popularidad
+
+---
+
+### ✅ HITO 9: MappingRegistry - Sistema de Mapeos Editables (NUEVO - 21 Oct 2025)
+
+**Estado**: ✅ COMPLETADO
+
+**Objetivo**: Hacer que todos los mapeos hardcodeados (MIC→Yahoo, Exchange→Yahoo, DeGiro→IBKR) sean editables desde la interfaz web, permitiendo expansión colaborativa.
+
+**Implementaciones**:
+
+#### **1. Modelo MappingRegistry**
+- ✅ Tabla global para mapeos configurables
+- ✅ Campos: `mapping_type`, `source_key`, `target_value`, `description`, `country`, `is_active`
+- ✅ Tipos soportados:
+  - `MIC_TO_YAHOO`: XMAD → .MC
+  - `EXCHANGE_TO_YAHOO`: NASDAQ → (vacío)
+  - `DEGIRO_TO_IBKR`: MAD → BM
+- ✅ Método: `get_mapping(type, key)` para consultas rápidas
+- ✅ Índice compuesto para performance
+
+**Archivo**: `app/models/mapping_registry.py`
+
+#### **2. Mappers Dinámicos**
+- ✅ `YahooSuffixMapper`: Lee de BD en lugar de diccionario hardcodeado
+- ✅ `ExchangeMapper`: Lee de BD en lugar de diccionario hardcodeado
+- ✅ Cache en memoria para performance
+- ✅ Fallback a diccionarios legacy si BD está vacía
+
+**Archivos**: 
+- `app/services/market_data/mappers/yahoo_suffix_mapper.py`
+- `app/services/market_data/mappers/exchange_mapper.py`
+
+#### **3. Script de Población Inicial**
+- ✅ `populate_mappings.py`: Migra datos hardcodeados a la BD
+- ✅ Ejecutado automáticamente al inicializar la app
+
+**Archivo**: `populate_mappings.py`
+
+#### **4. Interfaz de Gestión**
+- ✅ Ruta: `/portfolio/mappings`
+- ✅ Panel de estadísticas (Total/Activos/Inactivos/Tipos únicos)
+- ✅ Búsqueda por tipo o clave en tiempo real
+- ✅ Filtro por `mapping_type` (dropdown)
+- ✅ Ordenación por cualquier columna
+- ✅ Badges de tipo con colores distintos:
+  - Azul: MIC_TO_YAHOO
+  - Verde: EXCHANGE_TO_YAHOO
+  - Morado: DEGIRO_TO_IBKR
+- ✅ Modal de creación (formulario de 5 campos)
+- ✅ Modal de edición (todos los campos editables excepto tipo)
+- ✅ Toggle activar/desactivar sin eliminar
+- ✅ Confirmación para eliminación
+- ✅ Link desde AssetRegistry (acceso bidireccional)
+
+**Archivo**: `app/templates/portfolio/mappings.html`
+
+**Beneficios**:
+- 🗺️ Mapeos expandibles: Usuarios pueden añadir nuevos mercados
+- 🔧 Sin redeploy: Cambios en mapeos sin tocar código
+- 🌍 Colaborativo: Base de datos compartida crece con uso
+- 🔄 Reversible: Activar/desactivar sin borrar datos
+
+---
+
+### ✅ HITO 10: Fixes de Estabilidad (v3.3.4 - 21 Oct 2025)
+
+**Estado**: ✅ COMPLETADO
+
+**Objetivo**: Corregir bugs críticos detectados en pruebas de usuario.
+
+**Correcciones**:
+
+#### **1. Progreso de Importación - Primer Archivo Invisible**
+**Problema**: Al importar 5 CSVs, el primero nunca aparecía en "Completados", solo aparecían 4/5 archivos.
+
+**Causa**: Bug de indexación en el bucle (`enumerate(files, 1)` con índices 0-based de la lista).
+
+**Solución**:
+- Cambio a `enumerate(files)` (0-based)
+- Variable `file_number = file_idx + 1` para display
+- Corrección de `range(file_idx + 1, len(files))` para archivos pendientes
+
+**Archivo**: `app/routes/portfolio.py` (líneas 1092-1162)
+
+#### **2. Conteo Incorrecto de Archivos**
+**Problema**: Banner final decía "4 archivo(s) procesados" cuando debían ser 5.
+
+**Causa**: Mismo bug de indexación del problema #1.
+
+**Solución**: Resuelto automáticamente con el fix anterior.
+
+#### **3. Botones de Enriquecimiento No Funcionaban**
+**Problema**: Al hacer clic en "🤖 Enriquecer con OpenFIGI" o "🌐 Desde URL de Yahoo" en la edición de transacciones, no pasaba nada.
+
+**Causa**: JavaScript intentaba actualizar `document.querySelector('input[name="symbol"]')` que no existe en ese formulario (el symbol es parte del Asset, no de la Transaction).
+
+**Solución**:
+- Validación: `if (field && data.value) field.value = data.value`
+- Banners detallados con info completa (Symbol, Exchange, MIC, Yahoo)
+- Estados de loading claros
+
+**Archivo**: `app/templates/portfolio/transaction_form.html` (líneas 272-357)
+
+#### **4. Estado "Pendiente" Incorrecto en AssetRegistry**
+**Problema**: Assets con symbol pero sin MIC mostraban "⚠️ Pendiente".
+
+**Causa**: Lógica `needs_enrichment` requería `symbol AND mic`, pero MIC no siempre está disponible.
+
+**Solución**: 
+- Lógica actualizada: Solo requiere `symbol` (MIC es opcional)
+- Estado correcto: `return not self.symbol`
+
+**Archivos**: 
+- `app/models/asset_registry.py` (líneas 55-63)
+- `app/routes/portfolio.py` (líneas 578-589)
+
+#### **5. Columna "USO" No Ordenable**
+**Problema**: Al añadir tooltip, reemplacé el macro sortable por `<th>` estático.
+
+**Solución**: Link ordenable manteniendo tooltip ℹ️
+
+**Archivo**: `app/templates/portfolio/asset_registry.html` (líneas 114-123)
+
+**Resultado**: Sistema 100% estable y funcional, listo para producción.
+
+---
+
+**Próximo paso**: Deploy a producción v3.3.4 + Sprint 4 (Calculadora de Métricas)
 

@@ -19,11 +19,15 @@ class Asset(db.Model):
     # Clasificación
     asset_type = db.Column(db.String(20), nullable=False)  # 'Stock', 'ETF', 'Bond', 'Crypto'
     sector = db.Column(db.String(50))  # 'Technology', 'Finance'
-    exchange = db.Column(db.String(10))  # 'NASDAQ', 'HKG', 'WSE'
+    exchange = db.Column(db.String(10))  # 'NASDAQ', 'HKG', 'WSE' (formato unificado IBKR)
     currency = db.Column(db.String(3), nullable=False)  # 'USD', 'EUR', 'HKD'
     
+    # Market Identifiers
+    mic = db.Column(db.String(4))  # MIC ISO 10383 (ej: 'XMAD', 'XNAS') - Columna 5 DeGiro
+    yahoo_suffix = db.Column(db.String(5))  # Sufijo Yahoo Finance (ej: '.MC', '.L', '')
+    
     # Para actualización de precios
-    yahoo_symbol = db.Column(db.String(20))  # Símbolo para Yahoo Finance API
+    yahoo_symbol = db.Column(db.String(20))  # DEPRECATED: Usar symbol + yahoo_suffix
     last_price = db.Column(db.Float)  # Último precio conocido
     last_price_update = db.Column(db.DateTime)  # Última actualización
     
@@ -38,6 +42,14 @@ class Asset(db.Model):
     
     def __repr__(self):
         return f"Asset('{self.symbol}', '{self.name}')"
+    
+    @property
+    def yahoo_ticker(self):
+        """Construye el ticker completo para Yahoo Finance"""
+        if not self.symbol:
+            return None
+        suffix = self.yahoo_suffix or ''
+        return f"{self.symbol}{suffix}"
     
     def update_price(self, new_price):
         """Actualiza el precio del activo"""

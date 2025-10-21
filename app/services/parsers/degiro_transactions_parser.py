@@ -93,6 +93,11 @@ class DeGiroTransactionsParser:
         isin = row[3].strip() if len(row) > 3 else ''
         symbol = ''  # DeGiro no proporciona tickers/symbols en sus CSVs
         
+        # Columna 4: Bolsa de (exchange DeGiro)
+        degiro_exchange = row[4].strip() if len(row) > 4 else ''
+        # Columna 5: Centro de (MIC ISO 10383)
+        mic = row[5].strip() if len(row) > 5 else ''
+        
         # Columna 7: Precio
         precio_str = row[7] if len(row) > 7 else '0'
         # Columna 8: MONEDA (¡aquí está la moneda correcta!)
@@ -131,7 +136,10 @@ class DeGiroTransactionsParser:
             'currency': precio_divisa,  # ¡Ahora lee la columna correcta!
             'commission': commission,
             'order_id': order_id,
-            'description': f"{'Compra' if quantity > 0 else 'Venta'} {abs(int(quantity))} {product_name}"
+            'description': f"{'Compra' if quantity > 0 else 'Venta'} {abs(int(quantity))} {product_name}",
+            # Nuevos campos para enriquecimiento
+            'degiro_exchange': degiro_exchange,  # Columna 4: Bolsa de
+            'mic': mic,  # Columna 5: Centro de (MIC ISO 10383)
         }
         
         # Calcular monto total
@@ -157,7 +165,10 @@ class DeGiroTransactionsParser:
                     'currency': trade['currency'],
                     'quantity': 0,
                     'total_cost': Decimal('0'),
-                    'average_buy_price': Decimal('0')
+                    'average_buy_price': Decimal('0'),
+                    # Incluir exchange y MIC para enriquecimiento
+                    'degiro_exchange': trade.get('degiro_exchange', ''),
+                    'mic': trade.get('mic', ''),
                 }
             
             holding = self.holdings[key]
@@ -187,28 +198,28 @@ class DeGiroTransactionsParser:
     
     # Helper methods
     
-    def _parse_date(self, date_str: str) -> str:
-        """Parsea fecha DD-MM-YYYY a YYYY-MM-DD"""
+    def _parse_date(self, date_str: str):
+        """Parsea fecha DD-MM-YYYY a objeto datetime.date"""
         if not date_str:
-            return ''
+            return None
         try:
             # Formato: DD-MM-YYYY
             dt = datetime.strptime(date_str, '%d-%m-%Y')
-            return dt.strftime('%Y-%m-%d')
+            return dt.date()  # ← Devuelve datetime.date object
         except:
-            return date_str
+            return None
     
-    def _parse_datetime(self, date_str: str, time_str: str) -> str:
-        """Parsea fecha y hora a formato ISO"""
+    def _parse_datetime(self, date_str: str, time_str: str):
+        """Parsea fecha y hora a objeto datetime"""
         if not date_str:
-            return ''
+            return None
         try:
             # Formato: DD-MM-YYYY HH:MM
             dt_str = f"{date_str} {time_str if time_str else '00:00'}"
             dt = datetime.strptime(dt_str, '%d-%m-%Y %H:%M')
-            return dt.strftime('%Y-%m-%dT%H:%M:%S')
+            return dt  # ← Devuelve datetime object
         except:
-            return date_str
+            return None
 
 
 # Factory function para mantener compatibilidad

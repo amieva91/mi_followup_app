@@ -50,6 +50,11 @@ class ManualTransactionForm(FlaskForm):
         ('NOK', 'NOK'), ('SGD', 'SGD'),
     ], validators=[DataRequired()])
     
+    # Identificadores de mercado (editables para correcciones)
+    exchange = StringField('Exchange (código unificado)', validators=[Optional(), Length(max=10)])
+    mic = StringField('MIC ISO 10383', validators=[Optional(), Length(min=4, max=4)])
+    yahoo_suffix = StringField('Sufijo Yahoo (ej: .MC, .L)', validators=[Optional(), Length(max=5)])
+    
     # Datos de la transacción
     transaction_type = SelectField('Tipo de Operación', choices=[
         ('BUY', 'Compra'),

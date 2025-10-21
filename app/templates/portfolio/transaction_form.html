@@ -86,6 +86,57 @@
                 </div>
             </div>
 
+            <!-- Identificadores de Mercado -->
+            <div class="bg-purple-50 border border-purple-200 rounded-lg p-6 mb-6">
+                <h3 class="font-semibold text-purple-900 mb-2">🌐 Identificadores de Mercado</h3>
+                <p class="text-xs text-purple-700 mb-4">Opcionales - Se autocompletarán al importar CSVs o enriquecer con OpenFIGI</p>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        {{ form.exchange.label(class="block text-sm font-medium text-gray-700 mb-2") }}
+                        {{ form.exchange(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent", placeholder="Ej: NASDAQ, BM") }}
+                        <p class="mt-1 text-xs text-gray-500">Formato IBKR</p>
+                        {% if form.exchange.errors %}
+                            <div class="mt-1 text-sm text-red-600">{{ form.exchange.errors[0] }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div>
+                        {{ form.mic.label(class="block text-sm font-medium text-gray-700 mb-2") }}
+                        {{ form.mic(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent", placeholder="Ej: XMAD, XNAS", maxlength="4") }}
+                        <p class="mt-1 text-xs text-gray-500">4 caracteres</p>
+                        {% if form.mic.errors %}
+                            <div class="mt-1 text-sm text-red-600">{{ form.mic.errors[0] }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div>
+                        {{ form.yahoo_suffix.label(class="block text-sm font-medium text-gray-700 mb-2") }}
+                        {{ form.yahoo_suffix(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent", placeholder="Ej: .MC, .L (vacío si US)") }}
+                        <p class="mt-1 text-xs text-gray-500">Para Yahoo Finance</p>
+                        {% if form.yahoo_suffix.errors %}
+                            <div class="mt-1 text-sm text-red-600">{{ form.yahoo_suffix.errors[0] }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Botones de Enriquecimiento Manual -->
+                {% if action == 'edit' %}
+                <div class="mt-4 pt-4 border-t border-purple-300">
+                    <p class="text-xs text-purple-700 mb-3">🔍 Si faltan datos, puedes enriquecerlos manualmente:</p>
+                    <div class="flex gap-3">
+                        <button type="button" id="enrichOpenFIGI" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm">
+                            🤖 Enriquecer con OpenFIGI
+                        </button>
+                        <button type="button" id="enrichYahoo" class="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm">
+                            🌐 Desde URL de Yahoo
+                        </button>
+                    </div>
+                    <div id="enrichmentResult" class="mt-3"></div>
+                </div>
+                {% endif %}
+            </div>
+
             <!-- Detalles de la Transacción -->
             <div class="bg-green-50 border border-green-200 rounded-lg p-6 mb-6">
                 <h3 class="font-semibold text-green-900 mb-4">💰 Detalles de la Transacción</h3>
@@ -189,6 +240,129 @@
             
             // Se podría añadir un preview del cálculo aquí
         });
+        
+        // --- ENRIQUECIMIENTO MANUAL ---
+        {% if action == 'edit' and transaction and transaction.asset %}
+        const assetId = {{ transaction.asset.id }};
+        const enrichResult = document.getElementById('enrichmentResult');
+        
+        // Botón OpenFIGI
+        document.getElementById('enrichOpenFIGI').addEventListener('click', async function() {
+            this.disabled = true;
+            this.textContent = '⏳ Consultando OpenFIGI...';
+            enrichResult.innerHTML = '<p class="text-sm text-gray-600">Consultando OpenFIGI...</p>';
+            
+            try {
+                // Obtener CSRF token del formulario
+                const csrfToken = document.querySelector('input[name="csrf_token"]').value;
+                
+                const response = await fetch(`/portfolio/asset/${assetId}/enrich-manual`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        'csrf_token': csrfToken,
+                        'method': 'openfigi'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Actualizar campos del asset en el formulario (si existen)
+                    const exchangeField = document.querySelector('input[name="exchange"]');
+                    const micField = document.querySelector('input[name="mic"]');
+                    const yahooField = document.querySelector('input[name="yahoo_suffix"]');
+                    
+                    if (exchangeField && data.exchange) exchangeField.value = data.exchange;
+                    if (micField && data.mic) micField.value = data.mic;
+                    if (yahooField && data.yahoo_suffix) yahooField.value = data.yahoo_suffix;
+                    
+                    // Mostrar resultado detallado
+                    enrichResult.innerHTML = `
+                        <div class="bg-green-100 border border-green-300 rounded-lg p-3">
+                            <p class="text-sm font-semibold text-green-800 mb-1">✅ Asset enriquecido correctamente</p>
+                            <ul class="text-xs text-green-700 space-y-1">
+                                <li><strong>Symbol:</strong> ${data.symbol || '-'}</li>
+                                <li><strong>Exchange:</strong> ${data.exchange || '-'}</li>
+                                <li><strong>MIC:</strong> ${data.mic || '-'}</li>
+                                <li><strong>Yahoo:</strong> ${data.yahoo_ticker || '-'}</li>
+                            </ul>
+                        </div>
+                    `;
+                } else {
+                    enrichResult.innerHTML = `<p class="text-sm text-red-600">❌ ${data.error}</p>`;
+                }
+            } catch (error) {
+                enrichResult.innerHTML = `<p class="text-sm text-red-600">❌ Error: ${error.message}</p>`;
+            } finally {
+                this.disabled = false;
+                this.textContent = '🤖 Enriquecer con OpenFIGI';
+            }
+        });
+        
+        // Botón Yahoo URL
+        document.getElementById('enrichYahoo').addEventListener('click', async function() {
+            const yahooUrl = prompt('Pega la URL de Yahoo Finance (ej: https://finance.yahoo.com/quote/AAPL/)');
+            
+            if (!yahooUrl) return;
+            
+            this.disabled = true;
+            this.textContent = '⏳ Procesando...';
+            enrichResult.innerHTML = '<p class="text-sm text-gray-600">Procesando URL...</p>';
+            
+            try {
+                // Obtener CSRF token del formulario
+                const csrfToken = document.querySelector('input[name="csrf_token"]').value;
+                
+                const response = await fetch(`/portfolio/asset/${assetId}/enrich-manual`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        'csrf_token': csrfToken,
+                        'method': 'yahoo',
+                        'yahoo_url': yahooUrl
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Actualizar campos del asset en el formulario (si existen)
+                    const exchangeField = document.querySelector('input[name="exchange"]');
+                    const micField = document.querySelector('input[name="mic"]');
+                    const yahooField = document.querySelector('input[name="yahoo_suffix"]');
+                    
+                    if (exchangeField && data.exchange) exchangeField.value = data.exchange;
+                    if (micField && data.mic) micField.value = data.mic;
+                    if (yahooField && data.yahoo_suffix) yahooField.value = data.yahoo_suffix;
+                    
+                    // Mostrar resultado detallado
+                    enrichResult.innerHTML = `
+                        <div class="bg-green-100 border border-green-300 rounded-lg p-3">
+                            <p class="text-sm font-semibold text-green-800 mb-1">✅ Asset actualizado desde Yahoo Finance</p>
+                            <ul class="text-xs text-green-700 space-y-1">
+                                <li><strong>Symbol:</strong> ${data.symbol || '-'}</li>
+                                <li><strong>Exchange:</strong> ${data.exchange || '-'}</li>
+                                <li><strong>MIC:</strong> ${data.mic || '-'}</li>
+                                <li><strong>Yahoo:</strong> ${data.yahoo_ticker || '-'}</li>
+                            </ul>
+                        </div>
+                    `;
+                } else {
+                    enrichResult.innerHTML = `<p class="text-sm text-red-600">❌ ${data.error}</p>`;
+                }
+            } catch (error) {
+                enrichResult.innerHTML = `<p class="text-sm text-red-600">❌ Error: ${error.message}</p>`;
+            } finally {
+                this.disabled = false;
+                this.textContent = '🌐 Desde URL de Yahoo';
+            }
+        });
+        {% endif %}
     </script>
 </div>
 {% endblock %}

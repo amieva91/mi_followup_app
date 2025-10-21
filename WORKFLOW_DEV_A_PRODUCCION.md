@@ -1,9 +1,22 @@
 # 🔄 WORKFLOW: Desarrollo → Producción
 
-**Actualizado**: 10 Octubre 2025 - 23:20 UTC  
+**Actualizado**: 21 Octubre 2025 - 22:00 UTC  
 **Estado**: ✅ WORKFLOW VALIDADO Y FUNCIONANDO
 
-**Último deploy exitoso**: 10 Octubre 2025 - Sprint 3 v3.2.0 (Correcciones finales + formato europeo)
+**Último deploy**: Pendiente - Sprint 3 v3.3.4 (MappingRegistry + Fixes de Estabilidad)
+
+**Cambios en v3.3.4**:
+- ✅ Nuevo modelo `MappingRegistry` (mapeos editables desde web)
+- ✅ Interfaz de gestión `/portfolio/mappings` con CRUD completo
+- ✅ Mappers dinámicos (YahooSuffixMapper, ExchangeMapper leen de BD)
+- ✅ AssetRegistry: Estado correcto (solo requiere symbol, MIC opcional)
+- ✅ AssetRegistry: Columna "Uso" ahora ordenable
+- ✅ Progreso de importación: Primer archivo ahora visible en "Completados"
+- ✅ Conteo correcto de archivos procesados (5/5 en lugar de 4/5)
+- ✅ Botones de enriquecimiento funcionales en edición de transacciones
+- ✅ Feedback visual mejorado con banners detallados
+
+**Deploy anterior**: 19 Octubre 2025 - Sprint 3 v3.3.0 (AssetRegistry - Sistema Global)
 
 ---
 

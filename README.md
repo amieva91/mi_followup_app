@@ -2,7 +2,7 @@
 
 Sistema completo de gestión financiera personal.
 
-## ✅ Estado Actual (10 Oct 2025)
+## ✅ Estado Actual (21 Oct 2025)
 
 **Funcionalidades Implementadas:**
 - ✅ **Sprint 0 - Arquitectura Base** - Configuración inicial, estructura modular
@@ -14,14 +14,21 @@ Sistema completo de gestión financiera personal.
   - Edición y eliminación de series completas
   - Emoji picker interactivo
 - ✅ **Sprint 3 - CSV Processor & Portfolio Management** 
-  - Base de datos completa (8 modelos para portfolio)
+  - Base de datos completa (9 modelos: 8 portfolio + AssetRegistry global)
   - CRUD de cuentas de broker con eliminación destructiva
   - Entrada manual de transacciones (BUY/SELL/DIVIDEND/FEE/DEPOSIT/WITHDRAWAL)
   - Parser CSV para IBKR (formato jerárquico + extracción ISIN)
   - Parser CSV para DeGiro Transacciones (lectura por índices, monedas correctas)
   - Parser CSV para DeGiro Estado de Cuenta (dividendos/comisiones/FX)
   - Consolidación unificada de dividendos (3-4 líneas relacionadas)
-  - Importador a BD con detección inteligente de duplicados (snapshot)
+  - **AssetRegistry - Base de datos global compartida**:
+    - Cache de mapeos ISIN → Symbol, Exchange, MIC, Yahoo Suffix
+    - Alimentación automática desde CSVs (IBKR aporta symbol/exchange completos)
+    - Enriquecimiento automático con OpenFIGI para assets sin symbol
+    - Actualización inteligente (reutiliza datos existentes)
+    - Contador de uso compartido (usage_count)
+  - Importador V2 con progreso en tiempo real
+  - Detección inteligente de duplicados (snapshot entre archivos)
   - Filtrado de transacciones FX (Forex)
   - **FIFO robusto con posiciones cortas temporales**
   - Normalización de símbolos (IGC/IGCl → IGC)
@@ -34,6 +41,23 @@ Sistema completo de gestión financiera personal.
   - Recálculo automático de holdings tras edición
   - **Formato europeo** en todos los números (1.234,56)
   - **Visualización mejorada**: Type • Currency • ISIN
+  - **Gestión completa de AssetRegistry**:
+    - Interfaz dedicada con búsqueda, filtros y ordenación (columnas ordenables)
+    - Edición y eliminación de registros
+    - Estadísticas de enriquecimiento (total/enriched/pending)
+    - Enriquecimiento manual (OpenFIGI o Yahoo URL) desde modal
+    - Acceso directo desde transacciones
+    - Estado correcto (solo requiere symbol, MIC opcional)
+  - **MappingRegistry - Sistema de mapeos editables**:
+    - Gestión web de todos los mapeos (MIC→Yahoo, Exchange→Yahoo, DeGiro→IBKR)
+    - CRUD completo con búsqueda y filtros
+    - Activación/desactivación de mapeos
+    - Interfaz accesible desde AssetRegistry
+  - **Fixes de estabilidad (v3.3.4)**:
+    - Progreso de importación: primer archivo ahora visible en "Completados"
+    - Conteo correcto de archivos procesados (5/5 en lugar de 4/5)
+    - Botones de enriquecimiento funcionales en edición de transacciones
+    - Feedback visual mejorado con banners detallados
 - ✅ **Dashboard** - KPIs en tiempo real (ingresos/gastos/balance mensual)
 - ✅ **Sistema desplegado** - Funcionando en https://followup.fit/
 

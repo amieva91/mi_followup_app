@@ -7,6 +7,7 @@ from flask_migrate import Migrate
 from flask_login import LoginManager
 from flask_bcrypt import Bcrypt
 from flask_mail import Mail
+from flask_wtf.csrf import CSRFProtect
 from config import config
 
 # Extensiones (se inicializan sin app)
@@ -15,6 +16,7 @@ migrate = Migrate()
 login_manager = LoginManager()
 bcrypt = Bcrypt()
 mail = Mail()
+csrf = CSRFProtect()
 
 def create_app(config_name='default'):
     """Factory para crear la aplicación"""
@@ -29,6 +31,7 @@ def create_app(config_name='default'):
     login_manager.init_app(app)
     bcrypt.init_app(app)
     mail.init_app(app)
+    csrf.init_app(app)
     
     # Configurar Flask-Login
     login_manager.login_view = 'auth.login'

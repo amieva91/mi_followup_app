@@ -15,15 +15,17 @@ from app.services.fifo_calculator import FIFOCalculator
 class CSVImporter:
     """Importa datos parseados de CSV a la base de datos"""
     
-    def __init__(self, user_id: int, broker_account_id: int):
+    def __init__(self, user_id: int, broker_account_id: int, enable_enrichment: bool = False):
         """
         Args:
             user_id: ID del usuario
             broker_account_id: ID de la cuenta de broker
+            enable_enrichment: Si True, enriquece assets con OpenFIGI (lento). Por defecto False.
         """
         self.user_id = user_id
         self.broker_account_id = broker_account_id
         self.broker_account = BrokerAccount.query.get(broker_account_id)
+        self.enable_enrichment = enable_enrichment  # 🔥 DESACTIVADO por defecto para rapidez
         
         if not self.broker_account:
             raise ValueError(f"BrokerAccount {broker_account_id} no encontrado")
@@ -97,7 +99,10 @@ class CSVImporter:
                         'currency': trade.get('currency', 'USD'),
                         'name': trade.get('name', ''),
                         'exchange': trade.get('exchange', ''),
-                        'asset_type': trade.get('asset_type', 'Stock')
+                        'asset_type': trade.get('asset_type', 'Stock'),
+                        # Nuevos campos para enriquecimiento
+                        'degiro_exchange': trade.get('degiro_exchange', ''),
+                        'mic': trade.get('mic', ''),
                     }
         
         for holding in parsed_data.get('holdings', []):
@@ -111,7 +116,10 @@ class CSVImporter:
                         'currency': holding.get('currency', 'USD'),
                         'name': holding.get('name', ''),
                         'exchange': holding.get('exchange', ''),
-                        'asset_type': holding.get('asset_type', 'Stock')
+                        'asset_type': holding.get('asset_type', 'Stock'),
+                        # Nuevos campos para enriquecimiento
+                        'degiro_exchange': holding.get('degiro_exchange', ''),
+                        'mic': holding.get('mic', ''),
                     }
         
         for dividend in parsed_data.get('dividends', []):
@@ -129,38 +137,105 @@ class CSVImporter:
                     }
         
         # Crear o actualizar assets
-        for asset_data in assets_dict.values():
+        total_assets = len(assets_dict)
+        if self.enable_enrichment:
+            print(f"\n📊 Procesando {total_assets} assets únicos CON enriquecimiento OpenFIGI...")
+            print(f"⏱️  Estimado: ~{total_assets * 0.15:.0f} segundos")
+            print(f"{'='*60}\n")
+        
+        for idx, asset_data in enumerate(assets_dict.values(), 1):
+            if self.enable_enrichment:
+                print(f"[{idx}/{total_assets}] ", end='')
             asset = self._get_or_create_asset(
                 symbol=asset_data['symbol'],
                 isin=asset_data['isin'],
                 currency=asset_data['currency'],
                 asset_type=asset_data['asset_type'],
                 name=asset_data['name'] or None,
-                exchange=asset_data['exchange'] or None
+                exchange=asset_data['exchange'] or None,
+                degiro_exchange=asset_data.get('degiro_exchange', ''),
+                mic=asset_data.get('mic', '')
             )
     
     def _get_or_create_asset(self, symbol: str, isin: str, currency: str, asset_type: str = 'Stock', 
-                              name: str = None, exchange: str = None) -> Asset:
-        """Obtiene o crea un asset (catálogo global)"""
+                              name: str = None, exchange: str = None, 
+                              degiro_exchange: str = '', mic: str = '') -> Asset:
+        """
+        Obtiene o crea un asset (catálogo global)
+        Usa AssetEnricher para poblar symbol, mic, yahoo_suffix automáticamente
+        """
+        # Enriquecer datos con AssetEnricher SOLO si está habilitado
+        enriched_data = None
+        if self.enable_enrichment and isin and (degiro_exchange or mic):
+            from app.services.market_data import AssetEnricher
+            enricher = AssetEnricher()
+            try:
+                print(f"🔍 Enriqueciendo {name or isin[:12]}... (ISIN: {isin}, MIC: {mic})")
+                enriched_data = enricher.enrich_from_isin(
+                    isin=isin,
+                    currency=currency,
+                    degiro_exchange=degiro_exchange,
+                    degiro_mic=mic
+                )
+                if enriched_data and enriched_data.get('symbol'):
+                    print(f"   ✅ Obtenido: {enriched_data['symbol']} → {enriched_data.get('yahoo_suffix', '')} (Fuente: {enriched_data.get('source', 'N/A')})")
+                else:
+                    print(f"   ⚠️  Sin ticker desde OpenFIGI")
+            except Exception as e:
+                print(f"   ❌ Error: {str(e)[:80]}")
+        
+        # Si el enriquecimiento está desactivado pero tenemos MIC, al menos generar el yahoo_suffix
+        if not self.enable_enrichment and mic:
+            from app.services.market_data.mappers import YahooSuffixMapper, ExchangeMapper
+            enriched_data = {
+                'mic': mic,
+                'yahoo_suffix': YahooSuffixMapper.mic_to_yahoo_suffix(mic),
+                'exchange': ExchangeMapper.degiro_to_unified(degiro_exchange) if degiro_exchange else None,
+                'source': 'Mapper'
+            }
+        
         # Buscar por ISIN (si existe) - tiene prioridad porque es único
         if isin:
             asset = Asset.query.filter_by(isin=isin).first()
             if asset:
                 # Actualizar campos si son diferentes y no están vacíos
                 updated = False
-                # Solo actualizar symbol si hay uno nuevo y no está vacío
-                if symbol and asset.symbol != symbol:
-                    asset.symbol = symbol
-                    updated = True
-                if name and asset.name != name:
-                    asset.name = name
-                    updated = True
-                if exchange and asset.exchange != exchange:
-                    asset.exchange = exchange
-                    updated = True
-                if asset_type and asset.asset_type != asset_type:
-                    asset.asset_type = asset_type
-                    updated = True
+                
+                # Si tenemos datos enriquecidos, usarlos (prevalecen)
+                if enriched_data:
+                    if enriched_data.get('symbol') and asset.symbol != enriched_data['symbol']:
+                        asset.symbol = enriched_data['symbol']
+                        updated = True
+                    if enriched_data.get('name') and asset.name != enriched_data['name']:
+                        asset.name = enriched_data['name']
+                        updated = True
+                    if enriched_data.get('exchange') and asset.exchange != enriched_data['exchange']:
+                        asset.exchange = enriched_data['exchange']
+                        updated = True
+                    if enriched_data.get('mic') and asset.mic != enriched_data['mic']:
+                        asset.mic = enriched_data['mic']
+                        updated = True
+                    if enriched_data.get('yahoo_suffix') and asset.yahoo_suffix != enriched_data['yahoo_suffix']:
+                        asset.yahoo_suffix = enriched_data['yahoo_suffix']
+                        updated = True
+                    if enriched_data.get('asset_type') and asset.asset_type != enriched_data['asset_type']:
+                        asset.asset_type = enriched_data['asset_type']
+                        updated = True
+                else:
+                    # Fallback: usar datos originales si no hay enriquecimiento
+                    if symbol and asset.symbol != symbol:
+                        asset.symbol = symbol
+                        updated = True
+                    if name and asset.name != name:
+                        asset.name = name
+                        updated = True
+                    if exchange and asset.exchange != exchange:
+                        asset.exchange = exchange
+                        updated = True
+                    if asset_type and asset.asset_type != asset_type:
+                        asset.asset_type = asset_type
+                        updated = True
+                
                 if updated:
                     self.stats['assets_updated'] += 1
                 return asset
@@ -189,15 +264,29 @@ class CSVImporter:
                 return asset
         
         # Crear nuevo asset
-        # Para DeGiro (sin symbol), usar name o ISIN como identificador
-        asset = Asset(
-            symbol=symbol or None,
-            isin=isin or None,
-            name=name or symbol or isin,  # Prioridad: name > symbol > ISIN
-            asset_type=asset_type,
-            currency=currency,
-            exchange=exchange or None
-        )
+        # Si tenemos datos enriquecidos, usarlos; si no, usar los originales
+        if enriched_data:
+            asset = Asset(
+                symbol=enriched_data.get('symbol') or None,
+                isin=isin or None,
+                name=enriched_data.get('name') or name or isin,
+                asset_type=enriched_data.get('asset_type', asset_type),
+                currency=currency,
+                exchange=enriched_data.get('exchange') or exchange or None,
+                mic=enriched_data.get('mic') or None,
+                yahoo_suffix=enriched_data.get('yahoo_suffix') or None
+            )
+        else:
+            # Fallback: Para DeGiro (sin symbol), usar name o ISIN como identificador
+            asset = Asset(
+                symbol=symbol or None,
+                isin=isin or None,
+                name=name or symbol or isin,  # Prioridad: name > symbol > ISIN
+                asset_type=asset_type,
+                currency=currency,
+                exchange=exchange or None
+            )
+        
         db.session.add(asset)
         db.session.flush()  # Para obtener el ID
         

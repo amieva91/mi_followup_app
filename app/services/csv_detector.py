@@ -118,5 +118,8 @@ def detect_and_parse(file_path: str):
     parser_class = CSVDetector.get_parser_class(format_type)
     parser = parser_class()
     
-    return parser.parse(file_path)
+    parsed_data = parser.parse(file_path)
+    parsed_data['format'] = format_type  # Agregar el formato detectado
+    
+    return parsed_data
 

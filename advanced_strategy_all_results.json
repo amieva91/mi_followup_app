@@ -1,0 +1,4392 @@
+[
+  {
+    "isin": "US01609W1027",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "ADR ON ALIBABA GROUP HOLDING",
+    "ticker": "BABA",
+    "exchange": "US",
+    "name": "ALIBABA GROUP HOLDING-SP ADR",
+    "success": true
+  },
+  {
+    "isin": "US01609W1027",
+    "mic": "XNYS",
+    "currency": "USD",
+    "producto": "ADR ON ALIBABA GROUP HOLDING",
+    "ticker": "BABA",
+    "exchange": "US",
+    "name": "ALIBABA GROUP HOLDING-SP ADR",
+    "success": true
+  },
+  {
+    "isin": "US01609W1027",
+    "mic": "SOHO",
+    "currency": "USD",
+    "producto": "ADR ON ALIBABA GROUP HOLDING",
+    "ticker": "BABA",
+    "exchange": "US",
+    "name": "ALIBABA GROUP HOLDING-SP ADR",
+    "success": true
+  },
+  {
+    "isin": "US01609W1027",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "ADR ON ALIBABA GROUP HOLDING",
+    "ticker": "BABA",
+    "exchange": "US",
+    "name": "ALIBABA GROUP HOLDING-SP ADR",
+    "success": true
+  },
+  {
+    "isin": "US01609W1027",
+    "mic": "MEMX",
+    "currency": "USD",
+    "producto": "ADR ON ALIBABA GROUP HOLDING",
+    "ticker": "BABA",
+    "exchange": "US",
+    "name": "ALIBABA GROUP HOLDING-SP ADR",
+    "success": true
+  },
+  {
+    "isin": "US02079K3059",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "ALPHABET INC. - CLASS A",
+    "ticker": "GOOGL",
+    "exchange": "US",
+    "name": "ALPHABET INC-CL A",
+    "success": true
+  },
+  {
+    "isin": "US02079K3059",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "ALPHABET INC. - CLASS A",
+    "ticker": "GOOGL",
+    "exchange": "US",
+    "name": "ALPHABET INC-CL A",
+    "success": true
+  },
+  {
+    "isin": "US02079K3059",
+    "mic": "BATS",
+    "currency": "USD",
+    "producto": "ALPHABET INC. - CLASS A",
+    "ticker": "GOOGL",
+    "exchange": "US",
+    "name": "ALPHABET INC-CL A",
+    "success": true
+  },
+  {
+    "isin": "US02079K3059",
+    "mic": "MEMX",
+    "currency": "USD",
+    "producto": "ALPHABET INC. - CLASS A",
+    "ticker": "GOOGL",
+    "exchange": "US",
+    "name": "ALPHABET INC-CL A",
+    "success": true
+  },
+  {
+    "isin": "US02079K3059",
+    "mic": "ARCX",
+    "currency": "USD",
+    "producto": "ALPHABET INC. - CLASS A",
+    "ticker": "GOOGL",
+    "exchange": "US",
+    "name": "ALPHABET INC-CL A",
+    "success": true
+  },
+  {
+    "isin": "US02079K3059",
+    "mic": "SOHO",
+    "currency": "USD",
+    "producto": "ALPHABET INC. - CLASS A",
+    "ticker": "GOOGL",
+    "exchange": "US",
+    "name": "ALPHABET INC-CL A",
+    "success": true
+  },
+  {
+    "isin": "US02079K3059",
+    "mic": "MSPL",
+    "currency": "USD",
+    "producto": "ALPHABET INC. - CLASS A",
+    "ticker": "GOOGL",
+    "exchange": "US",
+    "name": "ALPHABET INC-CL A",
+    "success": true
+  },
+  {
+    "isin": "US00218A1051",
+    "mic": "MSPL",
+    "currency": "USD",
+    "producto": "ASP ISOTOPES INC",
+    "ticker": "ASPI",
+    "exchange": "US",
+    "name": "ASP ISOTOPES INC",
+    "success": true
+  },
+  {
+    "isin": "KYG3235S1021",
+    "mic": "XHKG",
+    "currency": "HKD",
+    "producto": "EXCELLENCE COMMERCIAL PROPERTY & FACILITIES MANAGEMENT GROUP LTD",
+    "ticker": "6989",
+    "exchange": "HK",
+    "name": "EXCELLENCE COMMERCIAL PROPER",
+    "success": true
+  },
+  {
+    "isin": "US63001N1063",
+    "mic": "XNYS",
+    "currency": "USD",
+    "producto": "NCR ATLEOS CORP",
+    "ticker": "NATL",
+    "exchange": "US",
+    "name": "NCR ATLEOS CORP",
+    "success": true
+  },
+  {
+    "isin": "GB0002875804",
+    "mic": "JSSI",
+    "currency": "GBX",
+    "producto": "BR.AMER.TOB.",
+    "ticker": "BATS",
+    "exchange": "LN",
+    "name": "BRITISH AMERICAN TOBACCO PLC",
+    "success": true
+  },
+  {
+    "isin": "GB0002875804",
+    "mic": "MESI",
+    "currency": "GBX",
+    "producto": "BR.AMER.TOB.",
+    "ticker": "BATS",
+    "exchange": "LN",
+    "name": "BRITISH AMERICAN TOBACCO PLC",
+    "success": true
+  },
+  {
+    "isin": "IT0005037210",
+    "mic": "MTAA",
+    "currency": "EUR",
+    "producto": "TECNOINVESTIMENTI",
+    "ticker": "TNXT",
+    "exchange": "IM",
+    "name": "TINEXTA SPA",
+    "success": true
+  },
+  {
+    "isin": "ES0105223004",
+    "mic": "MESI",
+    "currency": "EUR",
+    "producto": "GESTAMP AUTOMOCION SA",
+    "ticker": "GEST",
+    "exchange": "SM",
+    "name": "GESTAMP AUTOMOCION SA",
+    "success": true
+  },
+  {
+    "isin": "ES0105223004",
+    "mic": "XMAD",
+    "currency": "EUR",
+    "producto": "GESTAMP AUTOMOCION SA",
+    "ticker": "GEST",
+    "exchange": "SM",
+    "name": "GESTAMP AUTOMOCION SA",
+    "success": true
+  },
+  {
+    "isin": "ES0112501012",
+    "mic": "MESI",
+    "currency": "EUR",
+    "producto": "EBRO FOODS",
+    "ticker": "AZU",
+    "exchange": "GR",
+    "name": "EBRO FOODS SA",
+    "success": true
+  },
+  {
+    "isin": "ES0112501012",
+    "mic": "XMAD",
+    "currency": "EUR",
+    "producto": "EBRO FOODS",
+    "ticker": "AZU",
+    "exchange": "GR",
+    "name": "EBRO FOODS SA",
+    "success": true
+  },
+  {
+    "isin": "IT0005527616",
+    "mic": "MTAA",
+    "currency": "EUR",
+    "producto": "EUROGROUP LAMINATIONS",
+    "ticker": "EGLA",
+    "exchange": "IM",
+    "name": "EUROGROUP LAMINATIONS SPA",
+    "success": true
+  },
+  {
+    "isin": "KYG522441032",
+    "mic": "XHKG",
+    "currency": "HKD",
+    "producto": "KAISA PROSPERITY HOLDINGS LT",
+    "ticker": "2168",
+    "exchange": "HK",
+    "name": "KAISA PROSPERITY HOLDINGS LT",
+    "success": true
+  },
+  {
+    "isin": "MHY271836006",
+    "mic": "XNYS",
+    "currency": "USD",
+    "producto": "GLOBAL SHIP LEASE INC-CL A",
+    "ticker": "GSL",
+    "exchange": "US",
+    "name": "GLOBAL SHIP LEASE INC-CL A",
+    "success": true
+  },
+  {
+    "isin": "MHY271836006",
+    "mic": "EPRL",
+    "currency": "USD",
+    "producto": "GLOBAL SHIP LEASE INC-CL A",
+    "ticker": "GSL",
+    "exchange": "US",
+    "name": "GLOBAL SHIP LEASE INC-CL A",
+    "success": true
+  },
+  {
+    "isin": "MHY271836006",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "GLOBAL SHIP LEASE INC-CL A",
+    "ticker": "GSL",
+    "exchange": "US",
+    "name": "GLOBAL SHIP LEASE INC-CL A",
+    "success": true
+  },
+  {
+    "isin": "MHY271836006",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "GLOBAL SHIP LEASE INC-CL A",
+    "ticker": "GSL",
+    "exchange": "US",
+    "name": "GLOBAL SHIP LEASE INC-CL A",
+    "success": true
+  },
+  {
+    "isin": "MHY271836006",
+    "mic": "EDGX",
+    "currency": "USD",
+    "producto": "GLOBAL SHIP LEASE INC-CL A",
+    "ticker": "GSL",
+    "exchange": "US",
+    "name": "GLOBAL SHIP LEASE INC-CL A",
+    "success": true
+  },
+  {
+    "isin": "KYG876031090",
+    "mic": "XHKG",
+    "currency": "HKD",
+    "producto": "TEN PAO GROUP HOLDINGS LTD",
+    "ticker": "1979",
+    "exchange": "HK",
+    "name": "TEN PAO GROUP HOLDINGS LTD",
+    "success": true
+  },
+  {
+    "isin": "US37940X1028",
+    "mic": "XNYS",
+    "currency": "USD",
+    "producto": "GLOBAL PAYMENTS INC. C",
+    "ticker": "GPN",
+    "exchange": "US",
+    "name": "GLOBAL PAYMENTS INC",
+    "success": true
+  },
+  {
+    "isin": "US37940X1028",
+    "mic": "BATS",
+    "currency": "USD",
+    "producto": "GLOBAL PAYMENTS INC. C",
+    "ticker": "GPN",
+    "exchange": "US",
+    "name": "GLOBAL PAYMENTS INC",
+    "success": true
+  },
+  {
+    "isin": "DE000A3H2200",
+    "mic": "XETA",
+    "currency": "EUR",
+    "producto": "NAGARRO SE",
+    "ticker": "NA9",
+    "exchange": "GR",
+    "name": "NAGARRO SE",
+    "success": true
+  },
+  {
+    "isin": "ES0173516115",
+    "mic": "MESI",
+    "currency": "EUR",
+    "producto": "REPSOL SA",
+    "ticker": "REP",
+    "exchange": "SM",
+    "name": "REPSOL SA",
+    "success": true
+  },
+  {
+    "isin": "ES0173516115",
+    "mic": "XMAD",
+    "currency": "EUR",
+    "producto": "REPSOL SA",
+    "ticker": "REP",
+    "exchange": "SM",
+    "name": "REPSOL SA",
+    "success": true
+  },
+  {
+    "isin": "ES0173516115",
+    "mic": "CCEU",
+    "currency": "EUR",
+    "producto": "REPSOL SA",
+    "ticker": "REP",
+    "exchange": "SM",
+    "name": "REPSOL SA",
+    "success": true
+  },
+  {
+    "isin": "US1462805086",
+    "mic": "BATS",
+    "currency": "USD",
+    "producto": "SILA REALTY TRUST INC",
+    "ticker": "SILA",
+    "exchange": "US",
+    "name": "SILA REALTY TRUST INC",
+    "success": true
+  },
+  {
+    "isin": "ES0171996087",
+    "mic": "XMAD",
+    "currency": "EUR",
+    "producto": "GRIFOLS SA",
+    "ticker": "GRF",
+    "exchange": "SM",
+    "name": "GRIFOLS SA",
+    "success": true
+  },
+  {
+    "isin": "KYG532631028",
+    "mic": "XHKG",
+    "currency": "HKD",
+    "producto": "KUAISHOU TECHNOLOGY",
+    "ticker": "1024",
+    "exchange": "HK",
+    "name": "KUAISHOU TECHNOLOGY",
+    "success": true
+  },
+  {
+    "isin": "BMG6955J1036",
+    "mic": "XHKG",
+    "currency": "HKD",
+    "producto": "PAX GLOBAL TECHNOLOGY LTD",
+    "ticker": "327",
+    "exchange": "HK",
+    "name": "PAX GLOBAL TECHNOLOGY LTD",
+    "success": true
+  },
+  {
+    "isin": "US87427V1035",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "TALKSPACE INC",
+    "ticker": "TALK",
+    "exchange": "US",
+    "name": "TALKSPACE INC",
+    "success": true
+  },
+  {
+    "isin": "PLATPRT00018",
+    "mic": "XWAR",
+    "currency": "PLN",
+    "producto": "AUTO PARTNER SA",
+    "ticker": "APR",
+    "exchange": "PW",
+    "name": "AUTO PARTNER SA",
+    "success": true
+  },
+  {
+    "isin": "US88557W1018",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "ADR ON QIFU TECHNOLOGY INC",
+    "ticker": "QFIN",
+    "exchange": "US",
+    "name": "QFIN HOLDINGS INC-ADR",
+    "success": true
+  },
+  {
+    "isin": "US88557W1018",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "ADR ON QIFU TECHNOLOGY INC",
+    "ticker": "QFIN",
+    "exchange": "US",
+    "name": "QFIN HOLDINGS INC-ADR",
+    "success": true
+  },
+  {
+    "isin": "US88557W1018",
+    "mic": "ARCX",
+    "currency": "USD",
+    "producto": "ADR ON QIFU TECHNOLOGY INC",
+    "ticker": "QFIN",
+    "exchange": "US",
+    "name": "QFIN HOLDINGS INC-ADR",
+    "success": true
+  },
+  {
+    "isin": "KYG713321035",
+    "mic": "XHKG",
+    "currency": "HKD",
+    "producto": "PLOVER BAY TECHNOLOGIES LTD",
+    "ticker": "1523",
+    "exchange": "HK",
+    "name": "PLOVER BAY TECHNOLOGIES LTD",
+    "success": true
+  },
+  {
+    "isin": "AU0000032914",
+    "mic": "ASXT",
+    "currency": "AUD",
+    "producto": "SRG GLOBAL LIMITED",
+    "ticker": "SRG",
+    "exchange": "AU",
+    "name": "SRG GLOBAL LTD",
+    "success": true
+  },
+  {
+    "isin": "US82452J1097",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "SHIFT4 PAYMENTS INC. CLASS A COMMON STOCK",
+    "ticker": "FOUR",
+    "exchange": "US",
+    "name": "SHIFT4 PAYMENTS INC-CLASS A",
+    "success": true
+  },
+  {
+    "isin": "US82452J1097",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "SHIFT4 PAYMENTS INC. CLASS A COMMON STOCK",
+    "ticker": "FOUR",
+    "exchange": "US",
+    "name": "SHIFT4 PAYMENTS INC-CLASS A",
+    "success": true
+  },
+  {
+    "isin": "US48581R2058",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "ADR ON KASPI BANK",
+    "ticker": "KSPI",
+    "exchange": "US",
+    "name": "JSC KASPI.KZ ADR",
+    "success": true
+  },
+  {
+    "isin": "US48581R2058",
+    "mic": "XLON",
+    "currency": "USD",
+    "producto": "GDR ON KASPI BANK",
+    "ticker": "KSPI",
+    "exchange": "US",
+    "name": "JSC KASPI.KZ ADR",
+    "success": true
+  },
+  {
+    "isin": "US48581R2058",
+    "mic": "BATE",
+    "currency": "USD",
+    "producto": "GDR ON KASPI BANK",
+    "ticker": "KSPI",
+    "exchange": "US",
+    "name": "JSC KASPI.KZ ADR",
+    "success": true
+  },
+  {
+    "isin": "US70450Y1038",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "PAYPAL HOLDINGS INC.",
+    "ticker": "PYPL",
+    "exchange": "US",
+    "name": "PAYPAL HOLDINGS INC",
+    "success": true
+  },
+  {
+    "isin": "US70450Y1038",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "PAYPAL HOLDINGS INC.",
+    "ticker": "PYPL",
+    "exchange": "US",
+    "name": "PAYPAL HOLDINGS INC",
+    "success": true
+  },
+  {
+    "isin": "US70450Y1038",
+    "mic": "ARCX",
+    "currency": "USD",
+    "producto": "PAYPAL HOLDINGS INC.",
+    "ticker": "PYPL",
+    "exchange": "US",
+    "name": "PAYPAL HOLDINGS INC",
+    "success": true
+  },
+  {
+    "isin": "US70450Y1038",
+    "mic": "MSPL",
+    "currency": "USD",
+    "producto": "PAYPAL HOLDINGS INC.",
+    "ticker": "PYPL",
+    "exchange": "US",
+    "name": "PAYPAL HOLDINGS INC",
+    "success": true
+  },
+  {
+    "isin": "US70450Y1038",
+    "mic": "XBOS",
+    "currency": "USD",
+    "producto": "PAYPAL HOLDINGS INC.",
+    "ticker": "PYPL",
+    "exchange": "US",
+    "name": "PAYPAL HOLDINGS INC",
+    "success": true
+  },
+  {
+    "isin": "BG1100003166",
+    "mic": "FRAA",
+    "currency": "EUR",
+    "producto": "SHELLY GROUP PLC     EO 1",
+    "ticker": "SLYG",
+    "exchange": "BU",
+    "name": "SHELLY GROUP SE",
+    "success": true
+  },
+  {
+    "isin": "IE00BJ38QD84",
+    "mic": "XETA",
+    "currency": "EUR",
+    "producto": "SPDR RUSSELL 2000 US SMALL CAP UCITS ETF",
+    "ticker": "ZPRR",
+    "exchange": "GR",
+    "name": "SPDR RUSSELL 2000 US S/C",
+    "success": true
+  },
+  {
+    "isin": "AU0000095721",
+    "mic": "ASXT",
+    "currency": "AUD",
+    "producto": "DUG TECHNOLOGY LTD",
+    "ticker": "DUG",
+    "exchange": "AU",
+    "name": "DUG TECHNOLOGY LTD",
+    "success": true
+  },
+  {
+    "isin": "US30212P3038",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "EXPEDIA INC. - COMMON",
+    "ticker": "EXPE",
+    "exchange": "US",
+    "name": "EXPEDIA GROUP INC",
+    "success": true
+  },
+  {
+    "isin": "BMG0400Q1197",
+    "mic": "XHKG",
+    "currency": "HKD",
+    "producto": "ANXIAN YUAN CHINA HOLDINGS LTD",
+    "ticker": "922",
+    "exchange": "HK",
+    "name": "ANXIAN YUAN CHINA HOLDINGS L",
+    "success": true
+  },
+  {
+    "isin": "ES0175438003",
+    "mic": "MESI",
+    "currency": "EUR",
+    "producto": "PROSEGUR",
+    "ticker": "PSG",
+    "exchange": "SM",
+    "name": "PROSEGUR COMP SEGURIDAD",
+    "success": true
+  },
+  {
+    "isin": "ES0175438003",
+    "mic": "XMAD",
+    "currency": "EUR",
+    "producto": "PROSEGUR",
+    "ticker": "PSG",
+    "exchange": "SM",
+    "name": "PROSEGUR COMP SEGURIDAD",
+    "success": true
+  },
+  {
+    "isin": "PLDINPL00011",
+    "mic": "XWAR",
+    "currency": "PLN",
+    "producto": "DINO POLSKA SA",
+    "ticker": "DNP",
+    "exchange": "PW",
+    "name": "DINO POLSKA SA",
+    "success": true
+  },
+  {
+    "isin": "KYG7204G1064",
+    "mic": "XHKG",
+    "currency": "HKD",
+    "producto": "POWERLONG COMMERCIAL MANAGEMENT HOLDINGS LTD",
+    "ticker": "9909",
+    "exchange": "HK",
+    "name": "POWERLONG COMMERCIAL MANAGEM",
+    "success": true
+  },
+  {
+    "isin": "SE0016828511",
+    "mic": "MESI",
+    "currency": "SEK",
+    "producto": "EMBRACER GROUP AB",
+    "ticker": "THQNBEUR",
+    "exchange": "X1",
+    "name": "EMBRACER GROUP AB",
+    "success": true
+  },
+  {
+    "isin": "SE0016828511",
+    "mic": "XSTO",
+    "currency": "SEK",
+    "producto": "EMBRACER GROUP AB",
+    "ticker": "THQNBEUR",
+    "exchange": "X1",
+    "name": "EMBRACER GROUP AB",
+    "success": true
+  },
+  {
+    "isin": "GB00BF4HYV08",
+    "mic": "MESI",
+    "currency": "GBX",
+    "producto": "GEORGIA CAPITAL",
+    "ticker": "CGEO",
+    "exchange": "LN",
+    "name": "GEORGIA CAPITAL PLC",
+    "success": true
+  },
+  {
+    "isin": "GB00BF4HYV08",
+    "mic": "XLON",
+    "currency": "GBX",
+    "producto": "GEORGIA CAPITAL",
+    "ticker": "CGEO",
+    "exchange": "LN",
+    "name": "GEORGIA CAPITAL PLC",
+    "success": true
+  },
+  {
+    "isin": "FR0000051807",
+    "mic": "XPAR",
+    "currency": "EUR",
+    "producto": "TELEPERFORMANCE SE",
+    "ticker": "TEP",
+    "exchange": "FP",
+    "name": "TELEPERFORMANCE",
+    "success": true
+  },
+  {
+    "isin": "AU0000180499",
+    "mic": "ASXT",
+    "currency": "AUD",
+    "producto": "GQG PARTNERS CDI",
+    "ticker": "GQG",
+    "exchange": "AU",
+    "name": "GQG PARTNERS INC-CDI",
+    "success": true
+  },
+  {
+    "isin": "GB0009390070",
+    "mic": "MESI",
+    "currency": "GBX",
+    "producto": "VOLEX",
+    "ticker": "VLX",
+    "exchange": "LN",
+    "name": "VOLEX PLC",
+    "success": true
+  },
+  {
+    "isin": "GB0009390070",
+    "mic": "AIMX",
+    "currency": "GBX",
+    "producto": "VOLEX",
+    "ticker": "VLX",
+    "exchange": "LN",
+    "name": "VOLEX PLC",
+    "success": true
+  },
+  {
+    "isin": "GB00BKDRYJ47",
+    "mic": "XLON",
+    "currency": "GBX",
+    "producto": "AIRTEL AFRI. WI",
+    "ticker": "AAF",
+    "exchange": "LN",
+    "name": "AIRTEL AFRICA PLC",
+    "success": true
+  },
+  {
+    "isin": "GB00BKDRYJ47",
+    "mic": "CHIX",
+    "currency": "GBX",
+    "producto": "AIRTEL AFRI. WI",
+    "ticker": "AAF",
+    "exchange": "LN",
+    "name": "AIRTEL AFRICA PLC",
+    "success": true
+  },
+  {
+    "isin": "ES0105509006",
+    "mic": "GROW",
+    "currency": "EUR",
+    "producto": "SOLUCIONES CUATROOCHENTA SA",
+    "ticker": "480S",
+    "exchange": "SM",
+    "name": "SOLUCIONES CUATROOCHENTA SA",
+    "success": true
+  },
+  {
+    "isin": "GB0030026057",
+    "mic": "AIMX",
+    "currency": "GBX",
+    "producto": "NEXT FIFTEEN",
+    "ticker": "NFG",
+    "exchange": "LN",
+    "name": "NEXT 15 GROUP PLC",
+    "success": true
+  },
+  {
+    "isin": "GB0030026057",
+    "mic": "MESI",
+    "currency": "GBX",
+    "producto": "NEXT FIFTEEN",
+    "ticker": "NFG",
+    "exchange": "LN",
+    "name": "NEXT 15 GROUP PLC",
+    "success": true
+  },
+  {
+    "isin": "IT0004729759",
+    "mic": "MTAA",
+    "currency": "EUR",
+    "producto": "SESA",
+    "ticker": "SES",
+    "exchange": "IM",
+    "name": "SESA SPA",
+    "success": true
+  },
+  {
+    "isin": "PLSPRSF00011",
+    "mic": "XWAR",
+    "currency": "PLN",
+    "producto": "SPYROSOFT SA",
+    "ticker": "SPR",
+    "exchange": "PW",
+    "name": "SPYROSOFT SA",
+    "success": true
+  },
+  {
+    "isin": "US57667L1070",
+    "mic": "ARCX",
+    "currency": "USD",
+    "producto": "MATCH GROUP INC",
+    "ticker": "MTCH",
+    "exchange": "US",
+    "name": "MATCH GROUP INC",
+    "success": true
+  },
+  {
+    "isin": "US57667L1070",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "MATCH GROUP INC",
+    "ticker": "MTCH",
+    "exchange": "US",
+    "name": "MATCH GROUP INC",
+    "success": true
+  },
+  {
+    "isin": "US29355A1079",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "ENPHASE ENERGY INC. -",
+    "ticker": "ENPH",
+    "exchange": "US",
+    "name": "ENPHASE ENERGY INC",
+    "success": true
+  },
+  {
+    "isin": "US29355A1079",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "ENPHASE ENERGY INC. -",
+    "ticker": "ENPH",
+    "exchange": "US",
+    "name": "ENPHASE ENERGY INC",
+    "success": true
+  },
+  {
+    "isin": "GB00BZ973D04",
+    "mic": "AIMX",
+    "currency": "GBX",
+    "producto": "WATER INTELLIGENCE PLC",
+    "ticker": "WATR",
+    "exchange": "LN",
+    "name": "WATER INTELLIGENCE PLC",
+    "success": true
+  },
+  {
+    "isin": "PLTOYA000011",
+    "mic": "XWAR",
+    "currency": "PLN",
+    "producto": "TOYA SA",
+    "ticker": "TOA",
+    "exchange": "PW",
+    "name": "TOYA SA",
+    "success": true
+  },
+  {
+    "isin": "US68622D1063",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "ORIGIN MATERIALS INC",
+    "ticker": "ORGN",
+    "exchange": "US",
+    "name": "ORIGIN MATERIALS INC",
+    "success": true
+  },
+  {
+    "isin": "US68622D1063",
+    "mic": "SOHO",
+    "currency": "USD",
+    "producto": "ORIGIN MATERIALS INC",
+    "ticker": "ORGN",
+    "exchange": "US",
+    "name": "ORIGIN MATERIALS INC",
+    "success": true
+  },
+  {
+    "isin": "US68622D1063",
+    "mic": "ARCX",
+    "currency": "USD",
+    "producto": "ORIGIN MATERIALS INC",
+    "ticker": "ORGN",
+    "exchange": "US",
+    "name": "ORIGIN MATERIALS INC",
+    "success": true
+  },
+  {
+    "isin": "US68622D1063",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "ORIGIN MATERIALS INC",
+    "ticker": "ORGN",
+    "exchange": "US",
+    "name": "ORIGIN MATERIALS INC",
+    "success": true
+  },
+  {
+    "isin": "PLDELKO00019",
+    "mic": "XWAR",
+    "currency": "PLN",
+    "producto": "DELKO SA",
+    "ticker": "DEL",
+    "exchange": "PW",
+    "name": "DELKO SA",
+    "success": true
+  },
+  {
+    "isin": "IT0001044996",
+    "mic": "MTAA",
+    "currency": "EUR",
+    "producto": "DOVALUE",
+    "ticker": "DOBGBX",
+    "exchange": "X1",
+    "name": "DOVALUE SPA",
+    "success": true
+  },
+  {
+    "isin": "IT0001044996",
+    "mic": "CEUO",
+    "currency": "EUR",
+    "producto": "DOVALUE",
+    "ticker": "DOBGBX",
+    "exchange": "X1",
+    "name": "DOVALUE SPA",
+    "success": true
+  },
+  {
+    "isin": "NL0012817175",
+    "mic": "XAMS",
+    "currency": "EUR",
+    "producto": "ALFEN",
+    "ticker": "ALFEN",
+    "exchange": "NA",
+    "name": "ALFEN N.V.",
+    "success": true
+  },
+  {
+    "isin": "US72919P2020",
+    "mic": "XPSX",
+    "currency": "USD",
+    "producto": "PLUG POWER INC. - COM",
+    "ticker": "PLUG",
+    "exchange": "US",
+    "name": "PLUG POWER INC",
+    "success": true
+  },
+  {
+    "isin": "US72919P2020",
+    "mic": "MSCO",
+    "currency": "USD",
+    "producto": "PLUG POWER INC. - COM",
+    "ticker": "PLUG",
+    "exchange": "US",
+    "name": "PLUG POWER INC",
+    "success": true
+  },
+  {
+    "isin": "GB00B3FBWW43",
+    "mic": "AIMX",
+    "currency": "GBX",
+    "producto": "SCIENTIFIC D.",
+    "ticker": "SD0",
+    "exchange": "GR",
+    "name": "SDI GROUP PLC",
+    "success": true
+  },
+  {
+    "isin": "US42250P1030",
+    "mic": "MEMX",
+    "currency": "USD",
+    "producto": "HEALTHPEAK PROPERTIES INC",
+    "ticker": "DOC",
+    "exchange": "US",
+    "name": "HEALTHPEAK PROPERTIES INC",
+    "success": true
+  },
+  {
+    "isin": "US42250P1030",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "HEALTHPEAK PROPERTIES INC",
+    "ticker": "DOC",
+    "exchange": "US",
+    "name": "HEALTHPEAK PROPERTIES INC",
+    "success": true
+  },
+  {
+    "isin": "US56035L1044",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "MAIN STREET CAPITAL CO",
+    "ticker": "MAIN",
+    "exchange": "US",
+    "name": "MAIN STREET CAPITAL CORP",
+    "success": true
+  },
+  {
+    "isin": "US56035L1044",
+    "mic": "MSPL",
+    "currency": "USD",
+    "producto": "MAIN STREET CAPITAL CO",
+    "ticker": "MAIN",
+    "exchange": "US",
+    "name": "MAIN STREET CAPITAL CORP",
+    "success": true
+  },
+  {
+    "isin": "US56035L1044",
+    "mic": "XNYS",
+    "currency": "USD",
+    "producto": "MAIN STREET CAPITAL CO",
+    "ticker": "MAIN",
+    "exchange": "US",
+    "name": "MAIN STREET CAPITAL CORP",
+    "success": true
+  },
+  {
+    "isin": "US56035L1044",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "MAIN STREET CAPITAL CO",
+    "ticker": "MAIN",
+    "exchange": "US",
+    "name": "MAIN STREET CAPITAL CORP",
+    "success": true
+  },
+  {
+    "isin": "US56035L1044",
+    "mic": "ARCX",
+    "currency": "USD",
+    "producto": "MAIN STREET CAPITAL CO",
+    "ticker": "MAIN",
+    "exchange": "US",
+    "name": "MAIN STREET CAPITAL CORP",
+    "success": true
+  },
+  {
+    "isin": "US56035L1044",
+    "mic": "SOHO",
+    "currency": "USD",
+    "producto": "MAIN STREET CAPITAL CO",
+    "ticker": "MAIN",
+    "exchange": "US",
+    "name": "MAIN STREET CAPITAL CORP",
+    "success": true
+  },
+  {
+    "isin": "US56035L1044",
+    "mic": "BATS",
+    "currency": "USD",
+    "producto": "MAIN STREET CAPITAL CO",
+    "ticker": "MAIN",
+    "exchange": "US",
+    "name": "MAIN STREET CAPITAL CORP",
+    "success": true
+  },
+  {
+    "isin": "US0152711091",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "ALEXANDRIA REAL ESTATE",
+    "ticker": "ARE",
+    "exchange": "US",
+    "name": "ALEXANDRIA REAL ESTATE EQUIT",
+    "success": true
+  },
+  {
+    "isin": "US0152711091",
+    "mic": "XNYS",
+    "currency": "USD",
+    "producto": "ALEXANDRIA REAL ESTATE",
+    "ticker": "ARE",
+    "exchange": "US",
+    "name": "ALEXANDRIA REAL ESTATE EQUIT",
+    "success": true
+  },
+  {
+    "isin": "US0084921008",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "AGREE REALTY CORPORATI",
+    "ticker": "ADC",
+    "exchange": "US",
+    "name": "AGREE REALTY CORP",
+    "success": true
+  },
+  {
+    "isin": "US0084921008",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "AGREE REALTY CORPORATI",
+    "ticker": "ADC",
+    "exchange": "US",
+    "name": "AGREE REALTY CORP",
+    "success": true
+  },
+  {
+    "isin": "US9314271084",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "WALGREENS BOOTS ALLIAN",
+    "ticker": "WBA",
+    "exchange": "UW",
+    "name": "WALGREENS BOOTS ALLIANCE INC",
+    "success": true
+  },
+  {
+    "isin": "US9314271084",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "WALGREENS BOOTS ALLIAN",
+    "ticker": "WBA",
+    "exchange": "UW",
+    "name": "WALGREENS BOOTS ALLIANCE INC",
+    "success": true
+  },
+  {
+    "isin": "US9314271084",
+    "mic": "SOHO",
+    "currency": "USD",
+    "producto": "WALGREENS BOOTS ALLIAN",
+    "ticker": "WBA",
+    "exchange": "UW",
+    "name": "WALGREENS BOOTS ALLIANCE INC",
+    "success": true
+  },
+  {
+    "isin": "ES0119037010",
+    "mic": "XMAD",
+    "currency": "EUR",
+    "producto": "BAVIERA",
+    "ticker": "CBAV",
+    "exchange": "SM",
+    "name": "CLINICA BAVIERA SA",
+    "success": true
+  },
+  {
+    "isin": "US92936U1097",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "W.P. CAREY INC. REIT",
+    "ticker": "WPC",
+    "exchange": "US",
+    "name": "WP CAREY INC",
+    "success": true
+  },
+  {
+    "isin": "US92936U1097",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "W.P. CAREY INC. REIT",
+    "ticker": "WPC",
+    "exchange": "US",
+    "name": "WP CAREY INC",
+    "success": true
+  },
+  {
+    "isin": "KYG2524A1031",
+    "mic": "XHKG",
+    "currency": "HKD",
+    "producto": "CONSUN PHARMACEUTICAL GROUP",
+    "ticker": "1681",
+    "exchange": "HK",
+    "name": "CONSUN PHARMACEUTICAL GROUP",
+    "success": true
+  },
+  {
+    "isin": "US62914V1061",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "ADR ON NIO INC",
+    "ticker": "NIO",
+    "exchange": "US",
+    "name": "NIO INC - ADR",
+    "success": true
+  },
+  {
+    "isin": "US62914V1061",
+    "mic": "SOHO",
+    "currency": "USD",
+    "producto": "ADR ON NIO INC",
+    "ticker": "NIO",
+    "exchange": "US",
+    "name": "NIO INC - ADR",
+    "success": true
+  },
+  {
+    "isin": "US62914V1061",
+    "mic": "MSPL",
+    "currency": "USD",
+    "producto": "ADR ON NIO INC",
+    "ticker": "NIO",
+    "exchange": "US",
+    "name": "NIO INC - ADR",
+    "success": true
+  },
+  {
+    "isin": "US62914V1061",
+    "mic": "EDGX",
+    "currency": "USD",
+    "producto": "ADR ON NIO INC",
+    "ticker": "NIO",
+    "exchange": "US",
+    "name": "NIO INC - ADR",
+    "success": true
+  },
+  {
+    "isin": "US62914V1061",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "ADR ON NIO INC",
+    "ticker": "NIO",
+    "exchange": "US",
+    "name": "NIO INC - ADR",
+    "success": true
+  },
+  {
+    "isin": "US62914V1061",
+    "mic": "ARCX",
+    "currency": "USD",
+    "producto": "ADR ON NIO INC",
+    "ticker": "NIO",
+    "exchange": "US",
+    "name": "NIO INC - ADR",
+    "success": true
+  },
+  {
+    "isin": "US62914V1061",
+    "mic": "XNYS",
+    "currency": "USD",
+    "producto": "ADR ON NIO INC",
+    "ticker": "NIO",
+    "exchange": "US",
+    "name": "NIO INC - ADR",
+    "success": true
+  },
+  {
+    "isin": "US6067102003",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "MITEK SYSTEMS INC. -",
+    "ticker": "MITK",
+    "exchange": "US",
+    "name": "MITEK SYSTEMS INC",
+    "success": true
+  },
+  {
+    "isin": "US6067102003",
+    "mic": "ARCX",
+    "currency": "USD",
+    "producto": "MITEK SYSTEMS INC. -",
+    "ticker": "MITK",
+    "exchange": "US",
+    "name": "MITEK SYSTEMS INC",
+    "success": true
+  },
+  {
+    "isin": "US6067102003",
+    "mic": "MSPL",
+    "currency": "USD",
+    "producto": "MITEK SYSTEMS INC. -",
+    "ticker": "MITK",
+    "exchange": "US",
+    "name": "MITEK SYSTEMS INC",
+    "success": true
+  },
+  {
+    "isin": "US6067102003",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "MITEK SYSTEMS INC. -",
+    "ticker": "MITK",
+    "exchange": "US",
+    "name": "MITEK SYSTEMS INC",
+    "success": true
+  },
+  {
+    "isin": "US53814L1089",
+    "mic": "XNYS",
+    "currency": "USD",
+    "producto": "LIVENT CORPORATION COM",
+    "ticker": "LTHM1USD",
+    "exchange": "X9",
+    "name": "LIVENT CORP",
+    "success": true
+  },
+  {
+    "isin": "US53814L1089",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "LIVENT CORPORATION COM",
+    "ticker": "LTHM1USD",
+    "exchange": "X9",
+    "name": "LIVENT CORP",
+    "success": true
+  },
+  {
+    "isin": "US98986M1036",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "ZYNEX INC. - COMMON S",
+    "ticker": "ZYXI",
+    "exchange": "US",
+    "name": "ZYNEX INC",
+    "success": true
+  },
+  {
+    "isin": "CA3803551074",
+    "mic": "XTSE",
+    "currency": "CAD",
+    "producto": "GOEASY LTD",
+    "ticker": "GSY",
+    "exchange": "CN",
+    "name": "GOEASY LTD",
+    "success": true
+  },
+  {
+    "isin": "CA3803551074",
+    "mic": "XATS",
+    "currency": "CAD",
+    "producto": "GOEASY LTD",
+    "ticker": "GSY",
+    "exchange": "CN",
+    "name": "GOEASY LTD",
+    "success": true
+  },
+  {
+    "isin": "CA21250C1068",
+    "mic": "XTSE",
+    "currency": "CAD",
+    "producto": "CONVERGE TECHNOLOGY SOLUTION",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "NO0010876642",
+    "mic": "XOSL",
+    "currency": "NOK",
+    "producto": "CLOUDBERRY CLEAN ENERGY",
+    "ticker": "CLOUD",
+    "exchange": "NO",
+    "name": "CLOUDBERRY CLEAN ENERGY ASA",
+    "success": true
+  },
+  {
+    "isin": "NO0010876642",
+    "mic": "CEUX",
+    "currency": "NOK",
+    "producto": "CLOUDBERRY CLEAN ENERGY",
+    "ticker": "CLOUD",
+    "exchange": "NO",
+    "name": "CLOUDBERRY CLEAN ENERGY ASA",
+    "success": true
+  },
+  {
+    "isin": "DE000FTG1111",
+    "mic": "XETA",
+    "currency": "EUR",
+    "producto": "FLATEXDEGIRO AG",
+    "ticker": "FTK",
+    "exchange": "GR",
+    "name": "FLATEXDEGIRO AG",
+    "success": true
+  },
+  {
+    "isin": "US0434361046",
+    "mic": "XNYS",
+    "currency": "USD",
+    "producto": "ASBURY AUTOMOTIVE GROU",
+    "ticker": "ABG",
+    "exchange": "US",
+    "name": "ASBURY AUTOMOTIVE GROUP",
+    "success": true
+  },
+  {
+    "isin": "US0434361046",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "ASBURY AUTOMOTIVE GROU",
+    "ticker": "ABG",
+    "exchange": "US",
+    "name": "ASBURY AUTOMOTIVE GROUP",
+    "success": true
+  },
+  {
+    "isin": "US0434361046",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "ASBURY AUTOMOTIVE GROU",
+    "ticker": "ABG",
+    "exchange": "US",
+    "name": "ASBURY AUTOMOTIVE GROUP",
+    "success": true
+  },
+  {
+    "isin": "US92343V1044",
+    "mic": "SOHO",
+    "currency": "USD",
+    "producto": "VERIZON COMMUNICATIONS",
+    "ticker": "VZ",
+    "exchange": "US",
+    "name": "VERIZON COMMUNICATIONS INC",
+    "success": true
+  },
+  {
+    "isin": "US92343V1044",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "VERIZON COMMUNICATIONS",
+    "ticker": "VZ",
+    "exchange": "US",
+    "name": "VERIZON COMMUNICATIONS INC",
+    "success": true
+  },
+  {
+    "isin": "US14174T1079",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "CARETRUST REIT INC. COMMON STOCK",
+    "ticker": "CTRE",
+    "exchange": "US",
+    "name": "CARETRUST REIT INC",
+    "success": true
+  },
+  {
+    "isin": "US14174T1079",
+    "mic": "BATS",
+    "currency": "USD",
+    "producto": "CARETRUST REIT INC. COMMON STOCK",
+    "ticker": "CTRE",
+    "exchange": "US",
+    "name": "CARETRUST REIT INC",
+    "success": true
+  },
+  {
+    "isin": "US6374171063",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "NATIONAL RETAIL PROPER",
+    "ticker": "NNN",
+    "exchange": "US",
+    "name": "NNN REIT INC",
+    "success": true
+  },
+  {
+    "isin": "US6374171063",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "NATIONAL RETAIL PROPER",
+    "ticker": "NNN",
+    "exchange": "US",
+    "name": "NNN REIT INC",
+    "success": true
+  },
+  {
+    "isin": "US5021751020",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "LTC PROPERTIES INC. C",
+    "ticker": "LTC",
+    "exchange": "US",
+    "name": "LTC PROPERTIES INC",
+    "success": true
+  },
+  {
+    "isin": "US5021751020",
+    "mic": "SOHO",
+    "currency": "USD",
+    "producto": "LTC PROPERTIES INC. C",
+    "ticker": "LTC",
+    "exchange": "US",
+    "name": "LTC PROPERTIES INC",
+    "success": true
+  },
+  {
+    "isin": "US4581401001",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "INTEL CORPORATION - CO",
+    "ticker": "INTC",
+    "exchange": "US",
+    "name": "INTEL CORP",
+    "success": true
+  },
+  {
+    "isin": "US58463J3041",
+    "mic": "SOHO",
+    "currency": "USD",
+    "producto": "MEDICAL PROPERTIES TRU",
+    "ticker": "MPW",
+    "exchange": "US",
+    "name": "MEDICAL PROPERTIES TRUST INC",
+    "success": true
+  },
+  {
+    "isin": "US58463J3041",
+    "mic": "MSPL",
+    "currency": "USD",
+    "producto": "MEDICAL PROPERTIES TRU",
+    "ticker": "MPW",
+    "exchange": "US",
+    "name": "MEDICAL PROPERTIES TRUST INC",
+    "success": true
+  },
+  {
+    "isin": "US58463J3041",
+    "mic": "MEMX",
+    "currency": "USD",
+    "producto": "MEDICAL PROPERTIES TRU",
+    "ticker": "MPW",
+    "exchange": "US",
+    "name": "MEDICAL PROPERTIES TRUST INC",
+    "success": true
+  },
+  {
+    "isin": "US58463J3041",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "MEDICAL PROPERTIES TRU",
+    "ticker": "MPW",
+    "exchange": "US",
+    "name": "MEDICAL PROPERTIES TRUST INC",
+    "success": true
+  },
+  {
+    "isin": "US7561091049",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "REALTY INCOME CORPORAT",
+    "ticker": "O",
+    "exchange": "US",
+    "name": "REALTY INCOME CORP",
+    "success": true
+  },
+  {
+    "isin": "US7561091049",
+    "mic": "BATS",
+    "currency": "USD",
+    "producto": "REALTY INCOME CORPORAT",
+    "ticker": "O",
+    "exchange": "US",
+    "name": "REALTY INCOME CORP",
+    "success": true
+  },
+  {
+    "isin": "US7561091049",
+    "mic": "MSPL",
+    "currency": "USD",
+    "producto": "REALTY INCOME CORPORAT",
+    "ticker": "O",
+    "exchange": "US",
+    "name": "REALTY INCOME CORP",
+    "success": true
+  },
+  {
+    "isin": "US7561091049",
+    "mic": "ARCX",
+    "currency": "USD",
+    "producto": "REALTY INCOME CORPORAT",
+    "ticker": "O",
+    "exchange": "US",
+    "name": "REALTY INCOME CORP",
+    "success": true
+  },
+  {
+    "isin": "US7561091049",
+    "mic": "SOHO",
+    "currency": "USD",
+    "producto": "REALTY INCOME CORPORAT",
+    "ticker": "O",
+    "exchange": "US",
+    "name": "REALTY INCOME CORP",
+    "success": true
+  },
+  {
+    "isin": "US7561091049",
+    "mic": "EDGX",
+    "currency": "USD",
+    "producto": "REALTY INCOME CORPORAT",
+    "ticker": "O",
+    "exchange": "US",
+    "name": "REALTY INCOME CORP",
+    "success": true
+  },
+  {
+    "isin": "GB00BLGYDT21",
+    "mic": "AIMX",
+    "currency": "GBX",
+    "producto": "MADE TECH GROUP PLC",
+    "ticker": "MTEC",
+    "exchange": "LN",
+    "name": "MADE TECH GROUP PLC",
+    "success": true
+  },
+  {
+    "isin": "CA67013H1064",
+    "mic": "XTSX",
+    "currency": "CAD",
+    "producto": "NOWVERTICAL GROUP INC",
+    "ticker": "NOW",
+    "exchange": "CN",
+    "name": "NOWVERTICAL GROUP INC",
+    "success": true
+  },
+  {
+    "isin": "CA46016U1084",
+    "mic": "EUCC",
+    "currency": "SEK",
+    "producto": "INTERNATIONAL PETROLEUM CORP",
+    "ticker": "IPCO",
+    "exchange": "SS",
+    "name": "INTERNATIONAL PETROLEUM CORP",
+    "success": true
+  },
+  {
+    "isin": "CA46016U1084",
+    "mic": "CEUX",
+    "currency": "SEK",
+    "producto": "INTERNATIONAL PETROLEUM CORP",
+    "ticker": "IPCO",
+    "exchange": "SS",
+    "name": "INTERNATIONAL PETROLEUM CORP",
+    "success": true
+  },
+  {
+    "isin": "GB00BF49WF64",
+    "mic": "AIMX",
+    "currency": "GBX",
+    "producto": "INDEPENDENT O&G",
+    "ticker": "IOGGBX",
+    "exchange": "XS",
+    "name": "IOG PLC",
+    "success": true
+  },
+  {
+    "isin": "US76680R2067",
+    "mic": "XNYS",
+    "currency": "USD",
+    "producto": "RINGCENTRAL INC. CLAS",
+    "ticker": "RNG",
+    "exchange": "US",
+    "name": "RINGCENTRAL INC-CLASS A",
+    "success": true
+  },
+  {
+    "isin": "US76680R2067",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "RINGCENTRAL INC. CLAS",
+    "ticker": "RNG",
+    "exchange": "US",
+    "name": "RINGCENTRAL INC-CLASS A",
+    "success": true
+  },
+  {
+    "isin": "SE0012257970",
+    "mic": "XSTO",
+    "currency": "SEK",
+    "producto": "STOCKWIK FORVALTNING AB",
+    "ticker": "STWK",
+    "exchange": "SS",
+    "name": "STOCKWIK FORVALTNING AB",
+    "success": true
+  },
+  {
+    "isin": "US88579Y1010",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "3M COMPANY COMMON STOC",
+    "ticker": "MMM",
+    "exchange": "US",
+    "name": "3M CO",
+    "success": true
+  },
+  {
+    "isin": "US88579Y1010",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "3M COMPANY COMMON STOC",
+    "ticker": "MMM",
+    "exchange": "US",
+    "name": "3M CO",
+    "success": true
+  },
+  {
+    "isin": "US68247W1099",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "ONE STOP SYSTEMS INC.",
+    "ticker": "OSS",
+    "exchange": "US",
+    "name": "ONE STOP SYSTEMS INC",
+    "success": true
+  },
+  {
+    "isin": "US68247W1099",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "ONE STOP SYSTEMS INC.",
+    "ticker": "OSS",
+    "exchange": "US",
+    "name": "ONE STOP SYSTEMS INC",
+    "success": true
+  },
+  {
+    "isin": "US78573M1045",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "SABRE CORPORATION - CO",
+    "ticker": "SABR",
+    "exchange": "US",
+    "name": "SABRE CORP",
+    "success": true
+  },
+  {
+    "isin": "US78573M1045",
+    "mic": "MSPL",
+    "currency": "USD",
+    "producto": "SABRE CORPORATION - CO",
+    "ticker": "SABR",
+    "exchange": "US",
+    "name": "SABRE CORP",
+    "success": true
+  },
+  {
+    "isin": "US78573M1045",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "SABRE CORPORATION - CO",
+    "ticker": "SABR",
+    "exchange": "US",
+    "name": "SABRE CORP",
+    "success": true
+  },
+  {
+    "isin": "US78573M1045",
+    "mic": "ARCX",
+    "currency": "USD",
+    "producto": "SABRE CORPORATION - CO",
+    "ticker": "SABR",
+    "exchange": "US",
+    "name": "SABRE CORP",
+    "success": true
+  },
+  {
+    "isin": "ES0178430E18",
+    "mic": "MESI",
+    "currency": "EUR",
+    "producto": "TELEFONICA SA",
+    "ticker": "TEF",
+    "exchange": "SM",
+    "name": "TELEFONICA SA",
+    "success": true
+  },
+  {
+    "isin": "ES0178430E18",
+    "mic": "XMAD",
+    "currency": "EUR",
+    "producto": "TELEFONICA SA",
+    "ticker": "TEF",
+    "exchange": "SM",
+    "name": "TELEFONICA SA",
+    "success": true
+  },
+  {
+    "isin": "US30303M1027",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "META PLATFORMS INC",
+    "ticker": "META",
+    "exchange": "US",
+    "name": "META PLATFORMS INC-CLASS A",
+    "success": true
+  },
+  {
+    "isin": "US30303M1027",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "META PLATFORMS INC",
+    "ticker": "META",
+    "exchange": "US",
+    "name": "META PLATFORMS INC-CLASS A",
+    "success": true
+  },
+  {
+    "isin": "US30303M1027",
+    "mic": "ARCX",
+    "currency": "USD",
+    "producto": "META PLATFORMS INC",
+    "ticker": "META",
+    "exchange": "US",
+    "name": "META PLATFORMS INC-CLASS A",
+    "success": true
+  },
+  {
+    "isin": "US30303M1027",
+    "mic": "BATS",
+    "currency": "USD",
+    "producto": "META PLATFORMS INC",
+    "ticker": "META",
+    "exchange": "US",
+    "name": "META PLATFORMS INC-CLASS A",
+    "success": true
+  },
+  {
+    "isin": "US30303M1027",
+    "mic": "SOHO",
+    "currency": "USD",
+    "producto": "META PLATFORMS INC",
+    "ticker": "META",
+    "exchange": "US",
+    "name": "META PLATFORMS INC-CLASS A",
+    "success": true
+  },
+  {
+    "isin": "US30303M1027",
+    "mic": "XBOS",
+    "currency": "USD",
+    "producto": "META PLATFORMS INC",
+    "ticker": "META",
+    "exchange": "US",
+    "name": "META PLATFORMS INC-CLASS A",
+    "success": true
+  },
+  {
+    "isin": "US30303M1027",
+    "mic": "EDGA",
+    "currency": "USD",
+    "producto": "META PLATFORMS INC",
+    "ticker": "META",
+    "exchange": "US",
+    "name": "META PLATFORMS INC-CLASS A",
+    "success": true
+  },
+  {
+    "isin": "US30303M1027",
+    "mic": "IEXG",
+    "currency": "USD",
+    "producto": "META PLATFORMS INC",
+    "ticker": "META",
+    "exchange": "US",
+    "name": "META PLATFORMS INC-CLASS A",
+    "success": true
+  },
+  {
+    "isin": "US90138F1021",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "TWILIO INC - A",
+    "ticker": "TWLO",
+    "exchange": "US",
+    "name": "TWILIO INC - A",
+    "success": true
+  },
+  {
+    "isin": "US90138F1021",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "TWILIO INC - A",
+    "ticker": "TWLO",
+    "exchange": "US",
+    "name": "TWILIO INC - A",
+    "success": true
+  },
+  {
+    "isin": "US03940F1030",
+    "mic": "BATS",
+    "currency": "USD",
+    "producto": "ARCHAEA ENERGY INC. CLASS A COMMON STOCK",
+    "ticker": "LFG1USD",
+    "exchange": "X9",
+    "name": "ARCHAEA ENERGY INC",
+    "success": true
+  },
+  {
+    "isin": "US03940F1030",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "ARCHAEA ENERGY INC. CLASS A COMMON STOCK",
+    "ticker": "LFG1USD",
+    "exchange": "X9",
+    "name": "ARCHAEA ENERGY INC",
+    "success": true
+  },
+  {
+    "isin": "GB00BLF7NX68",
+    "mic": "AIMX",
+    "currency": "GBX",
+    "producto": "KISTOS PLC",
+    "ticker": "KISTL",
+    "exchange": "B3",
+    "name": "KISTOS PLC",
+    "success": true
+  },
+  {
+    "isin": "US91680M1071",
+    "mic": "ARCX",
+    "currency": "USD",
+    "producto": "UPSTART HOLDINGS INC. - COMMON STOCK",
+    "ticker": "UPST",
+    "exchange": "US",
+    "name": "UPSTART HOLDINGS INC",
+    "success": true
+  },
+  {
+    "isin": "US91680M1071",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "UPSTART HOLDINGS INC. - COMMON STOCK",
+    "ticker": "UPST",
+    "exchange": "US",
+    "name": "UPSTART HOLDINGS INC",
+    "success": true
+  },
+  {
+    "isin": "US67066G1040",
+    "mic": "EDGX",
+    "currency": "USD",
+    "producto": "NVIDIA CORPORATION - C",
+    "ticker": "NVDA",
+    "exchange": "US",
+    "name": "NVIDIA CORP",
+    "success": true
+  },
+  {
+    "isin": "US67066G1040",
+    "mic": "ARCX",
+    "currency": "USD",
+    "producto": "NVIDIA CORPORATION - C",
+    "ticker": "NVDA",
+    "exchange": "US",
+    "name": "NVIDIA CORP",
+    "success": true
+  },
+  {
+    "isin": "US67066G1040",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "NVIDIA CORPORATION - C",
+    "ticker": "NVDA",
+    "exchange": "US",
+    "name": "NVIDIA CORP",
+    "success": true
+  },
+  {
+    "isin": "US67066G1040",
+    "mic": "SOHO",
+    "currency": "USD",
+    "producto": "NVIDIA CORPORATION - C",
+    "ticker": "NVDA",
+    "exchange": "US",
+    "name": "NVIDIA CORP",
+    "success": true
+  },
+  {
+    "isin": "US67066G1040",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "NVIDIA CORPORATION - C",
+    "ticker": "NVDA",
+    "exchange": "US",
+    "name": "NVIDIA CORP",
+    "success": true
+  },
+  {
+    "isin": "US67066G1040",
+    "mic": "BATS",
+    "currency": "USD",
+    "producto": "NVIDIA CORPORATION - C",
+    "ticker": "NVDA",
+    "exchange": "US",
+    "name": "NVIDIA CORP",
+    "success": true
+  },
+  {
+    "isin": "US00724F1012",
+    "mic": "SOHO",
+    "currency": "USD",
+    "producto": "ADOBE SYSTEMS INCORPOR",
+    "ticker": "ADBE",
+    "exchange": "US",
+    "name": "ADOBE INC",
+    "success": true
+  },
+  {
+    "isin": "US00724F1012",
+    "mic": "ARCX",
+    "currency": "USD",
+    "producto": "ADOBE SYSTEMS INCORPOR",
+    "ticker": "ADBE",
+    "exchange": "US",
+    "name": "ADOBE INC",
+    "success": true
+  },
+  {
+    "isin": "VGG6769T1158",
+    "mic": "XTSX",
+    "currency": "CAD",
+    "producto": "ORCA ENERGY GROUP INC",
+    "ticker": "ORC/B",
+    "exchange": "CN",
+    "name": "ORCA ENERGY GROUP INC",
+    "success": true
+  },
+  {
+    "isin": "CA50202P1053",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "LI-CYCLE HOLDINGS CORP. COMMON SHARES",
+    "ticker": "LICYUSD",
+    "exchange": "EO",
+    "name": "LI-CYCLE HOLDINGS CORP",
+    "success": true
+  },
+  {
+    "isin": "CA50202P1053",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "LI-CYCLE HOLDINGS CORP. COMMON SHARES",
+    "ticker": "LICYUSD",
+    "exchange": "EO",
+    "name": "LI-CYCLE HOLDINGS CORP",
+    "success": true
+  },
+  {
+    "isin": "CA50202P1053",
+    "mic": "BATS",
+    "currency": "USD",
+    "producto": "LI-CYCLE HOLDINGS CORP. COMMON SHARES",
+    "ticker": "LICYUSD",
+    "exchange": "EO",
+    "name": "LI-CYCLE HOLDINGS CORP",
+    "success": true
+  },
+  {
+    "isin": "CA50202P1053",
+    "mic": "SOHO",
+    "currency": "USD",
+    "producto": "LI-CYCLE HOLDINGS CORP. COMMON SHARES",
+    "ticker": "LICYUSD",
+    "exchange": "EO",
+    "name": "LI-CYCLE HOLDINGS CORP",
+    "success": true
+  },
+  {
+    "isin": "CA50202P1053",
+    "mic": "MSPL",
+    "currency": "USD",
+    "producto": "LI-CYCLE HOLDINGS CORP. COMMON SHARES",
+    "ticker": "LICYUSD",
+    "exchange": "EO",
+    "name": "LI-CYCLE HOLDINGS CORP",
+    "success": true
+  },
+  {
+    "isin": "CA50202P1053",
+    "mic": "ARCX",
+    "currency": "USD",
+    "producto": "LI-CYCLE HOLDINGS CORP. COMMON SHARES",
+    "ticker": "LICYUSD",
+    "exchange": "EO",
+    "name": "LI-CYCLE HOLDINGS CORP",
+    "success": true
+  },
+  {
+    "isin": "CA29250N1050",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "ENBRIDGE INC COMMON ST",
+    "ticker": "ENB",
+    "exchange": "US",
+    "name": "ENBRIDGE INC",
+    "success": true
+  },
+  {
+    "isin": "US85254J1025",
+    "mic": "XNYS",
+    "currency": "USD",
+    "producto": "STAG INDUSTRIAL INC.",
+    "ticker": "STAG",
+    "exchange": "US",
+    "name": "STAG INDUSTRIAL INC",
+    "success": true
+  },
+  {
+    "isin": "US85254J1025",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "STAG INDUSTRIAL INC.",
+    "ticker": "STAG",
+    "exchange": "US",
+    "name": "STAG INDUSTRIAL INC",
+    "success": true
+  },
+  {
+    "isin": "US85254J1025",
+    "mic": "SOHO",
+    "currency": "USD",
+    "producto": "STAG INDUSTRIAL INC.",
+    "ticker": "STAG",
+    "exchange": "US",
+    "name": "STAG INDUSTRIAL INC",
+    "success": true
+  },
+  {
+    "isin": "US85254J1025",
+    "mic": "MSPL",
+    "currency": "USD",
+    "producto": "STAG INDUSTRIAL INC.",
+    "ticker": "STAG",
+    "exchange": "US",
+    "name": "STAG INDUSTRIAL INC",
+    "success": true
+  },
+  {
+    "isin": "US85254J1025",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "STAG INDUSTRIAL INC.",
+    "ticker": "STAG",
+    "exchange": "US",
+    "name": "STAG INDUSTRIAL INC",
+    "success": true
+  },
+  {
+    "isin": "US8621211007",
+    "mic": "MSPL",
+    "currency": "USD",
+    "producto": "STORE CAPITAL CORPORAT",
+    "ticker": "STORUSD",
+    "exchange": "XB",
+    "name": "STORE CAPITAL CORP",
+    "success": true
+  },
+  {
+    "isin": "US8621211007",
+    "mic": "XNYS",
+    "currency": "USD",
+    "producto": "STORE CAPITAL CORPORAT",
+    "ticker": "STORUSD",
+    "exchange": "XB",
+    "name": "STORE CAPITAL CORP",
+    "success": true
+  },
+  {
+    "isin": "US0357104092",
+    "mic": "MSPL",
+    "currency": "USD",
+    "producto": "ANNALY CAPITAL MANAGEM",
+    "ticker": "NLYUSD",
+    "exchange": "X2",
+    "name": "ANNALY CAPITAL MANAGEMENT IN",
+    "success": true
+  },
+  {
+    "isin": "US0357104092",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "ANNALY CAPITAL MANAGEM",
+    "ticker": "NLYUSD",
+    "exchange": "X2",
+    "name": "ANNALY CAPITAL MANAGEMENT IN",
+    "success": true
+  },
+  {
+    "isin": "GB0007188757",
+    "mic": "XLON",
+    "currency": "GBX",
+    "producto": "RIO TINTO",
+    "ticker": "RIO1",
+    "exchange": "GR",
+    "name": "RIO TINTO PLC",
+    "success": true
+  },
+  {
+    "isin": "IE00B1TXK627",
+    "mic": "XETA",
+    "currency": "EUR",
+    "producto": "ISHARES GLOBAL WATER UCITS ETF USD (DIST)",
+    "ticker": "IH2OEUR",
+    "exchange": "X2",
+    "name": "ISHARES GLOBAL WATER",
+    "success": true
+  },
+  {
+    "isin": "IE00B1TXK627",
+    "mic": "MTAA",
+    "currency": "EUR",
+    "producto": "ISHARES GLOBAL WATER UCITS ETF",
+    "ticker": "IH2OEUR",
+    "exchange": "X2",
+    "name": "ISHARES GLOBAL WATER",
+    "success": true
+  },
+  {
+    "isin": "DK0060040913",
+    "mic": "DSME",
+    "currency": "DKK",
+    "producto": "WIRTEK A/S",
+    "ticker": "WIRTEK",
+    "exchange": "EO",
+    "name": "WIRTEK AS",
+    "success": true
+  },
+  {
+    "isin": "PLMOBRK00013",
+    "mic": "XWAR",
+    "currency": "PLN",
+    "producto": "MO-BRUK SA",
+    "ticker": "MBR",
+    "exchange": "PW",
+    "name": "MO-BRUK J MOKRZYCKI LTD",
+    "success": true
+  },
+  {
+    "isin": "US14167R1005",
+    "mic": "SOHO",
+    "currency": "USD",
+    "producto": "CARECLOUD, INC.",
+    "ticker": "CCLD",
+    "exchange": "US",
+    "name": "CARECLOUD INC",
+    "success": true
+  },
+  {
+    "isin": "US14167R1005",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "CARECLOUD, INC.",
+    "ticker": "CCLD",
+    "exchange": "US",
+    "name": "CARECLOUD INC",
+    "success": true
+  },
+  {
+    "isin": "US14167R1005",
+    "mic": "MSPL",
+    "currency": "USD",
+    "producto": "CARECLOUD, INC.",
+    "ticker": "CCLD",
+    "exchange": "US",
+    "name": "CARECLOUD INC",
+    "success": true
+  },
+  {
+    "isin": "US02209S1033",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "ALTRIA GROUP INC.",
+    "ticker": "MO",
+    "exchange": "US",
+    "name": "ALTRIA GROUP INC",
+    "success": true
+  },
+  {
+    "isin": "US02209S1033",
+    "mic": "MSPL",
+    "currency": "USD",
+    "producto": "ALTRIA GROUP INC.",
+    "ticker": "MO",
+    "exchange": "US",
+    "name": "ALTRIA GROUP INC",
+    "success": true
+  },
+  {
+    "isin": "US02209S1033",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "ALTRIA GROUP INC.",
+    "ticker": "MO",
+    "exchange": "US",
+    "name": "ALTRIA GROUP INC",
+    "success": true
+  },
+  {
+    "isin": "US17275R1023",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "CISCO SYSTEMS INC. -",
+    "ticker": "CSCO",
+    "exchange": "US",
+    "name": "CISCO SYSTEMS INC",
+    "success": true
+  },
+  {
+    "isin": "US17275R1023",
+    "mic": "MSPL",
+    "currency": "USD",
+    "producto": "CISCO SYSTEMS INC. -",
+    "ticker": "CSCO",
+    "exchange": "US",
+    "name": "CISCO SYSTEMS INC",
+    "success": true
+  },
+  {
+    "isin": "US00206R1023",
+    "mic": "EPRL",
+    "currency": "USD",
+    "producto": "AT&T INC.",
+    "ticker": "T",
+    "exchange": "US",
+    "name": "AT&T INC",
+    "success": true
+  },
+  {
+    "isin": "US00206R1023",
+    "mic": "MEMX",
+    "currency": "USD",
+    "producto": "AT&T INC.",
+    "ticker": "T",
+    "exchange": "US",
+    "name": "AT&T INC",
+    "success": true
+  },
+  {
+    "isin": "US00206R1023",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "AT&T INC.",
+    "ticker": "T",
+    "exchange": "US",
+    "name": "AT&T INC",
+    "success": true
+  },
+  {
+    "isin": "US00206R1023",
+    "mic": "MSPL",
+    "currency": "USD",
+    "producto": "AT&T INC.",
+    "ticker": "T",
+    "exchange": "US",
+    "name": "AT&T INC",
+    "success": true
+  },
+  {
+    "isin": "US00206R1023",
+    "mic": "XNYS",
+    "currency": "USD",
+    "producto": "AT&T INC.",
+    "ticker": "T",
+    "exchange": "US",
+    "name": "AT&T INC",
+    "success": true
+  },
+  {
+    "isin": "US00206R1023",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "AT&T INC.",
+    "ticker": "T",
+    "exchange": "US",
+    "name": "AT&T INC",
+    "success": true
+  },
+  {
+    "isin": "DE000A0JL9W6",
+    "mic": "XETA",
+    "currency": "EUR",
+    "producto": "VERBIO VEREINIGTE BIOENERGIE AG",
+    "ticker": "VBK",
+    "exchange": "GR",
+    "name": "VERBIO SE",
+    "success": true
+  },
+  {
+    "isin": "US0028241000",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "ABBOTT LABORATORIES CO",
+    "ticker": "ABT",
+    "exchange": "US",
+    "name": "ABBOTT LABORATORIES",
+    "success": true
+  },
+  {
+    "isin": "US0028241000",
+    "mic": "BATS",
+    "currency": "USD",
+    "producto": "ABBOTT LABORATORIES CO",
+    "ticker": "ABT",
+    "exchange": "US",
+    "name": "ABBOTT LABORATORIES",
+    "success": true
+  },
+  {
+    "isin": "US30212W1009",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "EXP WORLD HOLDINGS IN",
+    "ticker": "EXPI",
+    "exchange": "US",
+    "name": "EXP WORLD HOLDINGS INC",
+    "success": true
+  },
+  {
+    "isin": "US30212W1009",
+    "mic": "MSPL",
+    "currency": "USD",
+    "producto": "EXP WORLD HOLDINGS IN",
+    "ticker": "EXPI",
+    "exchange": "US",
+    "name": "EXP WORLD HOLDINGS INC",
+    "success": true
+  },
+  {
+    "isin": "US30212W1009",
+    "mic": "BATS",
+    "currency": "USD",
+    "producto": "EXP WORLD HOLDINGS IN",
+    "ticker": "EXPI",
+    "exchange": "US",
+    "name": "EXP WORLD HOLDINGS INC",
+    "success": true
+  },
+  {
+    "isin": "US30212W1009",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "EXP WORLD HOLDINGS IN",
+    "ticker": "EXPI",
+    "exchange": "US",
+    "name": "EXP WORLD HOLDINGS INC",
+    "success": true
+  },
+  {
+    "isin": "US30212W1009",
+    "mic": "ARCX",
+    "currency": "USD",
+    "producto": "EXP WORLD HOLDINGS IN",
+    "ticker": "EXPI",
+    "exchange": "US",
+    "name": "EXP WORLD HOLDINGS INC",
+    "success": true
+  },
+  {
+    "isin": "US30212W1009",
+    "mic": "MEMX",
+    "currency": "USD",
+    "producto": "EXP WORLD HOLDINGS IN",
+    "ticker": "EXPI",
+    "exchange": "US",
+    "name": "EXP WORLD HOLDINGS INC",
+    "success": true
+  },
+  {
+    "isin": "US30212W1009",
+    "mic": "SOHO",
+    "currency": "USD",
+    "producto": "EXP WORLD HOLDINGS IN",
+    "ticker": "EXPI",
+    "exchange": "US",
+    "name": "EXP WORLD HOLDINGS INC",
+    "success": true
+  },
+  {
+    "isin": "US25400W1027",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "DIGITAL TURBINE INC.",
+    "ticker": "APPS",
+    "exchange": "US",
+    "name": "DIGITAL TURBINE INC",
+    "success": true
+  },
+  {
+    "isin": "US25400W1027",
+    "mic": "MSPL",
+    "currency": "USD",
+    "producto": "DIGITAL TURBINE INC.",
+    "ticker": "APPS",
+    "exchange": "US",
+    "name": "DIGITAL TURBINE INC",
+    "success": true
+  },
+  {
+    "isin": "US25400W1027",
+    "mic": "SOHO",
+    "currency": "USD",
+    "producto": "DIGITAL TURBINE INC.",
+    "ticker": "APPS",
+    "exchange": "US",
+    "name": "DIGITAL TURBINE INC",
+    "success": true
+  },
+  {
+    "isin": "US25400W1027",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "DIGITAL TURBINE INC.",
+    "ticker": "APPS",
+    "exchange": "US",
+    "name": "DIGITAL TURBINE INC",
+    "success": true
+  },
+  {
+    "isin": "US02079K1079",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "ALPHABET INC. - CLASS C",
+    "ticker": "GOOG",
+    "exchange": "US",
+    "name": "ALPHABET INC-CL C",
+    "success": true
+  },
+  {
+    "isin": "US5951121038",
+    "mic": "EDGX",
+    "currency": "USD",
+    "producto": "MICRON TECHNOLOGY INC",
+    "ticker": "MU",
+    "exchange": "US",
+    "name": "MICRON TECHNOLOGY INC",
+    "success": true
+  },
+  {
+    "isin": "US5951121038",
+    "mic": "ARCX",
+    "currency": "USD",
+    "producto": "MICRON TECHNOLOGY INC",
+    "ticker": "MU",
+    "exchange": "US",
+    "name": "MICRON TECHNOLOGY INC",
+    "success": true
+  },
+  {
+    "isin": "US5951121038",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "MICRON TECHNOLOGY INC",
+    "ticker": "MU",
+    "exchange": "US",
+    "name": "MICRON TECHNOLOGY INC",
+    "success": true
+  },
+  {
+    "isin": "US5951121038",
+    "mic": "SOHO",
+    "currency": "USD",
+    "producto": "MICRON TECHNOLOGY INC",
+    "ticker": "MU",
+    "exchange": "US",
+    "name": "MICRON TECHNOLOGY INC",
+    "success": true
+  },
+  {
+    "isin": "US5951121038",
+    "mic": "XNYS",
+    "currency": "USD",
+    "producto": "MICRON TECHNOLOGY INC",
+    "ticker": "MU",
+    "exchange": "US",
+    "name": "MICRON TECHNOLOGY INC",
+    "success": true
+  },
+  {
+    "isin": "US2310828015",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "CUMULUS MEDIA INC. - C",
+    "ticker": "CMLS",
+    "exchange": "US",
+    "name": "CUMULUS MEDIA INC-CL A",
+    "success": true
+  },
+  {
+    "isin": "US2310828015",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "CUMULUS MEDIA INC. - C",
+    "ticker": "CMLS",
+    "exchange": "US",
+    "name": "CUMULUS MEDIA INC-CL A",
+    "success": true
+  },
+  {
+    "isin": "FR0000120073",
+    "mic": "XPAR",
+    "currency": "EUR",
+    "producto": "AIR LIQUIDE",
+    "ticker": "AIL",
+    "exchange": "GR",
+    "name": "AIR LIQUIDE SA",
+    "success": true
+  },
+  {
+    "isin": "NL0013654783",
+    "mic": "XAMS",
+    "currency": "EUR",
+    "producto": "PROSUS",
+    "ticker": "PRX",
+    "exchange": "NA",
+    "name": "PROSUS NV",
+    "success": true
+  },
+  {
+    "isin": "NL0013654783",
+    "mic": "MESI",
+    "currency": "EUR",
+    "producto": "PROSUS",
+    "ticker": "PRX",
+    "exchange": "NA",
+    "name": "PROSUS NV",
+    "success": true
+  },
+  {
+    "isin": "US5949181045",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "MICROSOFT CORPORATION",
+    "ticker": "MSFT",
+    "exchange": "US",
+    "name": "MICROSOFT CORP",
+    "success": true
+  },
+  {
+    "isin": "US5949181045",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "MICROSOFT CORPORATION",
+    "ticker": "MSFT",
+    "exchange": "US",
+    "name": "MICROSOFT CORP",
+    "success": true
+  },
+  {
+    "isin": "US36118L1061",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "ADR ON FUTU HOLDINGS LTD",
+    "ticker": "FUTU",
+    "exchange": "US",
+    "name": "FUTU HOLDINGS LTD-ADR",
+    "success": true
+  },
+  {
+    "isin": "US36118L1061",
+    "mic": "ARCX",
+    "currency": "USD",
+    "producto": "ADR ON FUTU HOLDINGS LTD",
+    "ticker": "FUTU",
+    "exchange": "US",
+    "name": "FUTU HOLDINGS LTD-ADR",
+    "success": true
+  },
+  {
+    "isin": "SE0009554454",
+    "mic": "MESI",
+    "currency": "SEK",
+    "producto": "SAMHÄLLSBYGGNADSBOLAGET I NORDEN AB",
+    "ticker": "SBBB",
+    "exchange": "SS",
+    "name": "SAMHALLSBYGGNADSBOLAGET I NO",
+    "success": true
+  },
+  {
+    "isin": "SE0009554454",
+    "mic": "XSTO",
+    "currency": "SEK",
+    "producto": "SAMHÄLLSBYGGNADSBOLAGET I NORDEN AB",
+    "ticker": "SBBB",
+    "exchange": "SS",
+    "name": "SAMHALLSBYGGNADSBOLAGET I NO",
+    "success": true
+  },
+  {
+    "isin": "SE0009554454",
+    "mic": "AQEU",
+    "currency": "SEK",
+    "producto": "SAMHÄLLSBYGGNADSBOLAGET I NORDEN AB",
+    "ticker": "SBBB",
+    "exchange": "SS",
+    "name": "SAMHALLSBYGGNADSBOLAGET I NO",
+    "success": true
+  },
+  {
+    "isin": "KYG017191142",
+    "mic": "XHKG",
+    "currency": "HKD",
+    "producto": "ALIBABA GROUP HOLDING LTD",
+    "ticker": "9988",
+    "exchange": "HK",
+    "name": "ALIBABA GROUP HOLDING LTD",
+    "success": true
+  },
+  {
+    "isin": "US4858591021",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "KATAPULT HOLDINGS INC. - COMMON STOCK",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "US4858591021",
+    "mic": "MSPL",
+    "currency": "USD",
+    "producto": "KATAPULT HOLDINGS INC. - COMMON STOCK",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "US4858591021",
+    "mic": "ARCX",
+    "currency": "USD",
+    "producto": "KATAPULT HOLDINGS INC. - COMMON STOCK",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "US4858591021",
+    "mic": "BATS",
+    "currency": "USD",
+    "producto": "KATAPULT HOLDINGS INC. - COMMON STOCK",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "US4858591021",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "KATAPULT HOLDINGS INC. - COMMON STOCK",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "US4858591021",
+    "mic": "EDGX",
+    "currency": "USD",
+    "producto": "KATAPULT HOLDINGS INC. - COMMON STOCK",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "US73933H1014",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "POWER REIT",
+    "ticker": "PW",
+    "exchange": "US",
+    "name": "POWER REIT",
+    "success": true
+  },
+  {
+    "isin": "US73933H1014",
+    "mic": "EDGX",
+    "currency": "USD",
+    "producto": "POWER REIT",
+    "ticker": "PW",
+    "exchange": "US",
+    "name": "POWER REIT",
+    "success": true
+  },
+  {
+    "isin": "US73933H1014",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "POWER REIT",
+    "ticker": "PW",
+    "exchange": "US",
+    "name": "POWER REIT",
+    "success": true
+  },
+  {
+    "isin": "CA87975H1001",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "TELUS INTERNATIONAL (CDA) INC. SUBORDINATE VOTING",
+    "ticker": "TIXT",
+    "exchange": "US",
+    "name": "TELUS INTERNATIONAL CDA INC",
+    "success": true
+  },
+  {
+    "isin": "IE00B4BNMY34",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "ACCENTURE PLC. CLASS A",
+    "ticker": "ACN",
+    "exchange": "US",
+    "name": "ACCENTURE PLC-CL A",
+    "success": true
+  },
+  {
+    "isin": "IE00B4BNMY34",
+    "mic": "XNYS",
+    "currency": "USD",
+    "producto": "ACCENTURE PLC. CLASS A",
+    "ticker": "ACN",
+    "exchange": "US",
+    "name": "ACCENTURE PLC-CL A",
+    "success": true
+  },
+  {
+    "isin": "IE00B4BNMY34",
+    "mic": "MSPL",
+    "currency": "USD",
+    "producto": "ACCENTURE PLC. CLASS A",
+    "ticker": "ACN",
+    "exchange": "US",
+    "name": "ACCENTURE PLC-CL A",
+    "success": true
+  },
+  {
+    "isin": "IE00B4BNMY34",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "ACCENTURE PLC. CLASS A",
+    "ticker": "ACN",
+    "exchange": "US",
+    "name": "ACCENTURE PLC-CL A",
+    "success": true
+  },
+  {
+    "isin": "IE00B4BNMY34",
+    "mic": "ARCX",
+    "currency": "USD",
+    "producto": "ACCENTURE PLC. CLASS A",
+    "ticker": "ACN",
+    "exchange": "US",
+    "name": "ACCENTURE PLC-CL A",
+    "success": true
+  },
+  {
+    "isin": "IE00B4BNMY34",
+    "mic": "BATS",
+    "currency": "USD",
+    "producto": "ACCENTURE PLC. CLASS A",
+    "ticker": "ACN",
+    "exchange": "US",
+    "name": "ACCENTURE PLC-CL A",
+    "success": true
+  },
+  {
+    "isin": "IE00B4BNMY34",
+    "mic": "SOHO",
+    "currency": "USD",
+    "producto": "ACCENTURE PLC. CLASS A",
+    "ticker": "ACN",
+    "exchange": "US",
+    "name": "ACCENTURE PLC-CL A",
+    "success": true
+  },
+  {
+    "isin": "IE00B4BNMY34",
+    "mic": "XBOS",
+    "currency": "USD",
+    "producto": "ACCENTURE PLC. CLASS A",
+    "ticker": "ACN",
+    "exchange": "US",
+    "name": "ACCENTURE PLC-CL A",
+    "success": true
+  },
+  {
+    "isin": "US29414B1044",
+    "mic": "XNYS",
+    "currency": "USD",
+    "producto": "EPAM SYSTEMS INC. COM",
+    "ticker": "EPAM",
+    "exchange": "US",
+    "name": "EPAM SYSTEMS INC",
+    "success": true
+  },
+  {
+    "isin": "US29414B1044",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "EPAM SYSTEMS INC. COM",
+    "ticker": "EPAM",
+    "exchange": "US",
+    "name": "EPAM SYSTEMS INC",
+    "success": true
+  },
+  {
+    "isin": "US29414B1044",
+    "mic": "ARCX",
+    "currency": "USD",
+    "producto": "EPAM SYSTEMS INC. COM",
+    "ticker": "EPAM",
+    "exchange": "US",
+    "name": "EPAM SYSTEMS INC",
+    "success": true
+  },
+  {
+    "isin": "US29414B1044",
+    "mic": "MSPL",
+    "currency": "USD",
+    "producto": "EPAM SYSTEMS INC. COM",
+    "ticker": "EPAM",
+    "exchange": "US",
+    "name": "EPAM SYSTEMS INC",
+    "success": true
+  },
+  {
+    "isin": "US29414B1044",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "EPAM SYSTEMS INC. COM",
+    "ticker": "EPAM",
+    "exchange": "US",
+    "name": "EPAM SYSTEMS INC",
+    "success": true
+  },
+  {
+    "isin": "US29414B1044",
+    "mic": "BATS",
+    "currency": "USD",
+    "producto": "EPAM SYSTEMS INC. COM",
+    "ticker": "EPAM",
+    "exchange": "US",
+    "name": "EPAM SYSTEMS INC",
+    "success": true
+  },
+  {
+    "isin": "US29414B1044",
+    "mic": "EDGX",
+    "currency": "USD",
+    "producto": "EPAM SYSTEMS INC. COM",
+    "ticker": "EPAM",
+    "exchange": "US",
+    "name": "EPAM SYSTEMS INC",
+    "success": true
+  },
+  {
+    "isin": "IE0003LFZ4U7",
+    "mic": "MSPL",
+    "currency": "USD",
+    "producto": "DOLE PLC",
+    "ticker": "DOLE",
+    "exchange": "US",
+    "name": "DOLE PLC",
+    "success": true
+  },
+  {
+    "isin": "IE0003LFZ4U7",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "DOLE PLC",
+    "ticker": "DOLE",
+    "exchange": "US",
+    "name": "DOLE PLC",
+    "success": true
+  },
+  {
+    "isin": "IE0003LFZ4U7",
+    "mic": "ARCX",
+    "currency": "USD",
+    "producto": "DOLE PLC",
+    "ticker": "DOLE",
+    "exchange": "US",
+    "name": "DOLE PLC",
+    "success": true
+  },
+  {
+    "isin": "US71639T1060",
+    "mic": "BATS",
+    "currency": "USD",
+    "producto": "PETIQ INC",
+    "ticker": "PETQUSD",
+    "exchange": "XB",
+    "name": "PETIQ INC",
+    "success": true
+  },
+  {
+    "isin": "US71639T1060",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "PETIQ INC",
+    "ticker": "PETQUSD",
+    "exchange": "XB",
+    "name": "PETIQ INC",
+    "success": true
+  },
+  {
+    "isin": "US71639T1060",
+    "mic": "ARCX",
+    "currency": "USD",
+    "producto": "PETIQ INC",
+    "ticker": "PETQUSD",
+    "exchange": "XB",
+    "name": "PETIQ INC",
+    "success": true
+  },
+  {
+    "isin": "US71639T1060",
+    "mic": "SOHO",
+    "currency": "USD",
+    "producto": "PETIQ INC",
+    "ticker": "PETQUSD",
+    "exchange": "XB",
+    "name": "PETIQ INC",
+    "success": true
+  },
+  {
+    "isin": "US71639T1060",
+    "mic": "MSPL",
+    "currency": "USD",
+    "producto": "PETIQ INC",
+    "ticker": "PETQUSD",
+    "exchange": "XB",
+    "name": "PETIQ INC",
+    "success": true
+  },
+  {
+    "isin": "NL0000687663",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "AERCAP HOLDINGS N.V. O",
+    "ticker": "AER",
+    "exchange": "US",
+    "name": "AERCAP HOLDINGS NV",
+    "success": true
+  },
+  {
+    "isin": "NL0000687663",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "AERCAP HOLDINGS N.V. O",
+    "ticker": "AER",
+    "exchange": "US",
+    "name": "AERCAP HOLDINGS NV",
+    "success": true
+  },
+  {
+    "isin": "NL0000687663",
+    "mic": "BATS",
+    "currency": "USD",
+    "producto": "AERCAP HOLDINGS N.V. O",
+    "ticker": "AER",
+    "exchange": "US",
+    "name": "AERCAP HOLDINGS NV",
+    "success": true
+  },
+  {
+    "isin": "NL0000687663",
+    "mic": "MSPL",
+    "currency": "USD",
+    "producto": "AERCAP HOLDINGS N.V. O",
+    "ticker": "AER",
+    "exchange": "US",
+    "name": "AERCAP HOLDINGS NV",
+    "success": true
+  },
+  {
+    "isin": "NL0000687663",
+    "mic": "XNYS",
+    "currency": "USD",
+    "producto": "AERCAP HOLDINGS N.V. O",
+    "ticker": "AER",
+    "exchange": "US",
+    "name": "AERCAP HOLDINGS NV",
+    "success": true
+  },
+  {
+    "isin": "US3765351008",
+    "mic": "XGAT",
+    "currency": "EUR",
+    "producto": "GLADSTONE CAPITAL CORP",
+    "ticker": "GLADUSD",
+    "exchange": "X1",
+    "name": "GLADSTONE CAPITAL CORP",
+    "success": true
+  },
+  {
+    "isin": "CA3615692058",
+    "mic": "XTSE",
+    "currency": "CAD",
+    "producto": "GDI INTEGRATED FACILITY SERV",
+    "ticker": "GDI",
+    "exchange": "CN",
+    "name": "GDI INTEGRATED FACILITY SERV",
+    "success": true
+  },
+  {
+    "isin": "CA3615692058",
+    "mic": "XCX2",
+    "currency": "CAD",
+    "producto": "GDI INTEGRATED FACILITY SERV",
+    "ticker": "GDI",
+    "exchange": "CN",
+    "name": "GDI INTEGRATED FACILITY SERV",
+    "success": true
+  },
+  {
+    "isin": "IT0005385213",
+    "mic": "MESI",
+    "currency": "EUR",
+    "producto": "NEWLAT FOOD",
+    "ticker": "NWL",
+    "exchange": "IM",
+    "name": "NEWPRINCES SPA",
+    "success": true
+  },
+  {
+    "isin": "IT0005385213",
+    "mic": "MTAA",
+    "currency": "EUR",
+    "producto": "NEWLAT FOOD",
+    "ticker": "NWL",
+    "exchange": "IM",
+    "name": "NEWPRINCES SPA",
+    "success": true
+  },
+  {
+    "isin": "US08579W1036",
+    "mic": "MSPL",
+    "currency": "USD",
+    "producto": "BERRY PLASTICS GROUP",
+    "ticker": "BERYUSD",
+    "exchange": "XB",
+    "name": "BERRY GLOBAL GROUP INC",
+    "success": true
+  },
+  {
+    "isin": "US08579W1036",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "BERRY PLASTICS GROUP",
+    "ticker": "BERYUSD",
+    "exchange": "XB",
+    "name": "BERRY GLOBAL GROUP INC",
+    "success": true
+  },
+  {
+    "isin": "US08579W1036",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "BERRY PLASTICS GROUP",
+    "ticker": "BERYUSD",
+    "exchange": "XB",
+    "name": "BERRY GLOBAL GROUP INC",
+    "success": true
+  },
+  {
+    "isin": "US2681501092",
+    "mic": "MSPL",
+    "currency": "USD",
+    "producto": "DYNATRACE INC. COMMON STOCK",
+    "ticker": "DT",
+    "exchange": "US",
+    "name": "DYNATRACE INC",
+    "success": true
+  },
+  {
+    "isin": "US2681501092",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "DYNATRACE INC. COMMON STOCK",
+    "ticker": "DT",
+    "exchange": "US",
+    "name": "DYNATRACE INC",
+    "success": true
+  },
+  {
+    "isin": "US2681501092",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "DYNATRACE INC. COMMON STOCK",
+    "ticker": "DT",
+    "exchange": "US",
+    "name": "DYNATRACE INC",
+    "success": true
+  },
+  {
+    "isin": "US2681501092",
+    "mic": "BATS",
+    "currency": "USD",
+    "producto": "DYNATRACE INC. COMMON STOCK",
+    "ticker": "DT",
+    "exchange": "US",
+    "name": "DYNATRACE INC",
+    "success": true
+  },
+  {
+    "isin": "CA2674881040",
+    "mic": "XATS",
+    "currency": "CAD",
+    "producto": "DYE & DURHAM LTD",
+    "ticker": "DND",
+    "exchange": "CN",
+    "name": "DYE & DURHAM LTD",
+    "success": true
+  },
+  {
+    "isin": "CA2674881040",
+    "mic": "XTSE",
+    "currency": "CAD",
+    "producto": "DYE & DURHAM LTD",
+    "ticker": "DND",
+    "exchange": "CN",
+    "name": "DYE & DURHAM LTD",
+    "success": true
+  },
+  {
+    "isin": "CA2674881040",
+    "mic": "XCX2",
+    "currency": "CAD",
+    "producto": "DYE & DURHAM LTD",
+    "ticker": "DND",
+    "exchange": "CN",
+    "name": "DYE & DURHAM LTD",
+    "success": true
+  },
+  {
+    "isin": "US1255231003",
+    "mic": "SOHO",
+    "currency": "USD",
+    "producto": "CIGNA CORPORATION COMM",
+    "ticker": "CI",
+    "exchange": "US",
+    "name": "THE CIGNA GROUP",
+    "success": true
+  },
+  {
+    "isin": "US1255231003",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "CIGNA CORPORATION COMM",
+    "ticker": "CI",
+    "exchange": "US",
+    "name": "THE CIGNA GROUP",
+    "success": true
+  },
+  {
+    "isin": "US1255231003",
+    "mic": "MSPL",
+    "currency": "USD",
+    "producto": "CIGNA CORPORATION COMM",
+    "ticker": "CI",
+    "exchange": "US",
+    "name": "THE CIGNA GROUP",
+    "success": true
+  },
+  {
+    "isin": "US1255231003",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "CIGNA CORPORATION COMM",
+    "ticker": "CI",
+    "exchange": "US",
+    "name": "THE CIGNA GROUP",
+    "success": true
+  },
+  {
+    "isin": "US1255231003",
+    "mic": "XNYS",
+    "currency": "USD",
+    "producto": "CIGNA CORPORATION COMM",
+    "ticker": "CI",
+    "exchange": "US",
+    "name": "THE CIGNA GROUP",
+    "success": true
+  },
+  {
+    "isin": "US1255231003",
+    "mic": "BATS",
+    "currency": "USD",
+    "producto": "CIGNA CORPORATION COMM",
+    "ticker": "CI",
+    "exchange": "US",
+    "name": "THE CIGNA GROUP",
+    "success": true
+  },
+  {
+    "isin": "US3765491010",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "GLADSTONE LAND CORPORA",
+    "ticker": "LAND",
+    "exchange": "US",
+    "name": "GLADSTONE LAND CORP",
+    "success": true
+  },
+  {
+    "isin": "US3765491010",
+    "mic": "ARCX",
+    "currency": "USD",
+    "producto": "GLADSTONE LAND CORPORA",
+    "ticker": "LAND",
+    "exchange": "US",
+    "name": "GLADSTONE LAND CORP",
+    "success": true
+  },
+  {
+    "isin": "US3765491010",
+    "mic": "BATS",
+    "currency": "USD",
+    "producto": "GLADSTONE LAND CORPORA",
+    "ticker": "LAND",
+    "exchange": "US",
+    "name": "GLADSTONE LAND CORP",
+    "success": true
+  },
+  {
+    "isin": "US3765491010",
+    "mic": "EDGX",
+    "currency": "USD",
+    "producto": "GLADSTONE LAND CORPORA",
+    "ticker": "LAND",
+    "exchange": "US",
+    "name": "GLADSTONE LAND CORP",
+    "success": true
+  },
+  {
+    "isin": "US3765491010",
+    "mic": "SOHO",
+    "currency": "USD",
+    "producto": "GLADSTONE LAND CORPORA",
+    "ticker": "LAND",
+    "exchange": "US",
+    "name": "GLADSTONE LAND CORP",
+    "success": true
+  },
+  {
+    "isin": "US3765491010",
+    "mic": "MSPL",
+    "currency": "USD",
+    "producto": "GLADSTONE LAND CORPORA",
+    "ticker": "LAND",
+    "exchange": "US",
+    "name": "GLADSTONE LAND CORP",
+    "success": true
+  },
+  {
+    "isin": "SE0000648669",
+    "mic": "MESI",
+    "currency": "SEK",
+    "producto": "BREDBAND2 I SKANDINAVIEN",
+    "ticker": "BRE2",
+    "exchange": "SF",
+    "name": "BREDBAND2 I SKANDINAVIEN AB",
+    "success": true
+  },
+  {
+    "isin": "CA97730P2061",
+    "mic": "XTSX",
+    "currency": "CAD",
+    "producto": "WISHPOND TECHNOLOGIES LTD",
+    "ticker": "WISH",
+    "exchange": "CN",
+    "name": "WISHPOND TECHNOLOGIES LTD",
+    "success": true
+  },
+  {
+    "isin": "CA97730P2061",
+    "mic": "CHIC",
+    "currency": "CAD",
+    "producto": "WISHPOND TECHNOLOGIES LTD",
+    "ticker": "WISH",
+    "exchange": "CN",
+    "name": "WISHPOND TECHNOLOGIES LTD",
+    "success": true
+  },
+  {
+    "isin": "US0378331005",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "APPLE INC. - COMMON ST",
+    "ticker": "AAPL",
+    "exchange": "US",
+    "name": "APPLE INC",
+    "success": true
+  },
+  {
+    "isin": "US0378331005",
+    "mic": "MEMX",
+    "currency": "USD",
+    "producto": "APPLE INC. - COMMON ST",
+    "ticker": "AAPL",
+    "exchange": "US",
+    "name": "APPLE INC",
+    "success": true
+  },
+  {
+    "isin": "DE000A0TGJ55",
+    "mic": "XETA",
+    "currency": "EUR",
+    "producto": "VARTA AG",
+    "ticker": "VAR1",
+    "exchange": "AV",
+    "name": "VARTA AG",
+    "success": true
+  },
+  {
+    "isin": "DE000A0TGJ55",
+    "mic": "XETU",
+    "currency": "EUR",
+    "producto": "VARTA AG",
+    "ticker": "VAR1",
+    "exchange": "AV",
+    "name": "VARTA AG",
+    "success": true
+  },
+  {
+    "isin": "US6153691059",
+    "mic": "MSPL",
+    "currency": "USD",
+    "producto": "MOODY'S CORPORATION CO",
+    "ticker": "MCO",
+    "exchange": "US",
+    "name": "MOODY'S CORP",
+    "success": true
+  },
+  {
+    "isin": "US6153691059",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "MOODY'S CORPORATION CO",
+    "ticker": "MCO",
+    "exchange": "US",
+    "name": "MOODY'S CORP",
+    "success": true
+  },
+  {
+    "isin": "US09075V1026",
+    "mic": "SOHO",
+    "currency": "USD",
+    "producto": "ADR ON BIONTECH SE",
+    "ticker": "BNTX",
+    "exchange": "US",
+    "name": "BIONTECH SE-ADR",
+    "success": true
+  },
+  {
+    "isin": "US09075V1026",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "ADR ON BIONTECH SE",
+    "ticker": "BNTX",
+    "exchange": "US",
+    "name": "BIONTECH SE-ADR",
+    "success": true
+  },
+  {
+    "isin": "US92764N1028",
+    "mic": "SOHO",
+    "currency": "USD",
+    "producto": "VIR BIOTECHNOLOGY INC. - COMMON STOCK",
+    "ticker": "VIR",
+    "exchange": "US",
+    "name": "VIR BIOTECHNOLOGY INC",
+    "success": true
+  },
+  {
+    "isin": "US92764N1028",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "VIR BIOTECHNOLOGY INC. - COMMON STOCK",
+    "ticker": "VIR",
+    "exchange": "US",
+    "name": "VIR BIOTECHNOLOGY INC",
+    "success": true
+  },
+  {
+    "isin": "NL0015436031",
+    "mic": "SOHO",
+    "currency": "USD",
+    "producto": "CUREVAC NV",
+    "ticker": "CVAC",
+    "exchange": "US",
+    "name": "CUREVAC NV",
+    "success": true
+  },
+  {
+    "isin": "NL0015436031",
+    "mic": "ARCX",
+    "currency": "USD",
+    "producto": "CUREVAC NV",
+    "ticker": "CVAC",
+    "exchange": "US",
+    "name": "CUREVAC NV",
+    "success": true
+  },
+  {
+    "isin": "ES0144580Y14",
+    "mic": "MESI",
+    "currency": "EUR",
+    "producto": "IBERDROLA",
+    "ticker": "IBE",
+    "exchange": "SM",
+    "name": "IBERDROLA SA",
+    "success": true
+  },
+  {
+    "isin": "ES0144580Y14",
+    "mic": "XMAD",
+    "currency": "EUR",
+    "producto": "IBERDROLA",
+    "ticker": "IBE",
+    "exchange": "SM",
+    "name": "IBERDROLA SA",
+    "success": true
+  },
+  {
+    "isin": "US58155Q1031",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "MCKESSON CORPORATION C",
+    "ticker": "MCK",
+    "exchange": "US",
+    "name": "MCKESSON CORP",
+    "success": true
+  },
+  {
+    "isin": "US58155Q1031",
+    "mic": "XNYS",
+    "currency": "USD",
+    "producto": "MCKESSON CORPORATION C",
+    "ticker": "MCK",
+    "exchange": "US",
+    "name": "MCKESSON CORP",
+    "success": true
+  },
+  {
+    "isin": "IE00BQQP9F84",
+    "mic": "BART",
+    "currency": "USD",
+    "producto": "VANECK GOLD MINERS UCITS ETF",
+    "ticker": "GDX",
+    "exchange": "LN",
+    "name": "VANECK GOLD MINERS UCITS ETF",
+    "success": true
+  },
+  {
+    "isin": "IE00BQQP9F84",
+    "mic": "HRSI",
+    "currency": "USD",
+    "producto": "VANECK GOLD MINERS UCITS ETF",
+    "ticker": "GDX",
+    "exchange": "LN",
+    "name": "VANECK GOLD MINERS UCITS ETF",
+    "success": true
+  },
+  {
+    "isin": "IE00B4ND3602",
+    "mic": "XLON",
+    "currency": "EUR",
+    "producto": "ISHARES PHYSICAL GOLD ETC",
+    "ticker": "IGLNEUR",
+    "exchange": "X2",
+    "name": "ISHARES PHYSICAL GOLD ETC",
+    "success": true
+  },
+  {
+    "isin": "IE0005711209",
+    "mic": "SOHO",
+    "currency": "USD",
+    "producto": "ICON PLC - ORDINARY SH",
+    "ticker": "ICLR",
+    "exchange": "US",
+    "name": "ICON PLC",
+    "success": true
+  },
+  {
+    "isin": "VGG6564A1057",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "NOMAD FOODS LTD",
+    "ticker": "NOMD",
+    "exchange": "US",
+    "name": "NOMAD FOODS LTD",
+    "success": true
+  },
+  {
+    "isin": "VGG6564A1057",
+    "mic": "MSPL",
+    "currency": "USD",
+    "producto": "NOMAD FOODS LTD",
+    "ticker": "NOMD",
+    "exchange": "US",
+    "name": "NOMAD FOODS LTD",
+    "success": true
+  },
+  {
+    "isin": "ES0177542018",
+    "mic": "MESI",
+    "currency": "EUR",
+    "producto": "INT.AIRL.GRP",
+    "ticker": "INR",
+    "exchange": "GR",
+    "name": "INTL CONSOLIDATED AIRLINE-DI",
+    "success": true
+  },
+  {
+    "isin": "ES0177542018",
+    "mic": "XMAD",
+    "currency": "EUR",
+    "producto": "INT.AIRL.GRP",
+    "ticker": "INR",
+    "exchange": "GR",
+    "name": "INTL CONSOLIDATED AIRLINE-DI",
+    "success": true
+  },
+  {
+    "isin": "ES0177542018",
+    "mic": "CHIX",
+    "currency": "EUR",
+    "producto": "INT.AIRL.GRP",
+    "ticker": "INR",
+    "exchange": "GR",
+    "name": "INTL CONSOLIDATED AIRLINE-DI",
+    "success": true
+  },
+  {
+    "isin": "US50540R4092",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "LABORATORY CORPORATION",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "US50540R4092",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "LABORATORY CORPORATION",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "CA82509L1076",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "SHOPIFY INC. CLASS A S",
+    "ticker": "SHOP",
+    "exchange": "US",
+    "name": "SHOPIFY INC - CLASS A",
+    "success": true
+  },
+  {
+    "isin": "US8522341036",
+    "mic": "SOHO",
+    "currency": "USD",
+    "producto": "BLOCK INC.",
+    "ticker": "XYZ",
+    "exchange": "US",
+    "name": "BLOCK INC",
+    "success": true
+  },
+  {
+    "isin": "IL0011336851",
+    "mic": "MSPL",
+    "currency": "USD",
+    "producto": "CHECK-CAP LTD. - ORDIN",
+    "ticker": "CHEK",
+    "exchange": "US",
+    "name": "CHECK CAP LTD",
+    "success": true
+  },
+  {
+    "isin": "IL0011336851",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "CHECK-CAP LTD. - ORDIN",
+    "ticker": "CHEK",
+    "exchange": "US",
+    "name": "CHECK CAP LTD",
+    "success": true
+  },
+  {
+    "isin": "US3580391056",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "FRESHPET INC. - COMMO",
+    "ticker": "FRPT",
+    "exchange": "US",
+    "name": "FRESHPET INC",
+    "success": true
+  },
+  {
+    "isin": "US3580391056",
+    "mic": "SOHO",
+    "currency": "USD",
+    "producto": "FRESHPET INC. - COMMO",
+    "ticker": "FRPT",
+    "exchange": "US",
+    "name": "FRESHPET INC",
+    "success": true
+  },
+  {
+    "isin": "US3580391056",
+    "mic": "MSPL",
+    "currency": "USD",
+    "producto": "FRESHPET INC. - COMMO",
+    "ticker": "FRPT",
+    "exchange": "US",
+    "name": "FRESHPET INC",
+    "success": true
+  },
+  {
+    "isin": "US3580391056",
+    "mic": "ARCX",
+    "currency": "USD",
+    "producto": "FRESHPET INC. - COMMO",
+    "ticker": "FRPT",
+    "exchange": "US",
+    "name": "FRESHPET INC",
+    "success": true
+  },
+  {
+    "isin": "DE0006459324",
+    "mic": "XETB",
+    "currency": "EUR",
+    "producto": "LANG & SCHWARZ AG",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "US74019L5030",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "PRECIPIO INC. - COMMON STOCK",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "CA68620P1018",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "ORGANIGRAM HOLDINGS INC. - COMMON SHARES",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "CA68620P1018",
+    "mic": "MSPL",
+    "currency": "USD",
+    "producto": "ORGANIGRAM HOLDINGS INC. - COMMON SHARES",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "CA68620P1018",
+    "mic": "ARCX",
+    "currency": "USD",
+    "producto": "ORGANIGRAM HOLDINGS INC. - COMMON SHARES",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "CA68620P1018",
+    "mic": "IEXG",
+    "currency": "USD",
+    "producto": "ORGANIGRAM HOLDINGS INC. - COMMON SHARES",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "CA68620P1018",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "ORGANIGRAM HOLDINGS INC. - COMMON SHARES",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "CA68620P1018",
+    "mic": "XNYS",
+    "currency": "USD",
+    "producto": "ORGANIGRAM HOLDINGS INC. - COMMON SHARES",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "CA68620P1018",
+    "mic": "EDGX",
+    "currency": "USD",
+    "producto": "ORGANIGRAM HOLDINGS INC. - COMMON SHARES",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "CA68620P1018",
+    "mic": "BATS",
+    "currency": "USD",
+    "producto": "ORGANIGRAM HOLDINGS INC. - COMMON SHARES",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "US57667T1007",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "ADR ON MATERIALISE NV",
+    "ticker": "MTLS",
+    "exchange": "US",
+    "name": "MATERIALISE NV-ADR",
+    "success": true
+  },
+  {
+    "isin": "US57667T1007",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "ADR ON MATERIALISE NV",
+    "ticker": "MTLS",
+    "exchange": "US",
+    "name": "MATERIALISE NV-ADR",
+    "success": true
+  },
+  {
+    "isin": "US57667T1007",
+    "mic": "SOHO",
+    "currency": "USD",
+    "producto": "ADR ON MATERIALISE NV",
+    "ticker": "MTLS",
+    "exchange": "US",
+    "name": "MATERIALISE NV-ADR",
+    "success": true
+  },
+  {
+    "isin": "FR0000054470",
+    "mic": "XPAR",
+    "currency": "EUR",
+    "producto": "UBISOFT ENTERTAINMENT SA",
+    "ticker": "UBI",
+    "exchange": "FP",
+    "name": "UBISOFT ENTERTAINMENT",
+    "success": true
+  },
+  {
+    "isin": "US1729081059",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "CINTAS CORPORATION - C",
+    "ticker": "CTAS",
+    "exchange": "US",
+    "name": "CINTAS CORP",
+    "success": true
+  },
+  {
+    "isin": "US1729081059",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "CINTAS CORPORATION - C",
+    "ticker": "CTAS",
+    "exchange": "US",
+    "name": "CINTAS CORP",
+    "success": true
+  },
+  {
+    "isin": "ES0105066007",
+    "mic": "XMAD",
+    "currency": "EUR",
+    "producto": "CELLNEX TELECOM SAU",
+    "ticker": "CLNX",
+    "exchange": "SM",
+    "name": "CELLNEX TELECOM SA",
+    "success": true
+  },
+  {
+    "isin": "NL0000235190",
+    "mic": "XPAR",
+    "currency": "EUR",
+    "producto": "AIRBUS GROUP",
+    "ticker": "AIR",
+    "exchange": "GR",
+    "name": "AIRBUS SE",
+    "success": true
+  },
+  {
+    "isin": "DE0007472060",
+    "mic": "XETU",
+    "currency": "EUR",
+    "producto": "WIRECARD AG",
+    "ticker": "WDI",
+    "exchange": "GR",
+    "name": "WIRECARD AG",
+    "success": true
+  },
+  {
+    "isin": "ES0105200002",
+    "mic": "XMAD",
+    "currency": "EUR",
+    "producto": "ABENGOA SA- B SHARES",
+    "ticker": "ABG/P",
+    "exchange": "EU",
+    "name": "ABENGOA SA- B SHARES",
+    "success": true
+  },
+  {
+    "isin": "LU1048328220",
+    "mic": "AQXE",
+    "currency": "EUR",
+    "producto": "EDREAMS ODIGEO",
+    "ticker": "EDR",
+    "exchange": "SM",
+    "name": "EDREAMS ODIGEO SL",
+    "success": true
+  },
+  {
+    "isin": "ES0184696104",
+    "mic": "XMAD",
+    "currency": "EUR",
+    "producto": "MASMOVIL IBERCOM SA",
+    "ticker": "MASEUR",
+    "exchange": "XS",
+    "name": "MASMOVIL IBERCOM SA",
+    "success": true
+  },
+  {
+    "isin": "US00507V1098",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "ACTIVISION BLIZZARD I",
+    "ticker": "ATVIUSD",
+    "exchange": "XB",
+    "name": "ACTIVISION BLIZZARD INC",
+    "success": true
+  },
+  {
+    "isin": "ES0113860A34",
+    "mic": "BATE",
+    "currency": "EUR",
+    "producto": "B. SABADELL",
+    "ticker": "SAB",
+    "exchange": "SM",
+    "name": "BANCO DE SABADELL SA",
+    "success": true
+  },
+  {
+    "isin": "ES0113860A34",
+    "mic": "CHIX",
+    "currency": "EUR",
+    "producto": "B. SABADELL",
+    "ticker": "SAB",
+    "exchange": "SM",
+    "name": "BANCO DE SABADELL SA",
+    "success": true
+  },
+  {
+    "isin": "ES0113860A34",
+    "mic": "AQXE",
+    "currency": "EUR",
+    "producto": "B. SABADELL",
+    "ticker": "SAB",
+    "exchange": "SM",
+    "name": "BANCO DE SABADELL SA",
+    "success": true
+  },
+  {
+    "isin": "ES0113860A34",
+    "mic": "HREU",
+    "currency": "EUR",
+    "producto": "B. SABADELL",
+    "ticker": "SAB",
+    "exchange": "SM",
+    "name": "BANCO DE SABADELL SA",
+    "success": true
+  },
+  {
+    "isin": "US77543R1023",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "ROKU INC",
+    "ticker": "ROKU",
+    "exchange": "US",
+    "name": "ROKU INC",
+    "success": true
+  },
+  {
+    "isin": "US77543R1023",
+    "mic": "ARCX",
+    "currency": "USD",
+    "producto": "ROKU INC",
+    "ticker": "ROKU",
+    "exchange": "US",
+    "name": "ROKU INC",
+    "success": true
+  },
+  {
+    "isin": "US30063P1057",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "EXACT SCIENCES CORPORA",
+    "ticker": "EXAS",
+    "exchange": "US",
+    "name": "EXACT SCIENCES CORP",
+    "success": true
+  },
+  {
+    "isin": "US30063P1057",
+    "mic": "ARCX",
+    "currency": "USD",
+    "producto": "EXACT SCIENCES CORPORA",
+    "ticker": "EXAS",
+    "exchange": "US",
+    "name": "EXACT SCIENCES CORP",
+    "success": true
+  },
+  {
+    "isin": "US30063P1057",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "EXACT SCIENCES CORPORA",
+    "ticker": "EXAS",
+    "exchange": "US",
+    "name": "EXACT SCIENCES CORP",
+    "success": true
+  },
+  {
+    "isin": "US30063P1057",
+    "mic": "SOHO",
+    "currency": "USD",
+    "producto": "EXACT SCIENCES CORPORA",
+    "ticker": "EXAS",
+    "exchange": "US",
+    "name": "EXACT SCIENCES CORP",
+    "success": true
+  },
+  {
+    "isin": "US30063P1057",
+    "mic": "MSPL",
+    "currency": "USD",
+    "producto": "EXACT SCIENCES CORPORA",
+    "ticker": "EXAS",
+    "exchange": "US",
+    "name": "EXACT SCIENCES CORP",
+    "success": true
+  },
+  {
+    "isin": "US30063P1057",
+    "mic": "BATS",
+    "currency": "USD",
+    "producto": "EXACT SCIENCES CORPORA",
+    "ticker": "EXAS",
+    "exchange": "US",
+    "name": "EXACT SCIENCES CORP",
+    "success": true
+  },
+  {
+    "isin": "US30063P1057",
+    "mic": "XCIS",
+    "currency": "USD",
+    "producto": "EXACT SCIENCES CORPORA",
+    "ticker": "EXAS",
+    "exchange": "US",
+    "name": "EXACT SCIENCES CORP",
+    "success": true
+  },
+  {
+    "isin": "US30063P1057",
+    "mic": "EDGA",
+    "currency": "USD",
+    "producto": "EXACT SCIENCES CORPORA",
+    "ticker": "EXAS",
+    "exchange": "US",
+    "name": "EXACT SCIENCES CORP",
+    "success": true
+  },
+  {
+    "isin": "ES0125220311",
+    "mic": "CCEU",
+    "currency": "EUR",
+    "producto": "ACCIONA SA",
+    "ticker": "ANA",
+    "exchange": "SM",
+    "name": "ACCIONA SA",
+    "success": true
+  },
+  {
+    "isin": "ES0125220311",
+    "mic": "HRSI",
+    "currency": "EUR",
+    "producto": "ACCIONA SA",
+    "ticker": "ANA",
+    "exchange": "SM",
+    "name": "ACCIONA SA",
+    "success": true
+  },
+  {
+    "isin": "US8608971078",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "STITCH FIX CL A CM",
+    "ticker": "SFIX",
+    "exchange": "US",
+    "name": "STITCH FIX INC-CLASS A",
+    "success": true
+  },
+  {
+    "isin": "US8608971078",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "STITCH FIX CL A CM",
+    "ticker": "SFIX",
+    "exchange": "US",
+    "name": "STITCH FIX INC-CLASS A",
+    "success": true
+  },
+  {
+    "isin": "US8608971078",
+    "mic": "MSPL",
+    "currency": "USD",
+    "producto": "STITCH FIX CL A CM",
+    "ticker": "SFIX",
+    "exchange": "US",
+    "name": "STITCH FIX INC-CLASS A",
+    "success": true
+  },
+  {
+    "isin": "KYG9830T1067",
+    "mic": "XHKG",
+    "currency": "HKD",
+    "producto": "XIAOMI CORP-CLASS B",
+    "ticker": "1810",
+    "exchange": "HK",
+    "name": "XIAOMI CORP-CLASS B",
+    "success": true
+  },
+  {
+    "isin": "US88160R1014",
+    "mic": "BATS",
+    "currency": "USD",
+    "producto": "TESLA MOTORS INC. - C",
+    "ticker": "TSLA",
+    "exchange": "US",
+    "name": "TESLA INC",
+    "success": true
+  },
+  {
+    "isin": "US88160R1014",
+    "mic": "ARCX",
+    "currency": "USD",
+    "producto": "TESLA MOTORS INC. - C",
+    "ticker": "TSLA",
+    "exchange": "US",
+    "name": "TESLA INC",
+    "success": true
+  },
+  {
+    "isin": "US88160R1014",
+    "mic": "EDGA",
+    "currency": "USD",
+    "producto": "TESLA MOTORS INC. - C",
+    "ticker": "TSLA",
+    "exchange": "US",
+    "name": "TESLA INC",
+    "success": true
+  },
+  {
+    "isin": "US88160R1014",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "TESLA MOTORS INC. - C",
+    "ticker": "TSLA",
+    "exchange": "US",
+    "name": "TESLA INC",
+    "success": true
+  },
+  {
+    "isin": "US88160R1014",
+    "mic": "XCIS",
+    "currency": "USD",
+    "producto": "TESLA MOTORS INC. - C",
+    "ticker": "TSLA",
+    "exchange": "US",
+    "name": "TESLA INC",
+    "success": true
+  },
+  {
+    "isin": "US88160R1014",
+    "mic": "IEXG",
+    "currency": "USD",
+    "producto": "TESLA MOTORS INC. - C",
+    "ticker": "TSLA",
+    "exchange": "US",
+    "name": "TESLA INC",
+    "success": true
+  },
+  {
+    "isin": "US88160R1014",
+    "mic": "EDGX",
+    "currency": "USD",
+    "producto": "TESLA MOTORS INC. - C",
+    "ticker": "TSLA",
+    "exchange": "US",
+    "name": "TESLA INC",
+    "success": true
+  },
+  {
+    "isin": "US64110L1061",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "NETFLIX INC. - COMMON",
+    "ticker": "NFLX",
+    "exchange": "US",
+    "name": "NETFLIX INC",
+    "success": true
+  },
+  {
+    "isin": "US64110L1061",
+    "mic": "EDGX",
+    "currency": "USD",
+    "producto": "NETFLIX INC. - COMMON",
+    "ticker": "NFLX",
+    "exchange": "US",
+    "name": "NETFLIX INC",
+    "success": true
+  },
+  {
+    "isin": "FR0010259150",
+    "mic": "XPAR",
+    "currency": "EUR",
+    "producto": "IPSEN",
+    "ticker": "IPN",
+    "exchange": "FP",
+    "name": "IPSEN",
+    "success": true
+  },
+  {
+    "isin": "ES0165386014",
+    "mic": "XMAD",
+    "currency": "EUR",
+    "producto": "SOLARIA",
+    "ticker": "SLR",
+    "exchange": "SM",
+    "name": "SOLARIA ENERGIA Y MEDIO AMBI",
+    "success": true
+  },
+  {
+    "isin": "US07725L1026",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "ADR ON BEIGENE LTD",
+    "ticker": "ONC",
+    "exchange": "US",
+    "name": "BEONE MEDICINES LTD-ADR",
+    "success": true
+  },
+  {
+    "isin": "US9485961018",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "ADR ON WEIBO CORP",
+    "ticker": "WB",
+    "exchange": "US",
+    "name": "WEIBO CORP-SPON ADR",
+    "success": true
+  },
+  {
+    "isin": "US9485961018",
+    "mic": "EDGA",
+    "currency": "USD",
+    "producto": "ADR ON WEIBO CORP",
+    "ticker": "WB",
+    "exchange": "US",
+    "name": "WEIBO CORP-SPON ADR",
+    "success": true
+  },
+  {
+    "isin": "US05366U1007",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "AVEXIS INC. - COMMON",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "US05366U1007",
+    "mic": "BATY",
+    "currency": "USD",
+    "producto": "AVEXIS INC. - COMMON",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "US0231351067",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "AMAZON.COM INC. - COM",
+    "ticker": "AMZN",
+    "exchange": "PE",
+    "name": "AMAZON.COM INC",
+    "success": true
+  },
+  {
+    "isin": "US52603B1070",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "LENDINGTREE INC. - CO",
+    "ticker": "TREE",
+    "exchange": "US",
+    "name": "LENDINGTREE INC",
+    "success": true
+  },
+  {
+    "isin": "ES0109067019",
+    "mic": "XMAD",
+    "currency": "EUR",
+    "producto": "AMADEUS IT",
+    "ticker": "AMS",
+    "exchange": "SM",
+    "name": "AMADEUS IT GROUP SA",
+    "success": true
+  },
+  {
+    "isin": "ES0109067019",
+    "mic": "BATE",
+    "currency": "EUR",
+    "producto": "AMADEUS IT",
+    "ticker": "AMS",
+    "exchange": "SM",
+    "name": "AMADEUS IT GROUP SA",
+    "success": true
+  },
+  {
+    "isin": "ES0109067019",
+    "mic": "CHIX",
+    "currency": "EUR",
+    "producto": "AMADEUS IT",
+    "ticker": "AMS",
+    "exchange": "SM",
+    "name": "AMADEUS IT GROUP SA",
+    "success": true
+  },
+  {
+    "isin": "SE0010296582",
+    "mic": "FNSE",
+    "currency": "EUR",
+    "producto": "COINSHARES XBT PROVIDER ETHER TRACKER EURO",
+    "ticker": "COINETHE",
+    "exchange": "SF",
+    "name": "ETHER TRACKER ONE - EUR",
+    "success": true
+  },
+  {
+    "isin": "SE0007525332",
+    "mic": "FNSE",
+    "currency": "EUR",
+    "producto": "BITCOIN TRACKER EUR XBT PROVIDER",
+    "ticker": "COINXBE",
+    "exchange": "SF",
+    "name": "BITCOIN TRACKER ONE EUR",
+    "success": true
+  }
+]

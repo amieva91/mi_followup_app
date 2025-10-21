@@ -2,8 +2,8 @@
 
 **Fecha de inicio**: 5 Octubre 2025  
 **Timeline**: 6 meses (26 semanas)  
-**Última actualización**: 10 Octubre 2025 - 23:20 UTC  
-**Estado actual**: ✅ Sprint 0, 1, 2, 3 COMPLETADOS (v3.2.0) - Sistema funcionando en producción
+**Última actualización**: 21 Octubre 2025 - 22:00 UTC  
+**Estado actual**: ✅ Sprint 0, 1, 2, 3 COMPLETADOS (v3.3.4) - AssetRegistry + MappingRegistry + Fixes de estabilidad
 
 ## 🎉 PROGRESO RECIENTE
 
@@ -31,9 +31,9 @@
 - Emoji picker con sugerencias clickeables
 - Dashboard con KPIs en tiempo real (ingresos/gastos/balance del mes)
 
-**✅ SPRINT 3 - CSV Processor & Portfolio Management (COMPLETADO - 10 Oct)**
+**✅ SPRINT 3 - CSV Processor & Portfolio Management (COMPLETADO - 19 Oct)**
 - ✅ HITO 1: Base de Datos y Arquitectura
-  - 8 modelos: Broker, BrokerAccount, Asset, PriceHistory, PortfolioHolding, Transaction, CashFlow, PortfolioMetrics
+  - 9 modelos: Broker, BrokerAccount, Asset, PriceHistory, PortfolioHolding, Transaction, CashFlow, PortfolioMetrics + **AssetRegistry**
   - Migraciones aplicadas en dev y prod
   - Seeders de brokers (IBKR, DeGiro, Manual)
 - ✅ HITO 2: Entrada Manual de Posiciones
@@ -68,6 +68,45 @@
   - Filtros combinables (símbolo, tipo, cuenta, fechas)
   - Edición individual con recálculo automático
   - Vista unificada de holdings por asset (múltiples brokers)
+- ✅ HITO 8: **AssetRegistry - Sistema Global de Enriquecimiento** (NUEVO - 19 Oct)
+  - **Tabla global compartida**: Cache de mapeos ISIN → Symbol, Exchange, MIC, Yahoo Suffix
+  - **Alimentación automática desde CSVs**:
+    - IBKR aporta symbol + exchange completos
+    - DeGiro aporta ISIN + MIC (se mapea localmente)
+  - **Actualización inteligente**: Si un registro existe, actualiza campos vacíos
+  - **Enriquecimiento con OpenFIGI**: Automático durante importación para assets sin symbol
+  - **CSVImporterV2**: Nuevo importer con progreso en tiempo real
+  - **Interfaz de gestión completa** (`/portfolio/asset-registry`):
+    - Búsqueda por ISIN, Symbol, Nombre
+    - Filtros (solo sin enriquecer)
+    - Ordenación por cualquier columna
+    - Edición en modal
+    - Eliminación con confirmación
+    - Estadísticas de enriquecimiento (total/enriched/pending)
+  - **Enriquecimiento manual**: 
+    - Botones en edición de transacciones (OpenFIGI o Yahoo URL)
+    - Enriquecimiento directo desde modal de AssetRegistry
+    - Feedback visual detallado con banners
+  - **Contador de uso**: `usage_count` para estadísticas de popularidad (columna ordenable)
+  - **Acceso directo**: Banner en transacciones para acceder al registro global
+  - **Estado inteligente**: Solo requiere `symbol` (MIC opcional, mejora precisión)
+- ✅ HITO 9: **MappingRegistry - Sistema de Mapeos Editables** (NUEVO - 21 Oct)
+  - **Tabla global de mapeos**: MIC→Yahoo, Exchange→Yahoo, DeGiro→IBKR
+  - **CRUD completo** (`/portfolio/mappings`):
+    - Búsqueda por tipo o clave
+    - Filtros por tipo de mapeo
+    - Ordenación por cualquier columna
+    - Crear, editar, eliminar mapeos
+    - Activar/desactivar mapeos sin borrarlos
+  - **Mappers dinámicos**: Leen de la BD en lugar de diccionarios hardcodeados
+  - **Acceso directo**: Link desde AssetRegistry
+  - **Expansión colaborativa**: Usuarios pueden añadir nuevos mapeos
+- ✅ HITO 10: **Fixes de Estabilidad** (v3.3.4 - 21 Oct)
+  - **Progreso de importación**: Primer archivo ahora visible en "Completados"
+  - **Conteo correcto**: 5/5 archivos en lugar de 4/5
+  - **Botones funcionales**: OpenFIGI/Yahoo en edición de transacciones ahora funcionan
+  - **Validación de campos**: JavaScript verifica existencia antes de actualizar
+  - **Feedback mejorado**: Banners detallados con información completa del enriquecimiento
 - ✅ MEJORAS FINALES:
   - **FIFO robusto** con posiciones cortas temporales
   - Parser completo DeGiro (Transacciones + Estado de Cuenta)
@@ -80,13 +119,17 @@
   - **Formato europeo**: 1.234,56 en todos los números
   - **Visualización mejorada**: Type • Currency • ISIN (en lugar de nombre)
   - Búsqueda con sorting + filtros real-time
-- **Métricas finales**: 19 holdings, 0 errores, 100% precisión FIFO
+- **Métricas finales Sprint 3**: 
+  - 209 assets en AssetRegistry (90%+ enriquecidos)
+  - 19 holdings correctos, 0 errores
+  - 100% precisión FIFO
+  - MappingRegistry con 3 tipos de mapeos (MIC→Yahoo, Exchange→Yahoo, DeGiro→IBKR)
+  - Sistema completamente estable y funcional
 
-**⚠️ PENDIENTES DE REFINAMIENTO:**
-- Pruebas exhaustivas con CSVs completos de ambos brokers
-- Revisión de campos vacíos: `exchange` (0%), `sector` (0%)
-- Integración API Yahoo Finance (precios/exchange/sector)
-- Sprint 4: Calculadora de Métricas
+**🎯 PRÓXIMOS PASOS:**
+- ✅ Deploy a producción de v3.3.4 (AssetRegistry + MappingRegistry + Fixes)
+- Sprint 4: Calculadora de Métricas (P&L, ROI, Sharpe, Drawdown)
+- Sprint 5: Actualizaciones de precios en tiempo real (Yahoo Finance)
 
 **🔗 URLs Funcionales:**
 - **Producción**: https://followup.fit/

@@ -2,8 +2,8 @@
 
 **Filosofía**: Elegante, Profesional, Financiero, Minimalista
 
-**Última actualización**: 10 Octubre 2025 - 23:20 UTC  
-**Estado**: ✅ Componentes base + avanzados implementados (Sprint 1, 2, 3 - COMPLETO v3.2.0)
+**Última actualización**: 21 Octubre 2025 - 22:00 UTC  
+**Estado**: ✅ Componentes base + avanzados implementados (Sprint 1, 2, 3 - COMPLETO v3.3.4 - AssetRegistry + MappingRegistry + Fixes)
 
 ---
 
@@ -74,6 +74,66 @@
 - ✅ **Tablas ordenables**: Click en encabezados para ordenar columnas
 - ✅ **Visualización de moneda**: Mostrada junto a precios y costes totales
 - ✅ **Iconos de advertencia**: ⚠️ en dividendos no-EUR que requieren revisión
+
+**AssetRegistry - Sistema Global (v3.3.0-3.3.4)**
+- ✅ **Interfaz de Gestión** (`/portfolio/asset-registry`):
+  - Panel de estadísticas con 4 cards (Total, Enriquecidos, Pendientes, Completitud %)
+  - Búsqueda en tiempo real por ISIN, Symbol, Nombre
+  - Filtro: "Solo sin enriquecer" (checkbox con auto-submit)
+  - Tabla completa con 10 columnas **TODAS ORDENABLES** (incluyendo "Uso" con tooltip)
+  - Badges de estado: Verde (✓ Enriquecido) / Naranja (⚠️ Pendiente)
+  - **Estado inteligente**: Solo requiere `symbol` (MIC opcional, mejora precisión)
+  - Fuentes monoespaciadas para ISIN y símbolos
+  - Truncamiento de nombres largos con tooltip
+  - **Modal de edición mejorado**: 
+    - Formulario con 6 campos (Symbol, Exchange, MIC, Yahoo Suffix, Tipo, Nombre)
+    - **Botón de enriquecimiento integrado**: "🔍 Enriquecer con OpenFIGI" dentro del modal
+    - **Campo de Yahoo URL**: Input + botón "🔗 Desde URL" para corrección manual
+    - Feedback visual en tiempo real con estados (loading/success/error)
+  - Botones de acción: "✏️ Editar" (azul) y "🗑️" (rojo) por fila
+  - Confirmación para eliminación
+  - **Link a Mappings**: Botón "🗺️ Gestionar Mapeos" para acceso rápido
+- ✅ **Banner de acceso en Transacciones**:
+  - Card destacado en morado (`bg-purple-50 border-purple-200`)
+  - Título: "🗄️ Registro Global de Assets"
+  - Descripción breve
+  - Botón call-to-action: "📊 Ver Registro Global →"
+- ✅ **Botones de Enriquecimiento Manual** (en edición de transacciones - FUNCIONALES v3.3.4):
+  - Sección separada con borde superior (`border-t border-purple-300`)
+  - Dos botones: "🤖 Enriquecer con OpenFIGI" y "🌐 Desde URL de Yahoo"
+  - **Validación de campos**: JavaScript verifica existencia antes de actualizar
+  - **Banners detallados**: Feedback con información completa (Symbol, Exchange, MIC, Yahoo)
+  - JavaScript async/await para llamadas AJAX con manejo de errores
+
+**MappingRegistry - Sistema de Mapeos Editables (v3.3.2 - NUEVO)**
+- ✅ **Interfaz de Gestión** (`/portfolio/mappings`):
+  - Panel de estadísticas con 4 cards (Total, Activos, Inactivos, Tipos)
+  - Búsqueda en tiempo real por tipo o clave
+  - Filtro por tipo de mapeo (MIC_TO_YAHOO, EXCHANGE_TO_YAHOO, DEGIRO_TO_IBKR)
+  - Tabla con 7 columnas ordenables
+  - Badges de tipo: Azul (MIC→Yahoo) / Verde (Exchange→Yahoo) / Morado (DeGiro→IBKR)
+  - Toggle de estado: Activar/Desactivar sin eliminar
+  - **Modal de creación**: Formulario con 5 campos (Tipo, Clave, Valor, País, Descripción)
+  - **Modal de edición**: Permite modificar todos los campos excepto el tipo
+  - Confirmación para eliminación
+  - **Acceso desde AssetRegistry**: Link bidireccional
+- ✅ **Mappers Dinámicos**:
+  - `YahooSuffixMapper` lee de BD (tabla `mapping_registry`)
+  - `ExchangeMapper` lee de BD (tabla `mapping_registry`)
+  - Cache en memoria para performance
+  - Recarga automática si se detectan cambios
+
+**Fixes de Estabilidad (v3.3.4)**
+- ✅ **Progreso de Importación**:
+  - Primer archivo ahora visible en "Completados" (fix de índices 0-based)
+  - Conteo correcto: "5/5 archivos" en lugar de "4/5"
+  - Archivos procesados mostrados en tiempo real
+  - Estimación de tiempo más precisa
+- ✅ **Botones de Enriquecimiento**:
+  - JavaScript validado: No intenta actualizar campos inexistentes
+  - Feedback visual mejorado con banners tipo "card"
+  - Estados de loading claros ("⏳ Consultando OpenFIGI...")
+  - Manejo de errores más robusto
 
 ---
 

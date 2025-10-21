@@ -326,8 +326,9 @@ class DeGiroParser:
                 
                 # Comparar fechas (la retención suele estar en la misma fecha que el dividendo)
                 try:
-                    div_date_str = dividend_data.get('date', '')
-                    div_date = datetime.strptime(div_date_str, '%Y-%m-%d')
+                    div_date = dividend_data.get('date')
+                    if not div_date:
+                        continue
                     date_diff = abs((tax_date - div_date).days)
                     
                     # Buscar el dividendo más cercano (típicamente mismo día, máx 1 día)
@@ -466,7 +467,7 @@ class DeGiroParser:
                 'symbol': '',  # DeGiro no proporciona tickers
                 'name': producto,
                 'isin': isin,
-                'date': fecha_str,
+                'date': fecha_str,  # Ya es un objeto datetime.date
                 'amount': float(net_amount),  # Neto (bruto - retención)
                 'currency': 'EUR',
                 'tax': 0.0,  # No mostramos retenciones
@@ -484,8 +485,8 @@ class DeGiroParser:
             if fx_w['currency'] == currency:
                 # Verificar fecha (dentro de 5 días)
                 try:
-                    fx_date = datetime.strptime(fx_w['date'], '%d-%m-%Y')
-                    dividend_date = datetime.strptime(fecha_str, '%Y-%m-%d')
+                    fx_date = datetime.strptime(fx_w['date'], '%d-%m-%Y').date()
+                    dividend_date = fecha_str  # Ya es datetime.date
                     if abs((fx_date - dividend_date).days) <= 5:
                         # Verificar que tenga tasa de cambio válida
                         if fx_w.get('exchange_rate', Decimal('0')) > 0:
@@ -500,7 +501,7 @@ class DeGiroParser:
                 'symbol': '',  # DeGiro no proporciona tickers
                 'name': producto,
                 'isin': isin,
-                'date': fecha_str,
+                'date': fecha_str,  # Ya es un objeto datetime.date
                 'amount': float(net_amount),
                 'currency': currency,
                 'tax': 0.0,
@@ -518,7 +519,7 @@ class DeGiroParser:
             'symbol': '',  # DeGiro no proporciona tickers
             'name': producto,
             'isin': isin,
-            'date': fecha_str,
+            'date': fecha_str,  # Ya es un objeto datetime.date
             'amount': float(eur_amount),  # Calculado directamente
             'currency': 'EUR',
             'amount_original': float(total_gross),  # Bruto original
@@ -643,20 +644,20 @@ class DeGiroParser:
         except:
             return Decimal('0')
     
-    def _parse_date(self, date_str: str) -> str:
-        """Parsea fecha de DeGiro al formato ISO"""
+    def _parse_date(self, date_str: str):
+        """Parsea fecha de DeGiro a objeto datetime.date"""
         if not date_str or date_str.strip() == '':
             return None
         
         try:
             # Formato: "05-10-2025"
             dt = datetime.strptime(date_str.strip(), "%d-%m-%Y")
-            return dt.date().isoformat()
+            return dt.date()  # ← Devuelve datetime.date object
         except:
-            return date_str
+            return None
     
-    def _parse_datetime(self, date_str: str, time_str: str) -> str:
-        """Parsea fecha/hora de DeGiro al formato ISO"""
+    def _parse_datetime(self, date_str: str, time_str: str):
+        """Parsea fecha/hora de DeGiro a objeto datetime"""
         if not date_str or date_str.strip() == '':
             return None
         
@@ -664,9 +665,9 @@ class DeGiroParser:
             # Formato: "05-10-2025" + "06:30"
             datetime_str = f"{date_str.strip()} {time_str.strip() if time_str else '00:00'}"
             dt = datetime.strptime(datetime_str, "%d-%m-%Y %H:%M")
-            return dt.isoformat()
+            return dt  # ← Devuelve datetime object
         except:
-            return f"{date_str}T{time_str if time_str else '00:00'}"
+            return None
     
     def _extract_currency(self, row: Dict[str, str]) -> str:
         """Extrae la divisa de las columnas de saldo"""

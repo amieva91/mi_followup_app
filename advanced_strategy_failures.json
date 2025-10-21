@@ -1,0 +1,212 @@
+[
+  {
+    "isin": "CA21250C1068",
+    "mic": "XTSE",
+    "currency": "CAD",
+    "producto": "CONVERGE TECHNOLOGY SOLUTION",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "US4858591021",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "KATAPULT HOLDINGS INC. - COMMON STOCK",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "US4858591021",
+    "mic": "MSPL",
+    "currency": "USD",
+    "producto": "KATAPULT HOLDINGS INC. - COMMON STOCK",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "US4858591021",
+    "mic": "ARCX",
+    "currency": "USD",
+    "producto": "KATAPULT HOLDINGS INC. - COMMON STOCK",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "US4858591021",
+    "mic": "BATS",
+    "currency": "USD",
+    "producto": "KATAPULT HOLDINGS INC. - COMMON STOCK",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "US4858591021",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "KATAPULT HOLDINGS INC. - COMMON STOCK",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "US4858591021",
+    "mic": "EDGX",
+    "currency": "USD",
+    "producto": "KATAPULT HOLDINGS INC. - COMMON STOCK",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "US50540R4092",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "LABORATORY CORPORATION",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "US50540R4092",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "LABORATORY CORPORATION",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "DE0006459324",
+    "mic": "XETB",
+    "currency": "EUR",
+    "producto": "LANG & SCHWARZ AG",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "US74019L5030",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "PRECIPIO INC. - COMMON STOCK",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "CA68620P1018",
+    "mic": "CDED",
+    "currency": "USD",
+    "producto": "ORGANIGRAM HOLDINGS INC. - COMMON SHARES",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "CA68620P1018",
+    "mic": "MSPL",
+    "currency": "USD",
+    "producto": "ORGANIGRAM HOLDINGS INC. - COMMON SHARES",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "CA68620P1018",
+    "mic": "ARCX",
+    "currency": "USD",
+    "producto": "ORGANIGRAM HOLDINGS INC. - COMMON SHARES",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "CA68620P1018",
+    "mic": "IEXG",
+    "currency": "USD",
+    "producto": "ORGANIGRAM HOLDINGS INC. - COMMON SHARES",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "CA68620P1018",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "ORGANIGRAM HOLDINGS INC. - COMMON SHARES",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "CA68620P1018",
+    "mic": "XNYS",
+    "currency": "USD",
+    "producto": "ORGANIGRAM HOLDINGS INC. - COMMON SHARES",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "CA68620P1018",
+    "mic": "EDGX",
+    "currency": "USD",
+    "producto": "ORGANIGRAM HOLDINGS INC. - COMMON SHARES",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "CA68620P1018",
+    "mic": "BATS",
+    "currency": "USD",
+    "producto": "ORGANIGRAM HOLDINGS INC. - COMMON SHARES",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "US05366U1007",
+    "mic": "XNAS",
+    "currency": "USD",
+    "producto": "AVEXIS INC. - COMMON",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  },
+  {
+    "isin": "US05366U1007",
+    "mic": "BATY",
+    "currency": "USD",
+    "producto": "AVEXIS INC. - COMMON",
+    "ticker": null,
+    "exchange": null,
+    "name": null,
+    "success": false
+  }
+]
