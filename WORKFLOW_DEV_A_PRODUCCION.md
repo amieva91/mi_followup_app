@@ -1,9 +1,23 @@
 # 🔄 WORKFLOW: Desarrollo → Producción
 
-**Actualizado**: 21 Octubre 2025 - 22:00 UTC  
+**Actualizado**: 2 Noviembre 2025 - 20:20 UTC  
 **Estado**: ✅ WORKFLOW VALIDADO Y FUNCIONANDO
 
-**Último deploy**: Pendiente - Sprint 3 v3.3.4 (MappingRegistry + Fixes de Estabilidad)
+**Último deploy**: Pendiente - Sprint 3 v3.3.5 (Fix Crítico: DeGiro Dividendos/Fees sin Fecha)
+
+**Cambios en v3.3.5 (CRÍTICO)**:
+- ✅ **FIX CRÍTICO**: Soporte para `datetime.date` en `parse_datetime()`
+- ✅ **Impacto**: 407 transacciones DeGiro ahora se importan correctamente (antes: 0)
+  - 158 dividendos ✅
+  - 169 fees (comisiones) ✅
+  - 9 depósitos ✅
+  - 71 retiros ✅
+- ✅ Fallback de seguridad en DeGiro parser para fechas
+- ✅ **Tooltip AssetRegistry**: Movido al encabezado de columna "⚠️ Estado" (antes estaba en cada badge)
+- ✅ **Filtro "Solo sin enriquecer"**: Corregido para usar `is_enriched == False` (antes: `symbol IS NULL OR mic IS NULL`)
+- ✅ Documentación completa de los fixes:
+  - `FIX_DEGIRO_DIVIDENDOS_SIN_FECHA.md`
+  - `FIX_ASSETREGISTRY_TOOLTIP_Y_FILTRO.md`
 
 **Cambios en v3.3.4**:
 - ✅ Nuevo modelo `MappingRegistry` (mapeos editables desde web)

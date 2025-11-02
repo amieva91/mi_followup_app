@@ -488,15 +488,10 @@ def asset_registry():
             )
         )
     
-    # Filtro: Solo sin enriquecer (condiciones unificadas: sin symbol O sin MIC)
+    # Filtro: Solo sin enriquecer (is_enriched == False, es decir, sin symbol)
     unenriched_only = request.args.get('unenriched_only', '').strip()
     if unenriched_only:
-        query = query.filter(
-            db.or_(
-                AssetRegistry.symbol.is_(None),
-                AssetRegistry.mic.is_(None)
-            )
-        )
+        query = query.filter(AssetRegistry.is_enriched == False)
     
     # Ordenamiento
     sort_by = request.args.get('sort_by', 'created_at').strip()

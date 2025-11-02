@@ -1094,5 +1094,102 @@ egistry_reused\, \enrichment_needed\, \enrichment_success\, \enrichment_failed
 
 ---
 
-**Próximo paso**: Deploy a producción v3.3.4 + Sprint 4 (Calculadora de Métricas)
+### ✅ HITO 11: Fix Crítico - DeGiro Dividendos/Fees sin Fecha (v3.3.5 - 2 Nov 2025)
+
+**Estado**: ✅ COMPLETADO
+
+**Objetivo**: Resolver problema crítico donde TODAS las transacciones de DeGiro (dividendos, fees, depósitos, retiros) eran rechazadas con "sin fecha".
+
+**Problema Detectado**:
+```bash
+⚠️  ADVERTENCIA: Dividendo sin fecha para ES0109067019 - AMADEUS IT GROUP - Saltado
+⚠️  ADVERTENCIA: Fee sin fecha (Apalancamiento DeGiro) - Saltado
+⚠️  ADVERTENCIA: Depósito sin fecha - Saltado
+⚠️  ADVERTENCIA: Retiro sin fecha - Saltado
+```
+
+**Resultado**: 0 de 407 transacciones importadas (158 dividendos, 169 fees, 9 depósitos, 71 retiros)
+
+**Causa Raíz**:
+La función `parse_datetime()` en `importer_v2.py` solo manejaba:
+- Objetos `datetime` (con hora): `datetime(2018, 2, 1, 10, 42, 0)`
+- Strings en formato ISO: `"2018-02-01"`
+
+Pero **NO** manejaba objetos `datetime.date` (sin hora): `date(2018, 2, 1)`
+
+El parser de DeGiro devolvía fechas como `datetime.date`, causando que `parse_datetime()` fallara y devolviera `None`.
+
+**Solución**:
+
+#### **1. Soporte para `datetime.date` en `parse_datetime()`**
+```python
+# Si es date (sin hora), convertir a datetime con hora 00:00:00
+if isinstance(date_value, date):
+    return datetime.combine(date_value, datetime.min.time())
+```
+
+**IMPORTANTE**: El check de `isinstance(date_value, date)` debe ir **DESPUÉS** del check de `datetime`, porque `datetime` hereda de `date`.
+
+**Archivo**: `app/services/importer_v2.py` (líneas 16-52)
+
+#### **2. Fallback de Seguridad en DeGiro Parser**
+```python
+# Fallback: Si fecha_str es None, extraer de fecha_hora_ref
+if not fecha_str and fecha_hora_ref:
+    fecha_str = fecha_hora_ref.date()
+elif not fecha_str:
+    # Sin fecha válida, saltar este dividendo
+    return
+```
+
+**Archivo**: `app/services/parsers/degiro_parser.py` (líneas 450-455)
+
+**Resultado**:
+```bash
+📊 DEBUG: Importación completada. Stats: {
+    'dividends_created': 158,  ✅
+    'fees_created': 169,       ✅
+    'deposits_created': 9,     ✅
+    'withdrawals_created': 71  ✅
+}
+✅ 407 transacciones importadas correctamente
+```
+
+**Impacto**: Fix crítico que habilita la importación completa del CSV "Estado de Cuenta" de DeGiro.
+
+**Documentación Completa**: Ver `FIX_DEGIRO_DIVIDENDOS_SIN_FECHA.md`
+
+#### **Correcciones Adicionales (mismo deploy v3.3.5)**
+
+**3. Tooltip AssetRegistry en lugar incorrecto**
+**Problema**: Tooltip aparecía en cada badge "⚠️ Pendiente" individual, en lugar del encabezado de columna.
+
+**Solución**: Tooltip movido al encabezado `<th>` "⚠️ Estado" con icono ℹ️, eliminado de badges individuales.
+
+**Archivo**: `app/templates/portfolio/asset_registry.html` (líneas 113-122, 196-198)
+
+**4. Filtro "Solo sin enriquecer" incorrecto**
+**Problema**: Assets enriquecidos (como ASTS con symbol="ASTS") aparecían al filtrar "Solo sin enriquecer" porque el filtro era `symbol IS NULL OR mic IS NULL`, y ASTS no tiene MIC.
+
+**Causa**: El MIC es opcional, pero el filtro lo trataba como obligatorio.
+
+**Solución**: 
+```python
+# ANTES: Filtraba por symbol IS NULL OR mic IS NULL
+query = query.filter(db.or_(
+    AssetRegistry.symbol.is_(None),
+    AssetRegistry.mic.is_(None)
+))
+
+# DESPUÉS: Filtra solo por is_enriched == False (sin symbol)
+query = query.filter(AssetRegistry.is_enriched == False)
+```
+
+**Archivo**: `app/routes/portfolio.py` (líneas 491-494)
+
+**Documentación Completa**: Ver `FIX_ASSETREGISTRY_TOOLTIP_Y_FILTRO.md`
+
+---
+
+**Próximo paso**: Deploy a producción v3.3.5 + Sprint 4 (Calculadora de Métricas)
 

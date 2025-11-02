@@ -15,19 +15,26 @@ from app.services.asset_registry_service import AssetRegistryService
 
 def parse_datetime(date_value: Union[str, datetime, None]) -> Union[datetime, None]:
     """
-    Convierte una fecha (string o datetime) a objeto datetime.
+    Convierte una fecha (string, datetime, o date) a objeto datetime.
     
     Args:
-        date_value: Fecha como string ISO, objeto datetime, o None
+        date_value: Fecha como string ISO, objeto datetime, objeto date, o None
     
     Returns:
         Objeto datetime o None
     """
+    from datetime import date
+    
     if date_value is None:
         return None
     
+    # Si ya es datetime, retornar tal cual
     if isinstance(date_value, datetime):
         return date_value
+    
+    # Si es date (sin hora), convertir a datetime con hora 00:00:00
+    if isinstance(date_value, date):
+        return datetime.combine(date_value, datetime.min.time())
     
     if isinstance(date_value, str):
         # Intentar parsear ISO format (YYYY-MM-DDTHH:MM:SS o YYYY-MM-DD)
@@ -441,6 +448,11 @@ class CSVImporterV2:
             div_date_raw = div_data.get('date') or div_data.get('date_time')
             div_date = parse_datetime(div_date_raw)
             
+            # VALIDACIÓN CRÍTICA: Saltar si no hay fecha válida
+            if not div_date:
+                print(f"   ⚠️  ADVERTENCIA: Dividendo sin fecha para {div_data.get('isin')} - {div_data.get('name')} - Saltado")
+                continue
+            
             transaction = Transaction(
                 user_id=self.user_id,
                 account_id=self.broker_account_id,
@@ -470,6 +482,11 @@ class CSVImporterV2:
             fee_date_raw = fee_data.get('date') or fee_data.get('date_time')
             fee_date = parse_datetime(fee_date_raw)
             
+            # VALIDACIÓN CRÍTICA: Saltar si no hay fecha válida
+            if not fee_date:
+                print(f"   ⚠️  ADVERTENCIA: Fee sin fecha ({fee_data.get('description', 'sin descripción')}) - Saltado")
+                continue
+            
             transaction = Transaction(
                 user_id=self.user_id,
                 account_id=self.broker_account_id,
@@ -495,6 +512,11 @@ class CSVImporterV2:
             deposit_date_raw = deposit_data.get('date') or deposit_data.get('date_time')
             deposit_date = parse_datetime(deposit_date_raw)
             
+            # VALIDACIÓN CRÍTICA: Saltar si no hay fecha válida
+            if not deposit_date:
+                print(f"   ⚠️  ADVERTENCIA: Depósito sin fecha - Saltado")
+                continue
+            
             transaction = Transaction(
                 user_id=self.user_id,
                 account_id=self.broker_account_id,
@@ -517,6 +539,11 @@ class CSVImporterV2:
             # Determinar fecha (con fallback) y convertir a datetime
             withdrawal_date_raw = withdrawal_data.get('date') or withdrawal_data.get('date_time')
             withdrawal_date = parse_datetime(withdrawal_date_raw)
+            
+            # VALIDACIÓN CRÍTICA: Saltar si no hay fecha válida
+            if not withdrawal_date:
+                print(f"   ⚠️  ADVERTENCIA: Retiro sin fecha - Saltado")
+                continue
             
             transaction = Transaction(
                 user_id=self.user_id,

@@ -2,8 +2,8 @@
 
 **Fecha de inicio**: 5 Octubre 2025  
 **Timeline**: 6 meses (26 semanas)  
-**Última actualización**: 21 Octubre 2025 - 22:00 UTC  
-**Estado actual**: ✅ Sprint 0, 1, 2, 3 COMPLETADOS (v3.3.4) - AssetRegistry + MappingRegistry + Fixes de estabilidad
+**Última actualización**: 2 Noviembre 2025 - 20:20 UTC  
+**Estado actual**: ✅ Sprint 0, 1, 2, 3 COMPLETADOS (v3.3.5) - Fix Crítico: DeGiro Dividendos/Fees/Deposits/Withdrawals
 
 ## 🎉 PROGRESO RECIENTE
 
@@ -107,6 +107,15 @@
   - **Botones funcionales**: OpenFIGI/Yahoo en edición de transacciones ahora funcionan
   - **Validación de campos**: JavaScript verifica existencia antes de actualizar
   - **Feedback mejorado**: Banners detallados con información completa del enriquecimiento
+- ✅ HITO 11: **Fix Crítico - DeGiro Dividendos/Fees sin Fecha** (v3.3.5 - 2 Nov)
+  - **Problema**: TODAS las transacciones del CSV "Estado de Cuenta" de DeGiro eran rechazadas (158 dividendos, 169 fees, 9 depósitos, 71 retiros)
+  - **Causa**: `parse_datetime()` no manejaba objetos `datetime.date` (solo `datetime` y strings)
+  - **Solución**: Soporte para `datetime.date` → conversión a `datetime` con hora 00:00:00
+  - **Resultado**: ✅ 407 transacciones importadas correctamente
+  - **Impacto**: Fix crítico que habilita la importación completa de DeGiro
+  - **Fixes adicionales**:
+    - Tooltip AssetRegistry movido al encabezado "⚠️ Estado" (UX mejorada)
+    - Filtro "Solo sin enriquecer" corregido: `is_enriched == False` (antes filtraba también por `mic IS NULL`)
 - ✅ MEJORAS FINALES:
   - **FIFO robusto** con posiciones cortas temporales
   - Parser completo DeGiro (Transacciones + Estado de Cuenta)

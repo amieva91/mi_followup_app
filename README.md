@@ -2,7 +2,7 @@
 
 Sistema completo de gestión financiera personal.
 
-## ✅ Estado Actual (21 Oct 2025)
+## ✅ Estado Actual (2 Nov 2025)
 
 **Funcionalidades Implementadas:**
 - ✅ **Sprint 0 - Arquitectura Base** - Configuración inicial, estructura modular
@@ -13,13 +13,13 @@ Sistema completo de gestión financiera personal.
   - Generación automática de instancias históricas
   - Edición y eliminación de series completas
   - Emoji picker interactivo
-- ✅ **Sprint 3 - CSV Processor & Portfolio Management** 
+- ✅ **Sprint 3 - CSV Processor & Portfolio Management** (v3.3.5)
   - Base de datos completa (9 modelos: 8 portfolio + AssetRegistry global)
   - CRUD de cuentas de broker con eliminación destructiva
   - Entrada manual de transacciones (BUY/SELL/DIVIDEND/FEE/DEPOSIT/WITHDRAWAL)
   - Parser CSV para IBKR (formato jerárquico + extracción ISIN)
   - Parser CSV para DeGiro Transacciones (lectura por índices, monedas correctas)
-  - Parser CSV para DeGiro Estado de Cuenta (dividendos/comisiones/FX)
+  - Parser CSV para DeGiro Estado de Cuenta (dividendos/comisiones/FX) **[Fixed v3.3.5]**
   - Consolidación unificada de dividendos (3-4 líneas relacionadas)
   - **AssetRegistry - Base de datos global compartida**:
     - Cache de mapeos ISIN → Symbol, Exchange, MIC, Yahoo Suffix

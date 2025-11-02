@@ -26,6 +26,11 @@
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         }
+        
+        /* Alpine.js cloak - Ocultar elementos hasta que Alpine esté listo */
+        [x-cloak] {
+            display: none !important;
+        }
     </style>
     
     {% block extra_css %}{% endblock %}
@@ -56,14 +61,14 @@
                             </a>
                             
                             <!-- Dropdown Gastos -->
-                            <div class="relative" x-data="{ open: false }">
-                                <button @click="open = !open" class="hover:text-blue-200 transition flex items-center space-x-1">
+                            <div class="relative" x-data="{ open: false }" @click.outside="open = false">
+                                <button @click.stop="open = !open" class="hover:text-blue-200 transition flex items-center space-x-1">
                                     <span>💸 Gastos</span>
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                                     </svg>
                                 </button>
-                                <div x-show="open" @click.away="open = false" x-transition 
+                                <div x-show="open" @click.outside="open = false" x-cloak x-transition 
                                      class="absolute left-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2 z-50">
                                     <a href="{{ url_for('expenses.list') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
                                         📋 Ver Gastos
@@ -78,14 +83,14 @@
                             </div>
                             
                             <!-- Dropdown Ingresos -->
-                            <div class="relative" x-data="{ open: false }">
-                                <button @click="open = !open" class="hover:text-blue-200 transition flex items-center space-x-1">
+                            <div class="relative" x-data="{ open: false }" @click.outside="open = false">
+                                <button @click.stop="open = !open" class="hover:text-blue-200 transition flex items-center space-x-1">
                                     <span>💵 Ingresos</span>
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                                     </svg>
                                 </button>
-                                <div x-show="open" @click.away="open = false" x-transition 
+                                <div x-show="open" @click.outside="open = false" x-cloak x-transition 
                                      class="absolute left-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2 z-50">
                                     <a href="{{ url_for('incomes.list') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
                                         📋 Ver Ingresos
@@ -100,14 +105,14 @@
                             </div>
                             
                             <!-- Dropdown Portfolio -->
-                            <div class="relative" x-data="{ open: false }">
-                                <button @click="open = !open" class="hover:text-blue-200 transition flex items-center space-x-1">
+                            <div class="relative" x-data="{ open: false }" @click.outside="open = false">
+                                <button @click.stop="open = !open" class="hover:text-blue-200 transition flex items-center space-x-1">
                                     <span>📊 Portfolio</span>
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                                     </svg>
                                 </button>
-                                <div x-show="open" @click.away="open = false" x-transition 
+                                <div x-show="open" @click.outside="open = false" x-cloak x-transition 
                                      class="absolute left-0 mt-2 w-56 bg-white rounded-lg shadow-lg py-2 z-50">
                                     <a href="{{ url_for('portfolio.dashboard') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
                                         📊 Dashboard

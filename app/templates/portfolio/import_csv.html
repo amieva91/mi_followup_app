@@ -139,7 +139,7 @@
                 <a href="{{ url_for('portfolio.dashboard') }}" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-2 rounded-lg">
                     Cancelar
                 </a>
-                <button type="submit" 
+                <button type="submit" id="importButton"
                         class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium"
                         {% if not accounts %}disabled{% endif %}>
                     🚀 Importar CSV
@@ -236,6 +236,20 @@ function showFileNames(input) {
         fileNamesElement.innerHTML = html;
     }
 }
+
+// Interceptar click en botón de importar para abrir selector si no hay archivos
+document.getElementById('importButton').addEventListener('click', function(e) {
+    const fileInput = document.getElementById('csv_files');
+    
+    // Si no hay archivos seleccionados, abrir el selector
+    if (fileInput.files.length === 0) {
+        e.preventDefault();
+        fileInput.click();
+        return false;
+    }
+    
+    // Si hay archivos, dejar que el form se envíe normalmente
+});
 
 // Interceptar submit del formulario
 document.getElementById('csvForm').addEventListener('submit', async function(e) {

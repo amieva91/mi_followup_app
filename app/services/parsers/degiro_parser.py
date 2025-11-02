@@ -257,6 +257,11 @@ class DeGiroParser:
             except:
                 return
         
+        # DEBUG: Verificar si _parse_date falla
+        fecha_parsed = self._parse_date(fecha)
+        if not fecha_parsed:
+            print(f"   🐛 DEBUG: _parse_date() devolvió None para fecha='{fecha}' (len={len(fecha)})")
+        
         self.dividend_related_rows.append({
             'fecha_hora': fecha_hora,
             'isin': isin,
@@ -264,7 +269,7 @@ class DeGiroParser:
             'description': description,
             'currency': currency,
             'amount': amount_value,  # Puede ser positivo o negativo
-            'fecha_str': self._parse_date(fecha)
+            'fecha_str': fecha_parsed
         })
     
     def _store_dividend_for_consolidation(self, row: Dict[str, str]):
@@ -441,6 +446,13 @@ class DeGiroParser:
         currency = grupo[0]['currency']
         fecha_str = grupo[0]['fecha_str']
         fecha_hora_ref = grupo[0]['fecha_hora']
+        
+        # Fallback: Si fecha_str es None, extraer de fecha_hora_ref
+        if not fecha_str and fecha_hora_ref:
+            fecha_str = fecha_hora_ref.date()
+        elif not fecha_str:
+            # Sin fecha válida, saltar este dividendo
+            return
         
         # Sumar todos los montos (positivos y negativos)
         total_gross = Decimal('0')
@@ -647,13 +659,16 @@ class DeGiroParser:
     def _parse_date(self, date_str: str):
         """Parsea fecha de DeGiro a objeto datetime.date"""
         if not date_str or date_str.strip() == '':
+            print(f"   🐛 _parse_date: date_str vacío o None: '{date_str}'")
             return None
         
         try:
             # Formato: "05-10-2025"
             dt = datetime.strptime(date_str.strip(), "%d-%m-%Y")
-            return dt.date()  # ← Devuelve datetime.date object
-        except:
+            result = dt.date()
+            return result  # ← Devuelve datetime.date object
+        except Exception as e:
+            print(f"   🐛 _parse_date: Error parseando '{date_str}': {e}")
             return None
     
     def _parse_datetime(self, date_str: str, time_str: str):
