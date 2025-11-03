@@ -94,10 +94,10 @@ class PriceUpdater:
                 else:
                     failed += 1
                 
-                # Delay para evitar rate limiting (0.5 seg entre peticiones)
+                # Delay para evitar rate limiting (1.5 seg entre peticiones)
                 # Solo si no es el último activo
                 if idx < len(assets) - 1:
-                    time.sleep(0.5)
+                    time.sleep(1.5)
             
             except Exception as e:
                 failed += 1
