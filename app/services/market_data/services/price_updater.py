@@ -10,6 +10,11 @@ from app import db
 from app.models.asset import Asset
 from app.services.market_data.exceptions import PriceUpdateException
 
+# Logging para debug
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 
 class PriceUpdater:
     """
@@ -64,6 +69,7 @@ class PriceUpdater:
             assets = Asset.query.filter(Asset.id.in_(asset_ids_with_holdings)).all()
         
         if not assets:
+            logger.info("⚠️ No hay activos para actualizar")
             return {
                 'total': 0,
                 'success': 0,
@@ -78,37 +84,73 @@ class PriceUpdater:
         failed = 0
         skipped = 0
         
+        logger.info("=" * 80)
+        logger.info(f"🔄 INICIANDO ACTUALIZACIÓN DE PRECIOS")
+        logger.info(f"📊 Total de activos a procesar: {total}")
+        logger.info("=" * 80)
+        
         for idx, asset in enumerate(assets):
+            logger.info(f"\n{'='*60}")
+            logger.info(f"📈 [{idx+1}/{total}] Procesando: {asset.symbol or asset.name}")
+            logger.info(f"   ISIN: {asset.isin}")
+            logger.info(f"   Yahoo Ticker: {asset.yahoo_ticker or 'N/A'}")
+            
             try:
                 # Verificar que tenga ticker válido
                 if not asset.yahoo_ticker:
                     skipped += 1
+                    logger.warning(f"   ⚠️ OMITIDO: Sin ticker de Yahoo Finance")
                     self.warnings.append(f"❌ {asset.symbol or asset.name}: Sin ticker de Yahoo Finance")
                     continue
                 
+                logger.info(f"   🔍 Consultando Yahoo Finance: {asset.yahoo_ticker}")
+                
                 # Obtener datos de Yahoo Finance
+                start_time = time.time()
                 success_update = self._update_single_asset(asset)
+                elapsed = time.time() - start_time
                 
                 if success_update:
                     success += 1
+                    logger.info(f"   ✅ ÉXITO (en {elapsed:.2f}s)")
+                    if asset.current_price:
+                        logger.info(f"   💰 Precio actualizado: {asset.current_price} {asset.currency}")
+                        if asset.day_change_percent:
+                            logger.info(f"   📊 Cambio del día: {asset.day_change_percent:+.2f}%")
                 else:
                     failed += 1
+                    logger.error(f"   ❌ FALLÓ (en {elapsed:.2f}s)")
                 
                 # Delay para evitar rate limiting (1.5 seg entre peticiones)
                 # Solo si no es el último activo
                 if idx < len(assets) - 1:
+                    logger.info(f"   ⏳ Esperando 1.5s antes del siguiente...")
                     time.sleep(1.5)
             
             except Exception as e:
                 failed += 1
-                self.errors.append(f"❌ {asset.symbol or asset.name}: {str(e)}")
+                error_msg = str(e)
+                logger.error(f"   ❌ ERROR: {error_msg}")
+                self.errors.append(f"❌ {asset.symbol or asset.name}: {error_msg}")
         
         # Commit de todos los cambios
+        logger.info("\n" + "=" * 80)
+        logger.info("💾 Guardando cambios en base de datos...")
         try:
             db.session.commit()
+            logger.info("✅ Cambios guardados correctamente")
         except Exception as e:
+            logger.error(f"❌ Error al guardar: {str(e)}")
             db.session.rollback()
             raise PriceUpdateException(f"Error al guardar precios: {str(e)}")
+        
+        # Resumen final
+        logger.info("\n" + "=" * 80)
+        logger.info("📊 RESUMEN FINAL:")
+        logger.info(f"   ✅ Exitosos: {success}/{total}")
+        logger.info(f"   ❌ Fallidos: {failed}/{total}")
+        logger.info(f"   ⚠️ Omitidos: {skipped}/{total}")
+        logger.info("=" * 80)
         
         return {
             'total': total,
@@ -127,10 +169,16 @@ class PriceUpdater:
             True si se actualizó correctamente, False en caso contrario
         """
         try:
+            logger.debug(f"      Creando objeto Ticker para {asset.yahoo_ticker}")
             ticker = yf.Ticker(asset.yahoo_ticker)
+            
+            logger.debug(f"      Obteniendo info...")
             info = ticker.info
             
+            logger.debug(f"      Info obtenida: {len(info)} campos")
+            
             if not info or 'regularMarketPrice' not in info:
+                logger.warning(f"      ⚠️ Info vacía o sin precio (keys: {list(info.keys())[:5]}...)")
                 self.errors.append(f"❌ {asset.symbol}: No se encontraron datos en Yahoo Finance")
                 return False
             
