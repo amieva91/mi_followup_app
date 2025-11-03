@@ -12,7 +12,10 @@ from app.services.market_data.exceptions import PriceUpdateException
 
 # Logging para debug
 import logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 
@@ -170,16 +173,33 @@ class PriceUpdater:
         """
         try:
             logger.debug(f"      Creando objeto Ticker para {asset.yahoo_ticker}")
-            ticker = yf.Ticker(asset.yahoo_ticker)
+            try:
+                ticker = yf.Ticker(asset.yahoo_ticker)
+                logger.debug(f"      ✓ Ticker creado exitosamente")
+            except Exception as ticker_error:
+                logger.error(f"      ❌ Error al crear Ticker: {ticker_error}")
+                raise
             
             logger.debug(f"      Obteniendo info...")
-            info = ticker.info
+            try:
+                info = ticker.info
+                logger.debug(f"      ✓ Info obtenida: {len(info)} campos")
+            except Exception as info_error:
+                logger.error(f"      ❌ Error al obtener info: {type(info_error).__name__}: {info_error}")
+                raise
             
-            logger.debug(f"      Info obtenida: {len(info)} campos")
+            # Mostrar las primeras 10 keys del info para debugging
+            logger.debug(f"      Primeras keys en info: {list(info.keys())[:10]}")
             
-            if not info or 'regularMarketPrice' not in info:
-                logger.warning(f"      ⚠️ Info vacía o sin precio (keys: {list(info.keys())[:5]}...)")
+            if not info:
+                logger.warning(f"      ⚠️ Info está vacío!")
                 self.errors.append(f"❌ {asset.symbol}: No se encontraron datos en Yahoo Finance")
+                return False
+            
+            if 'regularMarketPrice' not in info and 'currentPrice' not in info:
+                logger.warning(f"      ⚠️ No se encontró precio en info")
+                logger.warning(f"      Keys disponibles: {', '.join(list(info.keys())[:20])}")
+                self.errors.append(f"❌ {asset.symbol}: No se encontró precio en los datos")
                 return False
             
             # PRECIOS Y CAMBIOS
@@ -228,7 +248,16 @@ class PriceUpdater:
             return True
         
         except Exception as e:
-            self.errors.append(f"❌ {asset.symbol or asset.name}: {str(e)}")
+            import traceback
+            error_detail = traceback.format_exc()
+            logger.error(f"      ❌ EXCEPCIÓN CAPTURADA:")
+            logger.error(f"      Tipo: {type(e).__name__}")
+            logger.error(f"      Mensaje: {str(e)}")
+            logger.error(f"      Traceback completo:")
+            for line in error_detail.split('\n'):
+                if line.strip():
+                    logger.error(f"         {line}")
+            self.errors.append(f"❌ {asset.symbol}: {str(e)}")
             return False
     
     def _safe_get_float(self, data: dict, key: str) -> Optional[float]:
