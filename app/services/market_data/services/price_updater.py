@@ -5,6 +5,7 @@ Sprint 3 Final - Real-time Prices
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 import time
+import requests
 import yfinance as yf
 from app import db
 from app.models.asset import Asset
@@ -17,6 +18,13 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Configurar User-Agent para evitar bloqueos de Yahoo Finance
+import requests
+yf.session = requests.Session()
+yf.session.headers.update({
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+})
 
 
 class PriceUpdater:
@@ -124,11 +132,11 @@ class PriceUpdater:
                     failed += 1
                     logger.error(f"   ❌ FALLÓ (en {elapsed:.2f}s)")
                 
-                # Delay para evitar rate limiting (1.5 seg entre peticiones)
+                # Delay para evitar rate limiting (0.5 seg entre peticiones)
                 # Solo si no es el último activo
                 if idx < len(assets) - 1:
-                    logger.info(f"   ⏳ Esperando 1.5s antes del siguiente...")
-                    time.sleep(1.5)
+                    logger.info(f"   ⏳ Esperando 0.5s antes del siguiente...")
+                    time.sleep(0.5)
             
             except Exception as e:
                 failed += 1
@@ -166,84 +174,90 @@ class PriceUpdater:
     
     def _update_single_asset(self, asset: Asset) -> bool:
         """
-        Actualiza un solo activo con datos de Yahoo Finance.
+        Actualiza un solo activo con datos de Yahoo Finance usando la Chart API directa.
         
         Returns:
             True si se actualizó correctamente, False en caso contrario
         """
         try:
-            logger.debug(f"      Creando objeto Ticker para {asset.yahoo_ticker}")
+            logger.debug(f"      Consultando Chart API para {asset.yahoo_ticker}")
+            
+            # Usar API directa en vez de yfinance.info (evita problemas con crumbs/cookies)
+            url = f"https://query1.finance.yahoo.com/v8/finance/chart/{asset.yahoo_ticker}"
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+            
             try:
-                ticker = yf.Ticker(asset.yahoo_ticker)
-                logger.debug(f"      ✓ Ticker creado exitosamente")
-            except Exception as ticker_error:
-                logger.error(f"      ❌ Error al crear Ticker: {ticker_error}")
+                response = requests.get(url, headers=headers, timeout=10)
+                response.raise_for_status()
+                logger.debug(f"      ✓ Respuesta recibida: {response.status_code}")
+            except requests.exceptions.HTTPError as http_error:
+                logger.error(f"      ❌ Error HTTP: {http_error}")
+                if response.status_code == 404:
+                    self.errors.append(f"❌ {asset.symbol}: Símbolo no encontrado en Yahoo Finance")
+                else:
+                    self.errors.append(f"❌ {asset.symbol}: Error HTTP {response.status_code}")
+                return False
+            except Exception as req_error:
+                logger.error(f"      ❌ Error en request: {req_error}")
                 raise
             
-            logger.debug(f"      Obteniendo info...")
+            # Parsear respuesta JSON
             try:
-                info = ticker.info
-                logger.debug(f"      ✓ Info obtenida: {len(info)} campos")
-            except Exception as info_error:
-                logger.error(f"      ❌ Error al obtener info: {type(info_error).__name__}: {info_error}")
-                raise
-            
-            # Mostrar las primeras 10 keys del info para debugging
-            logger.debug(f"      Primeras keys en info: {list(info.keys())[:10]}")
-            
-            if not info:
-                logger.warning(f"      ⚠️ Info está vacío!")
-                self.errors.append(f"❌ {asset.symbol}: No se encontraron datos en Yahoo Finance")
+                data = response.json()
+                logger.debug(f"      ✓ JSON parseado correctamente")
+            except Exception as json_error:
+                logger.error(f"      ❌ Error al parsear JSON: {json_error}")
+                self.errors.append(f"❌ {asset.symbol}: Respuesta inválida de Yahoo Finance")
                 return False
             
-            if 'regularMarketPrice' not in info and 'currentPrice' not in info:
-                logger.warning(f"      ⚠️ No se encontró precio en info")
-                logger.warning(f"      Keys disponibles: {', '.join(list(info.keys())[:20])}")
-                self.errors.append(f"❌ {asset.symbol}: No se encontró precio en los datos")
+            # Verificar si hay error en la respuesta
+            if data.get('chart', {}).get('error'):
+                error_msg = data['chart']['error'].get('description', 'Error desconocido')
+                logger.warning(f"      ⚠️ Error de API: {error_msg}")
+                self.errors.append(f"❌ {asset.symbol}: {error_msg}")
                 return False
             
-            # PRECIOS Y CAMBIOS
-            asset.current_price = self._safe_get_float(info, 'regularMarketPrice') or \
-                                 self._safe_get_float(info, 'currentPrice')
-            asset.previous_close = self._safe_get_float(info, 'previousClose') or \
-                                   self._safe_get_float(info, 'regularMarketPreviousClose')
+            # Extraer datos del chart
+            if not data.get('chart', {}).get('result'):
+                logger.warning(f"      ⚠️ Sin resultados en chart")
+                self.errors.append(f"❌ {asset.symbol}: No hay datos disponibles")
+                return False
+            
+            result = data['chart']['result'][0]
+            meta = result.get('meta', {})
+            
+            logger.debug(f"      Meta keys disponibles: {list(meta.keys())}")
+            
+            # Verificar que tengamos precio
+            if 'regularMarketPrice' not in meta:
+                logger.warning(f"      ⚠️ No se encontró precio en meta")
+                self.errors.append(f"❌ {asset.symbol}: No se encontró precio")
+                return False
+            
+            # PRECIOS Y CAMBIOS (desde Chart API)
+            asset.current_price = self._safe_get_float(meta, 'regularMarketPrice')
+            asset.previous_close = self._safe_get_float(meta, 'chartPreviousClose') or \
+                                   self._safe_get_float(meta, 'previousClose')
             
             # Calcular cambio del día
             if asset.current_price and asset.previous_close and asset.previous_close > 0:
                 change = asset.current_price - asset.previous_close
                 asset.day_change_percent = (change / asset.previous_close) * 100
+                logger.debug(f"      ✓ Precio: {asset.current_price}, Cambio: {asset.day_change_percent:+.2f}%")
             else:
                 asset.day_change_percent = None
             
-            # VALORACIÓN
-            asset.market_cap = self._safe_get_float(info, 'marketCap')
-            if asset.market_cap:
-                asset.market_cap_formatted = self._format_market_cap(asset.market_cap)
-                # Convertir a EUR
-                rate = self.EXCHANGE_RATES_TO_EUR.get(asset.currency, 1.0)
-                asset.market_cap_eur = asset.market_cap * rate
-            
-            asset.trailing_pe = self._safe_get_float(info, 'trailingPE')
-            asset.forward_pe = self._safe_get_float(info, 'forwardPE')
-            
-            # INFORMACIÓN CORPORATIVA
-            asset.sector = info.get('sector')
-            asset.industry = info.get('industry')
-            
-            # RIESGO Y RENDIMIENTO
-            asset.beta = self._safe_get_float(info, 'beta')
-            asset.dividend_rate = self._safe_get_float(info, 'dividendRate')
-            asset.dividend_yield = self._safe_get_float(info, 'dividendYield')
-            if asset.dividend_yield:
-                asset.dividend_yield = asset.dividend_yield * 100  # Convertir a porcentaje
-            
-            # ANÁLISIS DE MERCADO
-            asset.recommendation_key = info.get('recommendationKey')
-            asset.number_of_analyst_opinions = info.get('numberOfAnalystOpinions')
-            asset.target_mean_price = self._safe_get_float(info, 'targetMeanPrice')
-            
             # Actualizar timestamp
             asset.last_price_update = datetime.utcnow()
+            
+            # NOTA: La Chart API solo proporciona precios básicos
+            # Para datos avanzados (PE, sector, dividends, etc.), se necesitaría
+            # hacer una llamada adicional a quoteSummary API, que actualmente
+            # está siendo bloqueada. Por ahora, solo actualizamos precios.
+            
+            logger.debug(f"      ✓ Asset actualizado correctamente")
             
             return True
         
