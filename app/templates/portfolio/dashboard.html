@@ -12,6 +12,16 @@
             <p class="text-gray-600 mt-1">Vista general de tus inversiones</p>
         </div>
         <div class="flex gap-3">
+            <!-- Botón Actualizar Precios (Sprint 3 Final) -->
+            <form method="POST" action="{{ url_for('portfolio.update_prices') }}" class="inline">
+                {{ csrf_input }}
+                <button type="submit" class="btn-secondary flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                    🔄 Actualizar Precios
+                </button>
+            </form>
             <a href="{{ url_for('portfolio.account_new') }}" class="btn-secondary">
                 🏦 Nueva Cuenta
             </a>
@@ -22,7 +32,7 @@
     </div>
 
     <!-- Resumen General -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-4">
         <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-blue-500">
             <div class="text-sm text-gray-600 mb-1">Valor Total</div>
             <div class="text-2xl font-bold text-gray-900">
@@ -51,6 +61,13 @@
             </div>
         </div>
     </div>
+    
+    <!-- Última actualización de precios -->
+    {% if last_price_update %}
+    <div class="text-xs text-gray-500 text-right mb-8">
+        📡 Última actualización: {{ last_price_update.strftime('%d/%m/%Y %H:%M') }}
+    </div>
+    {% endif %}
 
     <!-- Navegación de Cuentas -->
     {% if accounts %}
@@ -97,6 +114,7 @@
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cuenta</th>
                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Cantidad</th>
                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Precio Medio</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Precio Actual</th>
                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Coste Total</th>
                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Valor Actual</th>
                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">P&L</th>
@@ -132,14 +150,44 @@
                         <td class="px-4 py-3 text-right text-sm text-gray-900">
                             {{ holding.average_buy_price|decimal_eu(2) }} {{ holding.asset.currency }}
                         </td>
+                        <td class="px-4 py-3 text-right text-sm">
+                            {% if holding.asset.current_price %}
+                                <div class="font-semibold text-gray-900">
+                                    {{ holding.asset.current_price|decimal_eu(2) }} {{ holding.asset.currency }}
+                                </div>
+                                {% if holding.asset.day_change_percent %}
+                                    <div class="text-xs {% if holding.asset.day_change_percent > 0 %}text-green-600{% elif holding.asset.day_change_percent < 0 %}text-red-600{% else %}text-gray-500{% endif %}">
+                                        {% if holding.asset.day_change_percent > 0 %}↑{% elif holding.asset.day_change_percent < 0 %}↓{% else %}→{% endif %} {{ holding.asset.day_change_percent|decimal_eu(2) }}%
+                                    </div>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-gray-400 text-xs">Sin precio</span>
+                            {% endif %}
+                        </td>
                         <td class="px-4 py-3 text-right text-sm text-gray-900">
                             {{ holding.total_cost|decimal_eu(2) }} {{ holding.asset.currency }}
                         </td>
                         <td class="px-4 py-3 text-right text-sm text-gray-900">
-                            <span class="text-gray-400">-</span>
+                            {% if holding.asset.current_price %}
+                                {{ (holding.total_quantity * holding.asset.current_price)|decimal_eu(2) }} {{ holding.asset.currency }}
+                            {% else %}
+                                <span class="text-gray-400 text-xs">-</span>
+                            {% endif %}
                         </td>
                         <td class="px-4 py-3 text-right text-sm">
-                            <span class="text-gray-400">-</span>
+                            {% if holding.asset.current_price %}
+                                {% set current_value = holding.total_quantity * holding.asset.current_price %}
+                                {% set pl = current_value - holding.total_cost %}
+                                {% set pl_pct = (pl / holding.total_cost * 100) if holding.total_cost > 0 else 0 %}
+                                <div class="font-semibold {% if pl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                                    {% if pl >= 0 %}+{% endif %}{{ pl|decimal_eu(2) }} {{ holding.asset.currency }}
+                                </div>
+                                <div class="text-xs {% if pl_pct >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                                    {% if pl_pct >= 0 %}+{% endif %}{{ pl_pct|decimal_eu(2) }}%
+                                </div>
+                            {% else %}
+                                <span class="text-gray-400 text-xs">-</span>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}

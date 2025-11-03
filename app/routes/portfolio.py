@@ -90,11 +90,30 @@ def dashboard():
         data['asset_id'] = asset_id
         holdings_unified.append(data)
     
-    # Calcular totales
-    total_value = 0  # Por ahora sin precios
+    # Calcular totales con precios actuales (Sprint 3 Final)
+    total_value = 0
     total_cost = sum(h['total_cost'] for h in holdings_unified)
     total_pl = 0
-    total_pl_pct = 0
+    last_price_update = None
+    
+    for h in holdings_unified:
+        asset = h['asset']
+        if asset and asset.current_price:
+            # Calcular valor actual
+            current_value = h['total_quantity'] * asset.current_price
+            total_value += current_value
+            total_pl += (current_value - h['total_cost'])
+            
+            # Última actualización de precios
+            if asset.last_price_update:
+                if last_price_update is None or asset.last_price_update > last_price_update:
+                    last_price_update = asset.last_price_update
+        else:
+            # Si no hay precio, usar el coste total como aproximación
+            total_value += h['total_cost']
+    
+    # Calcular porcentaje
+    total_pl_pct = (total_pl / total_cost * 100) if total_cost > 0 else 0
     
     return render_template(
         'portfolio/dashboard.html',
@@ -104,6 +123,7 @@ def dashboard():
         total_cost=total_cost,
         total_pl=total_pl,
         total_pl_pct=total_pl_pct,
+        last_price_update=last_price_update,
         unified=True  # Flag para indicar que son holdings unificados
     )
 
@@ -1444,4 +1464,51 @@ def mappings_toggle(id):
     status = 'activado' if mapping.is_active else 'desactivado'
     flash(f'✅ Mapeo {status}: {mapping.source_key}', 'success')
     return redirect(url_for('portfolio.mappings'))
+
+
+# ==================== PRICE UPDATES (Sprint 3 Final) ====================
+
+@portfolio_bp.route('/prices/update', methods=['POST'])
+@login_required
+def update_prices():
+    """
+    Actualiza precios de todos los activos del usuario desde Yahoo Finance
+    """
+    from app.services.market_data.services import PriceUpdater
+    from flask_wtf.csrf import validate_csrf
+    
+    try:
+        validate_csrf(request.form.get('csrf_token'))
+    except:
+        flash('❌ Token CSRF inválido', 'error')
+        return redirect(url_for('portfolio.dashboard'))
+    
+    try:
+        # Crear servicio de actualización
+        updater = PriceUpdater()
+        
+        # Actualizar precios (solo activos con holdings actuales)
+        result = updater.update_asset_prices()
+        
+        # Mostrar resultados
+        if result['success'] > 0:
+            flash(f"✅ Precios actualizados: {result['success']}/{result['total']} activos", 'success')
+        
+        if result['failed'] > 0:
+            flash(f"⚠️ Errores: {result['failed']} activos no pudieron actualizarse", 'warning')
+        
+        if result['skipped'] > 0:
+            flash(f"ℹ️ Omitidos: {result['skipped']} activos sin ticker Yahoo", 'info')
+        
+        # Mostrar errores detallados (solo los primeros 5)
+        for error in result['errors'][:5]:
+            flash(error, 'error')
+        
+        if len(result['errors']) > 5:
+            flash(f"... y {len(result['errors']) - 5} errores más", 'error')
+        
+    except Exception as e:
+        flash(f'❌ Error al actualizar precios: {str(e)}', 'error')
+    
+    return redirect(url_for('portfolio.dashboard'))
 

@@ -1,147 +1,231 @@
 """
-Servicio de actualización de precios
-Actualiza precios para assets con holdings activos usando Yahoo Finance
+PriceUpdater Service - Actualización de precios y métricas desde Yahoo Finance
+Sprint 3 Final - Real-time Prices
 """
-from typing import List, Dict, Optional
 from datetime import datetime
-from ..providers.yahoo_finance import YahooFinanceProvider
-from ..exceptions import ProviderException
+from typing import Dict, List, Optional, Tuple
+import yfinance as yf
+from app import db
+from app.models.asset import Asset
+from app.services.market_data.exceptions import PriceUpdateError
+
 
 class PriceUpdater:
     """
-    Servicio para actualizar precios de assets con holdings activos
-    Usa Yahoo Finance como proveedor principal
+    Servicio para actualizar precios y métricas de activos desde Yahoo Finance.
     """
     
-    def __init__(self, yahoo_provider: Optional[YahooFinanceProvider] = None):
-        """
-        Args:
-            yahoo_provider: Proveedor de Yahoo Finance (opcional, se crea uno si no se proporciona)
-        """
-        self.yahoo = yahoo_provider or YahooFinanceProvider()
-        self.stats = {
-            'updated': 0,
-            'failed': 0,
-            'skipped': 0,
-            'errors': []
-        }
+    # Tasas de conversión hardcoded (simplificado para MVP)
+    # TODO: En el futuro, obtener tasas dinámicas de una API de divisas
+    EXCHANGE_RATES_TO_EUR = {
+        'EUR': 1.0,
+        'USD': 0.92,  # Aproximado
+        'GBP': 1.17,
+        'JPY': 0.0062,
+        'CHF': 1.06,
+        'AUD': 0.60,
+        'CAD': 0.67,
+        'HKD': 0.12,
+        'SGD': 0.68,
+        'NOK': 0.086,
+        'SEK': 0.085,
+        'DKK': 0.13,
+    }
     
-    def update_prices_for_active_holdings(self, user_id: Optional[int] = None) -> Dict:
+    def __init__(self):
+        """Inicializar el servicio de actualización de precios."""
+        self.errors = []
+        self.warnings = []
+    
+    def update_asset_prices(self, asset_ids: Optional[List[int]] = None) -> Dict:
         """
-        Actualiza precios solo para assets que tienen holdings > 0
+        Actualiza precios de uno o varios activos.
         
         Args:
-            user_id: ID de usuario para filtrar holdings (opcional, si None actualiza todos)
+            asset_ids: Lista de IDs de activos. Si None, actualiza todos los activos con holdings > 0.
         
         Returns:
-            Dict con estadísticas de actualización:
-            {
-                'updated': int,
-                'failed': int,
-                'skipped': int,
-                'errors': List[str]
+            Dict con estadísticas de la actualización
+        """
+        self.errors = []
+        self.warnings = []
+        
+        # Obtener activos a actualizar
+        if asset_ids:
+            assets = Asset.query.filter(Asset.id.in_(asset_ids)).all()
+        else:
+            # Actualizar solo activos con posiciones actuales
+            from app.models.portfolio import PortfolioHolding
+            asset_ids_with_holdings = db.session.query(PortfolioHolding.asset_id).filter(
+                PortfolioHolding.quantity > 0
+            ).distinct().all()
+            asset_ids_with_holdings = [a[0] for a in asset_ids_with_holdings]
+            assets = Asset.query.filter(Asset.id.in_(asset_ids_with_holdings)).all()
+        
+        if not assets:
+            return {
+                'total': 0,
+                'success': 0,
+                'failed': 0,
+                'skipped': 0,
+                'errors': [],
+                'warnings': []
             }
-        """
-        # Importar aquí para evitar dependencia circular
-        from app import db
-        from app.models import Asset, PortfolioHolding
-        from sqlalchemy import func
         
-        # Reset stats
-        self.stats = {
-            'updated': 0,
-            'failed': 0,
-            'skipped': 0,
-            'errors': []
-        }
+        total = len(assets)
+        success = 0
+        failed = 0
+        skipped = 0
         
-        # Buscar assets con holdings > 0
-        query = db.session.query(
-            Asset,
-            func.sum(PortfolioHolding.quantity).label('total_quantity')
-        ).join(
-            PortfolioHolding, Asset.id == PortfolioHolding.asset_id
-        )
-        
-        if user_id:
-            query = query.filter(PortfolioHolding.user_id == user_id)
-        
-        query = query.group_by(Asset.id).having(func.sum(PortfolioHolding.quantity) > 0)
-        
-        assets_with_holdings = query.all()
-        
-        print(f"\n🔄 Actualizando precios para {len(assets_with_holdings)} assets con holdings activos...")
-        
-        for asset, quantity in assets_with_holdings:
-            self._update_asset_price(asset)
-        
-        # Commit all changes
-        db.session.commit()
-        
-        print(f"\n✅ Actualización completada:")
-        print(f"   ✓ Actualizados: {self.stats['updated']}")
-        print(f"   ✗ Fallidos: {self.stats['failed']}")
-        print(f"   ⊘ Omitidos: {self.stats['skipped']}")
-        
-        return self.stats
-    
-    def _update_asset_price(self, asset) -> bool:
-        """
-        Actualiza el precio de un asset individual
-        
-        Args:
-            asset: Instancia de Asset
+        for asset in assets:
+            try:
+                # Verificar que tenga ticker válido
+                if not asset.yahoo_ticker:
+                    skipped += 1
+                    self.warnings.append(f"❌ {asset.symbol or asset.name}: Sin ticker de Yahoo Finance")
+                    continue
+                
+                # Obtener datos de Yahoo Finance
+                success_update = self._update_single_asset(asset)
+                
+                if success_update:
+                    success += 1
+                else:
+                    failed += 1
             
-        Returns:
-            True si se actualizó correctamente, False si falló
-        """
-        # Verificar que tenga yahoo_ticker
-        if not asset.yahoo_ticker:
-            self.stats['skipped'] += 1
-            error_msg = f"{asset.name}: Sin yahoo_ticker (symbol: {asset.symbol}, suffix: {asset.yahoo_suffix})"
-            self.stats['errors'].append(error_msg)
-            print(f"   ⊘ {error_msg}")
-            return False
+            except Exception as e:
+                failed += 1
+                self.errors.append(f"❌ {asset.symbol or asset.name}: {str(e)}")
         
+        # Commit de todos los cambios
         try:
-            # Obtener precio actual
-            price_data = self.yahoo.get_current_price(asset.yahoo_ticker)
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            raise PriceUpdateError(f"Error al guardar precios: {str(e)}")
+        
+        return {
+            'total': total,
+            'success': success,
+            'failed': failed,
+            'skipped': skipped,
+            'errors': self.errors,
+            'warnings': self.warnings
+        }
+    
+    def _update_single_asset(self, asset: Asset) -> bool:
+        """
+        Actualiza un solo activo con datos de Yahoo Finance.
+        
+        Returns:
+            True si se actualizó correctamente, False en caso contrario
+        """
+        try:
+            ticker = yf.Ticker(asset.yahoo_ticker)
+            info = ticker.info
             
-            if not price_data or 'price' not in price_data:
-                self.stats['failed'] += 1
-                error_msg = f"{asset.name} ({asset.yahoo_ticker}): No se pudo obtener precio"
-                self.stats['errors'].append(error_msg)
-                print(f"   ✗ {error_msg}")
+            if not info or 'regularMarketPrice' not in info:
+                self.errors.append(f"❌ {asset.symbol}: No se encontraron datos en Yahoo Finance")
                 return False
             
-            # Actualizar asset
-            asset.last_price = price_data['price']
+            # PRECIOS Y CAMBIOS
+            asset.current_price = self._safe_get_float(info, 'regularMarketPrice') or \
+                                 self._safe_get_float(info, 'currentPrice')
+            asset.previous_close = self._safe_get_float(info, 'previousClose') or \
+                                   self._safe_get_float(info, 'regularMarketPreviousClose')
+            
+            # Calcular cambio del día
+            if asset.current_price and asset.previous_close and asset.previous_close > 0:
+                change = asset.current_price - asset.previous_close
+                asset.day_change_percent = (change / asset.previous_close) * 100
+            else:
+                asset.day_change_percent = None
+            
+            # VALORACIÓN
+            asset.market_cap = self._safe_get_float(info, 'marketCap')
+            if asset.market_cap:
+                asset.market_cap_formatted = self._format_market_cap(asset.market_cap)
+                # Convertir a EUR
+                rate = self.EXCHANGE_RATES_TO_EUR.get(asset.currency, 1.0)
+                asset.market_cap_eur = asset.market_cap * rate
+            
+            asset.trailing_pe = self._safe_get_float(info, 'trailingPE')
+            asset.forward_pe = self._safe_get_float(info, 'forwardPE')
+            
+            # INFORMACIÓN CORPORATIVA
+            asset.sector = info.get('sector')
+            asset.industry = info.get('industry')
+            
+            # RIESGO Y RENDIMIENTO
+            asset.beta = self._safe_get_float(info, 'beta')
+            asset.dividend_rate = self._safe_get_float(info, 'dividendRate')
+            asset.dividend_yield = self._safe_get_float(info, 'dividendYield')
+            if asset.dividend_yield:
+                asset.dividend_yield = asset.dividend_yield * 100  # Convertir a porcentaje
+            
+            # ANÁLISIS DE MERCADO
+            asset.recommendation_key = info.get('recommendationKey')
+            asset.number_of_analyst_opinions = info.get('numberOfAnalystOpinions')
+            asset.target_mean_price = self._safe_get_float(info, 'targetMeanPrice')
+            
+            # Actualizar timestamp
             asset.last_price_update = datetime.utcnow()
             
-            self.stats['updated'] += 1
-            print(f"   ✓ {asset.name} ({asset.yahoo_ticker}): {price_data['price']} {asset.currency}")
             return True
         
         except Exception as e:
-            self.stats['failed'] += 1
-            error_msg = f"{asset.name} ({asset.yahoo_ticker}): {str(e)[:60]}"
-            self.stats['errors'].append(error_msg)
-            print(f"   ✗ {error_msg}")
+            self.errors.append(f"❌ {asset.symbol or asset.name}: {str(e)}")
             return False
     
-    def update_single_asset(self, asset) -> bool:
+    def _safe_get_float(self, data: dict, key: str) -> Optional[float]:
+        """Obtiene un valor float de forma segura desde un diccionario."""
+        try:
+            value = data.get(key)
+            if value is None or value == 'N/A' or (isinstance(value, float) and (value != value)):  # NaN check
+                return None
+            return float(value)
+        except (ValueError, TypeError):
+            return None
+    
+    def _format_market_cap(self, market_cap: float) -> str:
         """
-        Actualiza el precio de un solo asset
+        Formatea la capitalización de mercado en formato legible.
         
-        Args:
-            asset: Instancia de Asset
-            
+        Examples:
+            1500000000 -> "1.5B"
+            234000000 -> "234M"
+            45000 -> "45K"
+        """
+        if market_cap >= 1_000_000_000:
+            return f"{market_cap / 1_000_000_000:.1f}B"
+        elif market_cap >= 1_000_000:
+            return f"{market_cap / 1_000_000:.0f}M"
+        elif market_cap >= 1_000:
+            return f"{market_cap / 1_000:.0f}K"
+        else:
+            return f"{market_cap:.0f}"
+    
+    def get_asset_price(self, asset: Asset) -> Tuple[Optional[float], Optional[str]]:
+        """
+        Obtiene el precio actual de un activo sin guardar en BD.
+        
         Returns:
-            True si se actualizó correctamente, False si falló
+            Tuple(precio, error_message)
         """
-        from app import db
+        try:
+            if not asset.yahoo_ticker:
+                return None, "Sin ticker de Yahoo Finance"
+            
+            ticker = yf.Ticker(asset.yahoo_ticker)
+            info = ticker.info
+            
+            price = self._safe_get_float(info, 'regularMarketPrice') or \
+                   self._safe_get_float(info, 'currentPrice')
+            
+            if price is None:
+                return None, "No se encontraron datos de precio"
+            
+            return price, None
         
-        result = self._update_asset_price(asset)
-        db.session.commit()
-        return result
-
+        except Exception as e:
+            return None, str(e)

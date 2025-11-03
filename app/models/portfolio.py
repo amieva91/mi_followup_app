@@ -44,8 +44,42 @@ class PortfolioHolding(db.Model):
     def __repr__(self):
         return f"PortfolioHolding('{self.asset.symbol if self.asset else 'N/A'}', {self.quantity})"
     
+    @property
+    def live_price(self):
+        """Precio actual en tiempo real desde Asset"""
+        return self.asset.current_price if self.asset and self.asset.current_price else self.current_price
+    
+    @property
+    def live_value(self):
+        """Valor de mercado actual en tiempo real"""
+        price = self.live_price
+        return (self.quantity * price) if price else self.current_value
+    
+    @property
+    def live_unrealized_pl(self):
+        """P&L no realizado en tiempo real"""
+        value = self.live_value
+        return (value - self.total_cost) if value else self.unrealized_pl
+    
+    @property
+    def live_unrealized_pl_pct(self):
+        """% de P&L no realizado en tiempo real"""
+        pl = self.live_unrealized_pl
+        if self.total_cost > 0 and pl is not None:
+            return (pl / self.total_cost) * 100
+        return self.unrealized_pl_pct if self.unrealized_pl_pct else 0.0
+    
+    @property
+    def is_price_stale(self):
+        """Indica si el precio es antiguo (más de 1 día)"""
+        if not self.asset or not self.asset.last_price_update:
+            return True
+        from datetime import timedelta
+        age = datetime.utcnow() - self.asset.last_price_update
+        return age > timedelta(days=1)
+    
     def update_market_value(self, current_price):
-        """Actualiza el valor de mercado y P&L no realizadas"""
+        """Actualiza el valor de mercado y P&L no realizadas (mantener por compatibilidad)"""
         self.current_price = current_price
         self.current_value = self.quantity * current_price
         self.unrealized_pl = self.current_value - self.total_cost

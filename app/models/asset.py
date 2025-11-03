@@ -26,10 +26,36 @@ class Asset(db.Model):
     mic = db.Column(db.String(4))  # MIC ISO 10383 (ej: 'XMAD', 'XNAS') - Columna 5 DeGiro
     yahoo_suffix = db.Column(db.String(5))  # Sufijo Yahoo Finance (ej: '.MC', '.L', '')
     
-    # Para actualización de precios
-    yahoo_symbol = db.Column(db.String(20))  # DEPRECATED: Usar symbol + yahoo_suffix
-    last_price = db.Column(db.Float)  # Último precio conocido
-    last_price_update = db.Column(db.DateTime)  # Última actualización
+    # ===== YAHOO FINANCE FIELDS (Sprint 3 Final) =====
+    # PRECIOS Y CAMBIOS
+    current_price = db.Column(db.Float)  # Precio actual
+    previous_close = db.Column(db.Float)  # Cierre anterior
+    day_change_percent = db.Column(db.Float)  # Cambio del día en %
+    last_price_update = db.Column(db.DateTime)  # Última actualización de precios
+    
+    # VALORACIÓN
+    market_cap = db.Column(db.Float)  # Capitalización de mercado (moneda original)
+    market_cap_formatted = db.Column(db.String(20))  # "1.5B", "234M"
+    market_cap_eur = db.Column(db.Float)  # Capitalización en EUR
+    trailing_pe = db.Column(db.Float)  # P/E Ratio (trailing)
+    forward_pe = db.Column(db.Float)  # P/E Ratio (forward)
+    
+    # INFORMACIÓN CORPORATIVA (sector ya existe arriba)
+    industry = db.Column(db.String(100))  # 'Consumer Electronics', 'Banking'
+    
+    # RIESGO Y RENDIMIENTO
+    beta = db.Column(db.Float)  # Beta (volatilidad vs mercado)
+    dividend_rate = db.Column(db.Float)  # Dividendo anual
+    dividend_yield = db.Column(db.Float)  # Rentabilidad por dividendo (%)
+    
+    # ANÁLISIS DE MERCADO
+    recommendation_key = db.Column(db.String(20))  # 'buy', 'hold', 'sell', 'strong_buy'
+    number_of_analyst_opinions = db.Column(db.Integer)  # Número de analistas
+    target_mean_price = db.Column(db.Float)  # Precio objetivo medio
+    
+    # DEPRECATED FIELDS
+    yahoo_symbol = db.Column(db.String(20))  # DEPRECATED: Usar yahoo_ticker property
+    last_price = db.Column(db.Float)  # DEPRECATED: Usar current_price
     
     # Metadata
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -52,9 +78,17 @@ class Asset(db.Model):
         return f"{self.symbol}{suffix}"
     
     def update_price(self, new_price):
-        """Actualiza el precio del activo"""
-        self.last_price = new_price
+        """Actualiza el precio del activo (mantener por compatibilidad)"""
+        self.current_price = new_price
+        self.last_price = new_price  # DEPRECATED: mantener por compatibilidad
         self.last_price_update = datetime.utcnow()
+    
+    @property
+    def price_change_direction(self):
+        """Retorna 'up', 'down' o 'neutral' para indicadores visuales"""
+        if not self.day_change_percent:
+            return 'neutral'
+        return 'up' if self.day_change_percent > 0 else 'down' if self.day_change_percent < 0 else 'neutral'
 
 
 class PriceHistory(db.Model):
