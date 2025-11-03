@@ -135,14 +135,36 @@
   - MappingRegistry con 3 tipos de mapeos (MIC→Yahoo, Exchange→Yahoo, DeGiro→IBKR)
   - Sistema completamente estable y funcional
 
+**✅ SPRINT 3 FINAL - Precios en Tiempo Real (COMPLETADO - 3 Nov)**
+- ✅ DÍA 1: Base de Datos
+  - 12 campos nuevos en Asset: current_price, previous_close, day_change_percent, market_cap, market_cap_formatted, market_cap_eur, trailing_pe, forward_pe, industry, beta, dividend_rate, dividend_yield, recommendation_key, number_of_analyst_opinions, target_mean_price
+  - Migración aplicada (a9ef77389298)
+  - Properties en PortfolioHolding para P&L en tiempo real
+- ✅ DÍAS 2-3: Servicios (PriceUpdater)
+  - Integración completa con Yahoo Finance API (yfinance)
+  - 15 campos extraídos y almacenados
+  - Conversión hardcoded a EUR (11 divisas soportadas)
+  - Formateo automático de Market Cap (B, M, K)
+  - Ruta `/prices/update` con CSRF protection
+- ✅ DÍAS 4-5: UI Dashboard
+  - Botón "🔄 Actualizar Precios" en header
+  - Cards de resumen con precios actuales
+  - Tabla mejorada con columna "Precio Actual" + cambio del día (↑/↓)
+  - Indicadores de color (verde/rojo) para P&L
+  - Timestamp de última actualización
+  - Cálculo automático de Valor Total y P&L con precios actuales
+- ✅ DÍA 6: Página de Asset Detallada
+  - Ruta `/asset/<id>` con vista completa del activo
+  - 5 tabs: Métricas, Valoración, Riesgo, Análisis, Transacciones
+  - Display de 15 campos organizados por categoría
+  - P&L específico del usuario para ese asset
+  - Recomendaciones de analistas con badges de color
+  - Historial de transacciones (últimas 10)
+  - Links clickeables desde dashboard
+- **Versión**: v3.4.0 (lista para deploy)
+
 **🎯 PRÓXIMOS PASOS:**
-- ✅ Deploy a producción de v3.3.5 (Fix crítico DeGiro + AssetRegistry fixes)
-- **Sprint 3 Final**: Precios en Tiempo Real (1-2 semanas)
-  - Integración Yahoo Finance API (15 campos: currentPrice, previousClose, currency, marketCap, sector, industry, beta, dividendRate, dividendYield, trailingPE, forwardPE, recommendationKey, numberOfAnalystOpinions, targetMeanPrice, regularMarketChangePercent)
-  - Botón "Actualizar Precios"
-  - Cálculo de valor de mercado actual
-  - P&L No Realizado en holdings
-  - Dashboard con totales y métricas básicas
+- 🔄 Deploy a producción de v3.4.0 (Sprint 3 Final)
 - **Sprint 4**: Calculadora de Métricas Avanzadas (3 semanas)
   - Métricas: P&L, ROI, TWR, IRR, Sharpe Ratio, Max Drawdown, Volatilidad
   - Gráficos: Evolución portfolio, P&L acumulado, Top ganadores/perdedores, Comparación benchmarks
