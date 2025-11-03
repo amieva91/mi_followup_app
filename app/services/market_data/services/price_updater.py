@@ -7,7 +7,7 @@ from typing import Dict, List, Optional, Tuple
 import yfinance as yf
 from app import db
 from app.models.asset import Asset
-from app.services.market_data.exceptions import PriceUpdateError
+from app.services.market_data.exceptions import PriceUpdateException
 
 
 class PriceUpdater:
@@ -102,7 +102,7 @@ class PriceUpdater:
             db.session.commit()
         except Exception as e:
             db.session.rollback()
-            raise PriceUpdateError(f"Error al guardar precios: {str(e)}")
+            raise PriceUpdateException(f"Error al guardar precios: {str(e)}")
         
         return {
             'total': total,
