@@ -323,13 +323,13 @@ class PriceUpdater:
             # Actualizar timestamp
             asset.last_price_update = datetime.utcnow()
             
-            # Si tenemos autenticación, obtener sector e industry de quoteSummary
+            # Si tenemos autenticación, obtener datos avanzados de quoteSummary
             if self.session and self.crumb:
-                logger.debug(f"      📊 Consultando quoteSummary para sector/industry...")
+                logger.debug(f"      📊 Consultando quoteSummary para datos avanzados...")
                 try:
                     quote_url = f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{asset.yahoo_ticker}"
                     params = {
-                        'modules': 'assetProfile',
+                        'modules': 'assetProfile,summaryDetail,defaultKeyStatistics,financialData',
                         'crumb': self.crumb
                     }
                     
@@ -341,17 +341,63 @@ class PriceUpdater:
                         if 'quoteSummary' in quote_data and quote_data['quoteSummary'].get('result'):
                             result = quote_data['quoteSummary']['result'][0]
                             
+                            # SECTOR E INDUSTRY (assetProfile)
                             if 'assetProfile' in result:
                                 profile = result['assetProfile']
                                 asset.sector = profile.get('sector')
                                 asset.industry = profile.get('industry')
-                                
-                                if asset.sector or asset.industry:
-                                    logger.debug(f"      ✅ Sector: {asset.sector}, Industry: {asset.industry}")
-                                else:
-                                    logger.debug(f"      ℹ️ Sin sector/industry disponible")
-                            else:
-                                logger.debug(f"      ℹ️ Sin assetProfile en respuesta")
+                                logger.debug(f"      ✅ Sector: {asset.sector}, Industry: {asset.industry}")
+                            
+                            # VALORACIÓN (summaryDetail + defaultKeyStatistics)
+                            summary = result.get('summaryDetail', {})
+                            stats = result.get('defaultKeyStatistics', {})
+                            
+                            # Market Cap
+                            market_cap_raw = summary.get('marketCap', {}).get('raw')
+                            if market_cap_raw:
+                                asset.market_cap = float(market_cap_raw)
+                                asset.market_cap_formatted = self._format_market_cap(asset.market_cap)
+                                # Convertir a EUR
+                                rate = self.EXCHANGE_RATES_TO_EUR.get(asset.currency, 1.0)
+                                asset.market_cap_eur = asset.market_cap * rate
+                                logger.debug(f"      💰 Market Cap: {asset.market_cap_formatted}")
+                            
+                            # P/E Ratios
+                            asset.trailing_pe = self._safe_get_float(summary, 'trailingPE')
+                            asset.forward_pe = self._safe_get_float(stats, 'forwardPE')
+                            if asset.trailing_pe:
+                                logger.debug(f"      📊 P/E (trailing): {asset.trailing_pe:.2f}")
+                            
+                            # RIESGO Y RENDIMIENTO
+                            asset.beta = self._safe_get_float(stats, 'beta')
+                            
+                            # Dividendos
+                            div_rate_raw = summary.get('dividendRate', {})
+                            if isinstance(div_rate_raw, dict):
+                                asset.dividend_rate = div_rate_raw.get('raw')
+                            
+                            div_yield_raw = summary.get('dividendYield', {})
+                            if isinstance(div_yield_raw, dict):
+                                div_yield = div_yield_raw.get('raw')
+                                if div_yield:
+                                    asset.dividend_yield = div_yield * 100  # Convertir a porcentaje
+                            
+                            if asset.dividend_yield:
+                                logger.debug(f"      💵 Dividend Yield: {asset.dividend_yield:.2f}%")
+                            
+                            # ANÁLISIS DE MERCADO (financialData)
+                            financial = result.get('financialData', {})
+                            asset.recommendation_key = financial.get('recommendationKey')
+                            asset.number_of_analyst_opinions = financial.get('numberOfAnalystOpinions')
+                            
+                            target_price_raw = financial.get('targetMeanPrice', {})
+                            if isinstance(target_price_raw, dict):
+                                asset.target_mean_price = target_price_raw.get('raw')
+                            
+                            if asset.recommendation_key:
+                                logger.debug(f"      🎯 Recomendación: {asset.recommendation_key}")
+                            
+                            logger.debug(f"      ✅ Datos avanzados obtenidos")
                         else:
                             logger.debug(f"      ⚠️ quoteSummary sin resultados")
                     else:
@@ -382,8 +428,18 @@ class PriceUpdater:
         """Obtiene un valor float de forma segura desde un diccionario."""
         try:
             value = data.get(key)
-            if value is None or value == 'N/A' or (isinstance(value, float) and (value != value)):  # NaN check
+            if value is None:
                 return None
+            
+            # Yahoo Finance a veces devuelve {raw: valor, fmt: "string"}
+            if isinstance(value, dict):
+                value = value.get('raw')
+                if value is None:
+                    return None
+            
+            if value == 'N/A' or (isinstance(value, float) and (value != value)):  # NaN check
+                return None
+            
             return float(value)
         except (ValueError, TypeError):
             return None
