@@ -388,7 +388,15 @@ class PriceUpdater:
                             # ANÁLISIS DE MERCADO (financialData)
                             financial = result.get('financialData', {})
                             asset.recommendation_key = financial.get('recommendationKey')
-                            asset.number_of_analyst_opinions = financial.get('numberOfAnalystOpinions')
+                            
+                            # number_of_analyst_opinions puede ser un dict o un número
+                            num_analysts = financial.get('numberOfAnalystOpinions')
+                            if isinstance(num_analysts, dict):
+                                asset.number_of_analyst_opinions = num_analysts.get('raw')
+                            elif isinstance(num_analysts, (int, float)):
+                                asset.number_of_analyst_opinions = int(num_analysts)
+                            else:
+                                asset.number_of_analyst_opinions = None
                             
                             target_price_raw = financial.get('targetMeanPrice', {})
                             if isinstance(target_price_raw, dict):
