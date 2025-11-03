@@ -136,9 +136,24 @@
   - Sistema completamente estable y funcional
 
 **🎯 PRÓXIMOS PASOS:**
-- ✅ Deploy a producción de v3.3.4 (AssetRegistry + MappingRegistry + Fixes)
-- Sprint 4: Calculadora de Métricas (P&L, ROI, Sharpe, Drawdown)
-- Sprint 5: Actualizaciones de precios en tiempo real (Yahoo Finance)
+- ✅ Deploy a producción de v3.3.5 (Fix crítico DeGiro + AssetRegistry fixes)
+- **Sprint 3 Final**: Precios en Tiempo Real (1-2 semanas)
+  - Integración Yahoo Finance API (15 campos: currentPrice, previousClose, currency, marketCap, sector, industry, beta, dividendRate, dividendYield, trailingPE, forwardPE, recommendationKey, numberOfAnalystOpinions, targetMeanPrice, regularMarketChangePercent)
+  - Botón "Actualizar Precios"
+  - Cálculo de valor de mercado actual
+  - P&L No Realizado en holdings
+  - Dashboard con totales y métricas básicas
+- **Sprint 4**: Calculadora de Métricas Avanzadas (3 semanas)
+  - Métricas: P&L, ROI, TWR, IRR, Sharpe Ratio, Max Drawdown, Volatilidad
+  - Gráficos: Evolución portfolio, P&L acumulado, Top ganadores/perdedores, Comparación benchmarks
+- **Sprint 5**: Actualización Automática de Precios (2 semanas)
+  - Cron job diario, tabla PriceHistory, gráfico candlestick, cache Redis
+- **Sprint 6**: Diversificación y Watchlist (2 semanas)
+  - Gráficos distribución (asset/sector/país), análisis concentración, watchlist
+- **Sprint 7**: Alertas y Conversión EUR (2 semanas)
+  - Alertas de precio, calendario dividendos, conversión automática EUR, eventos corporativos
+- **Sprint 8**: Testing y Optimización (2 semanas)
+  - Tests 80%+, optimización SQL, logging, monitoring
 
 **🔗 URLs Funcionales:**
 - **Producción**: https://followup.fit/
@@ -776,49 +791,464 @@ git tag v0.6-csv-processor
 
 ---
 
-### 💼 SPRINT 9-10: Portfolio Completo (Semana 17-20)
+### 💼 SPRINT 3 FINAL: Precios en Tiempo Real (1-2 semanas)
 
-**Objetivo**: Portfolio de inversiones con análisis completo
+**Objetivo**: Integrar Yahoo Finance para valoración de mercado en tiempo real
 
-#### Semana 17-18: Backend
+**Duración**: 8 días
 
-- [ ] **Servicios de portfolio**
-  - `app/services/portfolio_service.py`
-  - Cálculo de PnL (realizado y no realizado)
-  - Distribución de portfolio
-  - Performance histórico
-  - Tests
+#### Fase 1: Base de Datos y Modelos (Día 1)
 
-- [ ] **Integración de precios**
-  - Actualización automática de precios (yfinance)
-  - Cache de precios
-  - Histórico de precios
+- [ ] **Migración para Asset model** - 15 nuevos campos:
+  - **Precios**: currentPrice, previousClose, currency, regularMarketChangePercent
+  - **Valoración**: marketCap, marketCapFormatted (K/M/B), marketCapEUR, trailingPE, forwardPE
+  - **Info Corporativa**: sector, industry
+  - **Riesgo/Rendimiento**: beta, dividendRate, dividendYield
+  - **Análisis**: recommendationKey, numberOfAnalystOpinions, targetMeanPrice
+  - **Metadata**: lastPriceUpdate
 
-#### Semana 19-20: UI y Features
+- [ ] **Actualizar PortfolioHolding model**
+  - Properties: current_market_value, unrealized_pl, unrealized_pl_percent, total_return
 
-- [ ] **Dashboard de portfolio**
-  - Vista de holdings actuales
-  - PnL por activo
-  - Gráfico de distribución
-  - Performance histórico
-  - Timeline de transacciones
+#### Fase 2: Servicios de Actualización (Días 2-3)
 
-- [ ] **Análisis avanzado**
-  - Rentabilidad por período
-  - Comparación con benchmarks
-  - Reportes exportables
+- [ ] **PriceUpdater service**
+  - `app/services/market_data/price_updater.py`
+  - Integración con yfinance
+  - Conversión de divisas (hardcoded inicial: USD, GBP, HKD → EUR)
+  - Formateo de marketCap (1.5B, 234M, 45K)
+  - Actualizar solo assets con holdings > 0
 
-- [ ] **Deploy**
+- [ ] **Ruta /prices/update**
+  - POST endpoint para actualización manual
+  - Feedback de resultados (updated/failed/total)
+
+#### Fase 3: UI y Visualización (Días 4-5)
+
+- [ ] **Dashboard mejorado**
+  - 4 cards de resumen:
+    - Valor Total del Portfolio (EUR)
+    - P&L No Realizado (monto y %)
+    - Costo Total
+    - Rendimiento Total %
+  - Botón "🔄 Actualizar Precios"
+  - Última actualización timestamp
+
+- [ ] **Tabla de holdings mejorada**
+  - Precio actual + moneda
+  - Cambio del día (% con ↑/↓ y colores)
+  - Valor de mercado actual
+  - P&L No Realizado (monto y %)
+  - Colores: verde (positivo), rojo (negativo)
+
+#### Fase 4: Página de Asset (Día 6)
+
+- [ ] **Vista detallada de asset**
+  - Header con precio actual y cambio del día
+  - Grid de métricas:
+    - Market Cap (formateado + EUR)
+    - P/E Ratio (trailing y forward)
+    - Beta (riesgo)
+    - Dividend Yield (% y monto anual)
+  - Recomendación de analistas (badge de color)
+  - Precio objetivo promedio
+  - Número de analistas
+
+#### Fase 5: Testing y Deploy (Días 7-8)
+
+- [ ] **Testing**
+  - Unit tests para PriceUpdater
+  - Tests de conversión de divisas
+  - Tests de formateo de números
+  - Verificar cálculos de P&L
+
+- [ ] **Deploy a producción**
+  - Tag: v3.4.0
+  - Documentar en SPRINT3_DISEÑO_BD.md
+  - Actualizar TU_PLAN_MAESTRO.md
 
 **Entregables**:
-- ✅ Portfolio completo funcional
-- ✅ Análisis de PnL robusto
-- ✅ Dashboard visual atractivo
+- ✅ Precios actuales mostrados en holdings
+- ✅ Valor de mercado calculado correctamente
+- ✅ P&L No Realizado visible
+- ✅ Dashboard con métricas de mercado
+- ✅ Botón de actualización funcional
 
 **Checkpoint**: 
 ```bash
-git tag v0.7-portfolio
+git tag v3.4.0-precios-tiempo-real
 ```
+
+---
+
+### 📊 SPRINT 4: Calculadora de Métricas Avanzadas (3 semanas)
+
+**Objetivo**: Análisis financiero profundo con métricas de rendimiento y riesgo
+
+**Duración**: 21 días
+
+#### Semana 1: Métricas Básicas (Días 1-7)
+
+- [ ] **P&L (Profit & Loss)**
+  - P&L Realizado (de ventas ejecutadas)
+  - P&L No Realizado (holdings actuales - ya implementado en Sprint 3F)
+  - P&L Total por cuenta
+  - P&L Total por asset
+  - P&L por período (día, semana, mes, año, total)
+
+- [ ] **ROI (Return on Investment)**
+  - ROI simple: `(Valor actual - Inversión) / Inversión * 100`
+  - ROI por cuenta
+  - ROI por asset
+  - ROI anualizado
+
+- [ ] **Cost Basis y Capital**
+  - Costo promedio por asset (ya implementado con FIFO)
+  - Costo total invertido
+  - Capital disponible por cuenta
+
+#### Semana 2: Métricas Avanzadas (Días 8-14)
+
+- [ ] **TWR (Time-Weighted Return)**
+  - Rendimiento sin considerar timing de depósitos/retiros
+  - Ideal para comparar con benchmarks
+  - Cálculo por período
+
+- [ ] **MWR / IRR (Money-Weighted Return / Internal Rate of Return)**
+  - Rendimiento considerando timing de cash flows
+  - Refleja decisiones reales del inversor
+  - Cálculo con scipy/numpy
+
+- [ ] **Sharpe Ratio**
+  - `(Rendimiento - Tasa libre riesgo) / Volatilidad`
+  - Rendimiento ajustado por riesgo
+  - Usar tasa libre de riesgo de bono 10Y
+
+- [ ] **Max Drawdown**
+  - Máxima caída desde un pico
+  - % de drawdown
+  - Duración del drawdown
+
+- [ ] **Volatilidad (Std Dev)**
+  - Desviación estándar de rendimientos diarios
+  - Anualizada (× √252)
+  - Por asset y por portfolio total
+
+#### Semana 3: Gráficos y Dashboard (Días 15-21)
+
+- [ ] **Gráfico: Evolución del Portfolio** (ApexCharts line chart)
+  - Eje X: Tiempo (seleccionable: 1M, 3M, 6M, 1Y, Todo)
+  - Eje Y: Valor en EUR
+  - Línea 1: Valor de mercado
+  - Línea 2: Costo acumulado
+  - Área sombreada: P&L (verde si +, rojo si -)
+
+- [ ] **Gráfico: P&L Acumulado** (ApexCharts area chart)
+  - Área verde fija: P&L Realizado
+  - Área azul variable: P&L No Realizado
+  - Línea total: Suma de ambos
+
+- [ ] **Gráfico: Top Ganadores/Perdedores** (ApexCharts bar chart horizontal)
+  - Top 5 assets con mejor P&L %
+  - Top 5 assets con peor P&L %
+  - Barras verdes (ganadores) y rojas (perdedores)
+
+- [ ] **Gráfico: Comparación con Benchmarks** (ApexCharts line chart)
+  - Tu portfolio vs S&P 500 / NASDAQ / IBEX 35
+  - % de outperformance/underperformance
+  - Seleccionable por período
+
+- [ ] **Dashboard de Métricas**
+  - Vista principal con cards de métricas clave
+  - Tabla con métricas por asset (sorteable)
+  - Tabla con métricas por cuenta
+  - Exportar a CSV/Excel
+
+- [ ] **Deploy**
+  - Tag: v3.5.0
+
+**Entregables**:
+- ✅ Todas las métricas implementadas y testeadas
+- ✅ 4 gráficos interactivos funcionando
+- ✅ Dashboard completo de análisis
+- ✅ Comparación con benchmarks
+
+**Checkpoint**: 
+```bash
+git tag v3.5.0-metricas-avanzadas
+```
+
+---
+
+### 📈 SPRINT 5: Actualización Automática de Precios (2 semanas)
+
+**Objetivo**: Automatizar actualización de precios y mantener histórico
+
+**Duración**: 14 días
+
+#### Semana 1: Histórico y Automatización (Días 1-7)
+
+- [ ] **Tabla PriceHistory**
+  - Modelo con campos: asset_id, date, open, high, low, close, volume
+  - Migración y relaciones
+  - Índices para consultas rápidas
+
+- [ ] **Cron Job con Flask-APScheduler**
+  - Instalación y configuración
+  - Job diario a las 18:00 UTC
+  - Actualizar precios de todos los assets con holdings
+  - Guardar snapshot diario en PriceHistory
+  - Log de ejecuciones
+
+- [ ] **Configuración de Auto-Update en UI**
+  - Activar/desactivar en perfil de usuario
+  - Elegir hora preferida
+  - Notificación email al completar (opcional)
+
+#### Semana 2: Histórico Visual y Cache (Días 8-14)
+
+- [ ] **Gráfico de Precio Histórico** (ApexCharts candlestick)
+  - OHLC (Open, High, Low, Close)
+  - Volumen en barras debajo
+  - Rangos: 1M, 3M, 6M, 1Y
+  - Zoom y pan interactivo
+
+- [ ] **Cache con Redis** (opcional pero recomendado)
+  - Instalación de Redis
+  - Flask-Caching setup
+  - Cache de precios (TTL: 15 minutos)
+  - Cache de tasas forex (TTL: 1 día)
+  - Cache de totales dashboard (TTL: 5 minutos)
+
+- [ ] **Optimización de Queries**
+  - Índices en columnas frecuentes
+  - joinedload() para evitar N+1
+  - Paginación en listas largas
+
+- [ ] **Deploy**
+  - Tag: v3.6.0
+
+**Entregables**:
+- ✅ Actualización automática diaria funcionando
+- ✅ Histórico de precios almacenado
+- ✅ Gráfico candlestick por asset
+- ✅ Cache implementado (si se eligió)
+
+**Checkpoint**: 
+```bash
+git tag v3.6.0-auto-update
+```
+
+---
+
+### 🎯 SPRINT 6: Diversificación y Watchlist (2 semanas)
+
+**Objetivo**: Análisis de distribución de riesgo y seguimiento de assets
+
+**Duración**: 14 días
+
+#### Semana 1: Gráficos de Distribución (Días 1-7)
+
+- [ ] **Gráfico: Distribución por Asset** (ApexCharts pie/donut chart)
+  - % del valor total por cada asset
+  - Colores diferenciados por asset
+  - Click para ver detalles
+  - Mostrar top 10 + "Otros"
+
+- [ ] **Gráfico: Distribución por Sector** (ApexCharts pie chart)
+  - Technology, Healthcare, Finance, Consumer, Energy, etc.
+  - Identificar concentración sectorial
+  - Colores temáticos por sector
+
+- [ ] **Gráfico: Distribución por País** (ApexCharts pie chart o mapa)
+  - USA, España, Hong Kong, UK, etc.
+  - Análisis de geografía de riesgo
+  - Opcional: Mapa interactivo con D3.js
+
+- [ ] **Gráfico: Distribución por Tipo** (ApexCharts donut chart)
+  - Acciones individuales
+  - ETFs
+  - REITs
+  - Otros
+
+#### Semana 2: Análisis y Watchlist (Días 8-14)
+
+- [ ] **Análisis de Concentración de Riesgo**
+  - Indicador visual:
+    - Alta: >30% en un asset (rojo)
+    - Media: 20-30% en un asset (amarillo)
+    - Diversificado: <20% cada asset (verde)
+  - Recomendaciones automáticas
+  - Alertas de concentración
+
+- [ ] **Watchlist (Lista de Seguimiento)**
+  - Tabla `Watchlist` con campos:
+    - user_id, asset_id, target_price, notes, created_at
+  - CRUD de watchlist
+  - Ver precios actuales sin tener holdings
+  - Alertas cuando alcance precio objetivo
+  - Notas personales por asset
+
+- [ ] **Rebalanceo Sugerido**
+  - Algoritmo de sugerencias de rebalanceo
+  - Mantener % target por sector/país
+  - Mostrar transacciones sugeridas
+
+- [ ] **Deploy**
+  - Tag: v3.7.0
+
+**Entregables**:
+- ✅ 4 gráficos de distribución funcionando
+- ✅ Análisis de concentración automático
+- ✅ Watchlist funcional con alertas
+- ✅ Sugerencias de rebalanceo
+
+**Checkpoint**: 
+```bash
+git tag v3.7.0-diversificacion-watchlist
+```
+
+---
+
+### 🔔 SPRINT 7: Alertas y Conversión Automática EUR (2 semanas)
+
+**Objetivo**: Sistema de notificaciones y conversión automática de divisas
+
+**Duración**: 14 días
+
+#### Semana 1: Alertas (Días 1-7)
+
+- [ ] **Alertas de Precio**
+  - Tabla `PriceAlert`: user_id, asset_id, condition (above/below), price, is_active, notification_method
+  - CRUD de alertas
+  - Verificación diaria en cron job
+  - Email cuando se dispara
+  - Notificación en app (badge contador)
+  - Historial de alertas disparadas
+
+- [ ] **Calendario de Dividendos**
+  - Tabla `DividendCalendar`: asset_id, ex_dividend_date, payment_date, dividend_amount, frequency
+  - Integración con Yahoo Finance (calendar data)
+  - Vista mensual/anual
+  - Destacar próximos 7 días
+  - Estimación de ingresos futuros por dividendos
+
+- [ ] **Alertas de Eventos Corporativos**
+  - Cambio en recomendación de analistas
+  - Dividendo anunciado
+  - Cambios significativos en precio (±10% en un día)
+  - Email opcional al usuario
+
+#### Semana 2: Conversión Automática EUR (Días 8-14)
+
+- [ ] **API de Forex (ExchangeRate-API)**
+  - Integración con https://www.exchangerate-api.com/
+  - Gratis: 1,500 requests/mes
+  - Función `get_forex_rate(from_currency, to_currency='EUR')`
+
+- [ ] **Tabla ForexRate (cache)**
+  - Campos: from_currency, to_currency, rate, date, created_at
+  - Actualización diaria con cron job
+  - Histórico de tasas de cambio
+
+- [ ] **Conversión Automática en Toda la App**
+  - Reemplazar conversiones hardcoded
+  - Actualizar PriceUpdater service
+  - Mostrar valor en moneda original + EUR
+  - Formato: "1,234.56 USD (1,137.50 EUR)"
+
+- [ ] **Deploy**
+  - Tag: v3.8.0
+
+**Entregables**:
+- ✅ Sistema de alertas de precio funcional
+- ✅ Calendario de dividendos completo
+- ✅ Conversión automática EUR en toda la app
+- ✅ Notificaciones por email funcionando
+
+**Checkpoint**: 
+```bash
+git tag v3.8.0-alertas-forex
+```
+
+---
+
+### 🧪 SPRINT 8: Testing y Optimización (2 semanas)
+
+**Objetivo**: Asegurar calidad, cobertura de tests y performance óptimo
+
+**Duración**: 14 días
+
+#### Semana 1: Testing (Días 1-7)
+
+- [ ] **Tests Unitarios (pytest)**
+  - Modelos: Asset, PortfolioHolding, Transaction, etc.
+  - Servicios: PriceUpdater, Importer, FIFO, Metrics
+  - Utilidades: formatters, converters, date helpers
+  - Target: 80%+ coverage
+
+- [ ] **Tests de Integración**
+  - Flujo completo: Login → Import CSV → View Holdings → Update Prices
+  - Flujo de compra/venta: Buy → Sell → P&L correcto
+  - Flujo de dividendos: Recibir dividendo → Actualizar holdings
+  - Alertas: Crear alerta → Disparar → Notificación
+
+- [ ] **Tests de Performance**
+  - Benchmarking de queries críticas
+  - Verificar N+1 queries
+  - Load testing de endpoints
+
+#### Semana 2: Optimización (Días 8-14)
+
+- [ ] **Optimización de Base de Datos**
+  - Añadir índices a columnas frecuentes:
+    - assets.symbol
+    - assets.isin
+    - transactions.transaction_date
+    - price_history.date
+  - Analizar query plans (EXPLAIN)
+  - Optimizar queries lentas
+
+- [ ] **Logging y Monitoring**
+  - Setup logging con Python logging
+  - Logs en archivo: logs/app.log
+  - Niveles: INFO, WARNING, ERROR
+  - Rotación de logs (log rotation)
+  - Monitoreo de errores:
+    - Error rate > 5%
+    - Response time > 2s
+    - Uso de disco > 80%
+
+- [ ] **Optimización de Frontend**
+  - Minificación CSS/JS en producción
+  - Lazy loading de imágenes
+  - Comprimir assets estáticos
+  - CDN para librerías (ApexCharts, TailwindCSS)
+
+- [ ] **Documentación Técnica**
+  - API documentation (docstrings completos)
+  - README actualizado
+  - Guías de deployment
+  - Troubleshooting guide
+
+- [ ] **Deploy Final**
+  - Tag: v3.9.0
+  - Backup completo de producción
+  - Validación exhaustiva
+
+**Entregables**:
+- ✅ Cobertura de tests > 80%
+- ✅ Performance < 1s response time
+- ✅ Logging y monitoring activo
+- ✅ Documentación completa
+- ✅ Sistema optimizado y estable
+
+**Checkpoint**: 
+```bash
+git tag v3.9.0-testing-optimization
+```
+
+**🎉 MILESTONE 2 COMPLETADO**: Portfolio Management Completo (3.5 meses)
 
 ---
 
