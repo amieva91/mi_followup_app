@@ -4,6 +4,7 @@ Sprint 3 Final - Real-time Prices
 """
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
+import time
 import yfinance as yf
 from app import db
 from app.models.asset import Asset
@@ -77,7 +78,7 @@ class PriceUpdater:
         failed = 0
         skipped = 0
         
-        for asset in assets:
+        for idx, asset in enumerate(assets):
             try:
                 # Verificar que tenga ticker válido
                 if not asset.yahoo_ticker:
@@ -92,6 +93,11 @@ class PriceUpdater:
                     success += 1
                 else:
                     failed += 1
+                
+                # Delay para evitar rate limiting (0.5 seg entre peticiones)
+                # Solo si no es el último activo
+                if idx < len(assets) - 1:
+                    time.sleep(0.5)
             
             except Exception as e:
                 failed += 1

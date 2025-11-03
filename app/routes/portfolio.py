@@ -1551,17 +1551,23 @@ def update_prices():
             flash(f"✅ Precios actualizados: {result['success']}/{result['total']} activos", 'success')
         
         if result['failed'] > 0:
-            flash(f"⚠️ Errores: {result['failed']} activos no pudieron actualizarse", 'warning')
+            # Verificar si son errores de rate limiting
+            rate_limit_errors = sum(1 for e in result['errors'] if '429' in e or 'Too Many Requests' in e)
+            if rate_limit_errors > 0:
+                flash(f"⚠️ {result['failed']} activos no pudieron actualizarse (rate limit de Yahoo Finance). Espera 1 minuto e intenta de nuevo.", 'warning')
+            else:
+                flash(f"⚠️ Errores: {result['failed']} activos no pudieron actualizarse", 'warning')
         
         if result['skipped'] > 0:
             flash(f"ℹ️ Omitidos: {result['skipped']} activos sin ticker Yahoo", 'info')
         
-        # Mostrar errores detallados (solo los primeros 5)
-        for error in result['errors'][:5]:
+        # Mostrar errores detallados solo si NO son de rate limiting (para no saturar)
+        non_rate_limit_errors = [e for e in result['errors'] if '429' not in e and 'Too Many Requests' not in e]
+        for error in non_rate_limit_errors[:3]:
             flash(error, 'error')
         
-        if len(result['errors']) > 5:
-            flash(f"... y {len(result['errors']) - 5} errores más", 'error')
+        if len(non_rate_limit_errors) > 3:
+            flash(f"... y {len(non_rate_limit_errors) - 3} errores más", 'error')
         
     except Exception as e:
         flash(f'❌ Error al actualizar precios: {str(e)}', 'error')
