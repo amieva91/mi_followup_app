@@ -32,6 +32,12 @@ class PriceUpdater:
     Servicio para actualizar precios y métricas de activos desde Yahoo Finance.
     """
     
+    def __init__(self):
+        self.errors = []
+        self.warnings = []
+        self.session = None
+        self.crumb = None
+    
     # Tasas de conversión hardcoded (simplificado para MVP)
     # TODO: En el futuro, obtener tasas dinámicas de una API de divisas
     EXCHANGE_RATES_TO_EUR = {
@@ -53,6 +59,64 @@ class PriceUpdater:
         """Inicializar el servicio de actualización de precios."""
         self.errors = []
         self.warnings = []
+        self.session = None
+        self.crumb = None
+    
+    def _authenticate_yahoo(self) -> bool:
+        """
+        Obtener cookie y crumb de Yahoo Finance para acceder a quoteSummary API.
+        
+        Returns:
+            True si la autenticación fue exitosa, False en caso contrario
+        """
+        try:
+            logger.info("🔐 Autenticando con Yahoo Finance...")
+            
+            # Crear sesión con headers apropiados
+            self.session = requests.Session()
+            self.session.headers.update({
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'DNT': '1',
+                'Connection': 'keep-alive',
+            })
+            
+            # PASO 1: Obtener cookie
+            response = self.session.get('https://finance.yahoo.com', timeout=10)
+            if response.status_code != 200:
+                logger.error(f"   ❌ Error al obtener cookie: HTTP {response.status_code}")
+                return False
+            
+            if len(self.session.cookies) == 0:
+                logger.error(f"   ❌ No se recibieron cookies")
+                return False
+            
+            logger.info(f"   ✅ Cookie obtenido ({len(self.session.cookies)} cookies)")
+            
+            # PASO 2: Obtener crumb
+            time.sleep(0.5)  # Pequeña pausa
+            crumb_response = self.session.get(
+                "https://query1.finance.yahoo.com/v1/test/getcrumb",
+                timeout=10
+            )
+            
+            if crumb_response.status_code != 200:
+                logger.error(f"   ❌ Error al obtener crumb: HTTP {crumb_response.status_code}")
+                return False
+            
+            self.crumb = crumb_response.text.strip()
+            
+            if not self.crumb or self.crumb == "null" or "Too Many Requests" in self.crumb:
+                logger.error(f"   ❌ Crumb inválido: {self.crumb}")
+                return False
+            
+            logger.info(f"   ✅ Crumb obtenido: {self.crumb[:10]}...")
+            return True
+            
+        except Exception as e:
+            logger.error(f"   ❌ Error en autenticación: {e}")
+            return False
     
     def update_asset_prices(self, asset_ids: Optional[List[int]] = None) -> Dict:
         """
@@ -99,6 +163,13 @@ class PriceUpdater:
         logger.info(f"🔄 INICIANDO ACTUALIZACIÓN DE PRECIOS")
         logger.info(f"📊 Total de activos a procesar: {total}")
         logger.info("=" * 80)
+        
+        # Autenticar con Yahoo Finance para acceder a quoteSummary
+        auth_success = self._authenticate_yahoo()
+        if not auth_success:
+            logger.warning("⚠️ No se pudo autenticar con Yahoo Finance")
+            logger.warning("   Solo se actualizarán precios básicos (sin sector/industry)")
+        logger.info("")
         
         for idx, asset in enumerate(assets):
             logger.info(f"\n{'='*60}")
@@ -252,10 +323,43 @@ class PriceUpdater:
             # Actualizar timestamp
             asset.last_price_update = datetime.utcnow()
             
-            # NOTA: La Chart API solo proporciona precios básicos
-            # Para datos avanzados (PE, sector, dividends, etc.), se necesitaría
-            # hacer una llamada adicional a quoteSummary API, que actualmente
-            # está siendo bloqueada. Por ahora, solo actualizamos precios.
+            # Si tenemos autenticación, obtener sector e industry de quoteSummary
+            if self.session and self.crumb:
+                logger.debug(f"      📊 Consultando quoteSummary para sector/industry...")
+                try:
+                    quote_url = f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{asset.yahoo_ticker}"
+                    params = {
+                        'modules': 'assetProfile',
+                        'crumb': self.crumb
+                    }
+                    
+                    quote_response = self.session.get(quote_url, params=params, timeout=10)
+                    
+                    if quote_response.status_code == 200:
+                        quote_data = quote_response.json()
+                        
+                        if 'quoteSummary' in quote_data and quote_data['quoteSummary'].get('result'):
+                            result = quote_data['quoteSummary']['result'][0]
+                            
+                            if 'assetProfile' in result:
+                                profile = result['assetProfile']
+                                asset.sector = profile.get('sector')
+                                asset.industry = profile.get('industry')
+                                
+                                if asset.sector or asset.industry:
+                                    logger.debug(f"      ✅ Sector: {asset.sector}, Industry: {asset.industry}")
+                                else:
+                                    logger.debug(f"      ℹ️ Sin sector/industry disponible")
+                            else:
+                                logger.debug(f"      ℹ️ Sin assetProfile en respuesta")
+                        else:
+                            logger.debug(f"      ⚠️ quoteSummary sin resultados")
+                    else:
+                        logger.debug(f"      ⚠️ quoteSummary HTTP {quote_response.status_code}")
+                        
+                except Exception as e:
+                    logger.debug(f"      ⚠️ Error en quoteSummary: {e}")
+                    # No falla el update si quoteSummary falla
             
             logger.debug(f"      ✓ Asset actualizado correctamente")
             
