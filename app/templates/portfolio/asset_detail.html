@@ -1,0 +1,326 @@
+{% extends "base/layout.html" %}
+
+{% block title %}{{ asset.name }} - FollowUp{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <!-- Header con navegación -->
+    <div class="mb-6">
+        <a href="{{ url_for('portfolio.dashboard') }}" class="text-blue-600 hover:text-blue-700 text-sm font-medium inline-flex items-center gap-1 mb-2">
+            ← Volver al Portfolio
+        </a>
+        <div class="flex justify-between items-start">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900">{{ asset.name }}</h1>
+                <p class="text-gray-600 mt-1">
+                    {{ asset.symbol or 'Sin símbolo' }} 
+                    {% if asset.exchange %} • {{ asset.exchange }}{% endif %}
+                    • {{ asset.currency }}
+                    {% if asset.isin %} • {{ asset.isin }}{% endif %}
+                </p>
+            </div>
+            <div class="text-right">
+                <div class="text-sm text-gray-600">Tipo de Activo</div>
+                <div class="text-lg font-semibold text-gray-900">{{ asset.asset_type }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Grid de métricas principales -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <!-- Card: Precio Actual -->
+        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-blue-500">
+            <div class="text-sm text-gray-600 mb-1">Precio Actual</div>
+            {% if asset.current_price %}
+                <div class="text-3xl font-bold text-gray-900">
+                    {{ asset.current_price|decimal_eu(2) }} {{ asset.currency }}
+                </div>
+                {% if asset.day_change_percent %}
+                    <div class="text-sm mt-2 {% if asset.day_change_percent > 0 %}text-green-600{% elif asset.day_change_percent < 0 %}text-red-600{% else %}text-gray-500{% endif %}">
+                        {% if asset.day_change_percent > 0 %}↑{% elif asset.day_change_percent < 0 %}↓{% else %}→{% endif %} {{ asset.day_change_percent|decimal_eu(2) }}% hoy
+                    </div>
+                {% endif %}
+                {% if asset.last_price_update %}
+                    <div class="text-xs text-gray-400 mt-1">
+                        Actualizado: {{ asset.last_price_update.strftime('%d/%m/%Y %H:%M') }}
+                    </div>
+                {% endif %}
+            {% else %}
+                <div class="text-xl text-gray-400">Sin datos</div>
+                <div class="text-xs text-gray-500 mt-1">Actualiza precios para ver los datos</div>
+            {% endif %}
+        </div>
+
+        <!-- Card: Tus Holdings -->
+        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-green-500">
+            <div class="text-sm text-gray-600 mb-1">Tus Holdings</div>
+            <div class="text-3xl font-bold text-gray-900">
+                {{ total_quantity|number_eu }}
+            </div>
+            <div class="text-sm text-gray-600 mt-2">
+                Precio Medio: {{ average_buy_price|decimal_eu(2) }} {{ asset.currency }}
+            </div>
+            <div class="text-sm text-gray-600">
+                Coste Total: {{ total_cost|decimal_eu(2) }} {{ asset.currency }}
+            </div>
+        </div>
+
+        <!-- Card: P&L No Realizado -->
+        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if unrealized_pl and unrealized_pl >= 0 %}border-green-600{% else %}border-red-600{% endif %}">
+            <div class="text-sm text-gray-600 mb-1">P&L No Realizado</div>
+            {% if unrealized_pl is not none %}
+                <div class="text-3xl font-bold {% if unrealized_pl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                    {% if unrealized_pl >= 0 %}+{% endif %}{{ unrealized_pl|decimal_eu(2) }} {{ asset.currency }}
+                </div>
+                <div class="text-sm mt-2 {% if unrealized_pl_pct >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                    {% if unrealized_pl_pct >= 0 %}+{% endif %}{{ unrealized_pl_pct|decimal_eu(2) }}%
+                </div>
+                {% if current_value %}
+                    <div class="text-xs text-gray-500 mt-1">
+                        Valor Actual: {{ current_value|decimal_eu(2) }} {{ asset.currency }}
+                    </div>
+                {% endif %}
+            {% else %}
+                <div class="text-xl text-gray-400">-</div>
+                <div class="text-xs text-gray-500 mt-1">Actualiza precios</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Tabs de información -->
+    <div class="bg-white rounded-xl shadow-sm" x-data="{ activeTab: 'metrics' }">
+        <!-- Tab Headers -->
+        <div class="border-b border-gray-200">
+            <nav class="flex -mb-px">
+                <button @click="activeTab = 'metrics'" 
+                        :class="activeTab === 'metrics' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="px-6 py-4 text-sm font-medium border-b-2">
+                    📊 Métricas de Mercado
+                </button>
+                <button @click="activeTab = 'valuation'" 
+                        :class="activeTab === 'valuation' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="px-6 py-4 text-sm font-medium border-b-2">
+                    💰 Valoración
+                </button>
+                <button @click="activeTab = 'risk'" 
+                        :class="activeTab === 'risk' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="px-6 py-4 text-sm font-medium border-b-2">
+                    📈 Riesgo y Dividendos
+                </button>
+                <button @click="activeTab = 'analysis'" 
+                        :class="activeTab === 'analysis' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="px-6 py-4 text-sm font-medium border-b-2">
+                    🎯 Análisis
+                </button>
+                <button @click="activeTab = 'transactions'" 
+                        :class="activeTab === 'transactions' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="px-6 py-4 text-sm font-medium border-b-2">
+                    📜 Transacciones
+                </button>
+            </nav>
+        </div>
+
+        <!-- Tab Content -->
+        <div class="p-6">
+            <!-- Tab: Métricas de Mercado -->
+            <div x-show="activeTab === 'metrics'" x-cloak>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="border border-gray-200 rounded-lg p-4">
+                        <div class="text-sm text-gray-600 mb-1">Sector</div>
+                        <div class="text-lg font-semibold text-gray-900">
+                            {{ asset.sector or '—' }}
+                        </div>
+                    </div>
+                    <div class="border border-gray-200 rounded-lg p-4">
+                        <div class="text-sm text-gray-600 mb-1">Industria</div>
+                        <div class="text-lg font-semibold text-gray-900">
+                            {{ asset.industry or '—' }}
+                        </div>
+                    </div>
+                    <div class="border border-gray-200 rounded-lg p-4">
+                        <div class="text-sm text-gray-600 mb-1">Precio Anterior</div>
+                        <div class="text-lg font-semibold text-gray-900">
+                            {{ asset.previous_close|decimal_eu(2) if asset.previous_close else '—' }} {{ asset.currency if asset.previous_close else '' }}
+                        </div>
+                    </div>
+                    <div class="border border-gray-200 rounded-lg p-4">
+                        <div class="text-sm text-gray-600 mb-1">Cambio del Día</div>
+                        <div class="text-lg font-semibold {% if asset.day_change_percent and asset.day_change_percent > 0 %}text-green-600{% elif asset.day_change_percent and asset.day_change_percent < 0 %}text-red-600{% else %}text-gray-900{% endif %}">
+                            {% if asset.day_change_percent %}
+                                {% if asset.day_change_percent > 0 %}+{% endif %}{{ asset.day_change_percent|decimal_eu(2) }}%
+                            {% else %}
+                                —
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab: Valoración -->
+            <div x-show="activeTab === 'valuation'" x-cloak>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="border border-gray-200 rounded-lg p-4">
+                        <div class="text-sm text-gray-600 mb-1">Capitalización de Mercado</div>
+                        <div class="text-lg font-semibold text-gray-900">
+                            {{ asset.market_cap_formatted or '—' }}
+                        </div>
+                        {% if asset.market_cap_eur %}
+                            <div class="text-sm text-gray-500 mt-1">
+                                {{ asset.market_cap_eur|decimal_eu(0) }} EUR
+                            </div>
+                        {% endif %}
+                    </div>
+                    <div class="border border-gray-200 rounded-lg p-4">
+                        <div class="text-sm text-gray-600 mb-1">P/E Ratio (Trailing)</div>
+                        <div class="text-lg font-semibold text-gray-900">
+                            {{ asset.trailing_pe|decimal_eu(2) if asset.trailing_pe else '—' }}
+                        </div>
+                    </div>
+                    <div class="border border-gray-200 rounded-lg p-4">
+                        <div class="text-sm text-gray-600 mb-1">P/E Ratio (Forward)</div>
+                        <div class="text-lg font-semibold text-gray-900">
+                            {{ asset.forward_pe|decimal_eu(2) if asset.forward_pe else '—' }}
+                        </div>
+                    </div>
+                    <div class="border border-gray-200 rounded-lg p-4">
+                        <div class="text-sm text-gray-600 mb-1">Moneda Base</div>
+                        <div class="text-lg font-semibold text-gray-900">
+                            {{ asset.currency }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab: Riesgo y Dividendos -->
+            <div x-show="activeTab === 'risk'" x-cloak>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="border border-gray-200 rounded-lg p-4">
+                        <div class="text-sm text-gray-600 mb-1">Beta</div>
+                        <div class="text-lg font-semibold text-gray-900">
+                            {{ asset.beta|decimal_eu(2) if asset.beta else '—' }}
+                        </div>
+                        <div class="text-xs text-gray-500 mt-1">
+                            Volatilidad vs. mercado
+                        </div>
+                    </div>
+                    <div class="border border-gray-200 rounded-lg p-4">
+                        <div class="text-sm text-gray-600 mb-1">Dividendo Anual</div>
+                        <div class="text-lg font-semibold text-gray-900">
+                            {{ asset.dividend_rate|decimal_eu(2) if asset.dividend_rate else '—' }} {{ asset.currency if asset.dividend_rate else '' }}
+                        </div>
+                    </div>
+                    <div class="border border-gray-200 rounded-lg p-4">
+                        <div class="text-sm text-gray-600 mb-1">Rentabilidad por Dividendo</div>
+                        <div class="text-lg font-semibold text-gray-900">
+                            {{ asset.dividend_yield|decimal_eu(2) if asset.dividend_yield else '—' }}{% if asset.dividend_yield %}%{% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab: Análisis -->
+            <div x-show="activeTab === 'analysis'" x-cloak>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="border border-gray-200 rounded-lg p-4">
+                        <div class="text-sm text-gray-600 mb-1">Recomendación de Analistas</div>
+                        <div class="text-lg font-semibold text-gray-900">
+                            {% if asset.recommendation_key %}
+                                <span class="px-3 py-1 rounded-full text-sm font-medium
+                                    {% if asset.recommendation_key == 'strong_buy' %}bg-green-100 text-green-800
+                                    {% elif asset.recommendation_key == 'buy' %}bg-green-50 text-green-700
+                                    {% elif asset.recommendation_key == 'hold' %}bg-yellow-100 text-yellow-800
+                                    {% elif asset.recommendation_key == 'sell' %}bg-red-50 text-red-700
+                                    {% elif asset.recommendation_key == 'strong_sell' %}bg-red-100 text-red-800
+                                    {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                    {{ asset.recommendation_key.replace('_', ' ').title() }}
+                                </span>
+                            {% else %}
+                                —
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="border border-gray-200 rounded-lg p-4">
+                        <div class="text-sm text-gray-600 mb-1">Número de Analistas</div>
+                        <div class="text-lg font-semibold text-gray-900">
+                            {{ asset.number_of_analyst_opinions if asset.number_of_analyst_opinions else '—' }}
+                        </div>
+                    </div>
+                    <div class="border border-gray-200 rounded-lg p-4 md:col-span-2">
+                        <div class="text-sm text-gray-600 mb-1">Precio Objetivo Medio</div>
+                        <div class="text-lg font-semibold text-gray-900">
+                            {{ asset.target_mean_price|decimal_eu(2) if asset.target_mean_price else '—' }} {{ asset.currency if asset.target_mean_price else '' }}
+                        </div>
+                        {% if asset.current_price and asset.target_mean_price %}
+                            {% set potential = ((asset.target_mean_price - asset.current_price) / asset.current_price * 100) %}
+                            <div class="text-sm mt-1 {% if potential > 0 %}text-green-600{% elif potential < 0 %}text-red-600{% else %}text-gray-500{% endif %}">
+                                Potencial: {% if potential > 0 %}+{% endif %}{{ potential|decimal_eu(2) }}%
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab: Transacciones -->
+            <div x-show="activeTab === 'transactions'" x-cloak>
+                {% if transactions %}
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
+                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Cantidad</th>
+                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Precio</th>
+                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cuenta</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                {% for txn in transactions %}
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-4 py-3 text-sm text-gray-900">
+                                        {{ txn.transaction_date.strftime('%d/%m/%Y') }}
+                                    </td>
+                                    <td class="px-4 py-3 text-sm">
+                                        <span class="px-2 py-1 rounded text-xs font-medium
+                                            {% if txn.transaction_type == 'BUY' %}bg-green-100 text-green-800
+                                            {% elif txn.transaction_type == 'SELL' %}bg-red-100 text-red-800
+                                            {% elif txn.transaction_type == 'DIVIDEND' %}bg-blue-100 text-blue-800
+                                            {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                            {{ txn.transaction_type }}
+                                        </span>
+                                    </td>
+                                    <td class="px-4 py-3 text-right text-sm text-gray-900">
+                                        {% if txn.quantity %}{{ txn.quantity|number_eu }}{% else %}—{% endif %}
+                                    </td>
+                                    <td class="px-4 py-3 text-right text-sm text-gray-900">
+                                        {% if txn.price %}{{ txn.price|decimal_eu(2) }} {{ txn.currency }}{% else %}—{% endif %}
+                                    </td>
+                                    <td class="px-4 py-3 text-right text-sm text-gray-900">
+                                        {{ txn.amount|decimal_eu(2) }} {{ txn.currency }}
+                                    </td>
+                                    <td class="px-4 py-3 text-sm text-gray-900">
+                                        {{ txn.account.broker.name }}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="mt-4">
+                        <a href="{{ url_for('portfolio.transactions_list', symbol=asset.symbol if asset.symbol else asset.isin) }}" 
+                           class="text-blue-600 hover:text-blue-700 text-sm font-medium">
+                            Ver todas las transacciones →
+                        </a>
+                    </div>
+                {% else %}
+                    <div class="text-center py-8 text-gray-500">
+                        No hay transacciones registradas para este activo
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

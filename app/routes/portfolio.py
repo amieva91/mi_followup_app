@@ -1466,6 +1466,62 @@ def mappings_toggle(id):
     return redirect(url_for('portfolio.mappings'))
 
 
+# ==================== ASSET DETAILS (Sprint 3 Final) ====================
+
+@portfolio_bp.route('/asset/<int:id>')
+@login_required
+def asset_detail(id):
+    """
+    Vista detallada de un asset con todas las métricas de Yahoo Finance
+    """
+    asset = Asset.query.get_or_404(id)
+    
+    # Verificar que el usuario tenga alguna posición en este asset
+    holdings = PortfolioHolding.query.filter_by(
+        user_id=current_user.id,
+        asset_id=id
+    ).filter(PortfolioHolding.quantity > 0).all()
+    
+    if not holdings:
+        flash('❌ No tienes posiciones en este activo', 'error')
+        return redirect(url_for('portfolio.dashboard'))
+    
+    # Calcular totales del usuario para este asset
+    total_quantity = sum(h.quantity for h in holdings)
+    total_cost = sum(h.total_cost for h in holdings)
+    average_buy_price = total_cost / total_quantity if total_quantity > 0 else 0
+    
+    # P&L en tiempo real
+    current_value = None
+    unrealized_pl = None
+    unrealized_pl_pct = None
+    
+    if asset.current_price:
+        current_value = total_quantity * asset.current_price
+        unrealized_pl = current_value - total_cost
+        unrealized_pl_pct = (unrealized_pl / total_cost * 100) if total_cost > 0 else 0
+    
+    # Historial de transacciones del usuario para este asset
+    transactions = Transaction.query.filter_by(
+        asset_id=id
+    ).join(BrokerAccount).filter(
+        BrokerAccount.user_id == current_user.id
+    ).order_by(Transaction.transaction_date.desc()).limit(10).all()
+    
+    return render_template(
+        'portfolio/asset_detail.html',
+        asset=asset,
+        holdings=holdings,
+        total_quantity=total_quantity,
+        total_cost=total_cost,
+        average_buy_price=average_buy_price,
+        current_value=current_value,
+        unrealized_pl=unrealized_pl,
+        unrealized_pl_pct=unrealized_pl_pct,
+        transactions=transactions
+    )
+
+
 # ==================== PRICE UPDATES (Sprint 3 Final) ====================
 
 @portfolio_bp.route('/prices/update', methods=['POST'])

@@ -122,10 +122,12 @@
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
                     {% for holding in holdings %}
-                    <tr class="hover:bg-gray-50">
+                    <tr class="hover:bg-gray-50 cursor-pointer" onclick="window.location='{{ url_for('portfolio.asset_detail', id=holding.asset.id) }}'">
                         <td class="px-4 py-3">
                             <div class="font-bold text-gray-900 break-words max-w-xs">
-                                {{ holding.asset.name or holding.asset.symbol }}
+                                <a href="{{ url_for('portfolio.asset_detail', id=holding.asset.id) }}" class="text-blue-600 hover:text-blue-700">
+                                    {{ holding.asset.name or holding.asset.symbol }}
+                                </a>
                                 {% if holding.asset.mic and not holding.asset.symbol %}
                                 <button class="fix-yahoo-btn text-orange-600 hover:text-orange-700 ml-2" 
                                         data-asset-id="{{ holding.asset.id }}" 
