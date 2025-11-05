@@ -14,6 +14,10 @@ from app import db
 # Cache global para progreso de importación (thread-safe)
 import_progress_cache = {}
 progress_lock = Lock()
+
+# Cache global para progreso de actualización de precios (thread-safe)
+price_update_progress_cache = {}
+price_progress_lock = Lock()
 from app.models import (
     BrokerAccount, Asset, PortfolioHolding, 
     Transaction, Broker
@@ -1544,51 +1548,91 @@ def asset_detail(id):
 @login_required
 def update_prices():
     """
-    Actualiza precios de todos los activos del usuario desde Yahoo Finance
+    Inicia actualización de precios en background y devuelve inmediatamente
     """
     from app.services.market_data.services import PriceUpdater
     from flask_wtf.csrf import validate_csrf
+    import threading
     
     try:
         validate_csrf(request.form.get('csrf_token'))
     except:
-        flash('❌ Token CSRF inválido', 'error')
-        return redirect(url_for('portfolio.dashboard'))
+        return jsonify({'error': 'Token CSRF inválido'}), 400
     
-    try:
-        # Crear servicio de actualización
-        updater = PriceUpdater()
-        
-        # Actualizar precios (solo activos con holdings actuales)
-        result = updater.update_asset_prices()
-        
-        # Mostrar resultados
-        if result['success'] > 0:
-            flash(f"✅ Precios actualizados: {result['success']}/{result['total']} activos", 'success')
-        
-        if result['failed'] > 0:
-            # Verificar si son errores de rate limiting
-            rate_limit_errors = sum(1 for e in result['errors'] if '429' in e or 'Too Many Requests' in e)
-            if rate_limit_errors > 0:
-                flash(f"⚠️ {result['failed']} activos no pudieron actualizarse (rate limit de Yahoo Finance). Espera 1 minuto e intenta de nuevo.", 'warning')
-            else:
-                flash(f"⚠️ Errores: {result['failed']} activos no pudieron actualizarse", 'warning')
-        
-        if result['skipped'] > 0:
-            flash(f"ℹ️ Omitidos: {result['skipped']} activos sin ticker Yahoo", 'info')
-        
-        # Mostrar errores detallados solo si NO son de rate limiting (para no saturar)
-        non_rate_limit_errors = [e for e in result['errors'] if '429' not in e and 'Too Many Requests' not in e]
-        for error in non_rate_limit_errors[:3]:
-            flash(error, 'error')
-        
-        if len(non_rate_limit_errors) > 3:
-            flash(f"... y {len(non_rate_limit_errors) - 3} errores más", 'error')
-        
-    except Exception as e:
-        flash(f'❌ Error al actualizar precios: {str(e)}', 'error')
+    user_id = current_user.id
+    session_key = f'price_update_{user_id}'
     
-    return redirect(url_for('portfolio.dashboard'))
+    # Verificar si ya hay una actualización en progreso
+    with price_progress_lock:
+        if session_key in price_update_progress_cache:
+            existing = price_update_progress_cache[session_key]
+            if existing.get('status') == 'running':
+                return jsonify({'error': 'Ya hay una actualización en progreso'}), 400
+    
+    # Inicializar progreso
+    with price_progress_lock:
+        price_update_progress_cache[session_key] = {
+            'status': 'running',
+            'current': 0,
+            'total': 0,
+            'current_asset': 'Iniciando...',
+            'success': 0,
+            'failed': 0,
+            'skipped': 0,
+            'errors': [],
+            'start_time': time.time()
+        }
+    
+    # Función para ejecutar en background
+    def run_price_update():
+        try:
+            updater = PriceUpdater(progress_callback=lambda data: update_price_progress(session_key, data))
+            result = updater.update_asset_prices()
+            
+            # Actualizar con resultado final
+            with price_progress_lock:
+                price_update_progress_cache[session_key].update({
+                    'status': 'completed',
+                    'result': result,
+                    'end_time': time.time()
+                })
+        except Exception as e:
+            with price_progress_lock:
+                price_update_progress_cache[session_key].update({
+                    'status': 'error',
+                    'error': str(e),
+                    'end_time': time.time()
+                })
+    
+    # Iniciar thread
+    thread = threading.Thread(target=run_price_update, daemon=True)
+    thread.start()
+    
+    return jsonify({'status': 'started', 'session_key': session_key})
+
+
+def update_price_progress(session_key, data):
+    """Callback para actualizar el progreso"""
+    with price_progress_lock:
+        if session_key in price_update_progress_cache:
+            price_update_progress_cache[session_key].update(data)
+
+
+@portfolio_bp.route('/prices/update/progress', methods=['GET'])
+@login_required
+def price_update_progress():
+    """Consulta el progreso de la actualización de precios"""
+    user_id = current_user.id
+    session_key = f'price_update_{user_id}'
+    
+    with price_progress_lock:
+        progress = price_update_progress_cache.get(session_key, {
+            'status': 'not_started',
+            'current': 0,
+            'total': 0
+        })
+    
+    return jsonify(progress)
 
 
 # ❌ ENDPOINT ELIMINADO: /asset-registry/sync-to-assets

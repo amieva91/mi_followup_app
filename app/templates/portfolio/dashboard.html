@@ -354,6 +354,7 @@
     <script>
     let progressInterval = null;
     let startTime = null;
+    let sessionKey = null;
     
     async function startPriceUpdate() {
         const modal = document.getElementById('priceUpdateModal');
@@ -370,12 +371,12 @@
         progressText.textContent = 'Iniciando actualización...';
         progressCount.textContent = '0/0';
         progressTime.textContent = 'Calculando tiempo estimado...';
-        progressDetails.innerHTML = '<div class="text-gray-600">Esperando resultados...</div>';
+        progressDetails.innerHTML = '<div class="text-gray-600">Iniciando...</div>';
         progressCompleted.classList.add('hidden');
         startTime = Date.now();
         
         try {
-            // Iniciar actualización de precios
+            // Iniciar actualización de precios (en background)
             const response = await fetch('{{ url_for("portfolio.update_prices") }}', {
                 method: 'POST',
                 headers: {
@@ -388,26 +389,129 @@
                 throw new Error(`Error HTTP: ${response.status}`);
             }
             
-            // Actualización completada
-            progressBar.style.width = '100%';
-            progressText.textContent = '✅ Actualización completada';
-            progressCompleted.classList.remove('hidden');
+            const data = await response.json();
+            if (data.error) {
+                throw new Error(data.error);
+            }
             
-            // Parsear resultados
-            const text = await response.text();
-            // Recargar página después de 2 segundos
-            setTimeout(() => {
-                window.location.reload();
-            }, 2000);
+            sessionKey = data.session_key;
+            
+            // Iniciar polling para actualizar progreso
+            progressInterval = setInterval(checkProgress, 500);
             
         } catch (error) {
-            progressText.textContent = '❌ Error durante la actualización';
+            progressText.textContent = '❌ Error al iniciar actualización';
             progressDetails.innerHTML = `<div class="text-red-600">Error: ${error.message}</div>`;
             progressCompleted.classList.remove('hidden');
         }
     }
     
+    async function checkProgress() {
+        try {
+            const response = await fetch('{{ url_for("portfolio.price_update_progress") }}');
+            const progress = await response.json();
+            
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+            const progressCount = document.getElementById('progressCount');
+            const progressTime = document.getElementById('progressTime');
+            const progressDetails = document.getElementById('progressDetails');
+            const progressCompleted = document.getElementById('progressCompleted');
+            
+            // Actualizar barra de progreso
+            const percentage = progress.total > 0 ? (progress.current / progress.total) * 100 : 0;
+            progressBar.style.width = `${percentage}%`;
+            
+            // Actualizar contador
+            progressCount.textContent = `${progress.current}/${progress.total}`;
+            
+            // Actualizar texto
+            if (progress.status === 'running') {
+                progressText.textContent = `Procesando: ${progress.current_asset || 'Cargando...'}`;
+                
+                // Calcular tiempo estimado
+                if (progress.current > 0 && progress.total > 0) {
+                    const elapsed = (Date.now() - startTime) / 1000;
+                    const rate = elapsed / progress.current;
+                    const remaining = rate * (progress.total - progress.current);
+                    const minutes = Math.floor(remaining / 60);
+                    const seconds = Math.floor(remaining % 60);
+                    progressTime.textContent = `Tiempo estimado: ${minutes}m ${seconds}s`;
+                }
+                
+                // Mostrar detalles (últimos 3 errores si hay)
+                let detailsHtml = `<div class="space-y-1">`;
+                detailsHtml += `<div class="text-sm"><span class="text-green-600">✅ Exitosos: ${progress.success}</span></div>`;
+                if (progress.failed > 0) {
+                    detailsHtml += `<div class="text-sm"><span class="text-red-600">❌ Fallidos: ${progress.failed}</span></div>`;
+                }
+                if (progress.skipped > 0) {
+                    detailsHtml += `<div class="text-sm"><span class="text-orange-600">⚠️ Omitidos: ${progress.skipped}</span></div>`;
+                }
+                
+                if (progress.errors && progress.errors.length > 0) {
+                    detailsHtml += `<div class="mt-2 text-xs text-red-600">`;
+                    progress.errors.forEach(error => {
+                        detailsHtml += `<div>• ${error}</div>`;
+                    });
+                    detailsHtml += `</div>`;
+                }
+                detailsHtml += `</div>`;
+                progressDetails.innerHTML = detailsHtml;
+                
+            } else if (progress.status === 'completed') {
+                // Detener polling
+                clearInterval(progressInterval);
+                
+                progressBar.style.width = '100%';
+                progressText.textContent = '✅ Actualización completada';
+                
+                // Mostrar resumen final
+                const result = progress.result || {};
+                let summaryHtml = `<div class="space-y-2">`;
+                summaryHtml += `<div class="text-sm font-medium text-green-600">✅ Exitosos: ${result.success || 0}/${result.total || 0}</div>`;
+                if (result.failed > 0) {
+                    summaryHtml += `<div class="text-sm font-medium text-red-600">❌ Fallidos: ${result.failed}</div>`;
+                }
+                if (result.skipped > 0) {
+                    summaryHtml += `<div class="text-sm font-medium text-orange-600">⚠️ Omitidos: ${result.skipped}</div>`;
+                }
+                
+                if (result.errors && result.errors.length > 0) {
+                    summaryHtml += `<div class="mt-3 text-xs text-red-600 max-h-32 overflow-y-auto">`;
+                    result.errors.slice(0, 5).forEach(error => {
+                        summaryHtml += `<div class="mb-1">• ${error}</div>`;
+                    });
+                    if (result.errors.length > 5) {
+                        summaryHtml += `<div class="text-gray-500">... y ${result.errors.length - 5} errores más</div>`;
+                    }
+                    summaryHtml += `</div>`;
+                }
+                summaryHtml += `</div>`;
+                progressDetails.innerHTML = summaryHtml;
+                progressCompleted.classList.remove('hidden');
+                
+                const elapsed = (progress.end_time - progress.start_time).toFixed(1);
+                progressTime.textContent = `Completado en ${elapsed}s`;
+                
+            } else if (progress.status === 'error') {
+                // Detener polling
+                clearInterval(progressInterval);
+                
+                progressText.textContent = '❌ Error durante la actualización';
+                progressDetails.innerHTML = `<div class="text-red-600">Error: ${progress.error || 'Error desconocido'}</div>`;
+                progressCompleted.classList.remove('hidden');
+            }
+            
+        } catch (error) {
+            console.error('Error checking progress:', error);
+        }
+    }
+    
     function closeProgressModal() {
+        if (progressInterval) {
+            clearInterval(progressInterval);
+        }
         document.getElementById('priceUpdateModal').classList.add('hidden');
         window.location.reload();
     }

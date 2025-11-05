@@ -32,12 +32,6 @@ class PriceUpdater:
     Servicio para actualizar precios y métricas de activos desde Yahoo Finance.
     """
     
-    def __init__(self):
-        self.errors = []
-        self.warnings = []
-        self.session = None
-        self.crumb = None
-    
     # Tasas de conversión hardcoded (simplificado para MVP)
     # TODO: En el futuro, obtener tasas dinámicas de una API de divisas
     EXCHANGE_RATES_TO_EUR = {
@@ -53,14 +47,23 @@ class PriceUpdater:
         'NOK': 0.086,
         'SEK': 0.085,
         'DKK': 0.13,
+        'PLN': 0.23,  # Polish Zloty
+        'GBX': 0.012,  # UK Pence to EUR
     }
     
-    def __init__(self):
-        """Inicializar el servicio de actualización de precios."""
+    def __init__(self, progress_callback=None):
+        """
+        Inicializar el servicio de actualización de precios.
+        
+        Args:
+            progress_callback: Función opcional para reportar progreso.
+                              Recibe un dict con: current, total, current_asset, success, failed, errors
+        """
         self.errors = []
         self.warnings = []
         self.session = None
         self.crumb = None
+        self.progress_callback = progress_callback
     
     def _authenticate_yahoo(self) -> bool:
         """
@@ -164,6 +167,18 @@ class PriceUpdater:
         logger.info(f"📊 Total de activos a procesar: {total}")
         logger.info("=" * 80)
         
+        # Reportar inicio (si hay callback)
+        if self.progress_callback:
+            self.progress_callback({
+                'current': 0,
+                'total': total,
+                'current_asset': 'Autenticando con Yahoo Finance...',
+                'success': 0,
+                'failed': 0,
+                'skipped': 0,
+                'errors': []
+            })
+        
         # Autenticar con Yahoo Finance para acceder a quoteSummary
         auth_success = self._authenticate_yahoo()
         if not auth_success:
@@ -203,6 +218,18 @@ class PriceUpdater:
                     failed += 1
                     logger.error(f"   ❌ FALLÓ (en {elapsed:.2f}s)")
                 
+                # Reportar progreso (si hay callback)
+                if self.progress_callback:
+                    self.progress_callback({
+                        'current': idx + 1,
+                        'total': total,
+                        'current_asset': f"{asset.symbol or asset.name}",
+                        'success': success,
+                        'failed': failed,
+                        'skipped': skipped,
+                        'errors': self.errors[-3:] if len(self.errors) > 0 else []  # Últimos 3 errores
+                    })
+                
                 # Delay para evitar rate limiting (0.5 seg entre peticiones)
                 # Solo si no es el último activo
                 if idx < len(assets) - 1:
@@ -214,6 +241,18 @@ class PriceUpdater:
                 error_msg = str(e)
                 logger.error(f"   ❌ ERROR: {error_msg}")
                 self.errors.append(f"❌ {asset.symbol or asset.name}: {error_msg}")
+                
+                # Reportar error en progreso
+                if self.progress_callback:
+                    self.progress_callback({
+                        'current': idx + 1,
+                        'total': total,
+                        'current_asset': f"{asset.symbol or asset.name} (error)",
+                        'success': success,
+                        'failed': failed,
+                        'skipped': skipped,
+                        'errors': self.errors[-3:]
+                    })
         
         # Commit de todos los cambios
         logger.info("\n" + "=" * 80)
