@@ -603,9 +603,25 @@ def asset_registry_edit(id):
         registry.enrichment_source = None
         registry.enrichment_date = None
     
+    # ✅ SINCRONIZACIÓN AUTOMÁTICA con Assets
+    # Buscar todos los Assets con el mismo ISIN y sincronizarlos
+    from app.services.asset_registry_service import AssetRegistryService
+    service = AssetRegistryService()
+    
+    assets_to_sync = Asset.query.filter_by(isin=registry.isin).all()
+    synced_count = 0
+    
+    for asset in assets_to_sync:
+        service.sync_asset_from_registry(asset, registry)
+        synced_count += 1
+    
     db.session.commit()
     
-    flash(f'✅ Registro actualizado: {registry.isin}', 'success')
+    if synced_count > 0:
+        flash(f'✅ Registro actualizado: {registry.isin} (sincronizado con {synced_count} asset{"s" if synced_count > 1 else ""})', 'success')
+    else:
+        flash(f'✅ Registro actualizado: {registry.isin}', 'success')
+    
     return redirect(url_for('portfolio.asset_registry'))
 
 
