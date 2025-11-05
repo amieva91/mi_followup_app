@@ -98,7 +98,7 @@
                 </p>
             </div>
             <form method="POST" action="{{ url_for('portfolio.sync_assets_from_registry') }}" class="ml-4">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <button type="submit" 
                         class="px-6 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 font-medium transition-colors whitespace-nowrap">
                     🔄 Sincronizar Assets
