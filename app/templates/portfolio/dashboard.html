@@ -173,9 +173,16 @@
                         <td class="px-4 py-3 text-right text-sm text-gray-900">
                             {{ holding.total_cost|decimal_eu(2) }} {{ holding.asset.currency }}
                         </td>
-                        <td class="px-4 py-3 text-right text-sm text-gray-900">
-                            {% if holding.asset.current_price %}
-                                {{ (holding.total_quantity * holding.asset.current_price)|decimal_eu(2) }} {{ holding.asset.currency }}
+                        <td class="px-4 py-3 text-right text-sm">
+                            {% if holding.asset.current_price and holding.current_value_eur %}
+                                <div class="font-semibold text-gray-900">
+                                    {{ holding.current_value_eur|decimal_eu(2) }} EUR
+                                </div>
+                                {% if holding.local_currency != 'EUR' %}
+                                <div class="text-xs text-gray-500">
+                                    {{ holding.current_value_local|decimal_eu(2) }} {{ holding.local_currency }}
+                                </div>
+                                {% endif %}
                             {% else %}
                                 <span class="text-gray-400 text-xs">-</span>
                             {% endif %}
