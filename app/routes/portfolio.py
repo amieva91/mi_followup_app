@@ -1583,26 +1583,33 @@ def update_prices():
             'start_time': time.time()
         }
     
-    # Función para ejecutar en background
+    # Capturar el contexto de la aplicación para el thread
+    from flask import current_app
+    app = current_app._get_current_object()
+    
+    # Función para ejecutar en background con contexto de aplicación
     def run_price_update():
-        try:
-            updater = PriceUpdater(progress_callback=lambda data: update_price_progress(session_key, data))
-            result = updater.update_asset_prices()
-            
-            # Actualizar con resultado final
-            with price_progress_lock:
-                price_update_progress_cache[session_key].update({
-                    'status': 'completed',
-                    'result': result,
-                    'end_time': time.time()
-                })
-        except Exception as e:
-            with price_progress_lock:
-                price_update_progress_cache[session_key].update({
-                    'status': 'error',
-                    'error': str(e),
-                    'end_time': time.time()
-                })
+        with app.app_context():
+            try:
+                updater = PriceUpdater(progress_callback=lambda data: update_price_progress(session_key, data))
+                result = updater.update_asset_prices()
+                
+                # Actualizar con resultado final
+                with price_progress_lock:
+                    price_update_progress_cache[session_key].update({
+                        'status': 'completed',
+                        'result': result,
+                        'end_time': time.time()
+                    })
+            except Exception as e:
+                import traceback
+                with price_progress_lock:
+                    price_update_progress_cache[session_key].update({
+                        'status': 'error',
+                        'error': str(e),
+                        'traceback': traceback.format_exc(),
+                        'end_time': time.time()
+                    })
     
     # Iniciar thread
     thread = threading.Thread(target=run_price_update, daemon=True)
