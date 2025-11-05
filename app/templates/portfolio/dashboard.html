@@ -26,15 +26,12 @@
         </div>
         <div class="flex gap-3">
             <!-- Botón Actualizar Precios (Sprint 3 Final) -->
-            <form method="POST" action="{{ url_for('portfolio.update_prices') }}" class="inline">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" class="btn-secondary flex items-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                    </svg>
-                    🔄 Actualizar Precios
-                </button>
-            </form>
+            <button onclick="startPriceUpdate()" class="btn-secondary flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                🔄 Actualizar Precios
+            </button>
             <a href="{{ url_for('portfolio.account_new') }}" class="btn-secondary">
                 🏦 Nueva Cuenta
             </a>
@@ -320,6 +317,106 @@
             urlInput.value = '';
         }
     });
+    </script>
+    
+    <!-- Modal de Progreso de Actualización de Precios -->
+    <div id="priceUpdateModal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl p-8 max-w-lg w-full mx-4">
+            <h3 class="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
+                <svg class="animate-spin h-6 w-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Actualizando Precios
+            </h3>
+            
+            <div class="mb-6">
+                <div class="flex justify-between text-sm text-gray-600 mb-2">
+                    <span id="progressText">Iniciando...</span>
+                    <span id="progressCount">0/0</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+                    <div id="progressBar" class="bg-gradient-to-r from-blue-500 to-blue-600 h-full transition-all duration-300 ease-out" style="width: 0%"></div>
+                </div>
+                <div class="text-xs text-gray-500 mt-2 text-right">
+                    <span id="progressTime">Calculando tiempo estimado...</span>
+                </div>
+            </div>
+            
+            <div id="progressDetails" class="bg-gray-50 rounded-lg p-4 mb-4 max-h-60 overflow-y-auto text-sm">
+                <div class="text-gray-600">Esperando resultados...</div>
+            </div>
+            
+            <div id="progressCompleted" class="hidden">
+                <div class="flex justify-end gap-3">
+                    <button onclick="closeProgressModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                        Cerrar y Recargar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+    let progressInterval = null;
+    let startTime = null;
+    
+    async function startPriceUpdate() {
+        const modal = document.getElementById('priceUpdateModal');
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+        const progressCount = document.getElementById('progressCount');
+        const progressTime = document.getElementById('progressTime');
+        const progressDetails = document.getElementById('progressDetails');
+        const progressCompleted = document.getElementById('progressCompleted');
+        
+        // Mostrar modal
+        modal.classList.remove('hidden');
+        progressBar.style.width = '0%';
+        progressText.textContent = 'Iniciando actualización...';
+        progressCount.textContent = '0/0';
+        progressTime.textContent = 'Calculando tiempo estimado...';
+        progressDetails.innerHTML = '<div class="text-gray-600">Esperando resultados...</div>';
+        progressCompleted.classList.add('hidden');
+        startTime = Date.now();
+        
+        try {
+            // Iniciar actualización de precios
+            const response = await fetch('{{ url_for("portfolio.update_prices") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'csrf_token={{ csrf_token() }}'
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Error HTTP: ${response.status}`);
+            }
+            
+            // Actualización completada
+            progressBar.style.width = '100%';
+            progressText.textContent = '✅ Actualización completada';
+            progressCompleted.classList.remove('hidden');
+            
+            // Parsear resultados
+            const text = await response.text();
+            // Recargar página después de 2 segundos
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
+            
+        } catch (error) {
+            progressText.textContent = '❌ Error durante la actualización';
+            progressDetails.innerHTML = `<div class="text-red-600">Error: ${error.message}</div>`;
+            progressCompleted.classList.remove('hidden');
+        }
+    }
+    
+    function closeProgressModal() {
+        document.getElementById('priceUpdateModal').classList.add('hidden');
+        window.location.reload();
+    }
     </script>
 </div>
 {% endblock %}

@@ -381,19 +381,23 @@
         // Cargar datos actuales desde la API
         fetch(`/portfolio/asset-registry`)
             .then(() => {
-                // Por ahora, extraer datos del DOM
+                // Extraer datos del DOM
+                // Orden: ISIN(0), Symbol(1), Nombre(2), Moneda(3), Exchange(4), MIC(5), Yahoo(6), Estado(7), Uso(8), Acciones(9)
                 const cells = row.querySelectorAll('td');
+                
                 const symbol = cells[1].textContent.includes('sin symbol') ? '' : cells[1].textContent.trim();
                 const name = cells[2].textContent.trim();
-                const yahooTickerRaw = cells[3].textContent.trim();  // Columna "Yahoo Ticker"
                 const exchange = cells[4].textContent.includes('sin exchange') ? '' : cells[4].textContent.trim();
                 const mic = cells[5].textContent.trim();
+                const yahooTickerRaw = cells[6].textContent.trim();  // ✅ Columna correcta: Yahoo Ticker
                 
                 // Extraer yahoo_suffix del Yahoo Ticker (ej: "ASTS" → "", "GRF.MC" → ".MC")
                 let yahooSuffix = '';
                 if (yahooTickerRaw && yahooTickerRaw !== '-' && symbol && yahooTickerRaw !== symbol) {
                     yahooSuffix = yahooTickerRaw.substring(symbol.length);  // Todo después del symbol
                 }
+                
+                console.log('📊 DEBUG editRegistry:', {symbol, yahooTickerRaw, yahooSuffix, exchange, mic});
                 
                 // Rellenar formulario
                 document.getElementById('edit_symbol').value = symbol === '-' ? '' : symbol;
