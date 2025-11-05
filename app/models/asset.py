@@ -89,6 +89,20 @@ class Asset(db.Model):
         if not self.day_change_percent:
             return 'neutral'
         return 'up' if self.day_change_percent > 0 else 'down' if self.day_change_percent < 0 else 'neutral'
+    
+    @property
+    def is_price_stale(self):
+        """Detecta si el precio está desactualizado o nunca se actualizó"""
+        from datetime import timedelta
+        if not self.current_price:
+            return False  # No hay precio, no es "stale", simplemente no existe
+        
+        if not self.last_price_update:
+            return True  # Hay precio pero sin fecha de actualización -> es antiguo
+        
+        # Precio antiguo si han pasado más de 7 días desde la última actualización
+        age_threshold = timedelta(days=7)
+        return (datetime.utcnow() - self.last_price_update) > age_threshold
 
 
 class PriceHistory(db.Model):

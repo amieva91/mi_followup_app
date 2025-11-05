@@ -127,6 +127,11 @@
                                 <a href="{{ url_for('portfolio.asset_detail', id=holding.asset.id) }}" class="text-blue-600 hover:text-blue-700">
                                     {{ holding.asset.name or holding.asset.symbol }}
                                 </a>
+                                {% if holding.asset.is_price_stale %}
+                                <span class="text-orange-500 ml-2" title="⚠️ Precio desactualizado: La última actualización fue hace más de 7 días o falló. Haz clic en 'Actualizar Precios' para intentar obtener datos nuevos.">
+                                    ⚠️
+                                </span>
+                                {% endif %}
                                 {% if holding.asset.mic and not holding.asset.symbol %}
                                 <button class="fix-yahoo-btn text-orange-600 hover:text-orange-700 ml-2" 
                                         data-asset-id="{{ holding.asset.id }}" 
