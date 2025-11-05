@@ -316,12 +316,12 @@
     <!-- Modal de Progreso de Actualización de Precios -->
     <div id="priceUpdateModal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50">
         <div class="bg-white rounded-lg shadow-xl p-8 max-w-lg w-full mx-4">
-            <h3 class="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
-                <svg class="animate-spin h-6 w-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <h3 id="modalTitle" class="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
+                <svg id="modalSpinner" class="animate-spin h-6 w-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                Actualizando Precios
+                <span id="modalTitleText">Actualizando Precios</span>
             </h3>
             
             <div class="mb-6">
@@ -344,7 +344,7 @@
             <div id="progressCompleted" class="hidden">
                 <div class="flex justify-end gap-3">
                     <button onclick="closeProgressModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                        Cerrar y Recargar
+                        Cerrar
                     </button>
                 </div>
             </div>
@@ -365,8 +365,13 @@
         const progressDetails = document.getElementById('progressDetails');
         const progressCompleted = document.getElementById('progressCompleted');
         
-        // Mostrar modal
+        // Mostrar modal y resetear estado
         modal.classList.remove('hidden');
+        
+        // Mostrar spinner y resetear título
+        document.getElementById('modalSpinner').classList.remove('hidden');
+        document.getElementById('modalTitleText').textContent = 'Actualizando Precios';
+        
         progressBar.style.width = '0%';
         progressText.textContent = 'Iniciando actualización...';
         progressCount.textContent = '0/0';
@@ -400,6 +405,10 @@
             progressInterval = setInterval(checkProgress, 500);
             
         } catch (error) {
+            // Ocultar spinner en caso de error
+            document.getElementById('modalSpinner').classList.add('hidden');
+            document.getElementById('modalTitleText').textContent = '❌ Error al Iniciar';
+            
             progressText.textContent = '❌ Error al iniciar actualización';
             progressDetails.innerHTML = `<div class="text-red-600">Error: ${error.message}</div>`;
             progressCompleted.classList.remove('hidden');
@@ -463,6 +472,10 @@
                 // Detener polling
                 clearInterval(progressInterval);
                 
+                // Ocultar spinner y actualizar título
+                document.getElementById('modalSpinner').classList.add('hidden');
+                document.getElementById('modalTitleText').textContent = '✅ Actualización Completada';
+                
                 progressBar.style.width = '100%';
                 progressText.textContent = '✅ Actualización completada';
                 
@@ -498,6 +511,10 @@
                 // Detener polling
                 clearInterval(progressInterval);
                 
+                // Ocultar spinner y actualizar título
+                document.getElementById('modalSpinner').classList.add('hidden');
+                document.getElementById('modalTitleText').textContent = '❌ Error en Actualización';
+                
                 progressText.textContent = '❌ Error durante la actualización';
                 progressDetails.innerHTML = `<div class="text-red-600">Error: ${progress.error || 'Error desconocido'}</div>`;
                 progressCompleted.classList.remove('hidden');
@@ -513,7 +530,8 @@
             clearInterval(progressInterval);
         }
         document.getElementById('priceUpdateModal').classList.add('hidden');
-        window.location.reload();
+        // NO recargar - solo cerrar el modal
+        // El usuario puede recargar manualmente si lo desea (F5)
     }
     </script>
 </div>
