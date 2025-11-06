@@ -294,10 +294,109 @@ def account_delete(id):
     return redirect(url_for('portfolio.accounts_list'))
 
 
+@portfolio_bp.route('/currencies')
+@login_required
+def currencies():
+    """Muestra tasas de conversión de monedas en portfolio"""
+    from app.services.currency_service import get_cache_info, get_exchange_rates
+    from collections import defaultdict
+    
+    # Obtener info del cache
+    cache_info = get_cache_info()
+    
+    # Obtener todas las tasas actuales
+    all_rates = get_exchange_rates()
+    
+    # Obtener monedas únicas en el portfolio del usuario
+    user_currencies = db.session.query(Asset.currency, db.func.count(Asset.id)).join(
+        PortfolioHolding, PortfolioHolding.asset_id == Asset.id
+    ).filter(
+        PortfolioHolding.user_id == current_user.id,
+        PortfolioHolding.quantity > 0
+    ).group_by(Asset.currency).all()
+    
+    # Nombres de monedas (parcial)
+    currency_names = {
+        'EUR': 'Euro',
+        'USD': 'Dólar estadounidense',
+        'GBP': 'Libra esterlina',
+        'GBX': 'Penique británico',
+        'JPY': 'Yen japonés',
+        'CHF': 'Franco suizo',
+        'AUD': 'Dólar australiano',
+        'CAD': 'Dólar canadiense',
+        'HKD': 'Dólar de Hong Kong',
+        'SGD': 'Dólar de Singapur',
+        'NOK': 'Corona noruega',
+        'SEK': 'Corona sueca',
+        'DKK': 'Corona danesa',
+        'PLN': 'Zloty polaco',
+        'CNY': 'Yuan chino',
+    }
+    
+    # Flags de monedas (emoji)
+    currency_flags = {
+        'EUR': '🇪🇺',
+        'USD': '🇺🇸',
+        'GBP': '🇬🇧',
+        'GBX': '🇬🇧',
+        'JPY': '🇯🇵',
+        'CHF': '🇨🇭',
+        'AUD': '🇦🇺',
+        'CAD': '🇨🇦',
+        'HKD': '🇭🇰',
+        'SGD': '🇸🇬',
+        'NOK': '🇳🇴',
+        'SEK': '🇸🇪',
+        'DKK': '🇩🇰',
+        'PLN': '🇵🇱',
+        'CNY': '🇨🇳',
+    }
+    
+    # Preparar datos para la tabla
+    currency_rates = []
+    for currency, count in user_currencies:
+        if currency in all_rates:
+            to_eur = all_rates[currency]
+            from_eur = 1 / to_eur if to_eur > 0 else 0
+            
+            currency_rates.append({
+                'currency': currency,
+                'currency_name': currency_names.get(currency, currency),
+                'flag': currency_flags.get(currency, '🌐'),
+                'to_eur': to_eur,
+                'from_eur': from_eur,
+                'asset_count': count
+            })
+    
+    # Ordenar por moneda
+    currency_rates.sort(key=lambda x: x['currency'])
+    
+    return render_template('portfolio/currencies.html', 
+                          currency_rates=currency_rates,
+                          cache_info=cache_info)
+
+
+@portfolio_bp.route('/currencies/refresh', methods=['POST'])
+@login_required
+def currencies_refresh():
+    """Fuerza actualización de tasas de cambio"""
+    from app.services.currency_service import get_exchange_rates
+    
+    try:
+        # Forzar actualización
+        rates = get_exchange_rates(force_refresh=True)
+        flash(f'✅ Tasas actualizadas correctamente ({len(rates)} monedas)', 'success')
+    except Exception as e:
+        flash(f'❌ Error al actualizar tasas: {str(e)}', 'error')
+    
+    return redirect(url_for('portfolio.currencies'))
+
+
 @portfolio_bp.route('/holdings')
 @login_required
 def holdings_list():
-    """Lista de posiciones actuales (agrupadas por asset)"""
+    """Lista de posiciones actuales con precios en tiempo real"""
     from collections import defaultdict
     
     # Obtener todos los holdings
@@ -342,11 +441,34 @@ def holdings_list():
         if group['last_transaction_date'] is None or holding.last_transaction_date > group['last_transaction_date']:
             group['last_transaction_date'] = holding.last_transaction_date
     
-    # Convertir a lista y calcular precio medio ponderado
+    # Convertir a lista y calcular valores actuales
     holdings_unified = []
     for asset_id, data in grouped.items():
         data['average_buy_price'] = data['total_cost'] / data['total_quantity'] if data['total_quantity'] > 0 else 0
         data['asset_id'] = asset_id
+        
+        # Calcular valor actual y P&L (con conversión EUR)
+        asset = data['asset']
+        if asset.current_price:
+            # Valor en moneda local
+            current_value_local = data['total_quantity'] * asset.current_price
+            
+            # Conversión a EUR
+            current_value_eur = convert_to_eur(current_value_local, asset.currency)
+            total_cost_eur = convert_to_eur(data['total_cost'], asset.currency)
+            
+            data['current_value_local'] = current_value_local
+            data['current_value_eur'] = current_value_eur
+            data['local_currency'] = asset.currency
+            data['unrealized_pl_eur'] = current_value_eur - total_cost_eur
+            data['unrealized_pl_pct'] = ((current_value_eur / total_cost_eur) - 1) * 100 if total_cost_eur > 0 else 0
+        else:
+            data['current_value_local'] = None
+            data['current_value_eur'] = None
+            data['local_currency'] = asset.currency
+            data['unrealized_pl_eur'] = None
+            data['unrealized_pl_pct'] = None
+        
         holdings_unified.append(data)
     
     # Ordenar por símbolo

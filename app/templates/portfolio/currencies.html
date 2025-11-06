@@ -1,0 +1,111 @@
+{% extends "base/layout.html" %}
+
+{% block title %}Tasas de Conversión - FollowUp{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-8">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900">💱 Tasas de Conversión</h1>
+            <p class="text-gray-600 mt-1">Conversión a EUR de monedas en tu portfolio</p>
+        </div>
+        <div class="flex items-center gap-4">
+            <form method="POST" action="{{ url_for('portfolio.currencies_refresh') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn-secondary">
+                    🔄 Actualizar Tasas
+                </button>
+            </form>
+            <a href="{{ url_for('portfolio.dashboard') }}" class="btn-primary">
+                ← Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- Info Cache -->
+    {% if cache_info %}
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+        <div class="flex items-center gap-3">
+            <span class="text-2xl">📊</span>
+            <div>
+                <h3 class="text-sm font-semibold text-blue-900">Estado del Cache</h3>
+                <p class="text-sm text-blue-700">
+                    Última actualización: <strong>{{ cache_info.last_update }}</strong> 
+                    (hace {{ cache_info.age_hours }}h)
+                    • {{ cache_info.currencies_count }} monedas disponibles
+                </p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Tabla de Tasas -->
+    {% if currency_rates %}
+    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Moneda
+                        </th>
+                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            1 Moneda = X EUR
+                        </th>
+                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            1 EUR = X Moneda
+                        </th>
+                        <th class="px-6 py-4 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Activos
+                        </th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for item in currency_rates %}
+                    <tr class="hover:bg-gray-50 transition">
+                        <td class="px-6 py-4">
+                            <div class="flex items-center gap-2">
+                                <span class="text-2xl">{{ item.flag }}</span>
+                                <div>
+                                    <div class="font-bold text-gray-900">{{ item.currency }}</div>
+                                    <div class="text-sm text-gray-500">{{ item.currency_name }}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <div class="text-sm font-medium text-gray-900">{{ item.to_eur|decimal_eu(6) }} EUR</div>
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <div class="text-sm text-gray-600">{{ item.from_eur|decimal_eu(4) }} {{ item.currency }}</div>
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                {{ item.asset_count }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="mt-6 flex items-center justify-between">
+        <div class="text-sm text-gray-500">
+            Total: {{ currency_rates|length }} moneda{{ 's' if currency_rates|length != 1 else '' }} en portfolio
+        </div>
+        <div class="text-xs text-gray-400">
+            Fuente: <a href="https://api.exchangerate-api.com" target="_blank" class="underline">exchangerate-api.com</a>
+        </div>
+    </div>
+    {% else %}
+    <div class="bg-white rounded-xl shadow-sm p-12 text-center">
+        <div class="text-6xl mb-4">💱</div>
+        <h3 class="text-lg font-medium text-gray-900 mb-2">No hay datos de conversión</h3>
+        <p class="text-gray-600 mb-6">Las tasas de cambio se actualizarán cuando agregues activos a tu portfolio</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+

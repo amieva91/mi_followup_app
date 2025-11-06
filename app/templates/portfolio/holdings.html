@@ -96,12 +96,31 @@
                             <div class="text-sm font-medium text-gray-900">{{ holding.total_cost|decimal_eu(2) }} <span class="text-xs text-gray-600">{{ holding.asset.currency }}</span></div>
                             {% endif %}
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-right">
-                            <div class="text-sm text-gray-400">Sin precio</div>
-                            <div class="text-xs text-gray-400">Actualizar</div>
+                        <td class="px-6 py-4 text-right text-sm">
+                            {% if holding.current_value_eur %}
+                                <div class="font-semibold text-gray-900">
+                                    {{ holding.current_value_eur|decimal_eu(2) }} EUR
+                                </div>
+                                {% if holding.local_currency != 'EUR' %}
+                                <div class="text-xs text-gray-500">
+                                    {{ holding.current_value_local|decimal_eu(2) }} {{ holding.local_currency }}
+                                </div>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-gray-400 text-xs">Sin precio</span>
+                            {% endif %}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right">
-                            <div class="text-sm text-gray-400">-</div>
+                            {% if holding.unrealized_pl_eur is not none %}
+                                <div class="text-sm font-medium {% if holding.unrealized_pl_eur > 0 %}text-green-600{% elif holding.unrealized_pl_eur < 0 %}text-red-600{% else %}text-gray-600{% endif %}">
+                                    {{ holding.unrealized_pl_eur|decimal_eu(2) }} EUR
+                                </div>
+                                <div class="text-xs {% if holding.unrealized_pl_pct > 0 %}text-green-600{% elif holding.unrealized_pl_pct < 0 %}text-red-600{% else %}text-gray-600{% endif %}">
+                                    {% if holding.unrealized_pl_pct > 0 %}+{% endif %}{{ holding.unrealized_pl_pct|decimal_eu(2) }}%
+                                </div>
+                            {% else %}
+                                <span class="text-gray-400 text-xs">-</span>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
