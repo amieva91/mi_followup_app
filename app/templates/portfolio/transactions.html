@@ -293,7 +293,9 @@
         <nav class="flex items-center space-x-2">
             <!-- Primera página -->
             {% if pagination.has_prev %}
-            <a href="{{ url_for('portfolio.transactions_list', page=1, **request.args.to_dict()|rejectattr('0', 'eq', 'page')) }}" 
+            {% set args = request.args.to_dict() %}
+            {% set _ = args.pop('page', None) %}
+            <a href="{{ url_for('portfolio.transactions_list', page=1, **args) }}" 
                class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
                 Primera
             </a>
@@ -301,7 +303,9 @@
             
             <!-- Página anterior -->
             {% if pagination.has_prev %}
-            <a href="{{ url_for('portfolio.transactions_list', page=pagination.prev_num, **request.args.to_dict()|rejectattr('0', 'eq', 'page')) }}" 
+            {% set args = request.args.to_dict() %}
+            {% set _ = args.pop('page', None) %}
+            <a href="{{ url_for('portfolio.transactions_list', page=pagination.prev_num, **args) }}" 
                class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
                 ← Anterior
             </a>
@@ -314,7 +318,9 @@
             
             <!-- Página siguiente -->
             {% if pagination.has_next %}
-            <a href="{{ url_for('portfolio.transactions_list', page=pagination.next_num, **request.args.to_dict()|rejectattr('0', 'eq', 'page')) }}" 
+            {% set args = request.args.to_dict() %}
+            {% set _ = args.pop('page', None) %}
+            <a href="{{ url_for('portfolio.transactions_list', page=pagination.next_num, **args) }}" 
                class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
                 Siguiente →
             </a>
@@ -322,7 +328,9 @@
             
             <!-- Última página -->
             {% if pagination.has_next %}
-            <a href="{{ url_for('portfolio.transactions_list', page=pagination.pages, **request.args.to_dict()|rejectattr('0', 'eq', 'page')) }}" 
+            {% set args = request.args.to_dict() %}
+            {% set _ = args.pop('page', None) %}
+            <a href="{{ url_for('portfolio.transactions_list', page=pagination.pages, **args) }}" 
                class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
                 Última
             </a>
