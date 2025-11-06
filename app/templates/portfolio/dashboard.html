@@ -61,12 +61,22 @@
         </div>
     </div>
     
-    <!-- Última actualización de precios -->
-    {% if last_price_update %}
-    <div class="text-xs text-gray-500 text-right mb-8">
-        📡 Última actualización: {{ last_price_update.strftime('%d/%m/%Y %H:%M') }}
+    <!-- Última actualización e información -->
+    <div class="flex justify-between items-center text-xs text-gray-500 mb-8">
+        {% if last_sync %}
+        <div>
+            📥 Última sincronización: {{ last_sync.created_at.strftime('%d/%m/%Y %H:%M') }}
+        </div>
+        {% else %}
+        <div></div>
+        {% endif %}
+        
+        {% if last_price_update %}
+        <div>
+            📡 Última actualización de precios: {{ last_price_update.strftime('%d/%m/%Y %H:%M') }}
+        </div>
+        {% endif %}
     </div>
-    {% endif %}
 
     <!-- Navegación de Cuentas -->
     {% if accounts %}

@@ -563,6 +563,31 @@
         document.getElementById('editModal').classList.add('hidden');
         currentRegistryId = null;
     }
+    
+    // Búsqueda en tiempo real (sin necesidad de botón submit)
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.querySelector('input[name="search"]');
+        const enrichedCheckbox = document.querySelector('input[name="unenriched"]');
+        const form = searchInput ? searchInput.closest('form') : null;
+        
+        if (searchInput && form) {
+            // Búsqueda mientras escribes (con debounce de 300ms)
+            let searchTimeout;
+            searchInput.addEventListener('input', function() {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    form.submit();
+                }, 300);
+            });
+        }
+        
+        if (enrichedCheckbox && form) {
+            // Filtro checkbox: submit inmediato
+            enrichedCheckbox.addEventListener('change', function() {
+                form.submit();
+            });
+        }
+    });
 </script>
 {% endblock %}
 

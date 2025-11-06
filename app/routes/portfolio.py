@@ -48,6 +48,10 @@ def dashboard():
         is_active=True
     ).all()
     
+    # Obtener última sincronización (última transacción creada)
+    last_sync = Transaction.query.filter_by(user_id=current_user.id)\
+        .order_by(Transaction.created_at.desc()).first()
+    
     # Obtener todos los holdings individuales
     all_holdings = PortfolioHolding.query.filter_by(
         user_id=current_user.id
@@ -146,6 +150,7 @@ def dashboard():
         total_pl=total_pl,
         total_pl_pct=total_pl_pct,
         last_price_update=last_price_update,
+        last_sync=last_sync,
         unified=True  # Flag para indicar que son holdings unificados
     )
 
