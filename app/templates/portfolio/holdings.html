@@ -23,32 +23,32 @@
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
-                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Activo
+                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTableHoldings(0, 'text')">
+                            Activo <span class="sort-arrow">⇅</span>
                         </th>
                         {% if unified %}
-                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Cuentas
+                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTableHoldings(1, 'text')">
+                            Cuentas <span class="sort-arrow">⇅</span>
                         </th>
                         {% else %}
-                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Cuenta
+                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTableHoldings(1, 'text')">
+                            Cuenta <span class="sort-arrow">⇅</span>
                         </th>
                         {% endif %}
-                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Cantidad
+                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTableHoldings(2, 'number')">
+                            Cantidad <span class="sort-arrow">⇅</span>
                         </th>
-                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Precio Medio
+                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTableHoldings(3, 'number')">
+                            Precio Medio <span class="sort-arrow">⇅</span>
                         </th>
-                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Coste Total
+                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTableHoldings(4, 'number')">
+                            Coste Total <span class="sort-arrow">⇅</span>
                         </th>
-                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Valor Actual
+                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTableHoldings(5, 'number')">
+                            Valor Actual <span class="sort-arrow">⇅</span>
                         </th>
-                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            P&L No Realizado
+                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTableHoldings(6, 'number')">
+                            P&L No Realizado <span class="sort-arrow">⇅</span>
                         </th>
                     </tr>
                 </thead>
@@ -234,11 +234,63 @@
     
     // Cerrar con ESC
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+        if (e.key === 'Escape' && !modal.classList.contains('hidden')) {        
             modal.classList.add('hidden');
             urlInput.value = '';
         }
     });
+    
+    // Ordenar tabla de holdings
+    let sortDirectionHoldings = {}; // Guardar dirección de ordenamiento por columna
+    
+    function sortTableHoldings(columnIndex, type) {
+        const table = document.querySelector('.min-w-full');
+        const tbody = table.querySelector('tbody');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        
+        // Alternar dirección
+        if (!sortDirectionHoldings[columnIndex]) {
+            sortDirectionHoldings[columnIndex] = 'asc';
+        } else {
+            sortDirectionHoldings[columnIndex] = sortDirectionHoldings[columnIndex] === 'asc' ? 'desc' : 'asc';
+        }
+        
+        const direction = sortDirectionHoldings[columnIndex];
+        
+        // Ordenar filas
+        rows.sort((a, b) => {
+            const cellA = a.querySelectorAll('td')[columnIndex];
+            const cellB = b.querySelectorAll('td')[columnIndex];
+            
+            let valueA, valueB;
+            
+            if (type === 'number') {
+                // Extraer primer número de la celda
+                const textA = cellA.textContent.replace(/[^\d.,-]/g, '').replace(',', '.');
+                const textB = cellB.textContent.replace(/[^\d.,-]/g, '').replace(',', '.');
+                valueA = parseFloat(textA) || 0;
+                valueB = parseFloat(textB) || 0;
+            } else {
+                // Texto
+                valueA = cellA.textContent.trim().toLowerCase();
+                valueB = cellB.textContent.trim().toLowerCase();
+            }
+            
+            if (direction === 'asc') {
+                return valueA > valueB ? 1 : valueA < valueB ? -1 : 0;
+            } else {
+                return valueA < valueB ? 1 : valueA > valueB ? -1 : 0;
+            }
+        });
+        
+        // Reordenar filas en el DOM
+        rows.forEach(row => tbody.appendChild(row));
+        
+        // Actualizar flechas
+        document.querySelectorAll('.sort-arrow').forEach(arrow => arrow.textContent = '⇅');
+        const currentArrow = table.querySelectorAll('th')[columnIndex].querySelector('.sort-arrow');
+        currentArrow.textContent = direction === 'asc' ? '↑' : '↓';
+    }
     </script>
 </div>
 {% endblock %}

@@ -4,7 +4,7 @@
 {% block title %}Portfolio - FollowUp{% endblock %}
 
 {% block content %}
-<div class="max-w-7xl mx-auto">
+<div class="max-w-[92%] mx-auto">
     <!-- Flash Messages se muestran en layout.html (línea 166) - NO duplicar aquí -->
     
     <!-- Header -->
@@ -119,14 +119,33 @@
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Activo</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cuenta</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Cantidad</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Precio Medio</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Precio Actual</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Coste Total</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Valor Actual</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">P&L</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onclick="sortTable(0, 'text')">
+                            Activo <span class="sort-arrow">⇅</span>
+                        </th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onclick="sortTable(1, 'text')">
+                            Cuenta <span class="sort-arrow">⇅</span>
+                        </th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onclick="sortTable(2, 'number')">
+                            Cantidad <span class="sort-arrow">⇅</span>
+                        </th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onclick="sortTable(3, 'number')">
+                            Precio Medio <span class="sort-arrow">⇅</span>
+                        </th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onclick="sortTable(4, 'number')">
+                            Precio Actual <span class="sort-arrow">⇅</span>
+                        </th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onclick="sortTable(5, 'number')">
+                            Coste Total <span class="sort-arrow">⇅</span>
+                        </th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onclick="sortTable(6, 'number')">
+                            Valor Actual <span class="sort-arrow">⇅</span>
+                        </th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onclick="sortTable(7, 'number')">
+                            Peso % <span class="sort-arrow">⇅</span>
+                        </th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onclick="sortTable(8, 'number')">
+                            P&L <span class="sort-arrow">⇅</span>
+                        </th>
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
@@ -193,6 +212,15 @@
                                     {{ holding.current_value_local|decimal_eu(2) }} {{ holding.local_currency }}
                                 </div>
                                 {% endif %}
+                            {% else %}
+                                <span class="text-gray-400 text-xs">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-right text-sm">
+                            {% if holding.weight_pct %}
+                                <div class="font-semibold text-gray-900">
+                                    {{ holding.weight_pct|decimal_eu(2) }}%
+                                </div>
                             {% else %}
                                 <span class="text-gray-400 text-xs">-</span>
                             {% endif %}
@@ -549,6 +577,58 @@
         document.getElementById('priceUpdateModal').classList.add('hidden');
         // NO recargar - solo cerrar el modal
         // El usuario puede recargar manualmente si lo desea (F5)
+    }
+    
+    // Ordenar tabla de holdings
+    let sortDirection = {}; // Guardar dirección de ordenamiento por columna
+    
+    function sortTable(columnIndex, type) {
+        const table = document.querySelector('.min-w-full');
+        const tbody = table.querySelector('tbody');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        
+        // Alternar dirección
+        if (!sortDirection[columnIndex]) {
+            sortDirection[columnIndex] = 'asc';
+        } else {
+            sortDirection[columnIndex] = sortDirection[columnIndex] === 'asc' ? 'desc' : 'asc';
+        }
+        
+        const direction = sortDirection[columnIndex];
+        
+        // Ordenar filas
+        rows.sort((a, b) => {
+            const cellA = a.querySelectorAll('td')[columnIndex];
+            const cellB = b.querySelectorAll('td')[columnIndex];
+            
+            let valueA, valueB;
+            
+            if (type === 'number') {
+                // Extraer primer número de la celda
+                const textA = cellA.textContent.replace(/[^\d.,-]/g, '').replace(',', '.');
+                const textB = cellB.textContent.replace(/[^\d.,-]/g, '').replace(',', '.');
+                valueA = parseFloat(textA) || 0;
+                valueB = parseFloat(textB) || 0;
+            } else {
+                // Texto
+                valueA = cellA.textContent.trim().toLowerCase();
+                valueB = cellB.textContent.trim().toLowerCase();
+            }
+            
+            if (direction === 'asc') {
+                return valueA > valueB ? 1 : valueA < valueB ? -1 : 0;
+            } else {
+                return valueA < valueB ? 1 : valueA > valueB ? -1 : 0;
+            }
+        });
+        
+        // Reordenar filas en el DOM
+        rows.forEach(row => tbody.appendChild(row));
+        
+        // Actualizar flechas
+        document.querySelectorAll('.sort-arrow').forEach(arrow => arrow.textContent = '⇅');
+        const currentArrow = table.querySelectorAll('th')[columnIndex].querySelector('.sort-arrow');
+        currentArrow.textContent = direction === 'asc' ? '↑' : '↓';
     }
     </script>
 </div>

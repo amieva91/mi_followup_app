@@ -141,6 +141,13 @@ def dashboard():
     # Calcular porcentaje
     total_pl_pct = (total_pl / total_cost * 100) if total_cost > 0 else 0
     
+    # Calcular peso % de cada holding
+    for h in holdings_unified:
+        if 'current_value_eur' in h and total_value > 0:
+            h['weight_pct'] = (h['current_value_eur'] / total_value) * 100
+        else:
+            h['weight_pct'] = 0
+    
     return render_template(
         'portfolio/dashboard.html',
         accounts=accounts,
