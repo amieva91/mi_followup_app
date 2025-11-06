@@ -1,9 +1,9 @@
 # 🔄 WORKFLOW: Desarrollo → Producción
 
-**Actualizado**: 2 Noviembre 2025 - 20:20 UTC  
+**Actualizado**: 6 Noviembre 2025  
 **Estado**: ✅ WORKFLOW VALIDADO Y FUNCIONANDO
 
-**Último deploy**: Pendiente - Sprint 3 v3.3.5 (Fix Crítico: DeGiro Dividendos/Fees sin Fecha)
+**Último deploy**: 6 Nov 2025 - Sprint 3 v3.5.0 COMPLETADO (Precios en Tiempo Real + Conversión de Divisas)
 
 **Cambios en v3.3.5 (CRÍTICO)**:
 - ✅ **FIX CRÍTICO**: Soporte para `datetime.date` en `parse_datetime()`
@@ -236,59 +236,65 @@ git push origin --tags
 
 ## 🔧 SCRIPTS ÚTILES
 
-### Script de Deploy (`scripts/deploy.sh`)
+### Script de Deploy (`subidaPRO.sh`)
+
+**Ubicación**: Raíz del proyecto (`~/www/subidaPRO.sh`)
 
 ```bash
 #!/bin/bash
-# Script de deploy automático
+# Script de deploy a producción (unificado y optimizado)
+# Uso: ./subidaPRO.sh
 
 set -e  # Exit on error
 
 echo "🚀 Iniciando deploy a producción..."
 
-# Backup
-echo "📦 Haciendo backup de BD..."
-pg_dump followup_prod > ~/backups/followup_$(date +%Y%m%d_%H%M%S).sql
+ssh -i ~/.ssh/ssh-key-2025-08-21.key ubuntu@140.238.120.92 << 'EOF'
+cd ~/www
 
-# Pull
-echo "📥 Descargando código nuevo..."
+# Backup de BD
+echo "📦 Haciendo backup de BD..."
+mkdir -p ~/backups
+cp instance/followup.db ~/backups/followup_$(date +%Y%m%d_%H%M%S).db
+
+# Pull código
+echo "📥 Descargando cambios desde main..."
+git fetch origin
 git pull origin main
 
-# Dependencies
-echo "📚 Instalando dependencias..."
+# Activar venv e instalar dependencias (solo si cambió requirements.txt)
 source venv/bin/activate
-pip install -r requirements.txt
+if git diff HEAD@{1} HEAD --name-only | grep -q "requirements.txt"; then
+    pip install -r requirements.txt --quiet
+fi
 
-# Migrations
-echo "🗄️ Ejecutando migraciones..."
-alembic upgrade head
+# Migraciones
+echo "🗄️ Aplicando migraciones..."
+export FLASK_APP=run.py
+flask db upgrade
 
-# CSS
-echo "🎨 Compilando CSS..."
-npm run build:css
-
-# Restart
+# Reiniciar servicio
 echo "🔄 Reiniciando aplicación..."
-sudo systemctl restart followup
+sudo systemctl restart followup.service
+sudo systemctl status followup.service --no-pager -l
 
-# Status
-echo "✅ Deploy completado. Verificando estado..."
-sudo systemctl status followup
+EOF
 
-echo ""
-echo "🌐 Aplicación disponible en: https://followup.fit/"
-echo "📊 Ver logs: sudo journalctl -u followup -f"
+echo "✅ Deploy completado"
+echo "🌐 https://followup.fit/"
 ```
 
-Hacer ejecutable:
-```bash
-chmod +x scripts/deploy.sh
-```
+**Características**:
+- ✅ Un solo bloque SSH (más rápido)
+- ✅ Backup automático antes de deploy
+- ✅ Instala dependencias SOLO si cambió requirements.txt
+- ✅ Ejecuta migraciones automáticamente
+- ✅ Reinicia y verifica el servicio
 
-Usar:
+**Usar desde desarrollo**:
 ```bash
-cd /home/ubuntu/www/followup
-./scripts/deploy.sh
+cd ~/www
+./subidaPRO.sh
 ```
 
 ### Script de Backup (`scripts/backup.sh`)
