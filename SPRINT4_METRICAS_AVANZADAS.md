@@ -402,6 +402,46 @@ Peso %:       🥧 (pie)
 
 ---
 
+### **HITO 6: Mejoras UX - Modales y Navegación** (2-3 días)
+**Prioridad**: 🟢 BAJA (mejora cosmética, no bloquea funcionalidad)
+
+**Objetivo**: Mejorar la experiencia de navegación convirtiendo páginas completas en modales inline.
+
+**Tareas**:
+
+1. **Modal de Detalle de Asset (#4)**
+   - Convertir `/portfolio/asset/<id>` en modal
+   - Aparece en Dashboard y Holdings al hacer clic en un activo
+   - Contenido: nombre, precio, métricas, historial de transacciones
+   - Botón "Ver Completo" para ir a la página si se necesita más detalle
+   - Cierre con ESC o clic fuera
+
+2. **Modal de Nueva Transacción (#5)**
+   - Convertir formulario de "Nueva Transacción" a modal
+   - Reemplazar botón "Nueva Transacción" por icono "+" en la tabla
+   - Ubicación: Dashboard y Holdings
+   - Validación Ajax sin recarga de página
+   - Feedback inline de errores
+   - Auto-actualización de la tabla al guardar
+
+**Beneficios**:
+- Navegación más fluida (sin cambios de página)
+- Menos clics para acciones frecuentes
+- Experiencia más moderna y responsive
+- Reduce la necesidad de volver atrás
+
+**Stack**:
+- Modal: Tailwind CSS utilities
+- Ajax: Fetch API
+- Validación: WTForms server-side + JavaScript client-side
+
+**Consideraciones**:
+- Mantener las páginas completas para SEO y accesibilidad
+- Los modales son atajos, no reemplazos totales
+- Formularios deben funcionar con y sin JavaScript
+
+---
+
 ## ⚠️ CONSIDERACIONES
 
 ### **Performance**:

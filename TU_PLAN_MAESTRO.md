@@ -173,6 +173,12 @@
 - [ ] **HITO 3**: Gráficos de Evolución (Chart.js - línea, área, barras)
 - [ ] **HITO 4**: Distribución del Portfolio (Pie charts: asset/sector/industria/broker/moneda/país)
 - [ ] **HITO 5**: Página de Métricas Completa con selector de período
+- [ ] **HITO 6**: Mejoras UX - Modales y Navegación
+  - **#4**: Convertir detalle de asset (`/portfolio/asset/<id>`) a modal en Dashboard y Holdings
+  - **#5**: Convertir "Nueva Transacción" a modal con botón "+" en tabla (Dashboard y Holdings)
+  - Formularios con validación Ajax sin recarga
+  - Manejo de errores inline
+  - Mejora experiencia de navegación
 
 **Sprints Futuros** (después de Sprint 4):
 - **Sprint 5**: Actualización Automática de Precios (2 semanas)
