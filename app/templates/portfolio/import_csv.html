@@ -114,6 +114,79 @@
                 {% endif %}
             </div>
 
+            <!-- Guías dinámicas según broker seleccionado -->
+            <div id="brokerGuide" class="mb-6 hidden">
+                <!-- Guía DeGiro -->
+                <div id="guideDeGiro" class="hidden bg-gradient-to-r from-orange-50 to-yellow-50 border-l-4 border-orange-500 rounded-lg p-6">
+                    <h3 class="text-lg font-bold text-orange-800 mb-4 flex items-center gap-2">
+                        <span class="text-2xl">📋</span> Cómo obtener los CSV de DeGiro
+                    </h3>
+                    <div class="space-y-4 text-sm text-gray-700">
+                        <div class="bg-white rounded-lg p-4 shadow-sm">
+                            <h4 class="font-semibold text-orange-700 mb-2">📄 Archivo 1: "Estado de Cuenta"</h4>
+                            <ol class="list-decimal list-inside space-y-2 ml-2">
+                                <li>Ve a <strong>Buzón</strong> → <strong>Estado de cuenta</strong></li>
+                                <li>Selecciona el <strong>rango completo de fechas</strong> (desde tu primera inversión hasta hoy)</li>
+                                <li>Haz clic en <strong>Exportar</strong></li>
+                                <li>Selecciona formato <strong>CSV</strong></li>
+                            </ol>
+                            <p class="mt-2 text-xs text-gray-500">ℹ️ Este archivo contiene: dividendos, comisiones, depósitos y retiros</p>
+                        </div>
+                        
+                        <div class="bg-white rounded-lg p-4 shadow-sm">
+                            <h4 class="font-semibold text-orange-700 mb-2">📊 Archivo 2: "Transacciones"</h4>
+                            <ol class="list-decimal list-inside space-y-2 ml-2">
+                                <li>Ve a <strong>Buzón</strong> → <strong>Transacciones</strong></li>
+                                <li>Selecciona el <strong>rango completo de fechas</strong></li>
+                                <li>Haz clic en <strong>Exportar</strong></li>
+                                <li>Selecciona formato <strong>CSV</strong></li>
+                            </ol>
+                            <p class="mt-2 text-xs text-gray-500">ℹ️ Este archivo contiene: compras y ventas de activos</p>
+                        </div>
+                        
+                        <div class="bg-orange-100 border border-orange-300 rounded-lg p-3 mt-4">
+                            <p class="text-xs font-medium text-orange-800">
+                                ⚠️ <strong>Importante:</strong> Debes subir AMBOS archivos para tener toda la información completa (holdings, dividendos, comisiones, etc.)
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Guía IBKR -->
+                <div id="guideIBKR" class="hidden bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-600 rounded-lg p-6">
+                    <h3 class="text-lg font-bold text-blue-800 mb-4 flex items-center gap-2">
+                        <span class="text-2xl">📋</span> Cómo obtener el CSV de IBKR
+                    </h3>
+                    <div class="space-y-4 text-sm text-gray-700">
+                        <div class="bg-white rounded-lg p-4 shadow-sm">
+                            <h4 class="font-semibold text-blue-700 mb-2">📄 "Activity Statement" (Oficial)</h4>
+                            <ol class="list-decimal list-inside space-y-2 ml-2">
+                                <li>Ve a <strong>Rendimiento e Informes</strong> → <strong>Extractos</strong></li>
+                                <li>Selecciona <strong>"Activity Statement (Official)"</strong></li>
+                                <li>Elige el período: <strong>máximo 1 año</strong></li>
+                                <li>Formato: <strong>CSV</strong></li>
+                                <li>Haz clic en <strong>Ejecutar</strong></li>
+                            </ol>
+                        </div>
+                        
+                        <div class="bg-blue-100 border border-blue-300 rounded-lg p-3 mt-4">
+                            <p class="text-xs font-medium text-blue-800 mb-2">
+                                ⚠️ <strong>Límite de 1 año:</strong> IBKR solo permite exportar un máximo de 1 año por archivo.
+                            </p>
+                            <p class="text-xs text-blue-700">
+                                💡 <strong>Solución:</strong> Si tienes más de 1 año de historial, descarga múltiples archivos (uno por año) y súbelos todos juntos. El sistema detectará y evitará duplicados automáticamente.
+                            </p>
+                        </div>
+                        
+                        <div class="bg-green-50 border border-green-300 rounded-lg p-3">
+                            <p class="text-xs text-green-800">
+                                ✅ <strong>Este archivo contiene TODO:</strong> compras, ventas, dividendos, comisiones, depósitos, retiros, etc.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Selector de archivos (múltiples) -->
             <div class="mb-6">
                 <label class="block text-sm font-medium text-gray-700 mb-2">
@@ -222,6 +295,41 @@ window.addEventListener('DOMContentLoaded', function() {
         
         // Limpiar query params de la URL
         window.history.replaceState({}, document.title, window.location.pathname);
+    }
+    
+    // Mostrar guías según broker seleccionado
+    const accountSelect = document.querySelector('select[name="account_id"]');
+    const brokerGuideContainer = document.getElementById('brokerGuide');
+    const guideDeGiro = document.getElementById('guideDeGiro');
+    const guideIBKR = document.getElementById('guideIBKR');
+    
+    // Datos de los brokers (extraídos del backend)
+    const accountBrokerMap = {
+        {% for account in accounts %}
+        '{{ account.id }}': '{{ account.broker.name }}',
+        {% endfor %}
+    };
+    
+    if (accountSelect) {
+        accountSelect.addEventListener('change', function() {
+            const selectedAccountId = this.value;
+            const brokerName = accountBrokerMap[selectedAccountId] || '';
+            
+            // Ocultar todas las guías
+            guideDeGiro.classList.add('hidden');
+            guideIBKR.classList.add('hidden');
+            brokerGuideContainer.classList.add('hidden');
+            
+            // Mostrar guía según el broker
+            if (brokerName.toLowerCase().includes('degiro')) {
+                guideDeGiro.classList.remove('hidden');
+                brokerGuideContainer.classList.remove('hidden');
+            } else if (brokerName.toLowerCase().includes('ibkr') || brokerName.toLowerCase().includes('interactive')) {
+                guideIBKR.classList.remove('hidden');
+                brokerGuideContainer.classList.remove('hidden');
+            }
+            // Si es "Manual" u otro broker, no mostrar nada (queda oculto)
+        });
     }
 });
 
