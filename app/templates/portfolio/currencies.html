@@ -12,7 +12,7 @@
         </div>
         <div class="flex items-center gap-4">
             <form method="POST" action="{{ url_for('portfolio.currencies_refresh') }}">
-                {{ csrf_token() }}
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                 <button type="submit" class="btn-secondary">
                     🔄 Actualizar Tasas
                 </button>
