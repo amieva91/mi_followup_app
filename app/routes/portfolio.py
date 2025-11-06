@@ -99,12 +99,17 @@ def dashboard():
     
     # Calcular totales con precios actuales (Sprint 3 Final)
     total_value = 0
-    total_cost = sum(h['total_cost'] for h in holdings_unified)
+    total_cost = 0  # Será calculado en EUR
     total_pl = 0
     last_price_update = None
     
     for h in holdings_unified:
         asset = h['asset']
+        
+        # Convertir coste a EUR (SIEMPRE, incluso sin precio actual)
+        cost_eur = convert_to_eur(h['total_cost'], asset.currency)
+        total_cost += cost_eur
+        
         if asset and asset.current_price:
             # Calcular valor actual en moneda local
             current_value_local = h['total_quantity'] * asset.current_price
@@ -118,8 +123,7 @@ def dashboard():
             # Sumar al total (en EUR)
             total_value += current_value_eur
             
-            # Calcular P&L (convertir coste a EUR también)
-            cost_eur = convert_to_eur(h['total_cost'], asset.currency)
+            # Calcular P&L
             total_pl += (current_value_eur - cost_eur)
             
             # Última actualización de precios
@@ -127,8 +131,8 @@ def dashboard():
                 if last_price_update is None or asset.last_price_update > last_price_update:
                     last_price_update = asset.last_price_update
         else:
-            # Si no hay precio, usar el coste total como aproximación
-            total_value += h['total_cost']
+            # Si no hay precio, usar el coste en EUR como aproximación
+            total_value += cost_eur
     
     # Calcular porcentaje
     total_pl_pct = (total_pl / total_cost * 100) if total_cost > 0 else 0

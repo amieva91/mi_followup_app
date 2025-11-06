@@ -166,8 +166,12 @@
 **🎯 PRÓXIMOS PASOS:**
 - 🔄 Deploy a producción de v3.4.0 (Sprint 3 Final)
 - **Sprint 4**: Calculadora de Métricas Avanzadas (3 semanas)
-  - Métricas: P&L, ROI, TWR, IRR, Sharpe Ratio, Max Drawdown, Volatilidad
-  - Gráficos: Evolución portfolio, P&L acumulado, Top ganadores/perdedores, Comparación benchmarks
+  - **Métricas básicas**: P&L Realizado vs No Realizado, ROI
+  - **Métricas avanzadas**: TWR (Time-Weighted Return), IRR (Money-Weighted Return), Sharpe Ratio, Max Drawdown, Volatilidad
+  - **Apalancamiento (Leverage)**: Cálculo basado en (Valor Portfolio - Depósitos + Retiradas) / Capital Invertido
+  - **Peso % por posición**: Porcentaje que representa cada activo en el portfolio total
+  - **Gráficos**: Evolución portfolio, P&L acumulado, Top ganadores/perdedores, Comparación benchmarks
+  - **Distribución**: Pie charts de peso por activo, sector, industria, broker
 - **Sprint 5**: Actualización Automática de Precios (2 semanas)
   - Cron job diario, tabla PriceHistory, gráfico candlestick, cache Redis
 - **Sprint 6**: Diversificación y Watchlist (2 semanas)
