@@ -2,8 +2,8 @@
 
 **Fecha de inicio**: 5 Octubre 2025  
 **Timeline**: 6 meses (26 semanas)  
-**Última actualización**: 2 Noviembre 2025 - 20:20 UTC  
-**Estado actual**: ✅ Sprint 0, 1, 2, 3 COMPLETADOS (v3.3.5) - Fix Crítico: DeGiro Dividendos/Fees/Deposits/Withdrawals
+**Última actualización**: 6 Noviembre 2025  
+**Estado actual**: ✅ Sprint 3 COMPLETADO (v3.5.0) | 🚧 Sprint 4 EN PROGRESO
 
 ## 🎉 PROGRESO RECIENTE
 
@@ -31,7 +31,8 @@
 - Emoji picker con sugerencias clickeables
 - Dashboard con KPIs en tiempo real (ingresos/gastos/balance del mes)
 
-**✅ SPRINT 3 - CSV Processor & Portfolio Management (COMPLETADO - 19 Oct)**
+**✅ SPRINT 3 - CSV Processor & Portfolio Management (COMPLETADO - 6 Nov)**  
+**Versión Final**: v3.5.0 | **Duración**: 4 semanas
 - ✅ HITO 1: Base de Datos y Arquitectura
   - 9 modelos: Broker, BrokerAccount, Asset, PriceHistory, PortfolioHolding, Transaction, CashFlow, PortfolioMetrics + **AssetRegistry**
   - Migraciones aplicadas en dev y prod
@@ -108,14 +109,36 @@
   - **Validación de campos**: JavaScript verifica existencia antes de actualizar
   - **Feedback mejorado**: Banners detallados con información completa del enriquecimiento
 - ✅ HITO 11: **Fix Crítico - DeGiro Dividendos/Fees sin Fecha** (v3.3.5 - 2 Nov)
-  - **Problema**: TODAS las transacciones del CSV "Estado de Cuenta" de DeGiro eran rechazadas (158 dividendos, 169 fees, 9 depósitos, 71 retiros)
-  - **Causa**: `parse_datetime()` no manejaba objetos `datetime.date` (solo `datetime` y strings)
-  - **Solución**: Soporte para `datetime.date` → conversión a `datetime` con hora 00:00:00
+  - **Problema**: Transacciones del CSV "Estado de Cuenta" rechazadas (407 total)
+  - **Causa**: `parse_datetime()` no manejaba objetos `datetime.date`
+  - **Solución**: Soporte completo para `datetime.date` → conversión a `datetime`
   - **Resultado**: ✅ 407 transacciones importadas correctamente
-  - **Impacto**: Fix crítico que habilita la importación completa de DeGiro
-  - **Fixes adicionales**:
-    - Tooltip AssetRegistry movido al encabezado "⚠️ Estado" (UX mejorada)
-    - Filtro "Solo sin enriquecer" corregido: `is_enriched == False` (antes filtraba también por `mic IS NULL`)
+  - **Fixes adicionales**: Tooltip AssetRegistry, filtro "Solo sin enriquecer"
+- ✅ HITO 12: **Precios en Tiempo Real - Yahoo Finance** (v3.4.0 - 5 Nov)
+  - **Integración completa Yahoo Finance**:
+    - Autenticación: cookie + crumb para API avanzadas
+    - Chart API: precio, cambio %, 52w high/low, volume
+    - quoteSummary API: 15 métricas avanzadas por asset
+  - **Métricas obtenidas**: Market Cap, P/E (trailing/forward), PEG, Beta, Dividend Yield, Ex-Dividend Date, Analyst Recommendations
+  - **Progress bar en tiempo real**: Modal no-bloqueante con estado (updating/success/error)
+  - **Dashboard mejorado**: Valores actuales, P&L no realizado calculado, última actualización
+  - **Manejo robusto**: Assets suspendidos/delisted detectados correctamente
+- ✅ HITO 13: **Conversión de Divisas - API del BCE** (v3.5.0 - 6 Nov)
+  - **Servicio de divisas**: `app/services/currency_service.py`
+    - API: `exchangerate-api.com` (gratis, 166 monedas)
+    - Cache thread-safe de 24 horas
+    - Fallback rates integrados
+    - Manejo especial GBX (British Pence = GBP/100)
+  - **Página dedicada** `/portfolio/currencies`:
+    - Tabla de tasas para monedas del portfolio
+    - Información de cache (última actualización, edad)
+    - Botón "🔄 Actualizar Tasas" manual
+  - **Display dual currency**: Valor en EUR (principal) + moneda local (gris, si ≠ EUR)
+  - **Holdings ampliada**: Ancho 95% (preparado para más columnas)
+  - **🔴 FIX CRÍTICO - Coste Total**: 
+    - BUG: Sumaba costes SIN conversión a EUR (error 10x: 957K en lugar de 96K)
+    - FIX: Convierte cada holding a EUR ANTES de sumar
+    - Impacto: Dashboard ahora muestra valores correctos
 - ✅ MEJORAS FINALES:
   - **FIFO robusto** con posiciones cortas temporales
   - Parser completo DeGiro (Transacciones + Estado de Cuenta)
@@ -129,57 +152,37 @@
   - **Visualización mejorada**: Type • Currency • ISIN (en lugar de nombre)
   - Búsqueda con sorting + filtros real-time
 - **Métricas finales Sprint 3**: 
-  - 209 assets en AssetRegistry (90%+ enriquecidos)
-  - 19 holdings correctos, 0 errores
-  - 100% precisión FIFO
-  - MappingRegistry con 3 tipos de mapeos (MIC→Yahoo, Exchange→Yahoo, DeGiro→IBKR)
-  - Sistema completamente estable y funcional
+  - ✅ 209 assets en AssetRegistry (90%+ enriquecidos)
+  - ✅ 29 holdings correctos (10 IBKR + 19 DeGiro)
+  - ✅ 100% precisión FIFO (0 errores)
+  - ✅ 15 métricas Yahoo Finance por asset
+  - ✅ 166 monedas soportadas con conversión automática
+  - ✅ Dashboard con precios en tiempo real
+  - ✅ Sistema listo para producción
+  - ✅ MappingRegistry con 3 tipos de mapeos editables
 
-**✅ SPRINT 3 FINAL - Precios en Tiempo Real (COMPLETADO - 3 Nov)**
-- ✅ DÍA 1: Base de Datos
-  - 12 campos nuevos en Asset: current_price, previous_close, day_change_percent, market_cap, market_cap_formatted, market_cap_eur, trailing_pe, forward_pe, industry, beta, dividend_rate, dividend_yield, recommendation_key, number_of_analyst_opinions, target_mean_price
-  - Migración aplicada (a9ef77389298)
-  - Properties en PortfolioHolding para P&L en tiempo real
-- ✅ DÍAS 2-3: Servicios (PriceUpdater)
-  - Integración completa con Yahoo Finance API (yfinance)
-  - 15 campos extraídos y almacenados
-  - Conversión hardcoded a EUR (11 divisas soportadas)
-  - Formateo automático de Market Cap (B, M, K)
-  - Ruta `/prices/update` con CSRF protection
-- ✅ DÍAS 4-5: UI Dashboard
-  - Botón "🔄 Actualizar Precios" en header
-  - Cards de resumen con precios actuales
-  - Tabla mejorada con columna "Precio Actual" + cambio del día (↑/↓)
-  - Indicadores de color (verde/rojo) para P&L
-  - Timestamp de última actualización
-  - Cálculo automático de Valor Total y P&L con precios actuales
-- ✅ DÍA 6: Página de Asset Detallada
-  - Ruta `/asset/<id>` con vista completa del activo
-  - 5 tabs: Métricas, Valoración, Riesgo, Análisis, Transacciones
-  - Display de 15 campos organizados por categoría
-  - P&L específico del usuario para ese asset
-  - Recomendaciones de analistas con badges de color
-  - Historial de transacciones (últimas 10)
-  - Links clickeables desde dashboard
-- **Versión**: v3.4.0 (lista para deploy)
+**🚧 SPRINT 4 - Métricas Avanzadas (EN PROGRESO - 6 Nov)**  
+**Versión Objetivo**: v4.0.0 | **Duración estimada**: 3 semanas  
+**Documento detallado**: `SPRINT4_METRICAS_AVANZADAS.md`
 
-**🎯 PRÓXIMOS PASOS:**
-- 🔄 Deploy a producción de v3.4.0 (Sprint 3 Final)
-- **Sprint 4**: Calculadora de Métricas Avanzadas (3 semanas)
-  - **Métricas básicas**: P&L Realizado vs No Realizado, ROI
-  - **Métricas avanzadas**: TWR (Time-Weighted Return), IRR (Money-Weighted Return), Sharpe Ratio, Max Drawdown, Volatilidad
-  - **Apalancamiento (Leverage)**: Cálculo basado en (Valor Portfolio - Depósitos + Retiradas) / Capital Invertido
-  - **Peso % por posición**: Porcentaje que representa cada activo en el portfolio total
-  - **Gráficos**: Evolución portfolio, P&L acumulado, Top ganadores/perdedores, Comparación benchmarks
-  - **Distribución**: Pie charts de peso por activo, sector, industria, broker
+**Objetivo**: Construir sistema completo de métricas y análisis financiero
+
+**Hitos Planificados**:
+- [ ] **HITO 1**: Métricas Básicas (ROI, Leverage, Peso % por posición)
+- [ ] **HITO 2**: Métricas Avanzadas (TWR, IRR, Sharpe, Max Drawdown, Volatilidad)
+- [ ] **HITO 3**: Gráficos de Evolución (Chart.js - línea, área, barras)
+- [ ] **HITO 4**: Distribución del Portfolio (Pie charts: asset/sector/industria/broker/moneda/país)
+- [ ] **HITO 5**: Página de Métricas Completa con selector de período
+
+**Sprints Futuros** (después de Sprint 4):
 - **Sprint 5**: Actualización Automática de Precios (2 semanas)
-  - Cron job diario, tabla PriceHistory, gráfico candlestick, cache Redis
+  - Scheduler diario, histórico de precios, gráficos de evolución
 - **Sprint 6**: Diversificación y Watchlist (2 semanas)
-  - Gráficos distribución (asset/sector/país), análisis concentración, watchlist
-- **Sprint 7**: Alertas y Conversión EUR (2 semanas)
-  - Alertas de precio, calendario dividendos, conversión automática EUR, eventos corporativos
+  - Análisis de concentración, alertas de diversificación, watchlist con comparación
+- **Sprint 7**: Alertas y Notificaciones (2 semanas)
+  - Alertas de precio, calendario dividendos, eventos corporativos
 - **Sprint 8**: Testing y Optimización (2 semanas)
-  - Tests 80%+, optimización SQL, logging, monitoring
+  - Tests 80%+, optimización SQL, logging, monitoring, deployment automatizado
 
 **🔗 URLs Funcionales:**
 - **Producción**: https://followup.fit/

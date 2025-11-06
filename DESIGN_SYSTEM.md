@@ -2,8 +2,8 @@
 
 **Filosofía**: Elegante, Profesional, Financiero, Minimalista
 
-**Última actualización**: 21 Octubre 2025 - 22:00 UTC  
-**Estado**: ✅ Componentes base + avanzados implementados (Sprint 1, 2, 3 - COMPLETO v3.3.4 - AssetRegistry + MappingRegistry + Fixes)
+**Última actualización**: 6 Noviembre 2025  
+**Estado**: ✅ Sprint 3 COMPLETADO v3.5.0 (Precios en Tiempo Real + Conversión de Divisas)
 
 ---
 
@@ -134,6 +134,54 @@
   - Feedback visual mejorado con banners tipo "card"
   - Estados de loading claros ("⏳ Consultando OpenFIGI...")
   - Manejo de errores más robusto
+
+## ✅ SPRINT 3 FINAL - PRECIOS Y DIVISAS (v3.4.0 - v3.5.0)
+
+**Precios en Tiempo Real (v3.4.0)**
+- ✅ **Integración Yahoo Finance**:
+  - Autenticación completa (cookie + crumb)
+  - 15 métricas por asset: precio, cambio %, market cap, P/E, beta, dividend yield, etc.
+  - Actualización manual con botón "🔄 Actualizar Precios"
+  - Progress bar en tiempo real (modal no-bloqueante)
+  - Manejo de assets fallidos (suspendidos, delisted)
+- ✅ **Dashboard Mejorado**:
+  - Valores actuales en tiempo real
+  - P&L no realizado calculado automáticamente
+  - Cambio % del día por holding
+  - Última actualización timestamp
+- ✅ **Modal de Progreso**:
+  - Título dinámico: "Actualizando..." → "✅ Actualización Completa" / "⚠️ Completado con errores"
+  - Progreso X/Y assets procesados
+  - Spinner animado (se detiene al completar)
+  - Botón "Cerrar" (sin reload automático)
+  - Estados: idle → updating → success/partial/error
+
+**Conversión de Divisas (v3.5.0)**
+- ✅ **Servicio de Divisas** (`app/services/currency_service.py`):
+  - API: `exchangerate-api.com` (gratis, sin API key)
+  - Cache de 24 horas thread-safe
+  - 166 monedas soportadas
+  - Fallback rates integrados
+  - Manejo especial de GBX (British Pence = GBP/100)
+- ✅ **Página de Divisas** (`/portfolio/currencies`):
+  - Tabla con tasas de conversión a EUR
+  - Filtrado por monedas del portfolio
+  - Información de cache (última actualización, edad)
+  - Botón "🔄 Actualizar Tasas" con CSRF token
+  - Flags de países + nombres de divisas
+  - Tasa directa (X → EUR) e inversa (EUR → X)
+- ✅ **Display Dual Currency**:
+  - Valor Actual: **Cantidad EUR** (principal, bold)
+  - Debajo: Cantidad local en gris (si ≠ EUR)
+  - Ejemplo: "4.623 EUR" / "31,51 USD"
+- ✅ **Holdings Page Ampliada**:
+  - Ancho: `max-w-7xl` → `max-w-[95%]` (más espacio para columnas futuras)
+  - Columna P&L con colores: verde (positivo), rojo (negativo)
+  - P&L % calculado: `(current_value - cost) / cost * 100`
+- ✅ **FIX CRÍTICO - Coste Total**:
+  - **BUG**: Sumaba costes SIN conversión a EUR (ej: 31.600 GBX + 5.000 USD = 36.600 ❌)
+  - **FIX**: Convierte cada holding a EUR ANTES de sumar (ej: 382 EUR + 4.600 EUR = 4.982 EUR ✅)
+  - **Impacto**: Dashboard mostraba 957K EUR en lugar de ~96K EUR (error 10x)
 
 ---
 

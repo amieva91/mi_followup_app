@@ -2,7 +2,7 @@
 
 Sistema completo de gestión financiera personal.
 
-## ✅ Estado Actual (2 Nov 2025)
+## ✅ Estado Actual (6 Nov 2025)
 
 **Funcionalidades Implementadas:**
 - ✅ **Sprint 0 - Arquitectura Base** - Configuración inicial, estructura modular
@@ -13,7 +13,7 @@ Sistema completo de gestión financiera personal.
   - Generación automática de instancias históricas
   - Edición y eliminación de series completas
   - Emoji picker interactivo
-- ✅ **Sprint 3 - CSV Processor & Portfolio Management** (v3.3.5)
+- ✅ **Sprint 3 - CSV Processor & Portfolio Management** (v3.5.0 - COMPLETADO)
   - Base de datos completa (9 modelos: 8 portfolio + AssetRegistry global)
   - CRUD de cuentas de broker con eliminación destructiva
   - Entrada manual de transacciones (BUY/SELL/DIVIDEND/FEE/DEPOSIT/WITHDRAWAL)
@@ -58,7 +58,22 @@ Sistema completo de gestión financiera personal.
     - Conteo correcto de archivos procesados (5/5 en lugar de 4/5)
     - Botones de enriquecimiento funcionales en edición de transacciones
     - Feedback visual mejorado con banners detallados
-- ✅ **Dashboard** - KPIs en tiempo real (ingresos/gastos/balance mensual)
+  - **Sprint 3 Final - Precios en Tiempo Real (v3.4.0)**:
+    - Integración completa con Yahoo Finance (15 métricas avanzadas)
+    - Market Cap, P/E Ratios, Beta, Dividend Yield, Analyst Recommendations
+    - Actualización manual de precios con progress bar en tiempo real
+    - Dashboard con valores actuales y P&L calculado
+    - Página detallada por asset con 5 tabs (Métricas, Valoración, Riesgo, Análisis, Transacciones)
+    - Cálculo automático de P&L no realizado con precios actuales
+  - **Conversión de Divisas (v3.5.0)**:
+    - API del BCE con cache de 24 horas (166 monedas)
+    - Página dedicada de tasas de conversión (`/portfolio/currencies`)
+    - Conversión automática a EUR en dashboard y holdings
+    - Display de valor en EUR + moneda local
+    - Actualización manual de tasas con botón dedicado
+    - **FIX CRÍTICO**: Corrección de cálculo de "Coste Total" (ahora convierte a EUR antes de sumar)
+    - Holdings page con ancho ampliado (95%) para más columnas
+- ✅ **Dashboard** - KPIs en tiempo real (ingresos/gastos/balance mensual + portfolio)
 - ✅ **Sistema desplegado** - Funcionando en https://followup.fit/
 
 ## 🚀 Entornos
@@ -138,13 +153,15 @@ python run.py
 
 ### 📄 Documentos Principales (Raíz)
 
-1. **`TU_PLAN_MAESTRO.md`** - Plan general del proyecto y estado actual
-2. **`WORKFLOW_DEV_A_PRODUCCION.md`** - Proceso de deploy
-3. **`DESIGN_SYSTEM.md`** - Sistema de diseño y componentes UI
-4. **`SPRINT3_DISEÑO_BD.md`** - Diseño y progreso del Sprint 3 (Portfolio/CSV)
+1. **`README.md`** - Este archivo (estado actual, setup, arquitectura)
+2. **`TU_PLAN_MAESTRO.md`** - Plan general del proyecto con todos los sprints
+3. **`WORKFLOW_DEV_A_PRODUCCION.md`** - Proceso de deploy y Git workflow
+4. **`DESIGN_SYSTEM.md`** - Sistema de diseño y componentes UI
+5. **`SPRINT4_METRICAS_AVANZADAS.md`** - Sprint actual (en progreso)
 
 ### 📁 Documentación Organizada (`docs/`)
 
+- **`docs/sprints/`** - Sprints completados (Sprint 3 final)
 - **`docs/sesiones/`** - Bitácora de sesiones de trabajo
 - **`docs/archivo/`** - Análisis inicial y propuestas
 - **`docs/migraciones/`** - Documentos de migraciones históricas
@@ -180,26 +197,27 @@ sudo systemctl status followup.service
 
 ## 📊 Estado del Proyecto
 
-**Fase actual**: Sprint 3 - Finalizado / Sprint 4 - Próximamente  
-**Última actualización**: 10 Octubre 2025  
-**Versión**: 3.2.0  
+**Fase actual**: Sprint 3 - ✅ COMPLETADO / Sprint 4 - Iniciando  
+**Última actualización**: 6 Noviembre 2025  
+**Versión**: 3.5.0  
 **Progreso**: Sprint 0 ✅ | Sprint 1 ✅ | Sprint 2 ✅ | Sprint 3 ✅ (100%)
 
-**Highlights Sprint 3:**
-- FIFO robusto con manejo de posiciones cortas temporales
-- Parser completo de DeGiro (Transacciones + Estado de Cuenta)
-- Corrección de extracción de monedas (csv.reader por índices)
-- Consolidación unificada de dividendos con FX conversion
-- Normalización de símbolos y extracción de ISINs de IBKR
-- Búsqueda y edición de transacciones con recálculo automático
-- Vista unificada de holdings por asset (múltiples brokers)
-- Import múltiple de archivos CSV con snapshot de duplicados
-- Formato europeo en números (1.234,56) y visualización Type • Currency • ISIN
-- 19 holdings correctos, 0 posiciones incorrectas, 100% precisión FIFO
+**Highlights Sprint 3 Final:**
+- ✅ Precios en tiempo real desde Yahoo Finance (15 métricas)
+- ✅ Conversión automática de divisas (166 monedas, cache 24h)
+- ✅ Fix crítico: Cálculo correcto de "Coste Total" en EUR
+- ✅ Dashboard con P&L en tiempo real
+- ✅ Holdings page ampliada (95% ancho)
+- ✅ Página dedicada de tasas de conversión
+- ✅ FIFO robusto con posiciones cortas temporales
+- ✅ Parser completo DeGiro + IBKR
+- ✅ AssetRegistry global + MappingRegistry editable
+- ✅ 100% precisión en holdings y P&L
 
-**Próximos Pasos (Pendientes para refinamiento):**
-- 🔍 Pruebas exhaustivas con CSVs de ambos brokers (IBKR + DeGiro completos)
-- 📋 Revisión de información faltante: `exchange` (0%), `sector` (0%)
-- 🔌 Integración APIs externas (Yahoo Finance) para exchange/sector/precios
-- 📊 Sprint 4: Calculadora de Métricas (IRR, Sharpe, Max Drawdown, etc.)
+**Sprint 4 - Métricas Avanzadas (Próximo):**
+- 📊 Leverage (apalancamiento basado en deposits/withdrawals)
+- 📊 Peso % por posición en portfolio
+- 📊 P&L Realizado vs No Realizado
+- 📊 TWR, IRR, Sharpe Ratio, Max Drawdown, Volatilidad
+- 📈 Gráficos de evolución y distribución
 
