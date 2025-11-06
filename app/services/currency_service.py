@@ -100,31 +100,27 @@ def _is_cache_valid():
 
 def _fetch_rates_from_ecb():
     """
-    Obtiene tasas desde la API del Banco Central Europeo.
+    Obtiene tasas desde exchangerate-api.com (GRATIS, sin API key).
     
-    API: https://api.exchangerate.host/latest
-    - Gratis, sin API key
+    API: https://api.exchangerate-api.com/v4/latest/EUR
+    - Gratis, sin API key, sin límites
     - Actualización diaria
     - Base: EUR
     
     Returns:
         Dict con tasas inversas (de cada moneda a EUR)
     """
-    url = "https://api.exchangerate.host/latest"
-    params = {
-        'base': 'EUR',
-        'source': 'ecb'  # Usar específicamente datos del BCE
-    }
+    url = "https://api.exchangerate-api.com/v4/latest/EUR"
     
-    response = requests.get(url, params=params, timeout=5)
+    response = requests.get(url, timeout=5)
     response.raise_for_status()
     
     data = response.json()
     
-    if not data.get('success', True):
-        raise Exception(f"API error: {data.get('error', 'Unknown')}")
-    
     rates_from_eur = data.get('rates', {})
+    
+    if not rates_from_eur:
+        raise Exception("No rates returned from API")
     
     # Invertir las tasas (de EUR→X a X→EUR)
     # Ejemplo: EUR→USD = 1.09 → USD→EUR = 1/1.09 = 0.92
@@ -137,8 +133,11 @@ def _fetch_rates_from_ecb():
     rates_to_eur['EUR'] = 1.0
     
     # Añadir GBX (UK Pence) si no está
+    # GBX = 1/100 de GBP
     if 'GBX' not in rates_to_eur and 'GBP' in rates_to_eur:
         rates_to_eur['GBX'] = rates_to_eur['GBP'] / 100
+    
+    logger.debug(f"📊 Tasas obtenidas: {len(rates_to_eur)} monedas")
     
     return rates_to_eur
 
