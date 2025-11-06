@@ -32,30 +32,8 @@ from app.services.importer_v2 import CSVImporterV2
 UPLOAD_FOLDER = 'uploads'
 ALLOWED_EXTENSIONS = {'csv'}
 
-# Tasas de conversión a EUR (sincronizadas con PriceUpdater)
-EXCHANGE_RATES_TO_EUR = {
-    'EUR': 1.0,
-    'USD': 0.92,
-    'GBP': 1.17,
-    'JPY': 0.0062,
-    'CHF': 1.06,
-    'AUD': 0.60,
-    'CAD': 0.67,
-    'HKD': 0.12,
-    'SGD': 0.68,
-    'NOK': 0.086,
-    'SEK': 0.085,
-    'DKK': 0.13,
-    'PLN': 0.23,
-    'GBX': 0.012,  # UK Pence
-}
-
-def convert_to_eur(amount, currency):
-    """Convierte una cantidad en cualquier moneda a EUR"""
-    if not amount or not currency:
-        return 0.0
-    rate = EXCHANGE_RATES_TO_EUR.get(currency.upper(), 1.0)
-    return amount * rate
+# Importar servicio de conversión de divisas (con cache y API del BCE)
+from app.services.currency_service import convert_to_eur
 
 
 @portfolio_bp.route('/')

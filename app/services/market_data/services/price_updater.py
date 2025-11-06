@@ -10,6 +10,7 @@ import yfinance as yf
 from app import db
 from app.models.asset import Asset
 from app.services.market_data.exceptions import PriceUpdateException
+from app.services.currency_service import convert_to_eur
 
 # Logging para debug
 import logging
@@ -31,25 +32,6 @@ class PriceUpdater:
     """
     Servicio para actualizar precios y métricas de activos desde Yahoo Finance.
     """
-    
-    # Tasas de conversión hardcoded (simplificado para MVP)
-    # TODO: En el futuro, obtener tasas dinámicas de una API de divisas
-    EXCHANGE_RATES_TO_EUR = {
-        'EUR': 1.0,
-        'USD': 0.92,  # Aproximado
-        'GBP': 1.17,
-        'JPY': 0.0062,
-        'CHF': 1.06,
-        'AUD': 0.60,
-        'CAD': 0.67,
-        'HKD': 0.12,
-        'SGD': 0.68,
-        'NOK': 0.086,
-        'SEK': 0.085,
-        'DKK': 0.13,
-        'PLN': 0.23,  # Polish Zloty
-        'GBX': 0.012,  # UK Pence to EUR
-    }
     
     def __init__(self, progress_callback=None):
         """
@@ -396,9 +378,8 @@ class PriceUpdater:
                             if market_cap_raw:
                                 asset.market_cap = float(market_cap_raw)
                                 asset.market_cap_formatted = self._format_market_cap(asset.market_cap)
-                                # Convertir a EUR
-                                rate = self.EXCHANGE_RATES_TO_EUR.get(asset.currency, 1.0)
-                                asset.market_cap_eur = asset.market_cap * rate
+                                # Convertir a EUR usando servicio de divisas (con cache)
+                                asset.market_cap_eur = convert_to_eur(asset.market_cap, asset.currency)
                                 logger.debug(f"      💰 Market Cap: {asset.market_cap_formatted}")
                             
                             # P/E Ratios
