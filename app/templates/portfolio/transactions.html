@@ -281,14 +281,61 @@
         </div>
     </div>
 
+    <!-- Paginación -->
+    {% if pagination.pages > 1 %}
     <div class="mt-6 flex items-center justify-between">
+        <div class="text-sm text-gray-700">
+            Mostrando <span class="font-medium">{{ pagination.per_page * (pagination.page - 1) + 1 }}</span> - 
+            <span class="font-medium">{{ pagination.per_page * (pagination.page - 1) + pagination.items|length }}</span> 
+            de <span class="font-medium">{{ pagination.total }}</span> transacciones
+        </div>
+        
+        <nav class="flex items-center space-x-2">
+            <!-- Primera página -->
+            {% if pagination.has_prev %}
+            <a href="{{ url_for('portfolio.transactions_list', page=1, **request.args.to_dict()|rejectattr('0', 'eq', 'page')) }}" 
+               class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                Primera
+            </a>
+            {% endif %}
+            
+            <!-- Página anterior -->
+            {% if pagination.has_prev %}
+            <a href="{{ url_for('portfolio.transactions_list', page=pagination.prev_num, **request.args.to_dict()|rejectattr('0', 'eq', 'page')) }}" 
+               class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                ← Anterior
+            </a>
+            {% endif %}
+            
+            <!-- Página actual -->
+            <span class="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-blue-600 rounded-lg">
+                {{ pagination.page }}
+            </span>
+            
+            <!-- Página siguiente -->
+            {% if pagination.has_next %}
+            <a href="{{ url_for('portfolio.transactions_list', page=pagination.next_num, **request.args.to_dict()|rejectattr('0', 'eq', 'page')) }}" 
+               class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                Siguiente →
+            </a>
+            {% endif %}
+            
+            <!-- Última página -->
+            {% if pagination.has_next %}
+            <a href="{{ url_for('portfolio.transactions_list', page=pagination.pages, **request.args.to_dict()|rejectattr('0', 'eq', 'page')) }}" 
+               class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                Última
+            </a>
+            {% endif %}
+        </nav>
+    </div>
+    {% else %}
+    <div class="mt-6">
         <a href="{{ url_for('portfolio.dashboard') }}" class="text-blue-600 hover:text-blue-700 text-sm font-medium">
             ← Volver al Dashboard
         </a>
-        <div class="text-sm text-gray-500">
-            Mostrando las últimas 100 transacciones
-        </div>
     </div>
+    {% endif %}
     {% else %}
     <div class="bg-white rounded-xl shadow-sm p-12 text-center">
         <div class="text-6xl mb-4">📝</div>

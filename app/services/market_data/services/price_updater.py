@@ -27,6 +27,11 @@ yf.session.headers.update({
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 })
 
+# Timeouts para evitar colgadas
+REQUEST_TIMEOUT = 10  # segundos por request individual
+MAX_UPDATE_TIME = 180  # segundos máximos para toda la actualización (3 min)
+DELAY_BETWEEN_REQUESTS = 0.5  # segundos entre requests
+
 
 class PriceUpdater:
     """
@@ -68,7 +73,7 @@ class PriceUpdater:
             })
             
             # PASO 1: Obtener cookie
-            response = self.session.get('https://finance.yahoo.com', timeout=10)
+            response = self.session.get('https://finance.yahoo.com', timeout=REQUEST_TIMEOUT)
             if response.status_code != 200:
                 logger.error(f"   ❌ Error al obtener cookie: HTTP {response.status_code}")
                 return False
@@ -80,10 +85,10 @@ class PriceUpdater:
             logger.info(f"   ✅ Cookie obtenido ({len(self.session.cookies)} cookies)")
             
             # PASO 2: Obtener crumb
-            time.sleep(0.5)  # Pequeña pausa
+            time.sleep(DELAY_BETWEEN_REQUESTS)  # Pequeña pausa entre requests
             crumb_response = self.session.get(
                 "https://query1.finance.yahoo.com/v1/test/getcrumb",
-                timeout=10
+                timeout=REQUEST_TIMEOUT
             )
             
             if crumb_response.status_code != 200:
@@ -168,7 +173,18 @@ class PriceUpdater:
             logger.warning("   Solo se actualizarán precios básicos (sin sector/industry)")
         logger.info("")
         
+        # Timer para timeout máximo
+        start_time = time.time()
+        
         for idx, asset in enumerate(assets):
+            # Verificar timeout máximo
+            elapsed_time = time.time() - start_time
+            if elapsed_time > MAX_UPDATE_TIME:
+                remaining = len(assets) - idx
+                logger.warning(f"⏱️ TIMEOUT: Se alcanzó el límite de {MAX_UPDATE_TIME}s")
+                logger.warning(f"   {remaining} assets restantes no se actualizarán")
+                self.warnings.append(f"Timeout: {remaining} assets no procesados por límite de tiempo")
+                break
             logger.info(f"\n{'='*60}")
             logger.info(f"📈 [{idx+1}/{total}] Procesando: {asset.symbol or asset.name}")
             logger.info(f"   ISIN: {asset.isin}")
@@ -212,11 +228,11 @@ class PriceUpdater:
                         'errors': self.errors[-3:] if len(self.errors) > 0 else []  # Últimos 3 errores
                     })
                 
-                # Delay para evitar rate limiting (0.5 seg entre peticiones)
+                # Delay para evitar rate limiting
                 # Solo si no es el último activo
                 if idx < len(assets) - 1:
-                    logger.info(f"   ⏳ Esperando 0.5s antes del siguiente...")
-                    time.sleep(0.5)
+                    logger.info(f"   ⏳ Esperando {DELAY_BETWEEN_REQUESTS}s antes del siguiente...")
+                    time.sleep(DELAY_BETWEEN_REQUESTS)
             
             except Exception as e:
                 failed += 1
@@ -354,7 +370,7 @@ class PriceUpdater:
                         'crumb': self.crumb
                     }
                     
-                    quote_response = self.session.get(quote_url, params=params, timeout=10)
+                    quote_response = self.session.get(quote_url, params=params, timeout=REQUEST_TIMEOUT)
                     
                     if quote_response.status_code == 200:
                         quote_data = quote_response.json()

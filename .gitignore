@@ -58,3 +58,10 @@ htmlcov/
 
 # Documentation builds (keep markdown source)
 docs/_build/
+
+# Temporary test scripts
+test_*.py
+check_*.py
+fix_*.py
+show_*.py
+sync_*.py

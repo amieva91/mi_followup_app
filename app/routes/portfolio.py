@@ -614,8 +614,12 @@ def transactions_list():
         # Ordenamiento por defecto
         query = query.order_by(Transaction.transaction_date.desc())
     
-    # SIN LÍMITE - Mostrar todas las transacciones
-    transactions = query.all()
+    # Paginación (100 transacciones por página)
+    page = request.args.get('page', 1, type=int)
+    per_page = 100
+    
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    transactions = pagination.items
     
     # Obtener todas las cuentas para el selector
     accounts = BrokerAccount.query.filter_by(
@@ -626,7 +630,8 @@ def transactions_list():
     return render_template('portfolio/transactions.html', 
                           transactions=transactions,
                           accounts=accounts,
-                          filtered=filtered)
+                          filtered=filtered,
+                          pagination=pagination)
 
 
 @portfolio_bp.route('/asset-registry')
@@ -1397,6 +1402,7 @@ def import_csv_process():
             'withs': total_stats.get('withdrawals_created', 0),
             'enrich': total_stats.get('enrichment_success', 0),
             'enrich_total': total_stats.get('enrichment_needed', 0),
+            'skipped': total_stats.get('transactions_skipped', 0),
         }
         
         # Añadir a session SOLO para el endpoint de progreso (stats detallados)

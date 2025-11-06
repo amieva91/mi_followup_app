@@ -181,10 +181,19 @@ window.addEventListener('DOMContentLoaded', function() {
         const withs = urlParams.get('withs') || 0;
         const enrich = urlParams.get('enrich') || 0;
         const enrichTotal = urlParams.get('enrich_total') || 0;
+        const skipped = urlParams.get('skipped') || 0;
         
         const details = [];
         details.push(`<strong>${files} archivo(s)</strong> procesados`);
         details.push(`<strong>${trans}</strong> transacciones importadas`);
+        
+        // Mensaje especial si no se importó nada pero había transacciones duplicadas
+        if (trans == 0 && skipped > 0) {
+            details.push(`<span class="text-blue-700">ℹ️  <strong>${skipped}</strong> transacciones omitidas (ya existían en el sistema)</span>`);
+        } else if (skipped > 0) {
+            details.push(`<strong>${skipped}</strong> transacciones duplicadas omitidas`);
+        }
+        
         details.push(`<strong>${holdings}</strong> posiciones detectadas`);
         if (divs > 0) details.push(`<strong>${divs}</strong> dividendos registrados`);
         if (fees > 0) details.push(`<strong>${fees}</strong> comisiones`);
