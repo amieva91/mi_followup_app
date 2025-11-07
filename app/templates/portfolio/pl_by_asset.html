@@ -1,0 +1,162 @@
+{% extends "base/layout.html" %}
+
+{% block title %}P&L por Asset - FollowUp{% endblock %}
+
+{% block content %}
+<div class="max-w-[92%] mx-auto">
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-8">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900">📊 P&L Histórico por Asset</h1>
+            <p class="text-gray-600 mt-1">Ganancias/pérdidas acumuladas por cada activo (histórico completo)</p>
+        </div>
+        <a href="{{ url_for('portfolio.dashboard') }}" class="btn-secondary">
+            ← Volver al Dashboard
+        </a>
+    </div>
+    
+    <!-- Leyenda -->
+    <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6">
+        <div class="flex items-start">
+            <div class="flex-shrink-0">
+                <svg class="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+                </svg>
+            </div>
+            <div class="ml-3">
+                <h3 class="text-sm font-medium text-blue-800">Cómo se calcula el P&L histórico</h3>
+                <div class="mt-2 text-sm text-blue-700">
+                    <p><strong>P&L Total = Recuperado + Dividendos - Invertido - Comisiones</strong></p>
+                    <ul class="list-disc list-inside mt-1 space-y-1">
+                        <li><strong>Invertido:</strong> Suma de todas las compras (precio × cantidad + comisiones)</li>
+                        <li><strong>Recuperado:</strong> Suma de todas las ventas (precio × cantidad - comisiones)</li>
+                        <li><strong>Dividendos:</strong> Suma de todos los dividendos recibidos</li>
+                        <li><strong>Comisiones:</strong> Fees adicionales del asset</li>
+                    </ul>
+                    <p class="mt-2">✨ <strong>Los activos en cartera actual están resaltados en verde</strong></p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Tabla de P&L por Asset -->
+    <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Asset
+                    </th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        P&L Total
+                    </th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Invertido
+                    </th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Recuperado
+                    </th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Dividendos
+                    </th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Comisiones
+                    </th>
+                    <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Transacciones
+                    </th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for item in pl_data %}
+                <tr class="{% if item.is_current_holding %}bg-green-50{% else %}hover:bg-gray-50{% endif %}">
+                    <!-- Asset -->
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="flex items-center">
+                            {% if item.is_current_holding %}
+                            <span class="mr-2 text-green-600" title="En cartera actual">📌</span>
+                            {% endif %}
+                            <div>
+                                <div class="font-bold text-gray-900">
+                                    {{ item.asset.symbol }}
+                                </div>
+                                {% if item.asset.name and item.asset.name != item.asset.symbol %}
+                                <div class="text-xs text-gray-500">
+                                    {{ item.asset.name[:40] }}{% if item.asset.name|length > 40 %}...{% endif %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </td>
+                    
+                    <!-- P&L Total -->
+                    <td class="px-6 py-4 whitespace-nowrap text-right">
+                        <span class="text-lg font-bold {% if item.total_pl_eur >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                            {% if item.total_pl_eur >= 0 %}+{% endif %}{{ item.total_pl_eur|decimal_eu(2) }} EUR
+                        </span>
+                    </td>
+                    
+                    <!-- Invertido -->
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-gray-900">
+                        {{ item.total_invested_eur|decimal_eu(2) }} EUR
+                    </td>
+                    
+                    <!-- Recuperado -->
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-gray-900">
+                        {{ item.total_recovered_eur|decimal_eu(2) }} EUR
+                    </td>
+                    
+                    <!-- Dividendos -->
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-green-600">
+                        +{{ item.total_dividends_eur|decimal_eu(2) }} EUR
+                    </td>
+                    
+                    <!-- Comisiones -->
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-orange-600">
+                        -{{ item.total_fees_eur|decimal_eu(2) }} EUR
+                    </td>
+                    
+                    <!-- Transacciones -->
+                    <td class="px-6 py-4 whitespace-nowrap text-center text-gray-500 text-sm">
+                        {{ item.transactions_count }}
+                    </td>
+                </tr>
+                {% endfor %}
+                
+                {% if not pl_data %}
+                <tr>
+                    <td colspan="7" class="px-6 py-12 text-center text-gray-500">
+                        No hay transacciones registradas todavía
+                    </td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Resumen -->
+    {% if pl_data %}
+    <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="bg-white rounded-lg shadow-sm p-6 border-l-4 border-blue-500">
+            <div class="text-sm text-gray-600 mb-1">Total Assets Únicos</div>
+            <div class="text-2xl font-bold text-gray-900">{{ pl_data|length }}</div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow-sm p-6 border-l-4 border-green-500">
+            <div class="text-sm text-gray-600 mb-1">En Cartera Actual</div>
+            <div class="text-2xl font-bold text-green-600">
+                {{ pl_data|selectattr('is_current_holding')|list|length }}
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow-sm p-6 border-l-4 border-purple-500">
+            <div class="text-sm text-gray-600 mb-1">P&L Total Histórico</div>
+            <div class="text-2xl font-bold {% if (pl_data|sum(attribute='total_pl_eur')) >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                {% if (pl_data|sum(attribute='total_pl_eur')) >= 0 %}+{% endif %}{{ (pl_data|sum(attribute='total_pl_eur'))|decimal_eu(2) }} EUR
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+

@@ -27,6 +27,7 @@ from app.forms import (
 )
 from app.services.csv_detector import detect_and_parse
 from app.services.importer_v2 import CSVImporterV2
+from app.services.metrics import BasicMetrics
 
 # Configuración de uploads
 UPLOAD_FOLDER = 'uploads'
@@ -148,6 +149,9 @@ def dashboard():
         else:
             h['weight_pct'] = 0
     
+    # Calcular métricas básicas (Sprint 4 - HITO 1)
+    metrics = BasicMetrics.get_all_metrics(current_user.id, total_value)
+    
     return render_template(
         'portfolio/dashboard.html',
         accounts=accounts,
@@ -158,7 +162,20 @@ def dashboard():
         total_pl_pct=total_pl_pct,
         last_price_update=last_price_update,
         last_sync=last_sync,
-        unified=True  # Flag para indicar que son holdings unificados
+        unified=True,  # Flag para indicar que son holdings unificados
+        metrics=metrics,
+    )
+
+
+@portfolio_bp.route('/pl-by-asset')
+@login_required
+def pl_by_asset():
+    """Vista de P&L histórico por asset/activo"""
+    pl_data = BasicMetrics.get_pl_by_asset(current_user.id)
+    
+    return render_template(
+        'portfolio/pl_by_asset.html',
+        pl_data=pl_data
     )
 
 
@@ -1157,14 +1174,9 @@ def allowed_file(filename):
 @portfolio_bp.route('/import')
 @login_required
 def import_csv():
-    """Formulario para subir CSV"""
-    # Obtener cuentas del usuario
-    accounts = BrokerAccount.query.filter_by(
-        user_id=current_user.id,
-        is_active=True
-    ).all()
-    
-    return render_template('portfolio/import_csv.html', accounts=accounts, title='Importar CSV')
+    """Formulario para subir CSV con auto-detección de broker"""
+    # Ya NO es necesario obtener cuentas - se crean automáticamente
+    return render_template('portfolio/import_csv.html', title='Importar CSV')
 
 
 @portfolio_bp.route('/import/progress')
@@ -1228,10 +1240,66 @@ def import_progress():
     })
 
 
+def get_or_create_broker_account(user_id, broker_format):
+    """
+    Obtiene o crea automáticamente la cuenta del broker según el formato CSV detectado
+    
+    Args:
+        user_id: ID del usuario
+        broker_format: Formato detectado ('ibkr', 'degiro', etc.)
+        
+    Returns:
+        BrokerAccount: La cuenta existente o recién creada
+    """
+    # Mapear formato a nombre de broker
+    broker_name_map = {
+        'ibkr': 'IBKR',
+        'degiro': 'DeGiro',
+    }
+    
+    broker_display_name = broker_name_map.get(broker_format, broker_format.upper())
+    
+    # Buscar broker en la tabla de Brokers
+    broker = Broker.query.filter(
+        db.func.lower(Broker.name).like(f'%{broker_display_name.lower()}%')
+    ).first()
+    
+    if not broker:
+        # Crear broker si no existe
+        broker = Broker(name=broker_display_name)
+        db.session.add(broker)
+        db.session.flush()  # Para obtener el ID
+    
+    # Buscar cuenta existente del usuario para este broker
+    account = BrokerAccount.query.filter_by(
+        user_id=user_id,
+        broker_id=broker.id,
+        is_active=True
+    ).first()
+    
+    if not account:
+        # Crear cuenta con nombre por defecto
+        account = BrokerAccount(
+            user_id=user_id,
+            broker_id=broker.id,
+            account_name=broker_display_name,  # Nombre por defecto: "IBKR" o "DeGiro"
+            account_number=f"AUTO_{broker_display_name}_{user_id}",  # Número auto-generado
+            is_active=True
+        )
+        db.session.add(account)
+        db.session.flush()
+        print(f"✅ Cuenta '{broker_display_name}' creada automáticamente para usuario {user_id}")
+    else:
+        print(f"✅ Usando cuenta existente '{account.account_name}' para broker {broker_display_name}")
+    
+    db.session.commit()
+    return account
+
+
 @portfolio_bp.route('/import/process', methods=['POST'])
 @login_required
 def import_csv_process():
-    """Procesa uno o múltiples archivos CSV subidos"""
+    """Procesa uno o múltiples archivos CSV subidos con auto-detección de broker"""
     # Verificar que se enviaron archivos
     if 'csv_files' not in request.files:
         flash('❌ No se seleccionó ningún archivo', 'error')
@@ -1248,17 +1316,6 @@ def import_csv_process():
         if not allowed_file(file.filename):
             flash(f'❌ Archivo no válido: {file.filename} (solo se permiten archivos CSV)', 'error')
             return redirect(url_for('portfolio.import_csv'))
-    
-    # Obtener cuenta seleccionada
-    account_id = request.form.get('account_id')
-    if not account_id:
-        flash('❌ Debes seleccionar una cuenta', 'error')
-        return redirect(url_for('portfolio.import_csv'))
-    
-    account = BrokerAccount.query.get(account_id)
-    if not account or account.user_id != current_user.id:
-        flash('❌ Cuenta no válida', 'error')
-        return redirect(url_for('portfolio.import_csv'))
     
     # Asegurar que existe el directorio de uploads
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -1296,7 +1353,13 @@ def import_csv_process():
             # Detectar y parsear
             print(f"📊 DEBUG: Detectando formato del CSV...")
             parsed_data = detect_and_parse(filepath)
-            print(f"📊 DEBUG: CSV parseado correctamente. Formato: {parsed_data.get('format', 'unknown')}")
+            broker_format = parsed_data.get('format', 'unknown')
+            print(f"📊 DEBUG: CSV parseado correctamente. Formato: {broker_format}")
+            
+            # Auto-detectar y obtener/crear cuenta del broker
+            print(f"📊 DEBUG: Auto-detectando cuenta del broker para formato: {broker_format}")
+            account = get_or_create_broker_account(current_user.id, broker_format)
+            print(f"📊 DEBUG: Usando cuenta: {account.account_name} (ID: {account.id})")
             
             # Importar a BD con AssetRegistry (cache global)
             print(f"\n📊 DEBUG: Iniciando importación para archivo: {filename}")

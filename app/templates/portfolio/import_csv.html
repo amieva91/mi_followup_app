@@ -40,11 +40,16 @@
 
     <!-- Instrucciones -->
     <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-        <h3 class="font-semibold text-blue-900 mb-2">📌 Instrucciones</h3>
-        <div class="text-sm text-blue-800 space-y-1">
-            <p><strong>IBKR:</strong> Activity Statement (Official) → Formato CSV</p>
-            <p><strong>DeGiro:</strong> Estado de cuenta → Formato CSV</p>
-            <p class="mt-2 text-blue-600">✅ El sistema detecta automáticamente el formato y evita duplicados.</p>
+        <h3 class="font-semibold text-blue-900 mb-2">📌 Instrucciones Generales</h3>
+        <div class="text-sm text-blue-800 space-y-2">
+            <p>✅ <strong>Auto-detección:</strong> El sistema detecta automáticamente el broker (IBKR o DeGiro) y crea las cuentas si no existen.</p>
+            <p>✅ <strong>Multi-archivo:</strong> Puedes subir múltiples CSVs mezclados (IBKR + DeGiro) en una sola vez.</p>
+            <p>✅ <strong>Duplicados:</strong> El sistema evita transacciones duplicadas automáticamente.</p>
+            <p class="mt-3 text-blue-900 font-medium">Para obtener los archivos CSV correctos:</p>
+            <ul class="list-disc list-inside ml-4 space-y-1">
+                <li><strong>IBKR:</strong> Activity Statement (Official) → Formato CSV</li>
+                <li><strong>DeGiro:</strong> Estado de Cuenta + Transacciones → Formato CSV</li>
+            </ul>
         </div>
     </div>
 
@@ -91,33 +96,12 @@
         <form id="csvForm" action="{{ url_for('portfolio.import_csv_process') }}" method="POST" enctype="multipart/form-data">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
             
-            <!-- Seleccionar cuenta -->
-            <div class="mb-6">
-                <label class="block text-sm font-medium text-gray-700 mb-2">
-                    🏦 Cuenta de Broker
-                </label>
-                <select name="account_id" required 
-                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                    <option value="">Selecciona una cuenta...</option>
-                    {% for account in accounts %}
-                    <option value="{{ account.id }}">
-                        {{ account.broker.name }} - {{ account.account_name }}
-                        {% if account.account_number %}({{ account.account_number }}){% endif %}
-                    </option>
-                    {% endfor %}
-                </select>
-                {% if not accounts %}
-                <p class="text-sm text-red-600 mt-2">
-                    ⚠️  No tienes cuentas creadas. 
-                    <a href="{{ url_for('portfolio.account_new') }}" class="underline">Crear una cuenta</a>
-                </p>
-                {% endif %}
-            </div>
-
-            <!-- Guías dinámicas según broker seleccionado -->
-            <div id="brokerGuide" class="mb-6 hidden">
+            <!-- Ya NO necesitamos seleccionar cuenta - Auto-detección habilitada -->
+            
+            <!-- Guías estáticas (siempre visibles ya que aceptamos IBKR y DeGiro mezclados) -->
+            <div id="brokerGuide" class="mb-6 space-y-4">
                 <!-- Guía DeGiro -->
-                <div id="guideDeGiro" class="hidden bg-gradient-to-r from-orange-50 to-yellow-50 border-l-4 border-orange-500 rounded-lg p-6">
+                <div id="guideDeGiro" class="bg-gradient-to-r from-orange-50 to-yellow-50 border-l-4 border-orange-500 rounded-lg p-6">
                     <h3 class="text-lg font-bold text-orange-800 mb-4 flex items-center gap-2">
                         <span class="text-2xl">📋</span> Cómo obtener los CSV de DeGiro
                     </h3>
@@ -153,7 +137,7 @@
                 </div>
                 
                 <!-- Guía IBKR -->
-                <div id="guideIBKR" class="hidden bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-600 rounded-lg p-6">
+                <div id="guideIBKR" class="bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-600 rounded-lg p-6">
                     <h3 class="text-lg font-bold text-blue-800 mb-4 flex items-center gap-2">
                         <span class="text-2xl">📋</span> Cómo obtener el CSV de IBKR
                     </h3>
@@ -297,40 +281,9 @@ window.addEventListener('DOMContentLoaded', function() {
         window.history.replaceState({}, document.title, window.location.pathname);
     }
     
-    // Mostrar guías según broker seleccionado
-    const accountSelect = document.querySelector('select[name="account_id"]');
-    const brokerGuideContainer = document.getElementById('brokerGuide');
-    const guideDeGiro = document.getElementById('guideDeGiro');
-    const guideIBKR = document.getElementById('guideIBKR');
-    
-    // Datos de los brokers (extraídos del backend)
-    const accountBrokerMap = {
-        {% for account in accounts %}
-        '{{ account.id }}': '{{ account.broker.name }}',
-        {% endfor %}
-    };
-    
-    if (accountSelect) {
-        accountSelect.addEventListener('change', function() {
-            const selectedAccountId = this.value;
-            const brokerName = accountBrokerMap[selectedAccountId] || '';
-            
-            // Ocultar todas las guías
-            guideDeGiro.classList.add('hidden');
-            guideIBKR.classList.add('hidden');
-            brokerGuideContainer.classList.add('hidden');
-            
-            // Mostrar guía según el broker
-            if (brokerName.toLowerCase().includes('degiro')) {
-                guideDeGiro.classList.remove('hidden');
-                brokerGuideContainer.classList.remove('hidden');
-            } else if (brokerName.toLowerCase().includes('ibkr') || brokerName.toLowerCase().includes('interactive')) {
-                guideIBKR.classList.remove('hidden');
-                brokerGuideContainer.classList.remove('hidden');
-            }
-            // Si es "Manual" u otro broker, no mostrar nada (queda oculto)
-        });
-    }
+    // ⚠️ Ya NO necesitamos mostrar/ocultar guías dinámicamente
+    // Las guías de IBKR y DeGiro están siempre visibles porque el sistema
+    // detecta automáticamente el broker y permite subir archivos mezclados
 });
 
 function showFileNames(input) {
