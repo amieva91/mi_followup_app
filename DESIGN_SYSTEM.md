@@ -2,8 +2,8 @@
 
 **Filosofía**: Elegante, Profesional, Financiero, Minimalista
 
-**Última actualización**: 6 Noviembre 2025  
-**Estado**: ✅ Sprint 3 COMPLETADO v3.5.0 (Precios en Tiempo Real + Conversión de Divisas)
+**Última actualización**: 7 Noviembre 2025  
+**Estado**: ✅ Sprint 3 COMPLETADO v3.6.0 (Mejoras Finales - Optimización y UX)
 
 ---
 
@@ -1056,6 +1056,48 @@ Al crear un nuevo componente/página, verificar:
 
 ---
 
-**Última actualización**: 7 Octubre 2025  
+## ✅ SPRINT 3 MEJORAS FINALES - OPTIMIZACIÓN Y UX (v3.6.0 - 7 Nov)
+
+**Ancho Unificado 92%**
+- ✅ **Consistencia visual total**:
+  - Ancho `max-w-[92%]` aplicado a **16 páginas** + navbar
+  - Portfolio: dashboard, holdings, transactions, import_csv, asset_registry, currencies, asset_detail, mappings
+  - Gastos: list, categories, form, category_form
+  - Ingresos: list, categories, form, category_form
+  - General: dashboard, index
+  - Navbar alineado con el contenido
+- ✅ **Mejor aprovechamiento del espacio** sin sacrificar legibilidad
+- ✅ **Responsive** en todos los dispositivos
+
+**Columnas Ordenables**
+- ✅ **Dashboard + Holdings**: Click en headers para ordenar
+- ✅ **Indicadores visuales**: ⇅ (sin orden) → ↑ (asc) → ↓ (desc)
+- ✅ **JavaScript puro**: Sin recarga de página
+- ✅ **Funciona con números y texto**: Parsing inteligente
+
+**Columna Peso %**
+- ✅ **Dashboard**: Nueva columna con % de cada posición
+- ✅ **Cálculo automático**: `(valor_holding / total_portfolio) × 100`
+- ✅ **Formato europeo**: 12,34%
+
+**Guías Dinámicas CSV**
+- ✅ **DeGiro**: Guía naranja con 2 archivos (Estado de Cuenta + Transacciones)
+- ✅ **IBKR**: Guía azul con Activity Statement (límite 1 año)
+- ✅ **Detección automática**: Según broker seleccionado
+- ✅ **Diseño atractivo**: Gradientes, iconos, pasos numerados
+
+**Optimizaciones de Rendimiento**
+- ✅ **Timeouts**: 10s/request, 180s máximo total
+- ✅ **Paginación**: 100 transacciones por página con controles
+- ✅ **Búsqueda en tiempo real**: Debounce 300ms sin submit
+- ✅ **Limpieza**: 15 scripts temporales eliminados
+
+**Indicadores**
+- ✅ **Última sincronización**: Fecha/hora de última transacción importada
+- ✅ **Última actualización de precios**: Ya existente, mantenido
+
+---
+
+**Última actualización**: 7 Noviembre 2025
 **Próxima revisión**: Después de Sprint 4
 

@@ -2,7 +2,7 @@
 
 Sistema completo de gestión financiera personal.
 
-## ✅ Estado Actual (6 Nov 2025)
+## ✅ Estado Actual (7 Nov 2025) - v3.6.0
 
 **Funcionalidades Implementadas:**
 - ✅ **Sprint 0 - Arquitectura Base** - Configuración inicial, estructura modular
@@ -73,6 +73,24 @@ Sistema completo de gestión financiera personal.
     - Actualización manual de tasas con botón dedicado
     - **FIX CRÍTICO**: Corrección de cálculo de "Coste Total" (ahora convierte a EUR antes de sumar)
     - Holdings page con ancho ampliado (95%) para más columnas
+  - **Sprint 3 - Mejoras Finales (v3.6.0 - 7 Nov 2025)**:
+    - ✅ **Optimizaciones de rendimiento**:
+      - Limpieza de 15 scripts temporales del repositorio
+      - Mensaje informativo cuando import está vacío (duplicados detectados)
+      - Timeouts en actualización de precios (10s/request, 180s máximo total)
+      - Paginación de 100 transacciones por página con controles completos
+    - ✅ **Mejoras de UX**:
+      - Búsqueda en tiempo real sin botón submit (AssetRegistry + Transacciones)
+      - Indicador de última sincronización en dashboard (fecha/hora última transacción)
+      - Guías dinámicas para obtener CSV según broker (DeGiro: 2 archivos | IBKR: Activity Statement)
+      - Columna "Peso %" añadida en dashboard (cálculo automático por posición)
+      - Columnas ordenables en Dashboard y Holdings (↑↓⇅ sin recarga)
+      - **Ancho 92% unificado** en toda la aplicación (16 páginas: Portfolio, Gastos, Ingresos, General)
+    - ✅ **Correcciones críticas**:
+      - Fix error paginación transacciones (generator → dict)
+      - Eliminado doble emoji en botón "Actualizar Precios"
+      - Eliminado mensaje innecesario de sincronización en AssetRegistry
+      - Navbar alineado al 92% para consistencia visual completa
 - ✅ **Dashboard** - KPIs en tiempo real (ingresos/gastos/balance mensual + portfolio)
 - ✅ **Sistema desplegado** - Funcionando en https://followup.fit/
 

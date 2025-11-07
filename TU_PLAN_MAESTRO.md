@@ -2,8 +2,8 @@
 
 **Fecha de inicio**: 5 Octubre 2025  
 **Timeline**: 6 meses (26 semanas)  
-**Última actualización**: 6 Noviembre 2025  
-**Estado actual**: ✅ Sprint 3 COMPLETADO (v3.5.0) | 🚧 Sprint 4 EN PROGRESO
+**Última actualización**: 7 Noviembre 2025  
+**Estado actual**: ✅ Sprint 3 COMPLETADO (v3.6.0) | 🚧 Sprint 4 PENDIENTE
 
 ## 🎉 PROGRESO RECIENTE
 
@@ -31,8 +31,8 @@
 - Emoji picker con sugerencias clickeables
 - Dashboard con KPIs en tiempo real (ingresos/gastos/balance del mes)
 
-**✅ SPRINT 3 - CSV Processor & Portfolio Management (COMPLETADO - 6 Nov)**  
-**Versión Final**: v3.5.0 | **Duración**: 4 semanas
+**✅ SPRINT 3 - CSV Processor & Portfolio Management (COMPLETADO - 7 Nov)**  
+**Versión Final**: v3.6.0 | **Duración**: 4 semanas + 1 día (mejoras finales)
 - ✅ HITO 1: Base de Datos y Arquitectura
   - 9 modelos: Broker, BrokerAccount, Asset, PriceHistory, PortfolioHolding, Transaction, CashFlow, PortfolioMetrics + **AssetRegistry**
   - Migraciones aplicadas en dev y prod
@@ -151,6 +151,25 @@
   - **Formato europeo**: 1.234,56 en todos los números
   - **Visualización mejorada**: Type • Currency • ISIN (en lugar de nombre)
   - Búsqueda con sorting + filtros real-time
+- ✅ HITO 14: **Mejoras Finales - Optimización y UX** (v3.6.0 - 7 Nov)
+  - **Optimizaciones de rendimiento**:
+    - Limpieza de 15 scripts temporales del repositorio
+    - Mensaje informativo cuando import está vacío (duplicados)
+    - Timeouts en actualización de precios (10s/request, 180s máximo total)
+    - Paginación de 100 transacciones por página con controles completos
+  - **Mejoras de experiencia de usuario**:
+    - Búsqueda en tiempo real sin botón submit (AssetRegistry + Transacciones)
+    - Indicador de última sincronización en dashboard
+    - Guías dinámicas para obtener CSV según broker (DeGiro/IBKR)
+    - Columna "Peso %" en dashboard (cálculo automático)
+    - Columnas ordenables en Dashboard y Holdings (↑↓⇅)
+    - **Ancho 92% unificado** en toda la aplicación (16 páginas + navbar)
+  - **Correcciones críticas**:
+    - Fix error paginación transacciones (generator → dict)
+    - Eliminado doble emoji en botón "Actualizar Precios"
+    - Eliminado mensaje innecesario de sincronización
+    - Navbar alineado al 92% para consistencia visual completa
+
 - **Métricas finales Sprint 3**: 
   - ✅ 209 assets en AssetRegistry (90%+ enriquecidos)
   - ✅ 29 holdings correctos (10 IBKR + 19 DeGiro)
@@ -160,15 +179,17 @@
   - ✅ Dashboard con precios en tiempo real
   - ✅ Sistema listo para producción
   - ✅ MappingRegistry con 3 tipos de mapeos editables
+  - ✅ 8 mejoras de optimización y UX implementadas
+  - ✅ Experiencia visual consistente (92% en toda la app)
 
-**🚧 SPRINT 4 - Métricas Avanzadas (EN PROGRESO - 6 Nov)**  
+**🚧 SPRINT 4 - Métricas Avanzadas (PENDIENTE - 7 Nov)**  
 **Versión Objetivo**: v4.0.0 | **Duración estimada**: 3 semanas  
 **Documento detallado**: `SPRINT4_METRICAS_AVANZADAS.md`
 
 **Objetivo**: Construir sistema completo de métricas y análisis financiero
 
 **Hitos Planificados**:
-- [ ] **HITO 1**: Métricas Básicas (ROI, Leverage, Peso % por posición)
+- [ ] **HITO 1**: Métricas Básicas (ROI, Leverage) - Peso % ✅ ya implementado
 - [ ] **HITO 2**: Métricas Avanzadas (TWR, IRR, Sharpe, Max Drawdown, Volatilidad)
 - [ ] **HITO 3**: Gráficos de Evolución (Chart.js - línea, área, barras)
 - [ ] **HITO 4**: Distribución del Portfolio (Pie charts: asset/sector/industria/broker/moneda/país)
