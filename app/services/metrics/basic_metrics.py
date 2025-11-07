@@ -134,28 +134,33 @@ class BasicMetrics:
         }
     
     @staticmethod
-    def calculate_leverage(user_id, current_portfolio_value):
+    def calculate_leverage(user_id, current_portfolio_value, total_cost_current):
         """
         Calcula Leverage (Apalancamiento) = Dinero prestado por el broker
         
+        SOLO PARA PORTFOLIO ACTUAL (posiciones abiertas)
+        
         Fórmula:
-        1. Dinero del usuario = Depósitos - Retiradas + P&L Realizado + Dividendos - Comisiones
+        1. Dinero del usuario para portfolio actual = Depósitos - Retiradas + Dividendos - Comisiones
         2. Total en cuentas = Valor actual del portfolio
         3. Dinero prestado por broker = Total en cuentas - Dinero del usuario
         
+        NO incluye P&L Realizado porque son posiciones ya cerradas.
+        
         Interpretación:
         - Positivo: Broker prestando dinero (apalancamiento real)
-        - Negativo: Usuario tiene más dinero del invertido (ganancias sin realizar)
+        - Negativo: Usuario tiene más dinero del que usa actualmente
         - 0: Portfolio = Capital del usuario
         
         Args:
             user_id: ID del usuario
             current_portfolio_value: Valor actual del portfolio en EUR
+            total_cost_current: Coste total de posiciones actuales en EUR
             
         Returns:
             dict: {
                 'broker_money': float,  # Dinero prestado por broker (puede ser negativo)
-                'user_money': float,  # Dinero del usuario
+                'user_money': float,  # Dinero del usuario disponible para portfolio actual
                 'leverage_ratio': float,  # Ratio de apalancamiento
             }
         """
@@ -174,7 +179,7 @@ class BasicMetrics:
         
         total_withdrawals = sum(convert_to_eur(abs(w.amount), w.currency) for w in withdrawals)
         
-        # 2. Obtener dividendos
+        # 2. Obtener dividendos (todo el histórico)
         dividends = Transaction.query.filter_by(
             user_id=user_id,
             transaction_type='DIVIDEND'
@@ -182,58 +187,31 @@ class BasicMetrics:
         
         total_dividends = sum(convert_to_eur(abs(d.amount), d.currency) for d in dividends)
         
-        # 3. Obtener comisiones/fees
+        # 3. Obtener comisiones/fees (todo el histórico)
         fees = Transaction.query.filter_by(user_id=user_id).filter(
             Transaction.transaction_type.in_(['FEE', 'COMMISSION'])
         ).all()
         
         total_fees = sum(convert_to_eur(abs(f.amount), f.currency) for f in fees)
         
-        # 4. Calcular P&L realizado (ventas)
-        sells = Transaction.query.filter_by(
-            user_id=user_id,
-            transaction_type='SELL'
-        ).all()
+        # 4. Dinero del usuario disponible (sin P&L Realizado)
+        user_money_available = total_deposits - total_withdrawals + total_dividends - total_fees
         
-        buys = Transaction.query.filter_by(
-            user_id=user_id,
-            transaction_type='BUY'
-        ).all()
+        # 5. Dinero prestado por broker = Valor actual - Dinero usuario
+        broker_money = current_portfolio_value - user_money_available
         
-        # Simplificación: P&L realizado = Total ventas - Total compras (neto)
-        total_sells_proceeds = 0
-        for sell in sells:
-            proceeds = sell.quantity * sell.price
-            proceeds -= (sell.commission or 0) + (sell.fees or 0) + (sell.tax or 0)
-            total_sells_proceeds += convert_to_eur(proceeds, sell.currency)
-        
-        total_buys_cost = 0
-        for buy in buys:
-            cost = buy.quantity * buy.price
-            cost += (buy.commission or 0) + (buy.fees or 0) + (buy.tax or 0)
-            total_buys_cost += convert_to_eur(cost, buy.currency)
-        
-        pl_realized = total_sells_proceeds - total_buys_cost
-        
-        # 5. Dinero del usuario
-        user_money = total_deposits - total_withdrawals + pl_realized + total_dividends - total_fees
-        
-        # 6. Dinero prestado por broker
-        broker_money = current_portfolio_value - user_money
-        
-        # 7. Ratio de apalancamiento (broker_money / user_money)
-        leverage_ratio = (broker_money / user_money * 100) if user_money > 0 else 0
+        # 6. Ratio de apalancamiento
+        leverage_ratio = (broker_money / user_money_available * 100) if user_money_available > 0 else 0
         
         return {
             'broker_money': round(broker_money, 2),
-            'user_money': round(user_money, 2),
+            'user_money': round(user_money_available, 2),
             'leverage_ratio': round(leverage_ratio, 2),
             # Componentes individuales para desglose
             'total_deposits': round(total_deposits, 2),
             'total_withdrawals': round(total_withdrawals, 2),
             'total_dividends': round(total_dividends, 2),
             'total_fees': round(total_fees, 2),
-            'pl_realized': round(pl_realized, 2),
         }
     
     @staticmethod
@@ -417,13 +395,14 @@ class BasicMetrics:
         }
     
     @staticmethod
-    def get_all_metrics(user_id, current_portfolio_value, pl_unrealized=0):
+    def get_all_metrics(user_id, current_portfolio_value, total_cost_current, pl_unrealized=0):
         """
         Obtiene todas las métricas básicas en un solo dict
         
         Args:
             user_id: ID del usuario
             current_portfolio_value: Valor actual del portfolio en EUR
+            total_cost_current: Coste total de posiciones actuales en EUR
             pl_unrealized: P&L no realizado (del dashboard)
             
         Returns:
@@ -431,7 +410,7 @@ class BasicMetrics:
         """
         pl_realized = BasicMetrics.calculate_pl_realized(user_id)
         roi = BasicMetrics.calculate_roi(user_id, current_portfolio_value)
-        leverage = BasicMetrics.calculate_leverage(user_id, current_portfolio_value)
+        leverage = BasicMetrics.calculate_leverage(user_id, current_portfolio_value, total_cost_current)
         total_pl = BasicMetrics.calculate_total_pl(user_id, current_portfolio_value, pl_unrealized)
         
         return {

@@ -211,10 +211,20 @@ function sortTable(columnIndex) {
         let cellA = rowA.cells[columnIndex].textContent.trim();
         let cellB = rowB.cells[columnIndex].textContent.trim();
         
-        // Limpiar formato de números (eliminar símbolos de moneda, espacios, etc.)
+        // Limpiar formato de números EUROPEO (1.234,56)
         if (columnIndex > 0) {  // Columnas numéricas
-            cellA = parseFloat(cellA.replace(/[^\d.,-]/g, '').replace(',', '.')) || 0;
-            cellB = parseFloat(cellB.replace(/[^\d.,-]/g, '').replace(',', '.')) || 0;
+            // Paso 1: Eliminar símbolos de moneda y espacios
+            cellA = cellA.replace(/[^\d.,-]/g, '');
+            cellB = cellB.replace(/[^\d.,-]/g, '');
+            
+            // Paso 2: Convertir formato europeo a formato estándar
+            // Eliminar puntos (separadores de miles) y reemplazar coma por punto (decimal)
+            cellA = cellA.replace(/\./g, '').replace(',', '.');
+            cellB = cellB.replace(/\./g, '').replace(',', '.');
+            
+            // Paso 3: Parsear a número
+            cellA = parseFloat(cellA) || 0;
+            cellB = parseFloat(cellB) || 0;
         }
         
         if (cellA < cellB) return newDir === 'asc' ? -1 : 1;

@@ -150,7 +150,7 @@ def dashboard():
             h['weight_pct'] = 0
     
     # Calcular métricas básicas (Sprint 4 - HITO 1)
-    metrics = BasicMetrics.get_all_metrics(current_user.id, total_value, total_pl)
+    metrics = BasicMetrics.get_all_metrics(current_user.id, total_value, total_cost, total_pl)
     
     return render_template(
         'portfolio/dashboard.html',

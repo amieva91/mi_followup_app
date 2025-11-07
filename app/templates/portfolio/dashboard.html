@@ -73,9 +73,77 @@
         </div>
     </div>
     
-    <!-- Sprint 4 - HITO 1: Métricas Básicas -->
+    <!-- Sprint 4 - HITO 1: Métricas del Portfolio Actual -->
     {% if metrics %}
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-4">
+    <div class="mb-2">
+        <h2 class="text-lg font-semibold text-gray-700">📊 Métricas del Portfolio Actual</h2>
+        <p class="text-xs text-gray-500">Basadas en las posiciones abiertas actuales</p>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <!-- Leverage / Dinero Prestado (SOLO PORTFOLIO ACTUAL) -->
+        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if metrics.leverage.broker_money > 0 %}border-red-500{% else %}border-cyan-500{% endif %}">
+            <div class="flex items-center justify-between mb-2">
+                <div class="text-sm text-gray-600">⚡ Dinero Prestado</div>
+                <span class="text-xs text-gray-400 cursor-help" title="Dinero prestado por el broker para el portfolio actual. NO incluye P&L Realizado (posiciones cerradas).">ⓘ</span>
+            </div>
+            <div class="text-2xl font-bold {% if metrics.leverage.broker_money > 0 %}text-red-600{% else %}text-cyan-600{% endif %}">
+                {% if metrics.leverage.broker_money >= 0 %}+{% endif %}{{ metrics.leverage.broker_money|decimal_eu(2) }} EUR
+            </div>
+            
+            <!-- Desglose detallado -->
+            <div class="text-xs text-gray-500 mt-3 space-y-1 border-t pt-2">
+                <div class="flex justify-between">
+                    <span>💰 Dinero usuario:</span>
+                    <span class="font-medium">{{ metrics.leverage.user_money|decimal_eu(2) }} EUR</span>
+                </div>
+                <div class="text-xs text-gray-400 ml-3 space-y-0.5">
+                    <div class="flex justify-between">
+                        <span>• Depósitos:</span>
+                        <span>+{{ metrics.leverage.total_deposits|decimal_eu(2) }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>• Retiradas:</span>
+                        <span>-{{ metrics.leverage.total_withdrawals|decimal_eu(2) }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>• Dividendos:</span>
+                        <span>+{{ metrics.leverage.total_dividends|decimal_eu(2) }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>• Comisiones:</span>
+                        <span>-{{ metrics.leverage.total_fees|decimal_eu(2) }}</span>
+                    </div>
+                </div>
+            </div>
+            
+            {% if metrics.leverage.broker_money > 0 %}
+            <div class="text-xs text-red-600 mt-2 font-medium">
+                Ratio: {{ metrics.leverage.leverage_ratio|decimal_eu(2) }}% apalancamiento
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Peso % Promedio (placeholder - puedes añadir otra métrica aquí) -->
+        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-gray-300">
+            <div class="flex items-center justify-between mb-2">
+                <div class="text-sm text-gray-600">📌 Posiciones</div>
+                <span class="text-xs text-gray-400 cursor-help" title="Número total de posiciones abiertas en el portfolio">ⓘ</span>
+            </div>
+            <div class="text-2xl font-bold text-gray-900">
+                {{ holdings|length }}
+            </div>
+            <div class="text-xs text-gray-500 mt-1">
+                En {{ accounts|length }} cuenta(s)
+            </div>
+        </div>
+    </div>
+    
+    <!-- Métricas Globales/Históricas -->
+    <div class="mb-2">
+        <h2 class="text-lg font-semibold text-gray-700">🌍 Métricas Globales e Históricas</h2>
+        <p class="text-xs text-gray-500">Incluyen todo el histórico (posiciones actuales + cerradas)</p>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <!-- P&L Realizado -->
         <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if metrics.pl_realized.realized_pl >= 0 %}border-purple-500{% else %}border-orange-500{% endif %}">
             <div class="flex items-center justify-between mb-2">
@@ -107,53 +175,6 @@
             <div class="text-xs text-gray-500 mt-1">
                 Capital invertido: {{ metrics.roi.net_invested|decimal_eu(2) }} EUR
             </div>
-        </div>
-        
-        <!-- Leverage / Dinero Prestado -->
-        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if metrics.leverage.broker_money > 0 %}border-red-500{% else %}border-cyan-500{% endif %}">
-            <div class="flex items-center justify-between mb-2">
-                <div class="text-sm text-gray-600">⚡ Dinero Prestado</div>
-                <span class="text-xs text-gray-400 cursor-help" title="Dinero prestado por el broker = Total Portfolio - Dinero del usuario">ⓘ</span>
-            </div>
-            <div class="text-2xl font-bold {% if metrics.leverage.broker_money > 0 %}text-red-600{% else %}text-cyan-600{% endif %}">
-                {% if metrics.leverage.broker_money >= 0 %}+{% endif %}{{ metrics.leverage.broker_money|decimal_eu(2) }} EUR
-            </div>
-            
-            <!-- Desglose detallado -->
-            <div class="text-xs text-gray-500 mt-3 space-y-1 border-t pt-2">
-                <div class="flex justify-between">
-                    <span>💰 Usuario:</span>
-                    <span class="font-medium">{{ metrics.leverage.user_money|decimal_eu(2) }} EUR</span>
-                </div>
-                <div class="text-xs text-gray-400 ml-3 space-y-0.5">
-                    <div class="flex justify-between">
-                        <span>• Depósitos:</span>
-                        <span>+{{ metrics.leverage.total_deposits|decimal_eu(2) }}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span>• Retiradas:</span>
-                        <span>-{{ metrics.leverage.total_withdrawals|decimal_eu(2) }}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span>• P&L Realizado:</span>
-                        <span>{% if metrics.leverage.pl_realized >= 0 %}+{% endif %}{{ metrics.leverage.pl_realized|decimal_eu(2) }}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span>• Dividendos:</span>
-                        <span>+{{ metrics.leverage.total_dividends|decimal_eu(2) }}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span>• Comisiones:</span>
-                        <span>-{{ metrics.leverage.total_fees|decimal_eu(2) }}</span>
-                    </div>
-                </div>
-            </div>
-            
-            {% if metrics.leverage.broker_money > 0 %}
-            <div class="text-xs text-red-600 mt-2 font-medium">
-                Ratio: {{ metrics.leverage.leverage_ratio|decimal_eu(2) }}% apalancamiento
-            </div>
-            {% endif %}
         </div>
         
         <!-- P&L Total Histórico -->
