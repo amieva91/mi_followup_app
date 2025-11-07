@@ -75,7 +75,7 @@
     
     <!-- Sprint 4 - HITO 1: Métricas Básicas -->
     {% if metrics %}
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-4">
         <!-- P&L Realizado -->
         <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if metrics.pl_realized.realized_pl >= 0 %}border-purple-500{% else %}border-orange-500{% endif %}">
             <div class="flex items-center justify-between mb-2">
@@ -113,19 +113,65 @@
         <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if metrics.leverage.broker_money > 0 %}border-red-500{% else %}border-cyan-500{% endif %}">
             <div class="flex items-center justify-between mb-2">
                 <div class="text-sm text-gray-600">⚡ Dinero Prestado</div>
-                <span class="text-xs text-gray-400 cursor-help" title="Dinero prestado por el broker = Total en cuentas - (Depósitos - Retiradas + P&L + Dividendos - Comisiones). Positivo = deuda con broker, Negativo = ganancias">ⓘ</span>
+                <span class="text-xs text-gray-400 cursor-help" title="Dinero prestado por el broker = Total Portfolio - Dinero del usuario">ⓘ</span>
             </div>
             <div class="text-2xl font-bold {% if metrics.leverage.broker_money > 0 %}text-red-600{% else %}text-cyan-600{% endif %}">
                 {% if metrics.leverage.broker_money >= 0 %}+{% endif %}{{ metrics.leverage.broker_money|decimal_eu(2) }} EUR
             </div>
-            <div class="text-xs text-gray-500 mt-1">
-                Dinero del usuario: {{ metrics.leverage.user_money|decimal_eu(2) }} EUR
+            
+            <!-- Desglose detallado -->
+            <div class="text-xs text-gray-500 mt-3 space-y-1 border-t pt-2">
+                <div class="flex justify-between">
+                    <span>💰 Usuario:</span>
+                    <span class="font-medium">{{ metrics.leverage.user_money|decimal_eu(2) }} EUR</span>
+                </div>
+                <div class="text-xs text-gray-400 ml-3 space-y-0.5">
+                    <div class="flex justify-between">
+                        <span>• Depósitos:</span>
+                        <span>+{{ metrics.leverage.total_deposits|decimal_eu(2) }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>• Retiradas:</span>
+                        <span>-{{ metrics.leverage.total_withdrawals|decimal_eu(2) }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>• P&L Realizado:</span>
+                        <span>{% if metrics.leverage.pl_realized >= 0 %}+{% endif %}{{ metrics.leverage.pl_realized|decimal_eu(2) }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>• Dividendos:</span>
+                        <span>+{{ metrics.leverage.total_dividends|decimal_eu(2) }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>• Comisiones:</span>
+                        <span>-{{ metrics.leverage.total_fees|decimal_eu(2) }}</span>
+                    </div>
+                </div>
             </div>
+            
             {% if metrics.leverage.broker_money > 0 %}
-            <div class="text-xs text-red-600 mt-1 font-medium">
+            <div class="text-xs text-red-600 mt-2 font-medium">
                 Ratio: {{ metrics.leverage.leverage_ratio|decimal_eu(2) }}% apalancamiento
             </div>
             {% endif %}
+        </div>
+        
+        <!-- P&L Total Histórico -->
+        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if metrics.total_pl.total_pl >= 0 %}border-green-600{% else %}border-red-600{% endif %}">
+            <div class="flex items-center justify-between mb-2">
+                <div class="text-sm text-gray-600">📊 P&L Total</div>
+                <span class="text-xs text-gray-400 cursor-help" title="Ganancia/pérdida total histórica = P&L Realizado (ventas) + P&L No Realizado (posiciones actuales)">ⓘ</span>
+            </div>
+            <div class="text-2xl font-bold {% if metrics.total_pl.total_pl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                {% if metrics.total_pl.total_pl >= 0 %}+{% endif %}{{ metrics.total_pl.total_pl|decimal_eu(2) }} EUR
+            </div>
+            <div class="text-xs text-gray-500 mt-1">
+                Retorno: {% if metrics.total_pl.total_pl_pct >= 0 %}+{% endif %}{{ metrics.total_pl.total_pl_pct|decimal_eu(2) }}%
+            </div>
+            <div class="text-xs text-gray-400 mt-2 space-y-1">
+                <div>Realizado: {{ metrics.total_pl.pl_realized|decimal_eu(2) }} EUR</div>
+                <div>No realizado: {{ metrics.total_pl.pl_unrealized|decimal_eu(2) }} EUR</div>
+            </div>
         </div>
     </div>
     {% endif %}

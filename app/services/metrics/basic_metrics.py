@@ -228,6 +228,12 @@ class BasicMetrics:
             'broker_money': round(broker_money, 2),
             'user_money': round(user_money, 2),
             'leverage_ratio': round(leverage_ratio, 2),
+            # Componentes individuales para desglose
+            'total_deposits': round(total_deposits, 2),
+            'total_withdrawals': round(total_withdrawals, 2),
+            'total_dividends': round(total_dividends, 2),
+            'total_fees': round(total_fees, 2),
+            'pl_realized': round(pl_realized, 2),
         }
     
     @staticmethod
@@ -341,13 +347,84 @@ class BasicMetrics:
         return results
     
     @staticmethod
-    def get_all_metrics(user_id, current_portfolio_value):
+    def calculate_total_pl(user_id, current_portfolio_value, pl_unrealized):
+        """
+        Calcula P&L TOTAL histórico = P&L Realizado + P&L No Realizado
+        
+        Args:
+            user_id: ID del usuario
+            current_portfolio_value: Valor actual del portfolio en EUR
+            pl_unrealized: P&L no realizado (del dashboard)
+            
+        Returns:
+            dict: {
+                'total_pl': float,  # P&L total en EUR
+                'total_pl_pct': float,  # Porcentaje sobre capital total
+                'pl_realized': float,  # Componente realizado
+                'pl_unrealized': float,  # Componente no realizado
+            }
+        """
+        # Obtener depósitos totales
+        deposits = Transaction.query.filter_by(
+            user_id=user_id,
+            transaction_type='DEPOSIT'
+        ).all()
+        
+        total_deposits = sum(convert_to_eur(abs(d.amount), d.currency) for d in deposits)
+        
+        # Obtener retiradas totales
+        withdrawals = Transaction.query.filter_by(
+            user_id=user_id,
+            transaction_type='WITHDRAWAL'
+        ).all()
+        
+        total_withdrawals = sum(convert_to_eur(abs(w.amount), w.currency) for w in withdrawals)
+        
+        # Capital neto invertido
+        net_capital = total_deposits - total_withdrawals
+        
+        # P&L Realizado (aproximación simplificada)
+        sells = Transaction.query.filter_by(user_id=user_id, transaction_type='SELL').all()
+        buys = Transaction.query.filter_by(user_id=user_id, transaction_type='BUY').all()
+        
+        total_sells_proceeds = sum(
+            convert_to_eur(
+                s.quantity * s.price - (s.commission or 0) - (s.fees or 0) - (s.tax or 0),
+                s.currency
+            ) for s in sells
+        )
+        
+        total_buys_cost = sum(
+            convert_to_eur(
+                b.quantity * b.price + (b.commission or 0) + (b.fees or 0) + (b.tax or 0),
+                b.currency
+            ) for b in buys
+        )
+        
+        pl_realized = total_sells_proceeds - total_buys_cost
+        
+        # P&L Total = Realizado + No Realizado
+        total_pl = pl_realized + pl_unrealized
+        
+        # Porcentaje sobre capital neto
+        total_pl_pct = (total_pl / net_capital * 100) if net_capital > 0 else 0
+        
+        return {
+            'total_pl': round(total_pl, 2),
+            'total_pl_pct': round(total_pl_pct, 2),
+            'pl_realized': round(pl_realized, 2),
+            'pl_unrealized': round(pl_unrealized, 2),
+        }
+    
+    @staticmethod
+    def get_all_metrics(user_id, current_portfolio_value, pl_unrealized=0):
         """
         Obtiene todas las métricas básicas en un solo dict
         
         Args:
             user_id: ID del usuario
             current_portfolio_value: Valor actual del portfolio en EUR
+            pl_unrealized: P&L no realizado (del dashboard)
             
         Returns:
             dict: Todas las métricas combinadas
@@ -355,10 +432,12 @@ class BasicMetrics:
         pl_realized = BasicMetrics.calculate_pl_realized(user_id)
         roi = BasicMetrics.calculate_roi(user_id, current_portfolio_value)
         leverage = BasicMetrics.calculate_leverage(user_id, current_portfolio_value)
+        total_pl = BasicMetrics.calculate_total_pl(user_id, current_portfolio_value, pl_unrealized)
         
         return {
             'pl_realized': pl_realized,
             'roi': roi,
             'leverage': leverage,
+            'total_pl': total_pl,
         }
 

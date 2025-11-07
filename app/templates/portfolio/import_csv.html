@@ -1,7 +1,7 @@
 {% extends "base/layout.html" %}
 
 {% block content %}
-<div class="max-w-3xl mx-auto">
+<div class="max-w-[92%] mx-auto">
     <!-- Header -->
     <div class="flex justify-between items-center mb-6">
         <div>
@@ -92,19 +92,47 @@
     </div>
 
     <!-- Formulario -->
-    <div class="bg-white rounded-lg shadow-md p-6" id="importForm">
+    <div class="bg-white rounded-lg shadow-md p-6 mb-6" id="importForm">
         <form id="csvForm" action="{{ url_for('portfolio.import_csv_process') }}" method="POST" enctype="multipart/form-data">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
             
-            <!-- Ya NO necesitamos seleccionar cuenta - Auto-detección habilitada -->
+            <!-- Selector de archivos (múltiples) -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    📄 Archivos CSV (puedes seleccionar múltiples)
+                </label>
+                <div class="flex items-center justify-center w-full">
+                    <label for="csv_files" class="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
+                        <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                            <svg class="w-10 h-10 mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                            </svg>
+                            <p class="mb-2 text-sm text-gray-500"><span class="font-semibold">Clic para subir</span> o arrastra aquí</p>
+                            <p class="text-xs text-gray-500">Uno o varios archivos CSV (IBKR o DeGiro)</p>
+                        </div>
+                        <input id="csv_files" name="csv_files" type="file" accept=".csv" multiple required class="hidden" onchange="showFileNames(this)" />
+                    </label>
+                </div>
+                <div id="file-names" class="mt-2 text-sm text-gray-600"></div>
+            </div>
             
-            <!-- Guías estáticas (siempre visibles ya que aceptamos IBKR y DeGiro mezclados) -->
-            <div id="brokerGuide" class="mb-6 space-y-4">
-                <!-- Guía DeGiro -->
-                <div id="guideDeGiro" class="bg-gradient-to-r from-orange-50 to-yellow-50 border-l-4 border-orange-500 rounded-lg p-6">
-                    <h3 class="text-lg font-bold text-orange-800 mb-4 flex items-center gap-2">
-                        <span class="text-2xl">📋</span> Cómo obtener los CSV de DeGiro
-                    </h3>
+            <!-- Botón de importar -->
+            <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-200">
+                📤 Importar Archivos
+            </button>
+        </form>
+    </div>
+    
+    <!-- Guías lado a lado con logos -->
+    <div class="mb-6">
+        <h2 class="text-xl font-bold text-gray-900 mb-4">📋 Guías de Obtención de Archivos CSV</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Guía DeGiro -->
+            <div id="guideDeGiro" class="bg-gradient-to-r from-orange-50 to-yellow-50 border-l-4 border-orange-500 rounded-lg p-6">
+                <h3 class="text-lg font-bold text-orange-800 mb-4 flex items-center gap-3">
+                    <span class="text-3xl">🟠</span>
+                    <span>DeGiro</span>
+                </h3>
                     <div class="space-y-4 text-sm text-gray-700">
                         <div class="bg-white rounded-lg p-4 shadow-sm">
                             <h4 class="font-semibold text-orange-700 mb-2">📄 Archivo 1: "Estado de Cuenta"</h4>
@@ -136,11 +164,12 @@
                     </div>
                 </div>
                 
-                <!-- Guía IBKR -->
-                <div id="guideIBKR" class="bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-600 rounded-lg p-6">
-                    <h3 class="text-lg font-bold text-blue-800 mb-4 flex items-center gap-2">
-                        <span class="text-2xl">📋</span> Cómo obtener el CSV de IBKR
-                    </h3>
+            <!-- Guía IBKR -->
+            <div id="guideIBKR" class="bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-600 rounded-lg p-6">
+                <h3 class="text-lg font-bold text-blue-800 mb-4 flex items-center gap-3">
+                    <span class="text-3xl">🔵</span>
+                    <span>Interactive Brokers (IBKR)</span>
+                </h3>
                     <div class="space-y-4 text-sm text-gray-700">
                         <div class="bg-white rounded-lg p-4 shadow-sm">
                             <h4 class="font-semibold text-blue-700 mb-2">📄 "Activity Statement" (Oficial)</h4>
@@ -169,40 +198,7 @@
                         </div>
                     </div>
                 </div>
-            </div>
-
-            <!-- Selector de archivos (múltiples) -->
-            <div class="mb-6">
-                <label class="block text-sm font-medium text-gray-700 mb-2">
-                    📄 Archivos CSV (puedes seleccionar múltiples)
-                </label>
-                <div class="flex items-center justify-center w-full">
-                    <label for="csv_files" class="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
-                        <div class="flex flex-col items-center justify-center pt-5 pb-6">
-                            <svg class="w-10 h-10 mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                            </svg>
-                            <p class="mb-2 text-sm text-gray-500"><span class="font-semibold">Clic para subir</span> o arrastra aquí</p>
-                            <p class="text-xs text-gray-500">Uno o varios archivos CSV (IBKR o DeGiro)</p>
-                        </div>
-                        <input id="csv_files" name="csv_files" type="file" accept=".csv" multiple required class="hidden" onchange="showFileNames(this)" />
-                    </label>
-                </div>
-                <div id="file-names" class="text-sm text-gray-600 mt-2"></div>
-            </div>
-
-            <!-- Botón de envío -->
-            <div class="flex justify-end gap-3">
-                <a href="{{ url_for('portfolio.dashboard') }}" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-2 rounded-lg">
-                    Cancelar
-                </a>
-                <button type="submit" id="importButton"
-                        class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium"
-                        {% if not accounts %}disabled{% endif %}>
-                    🚀 Importar CSV
-                </button>
-            </div>
-        </form>
+        </div>
     </div>
 
     <!-- Info adicional -->
