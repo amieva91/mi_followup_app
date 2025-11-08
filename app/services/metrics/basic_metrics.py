@@ -449,13 +449,84 @@ class BasicMetrics:
         }
     
     @staticmethod
+    def calculate_total_account_value(user_id):
+        """
+        Calcula Valor Total de la Cuenta de Inversión
+        
+        Este valor representa TODO el dinero del usuario en la cuenta:
+        - Lo invertido en activos (valor actual)
+        - El cash disponible (si lo hay)
+        
+        Fórmula:
+        Valor Total Cuenta = Depósitos - Retiradas + P&L Realizado + P&L No Realizado + Dividendos - Comisiones
+        
+        Componentes:
+        - Depósitos: Dinero aportado por el usuario
+        - Retiradas: Dinero retirado por el usuario
+        - P&L Realizado: Ganancias/pérdidas de posiciones cerradas
+        - P&L No Realizado: Ganancias/pérdidas de posiciones actuales
+        - Dividendos: Ingresos por dividendos
+        - Comisiones: Costes pagados al broker
+        
+        Returns:
+            dict: {
+                'total_account_value': float,  # Valor total en EUR
+                'deposits': float,
+                'withdrawals': float,
+                'pl_realized': float,
+                'pl_unrealized': float,
+                'dividends': float,
+                'fees': float,
+            }
+        """
+        # Ya tenemos estos cálculos en calculate_leverage, los reutilizamos
+        deposits = Transaction.query.filter_by(
+            user_id=user_id,
+            transaction_type='DEPOSIT'
+        ).all()
+        total_deposits = sum(convert_to_eur(abs(d.amount), d.currency) for d in deposits)
+        
+        withdrawals = Transaction.query.filter_by(
+            user_id=user_id,
+            transaction_type='WITHDRAWAL'
+        ).all()
+        total_withdrawals = sum(convert_to_eur(abs(w.amount), w.currency) for w in withdrawals)
+        
+        dividends = Transaction.query.filter_by(
+            user_id=user_id,
+            transaction_type='DIVIDEND'
+        ).all()
+        total_dividends = sum(convert_to_eur(abs(d.amount), d.currency) for d in dividends)
+        
+        fees = Transaction.query.filter_by(user_id=user_id).filter(
+            Transaction.transaction_type.in_(['FEE', 'COMMISSION'])
+        ).all()
+        total_fees = sum(convert_to_eur(abs(f.amount), f.currency) for f in fees)
+        
+        # Obtener P&L Realizado
+        pl_realized_data = BasicMetrics.calculate_pl_realized(user_id)
+        pl_realized = pl_realized_data['realized_pl']
+        
+        # Para obtener P&L No Realizado, necesitamos los holdings actuales
+        # Lo pasaremos como parámetro desde get_all_metrics
+        # Por ahora, retornamos None y lo calcularemos en get_all_metrics
+        
+        return {
+            'deposits': round(total_deposits, 2),
+            'withdrawals': round(total_withdrawals, 2),
+            'pl_realized': round(pl_realized, 2),
+            'dividends': round(total_dividends, 2),
+            'fees': round(total_fees, 2),
+        }
+    
+    @staticmethod
     def get_all_metrics(user_id, current_portfolio_value, total_cost_current, pl_unrealized=0):
         """
         Obtiene todas las métricas básicas en un solo dict
         
         Args:
             user_id: ID del usuario
-            current_portfolio_value: Valor actual del portfolio en EUR
+            current_portfolio_value: Valor actual del portfolio en EUR (solo posiciones abiertas)
             total_cost_current: Coste total de posiciones actuales en EUR
             pl_unrealized: P&L no realizado (del dashboard)
             
@@ -467,10 +538,25 @@ class BasicMetrics:
         leverage = BasicMetrics.calculate_leverage(user_id, current_portfolio_value, total_cost_current, pl_unrealized)
         total_pl = BasicMetrics.calculate_total_pl(user_id, current_portfolio_value, pl_unrealized)
         
+        # Calcular Valor Total Cuenta de Inversión
+        account_components = BasicMetrics.calculate_total_account_value(user_id)
+        total_account_value = (
+            account_components['deposits'] -
+            account_components['withdrawals'] +
+            account_components['pl_realized'] +
+            pl_unrealized +  # Este viene del dashboard
+            account_components['dividends'] -
+            account_components['fees']
+        )
+        account_components['pl_unrealized'] = round(pl_unrealized, 2)
+        account_components['total_account_value'] = round(total_account_value, 2)
+        account_components['cash_or_leverage'] = round(total_account_value - current_portfolio_value, 2)
+        
         return {
             'pl_realized': pl_realized,
             'roi': roi,
             'leverage': leverage,
             'total_pl': total_pl,
+            'total_account': account_components,
         }
 

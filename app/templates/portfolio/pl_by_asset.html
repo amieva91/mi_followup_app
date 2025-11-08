@@ -72,14 +72,14 @@
                     <th onclick="sortTable(4)" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
                         Dividendos <span class="sort-arrow">⇅</span>
                     </th>
-                    <th onclick="sortTable(5)" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                    <th onclick="sortTable(5)" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                        Nº Dividendos <span class="sort-arrow">⇅</span>
+                    </th>
+                    <th onclick="sortTable(6)" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
                         Comisiones <span class="sort-arrow">⇅</span>
                     </th>
-                    <th onclick="sortTable(6)" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
-                        Transacciones <span class="sort-arrow">⇅</span>
-                    </th>
                     <th onclick="sortTable(7)" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
-                        Nº Dividendos <span class="sort-arrow">⇅</span>
+                        Transacciones <span class="sort-arrow">⇅</span>
                     </th>
                 </tr>
             </thead>
@@ -127,6 +127,11 @@
                         +{{ item.total_dividends_eur|decimal_eu(2) }} EUR
                     </td>
                     
+                    <!-- Número de Dividendos -->
+                    <td class="px-6 py-4 whitespace-nowrap text-center text-sm {% if item.dividends_count > 0 %}text-green-600 font-medium{% else %}text-gray-400{% endif %}">
+                        {{ item.dividends_count }}
+                    </td>
+                    
                     <!-- Comisiones -->
                     <td class="px-6 py-4 whitespace-nowrap text-right text-orange-600">
                         -{{ item.total_fees_eur|decimal_eu(2) }} EUR
@@ -135,11 +140,6 @@
                     <!-- Transacciones -->
                     <td class="px-6 py-4 whitespace-nowrap text-center text-gray-500 text-sm">
                         {{ item.transactions_count }}
-                    </td>
-                    
-                    <!-- Número de Dividendos -->
-                    <td class="px-6 py-4 whitespace-nowrap text-center text-sm {% if item.dividends_count > 0 %}text-green-600 font-medium{% else %}text-gray-400{% endif %}">
-                        {{ item.dividends_count }}
                     </td>
                 </tr>
                 {% endfor %}
