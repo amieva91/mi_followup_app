@@ -106,6 +106,10 @@
                         <span>-{{ metrics.leverage.total_withdrawals|decimal_eu(2) }}</span>
                     </div>
                     <div class="flex justify-between">
+                        <span>• P&L No Realizado:</span>
+                        <span>{% if metrics.leverage.pl_unrealized >= 0 %}+{% endif %}{{ metrics.leverage.pl_unrealized|decimal_eu(2) }}</span>
+                    </div>
+                    <div class="flex justify-between">
                         <span>• Dividendos:</span>
                         <span>+{{ metrics.leverage.total_dividends|decimal_eu(2) }}</span>
                     </div>
@@ -214,8 +218,8 @@
         {% endif %}
     </div>
 
-    <!-- Navegación de Cuentas -->
-    {% if accounts %}
+    <!-- Navegación de Cuentas (OCULTO POR PETICIÓN DEL USUARIO) -->
+    {% if false %}
     <div class="bg-white rounded-xl shadow-sm p-6 mb-8">
         <h2 class="text-xl font-semibold text-gray-900 mb-4">🏦 Mis Cuentas</h2>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">

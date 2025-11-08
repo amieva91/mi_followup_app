@@ -6,6 +6,8 @@ from decimal import Decimal
 from sqlalchemy import func
 from app.models import Transaction, PortfolioHolding
 from app.services.currency_service import convert_to_eur
+from app.services.fifo_calculator import FIFOCalculator
+from collections import defaultdict
 
 
 class BasicMetrics:
@@ -134,33 +136,35 @@ class BasicMetrics:
         }
     
     @staticmethod
-    def calculate_leverage(user_id, current_portfolio_value, total_cost_current):
+    def calculate_leverage(user_id, current_portfolio_value, total_cost_current, pl_unrealized):
         """
         Calcula Leverage (Apalancamiento) = Dinero prestado por el broker
         
         SOLO PARA PORTFOLIO ACTUAL (posiciones abiertas)
         
         Fórmula:
-        1. Dinero del usuario para portfolio actual = Depósitos - Retiradas + Dividendos - Comisiones
+        1. Dinero del usuario = Depósitos - Retiradas + P&L No Realizado + Dividendos - Comisiones
         2. Total en cuentas = Valor actual del portfolio
         3. Dinero prestado por broker = Total en cuentas - Dinero del usuario
         
-        NO incluye P&L Realizado porque son posiciones ya cerradas.
+        INCLUYE P&L No Realizado porque son ganancias del usuario en las posiciones actuales.
+        NO incluye P&L Realizado (posiciones cerradas).
         
         Interpretación:
         - Positivo: Broker prestando dinero (apalancamiento real)
-        - Negativo: Usuario tiene más dinero del que usa actualmente
+        - Negativo: Usuario tiene más dinero del que necesita
         - 0: Portfolio = Capital del usuario
         
         Args:
             user_id: ID del usuario
             current_portfolio_value: Valor actual del portfolio en EUR
             total_cost_current: Coste total de posiciones actuales en EUR
+            pl_unrealized: P&L no realizado (ganancias de posiciones abiertas)
             
         Returns:
             dict: {
                 'broker_money': float,  # Dinero prestado por broker (puede ser negativo)
-                'user_money': float,  # Dinero del usuario disponible para portfolio actual
+                'user_money': float,  # Dinero del usuario (incluye ganancias actuales)
                 'leverage_ratio': float,  # Ratio de apalancamiento
             }
         """
@@ -194,24 +198,25 @@ class BasicMetrics:
         
         total_fees = sum(convert_to_eur(abs(f.amount), f.currency) for f in fees)
         
-        # 4. Dinero del usuario disponible (sin P&L Realizado)
-        user_money_available = total_deposits - total_withdrawals + total_dividends - total_fees
+        # 4. Dinero del usuario (INCLUYE P&L No Realizado)
+        user_money = total_deposits - total_withdrawals + pl_unrealized + total_dividends - total_fees
         
         # 5. Dinero prestado por broker = Valor actual - Dinero usuario
-        broker_money = current_portfolio_value - user_money_available
+        broker_money = current_portfolio_value - user_money
         
         # 6. Ratio de apalancamiento
-        leverage_ratio = (broker_money / user_money_available * 100) if user_money_available > 0 else 0
+        leverage_ratio = (broker_money / user_money * 100) if user_money > 0 else 0
         
         return {
             'broker_money': round(broker_money, 2),
-            'user_money': round(user_money_available, 2),
+            'user_money': round(user_money, 2),
             'leverage_ratio': round(leverage_ratio, 2),
             # Componentes individuales para desglose
             'total_deposits': round(total_deposits, 2),
             'total_withdrawals': round(total_withdrawals, 2),
             'total_dividends': round(total_dividends, 2),
             'total_fees': round(total_fees, 2),
+            'pl_unrealized': round(pl_unrealized, 2),
         }
     
     @staticmethod
@@ -410,7 +415,7 @@ class BasicMetrics:
         """
         pl_realized = BasicMetrics.calculate_pl_realized(user_id)
         roi = BasicMetrics.calculate_roi(user_id, current_portfolio_value)
-        leverage = BasicMetrics.calculate_leverage(user_id, current_portfolio_value, total_cost_current)
+        leverage = BasicMetrics.calculate_leverage(user_id, current_portfolio_value, total_cost_current, pl_unrealized)
         total_pl = BasicMetrics.calculate_total_pl(user_id, current_portfolio_value, pl_unrealized)
         
         return {
