@@ -265,9 +265,14 @@
             let valueA, valueB;
             
             if (type === 'number') {
-                // Extraer primer número de la celda
-                const textA = cellA.textContent.replace(/[^\d.,-]/g, '').replace(',', '.');
-                const textB = cellB.textContent.replace(/[^\d.,-]/g, '').replace(',', '.');
+                // Extraer número con formato europeo (1.234,56)
+                let textA = cellA.textContent.trim().replace(/[^\d.,-]/g, '');
+                let textB = cellB.textContent.trim().replace(/[^\d.,-]/g, '');
+                
+                // Convertir formato europeo a estándar (eliminar puntos de miles, coma a punto)
+                textA = textA.replace(/\./g, '').replace(',', '.');
+                textB = textB.replace(/\./g, '').replace(',', '.');
+                
                 valueA = parseFloat(textA) || 0;
                 valueB = parseFloat(textB) || 0;
             } else {

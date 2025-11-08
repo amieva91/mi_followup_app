@@ -18,12 +18,12 @@ class BasicMetrics:
     @staticmethod
     def calculate_pl_realized(user_id):
         """
-        Calcula P&L Realizado: Ganancias/pérdidas de posiciones cerradas
+        Calcula P&L Realizado: Ganancias/pérdidas de posiciones cerradas usando FIFO real
         
-        Método: Para cada transacción de venta (SELL), calcular:
-        - Ingresos = precio_venta × cantidad
-        - Costes = precio_compra_promedio × cantidad (del FIFO)
-        - P&L Realizado = Ingresos - Costes - Comisiones
+        Método: Para cada asset:
+        1. Procesar todas las transacciones BUY/SELL en orden cronológico con FIFO
+        2. Para cada venta, obtener el coste real de los lotes vendidos (FIFO)
+        3. P&L Realizado = Ingresos venta - Coste real FIFO
         
         Returns:
             dict: {
@@ -32,48 +32,69 @@ class BasicMetrics:
                 'total_sales': int,  # Número de ventas
             }
         """
-        from app import db
+        # Obtener TODAS las transacciones BUY/SELL por asset, en orden cronológico
+        transactions = Transaction.query.filter_by(user_id=user_id).filter(
+            Transaction.transaction_type.in_(['BUY', 'SELL'])
+        ).order_by(Transaction.transaction_date, Transaction.created_at).all()
         
-        # Por ahora, obtener todas las transacciones SELL
-        sell_transactions = Transaction.query.filter_by(
-            user_id=user_id,
-            transaction_type='SELL'
-        ).all()
+        # Agrupar por asset
+        asset_transactions = defaultdict(list)
+        for txn in transactions:
+            if txn.asset_id:
+                asset_transactions[txn.asset_id].append(txn)
         
-        total_realized_pl = 0.0
-        total_cost_basis = 0.0
+        total_realized_pl_eur = 0.0
+        total_cost_basis_eur = 0.0
+        total_sales_count = 0
         
-        for sell_txn in sell_transactions:
-            # Calcular ingresos de la venta (en moneda local)
-            proceeds = sell_txn.quantity * sell_txn.price
+        # Procesar cada asset con FIFO
+        for asset_id, txns in asset_transactions.items():
+            fifo = FIFOCalculator(symbol=f"Asset_{asset_id}")
             
-            # Restar comisiones
-            proceeds -= (sell_txn.commission or 0) + (sell_txn.fees or 0) + (sell_txn.tax or 0)
-            
-            # Convertir a EUR
-            proceeds_eur = convert_to_eur(proceeds, sell_txn.currency)
-            
-            # NOTA: El coste real (cost basis) debería venir del FIFO tracking
-            # Por ahora, usamos una aproximación con el average_buy_price
-            # TODO: Implementar tracking preciso de cost basis en futuras versiones
-            
-            # Por ahora, aproximamos usando el precio medio de compra
-            # Esta es una simplificación - idealmente necesitaríamos lot tracking
-            cost_basis = sell_txn.quantity * (sell_txn.price * 0.95)  # Aproximación: 5% ganancia promedio
-            cost_basis_eur = convert_to_eur(cost_basis, sell_txn.currency)
-            
-            # P&L de esta venta
-            pl = proceeds_eur - cost_basis_eur
-            total_realized_pl += pl
-            total_cost_basis += cost_basis_eur
+            for txn in txns:
+                if txn.transaction_type == 'BUY':
+                    # Coste total de la compra (precio + comisiones)
+                    total_cost = (txn.quantity * txn.price) + \
+                                (txn.commission or 0) + \
+                                (txn.fees or 0) + \
+                                (txn.tax or 0)
+                    
+                    fifo.add_buy(
+                        quantity=txn.quantity,
+                        price=txn.price,
+                        date=txn.transaction_date,
+                        total_cost=total_cost
+                    )
+                
+                elif txn.transaction_type == 'SELL':
+                    # Ingresos de la venta (después de comisiones/fees)
+                    proceeds = (txn.quantity * txn.price) - \
+                              (txn.commission or 0) - \
+                              (txn.fees or 0) - \
+                              (txn.tax or 0)
+                    proceeds_eur = convert_to_eur(proceeds, txn.currency)
+                    
+                    # Obtener el coste real de lo vendido usando FIFO
+                    cost_basis = float(fifo.add_sell(
+                        quantity=txn.quantity,
+                        date=txn.transaction_date
+                    ))
+                    cost_basis_eur = convert_to_eur(cost_basis, txn.currency)
+                    
+                    # P&L de esta venta
+                    pl_eur = proceeds_eur - cost_basis_eur
+                    
+                    total_realized_pl_eur += pl_eur
+                    total_cost_basis_eur += cost_basis_eur
+                    total_sales_count += 1
         
         # Calcular porcentaje
-        realized_pl_pct = (total_realized_pl / total_cost_basis * 100) if total_cost_basis > 0 else 0
+        realized_pl_pct = (total_realized_pl_eur / total_cost_basis_eur * 100) if total_cost_basis_eur > 0 else 0
         
         return {
-            'realized_pl': round(total_realized_pl, 2),
+            'realized_pl': round(total_realized_pl_eur, 2),
             'realized_pl_pct': round(realized_pl_pct, 2),
-            'total_sales': len(sell_transactions),
+            'total_sales': total_sales_count,
         }
     
     @staticmethod
