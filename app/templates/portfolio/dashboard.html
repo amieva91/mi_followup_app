@@ -30,11 +30,17 @@
         </div>
     </div>
 
-    <!-- Resumen General -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-4">
+    <!-- Sprint 4 - HITO 1: Métricas del Portfolio Actual -->
+    {% if metrics %}
+    <div class="mb-2">
+        <h2 class="text-lg font-semibold text-gray-700">📊 Métricas del Portfolio Actual</h2>
+        <p class="text-xs text-gray-500">Basadas en las posiciones abiertas actuales</p>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
+        <!-- Valor Total -->
         <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-blue-500">
             <div class="flex items-center justify-between mb-1">
-                <div class="text-sm text-gray-600">Valor Total</div>
+                <div class="text-sm text-gray-600">💰 Valor Total</div>
                 <span class="text-xs text-gray-400 cursor-help" title="Valor actual del portfolio basado en precios de mercado. Suma de todas las posiciones abiertas valoradas a precio actual.">ⓘ</span>
             </div>
             <div class="text-2xl font-bold text-gray-900">
@@ -42,9 +48,10 @@
             </div>
         </div>
         
-        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-green-500">
+        <!-- Coste Total -->
+        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-gray-400">
             <div class="flex items-center justify-between mb-1">
-                <div class="text-sm text-gray-600">Coste Total</div>
+                <div class="text-sm text-gray-600">🏷️ Coste Total</div>
                 <span class="text-xs text-gray-400 cursor-help" title="Coste de adquisición de todas las posiciones actuales. Incluye precio de compra + comisiones + fees + impuestos.">ⓘ</span>
             </div>
             <div class="text-2xl font-bold text-gray-900">
@@ -52,34 +59,27 @@
             </div>
         </div>
         
+        <!-- P&L No Realizado -->
         <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if total_pl >= 0 %}border-green-600{% else %}border-red-600{% endif %}">
             <div class="flex items-center justify-between mb-1">
-                <div class="text-sm text-gray-600">P&L Total</div>
-                <span class="text-xs text-gray-400 cursor-help" title="P&L No Realizado: Ganancia/pérdida de posiciones abiertas (Valor Actual - Coste Total). No incluye posiciones cerradas.">ⓘ</span>
+                <div class="text-sm text-gray-600">📈 P&L No Realizado</div>
+                <span class="text-xs text-gray-400 cursor-help" title="Ganancia/pérdida de posiciones abiertas (Valor Actual - Coste Total). No incluye posiciones cerradas.">ⓘ</span>
             </div>
             <div class="text-2xl font-bold {% if total_pl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
                 {% if total_pl >= 0 %}+{% endif %}{{ total_pl|decimal_eu(2) }} EUR
             </div>
         </div>
         
+        <!-- Retorno % -->
         <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if total_pl_pct >= 0 %}border-green-600{% else %}border-red-600{% endif %}">
             <div class="flex items-center justify-between mb-1">
-                <div class="text-sm text-gray-600">Retorno</div>
+                <div class="text-sm text-gray-600">📊 Retorno</div>
                 <span class="text-xs text-gray-400 cursor-help" title="Porcentaje de retorno sobre el coste de las posiciones actuales: (P&L Total / Coste Total) × 100">ⓘ</span>
             </div>
             <div class="text-2xl font-bold {% if total_pl_pct >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
                 {% if total_pl_pct >= 0 %}+{% endif %}{{ total_pl_pct|decimal_eu(2) }}%
             </div>
         </div>
-    </div>
-    
-    <!-- Sprint 4 - HITO 1: Métricas del Portfolio Actual -->
-    {% if metrics %}
-    <div class="mb-2">
-        <h2 class="text-lg font-semibold text-gray-700">📊 Métricas del Portfolio Actual</h2>
-        <p class="text-xs text-gray-500">Basadas en las posiciones abiertas actuales</p>
-    </div>
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <!-- Leverage / Dinero Prestado (SOLO PORTFOLIO ACTUAL) -->
         <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if metrics.leverage.broker_money > 0 %}border-red-500{% else %}border-cyan-500{% endif %}">
             <div class="flex items-center justify-between mb-2">
