@@ -198,8 +198,12 @@ class BasicMetrics:
         
         total_fees = sum(convert_to_eur(abs(f.amount), f.currency) for f in fees)
         
-        # 4. Dinero del usuario (INCLUYE P&L No Realizado)
-        user_money = total_deposits - total_withdrawals + pl_unrealized + total_dividends - total_fees
+        # 4. Obtener P&L Realizado
+        pl_realized_data = BasicMetrics.calculate_pl_realized(user_id)
+        pl_realized = pl_realized_data['realized_pl']
+        
+        # 5. Dinero del usuario (INCLUYE P&L Realizado + P&L No Realizado)
+        user_money = total_deposits - total_withdrawals + pl_realized + pl_unrealized + total_dividends - total_fees
         
         # 5. Dinero prestado por broker = Valor actual - Dinero usuario
         broker_money = current_portfolio_value - user_money
@@ -214,9 +218,10 @@ class BasicMetrics:
             # Componentes individuales para desglose
             'total_deposits': round(total_deposits, 2),
             'total_withdrawals': round(total_withdrawals, 2),
+            'pl_realized': round(pl_realized, 2),
+            'pl_unrealized': round(pl_unrealized, 2),
             'total_dividends': round(total_dividends, 2),
             'total_fees': round(total_fees, 2),
-            'pl_unrealized': round(pl_unrealized, 2),
         }
     
     @staticmethod
@@ -274,12 +279,25 @@ class BasicMetrics:
             elif txn.transaction_type in ['FEE', 'COMMISSION']:
                 by_asset[asset_id]['fees'].append(txn)
         
-        # Obtener holdings actuales
+        # Obtener holdings actuales con sus valores
         current_holdings = PortfolioHolding.query.filter_by(
             user_id=user_id
         ).filter(PortfolioHolding.quantity > 0).all()
         
         current_asset_ids = {h.asset_id for h in current_holdings}
+        
+        # Crear diccionario de valores actuales por asset
+        current_values = {}
+        current_costs = {}
+        for h in current_holdings:
+            current_value = h.quantity * (h.current_price or 0)
+            current_value_eur = convert_to_eur(current_value, h.asset.currency if h.asset else 'EUR')
+            
+            total_cost = h.total_cost or (h.quantity * (h.average_buy_price or 0))
+            total_cost_eur = convert_to_eur(total_cost, h.asset.currency if h.asset else 'EUR')
+            
+            current_values[h.asset_id] = current_value_eur
+            current_costs[h.asset_id] = total_cost_eur
         
         # Calcular P&L por asset
         results = []
@@ -310,8 +328,17 @@ class BasicMetrics:
             for txn in data['fees']:
                 total_fees += convert_to_eur(abs(txn.amount), txn.currency)
             
-            # P&L Total = Recuperado + Dividendos - Invertido - Fees
-            total_pl = total_recovered + total_dividends - total_invested - total_fees
+            # Calcular P&L según si es posición actual o cerrada
+            is_current = asset_id in current_asset_ids
+            
+            if is_current:
+                # Para posiciones actuales: P&L = Valor actual - Coste + Dividendos - Fees
+                current_value = current_values.get(asset_id, 0)
+                current_cost = current_costs.get(asset_id, 0)
+                total_pl = current_value - current_cost + total_dividends - total_fees
+            else:
+                # Para posiciones cerradas: P&L = Recuperado + Dividendos - Invertido - Fees
+                total_pl = total_recovered + total_dividends - total_invested - total_fees
             
             results.append({
                 'asset': data['asset'],
@@ -321,7 +348,8 @@ class BasicMetrics:
                 'total_dividends_eur': round(total_dividends, 2),
                 'total_fees_eur': round(total_fees, 2),
                 'is_current_holding': asset_id in current_asset_ids,
-                'transactions_count': len(data['buys']) + len(data['sells']) + len(data['dividends']) + len(data['fees'])
+                'transactions_count': len(data['buys']) + len(data['sells']) + len(data['dividends']) + len(data['fees']),
+                'dividends_count': len(data['dividends'])
             })
         
         # Ordenar por P&L descendente

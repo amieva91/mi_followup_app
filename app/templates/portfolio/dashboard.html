@@ -106,6 +106,10 @@
                         <span>-{{ metrics.leverage.total_withdrawals|decimal_eu(2) }}</span>
                     </div>
                     <div class="flex justify-between">
+                        <span>• P&L Realizado:</span>
+                        <span>{% if metrics.leverage.pl_realized >= 0 %}+{% endif %}{{ metrics.leverage.pl_realized|decimal_eu(2) }}</span>
+                    </div>
+                    <div class="flex justify-between">
                         <span>• P&L No Realizado:</span>
                         <span>{% if metrics.leverage.pl_unrealized >= 0 %}+{% endif %}{{ metrics.leverage.pl_unrealized|decimal_eu(2) }}</span>
                     </div>
