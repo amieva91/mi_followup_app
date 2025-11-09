@@ -1,10 +1,10 @@
 # 📊 SPRINT 4 - MÉTRICAS AVANZADAS Y ANÁLISIS
 ## 🚧 EN PROGRESO
 
-**Versión**: v4.0.0 (planificado)  
+**Versión**: v4.0.0-beta (HITO 1 completado)  
 **Inicio**: 6 Noviembre 2025  
 **Duración estimada**: 3 semanas  
-**Estado**: 📋 Planificación
+**Estado**: ✅ HITO 1 COMPLETADO (8 Nov) | 🚧 HITO 2 SIGUIENTE
 
 ---
 
@@ -20,10 +20,11 @@ Construir un sistema completo de métricas y análisis financiero sobre el found
 
 ## 📋 HITOS PLANIFICADOS
 
-### **HITO 1: Métricas Básicas** (3-4 días)
-**Prioridad**: 🔴 ALTA
+### ✅ **HITO 1: Métricas Básicas** (COMPLETADO - 8 Nov 2025)
+**Prioridad**: 🔴 ALTA  
+**Duración real**: 2 días (6-8 Nov)
 
-**Métricas a Implementar**:
+**Métricas Implementadas**:
 
 1. **P&L Realizado vs No Realizado**
    - P&L Realizado: Ganancias/pérdidas de posiciones cerradas
@@ -60,6 +61,50 @@ Construir un sistema completo de métricas y análisis financiero sobre el found
 - Cards en dashboard con iconos y colores
 - Tooltip con explicación de cada métrica
 - Cambio % respecto a período anterior
+
+**✅ RESULTADOS COMPLETADOS**:
+
+1. **8 Métricas funcionando perfectamente**:
+   - ✅ P&L Realizado (reescrito con FIFO - antes 5% arbitrario)
+   - ✅ P&L No Realizado
+   - ✅ P&L Total (con desglose completo)
+   - ✅ ROI (con desglose de cálculo)
+   - ✅ Leverage/Dinero Prestado (incluye P&L Realizado + No Realizado)
+   - ✅ Valor Total Cartera (con desglose)
+   - ✅ Valor Total Cuenta de Inversión (incluye todos los componentes)
+   - ✅ Peso % por Posición
+
+2. **Dashboard reorganizado**:
+   - ✅ Métricas Globales primero (P&L Total, ROI, Valor Cuenta)
+   - ✅ Métricas de Portfolio después (Valor Cartera, Coste, P&L No Realizado, etc)
+
+3. **UX mejorada**:
+   - ✅ Tooltips explicativos en TODAS las métricas
+   - ✅ Desgloses detallados en todos los indicadores
+   - ✅ Página P&L by Asset con búsqueda + ordenación + contador dividendos
+
+4. **Ordenación numérica universal**:
+   - ✅ Dashboard holdings (JavaScript, formato europeo)
+   - ✅ Holdings page (JavaScript, formato europeo)
+   - ✅ PL by Asset (JavaScript, formato europeo)
+   - ✅ Transactions (JavaScript con fecha, texto, números)
+
+5. **Fixes críticos**:
+   - ✅ P&L Realizado con FIFOCalculator
+   - ✅ P&L Total con fórmula correcta
+   - ✅ Leverage con lógica de cash corregida
+   - ✅ Brokers en holdings unificadas
+   - ✅ Holdings sin límite (antes 15, ahora todas)
+   - ✅ P&L pre-calculado en backend
+
+**Archivos modificados**:
+- `app/services/metrics/basic_metrics.py` - 5 métodos corregidos/ampliados
+- `app/routes/portfolio.py` - cost_eur y pl_eur precalculados
+- `app/templates/portfolio/dashboard.html` - reorganización + desgloses
+- `app/templates/portfolio/pl_by_asset.html` - reordenación columnas
+- `app/templates/portfolio/holdings.html` - fix sorting numérico
+- `app/templates/portfolio/transactions.html` - sorting JavaScript completo
+- `app/services/currency_service.py` - logs debug eliminados
 
 ---
 

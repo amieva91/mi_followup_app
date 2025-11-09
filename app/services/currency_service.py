@@ -51,7 +51,7 @@ def get_exchange_rates(force_refresh=False):
     with _cache_lock:
         # Verificar si el cache es válido
         if not force_refresh and _is_cache_valid():
-            logger.debug("📊 Usando tasas de cambio del cache")
+            # Cache hit - no logging para evitar saturar logs
             return _exchange_rates_cache['rates']
         
         # Cache expirado o no existe, obtener tasas frescas
@@ -137,7 +137,7 @@ def _fetch_rates_from_ecb():
     if 'GBX' not in rates_to_eur and 'GBP' in rates_to_eur:
         rates_to_eur['GBX'] = rates_to_eur['GBP'] / 100
     
-    logger.debug(f"📊 Tasas obtenidas: {len(rates_to_eur)} monedas")
+    # logger.debug(f"📊 Tasas obtenidas: {len(rates_to_eur)} monedas")  # Comentado para evitar saturar logs
     
     return rates_to_eur
 

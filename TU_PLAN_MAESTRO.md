@@ -2,8 +2,8 @@
 
 **Fecha de inicio**: 5 Octubre 2025  
 **Timeline**: 6 meses (26 semanas)  
-**Última actualización**: 7 Noviembre 2025  
-**Estado actual**: ✅ Sprint 3 COMPLETADO (v3.6.0) | 🚧 Sprint 4 PENDIENTE
+**Última actualización**: 8 Noviembre 2025  
+**Estado actual**: ✅ Sprint 3 COMPLETADO (v3.6.0) | 🚧 Sprint 4 EN PROGRESO (v4.0.0-beta - HITO 1 ✅)
 
 ## 🎉 PROGRESO RECIENTE
 
@@ -182,15 +182,49 @@
   - ✅ 8 mejoras de optimización y UX implementadas
   - ✅ Experiencia visual consistente (92% en toda la app)
 
-**🚧 SPRINT 4 - Métricas Avanzadas (PENDIENTE - 7 Nov)**  
-**Versión Objetivo**: v4.0.0 | **Duración estimada**: 3 semanas  
+**🚧 SPRINT 4 - Métricas Avanzadas (EN PROGRESO - 8 Nov)**  
+**Versión Actual**: v4.0.0-beta | **Duración estimada**: 3 semanas  
 **Documento detallado**: `SPRINT4_METRICAS_AVANZADAS.md`
 
 **Objetivo**: Construir sistema completo de métricas y análisis financiero
 
+**✅ HITO 1: Métricas Básicas (COMPLETADO - 8 Nov)**
+- ✅ **8 Métricas implementadas**:
+  - P&L Realizado con FIFO robusto (reescrito desde cero)
+  - P&L No Realizado (posiciones abiertas)
+  - P&L Total (con desglose: Realizado + No Realizado + Dividendos - Comisiones)
+  - ROI (Return on Investment, con desglose completo de cálculo)
+  - Leverage/Dinero Prestado (con lógica de cash disponible)
+  - Valor Total Cartera (posiciones a precio actual)
+  - Valor Total Cuenta de Inversión (incluye todos los componentes: deposits, P&L, dividends, fees, cash/leverage)
+  - Peso % por Posición (concentración de riesgo)
+- ✅ **Dashboard reorganizado**:
+  - Métricas Globales e Históricas primero (P&L Total, ROI, Valor Cuenta)
+  - Métricas del Portfolio Actual después (Valor Cartera, Coste, P&L No Realizado, etc)
+- ✅ **UI/UX mejorada**:
+  - Tooltips explicativos en todas las métricas
+  - Desgloses detallados en todos los indicadores
+  - Página P&L by Asset con búsqueda en tiempo real + ordenación
+  - Contador de dividendos por asset
+  - Indicador de assets en cartera vs cerrados
+- ✅ **Ordenación numérica universal**:
+  - Dashboard holdings (JavaScript, formato europeo)
+  - Holdings page (JavaScript, formato europeo)
+  - PL by Asset (JavaScript, formato europeo)
+  - Transactions (JavaScript con fecha, texto, números)
+- ✅ **Fixes críticos**:
+  - P&L Realizado: reescrito con FIFOCalculator (antes usaba 5% arbitrario)
+  - P&L Total: fórmula corregida (incluye dividendos y comisiones)
+  - Leverage: incluye P&L Realizado + P&L No Realizado en dinero usuario
+  - Cash disponible: solo se muestra si leverage < 0
+  - Brokers en holdings: ahora muestra correctamente múltiples brokers
+  - Holdings: límite de 15 eliminado, muestra todas las posiciones
+  - P&L: calculado en backend (cost_eur y pl_eur pre-calculados)
+  - Logs simplificados: cache hits de currency_service eliminados
+
 **Hitos Planificados**:
-- [ ] **HITO 1**: Métricas Básicas (ROI, Leverage) - Peso % ✅ ya implementado
-- [ ] **HITO 2**: Métricas Avanzadas (TWR, IRR, Sharpe, Max Drawdown, Volatilidad)
+- [x] **HITO 1**: Métricas Básicas ✅ COMPLETADO (8 Nov 2025)
+- [ ] **HITO 2**: Métricas Avanzadas (TWR, IRR, Sharpe, Max Drawdown, Volatilidad) 🚧 SIGUIENTE
 - [ ] **HITO 3**: Gráficos de Evolución (Chart.js - línea, área, barras)
 - [ ] **HITO 4**: Distribución del Portfolio (Pie charts: asset/sector/industria/broker/moneda/país)
 - [ ] **HITO 5**: Página de Métricas Completa con selector de período

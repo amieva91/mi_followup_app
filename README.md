@@ -2,7 +2,7 @@
 
 Sistema completo de gestión financiera personal.
 
-## ✅ Estado Actual (7 Nov 2025) - v3.6.0
+## ✅ Estado Actual (8 Nov 2025) - v4.0.0-beta
 
 **Funcionalidades Implementadas:**
 - ✅ **Sprint 0 - Arquitectura Base** - Configuración inicial, estructura modular
@@ -91,7 +91,38 @@ Sistema completo de gestión financiera personal.
       - Eliminado doble emoji en botón "Actualizar Precios"
       - Eliminado mensaje innecesario de sincronización en AssetRegistry
       - Navbar alineado al 92% para consistencia visual completa
-- ✅ **Dashboard** - KPIs en tiempo real (ingresos/gastos/balance mensual + portfolio)
+- ✅ **Sprint 4 - Métricas Avanzadas (EN PROGRESO - 8 Nov 2025)**
+  - ✅ **HITO 1: Métricas Básicas (v4.0.0-beta - COMPLETADO)**:
+    - **8 Métricas implementadas**:
+      - P&L Realizado (posiciones cerradas, cálculo con FIFO robusto)
+      - P&L No Realizado (posiciones abiertas)
+      - P&L Total (Realizado + No Realizado + Dividendos - Comisiones)
+      - ROI (Return on Investment sobre capital depositado)
+      - Leverage/Dinero Prestado (con detección de cash disponible)
+      - Valor Total Cartera (posiciones actuales a precio de mercado)
+      - Valor Total Cuenta de Inversión (incluye cash/apalancamiento)
+      - Peso % por Posición (identificación de concentración)
+    - **Dashboard reorganizado**: Métricas Globales primero, luego Portfolio
+    - **Tooltips explicativos** en todas las métricas
+    - **Desgloses detallados** en todos los indicadores (ver cálculo completo)
+    - **Página P&L by Asset**: Histórico de ganancias/pérdidas por activo
+      - Filtros en tiempo real + ordenación por columnas
+      - Indicador de activos en cartera vs cerrados
+      - Contador de dividendos por asset
+    - **Ordenación numérica universal**: Todas las tablas (Dashboard, Holdings, PL by Asset, Transactions)
+    - **Fixes críticos**:
+      - P&L Realizado reescrito con FIFOCalculator (antes: 5% arbitrario ❌)
+      - Leverage: incluye P&L Realizado + P&L No Realizado en dinero usuario
+      - Cash disponible vs Apalancamiento: lógica corregida (solo cash si leverage < 0)
+      - Brokers en holdings unificadas: ahora muestra correctamente todos los brokers
+      - Holdings: todas las posiciones mostradas (límite de 15 eliminado)
+      - P&L pre-calculado en backend (no filtros en template)
+  - 🚧 **HITO 2: Métricas Avanzadas (PENDIENTE)**:
+    - TWR (Time-Weighted Return) - Comparable con benchmarks
+    - IRR (Internal Rate of Return) - Considera timing de cash flows
+    - Sharpe Ratio - Relación rentabilidad/riesgo
+    - Max Drawdown - Peor caída desde un pico
+- ✅ **Dashboard** - KPIs en tiempo real (ingresos/gastos/balance mensual + portfolio completo con 8 métricas)
 - ✅ **Sistema desplegado** - Funcionando en https://followup.fit/
 
 ## 🚀 Entornos

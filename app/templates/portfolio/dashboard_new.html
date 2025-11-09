@@ -164,45 +164,6 @@
                 </div>
             </div>
         </div>
-        
-        <!-- Modified Dietz (Rentabilidad) -->
-        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if metrics.modified_dietz.total.return_pct >= 0 %}border-purple-500{% else %}border-red-500{% endif %}">
-            <div class="flex items-center justify-between mb-2">
-                <div class="text-sm text-gray-600">💎 Rentabilidad (Modified Dietz)</div>
-                <span class="text-xs text-gray-400 cursor-help" title="Rentabilidad usando Modified Dietz Method (estándar GIPS). Elimina el efecto de los flujos de caja (deposits/withdrawals) para medir la performance real de tu estrategia.">ⓘ</span>
-            </div>
-            <div class="text-2xl font-bold {% if metrics.modified_dietz.annualized.return_pct >= 0 %}text-purple-600{% else %}text-red-600{% endif %}">
-                {% if metrics.modified_dietz.annualized.return_pct >= 0 %}+{% endif %}{{ metrics.modified_dietz.annualized.return_pct|decimal_eu(2) }}%
-            </div>
-            <div class="text-xs text-gray-500">Anualizada ({{ metrics.modified_dietz.annualized.years }} años)</div>
-            
-            <!-- Métricas adicionales -->
-            <div class="text-xs text-gray-500 mt-3 space-y-1 border-t pt-2">
-                <div class="flex justify-between">
-                    <span>📅 Año Actual (YTD):</span>
-                    <span class="font-medium {% if metrics.modified_dietz.ytd.return_pct >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
-                        {% if metrics.modified_dietz.ytd.return_pct >= 0 %}+{% endif %}{{ metrics.modified_dietz.ytd.return_pct|decimal_eu(2) }}%
-                    </span>
-                </div>
-                <div class="flex justify-between">
-                    <span>📊 Rentabilidad Total:</span>
-                    <span class="font-medium {% if metrics.modified_dietz.total.return_pct >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
-                        {% if metrics.modified_dietz.total.return_pct >= 0 %}+{% endif %}{{ metrics.modified_dietz.total.return_pct|decimal_eu(2) }}%
-                    </span>
-                </div>
-                <div class="flex justify-between border-t pt-1 mt-1">
-                    <span>💰 Ganancia absoluta:</span>
-                    <span class="font-medium {% if metrics.modified_dietz.total.absolute_gain >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
-                        {% if metrics.modified_dietz.total.absolute_gain >= 0 %}+{% endif %}{{ metrics.modified_dietz.total.absolute_gain|decimal_eu(2) }} EUR
-                    </span>
-                </div>
-            </div>
-            
-            <!-- Información adicional -->
-            <div class="text-xs text-gray-400 mt-3 pt-2 border-t">
-                <div>📆 {{ metrics.modified_dietz.total.days }} días de inversión</div>
-            </div>
-        </div>
     </div>
     
     <!-- ============================================ -->
@@ -394,24 +355,24 @@
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
-                    {% for holding in holdings %}
+                    {% for holding in holdings[:15] %}
                     <tr class="hover:bg-gray-50">
                         <!-- Activo -->
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="flex items-center">
                                 <div>
                                     <div class="text-sm font-bold text-gray-900">
-                                        {{ holding['asset'].symbol if holding['asset'].symbol and holding['asset'].symbol != holding['asset'].name and holding['asset'].symbol|length < 15 else holding['asset'].name[:30] }}
+                                        {{ holding.asset.symbol if holding.asset.symbol and holding.asset.symbol != holding.asset.name and holding.asset.symbol|length < 15 else holding.asset.name[:30] }}
                                     </div>
-                                    {% if holding['asset'].name and holding['asset'].symbol and holding['asset'].symbol != holding['asset'].name and holding['asset'].symbol|length < 15 %}
+                                    {% if holding.asset.name and holding.asset.symbol and holding.asset.symbol != holding.asset.name and holding.asset.symbol|length < 15 %}
                                     <div class="text-xs text-gray-500 truncate max-w-xs">
-                                        {{ holding['asset'].name[:50] }}{% if holding['asset'].name|length > 50 %}...{% endif %}
+                                        {{ holding.asset.name[:50] }}{% if holding.asset.name|length > 50 %}...{% endif %}
                                     </div>
                                     {% endif %}
                                     <div class="text-xs text-gray-400">
-                                        {% if holding['asset'].asset_type %}{{ holding['asset'].asset_type }}{% endif %}
-                                        {% if holding['asset'].exchange %} • {{ holding['asset'].exchange }}{% endif %}
-                                        {% if holding['asset'].isin %} • {{ holding['asset'].isin }}{% endif %}
+                                        {% if holding.asset.asset_type %}{{ holding.asset.asset_type }}{% endif %}
+                                        {% if holding.asset.exchange %} • {{ holding.asset.exchange }}{% endif %}
+                                        {% if holding.asset.isin %} • {{ holding.asset.isin }}{% endif %}
                                     </div>
                                 </div>
                             </div>
@@ -419,24 +380,18 @@
                         
                         <!-- Cuenta -->
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm font-medium text-gray-900">
-                                {% if holding['brokers']|length == 1 %}
-                                    {{ holding['brokers'][0] }}
-                                {% else %}
-                                    {{ holding['brokers']|length }} cuentas
-                                {% endif %}
-                            </div>
+                            <div class="text-sm font-medium text-gray-900">{{ holding.account.broker.name }}</div>
                         </td>
                         
                         <!-- Cantidad -->
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900">
-                            {{ holding['total_quantity']|decimal_eu(0) }}
+                            {{ holding.quantity|decimal_eu(0) }}
                         </td>
                         
                         <!-- Precio Actual -->
                         <td class="px-6 py-4 whitespace-nowrap text-right">
-                            {% if holding['asset'].current_price %}
-                            <div class="text-sm text-gray-900">{{ holding['asset'].current_price|decimal_eu(2) }} {{ holding['asset'].currency }}</div>
+                            {% if holding.current_price %}
+                            <div class="text-sm text-gray-900">{{ holding.current_price|decimal_eu(2) }} {{ holding.asset.currency }}</div>
                             {% else %}
                             <span class="text-xs text-gray-400">Sin precio</span>
                             {% endif %}
@@ -444,13 +399,15 @@
                         
                         <!-- Valor Actual (EUR + local currency) -->
                         <td class="px-6 py-4 whitespace-nowrap text-right">
-                            {% if 'current_value_eur' in holding %}
+                            {% if holding.current_price %}
+                            {% set current_value = holding.quantity * holding.current_price %}
+                            {% set current_value_eur = current_value|convert_to_eur(holding.asset.currency) %}
                             <div class="text-sm font-medium text-gray-900">
-                                {{ holding['current_value_eur']|decimal_eu(2) }} EUR
+                                {{ current_value_eur|decimal_eu(2) }} EUR
                             </div>
-                            {% if 'local_currency' in holding and holding['local_currency'] != 'EUR' %}
+                            {% if holding.asset.currency and holding.asset.currency != 'EUR' %}
                             <div class="text-xs text-gray-500">
-                                ({{ holding['current_value_local']|decimal_eu(2) }} {{ holding['local_currency'] }})
+                                ({{ current_value|decimal_eu(2) }} {{ holding.asset.currency }})
                             </div>
                             {% endif %}
                             {% else %}
@@ -460,9 +417,12 @@
                         
                         <!-- P&L -->
                         <td class="px-6 py-4 whitespace-nowrap text-right">
-                            {% if 'pl_eur' in holding and holding['pl_eur'] != 0 %}
-                            <span class="text-sm font-medium {% if holding['pl_eur'] >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
-                                {% if holding['pl_eur'] >= 0 %}+{% endif %}{{ holding['pl_eur']|decimal_eu(2) }} EUR
+                            {% if holding.current_price %}
+                            {% set current_value_eur = (holding.quantity * holding.current_price)|convert_to_eur(holding.asset.currency) %}
+                            {% set total_cost_eur = (holding.total_cost or (holding.quantity * (holding.average_buy_price or 0)))|convert_to_eur(holding.asset.currency) %}
+                            {% set pl = current_value_eur - total_cost_eur %}
+                            <span class="text-sm font-medium {% if pl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                                {% if pl >= 0 %}+{% endif %}{{ pl|decimal_eu(2) }} EUR
                             </span>
                             {% else %}
                             <span class="text-xs text-gray-400">-</span>
@@ -471,7 +431,7 @@
                         
                         <!-- Peso % -->
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-500">
-                            {{ holding['weight_pct']|decimal_eu(2) }}%
+                            {{ holding.weight_pct|decimal_eu(2) }}%
                         </td>
                     </tr>
                     {% endfor %}

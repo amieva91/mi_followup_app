@@ -169,14 +169,30 @@
                         </th>
                         {% endmacro %}
                         
-                        {{ sortable_header('Fecha', 'transaction_date') }}
-                        {{ sortable_header('Tipo', 'transaction_type') }}
-                        {{ sortable_header('Activo', 'asset') }}
-                        {{ sortable_header('Cuenta', 'account') }}
-                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Cantidad</th>
-                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Precio</th>
-                        {{ sortable_header('Total', 'amount') }}
-                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">P&L</th>
+                        <th onclick="sortTableTransactions(0, 'date')" class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                            Fecha <span class="sort-arrow">⇅</span>
+                        </th>
+                        <th onclick="sortTableTransactions(1, 'text')" class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                            Tipo <span class="sort-arrow">⇅</span>
+                        </th>
+                        <th onclick="sortTableTransactions(2, 'text')" class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                            Activo <span class="sort-arrow">⇅</span>
+                        </th>
+                        <th onclick="sortTableTransactions(3, 'text')" class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                            Cuenta <span class="sort-arrow">⇅</span>
+                        </th>
+                        <th onclick="sortTableTransactions(4, 'number')" class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                            Cantidad <span class="sort-arrow">⇅</span>
+                        </th>
+                        <th onclick="sortTableTransactions(5, 'number')" class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                            Precio <span class="sort-arrow">⇅</span>
+                        </th>
+                        <th onclick="sortTableTransactions(6, 'number')" class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                            Total <span class="sort-arrow">⇅</span>
+                        </th>
+                        <th onclick="sortTableTransactions(7, 'number')" class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                            P&L <span class="sort-arrow">⇅</span>
+                        </th>
                         <th class="px-6 py-4 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
                     </tr>
                 </thead>
@@ -355,5 +371,82 @@
     </div>
     {% endif %}
 </div>
+
+<script>
+let currentSortColumnTransactions = -1;
+let currentSortDirectionTransactions = 1; // 1 = asc, -1 = desc
+
+function sortTableTransactions(columnIndex, type) {
+    const table = document.querySelector('table tbody');
+    if (!table) return;
+    
+    const rows = Array.from(table.querySelectorAll('tr'));
+    
+    // Toggle direction if same column clicked
+    if (currentSortColumnTransactions === columnIndex) {
+        currentSortDirectionTransactions *= -1;
+    } else {
+        currentSortDirectionTransactions = 1;
+    }
+    currentSortColumnTransactions = columnIndex;
+    
+    // Sort rows
+    rows.sort((a, b) => {
+        const cellA = a.querySelectorAll('td')[columnIndex];
+        const cellB = b.querySelectorAll('td')[columnIndex];
+        
+        if (!cellA || !cellB) return 0;
+        
+        let valueA, valueB;
+        
+        if (type === 'number') {
+            // Extract number from European format (1.234,56 → 1234.56)
+            let textA = cellA.textContent.trim().replace(/[^\\d.,-]/g, '');
+            let textB = cellB.textContent.trim().replace(/[^\\d.,-]/g, '');
+            
+            // Handle "-" or empty values
+            if (textA === '-' || textA === '') textA = '0';
+            if (textB === '-' || textB === '') textB = '0';
+            
+            // Convert European format to standard decimal
+            textA = textA.replace(/\\./g, '').replace(',', '.');
+            textB = textB.replace(/\\./g, '').replace(',', '.');
+            
+            valueA = parseFloat(textA) || 0;
+            valueB = parseFloat(textB) || 0;
+        } else if (type === 'date') {
+            // Extract date in DD/MM/YYYY format
+            const dateTextA = cellA.textContent.trim().split('\\n')[0];
+            const dateTextB = cellB.textContent.trim().split('\\n')[0];
+            
+            // Convert DD/MM/YYYY to YYYY-MM-DD for proper sorting
+            const [dayA, monthA, yearA] = dateTextA.split('/');
+            const [dayB, monthB, yearB] = dateTextB.split('/');
+            
+            valueA = `${yearA}-${monthA}-${dayA}`;
+            valueB = `${yearB}-${monthB}-${dayB}`;
+        } else {
+            // Text sorting
+            valueA = cellA.textContent.trim().toLowerCase();
+            valueB = cellB.textContent.trim().toLowerCase();
+        }
+        
+        if (valueA < valueB) return -1 * currentSortDirectionTransactions;
+        if (valueA > valueB) return 1 * currentSortDirectionTransactions;
+        return 0;
+    });
+    
+    // Re-append rows in sorted order
+    rows.forEach(row => table.appendChild(row));
+    
+    // Update arrow indicators
+    document.querySelectorAll('.sort-arrow').forEach(arrow => arrow.textContent = '⇅');
+    const clickedHeader = document.querySelectorAll('thead th')[columnIndex];
+    const arrow = clickedHeader.querySelector('.sort-arrow');
+    if (arrow) {
+        arrow.textContent = currentSortDirectionTransactions === 1 ? '↑' : '↓';
+    }
+}
+</script>
 {% endblock %}
 

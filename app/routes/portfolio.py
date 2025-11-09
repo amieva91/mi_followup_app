@@ -100,6 +100,13 @@ def dashboard():
     for asset_id, data in grouped.items():
         data['average_buy_price'] = data['total_cost'] / data['total_quantity'] if data['total_quantity'] > 0 else 0
         data['asset_id'] = asset_id
+        
+        # Crear lista de brokers únicos para display
+        brokers_set = set()
+        for acc in data['accounts']:
+            brokers_set.add(acc['broker'])
+        data['brokers'] = sorted(list(brokers_set))
+        
         holdings_unified.append(data)
     
     # Calcular totales con precios actuales (Sprint 3 Final)
@@ -113,6 +120,7 @@ def dashboard():
         
         # Convertir coste a EUR (SIEMPRE, incluso sin precio actual)
         cost_eur = convert_to_eur(h['total_cost'], asset.currency)
+        h['cost_eur'] = cost_eur  # Guardar para el template
         total_cost += cost_eur
         
         if asset and asset.current_price:
@@ -125,11 +133,13 @@ def dashboard():
             current_value_eur = convert_to_eur(current_value_local, asset.currency)
             h['current_value_eur'] = current_value_eur
             
+            # Calcular P&L individual
+            pl_individual = current_value_eur - cost_eur
+            h['pl_eur'] = pl_individual  # Guardar para el template
+            
             # Sumar al total (en EUR)
             total_value += current_value_eur
-            
-            # Calcular P&L
-            total_pl += (current_value_eur - cost_eur)
+            total_pl += pl_individual
             
             # Última actualización de precios
             if asset.last_price_update:
@@ -138,6 +148,7 @@ def dashboard():
         else:
             # Si no hay precio, usar el coste en EUR como aproximación
             total_value += cost_eur
+            h['pl_eur'] = 0  # Sin precio, P&L es 0
     
     # Calcular porcentaje
     total_pl_pct = (total_pl / total_cost * 100) if total_cost > 0 else 0

@@ -2,8 +2,8 @@
 
 **Filosofía**: Elegante, Profesional, Financiero, Minimalista
 
-**Última actualización**: 7 Noviembre 2025  
-**Estado**: ✅ Sprint 3 COMPLETADO v3.6.0 (Mejoras Finales - Optimización y UX)
+**Última actualización**: 8 Noviembre 2025  
+**Estado**: ✅ Sprint 3 COMPLETADO v3.6.0 | 🚧 Sprint 4 EN PROGRESO v4.0.0-beta (HITO 1 ✅)
 
 ---
 
@@ -1098,6 +1098,105 @@ Al crear un nuevo componente/página, verificar:
 
 ---
 
-**Última actualización**: 7 Noviembre 2025
-**Próxima revisión**: Después de Sprint 4
+## 🚧 SPRINT 4 - MÉTRICAS AVANZADAS (v4.0.0-beta - EN PROGRESO)
+
+### ✅ HITO 1: Métricas Básicas (COMPLETADO - 8 Nov)
+
+**Dashboard Reorganizado**
+- ✅ **Sección "Métricas Globales e Históricas"** (primero):
+  - Card 🏦 **Valor Total Cuenta** (indigo):
+    - Valor principal en grande
+    - Desglose detallado: Depósitos, Retiradas, P&L Realizado, P&L No Realizado, Dividendos, Comisiones
+    - Indicador de Cash disponible o Apalancamiento (condicional)
+    - Tooltip explicativo
+  - Card 📊 **P&L Total** (verde/rojo según valor):
+    - Valor principal con signo
+    - Desglose: P&L Realizado, P&L No Realizado, Dividendos, Comisiones
+    - Link a "Ver detalle por asset"
+    - Tooltip con fórmula
+  - Card 📈 **ROI** (azul/rojo según valor):
+    - Porcentaje con signo
+    - Desglose de cálculo: Valor Actual Cartera, Retiradas, Depósitos, Retorno absoluto
+    - Tooltip con fórmula completa
+- ✅ **Sección "Métricas del Portfolio Actual"** (segundo):
+  - Card 💰 **Valor Total Cartera** (azul):
+    - Valor principal
+    - Desglose: Nº Posiciones abiertas, Coste Total
+    - Tooltip: "Valor actual de todas las posiciones"
+  - Card 📊 **P&L No Realizado** (verde/rojo):
+    - Ganancias/pérdidas de posiciones abiertas
+    - Tooltip explicativo
+  - Card 📉 **Retorno %** (azul/rojo):
+    - Porcentaje de retorno actual
+    - Tooltip con fórmula
+  - Card ⚡ **Dinero Prestado / 💵 Cash en Cuenta** (rojo/cyan dinámico):
+    - Título cambia según valor (positivo = apalancamiento, negativo = cash)
+    - Desglose: Valor Total Cartera, Dinero usuario (con sub-desglose de componentes)
+    - Fórmula visible: `Valor Cartera - Dinero Usuario = Resultado`
+    - Ratio de apalancamiento (solo si > 0)
+    - Tooltip explicativo
+  - Card 📦 **Posiciones** (amarillo):
+    - Número de posiciones abiertas
+    - Link a holdings
+    - Tooltip
+
+**Página P&L by Asset** (`/portfolio/pl-by-asset`)
+- ✅ **Búsqueda en tiempo real**: Input con debounce 300ms
+- ✅ **Tabla ordenable**: Todas las columnas con flechas ↑↓⇅
+- ✅ **Columnas**:
+  - Asset (nombre + símbolo en gris)
+  - Invertido (rojo)
+  - Recuperado (verde)
+  - Dividendos (verde)
+  - **Nº Dividendos** (verde, al lado de Dividendos) ← NUEVO
+  - Comisiones (naranja)
+  - P&L Total (verde/rojo según valor, bold)
+  - Estado (badge: "En cartera" verde / "Cerrada" gris)
+- ✅ **Ordenación numérica correcta**: Formato europeo (1.234,56) convertido antes de ordenar
+- ✅ **P&L para posiciones en cartera**: Muestra P&L No Realizado en lugar de solo el coste negativo
+- ✅ **Contador de dividendos**: Por cada asset
+
+**Ordenación Numérica Universal**
+- ✅ **Dashboard holdings**: JavaScript `sortTableHoldings()` con formato europeo
+- ✅ **Holdings page** (`/portfolio/holdings`): JavaScript con formato europeo
+- ✅ **PL by Asset**: JavaScript con formato europeo
+- ✅ **Transactions** (`/portfolio/transactions`): JavaScript NUEVO
+  - Ordenación por fecha (DD/MM/YYYY → YYYY-MM-DD)
+  - Ordenación por texto (tipo, activo, cuenta)
+  - Ordenación por números (cantidad, precio, total, P&L) con formato europeo
+  - Flechas ↑↓⇅ indicando dirección
+  - Sin recarga de página
+
+**Holdings Table (Dashboard y Holdings Page)**
+- ✅ **Límite eliminado**: Muestra TODAS las posiciones (antes: solo 15)
+- ✅ **Columna "Peso %"**: Porcentaje de cada posición en el portfolio total
+- ✅ **P&L pre-calculado**: Backend calcula `cost_eur` y `pl_eur` (no filtros en template)
+- ✅ **Brokers correctos**: Holdings unificadas muestran todos los brokers correctamente
+
+**Colores y Estilos**
+- ✅ **Cards con border-left**: Colores según tipo (indigo, green, blue, red, cyan, yellow)
+- ✅ **Tooltips**: Icono ⓘ en gris claro, hover muestra explicación
+- ✅ **Desgloses**: Fuente xs, gris, con puntos bullets, border-top separador
+- ✅ **Valores dinámicos**: Verde para positivos (+), Rojo para negativos (-)
+- ✅ **Badge condicional**: "⚡ Dinero Prestado" rojo o "💵 Cash en Cuenta" cyan
+
+**Fixes Críticos**
+- ✅ **P&L Realizado**: Reescrito con `FIFOCalculator` (antes: 5% arbitrario ❌)
+- ✅ **P&L Total**: Fórmula corregida `pl_realized + pl_unrealized + dividends - fees`
+- ✅ **Leverage**: Incluye P&L Realizado + P&L No Realizado en dinero usuario
+- ✅ **Cash disponible**: Solo se suma al total si `leverage < 0`
+- ✅ **Logs simplificados**: Cache hits de `currency_service` eliminados
+
+**Archivos Clave**
+- `app/services/metrics/basic_metrics.py`: 5 métodos (calculate_leverage, calculate_roi, calculate_pl_realized, calculate_total_pl, calculate_total_account_value)
+- `app/routes/portfolio.py`: Pre-cálculo de cost_eur y pl_eur
+- `app/templates/portfolio/dashboard.html`: Reorganización + desgloses + tooltips
+- `app/templates/portfolio/pl_by_asset.html`: Reordenación + búsqueda + sorting
+- `app/templates/portfolio/holdings.html`: Sorting numérico corregido
+- `app/templates/portfolio/transactions.html`: Sorting JavaScript completo
+
+---
+
+**Última actualización**: 8 Noviembre 2025
+**Próxima revisión**: Después de Sprint 4 - HITO 2
 

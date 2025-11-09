@@ -1,0 +1,855 @@
+<!-- Template actualizada: 2025-10-12 14:30 - Symbol condicional (solo si != name y < 15 chars) -->
+{% extends "base/layout.html" %}
+
+{% block title %}Portfolio - FollowUp{% endblock %}
+
+{% block content %}
+<div class="max-w-[92%] mx-auto">
+    <!-- Flash Messages se muestran en layout.html (línea 166) - NO duplicar aquí -->
+    
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-8">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900">📊 Mi Portfolio</h1>
+            <p class="text-gray-600 mt-1">Vista general de tus inversiones</p>
+        </div>
+        <div class="flex gap-3">
+            <!-- Botón Actualizar Precios (Sprint 3 Final) -->
+            <button onclick="startPriceUpdate()" class="btn-secondary flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                Actualizar Precios
+            </button>
+            <a href="{{ url_for('portfolio.account_new') }}" class="btn-secondary">
+                🏦 Nueva Cuenta
+            </a>
+            <a href="{{ url_for('portfolio.transaction_new') }}" class="btn-primary">
+                ➕ Nueva Transacción
+            </a>
+        </div>
+    </div>
+
+    <!-- Sprint 4 - HITO 1: Métricas del Portfolio Actual -->
+    {% if metrics %}
+    <div class="mb-2">
+        <h2 class="text-lg font-semibold text-gray-700">📊 Métricas del Portfolio Actual</h2>
+        <p class="text-xs text-gray-500">Basadas en las posiciones abiertas actuales</p>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
+        <!-- Valor Total Cartera -->
+        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-blue-500">
+            <div class="flex items-center justify-between mb-1">
+                <div class="text-sm text-gray-600">💰 Valor Total Cartera</div>
+                <span class="text-xs text-gray-400 cursor-help" title="Valor actual de todas las posiciones abiertas valoradas a precio de mercado actual.">ⓘ</span>
+            </div>
+            <div class="text-2xl font-bold text-gray-900">
+                {{ total_value|decimal_eu(2) }} EUR
+            </div>
+            
+            <!-- Desglose detallado -->
+            <div class="text-xs text-gray-500 mt-3 space-y-1 border-t pt-2">
+                <div class="flex justify-between">
+                    <span>📊 Posiciones abiertas:</span>
+                    <span class="font-medium">{{ holdings|length if holdings else 0 }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>💵 Valorado a:</span>
+                    <span class="font-medium">Precio mercado actual</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Coste Total -->
+        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-gray-400">
+            <div class="flex items-center justify-between mb-1">
+                <div class="text-sm text-gray-600">🏷️ Coste Total</div>
+                <span class="text-xs text-gray-400 cursor-help" title="Coste de adquisición de todas las posiciones actuales. Incluye precio de compra + comisiones + fees + impuestos.">ⓘ</span>
+            </div>
+            <div class="text-2xl font-bold text-gray-900">
+                {{ total_cost|decimal_eu(2) }} EUR
+            </div>
+        </div>
+        
+        <!-- P&L No Realizado -->
+        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if total_pl >= 0 %}border-green-600{% else %}border-red-600{% endif %}">
+            <div class="flex items-center justify-between mb-1">
+                <div class="text-sm text-gray-600">📈 P&L No Realizado</div>
+                <span class="text-xs text-gray-400 cursor-help" title="Ganancia/pérdida de posiciones abiertas (Valor Actual - Coste Total). No incluye posiciones cerradas.">ⓘ</span>
+            </div>
+            <div class="text-2xl font-bold {% if total_pl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                {% if total_pl >= 0 %}+{% endif %}{{ total_pl|decimal_eu(2) }} EUR
+            </div>
+        </div>
+        
+        <!-- Retorno % -->
+        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if total_pl_pct >= 0 %}border-green-600{% else %}border-red-600{% endif %}">
+            <div class="flex items-center justify-between mb-1">
+                <div class="text-sm text-gray-600">📊 Retorno</div>
+                <span class="text-xs text-gray-400 cursor-help" title="Porcentaje de retorno sobre el coste de las posiciones actuales: (P&L Total / Coste Total) × 100">ⓘ</span>
+            </div>
+            <div class="text-2xl font-bold {% if total_pl_pct >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                {% if total_pl_pct >= 0 %}+{% endif %}{{ total_pl_pct|decimal_eu(2) }}%
+            </div>
+        </div>
+        <!-- Leverage / Dinero Prestado o Cash (SOLO PORTFOLIO ACTUAL) -->
+        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if metrics.leverage.broker_money > 0 %}border-red-500{% else %}border-cyan-500{% endif %}">
+            <div class="flex items-center justify-between mb-2">
+                <div class="text-sm text-gray-600">
+                    {% if metrics.leverage.broker_money > 0 %}
+                    ⚡ Dinero Prestado
+                    {% else %}
+                    💵 Cash en Cuenta
+                    {% endif %}
+                </div>
+                <span class="text-xs text-gray-400 cursor-help" title="Diferencia entre el Valor Total Cartera y el Dinero del Usuario. Si es POSITIVO: hay apalancamiento (broker prestando dinero). Si es NEGATIVO: hay cash disponible sin invertir.">ⓘ</span>
+            </div>
+            <div class="text-2xl font-bold {% if metrics.leverage.broker_money > 0 %}text-red-600{% else %}text-cyan-600{% endif %}">
+                {% if metrics.leverage.broker_money >= 0 %}+{% endif %}{{ metrics.leverage.broker_money|decimal_eu(2) }} EUR
+            </div>
+            
+            <!-- Desglose detallado -->
+            <div class="text-xs text-gray-500 mt-3 space-y-1 border-t pt-2">
+                <!-- Fórmula: Valor Total Cartera - Dinero Usuario = Apalancamiento/Cash -->
+                <div class="flex justify-between mb-1">
+                    <span>💼 Valor Total Cartera:</span>
+                    <span class="font-medium">{{ total_value|decimal_eu(2) }} EUR</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>💰 Dinero usuario:</span>
+                    <span class="font-medium">-{{ metrics.leverage.user_money|decimal_eu(2) }} EUR</span>
+                </div>
+                <div class="text-xs text-gray-400 ml-3 space-y-0.5">
+                    <div class="flex justify-between">
+                        <span>• Depósitos:</span>
+                        <span>+{{ metrics.leverage.total_deposits|decimal_eu(2) }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>• Retiradas:</span>
+                        <span>-{{ metrics.leverage.total_withdrawals|decimal_eu(2) }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>• P&L Realizado:</span>
+                        <span>{% if metrics.leverage.pl_realized >= 0 %}+{% endif %}{{ metrics.leverage.pl_realized|decimal_eu(2) }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>• P&L No Realizado:</span>
+                        <span>{% if metrics.leverage.pl_unrealized >= 0 %}+{% endif %}{{ metrics.leverage.pl_unrealized|decimal_eu(2) }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>• Dividendos:</span>
+                        <span>+{{ metrics.leverage.total_dividends|decimal_eu(2) }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>• Comisiones:</span>
+                        <span>-{{ metrics.leverage.total_fees|decimal_eu(2) }}</span>
+                    </div>
+                </div>
+            </div>
+            
+            {% if metrics.leverage.broker_money > 0 %}
+            <div class="text-xs text-red-600 mt-2 font-medium">
+                Ratio: {{ metrics.leverage.leverage_ratio|decimal_eu(2) }}% apalancamiento
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Peso % Promedio (placeholder - puedes añadir otra métrica aquí) -->
+        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-gray-300">
+            <div class="flex items-center justify-between mb-2">
+                <div class="text-sm text-gray-600">📌 Posiciones</div>
+                <span class="text-xs text-gray-400 cursor-help" title="Número total de posiciones abiertas en el portfolio">ⓘ</span>
+            </div>
+            <div class="text-2xl font-bold text-gray-900">
+                {{ holdings|length }}
+            </div>
+            <div class="text-xs text-gray-500 mt-1">
+                En {{ accounts|length }} cuenta(s)
+            </div>
+        </div>
+    </div>
+    
+    <!-- Métricas Globales/Históricas -->
+    <div class="mb-2">
+        <h2 class="text-lg font-semibold text-gray-700">🌍 Métricas Globales e Históricas</h2>
+        <p class="text-xs text-gray-500">Incluyen todo el histórico (posiciones actuales + cerradas)</p>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <!-- Valor Total Cuenta de Inversión -->
+        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-indigo-500">
+            <div class="flex items-center justify-between mb-2">
+                <div class="text-sm text-gray-600">🏦 Valor Total Cuenta</div>
+                <span class="text-xs text-gray-400 cursor-help" title="Todo el valor acumulado en la cuenta de inversión: capital aportado + ganancias/pérdidas + dividendos - comisiones. Incluye tanto posiciones abiertas como cash disponible.">ⓘ</span>
+            </div>
+            <div class="text-2xl font-bold text-indigo-600">
+                {{ metrics.total_account.total_account_value|decimal_eu(2) }} EUR
+            </div>
+            
+            <!-- Desglose detallado -->
+            <div class="text-xs text-gray-500 mt-3 space-y-1 border-t pt-2">
+                <div class="flex justify-between">
+                    <span>• Depósitos:</span>
+                    <span>+{{ metrics.total_account.deposits|decimal_eu(2) }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>• Retiradas:</span>
+                    <span>-{{ metrics.total_account.withdrawals|decimal_eu(2) }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>• P&L Realizado:</span>
+                    <span>{% if metrics.total_account.pl_realized >= 0 %}+{% endif %}{{ metrics.total_account.pl_realized|decimal_eu(2) }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>• P&L No Realizado:</span>
+                    <span>{% if metrics.total_account.pl_unrealized >= 0 %}+{% endif %}{{ metrics.total_account.pl_unrealized|decimal_eu(2) }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>• Dividendos:</span>
+                    <span>+{{ metrics.total_account.dividends|decimal_eu(2) }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>• Comisiones:</span>
+                    <span>-{{ metrics.total_account.fees|decimal_eu(2) }}</span>
+                </div>
+            </div>
+            
+            <!-- Cash/Apalancamiento -->
+            <div class="text-xs mt-2 pt-2 border-t">
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-600">{% if metrics.total_account.cash_or_leverage < 0 %}💵 Cash disponible:{% else %}⚡ Apalancamiento:{% endif %}</span>
+                    <span class="font-medium {% if metrics.total_account.cash_or_leverage < 0 %}text-cyan-600{% else %}text-red-600{% endif %}">
+                        {{ metrics.total_account.cash_or_leverage|abs|decimal_eu(2) }} EUR
+                    </span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- P&L Total (UNIFICADO) -->
+        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if metrics.total_pl.total_pl >= 0 %}border-green-600{% else %}border-red-600{% endif %}">
+            <div class="flex items-center justify-between mb-2">
+                <div class="text-sm text-gray-600">📊 P&L Total</div>
+                <span class="text-xs text-gray-400 cursor-help" title="Ganancia/pérdida TOTAL histórica: P&L Realizado + P&L No Realizado + Dividendos - Comisiones">ⓘ</span>
+            </div>
+            <div class="text-2xl font-bold {% if metrics.total_pl.total_pl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                {% if metrics.total_pl.total_pl >= 0 %}+{% endif %}{{ metrics.total_pl.total_pl|decimal_eu(2) }} EUR
+            </div>
+            
+            <!-- Desglose detallado -->
+            <div class="text-xs text-gray-500 mt-3 space-y-1 border-t pt-2">
+                <div class="flex justify-between">
+                    <span>• P&L Realizado:</span>
+                    <span>{% if metrics.total_account.pl_realized >= 0 %}+{% endif %}{{ metrics.total_account.pl_realized|decimal_eu(2) }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>• P&L No Realizado:</span>
+                    <span>{% if metrics.total_account.pl_unrealized >= 0 %}+{% endif %}{{ metrics.total_account.pl_unrealized|decimal_eu(2) }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>• Dividendos:</span>
+                    <span>+{{ metrics.total_account.dividends|decimal_eu(2) }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>• Comisiones:</span>
+                    <span>-{{ metrics.total_account.fees|decimal_eu(2) }}</span>
+                </div>
+            </div>
+            
+            <div class="mt-3">
+                <a href="{{ url_for('portfolio.pl_by_asset') }}" class="text-xs text-green-600 hover:text-green-800 font-medium">
+                    Ver detalle por asset →
+                </a>
+            </div>
+        </div>
+        
+        <!-- ROI -->
+        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if metrics.roi.roi >= 0 %}border-blue-500{% else %}border-red-500{% endif %}">
+            <div class="flex items-center justify-between mb-2">
+                <div class="text-sm text-gray-600">📈 ROI</div>
+                <span class="text-xs text-gray-400 cursor-help" title="Return on Investment: rentabilidad total sobre el capital aportado. Fórmula: (Valor Actual + Retiradas - Depósitos) / Depósitos × 100">ⓘ</span>
+            </div>
+            <div class="text-2xl font-bold {% if metrics.roi.roi >= 0 %}text-blue-600{% else %}text-red-600{% endif %}">
+                {% if metrics.roi.roi >= 0 %}+{% endif %}{{ metrics.roi.roi|decimal_eu(2) }}%
+            </div>
+            <div class="text-xs text-gray-500 mt-1">
+                Capital neto: {{ metrics.roi.net_invested|decimal_eu(2) }} EUR
+            </div>
+            <div class="text-xs text-gray-400 mt-2">
+                Retorno absoluto: {% if metrics.roi.absolute_return >= 0 %}+{% endif %}{{ metrics.roi.absolute_return|decimal_eu(2) }} EUR
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Última actualización e información -->
+    <div class="flex justify-between items-center text-xs text-gray-500 mb-8">
+        {% if last_sync %}
+        <div>
+            📥 Última sincronización: {{ last_sync.created_at.strftime('%d/%m/%Y %H:%M') }}
+        </div>
+        {% else %}
+        <div></div>
+        {% endif %}
+        
+        {% if last_price_update %}
+        <div>
+            📡 Última actualización de precios: {{ last_price_update.strftime('%d/%m/%Y %H:%M') }}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Navegación de Cuentas (OCULTO POR PETICIÓN DEL USUARIO) -->
+    {% if false %}
+    <div class="bg-white rounded-xl shadow-sm p-6 mb-8">
+        <h2 class="text-xl font-semibold text-gray-900 mb-4">🏦 Mis Cuentas</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {% for account in accounts %}
+            <div class="border border-gray-200 rounded-lg p-4 hover:border-blue-500 transition">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <div class="font-semibold text-gray-900">{{ account.account_name }}</div>
+                        <div class="text-sm text-gray-500">{{ account.broker.full_name }}</div>
+                        {% if account.account_number %}
+                        <div class="text-xs text-gray-400 mt-1">{{ account.account_number }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="text-xs font-medium px-2 py-1 rounded bg-gray-100 text-gray-700">
+                        {{ account.base_currency }}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="mt-4">
+            <a href="{{ url_for('portfolio.accounts_list') }}" class="text-blue-600 hover:text-blue-700 text-sm font-medium">
+                Ver todas las cuentas →
+            </a>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Holdings Actuales -->
+    <div class="bg-white rounded-xl shadow-sm p-6">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-semibold text-gray-900">📈 Posiciones Actuales</h2>
+        </div>
+        
+        {% if holdings %}
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onclick="sortTable(0, 'text')">
+                            Activo <span class="sort-arrow">⇅</span>
+                        </th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onclick="sortTable(1, 'text')">
+                            Cuenta <span class="sort-arrow">⇅</span>
+                        </th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onclick="sortTable(2, 'number')">
+                            Cantidad <span class="sort-arrow">⇅</span>
+                        </th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onclick="sortTable(3, 'number')">
+                            Precio Medio <span class="sort-arrow">⇅</span>
+                        </th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onclick="sortTable(4, 'number')">
+                            Precio Actual <span class="sort-arrow">⇅</span>
+                        </th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onclick="sortTable(5, 'number')">
+                            Coste Total <span class="sort-arrow">⇅</span>
+                        </th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onclick="sortTable(6, 'number')">
+                            Valor Actual <span class="sort-arrow">⇅</span>
+                        </th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onclick="sortTable(7, 'number')">
+                            Peso % <span class="sort-arrow">⇅</span>
+                        </th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100" onclick="sortTable(8, 'number')">
+                            P&L <span class="sort-arrow">⇅</span>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for holding in holdings %}
+                    <tr class="hover:bg-gray-50 cursor-pointer" onclick="window.location='{{ url_for('portfolio.asset_detail', id=holding.asset.id) }}'">
+                        <td class="px-4 py-3">
+                            <div class="font-bold text-gray-900 break-words max-w-xs">
+                                <a href="{{ url_for('portfolio.asset_detail', id=holding.asset.id) }}" class="text-blue-600 hover:text-blue-700">
+                                    {{ holding.asset.name or holding.asset.symbol }}
+                                </a>
+                                {% if holding.asset.is_price_stale %}
+                                <span class="text-orange-500 ml-2" title="⚠️ Precio desactualizado: La última actualización fue hace más de 7 días o falló. Haz clic en 'Actualizar Precios' para intentar obtener datos nuevos.">
+                                    ⚠️
+                                </span>
+                                {% endif %}
+                                {% if holding.asset.mic and not holding.asset.symbol %}
+                                <button class="fix-yahoo-btn text-orange-600 hover:text-orange-700 ml-2" 
+                                        data-asset-id="{{ holding.asset.id }}" 
+                                        data-asset-name="{{ holding.asset.name }}"
+                                        title="Corregir con URL de Yahoo Finance">
+                                    🔧
+                                </button>
+                                {% endif %}
+                            </div>
+                            <div class="text-sm text-gray-400 break-words max-w-xs">
+                                {{ holding.asset.asset_type }}{% if holding.asset.symbol and holding.asset.symbol != holding.asset.name and holding.asset.symbol|length < 15 %} • {{ holding.asset.symbol }}{% endif %}{% if holding.asset.exchange %} • {{ holding.asset.exchange }}{% endif %} • {{ holding.asset.currency }}{% if holding.asset.isin %} • {{ holding.asset.isin }}{% endif %}
+                            </div>
+                        </td>
+                        <td class="px-4 py-3">
+                            {% for acc in holding.accounts %}
+                            <div class="text-sm font-semibold text-gray-900">{{ acc.broker }}</div>
+                            {% endfor %}
+                        </td>
+                        <td class="px-4 py-3 text-right text-sm text-gray-900">
+                            {{ holding.total_quantity|number_eu }}
+                        </td>
+                        <td class="px-4 py-3 text-right text-sm text-gray-900">
+                            {{ holding.average_buy_price|decimal_eu(2) }} {{ holding.asset.currency }}
+                        </td>
+                        <td class="px-4 py-3 text-right text-sm">
+                            {% if holding.asset.current_price %}
+                                <div class="font-semibold text-gray-900">
+                                    {{ holding.asset.current_price|decimal_eu(2) }} {{ holding.asset.currency }}
+                                </div>
+                                {% if holding.asset.day_change_percent %}
+                                    <div class="text-xs {% if holding.asset.day_change_percent > 0 %}text-green-600{% elif holding.asset.day_change_percent < 0 %}text-red-600{% else %}text-gray-500{% endif %}">
+                                        {% if holding.asset.day_change_percent > 0 %}↑{% elif holding.asset.day_change_percent < 0 %}↓{% else %}→{% endif %} {{ holding.asset.day_change_percent|decimal_eu(2) }}%
+                                    </div>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-gray-400 text-xs">Sin precio</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-right text-sm text-gray-900">
+                            {{ holding.total_cost|decimal_eu(2) }} {{ holding.asset.currency }}
+                        </td>
+                        <td class="px-4 py-3 text-right text-sm">
+                            {% if holding.asset.current_price and holding.current_value_eur %}
+                                <div class="font-semibold text-gray-900">
+                                    {{ holding.current_value_eur|decimal_eu(2) }} EUR
+                                </div>
+                                {% if holding.local_currency != 'EUR' %}
+                                <div class="text-xs text-gray-500">
+                                    {{ holding.current_value_local|decimal_eu(2) }} {{ holding.local_currency }}
+                                </div>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-gray-400 text-xs">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-right text-sm">
+                            {% if holding.weight_pct %}
+                                <div class="font-semibold text-gray-900">
+                                    {{ holding.weight_pct|decimal_eu(2) }}%
+                                </div>
+                            {% else %}
+                                <span class="text-gray-400 text-xs">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-right text-sm">
+                            {% if holding.asset.current_price %}
+                                {% set current_value = holding.total_quantity * holding.asset.current_price %}
+                                {% set pl = current_value - holding.total_cost %}
+                                {% set pl_pct = (pl / holding.total_cost * 100) if holding.total_cost > 0 else 0 %}
+                                <div class="font-semibold {% if pl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                                    {% if pl >= 0 %}+{% endif %}{{ pl|decimal_eu(2) }} {{ holding.asset.currency }}
+                                </div>
+                                <div class="text-xs {% if pl_pct >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                                    {% if pl_pct >= 0 %}+{% endif %}{{ pl_pct|decimal_eu(2) }}%
+                                </div>
+                            {% else %}
+                                <span class="text-gray-400 text-xs">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-12">
+            <div class="text-6xl mb-4">📊</div>
+            <h3 class="text-lg font-medium text-gray-900 mb-2">No tienes posiciones todavía</h3>
+            <p class="text-gray-600 mb-6">Empieza registrando una cuenta y añadiendo tu primera transacción</p>
+            <div class="flex justify-center gap-3">
+                {% if not accounts %}
+                <a href="{{ url_for('portfolio.account_new') }}" class="btn-primary">
+                    🏦 Crear Primera Cuenta
+                </a>
+                {% else %}
+                <a href="{{ url_for('portfolio.transaction_new') }}" class="btn-primary">
+                    📝 Registrar Primera Transacción
+                </a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    
+    <!-- Modal para corregir con Yahoo URL -->
+    <div id="fixYahooModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+        <div class="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
+            <div class="mt-3">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">
+                    🔧 Corregir Ticker con URL de Yahoo
+                </h3>
+                <p class="text-sm text-gray-600 mb-4">
+                    Busca el asset en <a href="https://finance.yahoo.com" target="_blank" class="text-blue-600 underline">Yahoo Finance</a> y pega la URL completa aquí:
+                </p>
+                <input type="text" id="yahooUrlInput" placeholder="https://finance.yahoo.com/quote/AAPL/" 
+                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 mb-4">
+                <div class="flex justify-end gap-2">
+                    <button id="cancelFixBtn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">
+                        Cancelar
+                    </button>
+                    <button id="confirmFixBtn" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        Aplicar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+    // Modal logic
+    const modal = document.getElementById('fixYahooModal');
+    const urlInput = document.getElementById('yahooUrlInput');
+    const confirmBtn = document.getElementById('confirmFixBtn');
+    const cancelBtn = document.getElementById('cancelFixBtn');
+    let currentAssetId = null;
+    
+    // Abrir modal
+    document.querySelectorAll('.fix-yahoo-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            currentAssetId = this.dataset.assetId;
+            const assetName = this.dataset.assetName;
+            modal.classList.remove('hidden');
+            urlInput.focus();
+        });
+    });
+    
+    // Cerrar modal
+    cancelBtn.addEventListener('click', () => {
+        modal.classList.add('hidden');
+        urlInput.value = '';
+    });
+    
+    // Aplicar corrección
+    confirmBtn.addEventListener('click', async () => {
+        const url = urlInput.value.trim();
+        if (!url) {
+            alert('Por favor ingresa una URL');
+            return;
+        }
+        
+        try {
+            confirmBtn.disabled = true;
+            confirmBtn.textContent = 'Procesando...';
+            
+            const response = await fetch(`/portfolio/asset/${currentAssetId}/fix-yahoo`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `yahoo_url=${encodeURIComponent(url)}`
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                alert(`✅ Asset actualizado:\nSymbol: ${data.symbol}\nYahoo Ticker: ${data.yahoo_ticker}`);
+                location.reload();
+            } else {
+                alert(`❌ Error: ${data.error}`);
+            }
+        } catch (error) {
+            alert(`❌ Error de conexión: ${error.message}`);
+        } finally {
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = 'Aplicar';
+        }
+    });
+    
+    // Cerrar con ESC
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+            modal.classList.add('hidden');
+            urlInput.value = '';
+        }
+    });
+    </script>
+    
+    <!-- Modal de Progreso de Actualización de Precios -->
+    <div id="priceUpdateModal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl p-8 max-w-lg w-full mx-4">
+            <h3 id="modalTitle" class="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
+                <svg id="modalSpinner" class="animate-spin h-6 w-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span id="modalTitleText">Actualizando Precios</span>
+            </h3>
+            
+            <div class="mb-6">
+                <div class="flex justify-between text-sm text-gray-600 mb-2">
+                    <span id="progressText">Iniciando...</span>
+                    <span id="progressCount">0/0</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+                    <div id="progressBar" class="bg-gradient-to-r from-blue-500 to-blue-600 h-full transition-all duration-300 ease-out" style="width: 0%"></div>
+                </div>
+                <div class="text-xs text-gray-500 mt-2 text-right">
+                    <span id="progressTime">Calculando tiempo estimado...</span>
+                </div>
+            </div>
+            
+            <div id="progressDetails" class="bg-gray-50 rounded-lg p-4 mb-4 max-h-60 overflow-y-auto text-sm">
+                <div class="text-gray-600">Esperando resultados...</div>
+            </div>
+            
+            <div id="progressCompleted" class="hidden">
+                <div class="flex justify-end gap-3">
+                    <button onclick="closeProgressModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+    let progressInterval = null;
+    let startTime = null;
+    let sessionKey = null;
+    
+    async function startPriceUpdate() {
+        const modal = document.getElementById('priceUpdateModal');
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+        const progressCount = document.getElementById('progressCount');
+        const progressTime = document.getElementById('progressTime');
+        const progressDetails = document.getElementById('progressDetails');
+        const progressCompleted = document.getElementById('progressCompleted');
+        
+        // Mostrar modal y resetear estado
+        modal.classList.remove('hidden');
+        
+        // Mostrar spinner y resetear título
+        document.getElementById('modalSpinner').classList.remove('hidden');
+        document.getElementById('modalTitleText').textContent = 'Actualizando Precios';
+        
+        progressBar.style.width = '0%';
+        progressText.textContent = 'Iniciando actualización...';
+        progressCount.textContent = '0/0';
+        progressTime.textContent = 'Calculando tiempo estimado...';
+        progressDetails.innerHTML = '<div class="text-gray-600">Iniciando...</div>';
+        progressCompleted.classList.add('hidden');
+        startTime = Date.now();
+        
+        try {
+            // Iniciar actualización de precios (en background)
+            const response = await fetch('{{ url_for("portfolio.update_prices") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'csrf_token={{ csrf_token() }}'
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Error HTTP: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            
+            sessionKey = data.session_key;
+            
+            // Iniciar polling para actualizar progreso
+            progressInterval = setInterval(checkProgress, 500);
+            
+        } catch (error) {
+            // Ocultar spinner en caso de error
+            document.getElementById('modalSpinner').classList.add('hidden');
+            document.getElementById('modalTitleText').textContent = '❌ Error al Iniciar';
+            
+            progressText.textContent = '❌ Error al iniciar actualización';
+            progressDetails.innerHTML = `<div class="text-red-600">Error: ${error.message}</div>`;
+            progressCompleted.classList.remove('hidden');
+        }
+    }
+    
+    async function checkProgress() {
+        try {
+            const response = await fetch('{{ url_for("portfolio.price_update_progress") }}');
+            const progress = await response.json();
+            
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+            const progressCount = document.getElementById('progressCount');
+            const progressTime = document.getElementById('progressTime');
+            const progressDetails = document.getElementById('progressDetails');
+            const progressCompleted = document.getElementById('progressCompleted');
+            
+            // Actualizar barra de progreso
+            const percentage = progress.total > 0 ? (progress.current / progress.total) * 100 : 0;
+            progressBar.style.width = `${percentage}%`;
+            
+            // Actualizar contador
+            progressCount.textContent = `${progress.current}/${progress.total}`;
+            
+            // Actualizar texto
+            if (progress.status === 'running') {
+                progressText.textContent = `Procesando: ${progress.current_asset || 'Cargando...'}`;
+                
+                // Calcular tiempo estimado
+                if (progress.current > 0 && progress.total > 0) {
+                    const elapsed = (Date.now() - startTime) / 1000;
+                    const rate = elapsed / progress.current;
+                    const remaining = rate * (progress.total - progress.current);
+                    const minutes = Math.floor(remaining / 60);
+                    const seconds = Math.floor(remaining % 60);
+                    progressTime.textContent = `Tiempo estimado: ${minutes}m ${seconds}s`;
+                }
+                
+                // Mostrar detalles (últimos 3 errores si hay)
+                let detailsHtml = `<div class="space-y-1">`;
+                detailsHtml += `<div class="text-sm"><span class="text-green-600">✅ Exitosos: ${progress.success}</span></div>`;
+                if (progress.failed > 0) {
+                    detailsHtml += `<div class="text-sm"><span class="text-red-600">❌ Fallidos: ${progress.failed}</span></div>`;
+                }
+                if (progress.skipped > 0) {
+                    detailsHtml += `<div class="text-sm"><span class="text-orange-600">⚠️ Omitidos: ${progress.skipped}</span></div>`;
+                }
+                
+                if (progress.errors && progress.errors.length > 0) {
+                    detailsHtml += `<div class="mt-2 text-xs text-red-600">`;
+                    progress.errors.forEach(error => {
+                        detailsHtml += `<div>• ${error}</div>`;
+                    });
+                    detailsHtml += `</div>`;
+                }
+                detailsHtml += `</div>`;
+                progressDetails.innerHTML = detailsHtml;
+                
+            } else if (progress.status === 'completed') {
+                // Detener polling
+                clearInterval(progressInterval);
+                
+                // Ocultar spinner y actualizar título
+                document.getElementById('modalSpinner').classList.add('hidden');
+                document.getElementById('modalTitleText').textContent = '✅ Actualización Completada';
+                
+                progressBar.style.width = '100%';
+                progressText.textContent = '✅ Actualización completada';
+                
+                // Mostrar resumen final
+                const result = progress.result || {};
+                let summaryHtml = `<div class="space-y-2">`;
+                summaryHtml += `<div class="text-sm font-medium text-green-600">✅ Exitosos: ${result.success || 0}/${result.total || 0}</div>`;
+                if (result.failed > 0) {
+                    summaryHtml += `<div class="text-sm font-medium text-red-600">❌ Fallidos: ${result.failed}</div>`;
+                }
+                if (result.skipped > 0) {
+                    summaryHtml += `<div class="text-sm font-medium text-orange-600">⚠️ Omitidos: ${result.skipped}</div>`;
+                }
+                
+                if (result.errors && result.errors.length > 0) {
+                    summaryHtml += `<div class="mt-3 text-xs text-red-600 max-h-32 overflow-y-auto">`;
+                    result.errors.slice(0, 5).forEach(error => {
+                        summaryHtml += `<div class="mb-1">• ${error}</div>`;
+                    });
+                    if (result.errors.length > 5) {
+                        summaryHtml += `<div class="text-gray-500">... y ${result.errors.length - 5} errores más</div>`;
+                    }
+                    summaryHtml += `</div>`;
+                }
+                summaryHtml += `</div>`;
+                progressDetails.innerHTML = summaryHtml;
+                progressCompleted.classList.remove('hidden');
+                
+                const elapsed = (progress.end_time - progress.start_time).toFixed(1);
+                progressTime.textContent = `Completado en ${elapsed}s`;
+                
+            } else if (progress.status === 'error') {
+                // Detener polling
+                clearInterval(progressInterval);
+                
+                // Ocultar spinner y actualizar título
+                document.getElementById('modalSpinner').classList.add('hidden');
+                document.getElementById('modalTitleText').textContent = '❌ Error en Actualización';
+                
+                progressText.textContent = '❌ Error durante la actualización';
+                progressDetails.innerHTML = `<div class="text-red-600">Error: ${progress.error || 'Error desconocido'}</div>`;
+                progressCompleted.classList.remove('hidden');
+            }
+            
+        } catch (error) {
+            console.error('Error checking progress:', error);
+        }
+    }
+    
+    function closeProgressModal() {
+        if (progressInterval) {
+            clearInterval(progressInterval);
+        }
+        document.getElementById('priceUpdateModal').classList.add('hidden');
+        // NO recargar - solo cerrar el modal
+        // El usuario puede recargar manualmente si lo desea (F5)
+    }
+    
+    // Ordenar tabla de holdings
+    let sortDirection = {}; // Guardar dirección de ordenamiento por columna
+    
+    function sortTable(columnIndex, type) {
+        const table = document.querySelector('.min-w-full');
+        const tbody = table.querySelector('tbody');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        
+        // Alternar dirección
+        if (!sortDirection[columnIndex]) {
+            sortDirection[columnIndex] = 'asc';
+        } else {
+            sortDirection[columnIndex] = sortDirection[columnIndex] === 'asc' ? 'desc' : 'asc';
+        }
+        
+        const direction = sortDirection[columnIndex];
+        
+        // Ordenar filas
+        rows.sort((a, b) => {
+            const cellA = a.querySelectorAll('td')[columnIndex];
+            const cellB = b.querySelectorAll('td')[columnIndex];
+            
+            let valueA, valueB;
+            
+            if (type === 'number') {
+                // Extraer primer número de la celda
+                const textA = cellA.textContent.replace(/[^\d.,-]/g, '').replace(',', '.');
+                const textB = cellB.textContent.replace(/[^\d.,-]/g, '').replace(',', '.');
+                valueA = parseFloat(textA) || 0;
+                valueB = parseFloat(textB) || 0;
+            } else {
+                // Texto
+                valueA = cellA.textContent.trim().toLowerCase();
+                valueB = cellB.textContent.trim().toLowerCase();
+            }
+            
+            if (direction === 'asc') {
+                return valueA > valueB ? 1 : valueA < valueB ? -1 : 0;
+            } else {
+                return valueA < valueB ? 1 : valueA > valueB ? -1 : 0;
+            }
+        });
+        
+        // Reordenar filas en el DOM
+        rows.forEach(row => tbody.appendChild(row));
+        
+        // Actualizar flechas
+        document.querySelectorAll('.sort-arrow').forEach(arrow => arrow.textContent = '⇅');
+        const currentArrow = table.querySelectorAll('th')[columnIndex].querySelector('.sort-arrow');
+        currentArrow.textContent = direction === 'asc' ? '↑' : '↓';
+    }
+    </script>
+</div>
+{% endblock %}
+
