@@ -712,7 +712,8 @@ function onUpdateComplete(data) {
     if (data.status === 'completed') {
         modalTitle.textContent = '✅ Actualización completada';
         results.classList.remove('hidden');
-        successCount.textContent = data.updated || 0;
+        // Usar la estructura correcta del backend
+        successCount.textContent = data.success || 0;
         failedCount.textContent = data.failed || 0;
     } else {
         modalTitle.textContent = '❌ Error en actualización';

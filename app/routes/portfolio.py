@@ -1117,13 +1117,143 @@ def transaction_delete(id):
     return redirect(url_for('portfolio.transactions_list'))
 
 
+@portfolio_bp.route('/api/holdings', methods=['GET'])
+@login_required
+def api_get_holdings():
+    """API: Obtener holdings actuales del usuario para auto-selección en SELL"""
+    try:
+        # Parámetro opcional: filtrar por cuenta
+        account_id = request.args.get('account_id', type=int)
+        
+        # Obtener cuentas del usuario
+        user_accounts = BrokerAccount.query.filter_by(user_id=current_user.id).all()
+        
+        if not user_accounts:
+            return jsonify({'success': True, 'holdings': [], 'total': 0, 'accounts': 0, 'message': 'No tienes cuentas de broker'})
+        
+        # Si se especifica una cuenta, filtrar solo esa
+        if account_id:
+            account_ids = [account_id] if any(acc.id == account_id for acc in user_accounts) else []
+        else:
+            account_ids = [acc.id for acc in user_accounts]
+        
+        if not account_ids:
+            return jsonify({'success': True, 'holdings': [], 'total': 0, 'accounts': 0, 'message': 'Cuenta no encontrada'})
+        
+        # Obtener holdings de esas cuentas con cantidad > 0
+        holdings = PortfolioHolding.query.filter(
+            PortfolioHolding.account_id.in_(account_ids),
+            PortfolioHolding.quantity > 0
+        ).all()
+        
+        result = []
+        for h in holdings:
+            try:
+                # Obtener asset (puede no existir si fue eliminado)
+                asset = Asset.query.get(h.asset_id)
+                if not asset:
+                    continue
+                
+                # Obtener cuenta para mostrar broker
+                account = BrokerAccount.query.get(h.account_id)
+                broker_name = account.broker.name if account and account.broker else 'Unknown'
+                
+                result.append({
+                    'id': h.asset_id,
+                    'symbol': asset.symbol or 'N/A',
+                    'name': asset.name or asset.symbol or 'Sin nombre',
+                    'isin': asset.isin or '',
+                    'currency': asset.currency or 'USD',
+                    'asset_type': asset.asset_type or 'Stock',
+                    'exchange': asset.exchange or '',
+                    'mic': asset.mic or '',
+                    'yahoo_suffix': asset.yahoo_suffix or '',
+                    'quantity': float(h.quantity),
+                    'avg_buy_price': float(h.average_buy_price) if h.average_buy_price else 0,
+                    'current_price': float(asset.current_price) if asset.current_price else (float(h.average_buy_price) if h.average_buy_price else 0),
+                    'broker': broker_name,
+                    'account_id': h.account_id
+                })
+            except Exception as e:
+                # Si falla un holding individual, continuar con los demás
+                print(f"Error procesando holding {h.id}: {str(e)}")
+                continue
+        
+        return jsonify({'success': True, 'holdings': result, 'total': len(result), 'accounts': len(account_ids)})
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"ERROR EN API HOLDINGS: {error_trace}")
+        return jsonify({'success': False, 'error': str(e), 'traceback': error_trace}), 500
+
+
+@portfolio_bp.route('/api/assets/search', methods=['GET'])
+@login_required
+def api_search_assets():
+    """API: Buscar assets en AssetRegistry y Assets del usuario para autocompletado en BUY"""
+    query = request.args.get('q', '').strip()
+    
+    if len(query) < 2:
+        return jsonify({'success': True, 'results': []})
+    
+    try:
+        from app.models.asset_registry import AssetRegistry
+        
+        # Buscar por symbol, ISIN, o nombre en AssetRegistry
+        registry_results = AssetRegistry.query.filter(
+            db.or_(
+                AssetRegistry.symbol.ilike(f'%{query}%'),
+                AssetRegistry.isin.ilike(f'%{query}%'),
+                AssetRegistry.name.ilike(f'%{query}%')
+            )
+        ).limit(10).all()
+        
+        assets = []
+        seen_isins = set()
+        
+        for r in registry_results:
+            # Intentar obtener currency de un Asset existente con el mismo ISIN
+            existing_asset = Asset.query.filter_by(isin=r.isin).first() if r.isin else None
+            currency = existing_asset.currency if existing_asset else 'USD'  # USD por defecto
+            
+            assets.append({
+                'id': r.id,
+                'symbol': r.symbol,
+                'name': r.name or r.symbol,
+                'isin': r.isin,
+                'currency': currency,
+                'exchange': r.ibkr_exchange,
+                'mic': r.mic,
+                'yahoo_suffix': r.yahoo_suffix,
+                'asset_type': r.asset_type or 'Stock'
+            })
+            seen_isins.add(r.isin)
+        
+        return jsonify({'success': True, 'results': assets})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @portfolio_bp.route('/transactions/new', methods=['GET', 'POST'])
 @login_required
 def transaction_new():
     """Registrar nueva transacción manual"""
     form = ManualTransactionForm()
     
+    # Poblar choices dinámicamente con opción "Todas"
+    accounts = BrokerAccount.query.filter_by(user_id=current_user.id, is_active=True).all()
+    form.account_id.choices = [('', '-- Todas las cuentas --')] + [
+        (acc.id, f'{acc.broker.name} - {acc.account_name}')
+        for acc in accounts
+    ]
+    
     if form.validate_on_submit():
+        # Si no se seleccionó cuenta específica y es SELL, requerir selección
+        if not form.account_id.data:
+            flash('❌ Debes seleccionar una cuenta específica para registrar la transacción', 'error')
+            return render_template('portfolio/transaction_form.html', form=form, transaction=None)
+        
+        account_id = int(form.account_id.data)
         # Buscar o crear el activo
         asset = Asset.query.filter_by(symbol=form.symbol.data, currency=form.currency.data).first()
         if not asset:
@@ -1156,7 +1286,7 @@ def transaction_new():
         # Crear transacción
         transaction = Transaction(
             user_id=current_user.id,
-            account_id=form.account_id.data,
+            account_id=account_id,
             asset_id=asset.id,
             transaction_type=form.transaction_type.data,
             transaction_date=datetime.combine(form.transaction_date.data, datetime.min.time()),
@@ -1172,52 +1302,99 @@ def transaction_new():
             source='MANUAL'
         )
         db.session.add(transaction)
+        db.session.flush()  # Obtener ID de la transacción
         
-        # Actualizar o crear holding
+        # Recalcular holdings usando FIFO (el método correcto)
+        from app.services.fifo_calculator import FIFOCalculator
+        
+        # Obtener todas las transacciones de este asset en esta cuenta
+        all_transactions = Transaction.query.filter_by(
+            user_id=current_user.id,
+            account_id=account_id,
+            asset_id=asset.id
+        ).order_by(Transaction.transaction_date).all()
+        
+        # Calcular holding con FIFO
+        fifo = FIFOCalculator()
+        
+        # Procesar todas las transacciones EXCEPTO la actual
+        for t in all_transactions:
+            if t.id == transaction.id:
+                continue  # Saltar la transacción que acabamos de crear
+            
+            if t.transaction_type == 'BUY':
+                fifo.add_buy(
+                    quantity=t.quantity,
+                    price=t.price,
+                    date=t.transaction_date,
+                    total_cost=abs(t.amount) + (t.commission or 0) + (t.fees or 0) + (t.tax or 0)
+                )
+            elif t.transaction_type == 'SELL':
+                fifo.add_sell(
+                    quantity=t.quantity,
+                    date=t.transaction_date
+                )
+        
+        # Ahora procesar la transacción actual
+        cost_basis_of_sale = None
+        if form.transaction_type.data == 'BUY':
+            fifo.add_buy(
+                quantity=form.quantity.data,
+                price=form.price.data,
+                date=form.transaction_date.data,
+                total_cost=abs(amount) + form.commission.data + form.fees.data + form.tax.data
+            )
+        elif form.transaction_type.data == 'SELL':
+            # add_sell retorna el coste de las acciones vendidas (base de coste)
+            cost_basis_of_sale = fifo.add_sell(
+                quantity=form.quantity.data,
+                date=form.transaction_date.data
+            )
+        
+        # Obtener o crear holding
         holding = PortfolioHolding.query.filter_by(
             user_id=current_user.id,
-            account_id=form.account_id.data,
+            account_id=account_id,
             asset_id=asset.id
         ).first()
         
-        if form.transaction_type.data == 'BUY':
+        current_position = fifo.get_current_position()
+        
+        if current_position['quantity'] > 0:
+            # Hay posición abierta
             if holding:
-                # Actualizar holding existente
-                holding.add_purchase(
-                    quantity=form.quantity.data,
-                    price=form.price.data,
-                    total_cost=abs(amount) + form.commission.data + form.fees.data + form.tax.data
-                )
+                holding.quantity = current_position['quantity']
+                holding.average_buy_price = current_position['average_buy_price']
+                holding.total_cost = current_position['total_cost']
                 holding.last_transaction_date = form.transaction_date.data
             else:
-                # Crear nuevo holding
-                total_cost = abs(amount) + form.commission.data + form.fees.data + form.tax.data
                 holding = PortfolioHolding(
                     user_id=current_user.id,
-                    account_id=form.account_id.data,
+                    account_id=account_id,
                     asset_id=asset.id,
-                    quantity=form.quantity.data,
-                    average_buy_price=form.price.data,
-                    total_cost=total_cost,
+                    quantity=current_position['quantity'],
+                    average_buy_price=current_position['average_buy_price'],
+                    total_cost=current_position['total_cost'],
                     first_purchase_date=form.transaction_date.data,
                     last_transaction_date=form.transaction_date.data
                 )
                 db.session.add(holding)
-        
-        elif form.transaction_type.data == 'SELL':
+        else:
+            # Posición cerrada, eliminar holding si existe
             if holding:
-                # Calcular P&L (simplificado por ahora)
-                cost_basis = holding.average_buy_price * form.quantity.data
-                revenue = abs(amount) - form.commission.data - form.fees.data - form.tax.data
-                realized_pl = revenue - cost_basis
-                transaction.realized_pl = realized_pl
-                
-                if cost_basis > 0:
-                    transaction.realized_pl_pct = (realized_pl / cost_basis) * 100
-                
-                # Actualizar holding
-                holding.subtract_sale(form.quantity.data, realized_pl)
-                holding.last_transaction_date = form.transaction_date.data
+                db.session.delete(holding)
+        
+        # Calcular P&L realizado si es SELL
+        if form.transaction_type.data == 'SELL' and cost_basis_of_sale is not None:
+            # Revenue = (precio_venta * cantidad) - comisiones - fees - tax
+            revenue = abs(amount) - form.commission.data - form.fees.data - form.tax.data
+            # P&L = revenue - coste de compra
+            realized_pl = revenue - float(cost_basis_of_sale)
+            transaction.realized_pl = realized_pl
+            
+            # Calcular % de ganancia
+            if float(cost_basis_of_sale) > 0:
+                transaction.realized_pl_pct = (realized_pl / float(cost_basis_of_sale)) * 100
         
         db.session.commit()
         
@@ -1225,10 +1402,11 @@ def transaction_new():
         from app.services.metrics.cache import MetricsCacheService
         MetricsCacheService.invalidate(current_user.id)
         
-        flash(f'✅ Transacción de {form.transaction_type.data} registrada correctamente', 'success')
-        return redirect(url_for('portfolio.transactions_list'))
+        action_text = 'compra' if form.transaction_type.data == 'BUY' else 'venta'
+        flash(f'✅ {form.transaction_type.data} de {form.symbol.data} registrada correctamente', 'success')
+        return redirect(url_for('portfolio.holdings_list'))
     
-    return render_template('portfolio/transaction_form.html', form=form, title='Nueva Transacción')
+    return render_template('portfolio/transaction_form.html', form=form, transaction=None, action='new', title='Nueva Transacción')
 
 
 # ==================== METRICS CACHE ====================
