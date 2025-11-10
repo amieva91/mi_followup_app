@@ -124,14 +124,33 @@
                 {% if action == 'edit' %}
                 <div class="mt-4 pt-4 border-t border-purple-300">
                     <p class="text-xs text-purple-700 mb-3">🔍 Si faltan datos, puedes enriquecerlos manualmente:</p>
-                    <div class="flex gap-3">
-                        <button type="button" id="enrichOpenFIGI" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm">
+                    
+                    <!-- Botón OpenFIGI -->
+                    <div class="mb-4">
+                        <button type="button" id="enrichOpenFIGI" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm w-full">
                             🤖 Enriquecer con OpenFIGI
                         </button>
-                        <button type="button" id="enrichYahoo" class="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm">
-                            🌐 Desde URL de Yahoo
-                        </button>
                     </div>
+                    
+                    <!-- Campo + Botón Yahoo -->
+                    <div class="space-y-2">
+                        <label for="yahooUrlInput" class="block text-xs font-medium text-gray-700">
+                            🌐 URL de Yahoo Finance (opcional)
+                        </label>
+                        <div class="flex gap-2">
+                            <input 
+                                type="url" 
+                                id="yahooUrlInput" 
+                                placeholder="https://finance.yahoo.com/quote/AAPL/" 
+                                class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                            />
+                            <button type="button" id="enrichYahoo" class="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm whitespace-nowrap">
+                                Enriquecer
+                            </button>
+                        </div>
+                        <p class="text-xs text-gray-500">Busca el asset en Yahoo Finance y pega la URL completa aquí</p>
+                    </div>
+                    
                     <div id="enrichmentResult" class="mt-3"></div>
                 </div>
                 {% endif %}
@@ -304,9 +323,13 @@
         
         // Botón Yahoo URL
         document.getElementById('enrichYahoo').addEventListener('click', async function() {
-            const yahooUrl = prompt('Pega la URL de Yahoo Finance (ej: https://finance.yahoo.com/quote/AAPL/)');
+            const yahooUrlInput = document.getElementById('yahooUrlInput');
+            const yahooUrl = yahooUrlInput.value.trim();
             
-            if (!yahooUrl) return;
+            if (!yahooUrl) {
+                enrichResult.innerHTML = '<p class="text-sm text-red-600">❌ Por favor, pega una URL de Yahoo Finance primero</p>';
+                return;
+            }
             
             this.disabled = true;
             this.textContent = '⏳ Procesando...';
@@ -340,6 +363,9 @@
                     if (micField && data.mic) micField.value = data.mic;
                     if (yahooField && data.yahoo_suffix) yahooField.value = data.yahoo_suffix;
                     
+                    // Limpiar el campo de URL
+                    yahooUrlInput.value = '';
+                    
                     // Mostrar resultado detallado
                     enrichResult.innerHTML = `
                         <div class="bg-green-100 border border-green-300 rounded-lg p-3">
@@ -359,7 +385,7 @@
                 enrichResult.innerHTML = `<p class="text-sm text-red-600">❌ Error: ${error.message}</p>`;
             } finally {
                 this.disabled = false;
-                this.textContent = '🌐 Desde URL de Yahoo';
+                this.textContent = 'Enriquecer';
             }
         });
         {% endif %}

@@ -160,13 +160,22 @@ def dashboard():
         else:
             h['weight_pct'] = 0
     
-    # Calcular métricas básicas (Sprint 4 - HITO 1)
-    metrics = BasicMetrics.get_all_metrics(
-        current_user.id, 
-        total_value, 
-        total_cost, 
-        total_pl
-    )
+    # Calcular métricas básicas (Sprint 4 - HITO 1 + Cache)
+    from app.services.metrics.cache import MetricsCacheService
+    
+    # Intentar obtener del cache primero
+    metrics = MetricsCacheService.get(current_user.id)
+    
+    if metrics is None:
+        # Cache no existe o expiró - calcular desde cero
+        metrics = BasicMetrics.get_all_metrics(
+            current_user.id, 
+            total_value, 
+            total_cost, 
+            total_pl
+        )
+        # Guardar en cache para próximas visitas
+        MetricsCacheService.set(current_user.id, metrics)
     
     return render_template(
         'portfolio/dashboard.html',
@@ -1041,6 +1050,10 @@ def transaction_edit(id):
         
         db.session.commit()
         
+        # Invalidar cache de métricas (transacción editada)
+        from app.services.metrics.cache import MetricsCacheService
+        MetricsCacheService.invalidate(current_user.id)
+        
         flash('✅ Transacción actualizada correctamente. Holdings recalculados.', 'success')
         return redirect(url_for('portfolio.transactions_list'))
     
@@ -1069,7 +1082,39 @@ def transaction_edit(id):
     return render_template('portfolio/transaction_form.html', 
                           form=form, 
                           title='Editar Transacción',
-                          action='edit')
+                          action='edit',
+                          transaction=transaction)
+
+
+@portfolio_bp.route('/transactions/<int:id>/delete', methods=['POST'])
+@login_required
+def transaction_delete(id):
+    """Eliminar transacción existente"""
+    transaction = Transaction.query.filter_by(
+        id=id,
+        user_id=current_user.id
+    ).first_or_404()
+    
+    # Guardar cuenta para recalcular holdings después
+    account_id = transaction.account_id
+    asset_symbol = transaction.asset.symbol if transaction.asset else transaction.transaction_type
+    
+    # Eliminar transacción
+    db.session.delete(transaction)
+    db.session.commit()
+    
+    # Recalcular holdings de la cuenta afectada
+    from app.services.importer_v2 import CSVImporterV2
+    importer = CSVImporterV2(current_user.id, account_id)
+    importer._recalculate_holdings()
+    db.session.commit()
+    
+    # Invalidar cache de métricas
+    from app.services.metrics.cache import MetricsCacheService
+    MetricsCacheService.invalidate(current_user.id)
+    
+    flash(f'✅ Transacción de {asset_symbol} eliminada correctamente. Holdings recalculados.', 'success')
+    return redirect(url_for('portfolio.transactions_list'))
 
 
 @portfolio_bp.route('/transactions/new', methods=['GET', 'POST'])
@@ -1176,10 +1221,32 @@ def transaction_new():
         
         db.session.commit()
         
+        # Invalidar cache de métricas (nueva transacción)
+        from app.services.metrics.cache import MetricsCacheService
+        MetricsCacheService.invalidate(current_user.id)
+        
         flash(f'✅ Transacción de {form.transaction_type.data} registrada correctamente', 'success')
         return redirect(url_for('portfolio.transactions_list'))
     
     return render_template('portfolio/transaction_form.html', form=form, title='Nueva Transacción')
+
+
+# ==================== METRICS CACHE ====================
+
+@portfolio_bp.route('/cache/invalidate', methods=['POST'])
+@login_required
+def invalidate_cache():
+    """Invalida manualmente el cache de métricas del usuario"""
+    from app.services.metrics.cache import MetricsCacheService
+    
+    was_invalidated = MetricsCacheService.invalidate(current_user.id)
+    
+    if was_invalidated:
+        flash('✅ Cache invalidado. Las métricas se recalcularán en la próxima visita.', 'success')
+    else:
+        flash('ℹ️ No había cache para invalidar. Las métricas ya se recalcularán.', 'info')
+    
+    return redirect(url_for('portfolio.dashboard'))
 
 
 # ==================== CSV IMPORT ====================
@@ -1476,6 +1543,12 @@ def import_csv_process():
             # Eliminar archivo temporal si existe
             if filepath and os.path.exists(filepath):
                 os.remove(filepath)
+    
+    # Invalidar cache de métricas después de importar (si hubo éxito)
+    if total_stats['files_processed'] > 0:
+        from app.services.metrics.cache import MetricsCacheService
+        MetricsCacheService.invalidate(current_user.id)
+        print(f"♻️  DEBUG: Cache de métricas invalidado tras importar {total_stats['files_processed']} archivo(s)")
     
     # Pasar estadísticas por URL (no por session/flash para evitar exceder límite de cookie)
     print(f"\n📊 DEBUG: Preparando redirect con stats: {total_stats}")
@@ -1840,6 +1913,10 @@ def update_prices():
                         'result': result,
                         'end_time': time.time()
                     })
+                
+                # Invalidar cache de métricas (precios actualizados)
+                from app.services.metrics.cache import MetricsCacheService
+                MetricsCacheService.invalidate(user_id)
             except Exception as e:
                 import traceback
                 with price_progress_lock:

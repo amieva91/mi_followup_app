@@ -19,6 +19,13 @@
                 </svg>
                 Actualizar Precios
             </button>
+            <!-- Botón Recalcular Métricas (Sprint 4 - Cache) -->
+            <form method="POST" action="{{ url_for('portfolio.invalidate_cache') }}" class="inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <button type="submit" class="btn-secondary flex items-center gap-2" title="Recalcular todas las métricas del portfolio">
+                    ♻️ Recalcular
+                </button>
+            </form>
             <a href="{{ url_for('portfolio.account_new') }}" class="btn-secondary">
                 🏦 Nueva Cuenta
             </a>
@@ -32,9 +39,16 @@
     <!-- MÉTRICAS GLOBALES E HISTÓRICAS (PRIMERO)    -->
     <!-- ============================================ -->
     {% if metrics %}
-    <div class="mb-2">
-        <h2 class="text-lg font-semibold text-gray-700">🌍 Métricas Globales e Históricas</h2>
-        <p class="text-xs text-gray-500">Incluyen todo el histórico (posiciones actuales + cerradas + cash)</p>
+    <div class="mb-2 flex justify-between items-center">
+        <div>
+            <h2 class="text-lg font-semibold text-gray-700">🌍 Métricas Globales e Históricas</h2>
+            <p class="text-xs text-gray-500">Incluyen todo el histórico (posiciones actuales + cerradas + cash)</p>
+        </div>
+        {% if metrics.get('_from_cache') %}
+        <div class="text-xs text-gray-500 bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
+            ⚡ Cache (cargado en <200ms)
+        </div>
+        {% endif %}
     </div>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <!-- Valor Total Cuenta de Inversión -->
@@ -401,16 +415,15 @@
                             <div class="flex items-center">
                                 <div>
                                     <div class="text-sm font-bold text-gray-900">
-                                        {{ holding['asset'].symbol if holding['asset'].symbol and holding['asset'].symbol != holding['asset'].name and holding['asset'].symbol|length < 15 else holding['asset'].name[:30] }}
+                                        <a href="{{ url_for('portfolio.asset_detail', id=holding['asset'].id) }}" class="hover:text-blue-600">
+                                            {{ holding['asset'].name if holding['asset'].name else holding['asset'].symbol }}
+                                        </a>
                                     </div>
-                                    {% if holding['asset'].name and holding['asset'].symbol and holding['asset'].symbol != holding['asset'].name and holding['asset'].symbol|length < 15 %}
-                                    <div class="text-xs text-gray-500 truncate max-w-xs">
-                                        {{ holding['asset'].name[:50] }}{% if holding['asset'].name|length > 50 %}...{% endif %}
-                                    </div>
-                                    {% endif %}
                                     <div class="text-xs text-gray-400">
                                         {% if holding['asset'].asset_type %}{{ holding['asset'].asset_type }}{% endif %}
+                                        {% if holding['asset'].symbol %} • {{ holding['asset'].symbol }}{% endif %}
                                         {% if holding['asset'].exchange %} • {{ holding['asset'].exchange }}{% endif %}
+                                        {% if holding['asset'].currency %} • {{ holding['asset'].currency }}{% endif %}
                                         {% if holding['asset'].isin %} • {{ holding['asset'].isin }}{% endif %}
                                     </div>
                                 </div>
@@ -626,7 +639,19 @@ function startPriceUpdate() {
     errorMessage.classList.add('hidden');
     
     // Fetch inicial para empezar la actualización
-    fetch('/portfolio/update-prices', { method: 'POST' })
+    // Obtener CSRF token
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || 
+                      document.querySelector('input[name="csrf_token"]')?.value;
+    
+    const formData = new FormData();
+    if (csrfToken) {
+        formData.append('csrf_token', csrfToken);
+    }
+    
+    fetch('/portfolio/prices/update', { 
+        method: 'POST',
+        body: formData
+    })
         .then(response => response.json())
         .then(data => {
             if (data.status === 'started') {
@@ -641,7 +666,7 @@ function startPriceUpdate() {
 }
 
 function pollProgress() {
-    fetch('/portfolio/update-prices/progress')
+    fetch('/portfolio/prices/update/progress')
         .then(response => response.json())
         .then(data => {
             updateProgressUI(data);

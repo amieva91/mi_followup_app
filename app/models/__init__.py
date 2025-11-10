@@ -11,6 +11,7 @@ from app.models.mapping_registry import MappingRegistry
 from app.models.portfolio import PortfolioHolding
 from app.models.transaction import Transaction, CashFlow
 from app.models.metrics import PortfolioMetrics
+from app.models.metrics_cache import MetricsCache
 
 __all__ = [
     'User', 
@@ -22,6 +23,7 @@ __all__ = [
     'MappingRegistry',
     'PortfolioHolding',
     'Transaction', 'CashFlow',
-    'PortfolioMetrics'
+    'PortfolioMetrics',
+    'MetricsCache'
 ]
 
