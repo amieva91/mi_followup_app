@@ -91,8 +91,8 @@ Sistema completo de gestión financiera personal.
       - Eliminado doble emoji en botón "Actualizar Precios"
       - Eliminado mensaje innecesario de sincronización en AssetRegistry
       - Navbar alineado al 92% para consistencia visual completa
-- ✅ **Sprint 4 - Métricas Avanzadas (EN PROGRESO - 8 Nov 2025)**
-  - ✅ **HITO 1: Métricas Básicas (v4.0.0-beta - COMPLETADO)**:
+- ✅ **Sprint 4 - Métricas Avanzadas (EN PROGRESO - 9 Nov 2025)**
+  - ✅ **HITO 1: Métricas Básicas (v4.0.0-beta - COMPLETADO 8 Nov)**:
     - **8 Métricas implementadas**:
       - P&L Realizado (posiciones cerradas, cálculo con FIFO robusto)
       - P&L No Realizado (posiciones abiertas)
@@ -117,12 +117,43 @@ Sistema completo de gestión financiera personal.
       - Brokers en holdings unificadas: ahora muestra correctamente todos los brokers
       - Holdings: todas las posiciones mostradas (límite de 15 eliminado)
       - P&L pre-calculado en backend (no filtros en template)
-  - 🚧 **HITO 2: Métricas Avanzadas (PENDIENTE)**:
-    - TWR (Time-Weighted Return) - Comparable con benchmarks
-    - IRR (Internal Rate of Return) - Considera timing de cash flows
-    - Sharpe Ratio - Relación rentabilidad/riesgo
-    - Max Drawdown - Peor caída desde un pico
-- ✅ **Dashboard** - KPIs en tiempo real (ingresos/gastos/balance mensual + portfolio completo con 8 métricas)
+  - ✅ **HITO 2: Modified Dietz Method (v4.0.0-beta - COMPLETADO 9 Nov)**:
+    - **Portfolio Valuation Service** (`app/services/metrics/portfolio_valuation.py`):
+      - `get_value_at_date()`: Valoración del portfolio en cualquier fecha histórica
+      - `get_user_money_at_date()`: Dinero real del usuario (sin apalancamiento)
+      - Reconstrucción histórica de posiciones con FIFO
+      - Soporte para precios actuales vs precios históricos
+    - **Modified Dietz Calculator** (`app/services/metrics/modified_dietz.py`):
+      - Estándar GIPS (Global Investment Performance Standards)
+      - `calculate_return()`: Rentabilidad de un período específico
+      - `calculate_annualized_return()`: Rentabilidad anualizada
+      - `calculate_ytd_return()`: Rentabilidad año actual (YTD)
+      - `get_all_returns()`: Wrapper para dashboard
+      - Fórmula: `R = (VF - VI - CF) / (VI + Σ(CF_i × W_i))`
+      - Cash flows externos: Solo DEPOSIT/WITHDRAWAL (dividendos son ingresos internos)
+    - **Nueva card en Dashboard**: 💎 Rentabilidad (Modified Dietz)
+      - Rentabilidad Anualizada (con años de inversión)
+      - Rentabilidad Total (%)
+      - Rentabilidad YTD (año actual)
+      - Ganancia Absoluta (EUR)
+      - Días de inversión
+    - **Validación matemática exitosa**:
+      - Ganancia Modified Dietz: 52.472 EUR
+      - P&L Total del sistema: 52.562 EUR
+      - **Error: 0,17%** ✅ (dentro del margen aceptable)
+    - **Ventajas del Modified Dietz**:
+      - NO requiere precios históricos (solo necesita valor inicial y final)
+      - Pondera cash flows por tiempo (elimina efecto de timing de deposits/withdrawals)
+      - Comparable con benchmarks y otros portfolios
+      - Estándar de la industria financiera
+  - 🚧 **HITO 3: Gráficos de Evolución (PENDIENTE)**:
+    - Gráfico de evolución del portfolio (valor total)
+    - Gráfico de apalancamiento/cash histórico
+    - Gráfico de flujos de caja acumulados
+    - Gráfico de P&L acumulado
+    - Gráfico de rentabilidad vs benchmarks (S&P 500, NASDAQ, etc.)
+    - Tabla comparativa (Anualizada, YTD, Total)
+- ✅ **Dashboard** - KPIs en tiempo real (ingresos/gastos/balance mensual + portfolio completo con 9 métricas + Modified Dietz)
 - ✅ **Sistema desplegado** - Funcionando en https://followup.fit/
 
 ## 🚀 Entornos

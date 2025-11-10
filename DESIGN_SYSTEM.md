@@ -1197,6 +1197,84 @@ Al crear un nuevo componente/página, verificar:
 
 ---
 
-**Última actualización**: 8 Noviembre 2025
-**Próxima revisión**: Después de Sprint 4 - HITO 2
+### ✅ HITO 2: Modified Dietz Method (COMPLETADO - 9 Nov)
+
+**Nueva Card en Dashboard: 💎 Rentabilidad (Modified Dietz)**
+
+**Ubicación**: Sección "Métricas Globales e Históricas" (primera sección)
+
+**Diseño de la Card**:
+- ✅ **Border-left**: Morado (`border-purple-500`) si rentabilidad ≥ 0, Rojo (`border-red-500`) si < 0
+- ✅ **Título**: "💎 Rentabilidad (Modified Dietz)" con tooltip explicativo
+- ✅ **Valor principal** (grande, destacado): Rentabilidad Anualizada en %
+  - Color: Morado (`text-purple-600`) si ≥ 0, Rojo (`text-red-600`) si < 0
+  - Con signo (+/-)
+- ✅ **Subtítulo**: "Anualizada (X años)" en texto pequeño gris
+- ✅ **Desglose detallado** (text-xs, gris, border-top separador):
+  - 📅 **Año Actual (YTD)**: Rentabilidad % con color dinámico
+  - 📊 **Rentabilidad Total**: Rentabilidad % acumulada desde el inicio
+  - 💰 **Ganancia absoluta**: Valor en EUR con color dinámico
+  - 📆 **Días de inversión**: Número de días (en gris)
+- ✅ **Tooltip**: Explicación del método Modified Dietz y ventajas (estándar GIPS, elimina efecto de timing, etc.)
+
+**Valores de Ejemplo (Portfolio Real)**:
+```
+💎 Rentabilidad (Modified Dietz)
++16,28%
+Anualizada (7.85 años)
+
+📅 Año Actual (YTD):     +17,86%
+📊 Rentabilidad Total:  +226,94%
+💰 Ganancia absoluta: +52.472,87 EUR
+📆 2.867 días de inversión
+```
+
+**Colores**:
+- Border: `border-purple-500` (positivo) / `border-red-500` (negativo)
+- Valor principal: `text-purple-600` (positivo) / `text-red-600` (negativo)
+- Métricas del desglose:
+  - YTD: `text-green-600` (positivo) / `text-red-600` (negativo)
+  - Total: `text-green-600` (positivo) / `text-red-600` (negativo)
+  - Ganancia: `text-green-600` (positivo) / `text-red-600` (negativo)
+  - Días: `text-gray-400` (neutral)
+
+**Tooltip Content**:
+```
+"Rentabilidad usando Modified Dietz Method (estándar GIPS). 
+Elimina el efecto de los flujos de caja (deposits/withdrawals) 
+para medir la performance real de tu estrategia."
+```
+
+**Arquitectura**:
+- ✅ **Backend**: `app/services/metrics/modified_dietz.py` (nuevo)
+- ✅ **Integración**: `app/services/metrics/basic_metrics.py` llama a `ModifiedDietzCalculator.get_all_returns()`
+- ✅ **Frontend**: `app/templates/portfolio/dashboard.html` (nueva card en "Métricas Globales")
+
+**Fórmula Modified Dietz**:
+```
+R = (VF - VI - CF) / (VI + Σ(CF_i × W_i))
+
+Donde:
+  R  = Rentabilidad del período
+  VF = Valor Final del portfolio
+  VI = Valor Inicial del portfolio
+  CF = Suma de cash flows externos (deposits/withdrawals)
+  W_i = Peso temporal del cash flow i = (D - d_i) / D
+```
+
+**Cash Flows Externos**:
+- ✅ DEPOSIT (depósitos del usuario)
+- ✅ WITHDRAWAL (retiradas del usuario)
+- ❌ DIVIDEND (son ingresos internos)
+- ❌ FEE (son gastos internos)
+
+**Validación**:
+- Ganancia Modified Dietz: 52.472,87 EUR
+- P&L Total del sistema:   52.562,87 EUR
+- **Error: 0,17%** ✅ VALIDADO
+
+---
+
+**Última actualización**: 9 Noviembre 2025
+**Próxima revisión**: Después de Sprint 4 - HITO 3
 

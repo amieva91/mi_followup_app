@@ -1,12 +1,13 @@
 """
-Basic Metrics Service - Sprint 4 HITO 1
-Cálculo de métricas financieras básicas
+Basic Metrics Service - Sprint 4 HITO 1 + Refinamientos
+Cálculo de métricas financieras básicas con soporte para períodos
 """
 from decimal import Decimal
 from sqlalchemy import func
 from app.models import Transaction, PortfolioHolding
 from app.services.currency_service import convert_to_eur
 from app.services.fifo_calculator import FIFOCalculator
+from app.services.period_utils import filter_transactions_by_period
 from collections import defaultdict
 
 
@@ -16,7 +17,7 @@ class BasicMetrics:
     """
     
     @staticmethod
-    def calculate_pl_realized(user_id):
+    def calculate_pl_realized(user_id, start_date=None, end_date=None):
         """
         Calcula P&L Realizado: Ganancias/pérdidas de posiciones cerradas usando FIFO real
         
@@ -25,14 +26,23 @@ class BasicMetrics:
         2. Para cada venta, obtener el coste real de los lotes vendidos (FIFO)
         3. P&L Realizado = Ingresos venta - Coste real FIFO
         
+        IMPORTANTE: Siempre procesa TODAS las transacciones para mantener el estado FIFO,
+        pero solo cuenta el P&L de las ventas dentro del período (start_date, end_date)
+        
+        Args:
+            user_id: ID del usuario
+            start_date (datetime): Fecha inicio del período (opcional, None = desde el inicio)
+            end_date (datetime): Fecha fin del período (opcional, None = hasta hoy)
+        
         Returns:
             dict: {
-                'realized_pl': float,  # En EUR
+                'realized_pl': float,  # En EUR (solo ventas del período)
                 'realized_pl_pct': float,  # Porcentaje
-                'total_sales': int,  # Número de ventas
+                'total_sales': int,  # Número de ventas (solo del período)
             }
         """
         # Obtener TODAS las transacciones BUY/SELL por asset, en orden cronológico
+        # NOTA: Necesitamos TODAS para mantener el estado FIFO correcto
         transactions = Transaction.query.filter_by(user_id=user_id).filter(
             Transaction.transaction_type.in_(['BUY', 'SELL'])
         ).order_by(Transaction.transaction_date, Transaction.created_at).all()
@@ -67,26 +77,36 @@ class BasicMetrics:
                     )
                 
                 elif txn.transaction_type == 'SELL':
-                    # Ingresos de la venta (después de comisiones/fees)
-                    proceeds = (txn.quantity * txn.price) - \
-                              (txn.commission or 0) - \
-                              (txn.fees or 0) - \
-                              (txn.tax or 0)
-                    proceeds_eur = convert_to_eur(proceeds, txn.currency)
-                    
-                    # Obtener el coste real de lo vendido usando FIFO
+                    # Siempre procesar la venta en FIFO (para mantener estado correcto)
                     cost_basis = float(fifo.add_sell(
                         quantity=txn.quantity,
                         date=txn.transaction_date
                     ))
                     cost_basis_eur = convert_to_eur(cost_basis, txn.currency)
                     
-                    # P&L de esta venta
-                    pl_eur = proceeds_eur - cost_basis_eur
+                    # SOLO contar el P&L si la venta está dentro del período
+                    txn_date = txn.transaction_date
+                    in_period = True
                     
-                    total_realized_pl_eur += pl_eur
-                    total_cost_basis_eur += cost_basis_eur
-                    total_sales_count += 1
+                    if start_date and txn_date < start_date:
+                        in_period = False
+                    if end_date and txn_date > end_date:
+                        in_period = False
+                    
+                    if in_period:
+                        # Ingresos de la venta (después de comisiones/fees)
+                        proceeds = (txn.quantity * txn.price) - \
+                                  (txn.commission or 0) - \
+                                  (txn.fees or 0) - \
+                                  (txn.tax or 0)
+                        proceeds_eur = convert_to_eur(proceeds, txn.currency)
+                        
+                        # P&L de esta venta
+                        pl_eur = proceeds_eur - cost_basis_eur
+                        
+                        total_realized_pl_eur += pl_eur
+                        total_cost_basis_eur += cost_basis_eur
+                        total_sales_count += 1
         
         # Calcular porcentaje
         realized_pl_pct = (total_realized_pl_eur / total_cost_basis_eur * 100) if total_cost_basis_eur > 0 else 0
@@ -98,21 +118,25 @@ class BasicMetrics:
         }
     
     @staticmethod
-    def calculate_roi(user_id, current_portfolio_value):
+    def calculate_roi(user_id, current_portfolio_value, start_date=None, end_date=None):
         """
         Calcula ROI (Return on Investment)
         
         Fórmula: ROI = (Valor Actual + Retiradas - Depósitos) / Depósitos × 100
         
+        NOTA: Para períodos específicos, solo cuenta deposits/withdrawals del período
+        
         Args:
             user_id: ID del usuario
             current_portfolio_value: Valor actual del portfolio en EUR
+            start_date (datetime): Fecha inicio del período (opcional)
+            end_date (datetime): Fecha fin del período (opcional)
             
         Returns:
             dict: {
                 'roi': float,  # Porcentaje
-                'total_deposits': float,  # En EUR
-                'total_withdrawals': float,  # En EUR
+                'total_deposits': float,  # En EUR (del período)
+                'total_withdrawals': float,  # En EUR (del período)
                 'net_invested': float,  # Depósitos - Retiradas
                 'absolute_return': float,  # Ganancia/Pérdida absoluta
             }
@@ -122,6 +146,12 @@ class BasicMetrics:
             user_id=user_id,
             transaction_type='DEPOSIT'
         ).all()
+        
+        # Filtrar por período si se especifica
+        if start_date or end_date:
+            deposits = [d for d in deposits if 
+                       (not start_date or d.transaction_date >= start_date) and
+                       (not end_date or d.transaction_date <= end_date)]
         
         total_deposits = 0.0
         for dep in deposits:
@@ -133,6 +163,12 @@ class BasicMetrics:
             user_id=user_id,
             transaction_type='WITHDRAWAL'
         ).all()
+        
+        # Filtrar por período si se especifica
+        if start_date or end_date:
+            withdrawals = [w for w in withdrawals if 
+                          (not start_date or w.transaction_date >= start_date) and
+                          (not end_date or w.transaction_date <= end_date)]
         
         total_withdrawals = 0.0
         for wit in withdrawals:
@@ -246,7 +282,7 @@ class BasicMetrics:
         }
     
     @staticmethod
-    def get_pl_by_asset(user_id):
+    def get_pl_by_asset(user_id, start_date=None, end_date=None):
         """
         Calcula P&L histórico total por cada asset
         
@@ -255,6 +291,11 @@ class BasicMetrics:
         - SELL: +total (recuperación + ganancia)
         - DIVIDEND: +amount (ingresos)
         - FEE/COMMISSION: -amount (costes)
+        
+        Args:
+            user_id: ID del usuario
+            start_date (datetime): Fecha inicio del período (opcional)
+            end_date (datetime): Fecha fin del período (opcional)
         
         Returns:
             list: [{
@@ -272,6 +313,12 @@ class BasicMetrics:
         
         # Obtener todas las transacciones del usuario
         transactions = Transaction.query.filter_by(user_id=user_id).all()
+        
+        # Filtrar por período si se especifica
+        if start_date or end_date:
+            transactions = [txn for txn in transactions if 
+                           (not start_date or txn.transaction_date >= start_date) and
+                           (not end_date or txn.transaction_date <= end_date)]
         
         # Agrupar por asset
         by_asset = defaultdict(lambda: {
@@ -379,7 +426,7 @@ class BasicMetrics:
         return results
     
     @staticmethod
-    def calculate_total_pl(user_id, current_portfolio_value, pl_unrealized):
+    def calculate_total_pl(user_id, current_portfolio_value, pl_unrealized, start_date=None, end_date=None):
         """
         Calcula P&L TOTAL histórico = P&L Realizado + P&L No Realizado + Dividendos - Comisiones
         
@@ -389,6 +436,8 @@ class BasicMetrics:
             user_id: ID del usuario
             current_portfolio_value: Valor actual del portfolio en EUR
             pl_unrealized: P&L no realizado (del dashboard)
+            start_date (datetime): Fecha inicio del período (opcional)
+            end_date (datetime): Fecha fin del período (opcional)
             
         Returns:
             dict: {
@@ -400,8 +449,8 @@ class BasicMetrics:
                 'fees': float,  # Comisiones pagadas
             }
         """
-        # Obtener P&L Realizado con FIFO real
-        pl_realized_data = BasicMetrics.calculate_pl_realized(user_id)
+        # Obtener P&L Realizado con FIFO real (con período)
+        pl_realized_data = BasicMetrics.calculate_pl_realized(user_id, start_date, end_date)
         pl_realized = pl_realized_data['realized_pl']
         
         # Obtener dividendos
@@ -409,12 +458,25 @@ class BasicMetrics:
             user_id=user_id,
             transaction_type='DIVIDEND'
         ).all()
+        
+        # Filtrar por período si se especifica
+        if start_date or end_date:
+            dividends = [d for d in dividends if 
+                        (not start_date or d.transaction_date >= start_date) and
+                        (not end_date or d.transaction_date <= end_date)]
+        
         total_dividends = sum(convert_to_eur(abs(d.amount), d.currency) for d in dividends)
         
         # Obtener comisiones/fees
         fees = Transaction.query.filter_by(user_id=user_id).filter(
             Transaction.transaction_type.in_(['FEE', 'COMMISSION'])
         ).all()
+        
+        # Filtrar por período si se especifica
+        if start_date or end_date:
+            fees = [f for f in fees if 
+                   (not start_date or f.transaction_date >= start_date) and
+                   (not end_date or f.transaction_date <= end_date)]
         total_fees = sum(convert_to_eur(abs(f.amount), f.currency) for f in fees)
         
         # P&L Total = Realizado + No Realizado + Dividendos - Comisiones
@@ -450,7 +512,7 @@ class BasicMetrics:
         }
     
     @staticmethod
-    def calculate_total_account_value(user_id):
+    def calculate_total_account_value(user_id, start_date=None, end_date=None):
         """
         Calcula Valor Total de la Cuenta de Inversión
         
@@ -469,6 +531,11 @@ class BasicMetrics:
         - Dividendos: Ingresos por dividendos
         - Comisiones: Costes pagados al broker
         
+        Args:
+            user_id: ID del usuario
+            start_date (datetime): Fecha inicio del período (opcional)
+            end_date (datetime): Fecha fin del período (opcional)
+        
         Returns:
             dict: {
                 'total_account_value': float,  # Valor total en EUR
@@ -485,27 +552,55 @@ class BasicMetrics:
             user_id=user_id,
             transaction_type='DEPOSIT'
         ).all()
+        
+        # Filtrar por período si se especifica
+        if start_date or end_date:
+            deposits = [d for d in deposits if 
+                       (not start_date or d.transaction_date >= start_date) and
+                       (not end_date or d.transaction_date <= end_date)]
+        
         total_deposits = sum(convert_to_eur(abs(d.amount), d.currency) for d in deposits)
         
         withdrawals = Transaction.query.filter_by(
             user_id=user_id,
             transaction_type='WITHDRAWAL'
         ).all()
+        
+        # Filtrar por período si se especifica
+        if start_date or end_date:
+            withdrawals = [w for w in withdrawals if 
+                          (not start_date or w.transaction_date >= start_date) and
+                          (not end_date or w.transaction_date <= end_date)]
+        
         total_withdrawals = sum(convert_to_eur(abs(w.amount), w.currency) for w in withdrawals)
         
         dividends = Transaction.query.filter_by(
             user_id=user_id,
             transaction_type='DIVIDEND'
         ).all()
+        
+        # Filtrar por período si se especifica
+        if start_date or end_date:
+            dividends = [d for d in dividends if 
+                        (not start_date or d.transaction_date >= start_date) and
+                        (not end_date or d.transaction_date <= end_date)]
+        
         total_dividends = sum(convert_to_eur(abs(d.amount), d.currency) for d in dividends)
         
         fees = Transaction.query.filter_by(user_id=user_id).filter(
             Transaction.transaction_type.in_(['FEE', 'COMMISSION'])
         ).all()
+        
+        # Filtrar por período si se especifica
+        if start_date or end_date:
+            fees = [f for f in fees if 
+                   (not start_date or f.transaction_date >= start_date) and
+                   (not end_date or f.transaction_date <= end_date)]
+        
         total_fees = sum(convert_to_eur(abs(f.amount), f.currency) for f in fees)
         
-        # Obtener P&L Realizado
-        pl_realized_data = BasicMetrics.calculate_pl_realized(user_id)
+        # Obtener P&L Realizado (con período)
+        pl_realized_data = BasicMetrics.calculate_pl_realized(user_id, start_date, end_date)
         pl_realized = pl_realized_data['realized_pl']
         
         # Para obtener P&L No Realizado, necesitamos los holdings actuales
@@ -521,7 +616,7 @@ class BasicMetrics:
         }
     
     @staticmethod
-    def get_all_metrics(user_id, current_portfolio_value, total_cost_current, pl_unrealized=0):
+    def get_all_metrics(user_id, current_portfolio_value, total_cost_current, pl_unrealized=0, start_date=None, end_date=None):
         """
         Obtiene todas las métricas básicas en un solo dict
         
@@ -530,17 +625,19 @@ class BasicMetrics:
             current_portfolio_value: Valor actual del portfolio en EUR (solo posiciones abiertas)
             total_cost_current: Coste total de posiciones actuales en EUR
             pl_unrealized: P&L no realizado (del dashboard)
+            start_date (datetime): Fecha inicio del período (opcional)
+            end_date (datetime): Fecha fin del período (opcional)
             
         Returns:
             dict: Todas las métricas combinadas
         """
-        pl_realized = BasicMetrics.calculate_pl_realized(user_id)
-        roi = BasicMetrics.calculate_roi(user_id, current_portfolio_value)
+        pl_realized = BasicMetrics.calculate_pl_realized(user_id, start_date, end_date)
+        roi = BasicMetrics.calculate_roi(user_id, current_portfolio_value, start_date, end_date)
         leverage_metrics = BasicMetrics.calculate_leverage(user_id, current_portfolio_value, total_cost_current, pl_unrealized)
-        total_pl = BasicMetrics.calculate_total_pl(user_id, current_portfolio_value, pl_unrealized)
+        total_pl = BasicMetrics.calculate_total_pl(user_id, current_portfolio_value, pl_unrealized, start_date, end_date)
         
-        # Calcular Valor Total Cuenta de Inversión
-        account_components = BasicMetrics.calculate_total_account_value(user_id)
+        # Calcular Valor Total Cuenta de Inversión (con período)
+        account_components = BasicMetrics.calculate_total_account_value(user_id, start_date, end_date)
         
         # Valor Total Cuenta = Depósitos - Retiradas + P&L Realizado + P&L No Realizado + Dividendos - Comisiones + Cash
         # Donde Cash = max(0, Cuenta_sin_cash - Valor_Cartera)
@@ -571,9 +668,9 @@ class BasicMetrics:
         account_components['leverage'] = round(max(0, leverage_amount), 2)  # Solo positivo si hay apalancamiento
         account_components['total_account_value'] = round(total_account_value, 2)
         
-        # Modified Dietz (rentabilidad)
+        # Modified Dietz (rentabilidad) - con período
         from app.services.metrics.modified_dietz import ModifiedDietzCalculator
-        modified_dietz = ModifiedDietzCalculator.get_all_returns(user_id)
+        modified_dietz = ModifiedDietzCalculator.get_all_returns(user_id, start_date, end_date)
         
         return {
             'pl_realized': pl_realized,

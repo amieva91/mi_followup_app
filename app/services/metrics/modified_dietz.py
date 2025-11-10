@@ -244,18 +244,23 @@ class ModifiedDietzCalculator:
         return result
     
     @staticmethod
-    def get_all_returns(user_id):
+    def get_all_returns(user_id, start_date=None, end_date=None):
         """
         Calcula todas las métricas de rentabilidad de una vez
         
+        Si se proporcionan start_date/end_date, calcula rentabilidad para ese período específico.
+        Si no, calcula las métricas estándar (total, anualizada, YTD).
+        
         Args:
             user_id: ID del usuario
+            start_date (datetime, opcional): Fecha inicio del período
+            end_date (datetime, opcional): Fecha fin del período
         
         Returns:
             dict: {
-                'total': {...},  # Rentabilidad total desde inicio
-                'annualized': {...},  # Rentabilidad anualizada
-                'ytd': {...}  # Rentabilidad del año actual
+                'total': {...},  # Rentabilidad total desde inicio (o del período)
+                'annualized': {...},  # Rentabilidad anualizada (o del período)
+                'ytd': {...}  # Rentabilidad del año actual (o del período)
             }
         """
         # Verificar que hay transacciones
@@ -282,6 +287,40 @@ class ModifiedDietzCalculator:
                 }
             }
         
+        # Si se especifica un período personalizado
+        if start_date and end_date:
+            period_return = ModifiedDietzCalculator.calculate_return(user_id, start_date, end_date)
+            
+            # Calcular anualización del período personalizado
+            days = period_return['days']
+            years = days / 365.25
+            
+            if years > 0 and period_return['return'] != -1:
+                annualized_return = (1 + period_return['return']) ** (1 / years) - 1
+                annualized_return_pct = annualized_return * 100
+            else:
+                annualized_return_pct = 0.0
+            
+            return {
+                'total': {
+                    'return_pct': period_return['return_pct'],
+                    'absolute_gain': period_return['absolute_gain'],
+                    'start_value': period_return['start_value'],
+                    'end_value': period_return['end_value'],
+                    'days': period_return['days']
+                },
+                'annualized': {
+                    'return_pct': round(annualized_return_pct, 2),
+                    'years': round(years, 2)
+                },
+                'ytd': {
+                    'return_pct': period_return['return_pct'],  # Mismo que total para período personalizado
+                    'absolute_gain': period_return['absolute_gain'],
+                    'days': period_return['days']
+                }
+            }
+        
+        # Si no hay período personalizado, usar cálculos estándar
         # Calcular rentabilidad anualizada (incluye total)
         annualized = ModifiedDietzCalculator.calculate_annualized_return(user_id)
         

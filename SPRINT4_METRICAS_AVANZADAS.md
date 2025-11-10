@@ -1,10 +1,10 @@
 # 📊 SPRINT 4 - MÉTRICAS AVANZADAS Y ANÁLISIS
 ## 🚧 EN PROGRESO
 
-**Versión**: v4.0.0-beta (HITO 1 completado)  
+**Versión**: v4.0.0-beta (HITO 1 y HITO 2 completados)  
 **Inicio**: 6 Noviembre 2025  
 **Duración estimada**: 3 semanas  
-**Estado**: ✅ HITO 1 COMPLETADO (8 Nov) | 🚧 HITO 2 SIGUIENTE
+**Estado**: ✅ HITO 1 COMPLETADO (8 Nov) | ✅ HITO 2 COMPLETADO (9 Nov) | 🚧 HITO 3 SIGUIENTE
 
 ---
 
@@ -108,64 +108,135 @@ Construir un sistema completo de métricas y análisis financiero sobre el found
 
 ---
 
-### **HITO 2: Métricas Avanzadas** (5-6 días)
-**Prioridad**: 🟡 MEDIA
+### ✅ **HITO 2: Modified Dietz Method** (COMPLETADO - 9 Nov 2025)
+**Prioridad**: 🔴 ALTA  
+**Duración real**: 1 día (9 Nov)
 
-**Métricas a Implementar**:
+**Objetivo**: Implementar el método Modified Dietz para calcular la rentabilidad del portfolio considerando el tiempo de permanencia de los cash flows.
 
-1. **TWR (Time-Weighted Return)**
-   - Mide performance de la estrategia de inversión
-   - Elimina el efecto de deposits/withdrawals
-   - Comparable con benchmarks
-   ```
-   TWR = [(1 + R1) × (1 + R2) × ... × (1 + Rn)] - 1
-   donde Ri = (Valor Final - Valor Inicial - Cash Flow) / (Valor Inicial + Cash Flow ponderado)
-   ```
+**¿Por qué Modified Dietz?**
+- ✅ **Estándar GIPS** (Global Investment Performance Standards)
+- ✅ **NO requiere precios históricos** (solo valor inicial y final)
+- ✅ **Pondera cash flows por tiempo** (elimina efecto de timing de deposits/withdrawals)
+- ✅ **Comparable con benchmarks** y otros portfolios
+- ✅ **Estándar de la industria** financiera
 
-2. **IRR (Internal Rate of Return / Money-Weighted Return)**
-   - Mide performance considerando timing de cash flows
-   - Más realista para el inversor individual
-   - Usa librería `numpy-financial` para cálculo
+**Fórmula Modified Dietz**:
+```
+R = (VF - VI - CF) / (VI + Σ(CF_i × W_i))
 
-3. **Sharpe Ratio**
-   ```
-   Sharpe = (Return Promedio - Risk-Free Rate) / Volatilidad
-   ```
-   - Risk-Free Rate: 3% anual (ajustable)
-   - Volatilidad: Desviación estándar de returns diarios
-   - Interpretación: >1 bueno, >2 muy bueno, >3 excelente
-
-4. **Max Drawdown**
-   ```
-   Drawdown = (Valor Pico - Valor Actual) / Valor Pico × 100
-   Max Drawdown = max(Drawdown) en período
-   ```
-   - Peor caída desde un pico
-   - Identifica riesgo de pérdida
-
-5. **Volatilidad (Desviación Estándar)**
-   ```
-   Volatilidad Anualizada = σ_diaria × √252
-   ```
-   - σ_diaria: Desviación estándar de returns diarios
-   - 252: Días de trading en un año
-   - Interpretación: Mayor volatilidad = mayor riesgo
-
-**Archivos**: 
-- `app/services/metrics/advanced_metrics.py`
-- `app/services/metrics/time_series.py` (cálculos temporales)
-
-**Dependencias nuevas**:
-```txt
-numpy-financial==1.0.0  # IRR calculation
-numpy==1.26.0           # Array operations
-pandas==2.1.0           # Time series (opcional)
+Donde:
+  R  = Rentabilidad del período
+  VF = Valor Final del portfolio
+  VI = Valor Inicial del portfolio
+  CF = Suma de cash flows externos (deposits/withdrawals)
+  W_i = Peso temporal del cash flow i = (D - d_i) / D
+  D  = Días totales del período
+  d_i = Días desde el cash flow i hasta el final
 ```
 
-**UI**:
-- Sección "Análisis de Riesgo" en dashboard
-- Cards con gráficos mini (sparklines)
-- Comparación con benchmarks (S&P 500, MSCI World)
+**Cash Flows Externos**:
+- ✅ DEPOSIT (depósitos del usuario)
+- ✅ WITHDRAWAL (retiradas del usuario)
+- ❌ DIVIDEND (son ingresos internos del portfolio)
+- ❌ FEE (son gastos internos del portfolio)
+
+**Implementación Completada**:
+
+1. **Portfolio Valuation Service** (`app/services/metrics/portfolio_valuation.py`):
+   - `get_value_at_date()`: Valoración del portfolio en cualquier fecha histórica
+     - Reconstruye posiciones usando transacciones
+     - Calcula valor con precios actuales o históricos
+     - Soporte para múltiples assets y currencies
+   - `get_user_money_at_date()`: Dinero real del usuario (sin apalancamiento)
+     - Considera deposits, withdrawals, P&L, dividends, fees
+     - Usa `FIFOCalculator` para calcular cost basis histórico
+   - `get_cash_flows()`: Lista de cash flows externos (DEPOSIT/WITHDRAWAL) ordenados
+
+2. **Modified Dietz Calculator** (`app/services/metrics/modified_dietz.py`):
+   - `calculate_return()`: Rentabilidad de un período específico
+     - Aplica fórmula Modified Dietz
+     - Calcula peso temporal de cada cash flow
+     - Retorna rentabilidad % y ganancia absoluta
+   - `calculate_annualized_return()`: Rentabilidad anualizada
+     - Fórmula: `((1 + R_total)^(365/días)) - 1`
+     - Permite comparar períodos de diferentes duraciones
+   - `calculate_ytd_return()`: Rentabilidad año actual (YTD)
+     - Período: 1 enero del año actual hasta hoy
+     - Métrica clave para evaluar performance del año
+   - `get_all_returns()`: Wrapper para dashboard
+     - Retorna las 3 métricas en un solo diccionario
+     - Incluye: Total, Anualizada, YTD
+
+3. **Nueva Card en Dashboard**: 💎 Rentabilidad (Modified Dietz)
+   - **Rentabilidad Anualizada**: Métrica principal (mostrada grande y destacada)
+     - Años de inversión (calculados automáticamente)
+   - **Rentabilidad Total**: Rentabilidad acumulada desde el inicio
+   - **Rentabilidad YTD**: Rentabilidad en el año actual
+   - **Ganancia Absoluta**: Ganancia total en EUR
+   - **Días de inversión**: Número de días desde la primera transacción
+   - **Tooltip explicativo**: Descripción del método y ventajas
+
+**Integración**:
+- ✅ Actualizado `app/services/metrics/basic_metrics.py`:
+  - Import de `ModifiedDietzCalculator`
+  - Llamada a `ModifiedDietzCalculator.get_all_returns(user_id)` en `get_all_metrics()`
+  - Retorna resultados en key `modified_dietz`
+- ✅ Actualizado `app/templates/portfolio/dashboard.html`:
+  - Nueva card morada en sección "Métricas Globales e Históricas"
+  - Color dinámico (morado/rojo) según rentabilidad positiva/negativa
+  - Desglose detallado de todas las métricas
+  - Tooltip con explicación del método
+
+**Validación Matemática**:
+```
+Portfolio de prueba:
+  - Ganancia Modified Dietz: 52.472,87 EUR
+  - P&L Total del sistema:   52.562,87 EUR
+  - Error absoluto:             90,00 EUR
+  - Error relativo:              0,17%  ✅ VALIDADO
+```
+
+**Métricas del Usuario**:
+```
+💎 Rentabilidad (Modified Dietz):
+  - Anualizada:        +16,28%  (7.85 años)
+  - Total:            +226,94%
+  - YTD 2025:          +17,86%
+  - Ganancia:       +52.472,87 EUR
+  - Días inversión:      2.867 días
+```
+
+**Comparación ROI vs Modified Dietz**:
+```
+ROI Simple:          +141%  (no considera timing de cash flows)
+Modified Dietz:      +227%  (pondera cash flows por tiempo)
+Diferencia:           +86%  (refleja mejor timing de inversión)
+```
+
+**Ventajas sobre ROI Simple**:
+- ✅ Elimina sesgo de timing (deposits tardíos no penalizan rentabilidad)
+- ✅ Comparable con benchmarks (S&P 500, NASDAQ, etc.)
+- ✅ Estándar de la industria (usado por gestoras profesionales)
+- ✅ Más preciso para evaluación de estrategia de inversión
+
+**Archivos Modificados**:
+- ✅ `app/services/metrics/portfolio_valuation.py` (NUEVO)
+- ✅ `app/services/metrics/modified_dietz.py` (NUEVO)
+- ✅ `app/services/metrics/basic_metrics.py` (ACTUALIZADO)
+- ✅ `app/templates/portfolio/dashboard.html` (ACTUALIZADO)
+
+**Fixes Aplicados**:
+- ✅ Import corregido: `fifo_calculator` (no `fifo`)
+- ✅ Parámetros `add_buy`: `total_cost` (no `cost` + `currency`)
+- ✅ Método FIFO: `get_current_position()` (no `get_current_quantity`)
+- ✅ Cash flows: Excluidos `DIVIDEND` (son ingresos internos)
+
+**Deploy**:
+- ✅ Committed: `feat(sprint4-hito2): Modified Dietz Method completado v4.0.0-beta`
+- ✅ Pushed to GitHub: `main` branch
+- ✅ Deployed to Production: https://followup.fit/
+- ✅ Validado en producción: Métricas funcionando correctamente
 
 ---
 

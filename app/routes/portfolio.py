@@ -161,7 +161,12 @@ def dashboard():
             h['weight_pct'] = 0
     
     # Calcular métricas básicas (Sprint 4 - HITO 1)
-    metrics = BasicMetrics.get_all_metrics(current_user.id, total_value, total_cost, total_pl)
+    metrics = BasicMetrics.get_all_metrics(
+        current_user.id, 
+        total_value, 
+        total_cost, 
+        total_pl
+    )
     
     return render_template(
         'portfolio/dashboard.html',
@@ -174,7 +179,7 @@ def dashboard():
         last_price_update=last_price_update,
         last_sync=last_sync,
         unified=True,  # Flag para indicar que son holdings unificados
-        metrics=metrics,
+        metrics=metrics
     )
 
 
@@ -182,6 +187,8 @@ def dashboard():
 @login_required
 def pl_by_asset():
     """Vista de P&L histórico por asset/activo"""
+    
+    # Obtener P&L data (todo el histórico)
     pl_data = BasicMetrics.get_pl_by_asset(current_user.id)
     
     return render_template(

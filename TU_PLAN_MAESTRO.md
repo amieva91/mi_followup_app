@@ -182,7 +182,7 @@
   - ✅ 8 mejoras de optimización y UX implementadas
   - ✅ Experiencia visual consistente (92% en toda la app)
 
-**🚧 SPRINT 4 - Métricas Avanzadas (EN PROGRESO - 8 Nov)**  
+**🚧 SPRINT 4 - Métricas Avanzadas (EN PROGRESO - 9 Nov)**  
 **Versión Actual**: v4.0.0-beta | **Duración estimada**: 3 semanas  
 **Documento detallado**: `SPRINT4_METRICAS_AVANZADAS.md`
 
@@ -222,15 +222,50 @@
   - P&L: calculado en backend (cost_eur y pl_eur pre-calculados)
   - Logs simplificados: cache hits de currency_service eliminados
 
+**✅ HITO 2: Modified Dietz Method (COMPLETADO - 9 Nov)**
+- ✅ **Portfolio Valuation Service** (`app/services/metrics/portfolio_valuation.py`):
+  - `get_value_at_date()`: Valoración del portfolio en cualquier fecha histórica
+  - `get_user_money_at_date()`: Dinero real del usuario (sin apalancamiento)
+  - Reconstrucción histórica de posiciones con FIFO
+  - Soporte para precios actuales vs precios históricos
+- ✅ **Modified Dietz Calculator** (`app/services/metrics/modified_dietz.py`):
+  - Estándar GIPS (Global Investment Performance Standards)
+  - `calculate_return()`: Rentabilidad de un período específico
+  - `calculate_annualized_return()`: Rentabilidad anualizada
+  - `calculate_ytd_return()`: Rentabilidad año actual (YTD)
+  - `get_all_returns()`: Wrapper para dashboard
+  - Fórmula: `R = (VF - VI - CF) / (VI + Σ(CF_i × W_i))`
+  - Cash flows externos: Solo DEPOSIT/WITHDRAWAL (dividendos son ingresos internos)
+- ✅ **Nueva card en Dashboard**: 💎 Rentabilidad (Modified Dietz)
+  - Rentabilidad Anualizada (con años de inversión)
+  - Rentabilidad Total (%)
+  - Rentabilidad YTD (año actual)
+  - Ganancia Absoluta (EUR)
+  - Días de inversión
+- ✅ **Validación matemática exitosa**:
+  - Ganancia Modified Dietz: 52.472 EUR
+  - P&L Total del sistema: 52.562 EUR
+  - **Error: 0,17%** ✅ (dentro del margen aceptable)
+- ✅ **Ventajas del Modified Dietz**:
+  - NO requiere precios históricos (solo necesita valor inicial y final)
+  - Pondera cash flows por tiempo (elimina efecto de timing de deposits/withdrawals)
+  - Comparable con benchmarks y otros portfolios
+  - Estándar de la industria financiera
+
 **Hitos Planificados**:
 - [x] **HITO 1**: Métricas Básicas ✅ COMPLETADO (8 Nov 2025)
-- [ ] **HITO 2**: Métricas Avanzadas (TWR, IRR, Sharpe, Max Drawdown, Volatilidad) 🚧 SIGUIENTE
-- [ ] **HITO 3**: Gráficos de Evolución (Chart.js - línea, área, barras)
+- [x] **HITO 2**: Modified Dietz Method ✅ COMPLETADO (9 Nov 2025)
+- [ ] **HITO 3**: Análisis de Rentabilidad Histórica 🚧 SIGUIENTE
+  - Nueva página `/portfolio/performance` con selectores de período
+  - Gráficos de evolución (Chart.js): Valor, P&L, Apalancamiento, Flujos
+  - Modified Dietz vs S&P 500 vs NASDAQ vs Benchmarks (comparación visual)
+  - Tabla comparativa por año (Tu rentabilidad vs índices)
+  - Sistema de períodos: TODO | 2025 | 2024 | ... | Últimos 12M/6M/3M/1M
+  - Métricas filtradas por período (P&L Realizado, Dividendos, Comisiones)
 - [ ] **HITO 4**: Distribución del Portfolio (Pie charts: asset/sector/industria/broker/moneda/país)
-- [ ] **HITO 5**: Página de Métricas Completa con selector de período
-- [ ] **HITO 6**: Mejoras UX - Modales y Navegación
-  - **#4**: Convertir detalle de asset (`/portfolio/asset/<id>`) a modal en Dashboard y Holdings
-  - **#5**: Convertir "Nueva Transacción" a modal con botón "+" en tabla (Dashboard y Holdings)
+- [ ] **HITO 5**: Mejoras UX - Modales y Navegación
+  - Convertir detalle de asset (`/portfolio/asset/<id>`) a modal en Dashboard y Holdings
+  - Convertir "Nueva Transacción" a modal con botón "+" en tabla (Dashboard y Holdings)
   - Formularios con validación Ajax sin recarga
   - Manejo de errores inline
   - Mejora experiencia de navegación

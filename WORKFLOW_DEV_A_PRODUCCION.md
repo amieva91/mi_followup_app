@@ -1,9 +1,36 @@
 # 🔄 WORKFLOW: Desarrollo → Producción
 
-**Actualizado**: 6 Noviembre 2025  
+**Actualizado**: 9 Noviembre 2025  
 **Estado**: ✅ WORKFLOW VALIDADO Y FUNCIONANDO
 
-**Último deploy**: 6 Nov 2025 - Sprint 3 v3.5.0 COMPLETADO (Precios en Tiempo Real + Conversión de Divisas)
+**Último deploy**: 9 Nov 2025 - Sprint 4 v4.0.0-beta (HITO 1 + HITO 2 COMPLETADOS - Modified Dietz Method)
+
+**Cambios en v4.0.0-beta** (9 Nov 2025):
+- ✅ **HITO 1: Métricas Básicas COMPLETADO** (8 Nov):
+  - 8 métricas implementadas: P&L Realizado, P&L No Realizado, P&L Total, ROI, Leverage/Dinero Prestado, Valor Total Cartera, Valor Total Cuenta de Inversión, Peso %
+  - Dashboard reorganizado: Métricas Globales primero, Portfolio después
+  - UI/UX mejorada: tooltips explicativos, desgloses detallados en todas las métricas
+  - Página P&L by Asset con búsqueda en tiempo real + ordenación
+  - Ordenación numérica universal en todas las tablas (Dashboard, Holdings, PL by Asset, Transactions)
+  - **Fix crítico**: P&L Realizado reescrito con FIFOCalculator (antes: 5% arbitrario)
+  - **Fix crítico**: P&L Total con fórmula correcta (incluye dividendos y comisiones)
+  - **Fix crítico**: Leverage incluye P&L Realizado + P&L No Realizado
+  - Todos los holdings mostrados (límite de 15 eliminado)
+- ✅ **HITO 2: Modified Dietz Method COMPLETADO** (9 Nov):
+  - **Portfolio Valuation Service**: `get_value_at_date()`, `get_user_money_at_date()`, reconstrucción histórica con FIFO
+  - **Modified Dietz Calculator**: Rentabilidad Total, Anualizada, YTD, Ganancia Absoluta
+  - **Nueva card en Dashboard**: 💎 Rentabilidad (Modified Dietz) con desglose completo
+  - **Estándar GIPS**: NO requiere precios históricos, pondera cash flows por tiempo, comparable con benchmarks
+  - **Validación matemática**: Error 0,17% vs P&L Total ✅
+  - **Métricas en producción**: Anualizada +16,28% (7.85 años), Total +226,94%, YTD +17,86%, Ganancia +52.472 EUR
+- ✅ **Archivos nuevos**:
+  - `app/services/metrics/portfolio_valuation.py`
+  - `app/services/metrics/modified_dietz.py`
+- ✅ **Archivos modificados**:
+  - `app/services/metrics/basic_metrics.py` (integración Modified Dietz)
+  - `app/templates/portfolio/dashboard.html` (nueva card + reorganización completa)
+  - `app/templates/portfolio/pl_by_asset.html` (columna Nº Dividendos)
+  - `app/templates/portfolio/transactions.html` (sorting JavaScript)
 
 **Cambios en v3.3.5 (CRÍTICO)**:
 - ✅ **FIX CRÍTICO**: Soporte para `datetime.date` en `parse_datetime()`
