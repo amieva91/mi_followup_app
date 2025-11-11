@@ -2,8 +2,8 @@
 
 **Fecha de inicio**: 5 Octubre 2025  
 **Timeline**: 6 meses (26 semanas)  
-**Última actualización**: 8 Noviembre 2025  
-**Estado actual**: ✅ Sprint 3 COMPLETADO (v3.6.0) | 🚧 Sprint 4 EN PROGRESO (v4.0.0-beta - HITO 1 ✅)
+**Última actualización**: 10 Noviembre 2025  
+**Estado actual**: ✅ Sprint 3 COMPLETADO (v3.6.0) | 🚧 Sprint 4 EN PROGRESO (v4.2.0-beta - HITO 1 ✅ | HITO 2 ✅ | Refinements ✅ | UX Avanzadas ✅)
 
 ## 🎉 PROGRESO RECIENTE
 
@@ -182,8 +182,8 @@
   - ✅ 8 mejoras de optimización y UX implementadas
   - ✅ Experiencia visual consistente (92% en toda la app)
 
-**🚧 SPRINT 4 - Métricas Avanzadas (EN PROGRESO - 9 Nov)**  
-**Versión Actual**: v4.0.0-beta | **Duración estimada**: 3 semanas  
+**🚧 SPRINT 4 - Métricas Avanzadas (EN PROGRESO - 10 Nov)**  
+**Versión Actual**: v4.2.0-beta | **Duración estimada**: 3 semanas  
 **Documento detallado**: `SPRINT4_METRICAS_AVANZADAS.md`
 
 **Objetivo**: Construir sistema completo de métricas y análisis financiero
@@ -252,9 +252,74 @@
   - Comparable con benchmarks y otros portfolios
   - Estándar de la industria financiera
 
+**✅ Refinements: Performance & UX (COMPLETADO - 10 Nov)**
+- ✅ **Cache de Métricas** (Mejora de Performance):
+  - Nueva tabla `MetricsCache` con TTL de 24 horas
+  - Service `MetricsCacheService` con `get()`, `set()`, `invalidate()`
+  - Invalidación automática en transacciones/precios/imports
+  - Botón manual "♻️ Recalcular" en dashboard
+  - Badge visual "⚡ Cache" cuando se usa cache
+  - **Mejora de rendimiento**: Dashboard 2-3s → 0.3s
+- ✅ **Fixes Críticos**:
+  - CSRF token en botón "Actualizar Precios" (error 400 corregido)
+  - Meta tag `<meta name="csrf-token">` en `layout.html`
+  - Funcionalidad "🗑️ Eliminar Transacciones" con confirmación
+  - Recalculo automático de holdings tras eliminar
+  - Invalidación automática de cache tras eliminar
+- ✅ **UX Mejorada**:
+  - Campo integrado para Yahoo URL (en vez de prompt nativo)
+  - Input con placeholder + botón "Enriquecer"
+  - Validación: error si campo vacío
+  - Limpieza automática tras éxito
+  - Mensajes de confirmación mejorados
+
+**✅ UX Avanzadas: Transacciones Manuales (COMPLETADO - 10 Nov)**
+- ✅ **Auto-selección en SELL** (`/portfolio/transactions/new`):
+  - Dropdown inteligente para seleccionar activos del portfolio
+  - Opción "-- Todas las cuentas --" por defecto (muestra todos los assets)
+  - Filtro opcional por cuenta específica (IBKR, DeGiro, Manual)
+  - Auto-completado completo al seleccionar:
+    - Symbol, ISIN, Divisa, Nombre del activo, Tipo de activo, Market Identifiers
+    - Actualización automática del campo "Cuenta" al broker del asset
+  - **Botón "Máximo"**: Auto-completa cantidad disponible para vender
+  - **Display mejorado**: `[Broker] Symbol - Name (Quantity)` en dropdown
+- ✅ **Autocompletado en BUY**:
+  - Búsqueda en tiempo real desde `AssetRegistry` global
+  - Sugerencias al escribir en Symbol o ISIN
+  - Auto-fill completo de todos los campos al seleccionar:
+    - Symbol, ISIN, Currency, Name, Asset Type, Exchange, MIC, Yahoo Suffix
+  - Experiencia sin interrupciones (no bloquea escritura del usuario)
+  - Alimentado desde base de datos global (compartida entre usuarios)
+- ✅ **Venta por quiebra (Bankruptcy)**:
+  - Validación actualizada: `price >= 0` (antes: `price > 0`)
+  - Soporte completo para precio = 0€
+  - Eliminación automática de holdings con `quantity = 0`
+  - Integración correcta con `FIFOCalculator` para P&L
+  - `add_sell()` devuelve `cost_basis_of_sale` → `realized_pl` calculado correctamente
+- ✅ **Botones de enriquecimiento inteligentes**:
+  - **"Enriquecer con OpenFIGI"**:
+    - Deshabilitado en modo NEW (tooltip: "Solo disponible al editar transacciones existentes")
+    - Habilitado en modo EDIT
+  - **"Desde URL de Yahoo"**:
+    - Habilitado en modo NEW y EDIT
+    - Input field con validación
+    - Extrae symbol + yahoo_suffix desde URL
+    - Actualiza `AssetRegistry` y sincroniza con `Asset`
+- ✅ **Redirección mejorada**:
+  - BUY → redirige a `/portfolio/holdings` (antes: `/portfolio/transactions`)
+  - SELL → redirige a `/portfolio/holdings` (antes: `/portfolio/transactions`)
+  - Mejor flujo UX: Ver holdings inmediatamente tras transacción
+- ✅ **Fixes críticos**:
+  - `KeyError: 'avg_price'` → Corregido a `'average_buy_price'` en FIFO
+  - Modal de precios: `data.updated` → `data.success` (corrección de clave JSON)
+  - Holdings API: Filtro por `account_id` optimizado (query más eficiente)
+  - `AttributeError: 'avg_buy_price'` → Atributo correcto `average_buy_price`
+
 **Hitos Planificados**:
 - [x] **HITO 1**: Métricas Básicas ✅ COMPLETADO (8 Nov 2025)
 - [x] **HITO 2**: Modified Dietz Method ✅ COMPLETADO (9 Nov 2025)
+- [x] **Refinements**: Performance & UX ✅ COMPLETADO (10 Nov 2025)
+- [x] **UX Avanzadas**: Transacciones Manuales ✅ COMPLETADO (10 Nov 2025)
 - [ ] **HITO 3**: Análisis de Rentabilidad Histórica 🚧 SIGUIENTE
   - Nueva página `/portfolio/performance` con selectores de período
   - Gráficos de evolución (Chart.js): Valor, P&L, Apalancamiento, Flujos

@@ -59,7 +59,9 @@
                             <div class="flex items-center gap-2">
                             <div>
                                 <div class="font-bold text-gray-900 break-words max-w-xs">
-                                    {{ holding.asset.name or holding.asset.symbol }}
+                                    <a href="{{ url_for('portfolio.asset_detail', id=holding.asset.id) }}" class="hover:text-blue-600">
+                                        {{ holding.asset.name if holding.asset.name else holding.asset.symbol }}
+                                    </a>
                                     {% if holding.asset.mic and not holding.asset.symbol %}
                                     <button class="fix-yahoo-btn text-orange-600 hover:text-orange-700 ml-2" 
                                             data-asset-id="{{ holding.asset.id }}" 
@@ -70,7 +72,11 @@
                                     {% endif %}
                                 </div>
                                 <div class="text-sm text-gray-400 break-words max-w-xs">
-                                    {{ holding.asset.asset_type }}{% if holding.asset.symbol and holding.asset.symbol != holding.asset.name and holding.asset.symbol|length < 15 %} • {{ holding.asset.symbol }}{% endif %}{% if holding.asset.exchange %} • {{ holding.asset.exchange }}{% endif %} • {{ holding.asset.currency }}{% if holding.asset.isin %} • {{ holding.asset.isin }}{% endif %}
+                                    {% if holding.asset.asset_type %}{{ holding.asset.asset_type }}{% endif %}
+                                    {% if holding.asset.symbol %} • {{ holding.asset.symbol }}{% endif %}
+                                    {% if holding.asset.exchange %} • {{ holding.asset.exchange }}{% endif %}
+                                    {% if holding.asset.currency %} • {{ holding.asset.currency }}{% endif %}
+                                    {% if holding.asset.isin %} • {{ holding.asset.isin }}{% endif %}
                                 </div>
                             </div>
                             </div>

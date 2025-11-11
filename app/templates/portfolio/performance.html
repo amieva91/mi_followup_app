@@ -1,0 +1,97 @@
+{% extends "base/layout.html" %}
+
+{% block title %}Análisis de Performance - Followup{% endblock %}
+
+{% block content %}
+<div class="max-w-[92%] mx-auto px-4 py-8">
+    <!-- Header -->
+    <div class="mb-8">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900">📊 Análisis de Performance</h1>
+                <p class="text-gray-600 mt-1">Evolución histórica de tu portfolio</p>
+            </div>
+            <a href="{{ url_for('portfolio.dashboard') }}" class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm font-medium text-gray-700">
+                ← Volver al Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- Info de Frecuencia -->
+    <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+        <div class="flex items-center gap-2">
+            <span class="text-2xl">📅</span>
+            <div>
+                <p class="text-sm font-semibold text-blue-900">Frecuencia: Mensual</p>
+                <p class="text-xs text-blue-700">Optimizado para máximo rendimiento. Último punto actualizado con precios reales.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Indicator -->
+    <div id="loadingIndicator" class="bg-white rounded-xl shadow-sm p-12 text-center border border-gray-200">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+        <p class="text-gray-600">Cargando gráficos...</p>
+    </div>
+
+    <!-- Error Message -->
+    <div id="errorMessage" class="hidden bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+        <p class="text-red-800 font-medium">Error al cargar los gráficos</p>
+    </div>
+
+    <!-- Charts Container -->
+    <div id="chartsContainer" class="hidden space-y-6">
+        <!-- Gráfico 1: Evolución del Valor Real de la Cuenta -->
+        <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-200">  
+            <div class="mb-4">
+                <h2 class="text-xl font-bold text-gray-900">📈 Evolución del Valor Real de la Cuenta</h2>
+                <p class="text-sm text-gray-600 mt-1">
+                    Valor de las posiciones (sin apalancamiento) vs capital invertido neto
+                </p>
+            </div>
+            <div style="position: relative; height: 400px;">
+                <canvas id="portfolioValueChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Gráfico 2: Rentabilidad Acumulada -->
+        <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+            <div class="mb-4">
+                <h2 class="text-xl font-bold text-gray-900">💎 Rentabilidad Acumulada (Modified Dietz)</h2>
+                <p class="text-sm text-gray-600 mt-1">
+                    Rentabilidad % calculada según el método Modified Dietz (estándar GIPS)
+                </p>
+            </div>
+            <div style="position: relative; height: 400px;">
+                <canvas id="returnsChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Info Footer -->
+        <div class="bg-blue-50 border border-blue-200 rounded-xl p-6">
+            <div class="flex items-start">
+                <div class="flex-shrink-0">
+                    <svg class="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <div class="ml-3 flex-1">
+                    <h3 class="text-sm font-medium text-blue-900">ℹ️ Sobre estos gráficos</h3>
+                    <div class="mt-2 text-sm text-blue-800 space-y-1">
+                        <p><strong>📈 Valor del Portfolio:</strong> Incluye el valor actual de todas tus posiciones abiertas a precio de mercado.</p>
+                        <p><strong>💰 Capital Invertido:</strong> Depósitos totales menos retiradas (no incluye ganancias ni pérdidas).</p>
+                        <p><strong>💎 Rentabilidad Acumulada:</strong> Calculada con el método Modified Dietz, estándar de la industria financiera (GIPS). Pondera los cash flows por tiempo.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Chart.js Library -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<!-- Custom Charts Script -->
+<script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+{% endblock %}
+

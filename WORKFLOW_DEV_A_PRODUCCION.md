@@ -1,9 +1,19 @@
 # 🔄 WORKFLOW: Desarrollo → Producción
 
-**Actualizado**: 9 Noviembre 2025  
+**Actualizado**: 10 Noviembre 2025  
 **Estado**: ✅ WORKFLOW VALIDADO Y FUNCIONANDO
 
-**Último deploy**: 9 Nov 2025 - Sprint 4 v4.0.0-beta (HITO 1 + HITO 2 COMPLETADOS - Modified Dietz Method)
+**Último deploy**: 10 Nov 2025 - Sprint 4 v4.2.0-beta (HITO 1 + HITO 2 + Refinements + UX Avanzadas COMPLETADOS)
+
+**Cambios en v4.2.0-beta** (10 Nov 2025):
+- ✅ **UX Avanzadas: Transacciones Manuales COMPLETADO**:
+  - Auto-selección en SELL: Dropdown inteligente con filtro por cuenta, botón "Máximo", auto-fill completo
+  - Autocompletado en BUY: Búsqueda en tiempo real desde AssetRegistry, sugerencias inline
+  - Venta por quiebra: Soporte para precio = 0€, validación actualizada, eliminación automática de holdings
+  - Botones de enriquecimiento: OpenFIGI (solo EDIT), Yahoo URL (NEW y EDIT)
+  - Redirección mejorada: BUY/SELL → `/portfolio/holdings`
+  - Fix `KeyError: 'avg_price'` → `'average_buy_price'`
+  - Fix modal de precios: `data.updated` → `data.success`
 
 **Cambios en v4.0.0-beta** (9 Nov 2025):
 - ✅ **HITO 1: Métricas Básicas COMPLETADO** (8 Nov):
@@ -671,6 +681,6 @@ sudo tail -f /var/log/nginx/error.log
 
 ---
 
-**Última actualización**: 5 Octubre 2025  
-**Próxima revisión**: Después del primer deploy exitoso
+**Última actualización**: 10 Noviembre 2025  
+**Próxima revisión**: Después de Sprint 4 - HITO 3 (Gráficos de Evolución)
 

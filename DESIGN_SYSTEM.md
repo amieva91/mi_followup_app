@@ -2,8 +2,8 @@
 
 **Filosofía**: Elegante, Profesional, Financiero, Minimalista
 
-**Última actualización**: 8 Noviembre 2025  
-**Estado**: ✅ Sprint 3 COMPLETADO v3.6.0 | 🚧 Sprint 4 EN PROGRESO v4.0.0-beta (HITO 1 ✅)
+**Última actualización**: 10 Noviembre 2025  
+**Estado**: ✅ Sprint 3 COMPLETADO v3.6.0 | 🚧 Sprint 4 EN PROGRESO v4.2.0-beta (HITO 1 ✅ | HITO 2 ✅ | Refinements ✅ | UX Avanzadas ✅)
 
 ---
 
@@ -1275,6 +1275,156 @@ Donde:
 
 ---
 
-**Última actualización**: 9 Noviembre 2025
+---
+
+### ✅ Refinements: Performance & UX (COMPLETADO - 10 Nov)
+
+**1. Badge "⚡ Cache"**
+- ✅ **Ubicación**: Dashboard, al lado del botón "♻️ Recalcular"
+- ✅ **Diseño**:
+  - Fuente: `text-sm font-medium`
+  - Color: `text-purple-700`
+  - Background: `bg-purple-100 border border-purple-300`
+  - Padding: `px-3 py-1`
+  - Border-radius: `rounded-full`
+- ✅ **Condicional**: Solo visible si `metrics._from_cache == True`
+- ✅ **Texto**: "⚡ Cache"
+- ✅ **Propósito**: Indicador visual de que las métricas se cargaron desde cache (instantáneo)
+
+**2. Botón "♻️ Recalcular"**
+- ✅ **Ubicación**: Dashboard, debajo del título "Portfolio"
+- ✅ **Diseño**:
+  - Formulario POST con CSRF token
+  - Botón: `inline-flex items-center px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition`
+  - Icono: ♻️
+  - Texto: "Recalcular"
+- ✅ **Acción**: POST a `/portfolio/cache/invalidate`
+- ✅ **Flash message**: "✅ Cache invalidado. Las métricas se recalcularán en la próxima visita."
+- ✅ **Propósito**: Permitir invalidar manualmente el cache de métricas
+
+**3. Botón "🗑️ Eliminar" en Transacciones**
+- ✅ **Ubicación**: Tabla de transacciones (`/portfolio/transactions`), columna "Acciones"
+- ✅ **Diseño**:
+  - Botón: `inline-flex items-center px-3 py-1 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition text-sm font-medium`
+  - Icono: 🗑️
+  - Texto: "Eliminar"
+  - Al lado del botón "✏️ Editar" (azul)
+- ✅ **Funcionalidad**:
+  - `onclick="confirmDelete(txn_id, asset_symbol)"`
+  - Modal de confirmación JavaScript: "¿Estás seguro de eliminar esta transacción de [ASSET]? Esta acción no se puede deshacer."
+  - Si confirma: POST a `/portfolio/transactions/<id>/delete` con CSRF token
+  - Recalcula holdings automáticamente
+  - Invalida cache de métricas
+- ✅ **Flash message**: "✅ Transacción de [ASSET] eliminada correctamente. Holdings recalculados."
+
+**4. Campo integrado para Yahoo URL**
+- ✅ **Ubicación**: Formulario de edición de transacciones, sección "Identificadores de Mercado"
+- ✅ **Diseño antiguo** (reemplazado): `prompt()` nativo de JavaScript
+- ✅ **Diseño nuevo**:
+  - Label: `🌐 URL de Yahoo Finance (opcional)` (`text-xs font-medium text-gray-700`)
+  - Input: `type="url"`, placeholder: "https://finance.yahoo.com/quote/AAPL/"
+  - Clases: `flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent`
+  - Botón "Enriquecer": `px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm whitespace-nowrap`
+  - Layout: Flex row (input + botón en la misma línea)
+- ✅ **Validación**:
+  - Si campo vacío: Muestra error "❌ Por favor, pega una URL de Yahoo Finance primero"
+  - Si éxito: Limpia el campo automáticamente
+- ✅ **Feedback visual**:
+  - Botón deshabilitado + texto "⏳ Procesando..." durante la petición
+  - Mensaje de éxito con datos actualizados
+  - Mensaje de error si falla
+- ✅ **Propósito**: Permitir corrección manual de datos de assets usando URL de Yahoo Finance (más intuitivo que prompt nativo)
+
+**5. Meta Tag CSRF Global**
+- ✅ **Ubicación**: `app/templates/base/layout.html`, dentro de `<head>`
+- ✅ **Código**: `<meta name="csrf-token" content="{{ csrf_token() }}">`
+- ✅ **Propósito**: Disponibilizar el CSRF token para todos los fetch JavaScript sin necesidad de incluirlo manualmente en cada página
+- ✅ **Uso**: JavaScript puede obtenerlo con `document.querySelector('meta[name="csrf-token"]')?.content`
+
+**6. Mejoras de Rendimiento**
+- ✅ **Cache de métricas**: Reducción de 85% en tiempo de carga del dashboard (2-3s → 0.3s)
+- ✅ **Tabla `MetricsCache`**: TTL de 24 horas, almacena resultados pre-calculados en JSON
+- ✅ **Invalidación inteligente**: Automática en transacciones/precios/imports + manual con botón
+
+**Archivos Modificados**:
+- ✅ `app/models/metrics_cache.py` (NUEVO)
+- ✅ `app/services/metrics/cache.py` (NUEVO)
+- ✅ `app/routes/portfolio.py` (integración cache + ruta delete + ruta invalidate)
+- ✅ `app/templates/base/layout.html` (meta CSRF)
+- ✅ `app/templates/portfolio/dashboard.html` (badge cache + botón recalcular)
+- ✅ `app/templates/portfolio/transaction_form.html` (campo Yahoo URL)
+- ✅ `app/templates/portfolio/transactions.html` (botón eliminar + función JS)
+
+---
+
+### ✅ UX Avanzadas: Transacciones Manuales (COMPLETADO - 10 Nov)
+
+**Objetivo**: Mejorar la experiencia de usuario al registrar transacciones BUY/SELL manuales.
+
+**1. Dropdown de Auto-selección en SELL**
+- ✅ **Ubicación**: `/portfolio/transactions/new`, Tipo = SELL
+- ✅ **Diseño**:
+  - Label: "🎯 Seleccionar posición a vender" (`text-sm font-medium text-gray-700`)
+  - Select: `w-full px-3 py-2 border border-gray-300 rounded-lg` con opciones dinámicas
+  - Opción por defecto: "-- Seleccione un activo a vender --"
+  - Formato de opción: `[Broker] Symbol - Name (Quantity)`
+  - Ejemplo: `[IBKR] AAPL - Apple Inc (50)` o `[DeGiro] GRF - Grifols SA (1200)`
+- ✅ **Filtro por cuenta**:
+  - Campo "Cuenta" con opción "-- Todas las cuentas --" por defecto
+  - Si se selecciona un broker específico, solo muestra activos de ese broker
+- ✅ **Botón "Máximo"**:
+  - Ubicación: Al lado del campo "Cantidad"
+  - Diseño: `px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 text-sm`
+  - Funcionalidad: Auto-completa la cantidad con el máximo disponible
+- ✅ **Auto-completado**: Al seleccionar un activo, rellena: Symbol, ISIN, Currency, Name, Asset Type, Exchange, MIC, Yahoo Suffix, y actualiza "Cuenta" automáticamente
+
+**2. Autocompletado en BUY**
+- ✅ **Ubicación**: `/portfolio/transactions/new`, Tipo = BUY
+- ✅ **Diseño**:
+  - Input de búsqueda en "Symbol o ISIN"
+  - Sugerencias aparecen debajo en div: `absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-60 overflow-auto`
+  - Cada sugerencia: `px-4 py-2 hover:bg-gray-100 cursor-pointer transition`
+  - Formato: `Symbol - Name (ISIN)` en texto normal + gris para ISIN
+- ✅ **Funcionalidad**:
+  - Búsqueda en tiempo real desde `AssetRegistry` global
+  - Tolerante a errores (búsqueda fuzzy)
+  - No bloquea la escritura del usuario
+  - Auto-fill completo al seleccionar
+
+**3. Soporte para Venta por Quiebra (Precio 0€)**
+- ✅ **Validación actualizada**:
+  - `price >= 0` (antes: `price > 0`)
+  - Validador WTForms: `InputRequired()` + `NumberRange(min=0)`
+  - HTML input: `min="0"` explícito
+- ✅ **UX sin cambios**: El campo de precio sigue siendo normal, simplemente acepta 0
+
+**4. Botones de Enriquecimiento Inteligentes**
+- ✅ **"Enriquecer con OpenFIGI"**:
+  - **Modo NEW**: Deshabilitado con `opacity-50 cursor-not-allowed`
+  - Tooltip: "Solo disponible al editar transacciones existentes"
+  - **Modo EDIT**: Habilitado, color naranja
+- ✅ **"Desde URL de Yahoo"**:
+  - Siempre habilitado (NEW y EDIT)
+  - Input + botón inline (campo ya descrito en Refinements)
+
+**5. Redirección Mejorada**
+- ✅ **BUY/SELL → `/portfolio/holdings`** (antes: `/portfolio/transactions`)
+- ✅ **Lógica**: `return redirect(url_for('portfolio.holdings_list'))`
+- ✅ **Propósito**: Ver inmediatamente el cambio en el portfolio tras la transacción
+
+**6. Modal de Actualización de Precios**
+- ✅ **Fix crítico**: Cambiar `data.updated` → `data.success` en JavaScript
+- ✅ **Ubicación**: `app/templates/portfolio/dashboard.html`, función `onUpdateComplete()`
+- ✅ **Resultado**: Modal ahora muestra correctamente "✅ 29 activos actualizados"
+
+**Archivos Modificados**:
+- ✅ `app/routes/portfolio.py` (lógica transacciones + API holdings + redirect)
+- ✅ `app/forms/portfolio_forms.py` (validadores `InputRequired`, `NumberRange(min=0)`)
+- ✅ `app/templates/portfolio/transaction_form.html` (dropdown SELL, autocompletado BUY, botones)
+- ✅ `app/templates/portfolio/dashboard.html` (modal de precios corregido)
+
+---
+
+**Última actualización**: 10 Noviembre 2025
 **Próxima revisión**: Después de Sprint 4 - HITO 3
 

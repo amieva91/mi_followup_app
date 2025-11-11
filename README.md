@@ -2,7 +2,7 @@
 
 Sistema completo de gestión financiera personal.
 
-## ✅ Estado Actual (8 Nov 2025) - v4.0.0-beta
+## ✅ Estado Actual (10 Nov 2025) - v4.2.0-beta
 
 **Funcionalidades Implementadas:**
 - ✅ **Sprint 0 - Arquitectura Base** - Configuración inicial, estructura modular
@@ -146,6 +146,45 @@ Sistema completo de gestión financiera personal.
       - Pondera cash flows por tiempo (elimina efecto de timing de deposits/withdrawals)
       - Comparable con benchmarks y otros portfolios
       - Estándar de la industria financiera
+  - ✅ **Refinements: Performance & UX (v4.1.0-beta - COMPLETADO 10 Nov)**:
+    - **Cache de Métricas** (Mejora de Performance):
+      - Nueva tabla `MetricsCache` con TTL de 24 horas
+      - Invalidación automática en transacciones/precios/imports
+      - Botón manual "♻️ Recalcular" en dashboard
+      - Badge visual "⚡ Cache" cuando se usa cache
+      - Reducción de tiempo de carga del dashboard: 2-3s → 0.3s
+    - **Fixes Críticos**:
+      - CSRF token en botón "Actualizar Precios" (corregido error 400)
+      - Funcionalidad "🗑️ Eliminar Transacciones" con confirmación
+      - UX mejorada: Campo integrado para Yahoo URL (en vez de prompt nativo)
+      - Meta tag CSRF en `layout.html` para todos los formularios
+      - Recalculo automático de holdings tras eliminar transacción
+      - Mensajes de confirmación mejorados
+  - ✅ **UX Avanzadas: Transacciones Manuales (v4.2.0-beta - COMPLETADO 10 Nov)**:
+    - **Auto-selección en SELL**:
+      - Dropdown inteligente para seleccionar activos del portfolio
+      - Filtro opcional por cuenta (IBKR, DeGiro, o todas)
+      - Auto-completado de Symbol, ISIN, Divisa, Nombre, Tipo
+      - Botón "Máximo" para cantidad disponible
+      - Actualización automática de la cuenta al seleccionar holding
+    - **Autocompletado en BUY**:
+      - Búsqueda en tiempo real desde AssetRegistry global
+      - Auto-fill de todos los campos (Symbol, ISIN, Currency, etc.)
+      - Experiencia sin interrupciones (no bloquea escritura)
+    - **Venta por quiebra**:
+      - Soporte para precio = 0€ (bankruptcy)
+      - Eliminación automática de holdings con cantidad = 0
+      - Integración con FIFOCalculator para P&L correcto
+    - **Botones de enriquecimiento**:
+      - "Enriquecer con OpenFIGI": Habilitado solo en modo EDIT
+      - "Desde URL de Yahoo": Habilitado en NEW y EDIT
+      - Tooltips explicativos para estado deshabilitado
+    - **Redirección mejorada**:
+      - BUY/SELL → redirige a `/portfolio/holdings` (antes: transactions)
+    - **Fixes críticos**:
+      - Corregido `KeyError: 'avg_price'` → `average_buy_price` en FIFO
+      - Corregido modal de actualización de precios: `data.updated` → `data.success`
+      - Holdings API optimizada con filtro por account_id
   - 🚧 **HITO 3: Gráficos de Evolución (PENDIENTE)**:
     - Gráfico de evolución del portfolio (valor total)
     - Gráfico de apalancamiento/cash histórico
@@ -277,10 +316,10 @@ sudo systemctl status followup.service
 
 ## 📊 Estado del Proyecto
 
-**Fase actual**: Sprint 3 - ✅ COMPLETADO / Sprint 4 - Iniciando  
-**Última actualización**: 6 Noviembre 2025  
-**Versión**: 3.5.0  
-**Progreso**: Sprint 0 ✅ | Sprint 1 ✅ | Sprint 2 ✅ | Sprint 3 ✅ (100%)
+**Fase actual**: Sprint 4 - Métricas Avanzadas (En Progreso - 90%)  
+**Última actualización**: 10 Noviembre 2025  
+**Versión**: 4.2.0-beta  
+**Progreso**: Sprint 0 ✅ | Sprint 1 ✅ | Sprint 2 ✅ | Sprint 3 ✅ | Sprint 4 🚧 (HITO 1 ✅ | HITO 2 ✅ | Refinements ✅ | UX Avanzadas ✅)
 
 **Highlights Sprint 3 Final:**
 - ✅ Precios en tiempo real desde Yahoo Finance (15 métricas)
@@ -294,10 +333,19 @@ sudo systemctl status followup.service
 - ✅ AssetRegistry global + MappingRegistry editable
 - ✅ 100% precisión en holdings y P&L
 
-**Sprint 4 - Métricas Avanzadas (Próximo):**
-- 📊 Leverage (apalancamiento basado en deposits/withdrawals)
-- 📊 Peso % por posición en portfolio
-- 📊 P&L Realizado vs No Realizado
-- 📊 TWR, IRR, Sharpe Ratio, Max Drawdown, Volatilidad
-- 📈 Gráficos de evolución y distribución
+**Highlights Sprint 4 - Métricas Avanzadas (HITO 1 + 2 + Refinements + UX Avanzadas ✅):**
+- ✅ 8 Métricas implementadas (P&L Realizado, P&L No Realizado, ROI, Leverage, etc.)
+- ✅ Modified Dietz Method (estándar GIPS, sin necesidad de precios históricos)
+- ✅ Dashboard reorganizado (Métricas Globales + Portfolio separados)
+- ✅ Página P&L by Asset con histórico completo
+- ✅ Cache de métricas (2-3s → 0.3s de carga)
+- ✅ Eliminar transacciones con confirmación
+- ✅ Fixes críticos CSRF + UX mejoradas
+- ✅ Transacciones manuales avanzadas (auto-selección SELL, autocompletado BUY, venta por quiebra)
+- ✅ Botones de enriquecimiento inteligentes (OpenFIGI + Yahoo URL)
+- ✅ Redirección optimizada a holdings tras transacciones
+
+**Próximo: Sprint 4 - HITO 3 (Gráficos de Evolución):**
+- 📈 5 gráficos interactivos (Portfolio, Apalancamiento, Flujos, P&L, Rentabilidad vs Benchmarks)
+- 📊 Tabla comparativa con índices principales
 

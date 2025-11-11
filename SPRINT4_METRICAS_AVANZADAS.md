@@ -1,10 +1,10 @@
 # 📊 SPRINT 4 - MÉTRICAS AVANZADAS Y ANÁLISIS
 ## 🚧 EN PROGRESO
 
-**Versión**: v4.0.0-beta (HITO 1 y HITO 2 completados)  
+**Versión**: v4.2.0-beta (HITO 1, HITO 2, Refinements y UX Avanzadas completados)  
 **Inicio**: 6 Noviembre 2025  
 **Duración estimada**: 3 semanas  
-**Estado**: ✅ HITO 1 COMPLETADO (8 Nov) | ✅ HITO 2 COMPLETADO (9 Nov) | 🚧 HITO 3 SIGUIENTE
+**Estado**: ✅ HITO 1 COMPLETADO (8 Nov) | ✅ HITO 2 COMPLETADO (9 Nov) | ✅ Refinements COMPLETADO (10 Nov) | ✅ UX Avanzadas COMPLETADO (10 Nov) | 🚧 HITO 3 SIGUIENTE
 
 ---
 
@@ -237,6 +237,157 @@ Diferencia:           +86%  (refleja mejor timing de inversión)
 - ✅ Pushed to GitHub: `main` branch
 - ✅ Deployed to Production: https://followup.fit/
 - ✅ Validado en producción: Métricas funcionando correctamente
+
+---
+
+### ✅ **Refinements: Performance & UX** (COMPLETADO - 10 Nov 2025)
+**Prioridad**: 🟡 MEDIA  
+**Duración real**: 1 día (10 Nov)
+
+**Objetivo**: Mejorar performance del dashboard y corregir issues críticos de UX.
+
+**1. Cache de Métricas** (Mejora de Performance):
+- **Nueva tabla**: `MetricsCache` con TTL de 24 horas
+  ```python
+  class MetricsCache(db.Model):
+      id = db.Column(db.Integer, primary_key=True)
+      user_id = db.Column(db.Integer, db.ForeignKey('users.id'), unique=True)
+      cached_data = db.Column(db.JSON)
+      created_at = db.Column(db.DateTime, default=datetime.utcnow)
+      expires_at = db.Column(db.DateTime)  # TTL: 24 horas
+  ```
+
+- **Nuevo servicio**: `MetricsCacheService` (`app/services/metrics/cache.py`)
+  - `get(user_id)`: Obtiene métricas del cache si no expiró
+  - `set(user_id, metrics_data)`: Guarda métricas en cache
+  - `invalidate(user_id)`: Borra cache manualmente
+
+- **Invalidación automática**:
+  - Al crear/editar/eliminar transacción
+  - Al actualizar precios
+  - Al importar CSV
+  - Al hacer click en botón "♻️ Recalcular"
+
+- **Badge visual**: "⚡ Cache" en dashboard cuando se usa cache
+
+- **Mejora de rendimiento**: Dashboard 2-3s → 0.3s (reducción de 85%)
+
+**2. Fixes Críticos**:
+- ✅ **CSRF Token en "Actualizar Precios"**:
+  - Error 400 corregido
+  - Añadido `<meta name="csrf-token" content="{{ csrf_token() }}">` en `layout.html`
+  - Fetch modificado para enviar CSRF token en FormData
+  
+- ✅ **Funcionalidad "Eliminar Transacciones"**:
+  - Botón "🗑️ Eliminar" añadido en tabla de transacciones
+  - Modal de confirmación JavaScript
+  - Recalculo automático de holdings tras eliminar
+  - Invalidación automática de cache tras eliminar
+  - Mensaje de confirmación: "✅ Transacción de [ASSET] eliminada correctamente"
+
+**3. UX Mejorada**:
+- ✅ **Campo integrado para Yahoo URL** (reemplaza prompt nativo):
+  - Input HTML con placeholder
+  - Botón "Enriquecer" al lado del campo
+  - Validación: error si campo vacío
+  - Limpieza automática tras éxito
+  - Diseño consistente con el sistema
+
+**Archivos Modificados**:
+- ✅ `app/models/metrics_cache.py` (NUEVO)
+- ✅ `app/services/metrics/cache.py` (NUEVO)
+- ✅ `app/models/__init__.py` (import MetricsCache)
+- ✅ `app/routes/portfolio.py`:
+  - `dashboard()`: integración con cache
+  - `transaction_new()`, `transaction_edit()`: invalidación de cache
+  - `import_csv_process()`: invalidación de cache
+  - `update_prices()`: invalidación de cache
+  - `transaction_delete()`: nueva ruta para eliminar (NUEVO)
+  - `invalidate_cache()`: nueva ruta manual (NUEVO)
+- ✅ `app/templates/base/layout.html` (meta CSRF token)
+- ✅ `app/templates/portfolio/dashboard.html`:
+  - Botón "♻️ Recalcular"
+  - Badge "⚡ Cache"
+  - CSRF token en fetch de precios
+- ✅ `app/templates/portfolio/transaction_form.html`:
+  - Campo input para Yahoo URL
+  - JavaScript actualizado
+- ✅ `app/templates/portfolio/transactions.html`:
+  - Botón "🗑️ Eliminar"
+  - Función JavaScript `confirmDelete()`
+
+**Migración**:
+```bash
+flask db migrate -m "Add MetricsCache table for performance optimization"
+flask db upgrade
+```
+
+**Deploy**:
+- ✅ Committed: `Sprint 4 - Refinements: Cache de métricas + Fixes críticos`
+- ✅ Pushed to GitHub: `main` branch
+- ✅ Deployed to Production: https://followup.fit/
+- ✅ Validado en producción: Cache y fixes funcionando correctamente
+
+---
+
+### ✅ **UX Avanzadas: Transacciones Manuales** (COMPLETADO - 10 Nov 2025)
+**Prioridad**: 🟡 MEDIA  
+**Duración real**: 1 día (10 Nov)
+
+**Objetivo**: Implementar funcionalidades UX avanzadas para facilitar el registro manual de transacciones BUY/SELL.
+
+**Funcionalidades Implementadas**:
+
+**1. Auto-selección en SELL**:
+- ✅ Dropdown inteligente para seleccionar activos del portfolio
+- ✅ Opción "-- Todas las cuentas --" por defecto (muestra todos los assets)
+- ✅ Filtro opcional por cuenta específica (IBKR, DeGiro, Manual)
+- ✅ Display: `[Broker] Symbol - Name (Quantity)`
+- ✅ Auto-completado completo al seleccionar: Symbol, ISIN, Currency, Name, Asset Type, Exchange, MIC, Yahoo Suffix
+- ✅ **Botón "Máximo"**: Auto-completa cantidad disponible para vender
+- ✅ Actualización automática del campo "Cuenta" al broker del asset seleccionado
+
+**2. Autocompletado en BUY**:
+- ✅ Búsqueda en tiempo real desde `AssetRegistry` global
+- ✅ Sugerencias al escribir en Symbol o ISIN
+- ✅ Auto-fill completo de todos los campos
+- ✅ Experiencia sin interrupciones (no bloquea escritura)
+- ✅ Alimentado desde base de datos global compartida
+
+**3. Venta por Quiebra (Bankruptcy)**:
+- ✅ Soporte completo para precio = 0€
+- ✅ Validación: `InputRequired()` + `NumberRange(min=0)`
+- ✅ Eliminación automática de holdings con quantity = 0
+- ✅ Integración correcta con `FIFOCalculator`
+- ✅ Cálculo correcto de P&L: `realized_pl = total_sale - cost_basis`
+
+**4. Botones de Enriquecimiento Inteligentes**:
+- ✅ **"Enriquecer con OpenFIGI"**: Deshabilitado en NEW (tooltip), habilitado en EDIT
+- ✅ **"Desde URL de Yahoo"**: Habilitado en NEW y EDIT
+- ✅ Extrae symbol + yahoo_suffix desde URL
+- ✅ Actualiza `AssetRegistry` y sincroniza con `Asset`
+
+**5. Redirección Mejorada**:
+- ✅ BUY/SELL → redirige a `/portfolio/holdings` (antes: `/portfolio/transactions`)
+- ✅ Feedback visual instantáneo del cambio en el portfolio
+
+**6. Fixes Críticos**:
+- ✅ `KeyError: 'avg_price'` → `'average_buy_price'` en FIFO
+- ✅ Modal de precios: `data.updated` → `data.success`
+- ✅ Holdings API: Query optimizada con `account_id.in_()`
+- ✅ `AttributeError: 'avg_buy_price'` → `average_buy_price` correcto
+
+**Archivos Modificados**:
+- ✅ `app/routes/portfolio.py`: Lógica de transacciones y API endpoints
+- ✅ `app/forms/portfolio_forms.py`: Validadores (`InputRequired`, `NumberRange(min=0)`)
+- ✅ `app/templates/portfolio/transaction_form.html`: UI del formulario con dropdowns
+- ✅ `app/templates/portfolio/dashboard.html`: Modal de actualización de precios
+
+**Deploy**:
+- ✅ Committed: `Fix: Corregir transacciones manuales y modal de actualización de precios`
+- ✅ Pushed to GitHub: `main` branch
+- ✅ Deployed to Production: https://followup.fit/
+- ✅ Validado en producción: Todas las funcionalidades funcionando correctamente
 
 ---
 

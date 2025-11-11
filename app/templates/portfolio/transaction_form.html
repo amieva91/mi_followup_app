@@ -30,10 +30,30 @@
 
                 <div>
                     {{ form.transaction_type.label(class="block text-sm font-medium text-gray-700 mb-2") }}
-                    {{ form.transaction_type(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent") }}
+                    {{ form.transaction_type(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent", id="transaction_type") }}
                     {% if form.transaction_type.errors %}
                         <div class="mt-1 text-sm text-red-600">{{ form.transaction_type.errors[0] }}</div>
                     {% endif %}
+                </div>
+            </div>
+
+            <!-- Auto-selección SELL (solo visible si tipo = SELL) -->
+            <div id="sellSelector" class="bg-orange-50 border border-orange-200 rounded-lg p-6 mb-6" style="display: none;">
+                <h3 class="font-semibold text-orange-900 mb-2">📦 Seleccionar de Mis Posiciones</h3>
+                <p class="text-xs text-orange-700 mb-4">Elige qué activo quieres vender de tu cartera actual</p>
+                
+                <div>
+                    <label for="holdingSelector" class="block text-sm font-medium text-gray-700 mb-2">Posición a vender</label>
+                    <select id="holdingSelector" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent">
+                        <option value="">-- Selecciona una posición --</option>
+                    </select>
+                    <div id="holdingInfo" class="mt-3 text-sm text-gray-600" style="display: none;">
+                        <div class="grid grid-cols-2 gap-2">
+                            <div><strong>Cantidad disponible:</strong> <span id="maxQty" class="text-green-600 font-medium"></span></div>
+                            <div><strong>Precio actual:</strong> <span id="currentPrice" class="text-blue-600 font-medium"></span></div>
+                        </div>
+                        <div class="mt-2"><strong>Valor estimado:</strong> <span id="estimatedValue" class="text-purple-600 font-medium text-lg"></span></div>
+                    </div>
                 </div>
             </div>
 
@@ -42,12 +62,16 @@
                 <h3 class="font-semibold text-blue-900 mb-4">📊 Información del Activo</h3>
                 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                    <div>
+                    <div class="relative">
                         {{ form.symbol.label(class="block text-sm font-medium text-gray-700 mb-2") }}
-                        {{ form.symbol(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent", placeholder="Ej: AAPL") }}
+                        {{ form.symbol(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent", placeholder="Ej: AAPL", id="symbol_input", autocomplete="off") }}
                         {% if form.symbol.errors %}
                             <div class="mt-1 text-sm text-red-600">{{ form.symbol.errors[0] }}</div>
                         {% endif %}
+                        <!-- Dropdown de autocompletado -->
+                        <div id="autocompleteDropdown" class="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto" style="display: none;">
+                            <!-- Las sugerencias se insertan aquí -->
+                        </div>
                     </div>
 
                     <div>
@@ -121,18 +145,20 @@
                 </div>
                 
                 <!-- Botones de Enriquecimiento Manual -->
-                {% if action == 'edit' %}
                 <div class="mt-4 pt-4 border-t border-purple-300">
-                    <p class="text-xs text-purple-700 mb-3">🔍 Si faltan datos, puedes enriquecerlos manualmente:</p>
+                    <p class="text-xs text-purple-700 mb-3">🔍 Si faltan datos, puedes completarlos manualmente:</p>
                     
                     <!-- Botón OpenFIGI -->
                     <div class="mb-4">
-                        <button type="button" id="enrichOpenFIGI" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm w-full">
+                        <button type="button" id="enrichOpenFIGI" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm w-full" {% if action != 'edit' %}disabled title="Solo disponible al editar transacciones existentes"{% endif %}>
                             🤖 Enriquecer con OpenFIGI
                         </button>
+                        {% if action != 'edit' %}
+                        <p class="text-xs text-gray-500 mt-1">Este botón solo funciona al editar transacciones existentes</p>
+                        {% endif %}
                     </div>
                     
-                    <!-- Campo + Botón Yahoo -->
+                    <!-- Campo + Botón Yahoo (siempre disponible) -->
                     <div class="space-y-2">
                         <label for="yahooUrlInput" class="block text-xs font-medium text-gray-700">
                             🌐 URL de Yahoo Finance (opcional)
@@ -153,7 +179,6 @@
                     
                     <div id="enrichmentResult" class="mt-3"></div>
                 </div>
-                {% endif %}
             </div>
 
             <!-- Detalles de la Transacción -->
@@ -171,7 +196,12 @@
 
                     <div>
                         {{ form.quantity.label(class="block text-sm font-medium text-gray-700 mb-2") }}
-                        {{ form.quantity(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent", placeholder="Ej: 10", type="number", step="0.0001") }}
+                        <div class="flex gap-2">
+                            {{ form.quantity(class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent", placeholder="Ej: 10", type="number", step="0.0001", id="quantity_input") }}
+                            <button type="button" id="maxButton" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium whitespace-nowrap" style="display: none;">
+                                Máximo
+                            </button>
+                        </div>
                         {% if form.quantity.errors %}
                             <div class="mt-1 text-sm text-red-600">{{ form.quantity.errors[0] }}</div>
                         {% endif %}
@@ -179,7 +209,7 @@
 
                     <div>
                         {{ form.price.label(class="block text-sm font-medium text-gray-700 mb-2") }}
-                        {{ form.price(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent", placeholder="Ej: 150.50", type="number", step="0.01") }}
+                        {{ form.price(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent", placeholder="Ej: 150.50 (o 0 para quiebras)", type="number", step="0.01", min="0") }}
                         {% if form.price.errors %}
                             <div class="mt-1 text-sm text-red-600">{{ form.price.errors[0] }}</div>
                         {% endif %}
@@ -261,11 +291,15 @@
         });
         
         // --- ENRIQUECIMIENTO MANUAL ---
-        {% if action == 'edit' and transaction and transaction.asset %}
-        const assetId = {{ transaction.asset.id }};
+        // ============================================================
+        // ENRIQUECIMIENTO MANUAL
+        // ============================================================
         const enrichResult = document.getElementById('enrichmentResult');
         
-        // Botón OpenFIGI
+        {% if action == 'edit' and transaction and transaction.asset %}
+        // Botón OpenFIGI (solo en edición)
+        const assetId = {{ transaction.asset.id }};
+        
         document.getElementById('enrichOpenFIGI').addEventListener('click', async function() {
             this.disabled = true;
             this.textContent = '⏳ Consultando OpenFIGI...';
@@ -320,8 +354,9 @@
                 this.textContent = '🤖 Enriquecer con OpenFIGI';
             }
         });
+        {% endif %}
         
-        // Botón Yahoo URL
+        // Botón Yahoo URL (funciona tanto en new como en edit)
         document.getElementById('enrichYahoo').addEventListener('click', async function() {
             const yahooUrlInput = document.getElementById('yahooUrlInput');
             const yahooUrl = yahooUrlInput.value.trim();
@@ -333,10 +368,43 @@
             
             this.disabled = true;
             this.textContent = '⏳ Procesando...';
-            enrichResult.innerHTML = '<p class="text-sm text-gray-600">Procesando URL...</p>';
+            enrichResult.innerHTML = '<p class="text-sm text-gray-600">Extrayendo datos...</p>';
             
             try {
-                // Obtener CSRF token del formulario
+                // Parsear URL de Yahoo Finance
+                // Formato: https://finance.yahoo.com/quote/AAPL/ o https://es.finance.yahoo.com/quote/GRF.MC/
+                const urlMatch = yahooUrl.match(/quote\/([^\/\?]+)/);
+                
+                if (!urlMatch) {
+                    enrichResult.innerHTML = '<p class="text-sm text-red-600">❌ URL inválida. Formato esperado: https://finance.yahoo.com/quote/SYMBOL/</p>';
+                    return;
+                }
+                
+                const fullSymbol = urlMatch[1];  // Ejemplo: "AAPL" o "GRF.MC"
+                const parts = fullSymbol.split('.');
+                const symbol = parts[0];
+                const yahooSuffix = parts.length > 1 ? '.' + parts.slice(1).join('.') : '';
+                
+                // Actualizar campos del formulario
+                const symbolField = document.querySelector('input[name="symbol"]');
+                const yahooField = document.querySelector('input[name="yahoo_suffix"]');
+                
+                if (symbolField) symbolField.value = symbol;
+                if (yahooField) yahooField.value = yahooSuffix;
+                
+                enrichResult.innerHTML = `
+                    <div class="text-sm text-green-600">
+                        ✅ Datos extraídos:
+                        <ul class="ml-4 mt-1 list-disc">
+                            <li><strong>Symbol:</strong> ${symbol}</li>
+                            <li><strong>Yahoo Suffix:</strong> ${yahooSuffix || '(vacío - USA)'}</li>
+                        </ul>
+                    </div>
+                `;
+                
+                // Si estamos en modo edición y hay assetId, también actualizar en BD
+                {% if action == 'edit' and transaction %}
+                const assetId = {{ transaction.asset_id }};
                 const csrfToken = document.querySelector('input[name="csrf_token"]').value;
                 
                 const response = await fetch(`/portfolio/asset/${assetId}/enrich-manual`, {
@@ -354,33 +422,22 @@
                 const data = await response.json();
                 
                 if (data.success) {
-                    // Actualizar campos del asset en el formulario (si existen)
+                    // Actualizar campos adicionales si los devuelve el backend
                     const exchangeField = document.querySelector('input[name="exchange"]');
                     const micField = document.querySelector('input[name="mic"]');
-                    const yahooField = document.querySelector('input[name="yahoo_suffix"]');
                     
                     if (exchangeField && data.exchange) exchangeField.value = data.exchange;
                     if (micField && data.mic) micField.value = data.mic;
-                    if (yahooField && data.yahoo_suffix) yahooField.value = data.yahoo_suffix;
                     
-                    // Limpiar el campo de URL
-                    yahooUrlInput.value = '';
-                    
-                    // Mostrar resultado detallado
-                    enrichResult.innerHTML = `
-                        <div class="bg-green-100 border border-green-300 rounded-lg p-3">
-                            <p class="text-sm font-semibold text-green-800 mb-1">✅ Asset actualizado desde Yahoo Finance</p>
-                            <ul class="text-xs text-green-700 space-y-1">
-                                <li><strong>Symbol:</strong> ${data.symbol || '-'}</li>
-                                <li><strong>Exchange:</strong> ${data.exchange || '-'}</li>
-                                <li><strong>MIC:</strong> ${data.mic || '-'}</li>
-                                <li><strong>Yahoo:</strong> ${data.yahoo_ticker || '-'}</li>
-                            </ul>
+                    enrichResult.innerHTML += `
+                        <div class="mt-2 text-sm text-blue-600">
+                            💾 También actualizado en base de datos
                         </div>
                     `;
                 } else {
-                    enrichResult.innerHTML = `<p class="text-sm text-red-600">❌ ${data.error}</p>`;
+                    enrichResult.innerHTML += `<p class="mt-2 text-sm text-red-600">❌ Error en BD: ${data.error}</p>`;
                 }
+                {% endif %}
             } catch (error) {
                 enrichResult.innerHTML = `<p class="text-sm text-red-600">❌ Error: ${error.message}</p>`;
             } finally {
@@ -388,7 +445,257 @@
                 this.textContent = 'Enriquecer';
             }
         });
-        {% endif %}
+
+        // ============================================================
+        // AUTO-SELECCIÓN SELL: Cargar holdings del usuario
+        // ============================================================
+        const transactionTypeSelect = document.getElementById('transaction_type');
+        const accountSelect = document.querySelector('select[name="account_id"]');
+        const sellSelectorDiv = document.getElementById('sellSelector');
+        const holdingSelectorSelect = document.getElementById('holdingSelector');
+        const holdingInfoDiv = document.getElementById('holdingInfo');
+        const maxButton = document.getElementById('maxButton');
+        
+        let holdings_data = [];
+        let selected_holding = null;
+
+        // Mostrar/ocultar selector SELL según tipo de transacción
+        transactionTypeSelect.addEventListener('change', function() {
+            if (this.value === 'SELL') {
+                sellSelectorDiv.style.display = 'block';
+                maxButton.style.display = 'inline-block';
+                loadUserHoldings();
+            } else {
+                sellSelectorDiv.style.display = 'none';
+                holdingInfoDiv.style.display = 'none';
+                maxButton.style.display = 'none';
+                selected_holding = null;
+            }
+        });
+
+        // Recargar holdings cuando cambie la cuenta (para filtrar)
+        accountSelect.addEventListener('change', function() {
+            if (transactionTypeSelect.value === 'SELL') {
+                loadUserHoldings();
+                holdingInfoDiv.style.display = 'none';
+                selected_holding = null;
+            }
+        });
+
+        // Cargar holdings desde API
+        async function loadUserHoldings() {
+            try {
+                // Obtener cuenta seleccionada (vacío = todas las cuentas)
+                const selectedAccount = accountSelect.value;
+                const url = selectedAccount && selectedAccount !== '' 
+                    ? `/portfolio/api/holdings?account_id=${selectedAccount}` 
+                    : '/portfolio/api/holdings';
+                
+                console.log('Loading holdings from:', url);  // Debug
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                console.log('Holdings API response:', data);  // Debug
+                
+                if (data.success) {
+                    holdings_data = data.holdings;
+                    
+                    // Limpiar y rellenar dropdown
+                    holdingSelectorSelect.innerHTML = '<option value="">-- Selecciona una posición --</option>';
+                    
+                    if (holdings_data.length === 0) {
+                        const option = document.createElement('option');
+                        option.disabled = true;
+                        option.textContent = data.message || '(No hay posiciones disponibles)';
+                        holdingSelectorSelect.appendChild(option);
+                    } else {
+                        holdings_data.forEach((h, index) => {
+                            const option = document.createElement('option');
+                            option.value = index;
+                            // Mostrar broker si no hay cuenta específica seleccionada
+                            const displayText = selectedAccount && selectedAccount !== ''
+                                ? `${h.symbol} - ${h.name} (${h.quantity.toFixed(4)})`
+                                : `[${h.broker}] ${h.symbol} - ${h.name} (${h.quantity.toFixed(4)})`;
+                            option.textContent = displayText;
+                            holdingSelectorSelect.appendChild(option);
+                        });
+                    }
+                } else {
+                    console.error('API error:', data.error);
+                    if (data.traceback) {
+                        console.error('Traceback:', data.traceback);
+                    }
+                    alert(`Error cargando holdings: ${data.error}`);
+                }
+            } catch (error) {
+                console.error('Error loading holdings:', error);
+                alert(`Error de red: ${error.message}`);
+            }
+        }
+
+        // Al seleccionar un holding, auto-rellenar campos
+        holdingSelectorSelect.addEventListener('change', function() {
+            const index = this.value;
+            
+            if (index === '') {
+                holdingInfoDiv.style.display = 'none';
+                selected_holding = null;
+                return;
+            }
+            
+            selected_holding = holdings_data[index];
+            
+            // Mostrar información del holding
+            document.getElementById('maxQty').textContent = selected_holding.quantity.toFixed(4);
+            document.getElementById('currentPrice').textContent = `${selected_holding.current_price.toFixed(2)} ${selected_holding.currency}`;
+            
+            const estimatedValue = selected_holding.quantity * selected_holding.current_price;
+            document.getElementById('estimatedValue').textContent = `${estimatedValue.toFixed(2)} ${selected_holding.currency}`;
+            
+            holdingInfoDiv.style.display = 'block';
+            
+            // Auto-rellenar campos del formulario
+            document.querySelector('input[name="symbol"]').value = selected_holding.symbol;
+            document.querySelector('input[name="isin"]').value = selected_holding.isin || '';
+            document.querySelector('select[name="currency"]').value = selected_holding.currency;
+            document.querySelector('input[name="asset_name"]').value = selected_holding.name;
+            document.querySelector('select[name="asset_type"]').value = selected_holding.asset_type || 'Stock';
+            document.querySelector('input[name="exchange"]').value = selected_holding.exchange || '';
+            document.querySelector('input[name="mic"]').value = selected_holding.mic || '';
+            document.querySelector('input[name="yahoo_suffix"]').value = selected_holding.yahoo_suffix || '';
+            document.querySelector('input[name="price"]').value = selected_holding.current_price.toFixed(2);
+            
+            // Auto-seleccionar la cuenta del holding
+            if (selected_holding.account_id) {
+                accountSelect.value = selected_holding.account_id;
+            }
+        });
+
+        // Botón "Máximo": rellenar cantidad máxima
+        maxButton.addEventListener('click', function() {
+            if (selected_holding) {
+                document.getElementById('quantity_input').value = selected_holding.quantity.toFixed(4);
+            }
+        });
+
+        // Inicializar si ya está en modo SELL
+        if (transactionTypeSelect.value === 'SELL') {
+            sellSelectorDiv.style.display = 'block';
+            maxButton.style.display = 'inline-block';
+            loadUserHoldings();
+        }
+
+        // ============================================================
+        // AUTOCOMPLETADO BUY: Buscar en AssetRegistry
+        // ============================================================
+        const symbolInput = document.getElementById('symbol_input');
+        const autocompleteDropdown = document.getElementById('autocompleteDropdown');
+        
+        let autocomplete_timeout = null;
+        let autocomplete_controller = null;
+
+        // Escuchar cambios en el input de Symbol (con debounce)
+        symbolInput.addEventListener('input', function() {
+            const query = this.value.trim();
+            
+            // Cancelar búsqueda anterior si existe
+            if (autocomplete_timeout) {
+                clearTimeout(autocomplete_timeout);
+            }
+            
+            // Si query < 2 caracteres, ocultar dropdown
+            if (query.length < 2) {
+                autocompleteDropdown.style.display = 'none';
+                return;
+            }
+            
+            // Solo buscar en modo BUY
+            if (transactionTypeSelect.value !== 'BUY') {
+                return;
+            }
+            
+            // Debounce: esperar 300ms después de dejar de escribir
+            autocomplete_timeout = setTimeout(() => {
+                searchAssets(query);
+            }, 300);
+        });
+
+        // Buscar assets en API
+        async function searchAssets(query) {
+            try {
+                // Cancelar request anterior si existe
+                if (autocomplete_controller) {
+                    autocomplete_controller.abort();
+                }
+                
+                autocomplete_controller = new AbortController();
+                
+                const response = await fetch(`/portfolio/api/assets/search?q=${encodeURIComponent(query)}`, {
+                    signal: autocomplete_controller.signal
+                });
+                
+                const data = await response.json();
+                
+                if (data.success && data.results.length > 0) {
+                    // Mostrar sugerencias
+                    autocompleteDropdown.innerHTML = '';
+                    
+                    data.results.forEach(asset => {
+                        const item = document.createElement('div');
+                        item.className = 'px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0';
+                        item.innerHTML = `
+                            <div class="font-medium text-gray-900">${asset.symbol} - ${asset.name}</div>
+                            <div class="text-xs text-gray-500">${asset.isin || 'Sin ISIN'} • ${asset.asset_type}</div>
+                        `;
+                        
+                        item.addEventListener('click', () => {
+                            selectAsset(asset);
+                        });
+                        
+                        autocompleteDropdown.appendChild(item);
+                    });
+                    
+                    autocompleteDropdown.style.display = 'block';
+                } else {
+                    autocompleteDropdown.style.display = 'none';
+                }
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    console.error('Error searching assets:', error);
+                }
+            }
+        }
+
+        // Seleccionar asset del dropdown
+        function selectAsset(asset) {
+            // Rellenar campos
+            document.querySelector('input[name="symbol"]').value = asset.symbol;
+            document.querySelector('input[name="isin"]').value = asset.isin || '';
+            document.querySelector('input[name="asset_name"]').value = asset.name;
+            document.querySelector('select[name="asset_type"]').value = asset.asset_type || 'Stock';
+            document.querySelector('select[name="currency"]').value = asset.currency || 'USD';
+            document.querySelector('input[name="exchange"]').value = asset.exchange || '';
+            document.querySelector('input[name="mic"]').value = asset.mic || '';
+            document.querySelector('input[name="yahoo_suffix"]').value = asset.yahoo_suffix || '';
+            
+            // Ocultar dropdown
+            autocompleteDropdown.style.display = 'none';
+        }
+
+        // Ocultar dropdown al hacer click fuera
+        document.addEventListener('click', function(e) {
+            if (!symbolInput.contains(e.target) && !autocompleteDropdown.contains(e.target)) {
+                autocompleteDropdown.style.display = 'none';
+            }
+        });
+
+        // Ocultar dropdown al presionar ESC
+        symbolInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                autocompleteDropdown.style.display = 'none';
+            }
+        });
     </script>
 </div>
 {% endblock %}

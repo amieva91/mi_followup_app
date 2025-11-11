@@ -2140,3 +2140,41 @@ def price_update_progress():
 # La sincronización ahora es AUTOMÁTICA al guardar en AssetRegistry (ver asset_registry_edit)
 # No se necesita sincronización manual
 
+
+# ============================================================================
+# PERFORMANCE & CHARTS (Sprint 4 - HITO 3)
+# ============================================================================
+
+@portfolio_bp.route('/performance')
+@login_required
+def performance():
+    """
+    Página de análisis de performance con gráficos de evolución
+    """
+    return render_template('portfolio/performance.html')
+
+
+@portfolio_bp.route('/api/evolution')
+@login_required
+def api_evolution():
+    """
+    API endpoint que devuelve datos de evolución del portfolio para Chart.js
+    """
+    from app.services.metrics.portfolio_evolution import PortfolioEvolutionService
+    
+    # Obtener frecuencia del query parameter (default: weekly)
+    frequency = request.args.get('frequency', 'weekly')
+    
+    if frequency not in ['daily', 'weekly', 'monthly']:
+        frequency = 'weekly'
+    
+    try:
+        evolution_service = PortfolioEvolutionService(current_user.id)
+        data = evolution_service.get_evolution_data(frequency=frequency)
+        return jsonify(data)
+    except Exception as e:
+        import traceback
+        print(f"Error en api_evolution: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
+

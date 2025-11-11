@@ -3,7 +3,7 @@ Formularios para gestión de portfolio
 """
 from flask_wtf import FlaskForm
 from wtforms import StringField, FloatField, DateField, SelectField, BooleanField, TextAreaField, SubmitField
-from wtforms.validators import DataRequired, Optional, NumberRange, Length
+from wtforms.validators import DataRequired, InputRequired, Optional, NumberRange, Length
 from flask_login import current_user
 from app.models import Broker, BrokerAccount, Asset
 
@@ -32,7 +32,7 @@ class BrokerAccountForm(FlaskForm):
 
 class ManualTransactionForm(FlaskForm):
     """Formulario para entrada manual de transacciones (compra/venta)"""
-    account_id = SelectField('Cuenta', coerce=int, validators=[DataRequired()])
+    account_id = SelectField('Cuenta', coerce=lambda x: int(x) if x else None, validators=[Optional()])
     
     # Datos del activo
     symbol = StringField('Símbolo', validators=[DataRequired(), Length(max=20)])
@@ -67,8 +67,8 @@ class ManualTransactionForm(FlaskForm):
         NumberRange(min=0.000001, message='La cantidad debe ser positiva')
     ])
     price = FloatField('Precio por Unidad', validators=[
-        DataRequired(),
-        NumberRange(min=0.000001, message='El precio debe ser positivo')
+        InputRequired(message='El precio es requerido'),
+        NumberRange(min=0, message='El precio debe ser mayor o igual a 0')
     ])
     
     # Costes
