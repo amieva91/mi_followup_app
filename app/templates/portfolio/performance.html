@@ -55,7 +55,7 @@
         </div>
 
         <!-- Gráfico 2: Rentabilidad Acumulada -->
-        <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+        <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-200">  
             <div class="mb-4">
                 <h2 class="text-xl font-bold text-gray-900">💎 Rentabilidad Acumulada (Modified Dietz)</h2>
                 <p class="text-sm text-gray-600 mt-1">
@@ -64,6 +64,45 @@
             </div>
             <div style="position: relative; height: 400px;">
                 <canvas id="returnsChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Gráfico 3: Apalancamiento/Cash Histórico -->
+        <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-200">  
+            <div class="mb-4">
+                <h2 class="text-xl font-bold text-gray-900">⚡ Apalancamiento / 💵 Cash Histórico</h2>
+                <p class="text-sm text-gray-600 mt-1">
+                    Dinero prestado por el broker (positivo) o cash disponible sin invertir (negativo)
+                </p>
+            </div>
+            <div style="position: relative; height: 400px;">
+                <canvas id="leverageChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Gráfico 4: Flujos de Caja Acumulados -->
+        <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-200">  
+            <div class="mb-4">
+                <h2 class="text-xl font-bold text-gray-900">💰 Flujos de Caja Acumulados</h2>
+                <p class="text-sm text-gray-600 mt-1">
+                    Suma neta de depósitos y retiradas a lo largo del tiempo
+                </p>
+            </div>
+            <div style="position: relative; height: 400px;">
+                <canvas id="cashFlowsChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Gráfico 5: P&L Total Acumulado -->
+        <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-200">  
+            <div class="mb-4">
+                <h2 class="text-xl font-bold text-gray-900">📊 P&L Total Acumulado</h2>
+                <p class="text-sm text-gray-600 mt-1">
+                    Ganancias/Pérdidas totales históricas (Realizado + No Realizado + Dividendos - Comisiones)
+                </p>
+            </div>
+            <div style="position: relative; height: 400px;">
+                <canvas id="plChart"></canvas>
             </div>
         </div>
 

@@ -2,7 +2,7 @@
 
 Sistema completo de gestión financiera personal.
 
-## ✅ Estado Actual (10 Nov 2025) - v4.2.0-beta
+## ✅ Estado Actual (11 Nov 2025) - v4.3.0
 
 **Funcionalidades Implementadas:**
 - ✅ **Sprint 0 - Arquitectura Base** - Configuración inicial, estructura modular
@@ -316,10 +316,10 @@ sudo systemctl status followup.service
 
 ## 📊 Estado del Proyecto
 
-**Fase actual**: Sprint 4 - Métricas Avanzadas (En Progreso - 90%)  
-**Última actualización**: 10 Noviembre 2025  
-**Versión**: 4.2.0-beta  
-**Progreso**: Sprint 0 ✅ | Sprint 1 ✅ | Sprint 2 ✅ | Sprint 3 ✅ | Sprint 4 🚧 (HITO 1 ✅ | HITO 2 ✅ | Refinements ✅ | UX Avanzadas ✅)
+**Fase actual**: Sprint 4 - Métricas Avanzadas (En Progreso - 95%)  
+**Última actualización**: 11 Noviembre 2025  
+**Versión**: 4.3.0  
+**Progreso**: Sprint 0 ✅ | Sprint 1 ✅ | Sprint 2 ✅ | Sprint 3 ✅ | Sprint 4 🚧 (HITO 1 ✅ | HITO 2 ✅ | Refinements ✅ | UX Avanzadas ✅ | HITO 3 Fase 1 ✅)
 
 **Highlights Sprint 3 Final:**
 - ✅ Precios en tiempo real desde Yahoo Finance (15 métricas)
@@ -333,7 +333,7 @@ sudo systemctl status followup.service
 - ✅ AssetRegistry global + MappingRegistry editable
 - ✅ 100% precisión en holdings y P&L
 
-**Highlights Sprint 4 - Métricas Avanzadas (HITO 1 + 2 + Refinements + UX Avanzadas ✅):**
+**Highlights Sprint 4 - Métricas Avanzadas (HITO 1 + 2 + Refinements + UX Avanzadas + HITO 3 Fase 1 ✅):**
 - ✅ 8 Métricas implementadas (P&L Realizado, P&L No Realizado, ROI, Leverage, etc.)
 - ✅ Modified Dietz Method (estándar GIPS, sin necesidad de precios históricos)
 - ✅ Dashboard reorganizado (Métricas Globales + Portfolio separados)
@@ -344,8 +344,13 @@ sudo systemctl status followup.service
 - ✅ Transacciones manuales avanzadas (auto-selección SELL, autocompletado BUY, venta por quiebra)
 - ✅ Botones de enriquecimiento inteligentes (OpenFIGI + Yahoo URL)
 - ✅ Redirección optimizada a holdings tras transacciones
+- ✅ **Gráficos de Evolución** (`/portfolio/performance`):
+  - Evolución del Valor Real de la Cuenta (mensual, optimizado)
+  - Rentabilidad Acumulada (Modified Dietz)
+  - Último punto con precios reales actuales
+  - Chart.js 4.0 con tooltips y formateo europeo
 
-**Próximo: Sprint 4 - HITO 3 (Gráficos de Evolución):**
-- 📈 5 gráficos interactivos (Portfolio, Apalancamiento, Flujos, P&L, Rentabilidad vs Benchmarks)
-- 📊 Tabla comparativa con índices principales
+**Próximo: Sprint 4 - HITO 3 Fase 2 (Gráficos Adicionales):**
+- 📈 3 gráficos restantes (Apalancamiento, Flujos de caja, P&L Acumulado)
+- 🆚 Fase 3: Comparación con benchmarks (S&P 500, NASDAQ, etc.)
 

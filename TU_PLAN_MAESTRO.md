@@ -2,8 +2,8 @@
 
 **Fecha de inicio**: 5 Octubre 2025  
 **Timeline**: 6 meses (26 semanas)  
-**Última actualización**: 10 Noviembre 2025  
-**Estado actual**: ✅ Sprint 3 COMPLETADO (v3.6.0) | 🚧 Sprint 4 EN PROGRESO (v4.2.0-beta - HITO 1 ✅ | HITO 2 ✅ | Refinements ✅ | UX Avanzadas ✅)
+**Última actualización**: 11 Noviembre 2025  
+**Estado actual**: ✅ Sprint 3 COMPLETADO (v3.6.0) | 🚧 Sprint 4 EN PROGRESO (v4.3.0 - HITO 1 ✅ | HITO 2 ✅ | Refinements ✅ | UX Avanzadas ✅ | HITO 3 Fase 1 ✅)
 
 ## 🎉 PROGRESO RECIENTE
 
@@ -182,8 +182,8 @@
   - ✅ 8 mejoras de optimización y UX implementadas
   - ✅ Experiencia visual consistente (92% en toda la app)
 
-**🚧 SPRINT 4 - Métricas Avanzadas (EN PROGRESO - 10 Nov)**  
-**Versión Actual**: v4.2.0-beta | **Duración estimada**: 3 semanas  
+**🚧 SPRINT 4 - Métricas Avanzadas (EN PROGRESO - 11 Nov)**  
+**Versión Actual**: v4.3.0 | **Duración estimada**: 3 semanas  
 **Documento detallado**: `SPRINT4_METRICAS_AVANZADAS.md`
 
 **Objetivo**: Construir sistema completo de métricas y análisis financiero
@@ -294,8 +294,29 @@
   - Validación actualizada: `price >= 0` (antes: `price > 0`)
   - Soporte completo para precio = 0€
   - Eliminación automática de holdings con `quantity = 0`
-  - Integración correcta con `FIFOCalculator` para P&L
-  - `add_sell()` devuelve `cost_basis_of_sale` → `realized_pl` calculado correctamente
+
+**✅ HITO 3 - Fase 1: Gráficos de Evolución (COMPLETADO - 11 Nov)**
+- ✅ **Nueva página `/portfolio/performance`**:
+  - Gráfico 1: **Evolución del Valor Real de la Cuenta** (sin apalancamiento)
+  - Gráfico 2: **Rentabilidad Acumulada (Modified Dietz)**
+  - Frecuencia optimizada: Solo **mensual** (elimina diario y semanal por rendimiento)
+  - Último punto con **precios reales actuales** (`use_current_prices=True`)
+- ✅ **Backend Services**:
+  - `PortfolioEvolutionService` (`app/services/metrics/portfolio_evolution.py`)
+  - Integración con `PortfolioValuation` y `ModifiedDietzCalculator` (métodos estáticos)
+  - Generación de fechas mensua les históricas
+  - Cálculo de capital invertido neto (deposits - withdrawals)
+  - API endpoint `/portfolio/api/evolution?frequency=monthly`
+- ✅ **Frontend**:
+  - Chart.js 4.0 con adaptador de fechas (`chartjs-adapter-date-fns`)
+  - `app/static/js/charts.js` con formateo europeo
+  - Loading spinner y manejo de errores
+  - Gráficos responsivos con tooltips informativos
+- ✅ **Nomenclatura corregida**:
+  - Dashboard: "🏦 Valor Real Cuenta" (antes "Valor Total Cuenta")
+  - Performance: "Evolución del Valor Real de la Cuenta" (clarifica: sin apalancamiento)
+  - Mantiene: "💰 Valor Total Cartera" en métricas de portfolio actual
+
 - ✅ **Botones de enriquecimiento inteligentes**:
   - **"Enriquecer con OpenFIGI"**:
     - Deshabilitado en modo NEW (tooltip: "Solo disponible al editar transacciones existentes")
@@ -320,13 +341,15 @@
 - [x] **HITO 2**: Modified Dietz Method ✅ COMPLETADO (9 Nov 2025)
 - [x] **Refinements**: Performance & UX ✅ COMPLETADO (10 Nov 2025)
 - [x] **UX Avanzadas**: Transacciones Manuales ✅ COMPLETADO (10 Nov 2025)
-- [ ] **HITO 3**: Análisis de Rentabilidad Histórica 🚧 SIGUIENTE
-  - Nueva página `/portfolio/performance` con selectores de período
-  - Gráficos de evolución (Chart.js): Valor, P&L, Apalancamiento, Flujos
+- [x] **HITO 3 - Fase 1**: Gráficos de Evolución ✅ COMPLETADO (11 Nov 2025)
+- [ ] **HITO 3 - Fase 2**: Gráficos Adicionales 🚧 SIGUIENTE
+  - Gráfico de Apalancamiento/Cash histórico
+  - Gráfico de Flujos de caja (Deposits/Withdrawals)
+  - Gráfico de P&L Acumulado
+- [ ] **HITO 3 - Fase 3**: Comparación con Benchmarks
   - Modified Dietz vs S&P 500 vs NASDAQ vs Benchmarks (comparación visual)
   - Tabla comparativa por año (Tu rentabilidad vs índices)
-  - Sistema de períodos: TODO | 2025 | 2024 | ... | Últimos 12M/6M/3M/1M
-  - Métricas filtradas por período (P&L Realizado, Dividendos, Comisiones)
+  - Integración de Yahoo Finance API para datos históricos de índices
 - [ ] **HITO 4**: Distribución del Portfolio (Pie charts: asset/sector/industria/broker/moneda/país)
 - [ ] **HITO 5**: Mejoras UX - Modales y Navegación
   - Convertir detalle de asset (`/portfolio/asset/<id>`) a modal en Dashboard y Holdings

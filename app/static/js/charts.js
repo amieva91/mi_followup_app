@@ -181,6 +181,198 @@ function createReturnsChart(ctx, data) {
 }
 
 /**
+ * Gráfico 3: Apalancamiento/Cash Histórico
+ */
+function createLeverageChart(ctx, data) {
+    return new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: data.labels,
+            datasets: [
+                {
+                    label: '⚡ Apalancamiento / 💵 Cash',
+                    data: data.datasets.leverage,
+                    borderColor: function(context) {
+                        const value = context.dataset.data[context.dataIndex];
+                        return value >= 0 ? 'rgb(16, 185, 129)' : 'rgb(239, 68, 68)'; // green-600 or red-500
+                    },
+                    segment: {
+                        borderColor: function(context) {
+                            const value = context.p1.parsed.y;
+                            return value >= 0 ? 'rgb(16, 185, 129)' : 'rgb(239, 68, 68)';
+                        }
+                    },
+                    backgroundColor: 'rgba(107, 114, 128, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 0,
+                    pointHoverRadius: 6
+                }
+            ]
+        },
+        options: {
+            ...commonChartOptions,
+            scales: {
+                y: {
+                    ticks: {
+                        callback: function(value) {
+                            return formatEuropeanNumber(value, 0) + ' €';
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    }
+                },
+                x: {
+                    grid: {
+                        display: false
+                    }
+                }
+            },
+            plugins: {
+                ...commonChartOptions.plugins,
+                tooltip: {
+                    ...commonChartOptions.plugins.tooltip,
+                    callbacks: {
+                        label: function(context) {
+                            const value = context.parsed.y;
+                            const type = value >= 0 ? '💵 Cash' : '⚡ Apalancamiento';
+                            return type + ': ' + formatEuropeanNumber(Math.abs(value), 2) + ' €';
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+/**
+ * Gráfico 4: Flujos de Caja Acumulados
+ */
+function createCashFlowsChart(ctx, data) {
+    return new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: data.labels,
+            datasets: [
+                {
+                    label: '💰 Capital Invertido Neto',
+                    data: data.datasets.cash_flows_cumulative,
+                    borderColor: 'rgb(99, 102, 241)', // indigo-500
+                    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 0,
+                    pointHoverRadius: 6
+                }
+            ]
+        },
+        options: {
+            ...commonChartOptions,
+            scales: {
+                y: {
+                    ticks: {
+                        callback: function(value) {
+                            return formatEuropeanNumber(value, 0) + ' €';
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    }
+                },
+                x: {
+                    grid: {
+                        display: false
+                    }
+                }
+            },
+            plugins: {
+                ...commonChartOptions.plugins,
+                tooltip: {
+                    ...commonChartOptions.plugins.tooltip,
+                    callbacks: {
+                        label: function(context) {
+                            return 'Capital Neto: ' + formatEuropeanNumber(context.parsed.y, 2) + ' €';
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+/**
+ * Gráfico 5: P&L Acumulado
+ */
+function createPLChart(ctx, data) {
+    return new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: data.labels,
+            datasets: [
+                {
+                    label: '📊 P&L Total Acumulado',
+                    data: data.datasets.pl_accumulated,
+                    borderColor: function(context) {
+                        const value = context.dataset.data[context.dataIndex];
+                        return value >= 0 ? 'rgb(34, 197, 94)' : 'rgb(239, 68, 68)'; // green-500 or red-500
+                    },
+                    segment: {
+                        borderColor: function(context) {
+                            const value = context.p1.parsed.y;
+                            return value >= 0 ? 'rgb(34, 197, 94)' : 'rgb(239, 68, 68)';
+                        }
+                    },
+                    backgroundColor: function(context) {
+                        const value = context.dataset.data[context.dataIndex];
+                        return value >= 0 ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)';
+                    },
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 0,
+                    pointHoverRadius: 6
+                }
+            ]
+        },
+        options: {
+            ...commonChartOptions,
+            scales: {
+                y: {
+                    ticks: {
+                        callback: function(value) {
+                            return formatEuropeanNumber(value, 0) + ' €';
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    }
+                },
+                x: {
+                    grid: {
+                        display: false
+                    }
+                }
+            },
+            plugins: {
+                ...commonChartOptions.plugins,
+                tooltip: {
+                    ...commonChartOptions.plugins.tooltip,
+                    callbacks: {
+                        label: function(context) {
+                            const value = context.parsed.y;
+                            return 'P&L Total: ' + (value >= 0 ? '+' : '') + formatEuropeanNumber(value, 2) + ' €';
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+/**
  * Cargar datos y renderizar gráficos
  */
 async function loadCharts(frequency = 'weekly') {
@@ -209,6 +401,15 @@ async function loadCharts(frequency = 'weekly') {
         if (window.returnsChart && typeof window.returnsChart.destroy === 'function') {
             window.returnsChart.destroy();
         }
+        if (window.leverageChart && typeof window.leverageChart.destroy === 'function') {
+            window.leverageChart.destroy();
+        }
+        if (window.cashFlowsChart && typeof window.cashFlowsChart.destroy === 'function') {
+            window.cashFlowsChart.destroy();
+        }
+        if (window.plChart && typeof window.plChart.destroy === 'function') {
+            window.plChart.destroy();
+        }
         
         // Crear gráficos
         const ctx1 = document.getElementById('portfolioValueChart').getContext('2d');
@@ -216,6 +417,15 @@ async function loadCharts(frequency = 'weekly') {
         
         const ctx2 = document.getElementById('returnsChart').getContext('2d');
         window.returnsChart = createReturnsChart(ctx2, data);
+        
+        const ctx3 = document.getElementById('leverageChart').getContext('2d');
+        window.leverageChart = createLeverageChart(ctx3, data);
+        
+        const ctx4 = document.getElementById('cashFlowsChart').getContext('2d');
+        window.cashFlowsChart = createCashFlowsChart(ctx4, data);
+        
+        const ctx5 = document.getElementById('plChart').getContext('2d');
+        window.plChart = createPLChart(ctx5, data);
         
     } catch (error) {
         console.error('Error loading charts:', error);
