@@ -2,8 +2,8 @@
 
 **Fecha de inicio**: 5 Octubre 2025  
 **Timeline**: 6 meses (26 semanas)  
-**Última actualización**: 11 Noviembre 2025  
-**Estado actual**: ✅ Sprint 3 COMPLETADO (v3.6.0) | 🚧 Sprint 4 EN PROGRESO (v4.3.0 - HITO 1 ✅ | HITO 2 ✅ | Refinements ✅ | UX Avanzadas ✅ | HITO 3 Fase 1 ✅)
+**Última actualización**: 12 Noviembre 2025  
+**Estado actual**: ✅ Sprint 3 COMPLETADO (v3.6.0) | 🚧 Sprint 4 EN PROGRESO (v4.3.0 - HITO 1 ✅ | HITO 2 ✅ | Refinements ✅ | UX Avanzadas ✅ | HITO 3 ✅)
 
 ## 🎉 PROGRESO RECIENTE
 
@@ -182,9 +182,10 @@
   - ✅ 8 mejoras de optimización y UX implementadas
   - ✅ Experiencia visual consistente (92% en toda la app)
 
-**🚧 SPRINT 4 - Métricas Avanzadas (EN PROGRESO - 11 Nov)**  
+**🚧 SPRINT 4 - Métricas Avanzadas (EN PROGRESO - 12 Nov)**  
 **Versión Actual**: v4.3.0 | **Duración estimada**: 3 semanas  
-**Documento detallado**: `SPRINT4_METRICAS_AVANZADAS.md`
+**Documento detallado**: `SPRINT4_METRICAS_AVANZADAS.md`  
+**Progreso**: HITO 1 ✅ | HITO 2 ✅ | HITO 3 ✅ | **Pendiente**: HITO 4 (Comparación con Benchmarks)
 
 **Objetivo**: Construir sistema completo de métricas y análisis financiero
 
@@ -295,23 +296,34 @@
   - Soporte completo para precio = 0€
   - Eliminación automática de holdings con `quantity = 0`
 
-**✅ HITO 3 - Fase 1: Gráficos de Evolución (COMPLETADO - 11 Nov)**
+**✅ HITO 3: Gráficos de Evolución Histórica (COMPLETADO - 12 Nov)**
 - ✅ **Nueva página `/portfolio/performance`**:
-  - Gráfico 1: **Evolución del Valor Real de la Cuenta** (sin apalancamiento)
-  - Gráfico 2: **Rentabilidad Acumulada (Modified Dietz)**
-  - Frecuencia optimizada: Solo **mensual** (elimina diario y semanal por rendimiento)
+  - **Gráfico 1: Valor Real de la Cuenta** (sin apalancamiento, con precio actual en último punto)
+  - **Gráfico 2: Rentabilidad Acumulada (Modified Dietz)** (% acumulado histórico)
+  - **Gráfico 3: Apalancamiento/Cash** (verde=cash positivo, rojo=leverage negativo)
+  - **Gráfico 4: Capital Invertido Neto** (deposits - withdrawals acumulados)
+  - **Gráfico 5: P&L Total Acumulado** (realizado + no realizado + dividendos - comisiones)
+  - Frecuencia: **mensual** (rendimiento optimizado)
   - Último punto con **precios reales actuales** (`use_current_prices=True`)
 - ✅ **Backend Services**:
   - `PortfolioEvolutionService` (`app/services/metrics/portfolio_evolution.py`)
-  - Integración con `PortfolioValuation` y `ModifiedDietzCalculator` (métodos estáticos)
-  - Generación de fechas mensua les históricas
-  - Cálculo de capital invertido neto (deposits - withdrawals)
+  - `PortfolioValuation.get_detailed_value_at_date()`: Retorna holdings_value, cash, cost, P&L No Realizado
+  - Integración con `FIFOCalculator` para P&L Realizado histórico
+  - Cálculo correcto de apalancamiento: `user_money - holdings_value`
+  - P&L No Realizado solo para último punto (HOY), histórico solo P&L Realizado
   - API endpoint `/portfolio/api/evolution?frequency=monthly`
 - ✅ **Frontend**:
   - Chart.js 4.0 con adaptador de fechas (`chartjs-adapter-date-fns`)
   - `app/static/js/charts.js` con formateo europeo
+  - 5 gráficos de línea con colores dinámicos (verde/rojo según valor)
   - Loading spinner y manejo de errores
   - Gráficos responsivos con tooltips informativos
+- ✅ **Correcciones críticas**:
+  - **Conversión EUR universal**: Todos los cálculos históricos convierten `value_local` y `cost_local` a EUR
+  - **Fórmula de Leverage corregida**: `broker_money = user_money - holdings_value` (antes: `value - user_money`)
+  - **P&L histórico vs actual**: P&L No Realizado solo en último punto (HOY), histórico solo usa P&L Realizado
+  - **Colores invertidos corregidos**: Verde para cash positivo, rojo para apalancamiento negativo
+  - **Tipo de dato corregido**: `float()` para evitar `TypeError` con `Decimal`
 - ✅ **Nomenclatura corregida**:
   - Dashboard: "🏦 Valor Real Cuenta" (antes "Valor Total Cuenta")
   - Performance: "Evolución del Valor Real de la Cuenta" (clarifica: sin apalancamiento)

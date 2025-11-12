@@ -2,7 +2,7 @@
 
 Sistema completo de gestión financiera personal.
 
-## ✅ Estado Actual (11 Nov 2025) - v4.3.0
+## ✅ Estado Actual (12 Nov 2025) - v4.3.0
 
 **Funcionalidades Implementadas:**
 - ✅ **Sprint 0 - Arquitectura Base** - Configuración inicial, estructura modular
@@ -185,12 +185,23 @@ Sistema completo de gestión financiera personal.
       - Corregido `KeyError: 'avg_price'` → `average_buy_price` en FIFO
       - Corregido modal de actualización de precios: `data.updated` → `data.success`
       - Holdings API optimizada con filtro por account_id
-  - 🚧 **HITO 3: Gráficos de Evolución (PENDIENTE)**:
-    - Gráfico de evolución del portfolio (valor total)
-    - Gráfico de apalancamiento/cash histórico
-    - Gráfico de flujos de caja acumulados
-    - Gráfico de P&L acumulado
-    - Gráfico de rentabilidad vs benchmarks (S&P 500, NASDAQ, etc.)
+  - ✅ **HITO 3: Gráficos de Evolución Histórica (v4.3.0 - COMPLETADO 12 Nov)**:
+    - **Nueva página `/portfolio/performance`** con 5 gráficos de evolución mensual
+    - **Gráfico 1: Valor Real de la Cuenta** (sin apalancamiento, con precio actual en último punto)
+    - **Gráfico 2: Rentabilidad Acumulada (Modified Dietz)** (% acumulado histórico)
+    - **Gráfico 3: Apalancamiento/Cash** (verde=cash positivo, rojo=leverage negativo)
+    - **Gráfico 4: Capital Invertido Neto** (deposits - withdrawals acumulados)
+    - **Gráfico 5: P&L Total Acumulado** (realizado + no realizado + dividendos - comisiones)
+    - **Backend**: `PortfolioEvolutionService` con integración FIFO para P&L histórico
+    - **Frontend**: Chart.js 4.0 con formateo europeo y tooltips informativos
+    - **Correcciones críticas**:
+      - Conversión EUR universal en todos los cálculos históricos
+      - Fórmula de leverage corregida: `user_money - holdings_value`
+      - P&L No Realizado solo en último punto (HOY), histórico solo P&L Realizado
+      - Colores corregidos: verde para cash, rojo para apalancamiento
+  - 🚧 **HITO 4: Comparación con Benchmarks (PENDIENTE)**:
+    - Integración con Yahoo Finance para índices (S&P 500, NASDAQ, etc.)
+    - Gráfico comparativo de rentabilidad vs benchmarks
     - Tabla comparativa (Anualizada, YTD, Total)
 - ✅ **Dashboard** - KPIs en tiempo real (ingresos/gastos/balance mensual + portfolio completo con 9 métricas + Modified Dietz)
 - ✅ **Sistema desplegado** - Funcionando en https://followup.fit/
