@@ -1509,29 +1509,42 @@ def get_or_create_broker_account(user_id, broker_format):
     
     Args:
         user_id: ID del usuario
-        broker_format: Formato detectado ('ibkr', 'degiro', etc.)
+        broker_format: Formato detectado ('IBKR', 'DEGIRO_TRANSACTIONS', 'DEGIRO_ACCOUNT', etc.)
         
     Returns:
         BrokerAccount: La cuenta existente o recién creada
     """
-    # Mapear formato a nombre de broker
-    broker_name_map = {
-        'ibkr': 'IBKR',
-        'degiro': 'DeGiro',
-    }
+    # Normalizar formato a nombre de broker
+    # DEGIRO_TRANSACTIONS y DEGIRO_ACCOUNT → ambos a "Degiro"
+    # IBKR → "IBKR"
+    broker_format_lower = broker_format.lower()
     
-    broker_display_name = broker_name_map.get(broker_format, broker_format.upper())
+    if 'degiro' in broker_format_lower:
+        broker_search_name = 'DeGiro'
+        account_default_name = 'Degiro'
+    elif broker_format_lower == 'ibkr':
+        broker_search_name = 'IBKR'
+        account_default_name = 'IBKR'
+    else:
+        # Fallback para formatos no reconocidos
+        broker_search_name = broker_format.upper()
+        account_default_name = broker_format.upper()
     
-    # Buscar broker en la tabla de Brokers
+    # Buscar broker predefinido en la tabla de Brokers
+    # Primero intentar buscar por nombre exacto, luego por LIKE
     broker = Broker.query.filter(
-        db.func.lower(Broker.name).like(f'%{broker_display_name.lower()}%')
+        db.func.lower(Broker.name).like(f'%{broker_search_name.lower()}%')
     ).first()
     
     if not broker:
-        # Crear broker si no existe
-        broker = Broker(name=broker_display_name)
-        db.session.add(broker)
-        db.session.flush()  # Para obtener el ID
+        # Si no existe, usar broker Manual como fallback
+        # (no crear nuevos brokers automáticamente)
+        broker = Broker.query.filter_by(name='Manual').first()
+        if not broker:
+            # Crear broker Manual si no existe
+            broker = Broker(name='Manual')
+            db.session.add(broker)
+            db.session.flush()
     
     # Buscar cuenta existente del usuario para este broker
     account = BrokerAccount.query.filter_by(
@@ -1545,15 +1558,16 @@ def get_or_create_broker_account(user_id, broker_format):
         account = BrokerAccount(
             user_id=user_id,
             broker_id=broker.id,
-            account_name=broker_display_name,  # Nombre por defecto: "IBKR" o "DeGiro"
-            account_number=f"AUTO_{broker_display_name}_{user_id}",  # Número auto-generado
+            account_name=account_default_name,  # "IBKR" o "Degiro"
+            account_number=None,  # Campo vacío, solo el usuario puede rellenarlo
+            currency='EUR',  # Moneda por defecto
             is_active=True
         )
         db.session.add(account)
         db.session.flush()
-        print(f"✅ Cuenta '{broker_display_name}' creada automáticamente para usuario {user_id}")
+        print(f"✅ Cuenta '{account_default_name}' creada automáticamente para usuario {user_id}")
     else:
-        print(f"✅ Usando cuenta existente '{account.account_name}' para broker {broker_display_name}")
+        print(f"✅ Usando cuenta existente '{account.account_name}' para broker {broker.name}")
     
     db.session.commit()
     return account
