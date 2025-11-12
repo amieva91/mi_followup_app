@@ -379,6 +379,12 @@
   - Alertas de precio, calendario dividendos, eventos corporativos
 - **Sprint 8**: Testing y Optimización (2 semanas)
   - Tests 80%+, optimización SQL, logging, monitoring, deployment automatizado
+- **Sprint 9**: Planificación Financiera y Cash Flow Forecast (3 semanas)
+  - Gastos planificados/deseados (viajes, caprichos, compras grandes)
+  - Proyección de flujo de caja a 12 meses
+  - Análisis de capacidad de endeudamiento
+  - Simulador "What-if" para decisiones financieras
+  - Dashboard de planificación con alertas y límites
 
 **🔗 URLs Funcionales:**
 - **Producción**: https://followup.fit/
@@ -1474,6 +1480,238 @@ git tag v3.9.0-testing-optimization
 ```
 
 **🎉 MILESTONE 2 COMPLETADO**: Portfolio Management Completo (3.5 meses)
+
+---
+
+### 💰 SPRINT 9: Planificación Financiera y Cash Flow Forecast (3 semanas)
+
+**Objetivo**: Sistema de planificación de gastos futuros, proyección de flujo de caja y análisis de capacidad de endeudamiento
+
+**Duración**: 21 días
+
+**Contexto**: 
+Este sprint permite al usuario planificar gastos futuros deseados (viajes, caprichos, compras grandes) y conocer en todo momento:
+- El dinero que tendrá disponible en cualquier fecha futura
+- Su margen de maniobra para nuevos gastos
+- Su capacidad máxima de endeudamiento mensual y a 12 meses
+- Si puede permitirse un gasto específico y cómo financiarlo (cash propio vs crédito)
+
+#### Semana 1: Backend - Gastos Planificados (Días 1-7)
+
+- [ ] **Modelo de Gastos Planificados**
+  - `app/models/planned_expense.py`
+  - Campos:
+    - `name` (str): Nombre del gasto (ej: "Viaje a Japón", "MacBook Pro")
+    - `amount` (Decimal): Cantidad en EUR
+    - `target_date` (date): Fecha objetivo para realizar el gasto
+    - `priority` (enum): ALTA, MEDIA, BAJA
+    - `category_id` (FK): Vinculación con categorías de gastos existentes
+    - `expense_type` (enum): CAPRICHO, VIAJE, COMPRA_GRANDE, INVERSION, OTRO
+    - `status` (enum): PLANIFICADO, EN_AHORRO, COMPLETADO, CANCELADO, POSPUESTO
+    - `financing_type` (enum): CASH_PROPIO, CREDITO, MIXTO
+    - `notes` (text): Descripción adicional
+    - `created_at`, `updated_at`
+  - Relaciones: Vinculación con `ExpenseCategory` y `User`
+  - Métodos:
+    - `calculate_monthly_saving_required()`: Cuánto ahorrar por mes
+    - `is_affordable()`: ¿Puede permitírselo con flujo de caja actual?
+    - `mark_as_completed()`: Marcar como realizado
+  - Tests unitarios completos
+
+- [ ] **Servicio de Proyección de Flujo de Caja**
+  - `app/services/cash_flow_projection_service.py`
+  - Métodos:
+    - `project_balance(months=12)`: Proyección de saldo mes a mes
+      - Input: mes objetivo
+      - Output: array de {fecha, saldo_proyectado, ingresos, gastos_recurrentes, gastos_planificados}
+    - `calculate_monthly_income()`: Ingresos recurrentes promedio
+    - `calculate_monthly_expenses()`: Gastos recurrentes promedio
+    - `calculate_monthly_margin()`: Margen mensual disponible
+    - `get_critical_months()`: Meses con saldo negativo proyectado
+    - `get_balance_at_date(target_date)`: Saldo proyectado en fecha específica
+  - Integración con:
+    - ✅ Ingresos recurrentes (Sprint 2)
+    - ✅ Gastos recurrentes (Sprint 2)
+    - 🆕 Gastos planificados
+    - 🆕 Saldo actual en cuentas bancarias (futuro)
+  - Tests de integración
+
+- [ ] **Servicio de Capacidad de Endeudamiento**
+  - `app/services/debt_capacity_service.py`
+  - Métodos:
+    - `calculate_debt_capacity()`: Capacidad máxima de endeudamiento seguro
+      - Regla: Max 30-40% de ingresos mensuales
+      - Output: {max_monthly_payment, max_total_debt, current_utilization}
+    - `calculate_available_margin()`: Margen mensual después de gastos
+    - `project_debt_capacity_12m()`: Proyección a 12 meses
+    - `check_affordability(amount, target_date)`: ¿Puede permitirse este gasto?
+    - `suggest_financing(amount, target_date)`: Recomendar fuente de financiación
+      - Cash propio disponible
+      - Ahorro mensual requerido
+      - Crédito necesario (si aplica)
+  - Cálculos:
+    - **Margen Mensual** = Ingresos - Gastos Recurrentes - Cuotas Deuda Actual
+    - **Endeudamiento Max Seguro** = Ingresos × 0.35 (configurable)
+    - **Cash Disponible** = Saldo Cuentas Bancarias + Portfolio Líquido (efectivo)
+  - Tests exhaustivos
+
+#### Semana 2: Backend - Simulador y API (Días 8-14)
+
+- [ ] **Simulador "What-if"**
+  - `app/services/what_if_simulator.py`
+  - Método principal: `simulate_expense(amount, target_date, financing_type)`
+  - Output:
+    - `is_affordable` (bool): ¿Puede permitírselo?
+    - `impact_on_margin` (dict): Impacto en margen mensual
+    - `financing_recommendation` (dict):
+      - `cash_available` (Decimal): Cash propio disponible
+      - `savings_needed` (Decimal): Ahorro mensual requerido
+      - `months_to_save` (int): Meses necesarios para ahorrar
+      - `credit_needed` (Decimal): Crédito necesario (si aplica)
+    - `risk_level` (enum): BAJO, MEDIO, ALTO, CRITICO
+    - `warnings` (list): Alertas de riesgo
+  - Escenarios:
+    - Mejor caso: Solo cash propio
+    - Caso realista: Ahorro mensual
+    - Peor caso: Requiere crédito
+  - Tests de casos edge
+
+- [ ] **Rutas y Forms**
+  - `app/routes/financial_planning.py`
+  - Rutas:
+    - `GET /planning/expenses` - Lista de gastos planificados
+    - `GET /planning/expenses/new` - Formulario nuevo gasto
+    - `POST /planning/expenses` - Crear gasto planificado
+    - `GET /planning/expenses/<id>/edit` - Editar
+    - `POST /planning/expenses/<id>/update` - Actualizar
+    - `POST /planning/expenses/<id>/delete` - Eliminar
+    - `POST /planning/expenses/<id>/complete` - Marcar como completado
+    - `GET /planning/dashboard` - Dashboard de planificación
+    - `POST /planning/simulate` - Simulador what-if (Ajax)
+    - `GET /planning/api/projection` - API proyección JSON
+  - `app/forms/planned_expense_forms.py`
+  - Validaciones:
+    - Fecha objetivo no en el pasado
+    - Monto > 0
+    - Prioridad válida
+  - Tests de integración
+
+#### Semana 3: UI y Gráficos (Días 15-21)
+
+- [ ] **Dashboard de Planificación Financiera** (`/planning/dashboard`)
+  - Sección 1: **KPIs Principales**
+    - 💰 Saldo Actual Total (cuentas bancarias + portfolio líquido)
+    - 📊 Margen Mensual Disponible (ingresos - gastos recurrentes)
+    - 📈 Capacidad de Endeudamiento (% utilizado / máximo seguro)
+    - 🎯 Total Gastos Planificados (suma de todos los pending)
+  - Sección 2: **Gráficos** (Chart.js)
+    - **Gráfico 1: Proyección de Saldo a 12 Meses**
+      - Línea: Saldo proyectado mes a mes
+      - Zona verde: Saldo positivo
+      - Zona roja: Saldo negativo (alerta)
+      - Marcadores: Gastos planificados en timeline
+    - **Gráfico 2: Margen Disponible vs Comprometido**
+      - Barra apilada por mes
+      - Verde: Margen disponible
+      - Naranja: Comprometido en gastos planificados
+      - Rojo: Sobreendeudamiento
+    - **Gráfico 3: Distribución de Gastos Planificados**
+      - Pie chart por tipo (Capricho, Viaje, Compra Grande, etc.)
+      - Muestra distribución de prioridades
+  - Sección 3: **Alertas y Avisos**
+    - 🚨 CRÍTICO: Gastos planificados exceden capacidad
+    - ⚠️ ADVERTENCIA: Meses con saldo proyectado negativo
+    - 💡 INFO: Recomendaciones de ahorro
+  - Estilo: Dashboard completo, elegante, con iconos y colores
+
+- [ ] **Página de Gastos Planificados** (`/planning/expenses`)
+  - Tabla con todas las columnas:
+    - Nombre
+    - Monto (EUR)
+    - Fecha Objetivo
+    - Prioridad (badge de color)
+    - Tipo (badge)
+    - Estado (badge: Planificado, En ahorro, Completado)
+    - Financiación (Cash, Crédito, Mixto)
+    - Ahorro mensual requerido (calculado)
+    - Acciones (Editar, Eliminar, Completar, Simular)
+  - Filtros:
+    - Por estado
+    - Por prioridad
+    - Por tipo
+    - Por fecha (próximos 3 meses, 6 meses, año)
+  - Ordenación por cualquier columna
+  - Búsqueda en tiempo real
+  - Botón destacado: "➕ Nuevo Gasto Planificado"
+
+- [ ] **Modal de Simulador "What-if"**
+  - Inputs:
+    - Monto del gasto (EUR)
+    - Fecha objetivo
+    - Tipo de financiación deseada
+  - Output visual:
+    - ✅ / ❌ ¿Puedes permitírtelo?
+    - 📊 Gráfico de impacto en saldo proyectado
+    - 💰 Financiación recomendada:
+      - Cash disponible: XXX€
+      - Ahorro mensual necesario: XXX€
+      - Meses para ahorrar: X
+      - Crédito necesario: XXX€ (si aplica)
+    - 🎯 Nivel de riesgo: Badge de color
+    - ⚠️ Advertencias específicas
+  - Botón: "Guardar como Gasto Planificado"
+  - Ajax: Sin recarga de página
+
+- [ ] **Formulario de Nuevo/Editar Gasto Planificado**
+  - Campos:
+    - Nombre del gasto
+    - Monto (EUR)
+    - Fecha objetivo (date picker)
+    - Prioridad (select: Alta/Media/Baja)
+    - Categoría (select de categorías existentes)
+    - Tipo (select: Capricho, Viaje, Compra Grande, etc.)
+    - Financiación (select: Cash Propio, Crédito, Mixto)
+    - Notas (textarea opcional)
+  - Validación en tiempo real
+  - Preview de "Ahorro mensual requerido" calculado automáticamente
+  - Botones: Guardar, Cancelar
+
+- [ ] **Deploy y Validación**
+  - Migraciones de BD
+  - Tests E2E del flujo completo:
+    1. Crear gasto planificado → Ver en dashboard → Simular → Completar
+    2. Proyección de saldo → Verificar cálculos correctos
+    3. Capacidad de endeudamiento → Alertas funcionando
+  - Tag: v4.0.0-financial-planning
+  - Deploy a producción
+  - Validación exhaustiva
+
+**Entregables**:
+- ✅ Gestión completa de gastos planificados/deseados
+- ✅ Proyección de flujo de caja a 12 meses (mes a mes)
+- ✅ Análisis de capacidad de endeudamiento
+- ✅ Simulador "What-if" interactivo
+- ✅ Dashboard de planificación con 3 gráficos
+- ✅ Sistema de alertas y límites
+- ✅ Integración con gastos/ingresos recurrentes (Sprint 2)
+
+**Beneficios para el Usuario**:
+- 🎯 Saber exactamente cuánto dinero tendrá en cualquier fecha futura
+- 💰 Planificar caprichos y compras grandes sin remordimientos
+- 📊 Conocer su margen de maniobra en todo momento
+- 🚨 Evitar sobreendeudamiento con alertas tempranas
+- 🧠 Tomar decisiones financieras informadas con simulaciones
+
+**Checkpoint**: 
+```bash
+git tag v4.0.0-financial-planning
+```
+
+**Dependencias**:
+- ✅ Sprint 2 (Gastos e Ingresos recurrentes) - COMPLETADO
+- 🔜 Integración futura con:
+  - Saldo de cuentas bancarias (futuro Sprint 10: Cuentas Bancarias)
+  - Portfolio líquido (ya disponible en Sprint 3)
 
 ---
 
