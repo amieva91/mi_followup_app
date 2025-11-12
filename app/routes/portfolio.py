@@ -346,6 +346,10 @@ def account_delete(id):
     db.session.delete(account)
     db.session.commit()
     
+    # 6. Invalidar cache de métricas después de eliminar todos los datos
+    from app.services.metrics.cache import MetricsCacheService
+    MetricsCacheService.invalidate(current_user.id)
+    
     flash(
         f'🗑️ Cuenta "{account_name}" eliminada permanentemente. '
         f'Se borraron {num_transactions} transacciones y {num_holdings} posiciones.',
@@ -1560,7 +1564,7 @@ def get_or_create_broker_account(user_id, broker_format):
             broker_id=broker.id,
             account_name=account_default_name,  # "IBKR" o "Degiro"
             account_number=None,  # Campo vacío, solo el usuario puede rellenarlo
-            currency='EUR',  # Moneda por defecto
+            base_currency='EUR',  # Moneda base por defecto
             is_active=True
         )
         db.session.add(account)
