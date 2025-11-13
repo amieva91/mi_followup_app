@@ -334,11 +334,13 @@ document.getElementById('csvForm').addEventListener('submit', async function(e) 
         // Enviar formulario con AJAX
         const response = await fetch('{{ url_for("portfolio.import_csv_process") }}', {
             method: 'POST',
-            body: formData
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'  // Indicar que es AJAX
+            }
         });
         
         console.log('Respuesta del servidor:', response.status, response.statusText);
-        console.log('URL final después de redirects:', response.url);
         
         // Detener polling
         stopProgressPolling();
@@ -346,10 +348,18 @@ document.getElementById('csvForm').addEventListener('submit', async function(e) 
         // Esperar brevemente para que el último estado se muestre
         await new Promise(resolve => setTimeout(resolve, 1500));
         
-        // El servidor hizo redirect a /portfolio/import?success=1&...
-        // La URL final está en response.url
-        // Navegar a esa URL para mostrar el banner de éxito
-        window.location.href = response.url;
+        // El servidor devuelve JSON con la URL de redirect
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.redirect_url) {
+                window.location.href = data.redirect_url;
+            } else {
+                window.location.href = '{{ url_for("portfolio.import_csv") }}';
+            }
+        } else {
+            // Si hubo error HTTP, redirigir a import sin parámetros
+            window.location.href = '{{ url_for("portfolio.import_csv") }}';
+        }
         
     } catch (error) {
         stopProgressPolling();

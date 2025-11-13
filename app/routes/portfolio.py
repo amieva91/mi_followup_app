@@ -1784,6 +1784,10 @@ def import_csv_process():
         trans_count = Transaction.query.filter_by(user_id=current_user.id).count()
         print(f"📊 DEBUG: Transacciones en BD para usuario {current_user.id}: {trans_count}")
         
+        # Si es una petición AJAX, devolver JSON con la URL de redirect
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.accept_mimetypes.accept_json:
+            return jsonify({'success': True, 'redirect_url': redirect_url}), 200
+        
         return redirect(redirect_url)
     
     if total_stats['files_failed'] > 0:
@@ -1798,7 +1802,13 @@ def import_csv_process():
             'error_msg': error_msgs
         }
         
-        return redirect(url_for('portfolio.import_csv') + '?' + urlencode(query_params))
+        redirect_url = url_for('portfolio.import_csv') + '?' + urlencode(query_params)
+        
+        # Si es una petición AJAX, devolver JSON con la URL de redirect
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.accept_mimetypes.accept_json:
+            return jsonify({'success': False, 'redirect_url': redirect_url}), 200
+        
+        return redirect(redirect_url)
     
     flash('❌ No se pudo importar ningún archivo', 'error')
     return redirect(url_for('portfolio.import_csv'))
