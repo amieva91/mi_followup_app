@@ -25,6 +25,7 @@ if __name__ == '__main__':
         host='0.0.0.0',
         port=port,
         debug=is_debug,
-        threaded=True  # Permite múltiples peticiones simultáneas (necesario para barra de progreso)
+        threaded=True,  # Permite múltiples peticiones simultáneas (necesario para barra de progreso)
+        use_reloader=False  # CRÍTICO: Desactivar reloader para que funcione el threading del progress bar
     )
 
