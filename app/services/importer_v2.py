@@ -57,11 +57,12 @@ class CSVImporterV2:
     Importer V2 - Usa AssetRegistry como cache global compartida
     """
     
-    def __init__(self, user_id: int, broker_account_id: int):
+    def __init__(self, user_id: int, broker_account_id: int, enable_enrichment: bool = False):
         self.user_id = user_id
         self.broker_account_id = broker_account_id
         self.broker_account = BrokerAccount.query.get(broker_account_id)
         self.registry_service = AssetRegistryService()
+        self.enable_enrichment = enable_enrichment  # ⚡ Deshabilitar por defecto para evitar rate limits
         
         if not self.broker_account:
             raise ValueError(f"BrokerAccount {broker_account_id} no encontrado")
@@ -107,10 +108,16 @@ class CSVImporterV2:
         # 2. Procesar assets y detectar los que necesitan enriquecimiento
         isins_needed = self._process_assets_to_registry(parsed_data)
         
-        # 3. Enriquecer assets que lo necesiten (con progreso)
-        if isins_needed:
+        # 3. Enriquecer assets que lo necesiten (con progreso) - SOLO si está habilitado
+        if isins_needed and self.enable_enrichment:
             self.stats['enrichment_needed'] = len(isins_needed)
             self._enrich_assets_with_progress(isins_needed, progress_callback)
+        elif isins_needed:
+            # Si no está habilitado, solo marcar cuántos quedan pendientes
+            self.stats['enrichment_needed'] = len(isins_needed)
+            self.stats['enrichment_success'] = 0
+            self.stats['enrichment_failed'] = 0
+            print(f"⚡ {len(isins_needed)} assets sin enriquecer (enrichment deshabilitado durante import)")
         
         # 4. Crear Assets locales desde AssetRegistry
         self._create_local_assets_from_registry(parsed_data)
