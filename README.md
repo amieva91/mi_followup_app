@@ -203,6 +203,12 @@ Sistema completo de gestión financiera personal.
     - Integración con Yahoo Finance para índices (S&P 500, NASDAQ, etc.)
     - Gráfico comparativo de rentabilidad vs benchmarks
     - Tabla comparativa (Anualizada, YTD, Total)
+    - 🆕 Macro (Planificado): nueva pestaña `/macro/inflation` con tabla y gráfico de inflación por país, agregados **OCDE** y **APEC**, filtros por regiones/indicadores y opción “Solo países en cartera/Watchlist”. Fuentes gratuitas: OECD/World Bank/Eurostat. Cache 24h y normalización (% YoY/MoM).
+  - 📝 **HITO 3 - Fase 2 (Planificado)**:
+    - Nueva pestaña: `/portfolio/commodities`
+    - Gráfico con 3 líneas: Oro (XAUUSD=X), Plata (XAGUSD=X) normalizados a 100 y Correlación rolling 30d (eje secundario -1..1)
+    - Filtros de visibilidad por serie (legend/checkboxes)
+    - Endpoint JSON: `/portfolio/api/commodities?range=1Y&interval=1d&window=30`
 - ✅ **Dashboard** - KPIs en tiempo real (ingresos/gastos/balance mensual + portfolio completo con 9 métricas + Modified Dietz)
 - ✅ **Sistema desplegado** - Funcionando en https://followup.fit/
 
@@ -283,52 +289,336 @@ python run.py
 
 ### 📄 Documentos Principales (Raíz)
 
-1. **`README.md`** - Este archivo (estado actual, setup, arquitectura)
-2. **`TU_PLAN_MAESTRO.md`** - Plan general del proyecto con todos los sprints
-3. **`WORKFLOW_DEV_A_PRODUCCION.md`** - Proceso de deploy y Git workflow
+**IMPORTANTE**: El directorio raíz debe mantenerse limpio. Solo deben permanecer en la raíz estos 5 archivos:
+
+1. **`README.md`** - Este archivo (estado actual, setup, arquitectura, metodología de trabajo)
+2. **`TU_PLAN_MAESTRO.md`** - Plan general del proyecto con todos los sprints y progreso
+3. **`WORKFLOW_DEV_A_PRODUCCION.md`** - Proceso completo de deploy, Git workflow y configuración de entornos
 4. **`DESIGN_SYSTEM.md`** - Sistema de diseño y componentes UI
-5. **`SPRINT4_METRICAS_AVANZADAS.md`** - Sprint actual (en progreso)
+5. **`SPRINT[X]_[NOMBRE].md`** - Documento del sprint actual en progreso (ej: `SPRINT4_METRICAS_AVANZADAS.md`)
+
+**Todos los demás archivos `.md` deben moverse a `docs/` al finalizar cada sprint.**
 
 ### 📁 Documentación Organizada (`docs/`)
 
-- **`docs/sprints/`** - Sprints completados (Sprint 3 final)
+- **`docs/sprints/`** - Sprints completados (archivos movidos desde raíz)
 - **`docs/sesiones/`** - Bitácora de sesiones de trabajo
 - **`docs/archivo/`** - Análisis inicial y propuestas
 - **`docs/migraciones/`** - Documentos de migraciones históricas
 - **`docs/indices/`** - Índices de documentación
+- **`docs/fixes/`** - Documentación de fixes y correcciones
+- **`docs/implementaciones/`** - Documentación de implementaciones específicas
+- **`docs/guias/`** - Guías de uso y procedimientos
 
-## 📝 Git Workflow
+---
+
+## 🔄 METODOLOGÍA DE TRABAJO
+
+**Esta sección define cómo trabajamos en este proyecto. Es fundamental leerla antes de comenzar cualquier tarea.**
+
+### 📖 Documentos de Referencia
+
+Para entender completamente el flujo de trabajo, consulta estos documentos en orden:
+
+1. **`WORKFLOW_DEV_A_PRODUCCION.md`** - Proceso completo de desarrollo y deploy
+2. **`TU_PLAN_MAESTRO.md`** - Plan maestro con todos los sprints e hitos
+3. **`DESIGN_SYSTEM.md`** - Guías de diseño y componentes UI
+4. **`SPRINT[X]_[NOMBRE].md`** - Documento del sprint actual con hitos y tareas
+
+### 🖥️ Entornos de Trabajo
+
+#### Desarrollo (WSL - Único Entorno de Desarrollo)
+
+**IMPORTANTE**: Todo el desarrollo se realiza **SIEMPRE** en el entorno de desarrollo (WSL). Nunca se codifica directamente en producción.
 
 ```bash
-# Desarrollo
-git checkout develop
-git add .
-git commit -m "feat: descripción"
-git push origin develop
+Host: ssoo@ES-5CD52753T5
+Directorio: /home/ssoo/www
+Sistema: WSL Ubuntu
+Base de datos: SQLite (local)
+Puerto: 5000
+URL: http://localhost:5000
+Branch Git: develop
+```
 
-# Producción (solo después de aprobar)
+**Características**:
+- ✅ Entorno WSL permite interacción por línea de comandos con la IA
+- ✅ Base de datos local para pruebas sin afectar producción
+- ✅ Servidor Flask en modo desarrollo (debug activado)
+- ✅ Branch `develop` para desarrollo activo
+
+#### Producción (Oracle Cloud)
+
+```bash
+Servidor: ubuntu@140.238.120.92
+Directorio: /home/ubuntu/www
+Dominio: https://followup.fit/
+Base de datos: SQLite
+Puerto: 5000
+Servicio: followup.service (systemd)
+Branch Git: main
+```
+
+**Características**:
+- ❌ **NUNCA** se codifica directamente aquí
+- ✅ Solo recibe código desde `main` branch
+- ✅ Deploy automático mediante `systemctl`
+- ✅ Validación post-deploy obligatoria
+
+### 🔄 Flujo de Trabajo Completo
+
+#### 1. Desarrollo de Features (Siempre en Dev/WSL)
+
+```bash
+# 1. Asegurarse de estar en develop
+cd /home/ssoo/www
+git checkout develop
+git pull origin develop
+
+# 2. Activar entorno virtual
+source venv/bin/activate
+
+# 3. Desarrollar feature/hito
+# ... editar archivos ...
+# ... trabajar en el código ...
+
+# 4. Probar localmente
+python run.py
+# Abrir http://localhost:5000 y probar
+```
+
+**Reglas**:
+- ✅ Todo el código se escribe en WSL (desarrollo)
+- ✅ Branch `develop` es la rama de trabajo activa
+- ✅ Probar localmente antes de commitear
+- ✅ Commits descriptivos con formato: `feat:`, `fix:`, `refactor:`, etc.
+
+#### 2. Pruebas Después de Cada Hito/Sprint
+
+**IMPORTANTE**: Después de completar un hito o sprint, **SIEMPRE** se realizan pruebas exhaustivas antes de subir a producción.
+
+**Guía de Pruebas** (el usuario debe probar):
+
+1. **Funcionalidad Nueva**:
+   - [ ] Probar todas las funcionalidades nuevas implementadas
+   - [ ] Verificar que funcionan según los requisitos del hito
+   - [ ] Probar casos límite y edge cases
+   - [ ] Verificar que no hay errores en consola del navegador
+
+2. **Funcionalidades Existentes** (regresión):
+   - [ ] Verificar que las funcionalidades anteriores siguen funcionando
+   - [ ] Probar áreas que puedan haber sido afectadas por los cambios
+   - [ ] Verificar que no se rompió nada existente
+
+3. **Interfaz de Usuario**:
+   - [ ] Verificar que la UI se ve correctamente
+   - [ ] Probar en diferentes tamaños de pantalla (responsive)
+   - [ ] Verificar que los mensajes de error/éxito funcionan
+   - [ ] Comprobar que los formularios validan correctamente
+
+4. **Base de Datos**:
+   - [ ] Verificar que las migraciones se aplican correctamente
+   - [ ] Comprobar que los datos se guardan/recuperan bien
+   - [ ] Verificar integridad de datos existentes
+
+5. **Performance**:
+   - [ ] Verificar que no hay degradación de rendimiento
+   - [ ] Comprobar tiempos de carga razonables
+
+**Resultado**: Si todas las pruebas pasan, se procede al siguiente paso. Si hay errores, se corrigen antes de continuar.
+
+#### 3. Actualización de Documentación (Antes de Subir a Pro)
+
+**IMPORTANTE**: Antes de subir a producción, **SIEMPRE** se actualizan los documentos principales:
+
+1. **Actualizar `README.md`**:
+   - Estado actual del proyecto
+   - Versión actualizada
+   - Nuevas funcionalidades añadidas
+
+2. **Actualizar `TU_PLAN_MAESTRO.md`**:
+   - Marcar hitos/sprints completados
+   - Actualizar progreso
+   - Añadir notas de lo completado
+
+3. **Actualizar `WORKFLOW_DEV_A_PRODUCCION.md`**:
+   - Añadir cambios del último deploy
+   - Actualizar versión y fecha
+   - Documentar cualquier cambio en el proceso
+
+4. **Actualizar `DESIGN_SYSTEM.md`**:
+   - Añadir nuevos componentes UI si los hay
+   - Documentar cambios en diseño
+
+5. **Actualizar `SPRINT[X]_[NOMBRE].md`**:
+   - Marcar hitos completados
+   - Documentar lo implementado
+   - Actualizar estado del sprint
+
+#### 4. Limpieza del Directorio Raíz (Antes de Subir a Pro)
+
+**IMPORTANTE**: El directorio raíz debe mantenerse limpio. Solo deben quedar:
+
+- ✅ `README.md`
+- ✅ `TU_PLAN_MAESTRO.md`
+- ✅ `WORKFLOW_DEV_A_PRODUCCION.md`
+- ✅ `DESIGN_SYSTEM.md`
+- ✅ `SPRINT[X]_[NOMBRE].md` (solo el sprint actual)
+
+**Proceso de limpieza**:
+
+```bash
+# 1. Identificar archivos .md que no son principales
+cd /home/ssoo/www
+ls *.md
+
+# 2. Mover archivos temporales/documentación a docs/
+# Ejemplo:
+mv PROGRESO_PLAN_MAESTRO.md docs/sprints/
+mv CACHE_IMPLEMENTATION.md docs/implementaciones/
+# ... etc
+
+# 3. Verificar que solo quedan los 5 archivos principales
+ls *.md
+```
+
+**Regla**: Si un archivo `.md` no es uno de los 5 principales, debe moverse a `docs/` en la carpeta correspondiente.
+
+#### 5. Commit y Push a Develop
+
+```bash
+# 1. Verificar cambios
+git status
+
+# 2. Añadir cambios
+git add .
+
+# 3. Commit descriptivo
+git commit -m "feat: Sprint X - Hito Y completado
+
+- Detalle 1
+- Detalle 2
+- Documentación actualizada"
+
+# 4. Push a develop
+git push origin develop
+```
+
+#### 6. Merge a Main (Solo Después de Revisar y Probar)
+
+**IMPORTANTE**: Solo se hace merge a `main` cuando:
+- ✅ El hito/sprint está completamente terminado
+- ✅ Todas las pruebas pasaron
+- ✅ Documentación actualizada
+- ✅ Directorio raíz limpio
+
+```bash
+# 1. Cambiar a main
 git checkout main
+
+# 2. Mergear develop
 git merge develop
+
+# 3. Push a main
 git push origin main
 ```
 
-## 🚢 Deploy a Producción
+#### 7. Deploy a Producción
 
+**Ver proceso completo en**: `WORKFLOW_DEV_A_PRODUCCION.md` (FASE 4: Deploy a Producción)
+
+Resumen:
 ```bash
 # En servidor de producción
+ssh -i ~/.ssh/ssh-key-2025-08-21.key ubuntu@140.238.120.92
 cd ~/www
 git pull origin main
 source venv/bin/activate
-pip install -r requirements.txt
-flask db upgrade
+pip install -r requirements.txt  # Solo si cambió
+flask db upgrade  # Solo si hay migraciones
 sudo systemctl restart followup.service
 sudo systemctl status followup.service
 ```
 
+#### 8. Validación en Producción
+
+**IMPORTANTE**: Después de cada deploy, se valida en producción:
+
+- [ ] La aplicación arrancó sin errores
+- [ ] No hay errores en logs (`journalctl -u followup.service`)
+- [ ] URL https://followup.fit/ carga correctamente
+- [ ] Nuevo feature funciona en producción
+- [ ] Features anteriores siguen funcionando
+- [ ] No hay errores en consola del navegador
+
+**Ver checklist completo en**: `WORKFLOW_DEV_A_PRODUCCION.md` (FASE 5: Validación en Producción)
+
+#### 9. Finalización de Sprint (Movimiento de Archivos)
+
+**IMPORTANTE**: Al finalizar un sprint completamente:
+
+1. **Mover archivo del sprint a `docs/sprints/`**:
+   ```bash
+   mv SPRINT4_METRICAS_AVANZADAS.md docs/sprints/
+   ```
+
+2. **Crear nuevo archivo para el siguiente sprint**:
+   ```bash
+   # Crear SPRINT5_[NOMBRE].md en la raíz
+   # Seguir la estructura de sprints anteriores
+   ```
+
+3. **Actualizar `TU_PLAN_MAESTRO.md`**:
+   - Marcar sprint como completado
+   - Actualizar estado del siguiente sprint
+
+### 📋 Checklist Pre-Deploy
+
+Antes de subir a producción, verificar:
+
+- [ ] Código funcional en desarrollo (todas las pruebas pasaron)
+- [ ] Documentación actualizada (4 documentos principales + sprint actual)
+- [ ] Directorio raíz limpio (solo 5 archivos `.md` principales)
+- [ ] Commit con mensaje descriptivo
+- [ ] Push a `develop` exitoso
+- [ ] Merge a `main` realizado
+- [ ] Backup de BD en producción programado (si hay migraciones)
+
+### 📋 Checklist Post-Deploy
+
+Después de subir a producción, verificar:
+
+- [ ] Aplicación arrancó sin errores
+- [ ] No hay errores en logs
+- [ ] URL carga correctamente
+- [ ] Nuevo feature funciona en producción
+- [ ] Features anteriores siguen funcionando
+- [ ] No hay errores en consola del navegador
+
+### 🎯 Reglas de Oro
+
+1. ❌ **NUNCA** codificar directamente en producción
+2. ✅ **SIEMPRE** trabajar en desarrollo (WSL)
+3. ✅ **SIEMPRE** probar en desarrollo antes de mergear
+4. ✅ **SIEMPRE** actualizar documentación antes de subir a pro
+5. ✅ **SIEMPRE** limpiar directorio raíz antes de subir a pro
+6. ✅ **SIEMPRE** validar en producción después de deploy
+7. ✅ **SIEMPRE** mantener `develop` y `main` sincronizados
+8. ✅ **SIEMPRE** hacer pruebas exhaustivas después de cada hito/sprint
+
+### 📞 Referencias Rápidas
+
+- **Proceso de deploy completo**: Ver `WORKFLOW_DEV_A_PRODUCCION.md`
+- **Plan maestro y progreso**: Ver `TU_PLAN_MAESTRO.md`
+- **Sistema de diseño**: Ver `DESIGN_SYSTEM.md`
+- **Sprint actual**: Ver `SPRINT[X]_[NOMBRE].md`
+
+> **Nota**: Para el flujo completo de Git y Deploy, consulta la sección **"🔄 METODOLOGÍA DE TRABAJO"** arriba, o el documento detallado **`WORKFLOW_DEV_A_PRODUCCION.md`**.
+
 ## 📊 Estado del Proyecto
 
 **Fase actual**: Sprint 4 - Métricas Avanzadas (En Progreso - 95%)  
-**Última actualización**: 11 Noviembre 2025  
+**Última actualización**: 12 Noviembre 2025  
 **Versión**: 4.3.0  
 **Progreso**: Sprint 0 ✅ | Sprint 1 ✅ | Sprint 2 ✅ | Sprint 3 ✅ | Sprint 4 🚧 (HITO 1 ✅ | HITO 2 ✅ | Refinements ✅ | UX Avanzadas ✅ | HITO 3 Fase 1 ✅)
 

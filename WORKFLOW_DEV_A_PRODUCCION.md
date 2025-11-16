@@ -531,16 +531,21 @@ sudo systemctl restart nginx
 
 ### 2. Setup de SSL (Let's Encrypt)
 
-```bash
-# Instalar Certbot
-sudo apt install certbot python3-certbot-nginx
+> **📖 Documentación completa**: Ver `docs/guias/CONFIGURACION_SSL_HTTPS.md` para información detallada sobre la configuración SSL actual.
 
-# Obtener certificado
-sudo certbot --nginx -d followup.fit -d www.followup.fit
+**Configuración actual**:
+- ✅ Certificado instalado en **Load Balancer de Oracle Cloud** (no en Nginx)
+- ✅ Certificado generado con **Certbot** en el servidor
+- ✅ Importado manualmente a través de la consola web de Oracle Cloud
+- ⚠️ Renovaciones automáticas fallando (requiere renovación manual)
 
-# Renovación automática (ya configurada por defecto)
-sudo certbot renew --dry-run
-```
+**Proceso de renovación manual** (ver guía completa):
+1. Renovar certificado en servidor: `sudo certbot renew --force-renewal --standalone`
+2. Copiar contenido de `/etc/letsencrypt/live/followup.fit/fullchain.pem`
+3. Importar en Oracle Cloud Load Balancer → Certificates and ciphers
+4. Actualizar listener HTTPS con nuevo certificado
+
+**Nota**: La configuración original mencionaba Nginx, pero el certificado está instalado en el Load Balancer de Oracle Cloud.
 
 ### 3. Setup de Gunicorn como Servicio
 
