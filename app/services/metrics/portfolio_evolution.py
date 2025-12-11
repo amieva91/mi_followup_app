@@ -95,18 +95,22 @@ class PortfolioEvolutionService:
             # P&L No Realizado SOLO aplica al último punto (HOY) con precios actuales
             # Para fechas históricas, no tenemos precios de mercado, solo precio medio de compra
             if date == end_date:
-                # HOY: Incluir P&L No Realizado (posiciones abiertas con precio actual)
+                # HOY: Incluir P&L No Realizado para el P&L total,
+                # pero NO para calcular apalancamiento/cash (Dinero usuario).
                 pl_total = pl_realized + pl_unrealized_at_date + dividends - fees
-                user_money = float(capital) + pl_realized + pl_unrealized_at_date + dividends - fees
+                user_money = float(capital) + pl_realized + dividends - fees  # excluye pl_unrealized
+                user_money_for_leverage = user_money
             else:
                 # HISTÓRICO: Solo P&L Realizado (ventas completadas)
                 pl_total = pl_realized + dividends - fees
                 user_money = float(capital) + pl_realized + dividends - fees
+                user_money_for_leverage = user_money
             
             # Gráfico 3: Apalancamiento/Cash = Dinero del Usuario - Holdings Value
             # Si positivo: tienes cash sin invertir
             # Si negativo: has invertido más de lo que tienes (apalancamiento)
-            broker_money = user_money - float(holdings_value)
+            # holdings_value incluye P&L no realizado; restarlo para medir apalancamiento
+            broker_money = user_money_for_leverage - float(holdings_value - pl_unrealized_at_date)
             
             leverage_data.append(float(broker_money))
             

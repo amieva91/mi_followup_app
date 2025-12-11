@@ -259,11 +259,17 @@ class BasicMetrics:
         pl_realized_data = BasicMetrics.calculate_pl_realized(user_id)
         pl_realized = pl_realized_data['realized_pl']
         
-        # 5. Dinero del usuario (INCLUYE P&L Realizado + P&L No Realizado)
-        user_money = total_deposits - total_withdrawals + pl_realized + pl_unrealized + total_dividends - total_fees
+        # 5. Dinero del usuario
+        #    NOTA: P&L No Realizado NO se incluye para medir apalancamiento,
+        #    solo el capital aportado más P&L realizado y flujos de caja.
+        user_money = total_deposits - total_withdrawals + pl_realized + total_dividends - total_fees
         
-        # 5. Dinero prestado por broker = Valor actual - Dinero usuario
-        broker_money = current_portfolio_value - user_money
+        # 5. Dinero prestado por broker:
+        #    - No incluir P&L no realizado en el lado del broker tampoco.
+        #    - El valor de cartera incluye implícitamente el P&L no realizado (precio actual - coste),
+        #      por lo que lo restamos para obtener valor “sin P&L no realizado”.
+        current_portfolio_value_ex_unrealized = current_portfolio_value - pl_unrealized
+        broker_money = current_portfolio_value_ex_unrealized - user_money
         
         # 6. Ratio de apalancamiento
         leverage_ratio = (broker_money / user_money * 100) if user_money > 0 else 0
@@ -647,7 +653,6 @@ class BasicMetrics:
             account_components['deposits'] -
             account_components['withdrawals'] +
             account_components['pl_realized'] +
-            pl_unrealized +
             account_components['dividends'] -
             account_components['fees']
         )
@@ -655,7 +660,9 @@ class BasicMetrics:
         # Calcular cash/apalancamiento: diferencia entre el dinero del usuario y lo invertido
         # Si es negativo: hay cash disponible (dinero sin invertir)
         # Si es positivo: hay apalancamiento (broker prestando dinero)
-        leverage_amount = current_portfolio_value - account_value_without_cash
+        # El valor de cartera incluye P&L no realizado; lo eliminamos para medir apalancamiento
+        current_portfolio_value_ex_unrealized = current_portfolio_value - pl_unrealized
+        leverage_amount = current_portfolio_value_ex_unrealized - account_value_without_cash
         
         # El cash solo existe cuando leverage es negativo
         cash = abs(leverage_amount) if leverage_amount < 0 else 0
