@@ -268,6 +268,7 @@ class AssetRegistryService:
         asset.symbol = registry.symbol
         asset.name = registry.name
         asset.asset_type = registry.asset_type
+        asset.currency = registry.currency
         asset.exchange = registry.ibkr_exchange
         asset.mic = registry.mic
         asset.yahoo_suffix = registry.yahoo_suffix
