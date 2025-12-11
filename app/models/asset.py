@@ -19,6 +19,7 @@ class Asset(db.Model):
     # Clasificación
     asset_type = db.Column(db.String(20), nullable=False)  # 'Stock', 'ETF', 'Bond', 'Crypto'
     sector = db.Column(db.String(50))  # 'Technology', 'Finance'
+    country = db.Column(db.String(50))  # 'United States', 'Spain', 'United Kingdom'
     exchange = db.Column(db.String(10))  # 'NASDAQ', 'HKG', 'WSE' (formato unificado IBKR)
     currency = db.Column(db.String(3), nullable=False)  # 'USD', 'EUR', 'HKD'
     

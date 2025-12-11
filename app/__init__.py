@@ -22,6 +22,14 @@ def create_app(config_name='default'):
     """Factory para crear la aplicación"""
     app = Flask(__name__)
     
+    # Configurar logging
+    import logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    app.logger.setLevel(logging.INFO)
+    
     # Cargar configuración
     app.config.from_object(config[config_name])
     
@@ -48,6 +56,13 @@ def create_app(config_name='default'):
     # Registrar filtros personalizados para templates
     from app.utils.template_filters import register_filters
     register_filters(app)
+    
+    # Context processor para CSRF token global
+    # Flask-WTF ya proporciona csrf_token() automáticamente, pero lo aseguramos aquí
+    @app.context_processor
+    def inject_csrf_token():
+        from flask_wtf.csrf import generate_csrf
+        return dict(csrf_token=generate_csrf)
     
     # Registrar blueprints
     from app.routes import main_bp, portfolio_bp

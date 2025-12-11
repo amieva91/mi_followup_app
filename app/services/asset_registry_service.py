@@ -125,6 +125,7 @@ class AssetRegistryService:
             name=registry.name,
             asset_type=registry.asset_type,
             currency=registry.currency,
+            country=registry.country,
             exchange=registry.ibkr_exchange,
             mic=registry.mic,
             yahoo_suffix=registry.yahoo_suffix
@@ -269,6 +270,7 @@ class AssetRegistryService:
         asset.name = registry.name
         asset.asset_type = registry.asset_type
         asset.currency = registry.currency
+        asset.country = registry.country
         asset.exchange = registry.ibkr_exchange
         asset.mic = registry.mic
         asset.yahoo_suffix = registry.yahoo_suffix

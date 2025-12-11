@@ -378,12 +378,13 @@ class PriceUpdater:
                         if 'quoteSummary' in quote_data and quote_data['quoteSummary'].get('result'):
                             result = quote_data['quoteSummary']['result'][0]
                             
-                            # SECTOR E INDUSTRY (assetProfile)
+                            # SECTOR, INDUSTRY Y COUNTRY (assetProfile)
                             if 'assetProfile' in result:
                                 profile = result['assetProfile']
                                 asset.sector = profile.get('sector')
                                 asset.industry = profile.get('industry')
-                                logger.debug(f"      ✅ Sector: {asset.sector}, Industry: {asset.industry}")
+                                asset.country = profile.get('country')
+                                logger.debug(f"      ✅ Sector: {asset.sector}, Industry: {asset.industry}, Country: {asset.country}")
                             
                             # VALORACIÓN (summaryDetail + defaultKeyStatistics)
                             summary = result.get('summaryDetail', {})

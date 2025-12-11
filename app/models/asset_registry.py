@@ -30,6 +30,7 @@ class AssetRegistry(db.Model):
     # Información adicional
     name = db.Column(db.String(200))  # Apple Inc., Grifols SA
     asset_type = db.Column(db.String(20))  # Stock, ETF
+    country = db.Column(db.String(50))  # 'United States', 'Spain', 'United Kingdom'
     currency = db.Column(db.String(3), nullable=False)  # USD, EUR, GBP
     
     # Metadata de enriquecimiento

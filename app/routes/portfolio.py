@@ -160,6 +160,24 @@ def dashboard():
         else:
             h['weight_pct'] = 0
     
+    # Calcular distribución por países y sectores
+    from collections import defaultdict
+    country_distribution = defaultdict(float)
+    sector_distribution = defaultdict(float)
+    
+    for h in holdings_unified:
+        asset = h['asset']
+        value_eur = h.get('current_value_eur', h.get('cost_eur', 0))
+        
+        if asset.country:
+            country_distribution[asset.country] += value_eur
+        if asset.sector:
+            sector_distribution[asset.sector] += value_eur
+    
+    # Convertir a listas ordenadas por valor (descendente)
+    country_data = sorted(country_distribution.items(), key=lambda x: x[1], reverse=True)
+    sector_data = sorted(sector_distribution.items(), key=lambda x: x[1], reverse=True)
+    
     # Calcular métricas básicas (Sprint 4 - HITO 1 + Cache)
     from app.services.metrics.cache import MetricsCacheService
     
@@ -177,6 +195,16 @@ def dashboard():
         # Guardar en cache para próximas visitas
         MetricsCacheService.set(current_user.id, metrics)
     
+    # Calcular rentabilidades año a año
+    from app.services.metrics.modified_dietz import ModifiedDietzCalculator
+    yearly_returns = ModifiedDietzCalculator.get_yearly_returns(current_user.id)
+    
+    # Calcular métricas de dividendos
+    from app.services.metrics.dividend_metrics import DividendMetrics
+    monthly_dividends = DividendMetrics.get_monthly_dividends_last_12_months(current_user.id)
+    annualized_dividends = DividendMetrics.get_annualized_dividends_ytd(current_user.id)
+    yearly_dividends = DividendMetrics.get_yearly_dividends_from_start(current_user.id)
+    
     return render_template(
         'portfolio/dashboard.html',
         accounts=accounts,
@@ -188,7 +216,13 @@ def dashboard():
         last_price_update=last_price_update,
         last_sync=last_sync,
         unified=True,  # Flag para indicar que son holdings unificados
-        metrics=metrics
+        metrics=metrics,
+        country_distribution=country_data,
+        sector_distribution=sector_data,
+        yearly_returns=yearly_returns,
+        monthly_dividends=monthly_dividends,
+        annualized_dividends=annualized_dividends,
+        yearly_dividends=yearly_dividends
     )
 
 

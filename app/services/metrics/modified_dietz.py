@@ -244,6 +244,73 @@ class ModifiedDietzCalculator:
         return result
     
     @staticmethod
+    def get_yearly_returns(user_id):
+        """
+        Calcula rentabilidades año a año desde el inicio hasta hoy
+        
+        Returns:
+            list: Lista de dicts con rentabilidades por año:
+            [
+                {
+                    'year': int,  # 2023, 2024, etc.
+                    'return_pct': float,  # Rentabilidad en %
+                    'absolute_gain': float,  # Ganancia absoluta en EUR
+                    'is_ytd': bool,  # True si es el año actual (YTD)
+                    'start_date': datetime,
+                    'end_date': datetime
+                },
+                ...
+            ]
+        """
+        # Obtener primera transacción para saber desde cuándo calcular
+        first_txn = Transaction.query.filter_by(
+            user_id=user_id
+        ).order_by(Transaction.transaction_date).first()
+        
+        if not first_txn:
+            return []
+        
+        first_year = first_txn.transaction_date.year
+        current_year = datetime.now().year
+        yearly_returns = []
+        
+        # Calcular para cada año desde el primero hasta el actual
+        for year in range(first_year, current_year + 1):
+            # Fechas del año
+            year_start = datetime(year, 1, 1)
+            year_end = datetime(year, 12, 31, 23, 59, 59)
+            
+            # Si es el año actual, usar fecha de hoy como fin
+            is_ytd = (year == current_year)
+            if is_ytd:
+                year_end = datetime.now()
+            
+            # Si la primera transacción es después del 1 enero, usar esa fecha
+            if year == first_year and first_txn.transaction_date > year_start:
+                year_start = first_txn.transaction_date
+            
+            # Calcular rentabilidad del año
+            result = ModifiedDietzCalculator.calculate_return(
+                user_id, year_start, year_end
+            )
+            
+            yearly_returns.append({
+                'year': year,
+                'return_pct': result.get('return_pct', 0.0),
+                'absolute_gain': result.get('absolute_gain', 0.0),
+                'is_ytd': is_ytd,
+                'start_date': year_start,
+                'end_date': year_end,
+                'start_value': result.get('start_value', 0.0),
+                'end_value': result.get('end_value', 0.0)
+            })
+        
+        # Ordenar por año descendente (más reciente primero)
+        yearly_returns.sort(key=lambda x: x['year'], reverse=True)
+        
+        return yearly_returns
+    
+    @staticmethod
     def get_all_returns(user_id, start_date=None, end_date=None):
         """
         Calcula todas las métricas de rentabilidad de una vez

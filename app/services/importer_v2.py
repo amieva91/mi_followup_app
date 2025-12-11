@@ -63,6 +63,7 @@ class CSVImporterV2:
         self.broker_account = BrokerAccount.query.get(broker_account_id)
         self.registry_service = AssetRegistryService()
         self.enable_enrichment = enable_enrichment  # ⚡ Deshabilitar por defecto para evitar rate limits
+        print(f"🔍 DEBUG CSVImporterV2: enable_enrichment = {self.enable_enrichment}")
         
         if not self.broker_account:
             raise ValueError(f"BrokerAccount {broker_account_id} no encontrado")
@@ -109,8 +110,10 @@ class CSVImporterV2:
         isins_needed = self._process_assets_to_registry(parsed_data)
         
         # 3. Enriquecer assets que lo necesiten (con progreso) - SOLO si está habilitado
+        print(f"🔍 DEBUG: isins_needed = {len(isins_needed) if isins_needed else 0}, enable_enrichment = {self.enable_enrichment}")
         if isins_needed and self.enable_enrichment:
             self.stats['enrichment_needed'] = len(isins_needed)
+            print(f"✅ Iniciando enriquecimiento de {len(isins_needed)} assets...")
             self._enrich_assets_with_progress(isins_needed, progress_callback)
         elif isins_needed:
             # Si no está habilitado, solo marcar cuántos quedan pendientes
@@ -338,6 +341,20 @@ class CSVImporterV2:
             # Verificar si ya existe
             existing = Asset.query.filter_by(isin=isin).first()
             if existing:
+                # Si existe, actualizar desde AssetRegistry enriquecido
+                registry = AssetRegistry.query.filter_by(isin=isin).first()
+                if registry:
+                    # Actualizar campos desde registry si están disponibles
+                    if registry.symbol and not existing.symbol:
+                        existing.symbol = registry.symbol
+                    if registry.yahoo_suffix and not existing.yahoo_suffix:
+                        existing.yahoo_suffix = registry.yahoo_suffix
+                    if registry.mic and not existing.mic:
+                        existing.mic = registry.mic
+                    if registry.name and existing.name != registry.name:
+                        existing.name = registry.name
+                    if registry.exchange and not existing.exchange:
+                        existing.exchange = registry.exchange
                 self.asset_cache[isin] = existing
                 continue
             

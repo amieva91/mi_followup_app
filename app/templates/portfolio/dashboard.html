@@ -52,17 +52,23 @@
     </div>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <!-- Valor Real Cuenta de Inversión -->
-        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-indigo-500">
+        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-indigo-500" x-data="{ showDetails: false }">
             <div class="flex items-center justify-between mb-2">
                 <div class="text-sm text-gray-600">🏦 Valor Real Cuenta</div>
-                <span class="text-xs text-gray-400 cursor-help" title="Todo el dinero del usuario en la cuenta: capital aportado + ganancias/pérdidas + dividendos - comisiones + cash disponible (si lo hay).">ⓘ</span>
+                <div class="flex items-center gap-2">
+                    <button @click="showDetails = !showDetails" class="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                        <span x-show="!showDetails">▼ Ver desglose</span>
+                        <span x-show="showDetails">▲ Ocultar</span>
+                    </button>
+                    <span class="text-xs text-gray-400 cursor-help" title="Todo el dinero del usuario en la cuenta: capital aportado + ganancias/pérdidas + dividendos - comisiones + cash disponible (si lo hay).">ⓘ</span>
+                </div>
             </div>
             <div class="text-2xl font-bold text-indigo-600">
                 {{ metrics.total_account.total_account_value|decimal_eu(2) }} EUR
             </div>
             
             <!-- Desglose detallado -->
-            <div class="text-xs text-gray-500 mt-3 space-y-1 border-t pt-2">
+            <div x-show="showDetails" x-cloak class="text-xs text-gray-500 mt-3 space-y-1 border-t pt-2">
                 <div class="flex justify-between">
                     <span>• Depósitos:</span>
                     <span>+{{ metrics.total_account.deposits|decimal_eu(2) }}</span>
@@ -112,17 +118,23 @@
         </div>
         
         <!-- P&L Total (UNIFICADO) -->
-        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if metrics.total_pl.total_pl >= 0 %}border-green-600{% else %}border-red-600{% endif %}">
+        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if metrics.total_pl.total_pl >= 0 %}border-green-600{% else %}border-red-600{% endif %}" x-data="{ showDetails: false }">
             <div class="flex items-center justify-between mb-2">
                 <div class="text-sm text-gray-600">📊 P&L Total</div>
-                <span class="text-xs text-gray-400 cursor-help" title="Ganancia/pérdida TOTAL histórica: P&L Realizado + P&L No Realizado + Dividendos - Comisiones">ⓘ</span>
+                <div class="flex items-center gap-2">
+                    <button @click="showDetails = !showDetails" class="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                        <span x-show="!showDetails">▼ Ver desglose</span>
+                        <span x-show="showDetails">▲ Ocultar</span>
+                    </button>
+                    <span class="text-xs text-gray-400 cursor-help" title="Ganancia/pérdida TOTAL histórica: P&L Realizado + P&L No Realizado + Dividendos - Comisiones">ⓘ</span>
+                </div>
             </div>
             <div class="text-2xl font-bold {% if metrics.total_pl.total_pl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
                 {% if metrics.total_pl.total_pl >= 0 %}+{% endif %}{{ metrics.total_pl.total_pl|decimal_eu(2) }} EUR
             </div>
             
             <!-- Desglose detallado -->
-            <div class="text-xs text-gray-500 mt-3 space-y-1 border-t pt-2">
+            <div x-show="showDetails" x-cloak class="text-xs text-gray-500 mt-3 space-y-1 border-t pt-2">
                 <div class="flex justify-between">
                     <span>• P&L Realizado:</span>
                     <span>{% if metrics.total_pl.pl_realized >= 0 %}+{% endif %}{{ metrics.total_pl.pl_realized|decimal_eu(2) }}</span>
@@ -149,17 +161,23 @@
         </div>
         
         <!-- ROI -->
-        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if metrics.roi.roi >= 0 %}border-blue-500{% else %}border-red-500{% endif %}">
+        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if metrics.roi.roi >= 0 %}border-blue-500{% else %}border-red-500{% endif %}" x-data="{ showDetails: false }">
             <div class="flex items-center justify-between mb-2">
                 <div class="text-sm text-gray-600">📈 ROI</div>
-                <span class="text-xs text-gray-400 cursor-help" title="Return on Investment: rentabilidad total sobre el capital aportado. Fórmula: (Valor Actual + Retiradas - Depósitos) / Depósitos × 100">ⓘ</span>
+                <div class="flex items-center gap-2">
+                    <button @click="showDetails = !showDetails" class="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                        <span x-show="!showDetails">▼ Ver desglose</span>
+                        <span x-show="showDetails">▲ Ocultar</span>
+                    </button>
+                    <span class="text-xs text-gray-400 cursor-help" title="Return on Investment: rentabilidad total sobre el capital aportado. Fórmula: (Valor Actual + Retiradas - Depósitos) / Depósitos × 100">ⓘ</span>
+                </div>
             </div>
             <div class="text-2xl font-bold {% if metrics.roi.roi >= 0 %}text-blue-600{% else %}text-red-600{% endif %}">
                 {% if metrics.roi.roi >= 0 %}+{% endif %}{{ metrics.roi.roi|decimal_eu(2) }}%
             </div>
             
             <!-- Desglose detallado -->
-            <div class="text-xs text-gray-500 mt-3 space-y-1 border-t pt-2">
+            <div x-show="showDetails" x-cloak class="text-xs text-gray-500 mt-3 space-y-1 border-t pt-2">
                 <div class="flex justify-between">
                     <span>• Valor Actual:</span>
                     <span>{{ total_value|decimal_eu(2) }}</span>
@@ -180,10 +198,16 @@
         </div>
         
         <!-- Modified Dietz (Rentabilidad) -->
-        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if metrics.modified_dietz.total.return_pct >= 0 %}border-purple-500{% else %}border-red-500{% endif %}">
+        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if metrics.modified_dietz.total.return_pct >= 0 %}border-purple-500{% else %}border-red-500{% endif %}" x-data="{ showDetails: false }">
             <div class="flex items-center justify-between mb-2">
                 <div class="text-sm text-gray-600">💎 Rentabilidad (Modified Dietz)</div>
-                <span class="text-xs text-gray-400 cursor-help" title="Rentabilidad usando Modified Dietz Method (estándar GIPS). Elimina el efecto de los flujos de caja (deposits/withdrawals) para medir la performance real de tu estrategia.">ⓘ</span>
+                <div class="flex items-center gap-2">
+                    <button @click="showDetails = !showDetails" class="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                        <span x-show="!showDetails">▼ Ver desglose</span>
+                        <span x-show="showDetails">▲ Ocultar</span>
+                    </button>
+                    <span class="text-xs text-gray-400 cursor-help" title="Rentabilidad usando Modified Dietz Method (estándar GIPS). Elimina el efecto de los flujos de caja (deposits/withdrawals) para medir la performance real de tu estrategia.">ⓘ</span>
+                </div>
             </div>
             <div class="text-2xl font-bold {% if metrics.modified_dietz.annualized.return_pct >= 0 %}text-purple-600{% else %}text-red-600{% endif %}">
                 {% if metrics.modified_dietz.annualized.return_pct >= 0 %}+{% endif %}{{ metrics.modified_dietz.annualized.return_pct|decimal_eu(2) }}%
@@ -191,7 +215,7 @@
             <div class="text-xs text-gray-500">Anualizada ({{ metrics.modified_dietz.annualized.years }} años)</div>
             
             <!-- Métricas adicionales -->
-            <div class="text-xs text-gray-500 mt-3 space-y-1 border-t pt-2">
+            <div x-show="showDetails" x-cloak class="text-xs text-gray-500 mt-3 space-y-1 border-t pt-2">
                 <div class="flex justify-between">
                     <span>📅 Año Actual (YTD):</span>
                     <span class="font-medium {% if metrics.modified_dietz.ytd.return_pct >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
@@ -220,6 +244,158 @@
     </div>
     
     <!-- ============================================ -->
+    <!-- RENTABILIDADES AÑO A AÑO                     -->
+    <!-- ============================================ -->
+    {% if yearly_returns and yearly_returns|length > 0 %}
+    <div class="mb-2 mt-8">
+        <h2 class="text-lg font-semibold text-gray-700">📅 Rentabilidades Año a Año</h2>
+        <p class="text-xs text-gray-500">Rentabilidad anual calculada con Modified Dietz (el último año es YTD)</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm p-6 mb-8 border border-gray-200">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Lista de rentabilidades -->
+            <div x-data="{ showAll: false }">
+                <h3 class="text-md font-semibold text-gray-800 mb-4">📊 Resumen por Año</h3>
+                <div class="space-y-3">
+                    {% set recent_years = yearly_returns[:5] %}
+                    {% set older_years = yearly_returns[5:] %}
+                    
+                    {% for yr in recent_years %}
+                    <div class="flex items-center justify-between p-3 rounded-lg {% if yr.return_pct >= 0 %}bg-green-50 border border-green-200{% else %}bg-red-50 border border-red-200{% endif %}">
+                        <div class="flex items-center gap-3">
+                            <div class="text-lg font-bold {% if yr.return_pct >= 0 %}text-green-700{% else %}text-red-700{% endif %}">
+                                {{ yr.year }}{% if yr.is_ytd %} <span class="text-xs font-normal">(YTD)</span>{% endif %}
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-lg font-bold {% if yr.return_pct >= 0 %}text-green-700{% else %}text-red-700{% endif %}">
+                                {% if yr.return_pct >= 0 %}+{% endif %}{{ yr.return_pct|decimal_eu(2) }}%
+                            </div>
+                            <div class="text-xs text-gray-600">
+                                {% if yr.absolute_gain >= 0 %}+{% endif %}{{ yr.absolute_gain|decimal_eu(2) }} EUR
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    
+                    {% if older_years|length > 0 %}
+                    <div x-show="showAll" x-collapse class="space-y-3">
+                        {% for yr in older_years %}
+                        <div class="flex items-center justify-between p-3 rounded-lg {% if yr.return_pct >= 0 %}bg-green-50 border border-green-200{% else %}bg-red-50 border border-red-200{% endif %}">
+                            <div class="flex items-center gap-3">
+                                <div class="text-lg font-bold {% if yr.return_pct >= 0 %}text-green-700{% else %}text-red-700{% endif %}">
+                                    {{ yr.year }}{% if yr.is_ytd %} <span class="text-xs font-normal">(YTD)</span>{% endif %}
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-lg font-bold {% if yr.return_pct >= 0 %}text-green-700{% else %}text-red-700{% endif %}">
+                                    {% if yr.return_pct >= 0 %}+{% endif %}{{ yr.return_pct|decimal_eu(2) }}%
+                                </div>
+                                <div class="text-xs text-gray-600">
+                                    {% if yr.absolute_gain >= 0 %}+{% endif %}{{ yr.absolute_gain|decimal_eu(2) }} EUR
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <button @click="showAll = !showAll" class="w-full mt-3 p-2 text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg border border-blue-200 transition-colors">
+                        <span x-show="!showAll">▼ Ver {{ older_years|length }} año{{ 's' if older_years|length != 1 else '' }} anterior{{ 'es' if older_years|length != 1 else '' }}</span>
+                        <span x-show="showAll">▲ Ocultar años anteriores</span>
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Gráfico de barras -->
+            <div>
+                <h3 class="text-md font-semibold text-gray-800 mb-4">📈 Gráfico de Rentabilidades</h3>
+                <div class="relative" style="height: 300px;">
+                    <canvas id="yearlyReturnsChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- ============================================ -->
+    <!-- DIVIDENDOS                                   -->
+    <!-- ============================================ -->
+    {% if monthly_dividends or annualized_dividends %}
+    <div class="mb-2 mt-8">
+        <h2 class="text-lg font-semibold text-gray-700">💰 Dividendos</h2>
+        <p class="text-xs text-gray-500">Últimos 12 meses (mes a mes) y proyección anualizada desde el inicio</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm p-6 mb-8 border border-gray-200">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Últimos 12 meses -->
+            {% if monthly_dividends and monthly_dividends|length > 0 %}
+            <div>
+                <h3 class="text-md font-semibold text-gray-800 mb-4">📅 Últimos 12 Meses</h3>
+                <div class="relative" style="height: 300px;">
+                    <canvas id="monthlyDividendsChart"></canvas>
+                </div>
+                <div class="mt-4 text-xs text-gray-600">
+                    <div class="flex justify-between items-center mb-1">
+                        <span>Total últimos 12 meses:</span>
+                        <span class="font-semibold">{{ monthly_dividends | sum(attribute='dividends_eur') | decimal_eu(2) }} EUR</span>
+                    </div>
+                </div>
+                
+                <!-- Gráfico año a año desde el inicio -->
+                {% if yearly_dividends and yearly_dividends|length > 0 %}
+                <div class="mt-8">
+                    <h3 class="text-md font-semibold text-gray-800 mb-4">📊 Año a Año (Desde el Inicio)</h3>
+                    <div class="relative" style="height: 300px;">
+                        <canvas id="yearlyDividendsChart"></canvas>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+            
+            <!-- Métricas anualizadas -->
+            {% if annualized_dividends %}
+            <div>
+                <h3 class="text-md font-semibold text-gray-800 mb-4">📊 Métricas Anualizadas</h3>
+                <div class="space-y-4">
+                    <div class="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                        <div class="text-sm text-gray-600 mb-1">YTD (Año Actual)</div>
+                        <div class="text-2xl font-bold text-blue-700">
+                            {{ annualized_dividends.total_dividends_ytd|decimal_eu(2) }} EUR
+                        </div>
+                        <div class="text-xs text-gray-500 mt-1">
+                            {{ annualized_dividends.ytd_days }} días transcurridos
+                        </div>
+                    </div>
+                    
+                    <div class="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                        <div class="text-sm text-gray-600 mb-1">Total Histórico</div>
+                        <div class="text-2xl font-bold text-purple-700">
+                            {{ annualized_dividends.total_dividends_all_time|decimal_eu(2) }} EUR
+                        </div>
+                        <div class="text-xs text-gray-500 mt-1">
+                            Desde {{ annualized_dividends.first_transaction_date.strftime('%d/%m/%Y') if annualized_dividends.first_transaction_date else 'N/A' }}
+                        </div>
+                    </div>
+                    
+                    <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                        <div class="text-sm text-gray-600 mb-1">Promedio Anual Histórico</div>
+                        <div class="text-2xl font-bold text-gray-700">
+                            {{ annualized_dividends.average_annual_dividends|decimal_eu(2) }} EUR
+                        </div>
+                        <div class="text-xs text-gray-500 mt-1">
+                            {{ annualized_dividends.years_investing|decimal_eu(1) }} años de inversión
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- ============================================ -->
     <!-- MÉTRICAS DEL PORTFOLIO ACTUAL (SEGUNDO)     -->
     <!-- ============================================ -->
     <div class="mb-2">
@@ -228,17 +404,23 @@
     </div>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
         <!-- Valor Total Cartera (CON COSTE TOTAL DENTRO) -->
-        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-blue-500">
+        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-blue-500" x-data="{ showDetails: false }">
             <div class="flex items-center justify-between mb-1">
                 <div class="text-sm text-gray-600">💰 Valor Total Cartera</div>
-                <span class="text-xs text-gray-400 cursor-help" title="Valor actual de todas las posiciones abiertas. Se calcula sumando (cantidad × precio actual) para cada activo.">ⓘ</span>
+                <div class="flex items-center gap-2">
+                    <button @click="showDetails = !showDetails" class="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                        <span x-show="!showDetails">▼ Ver desglose</span>
+                        <span x-show="showDetails">▲ Ocultar</span>
+                    </button>
+                    <span class="text-xs text-gray-400 cursor-help" title="Valor actual de todas las posiciones abiertas. Se calcula sumando (cantidad × precio actual) para cada activo.">ⓘ</span>
+                </div>
             </div>
             <div class="text-2xl font-bold text-gray-900">
                 {{ total_value|decimal_eu(2) }} EUR
             </div>
             
             <!-- Desglose detallado -->
-            <div class="text-xs text-gray-500 mt-3 space-y-1 border-t pt-2">
+            <div x-show="showDetails" x-cloak class="text-xs text-gray-500 mt-3 space-y-1 border-t pt-2">
                 <div class="flex justify-between">
                     <span>📊 Posiciones abiertas:</span>
                     <span class="font-medium">{{ holdings|length if holdings else 0 }}</span>
@@ -273,7 +455,7 @@
         </div>
         
         <!-- Leverage / Dinero Prestado o Cash -->
-        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if metrics.leverage.broker_money > 0 %}border-red-500{% else %}border-cyan-500{% endif %}">
+        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if metrics.leverage.broker_money > 0 %}border-red-500{% else %}border-cyan-500{% endif %}" x-data="{ showDetails: false }">
             <div class="flex items-center justify-between mb-2">
                 <div class="text-sm text-gray-600">
                     {% if metrics.leverage.broker_money > 0 %}
@@ -282,14 +464,20 @@
                     💵 Cash en Cuenta
                     {% endif %}
                 </div>
-                <span class="text-xs text-gray-400 cursor-help" title="Diferencia entre Valor Total Cartera y Dinero del Usuario. Positivo = apalancamiento (broker presta dinero). Negativo = cash disponible sin invertir.">ⓘ</span>
+                <div class="flex items-center gap-2">
+                    <button @click="showDetails = !showDetails" class="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                        <span x-show="!showDetails">▼ Ver desglose</span>
+                        <span x-show="showDetails">▲ Ocultar</span>
+                    </button>
+                    <span class="text-xs text-gray-400 cursor-help" title="Diferencia entre Valor Total Cartera y Dinero del Usuario. Positivo = apalancamiento (broker presta dinero). Negativo = cash disponible sin invertir.">ⓘ</span>
+                </div>
             </div>
             <div class="text-2xl font-bold {% if metrics.leverage.broker_money > 0 %}text-red-600{% else %}text-cyan-600{% endif %}">
                 {% if metrics.leverage.broker_money >= 0 %}+{% endif %}{{ metrics.leverage.broker_money|decimal_eu(2) }} EUR
             </div>
             
             <!-- Desglose detallado -->
-            <div class="text-xs text-gray-500 mt-3 space-y-1 border-t pt-2">
+            <div x-show="showDetails" x-cloak class="text-xs text-gray-500 mt-3 space-y-1 border-t pt-2">
                 <div class="flex justify-between mb-1">
                     <span>💼 Valor Total Cartera:</span>
                     <span class="font-medium">{{ total_value|decimal_eu(2) }} EUR</span>
@@ -333,20 +521,33 @@
             {% endif %}
         </div>
         
-        <!-- Posiciones -->
-        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-gray-300">
-            <div class="flex items-center justify-between mb-2">
-                <div class="text-sm text-gray-600">📌 Posiciones</div>
-                <span class="text-xs text-gray-400 cursor-help" title="Número total de posiciones abiertas en el portfolio">ⓘ</span>
-            </div>
-            <div class="text-2xl font-bold text-gray-900">
-                {{ holdings|length }}
-            </div>
-            <div class="text-xs text-gray-500 mt-1">
-                En {{ accounts|length }} cuenta(s)
+    </div>
+    
+    <!-- Gráficos de Distribución: Países y Sectores -->
+    {% if country_distribution or sector_distribution %}
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <!-- Gráfico de Países -->
+        {% if country_distribution %}
+        <div class="bg-white rounded-xl shadow-sm p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">🌍 Distribución por País</h3>
+            <div class="relative" style="height: 300px;">
+                <canvas id="countryChart"></canvas>
             </div>
         </div>
+        {% endif %}
+        
+        <!-- Gráfico de Sectores -->
+        {% if sector_distribution %}
+        <div class="bg-white rounded-xl shadow-sm p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">🏭 Distribución por Sector</h3>
+            <div class="relative" style="height: 300px;">
+                <canvas id="sectorChart"></canvas>
+            </div>
+        </div>
+        {% endif %}
     </div>
+    {% endif %}
+    
     {% endif %}
     
     <!-- Última actualización e información -->
@@ -373,7 +574,7 @@
     {% if holdings %}
     <div class="bg-white rounded-xl shadow-sm overflow-hidden mb-8">
         <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-            <h2 class="text-xl font-semibold text-gray-900">💼 Posiciones Actuales</h2>
+            <h2 class="text-xl font-semibold text-gray-900">💼 Posiciones Actuales <span class="text-lg font-normal text-gray-600">({{ holdings|length }})</span></h2>
             <a href="{{ url_for('portfolio.holdings_list') }}" class="text-sm text-blue-600 hover:text-blue-800 font-medium">
                 Ver todas →
             </a>
@@ -394,15 +595,18 @@
                             Cantidad <span class="sort-arrow">⇅</span>
                         </th>
                         <th onclick="sortTableHoldings(3, 'number')" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
-                            Precio Actual <span class="sort-arrow">⇅</span>
+                            Precio Medio Compra <span class="sort-arrow">⇅</span>
                         </th>
                         <th onclick="sortTableHoldings(4, 'number')" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
-                            Valor Actual <span class="sort-arrow">⇅</span>
+                            Precio Actual <span class="sort-arrow">⇅</span>
                         </th>
                         <th onclick="sortTableHoldings(5, 'number')" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
-                            P&L <span class="sort-arrow">⇅</span>
+                            Valor Actual <span class="sort-arrow">⇅</span>
                         </th>
                         <th onclick="sortTableHoldings(6, 'number')" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                            P&L <span class="sort-arrow">⇅</span>
+                        </th>
+                        <th onclick="sortTableHoldings(7, 'number')" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
                             Peso % <span class="sort-arrow">⇅</span>
                         </th>
                     </tr>
@@ -444,6 +648,15 @@
                         <!-- Cantidad -->
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900">
                             {{ holding['total_quantity']|decimal_eu(0) }}
+                        </td>
+                        
+                        <!-- Precio Medio Compra -->
+                        <td class="px-6 py-4 whitespace-nowrap text-right">
+                            {% if holding['average_buy_price'] and holding['average_buy_price'] > 0 %}
+                            <div class="text-sm text-gray-900">{{ holding['average_buy_price']|decimal_eu(2) }} {{ holding['asset'].currency }}</div>
+                            {% else %}
+                            <span class="text-xs text-gray-400">-</span>
+                            {% endif %}
                         </td>
                         
                         <!-- Precio Actual -->
@@ -541,6 +754,10 @@
                     <div class="flex justify-between">
                         <span>❌ Fallidos:</span>
                         <span id="failedCount" class="font-medium text-red-600">0</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>⚠️ Omitidos:</span>
+                        <span id="skippedCount" class="font-medium text-orange-600">0</span>
                     </div>
                 </div>
             </div>
@@ -700,21 +917,46 @@ function updateProgressUI(data) {
 }
 
 function onUpdateComplete(data) {
+    console.log('onUpdateComplete called with data:', data);
     const modalTitle = document.getElementById('modalTitle');
     const spinner = document.getElementById('spinner');
     const results = document.getElementById('results');
     const successCount = document.getElementById('successCount');
     const failedCount = document.getElementById('failedCount');
+    const skippedCount = document.getElementById('skippedCount');
     const errorMessage = document.getElementById('errorMessage');
+    
+    console.log('Elements found:', {
+        modalTitle: !!modalTitle,
+        spinner: !!spinner,
+        results: !!results,
+        successCount: !!successCount,
+        failedCount: !!failedCount,
+        skippedCount: !!skippedCount,
+        errorMessage: !!errorMessage
+    });
     
     spinner.classList.add('hidden');
     
     if (data.status === 'completed') {
         modalTitle.textContent = '✅ Actualización completada';
         results.classList.remove('hidden');
-        // Usar la estructura correcta del backend
-        successCount.textContent = data.success || 0;
-        failedCount.textContent = data.failed || 0;
+        // Usar los valores aplanados del backend o los del result si existen
+        const result = data.result || {};
+        const success = data.success !== undefined ? data.success : (result.success || 0);
+        const failed = data.failed !== undefined ? data.failed : (result.failed || 0);
+        const skipped = data.skipped !== undefined ? data.skipped : (result.skipped || 0);
+        
+        console.log('Setting values:', { success, failed, skipped });
+        
+        if (successCount) successCount.textContent = success;
+        if (failedCount) failedCount.textContent = failed;
+        if (skippedCount) {
+            skippedCount.textContent = skipped;
+            console.log('skippedCount element found and value set to:', skipped);
+        } else {
+            console.error('skippedCount element NOT FOUND!');
+        }
     } else {
         modalTitle.textContent = '❌ Error en actualización';
         errorMessage.textContent = data.message || 'Error desconocido';
@@ -740,5 +982,305 @@ function closeModal() {
     window.location.reload();
 }
 </script>
+
+<!-- Chart.js Library -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<!-- Gráficos de Distribución: Países y Sectores -->
+{% if country_distribution or sector_distribution %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Colores para los gráficos
+    const colors = [
+        '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
+        '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1',
+        '#14B8A6', '#A855F7', '#F43F5E', '#0EA5E9', '#22C55E'
+    ];
+    
+    {% if country_distribution %}
+    // Gráfico de Países
+    const countryCtx = document.getElementById('countryChart');
+    if (countryCtx) {
+        const countryData = {
+            labels: [{% for country, value in country_distribution %}'{{ country }}'{% if not loop.last %},{% endif %}{% endfor %}],
+            datasets: [{
+                data: [{% for country, value in country_distribution %}{{ value }}{% if not loop.last %},{% endif %}{% endfor %}],
+                backgroundColor: colors.slice(0, {{ country_distribution|length }}),
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        };
+        
+        new Chart(countryCtx, {
+            type: 'pie',
+            data: countryData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: {
+                            padding: 15,
+                            font: { size: 12 }
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.label || '';
+                                const value = context.parsed || 0;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = ((value / total) * 100).toFixed(1);
+                                return label + ': ' + value.toLocaleString('es-ES', {style: 'currency', currency: 'EUR', maximumFractionDigits: 0}) + ' (' + percentage + '%)';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+    {% endif %}
+    
+    {% if sector_distribution %}
+    // Gráfico de Sectores
+    const sectorCtx = document.getElementById('sectorChart');
+    if (sectorCtx) {
+        const sectorData = {
+            labels: [{% for sector, value in sector_distribution %}'{{ sector }}'{% if not loop.last %},{% endif %}{% endfor %}],
+            datasets: [{
+                data: [{% for sector, value in sector_distribution %}{{ value }}{% if not loop.last %},{% endif %}{% endfor %}],
+                backgroundColor: colors.slice(0, {{ sector_distribution|length }}),
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        };
+        
+        new Chart(sectorCtx, {
+            type: 'pie',
+            data: sectorData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: {
+                            padding: 15,
+                            font: { size: 12 }
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.label || '';
+                                const value = context.parsed || 0;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = ((value / total) * 100).toFixed(1);
+                                return label + ': ' + value.toLocaleString('es-ES', {style: 'currency', currency: 'EUR', maximumFractionDigits: 0}) + ' (' + percentage + '%)';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+    {% endif %}
+    
+    {% if yearly_returns and yearly_returns|length > 0 %}
+    // Gráfico de Rentabilidades Año a Año
+    const yearlyReturnsCtx = document.getElementById('yearlyReturnsChart');
+    if (yearlyReturnsCtx) {
+        // Invertir el orden para mostrar años más antiguos primero (izquierda a derecha)
+        const yearData = {{ yearly_returns | tojson }};
+        const reversedData = [...yearData].reverse();
+        
+        const yearlyData = {
+            labels: reversedData.map(yr => yr.year + (yr.is_ytd ? ' (YTD)' : '')),
+            datasets: [{
+                label: 'Rentabilidad (%)',
+                data: reversedData.map(yr => yr.return_pct),
+                backgroundColor: reversedData.map(yr => yr.return_pct >= 0 ? 'rgba(34, 197, 94, 0.7)' : 'rgba(239, 68, 68, 0.7)'),
+                borderColor: reversedData.map(yr => yr.return_pct >= 0 ? 'rgba(34, 197, 94, 1)' : 'rgba(239, 68, 68, 1)'),
+                borderWidth: 2
+            }]
+        };
+        
+        new Chart(yearlyReturnsCtx, {
+            type: 'bar',
+            data: yearlyData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const value = context.parsed.y;
+                                const index = context.dataIndex;
+                                const absoluteGain = reversedData[index].absolute_gain;
+                                return 'Rentabilidad: ' + value.toFixed(2) + '% | Ganancia: ' + 
+                                       (absoluteGain >= 0 ? '+' : '') + absoluteGain.toFixed(2) + ' EUR';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return value.toFixed(1) + '%';
+                            }
+                        },
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.1)'
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
+            }
+        });
+    }
+    {% endif %}
+    
+    {% if monthly_dividends and monthly_dividends|length > 0 %}
+    // Gráfico de Dividendos Mensuales (Últimos 12 meses)
+    const monthlyDividendsCtx = document.getElementById('monthlyDividendsChart');
+    if (monthlyDividendsCtx) {
+        // Invertir orden para mostrar más antiguo primero (izquierda a derecha)
+        const monthlyData = {{ monthly_dividends | tojson }};
+        const reversedData = [...monthlyData].reverse();
+        
+        const chartData = {
+            labels: reversedData.map(d => {
+                const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+                return monthNames[d.month - 1] + ' ' + d.year;
+            }),
+            datasets: [{
+                label: 'Dividendos (EUR)',
+                data: reversedData.map(d => d.dividends_eur),
+                backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                borderColor: 'rgba(59, 130, 246, 1)',
+                borderWidth: 2
+            }]
+        };
+        
+        new Chart(monthlyDividendsCtx, {
+            type: 'bar',
+            data: chartData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const value = context.parsed.y;
+                                const index = context.dataIndex;
+                                const count = reversedData[index].dividends_count;
+                                return value.toFixed(2) + ' EUR (' + count + ' dividendo' + (count !== 1 ? 's' : '') + ')';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return value.toFixed(0) + ' EUR';
+                            }
+                        },
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.1)'
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
+            }
+        });
+    }
+    {% endif %}
+    
+    {% if yearly_dividends and yearly_dividends|length > 0 %}
+    // Gráfico de Dividendos Año a Año (Desde el Inicio)
+    const yearlyDividendsCtx = document.getElementById('yearlyDividendsChart');
+    if (yearlyDividendsCtx) {
+        // Invertir orden para mostrar más antiguo primero (izquierda a derecha)
+        const yearlyDivData = {{ yearly_dividends | tojson }};
+        const reversedYearlyDivData = [...yearlyDivData].reverse();
+        
+        const yearlyDivChartData = {
+            labels: reversedYearlyDivData.map(d => d.year + (d.is_ytd ? ' (YTD)' : '')),
+            datasets: [{
+                label: 'Dividendos (EUR)',
+                data: reversedYearlyDivData.map(d => d.dividends_eur),
+                backgroundColor: 'rgba(139, 92, 246, 0.7)',
+                borderColor: 'rgba(139, 92, 246, 1)',
+                borderWidth: 2
+            }]
+        };
+        
+        new Chart(yearlyDividendsCtx, {
+            type: 'bar',
+            data: yearlyDivChartData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const value = context.parsed.y;
+                                const index = context.dataIndex;
+                                const count = reversedYearlyDivData[index].dividends_count;
+                                return value.toFixed(2) + ' EUR (' + count + ' dividendo' + (count !== 1 ? 's' : '') + ')';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return value.toFixed(0) + ' EUR';
+                            }
+                        },
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.1)'
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
+            }
+        });
+    }
+    {% endif %}
+});
+</script>
+{% endif %}
 {% endblock %}
 

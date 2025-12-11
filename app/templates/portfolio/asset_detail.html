@@ -126,6 +126,12 @@
             <div x-show="activeTab === 'metrics'" x-cloak>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div class="border border-gray-200 rounded-lg p-4">
+                        <div class="text-sm text-gray-600 mb-1">País</div>
+                        <div class="text-lg font-semibold text-gray-900">
+                            {{ asset.country or '—' }}
+                        </div>
+                    </div>
+                    <div class="border border-gray-200 rounded-lg p-4">
                         <div class="text-sm text-gray-600 mb-1">Sector</div>
                         <div class="text-lg font-semibold text-gray-900">
                             {{ asset.sector or '—' }}
