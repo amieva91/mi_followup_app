@@ -19,9 +19,19 @@ depends_on = None
 def upgrade():
     # Añadir columnas de precios que faltan en la tabla assets
     # Estas columnas son necesarias para el modelo Asset pero no estaban en la BD
-    op.add_column('assets', sa.Column('current_price', sa.Float(), nullable=True))
-    op.add_column('assets', sa.Column('previous_close', sa.Float(), nullable=True))
-    op.add_column('assets', sa.Column('day_change_percent', sa.Float(), nullable=True))
+    # Verificar si las columnas ya existen antes de añadirlas (idempotente)
+    from sqlalchemy import inspect
+    
+    conn = op.get_bind()
+    inspector = inspect(conn)
+    columns = [col['name'] for col in inspector.get_columns('assets')]
+    
+    if 'current_price' not in columns:
+        op.add_column('assets', sa.Column('current_price', sa.Float(), nullable=True))
+    if 'previous_close' not in columns:
+        op.add_column('assets', sa.Column('previous_close', sa.Float(), nullable=True))
+    if 'day_change_percent' not in columns:
+        op.add_column('assets', sa.Column('day_change_percent', sa.Float(), nullable=True))
 
 
 def downgrade():
