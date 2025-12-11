@@ -723,8 +723,8 @@ def asset_registry():
         query = query.filter(AssetRegistry.is_enriched == False)
     
     # Ordenamiento
-    sort_by = request.args.get('sort_by', 'created_at').strip()
-    sort_order = request.args.get('sort_order', 'desc').strip()
+    current_sort_by = request.args.get('sort_by', 'created_at').strip()
+    current_sort_order = request.args.get('sort_order', 'desc').strip()
     
     sort_fields = {
         'isin': AssetRegistry.isin,
@@ -738,9 +738,9 @@ def asset_registry():
         'is_enriched': AssetRegistry.is_enriched
     }
     
-    if sort_by in sort_fields:
-        order_field = sort_fields[sort_by]
-        if sort_order == 'asc':
+    if current_sort_by in sort_fields:
+        order_field = sort_fields[current_sort_by]
+        if current_sort_order == 'asc':
             query = query.order_by(order_field.asc())
         else:
             query = query.order_by(order_field.desc())
@@ -762,15 +762,11 @@ def asset_registry():
         'percentage': (enriched / total * 100) if total > 0 else 0
     }
     
-    # Generar CSRF token para el template
-    from flask_wtf.csrf import generate_csrf
-    
     return render_template('portfolio/asset_registry.html',
                           registries=registries,
                           stats=stats,
-                          sort_by=sort_by,
-                          sort_order=sort_order,
-                          csrf_token=generate_csrf())
+                          sort_by=current_sort_by,
+                          sort_order=current_sort_order)
 
 
 @portfolio_bp.route('/asset-registry/<int:id>/edit', methods=['POST'])
@@ -794,6 +790,7 @@ def asset_registry_edit(id):
     # Actualizar campos
     registry.symbol = request.form.get('symbol', '').strip() or None
     registry.name = request.form.get('name', '').strip()
+    registry.currency = request.form.get('currency', registry.currency).strip().upper() or registry.currency
     registry.ibkr_exchange = request.form.get('exchange', '').strip() or None
     registry.mic = request.form.get('mic', '').strip() or None
     registry.yahoo_suffix = request.form.get('yahoo_suffix', '').strip() or None
@@ -1541,14 +1538,23 @@ def get_or_create_broker_account(user_id, broker_format):
     ).first()
     
     if not broker:
-        # Si no existe, usar broker Manual como fallback
-        # (no crear nuevos brokers automáticamente)
-        broker = Broker.query.filter_by(name='Manual').first()
-        if not broker:
-            # Crear broker Manual si no existe
-            broker = Broker(name='Manual')
-            db.session.add(broker)
-            db.session.flush()
+        # Si no existe, crear el broker automáticamente
+        # Mapeo de nombres de broker a full_name
+        broker_full_names = {
+            'IBKR': 'Interactive Brokers',
+            'DeGiro': 'DeGiro',
+            'Degiro': 'DeGiro'
+        }
+        full_name = broker_full_names.get(broker_search_name, broker_search_name)
+        
+        broker = Broker(
+            name=broker_search_name,
+            full_name=full_name,
+            is_active=True
+        )
+        db.session.add(broker)
+        db.session.flush()
+        print(f"✅ Broker '{broker_search_name}' creado automáticamente")
     
     # Buscar cuenta existente del usuario para este broker
     account = BrokerAccount.query.filter_by(
@@ -1644,7 +1650,7 @@ def import_csv_process():
             
             # Importar a BD con AssetRegistry (cache global)
             print(f"\n📊 DEBUG: Iniciando importación para archivo: {filename}")
-            importer = CSVImporterV2(user_id=current_user.id, broker_account_id=account.id)
+            importer = CSVImporterV2(user_id=current_user.id, broker_account_id=account.id, enable_enrichment=True)
             
             # Callback de progreso (almacenar en cache global thread-safe)
             user_key = f"user_{current_user.id}"
@@ -1820,7 +1826,6 @@ def mappings():
     Página de gestión de mapeos (MIC→Yahoo, Exchange→Yahoo, DeGiro→IBKR)
     """
     from app.models import MappingRegistry
-    from flask_wtf.csrf import generate_csrf
     
     # Filtros
     search = request.args.get('search', '').strip()
@@ -1870,8 +1875,7 @@ def mappings():
     return render_template('portfolio/mappings.html',
                           mappings=mappings,
                           stats=stats,
-                          countries=countries,
-                          csrf_token=generate_csrf())
+                          countries=countries)
 
 
 @portfolio_bp.route('/mappings/new', methods=['POST'])
@@ -2112,11 +2116,15 @@ def update_prices():
                 updater = PriceUpdater(progress_callback=lambda data: update_price_progress(session_key, data))
                 result = updater.update_asset_prices()
                 
-                # Actualizar con resultado final
+                # Actualizar con resultado final (aplanar para facilitar acceso en frontend)
                 with price_progress_lock:
                     price_update_progress_cache[session_key].update({
                         'status': 'completed',
                         'result': result,
+                        'success': result.get('success', 0),
+                        'failed': result.get('failed', 0),
+                        'skipped': result.get('skipped', 0),
+                        'total': result.get('total', 0),
                         'end_time': time.time()
                     })
                 

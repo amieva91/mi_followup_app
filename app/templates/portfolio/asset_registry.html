@@ -91,24 +91,24 @@
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
-                        {% macro sortable_header(field, label) %}
+                        {% macro sortable_header(field, label, current_sort_by, current_sort_order) %}
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            <a href="?sort_by={{ field }}&sort_order={% if sort_by == field and sort_order == 'asc' %}desc{% else %}asc{% endif %}{% if request.args.get('search') %}&search={{ request.args.get('search') }}{% endif %}{% if request.args.get('unenriched_only') %}&unenriched_only=1{% endif %}" 
+                            <a href="?sort_by={{ field }}&sort_order={% if current_sort_by == field and current_sort_order == 'asc' %}desc{% else %}asc{% endif %}{% if request.args.get('search') %}&search={{ request.args.get('search') }}{% endif %}{% if request.args.get('unenriched_only') %}&unenriched_only=1{% endif %}" 
                                class="hover:text-gray-700 flex items-center gap-1">
                                 {{ label }}
-                                {% if sort_by == field %}
-                                    {% if sort_order == 'asc' %}↑{% else %}↓{% endif %}
+                                {% if current_sort_by == field %}
+                                    {% if current_sort_order == 'asc' %}↑{% else %}↓{% endif %}
                                 {% endif %}
                             </a>
                         </th>
                         {% endmacro %}
                         
-                        {{ sortable_header('isin', 'ISIN') }}
-                        {{ sortable_header('symbol', 'Symbol') }}
-                        {{ sortable_header('name', 'Nombre') }}
-                        {{ sortable_header('currency', 'Moneda') }}
-                        {{ sortable_header('exchange', 'Exchange') }}
-                        {{ sortable_header('mic', 'MIC') }}
+                        {{ sortable_header('isin', 'ISIN', sort_by, sort_order) }}
+                        {{ sortable_header('symbol', 'Symbol', sort_by, sort_order) }}
+                        {{ sortable_header('name', 'Nombre', sort_by, sort_order) }}
+                        {{ sortable_header('currency', 'Moneda', sort_by, sort_order) }}
+                        {{ sortable_header('exchange', 'Exchange', sort_by, sort_order) }}
+                        {{ sortable_header('mic', 'MIC', sort_by, sort_order) }}
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Yahoo</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             <a href="?sort_by=is_enriched&sort_order={% if sort_by == 'is_enriched' and sort_order == 'asc' %}desc{% else %}asc{% endif %}" 
@@ -249,13 +249,20 @@
         </div>
         
         <form id="editForm" method="POST" class="space-y-4">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Symbol</label>
                     <input type="text" name="symbol" id="edit_symbol" 
                            class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Moneda</label>
+                    <input type="text" name="currency" id="edit_currency" maxlength="3"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                           placeholder="Ej: USD, EUR, GBP, GBX">
                 </div>
                 
                 <div>
@@ -371,6 +378,7 @@
                 
                 const symbol = cells[1].textContent.includes('sin symbol') ? '' : cells[1].textContent.trim();
                 const name = cells[2].textContent.trim();
+                const currency = cells[3].textContent.trim();
                 const exchange = cells[4].textContent.includes('sin exchange') ? '' : cells[4].textContent.trim();
                 const mic = cells[5].textContent.trim();
                 const yahooTickerRaw = cells[6].textContent.trim();  // ✅ Columna correcta: Yahoo Ticker
@@ -386,6 +394,7 @@
                 // Rellenar formulario
                 document.getElementById('edit_symbol').value = symbol === '-' ? '' : symbol;
                 document.getElementById('edit_name').value = name === '-' ? '' : name;
+                document.getElementById('edit_currency').value = currency === '-' ? '' : currency;
                 document.getElementById('edit_exchange').value = exchange === '-' ? '' : exchange;
                 document.getElementById('edit_mic').value = mic === '-' ? '' : mic;
                 document.getElementById('edit_yahoo_suffix').value = yahooSuffix;
@@ -416,7 +425,7 @@
         const csrf = document.createElement('input');
         csrf.type = 'hidden';
         csrf.name = 'csrf_token';
-        csrf.value = '{{ csrf_token }}';
+        csrf.value = '{{ csrf_token() }}';
         form.appendChild(csrf);
         
         document.body.appendChild(form);
