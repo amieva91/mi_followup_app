@@ -353,8 +353,8 @@ class CSVImporterV2:
                         existing.mic = registry.mic
                     if registry.name and existing.name != registry.name:
                         existing.name = registry.name
-                    if registry.exchange and not existing.exchange:
-                        existing.exchange = registry.exchange
+                    if registry.ibkr_exchange and not existing.exchange:
+                        existing.exchange = registry.ibkr_exchange
                 self.asset_cache[isin] = existing
                 continue
             
