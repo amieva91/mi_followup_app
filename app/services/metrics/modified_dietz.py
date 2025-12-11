@@ -26,7 +26,7 @@ class ModifiedDietzCalculator:
     """
     
     @staticmethod
-    def calculate_return(user_id, start_date, end_date):
+    def calculate_return(user_id, start_date, end_date, use_current_prices_end=None):
         """
         Calcula rentabilidad Modified Dietz para un período específico
         
@@ -34,6 +34,8 @@ class ModifiedDietzCalculator:
             user_id: ID del usuario
             start_date: Fecha inicial (datetime)
             end_date: Fecha final (datetime)
+            use_current_prices_end: Si True, usa precios actuales para VF. 
+                                   Si None, determina automáticamente (solo si end_date es HOY)
         
         Returns:
             dict: {
@@ -54,11 +56,16 @@ class ModifiedDietzCalculator:
             use_current_prices=False
         )
         
-        # 2. Valor final del portfolio (usar precios actuales si es HOY)
+        # 2. Valor final del portfolio
+        # Determinar si usar precios actuales: solo si end_date es HOY o muy reciente
+        if use_current_prices_end is None:
+            today = datetime.now().date()
+            use_current_prices_end = (end_date.date() >= today)
+        
         VF = PortfolioValuation.get_value_at_date(
             user_id, 
             end_date, 
-            use_current_prices=True
+            use_current_prices=use_current_prices_end
         )
         
         # 3. Obtener cash flows externos en el período
@@ -290,8 +297,11 @@ class ModifiedDietzCalculator:
                 year_start = first_txn.transaction_date
             
             # Calcular rentabilidad del año
+            # Para años pasados, NO usar precios actuales en el valor final
+            # Solo usar precios actuales si es el año actual (YTD)
+            use_current_for_end = is_ytd
             result = ModifiedDietzCalculator.calculate_return(
-                user_id, year_start, year_end
+                user_id, year_start, year_end, use_current_prices_end=use_current_for_end
             )
             
             yearly_returns.append({
