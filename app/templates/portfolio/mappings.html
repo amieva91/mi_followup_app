@@ -198,7 +198,7 @@
         </div>
         
         <form method="POST" action="{{ url_for('portfolio.mappings_new') }}" class="space-y-4">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -259,7 +259,7 @@
         </div>
         
         <form id="editForm" method="POST" class="space-y-4">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -296,6 +296,9 @@
 </div>
 
 <script>
+// CSRF token para acciones dinámicas
+const csrfToken = "{{ csrf_token() }}";
+
 // Modal Nuevo
 function openNewModal() {
     document.getElementById('newModal').classList.remove('hidden');
@@ -331,7 +334,7 @@ function deleteMapping(id, sourceKey) {
     const csrf = document.createElement('input');
     csrf.type = 'hidden';
     csrf.name = 'csrf_token';
-    csrf.value = '{{ csrf_token }}';
+    csrf.value = csrfToken;
     form.appendChild(csrf);
     
     document.body.appendChild(form);
@@ -352,7 +355,7 @@ function toggleMapping(id, sourceKey, isActive) {
     const csrf = document.createElement('input');
     csrf.type = 'hidden';
     csrf.name = 'csrf_token';
-    csrf.value = '{{ csrf_token }}';
+    csrf.value = csrfToken;
     form.appendChild(csrf);
     
     document.body.appendChild(form);
