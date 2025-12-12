@@ -63,6 +63,7 @@ MAPPINGS_DATA = {
         
         # European Markets
         'LSE': ('.L', 'London', 'GB'),
+        'EO': ('.L', 'London Stock Exchange (EO)', 'GB'),  # Mapeo adicional para Volex y similares
         'SBF': ('.PA', 'Paris', 'FR'),
         'IBIS': ('.DE', 'Frankfurt/XETRA', 'DE'),
         'BM': ('.MC', 'Madrid', 'ES'),
