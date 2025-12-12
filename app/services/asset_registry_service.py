@@ -97,7 +97,18 @@ class AssetRegistryService:
         """
         Establece yahoo_suffix con prioridad: MIC > ibkr_exchange
         MIC es más confiable por ser estándar internacional ISO 10383
+        EXCEPCIÓN: Si exchange='EO' y country='GB', usar exchange (Londres) en lugar de MIC
         """
+        target_exchange = exchange or registry.ibkr_exchange
+        
+        # EXCEPCIÓN ESPECIAL: Exchange EO en GB debe usar .L (Londres) aunque tenga MIC
+        # Esto corrige casos como Volex que tienen MIC incorrecto (MESI -> Madrid)
+        if target_exchange == 'EO' and (registry.country == 'GB' or registry.country == 'United Kingdom'):
+            suffix = YahooSuffixMapper.exchange_to_yahoo_suffix('EO')
+            if suffix is not None:
+                registry.yahoo_suffix = suffix
+                return
+        
         # PRIORIDAD 1: Usar MIC (más confiable)
         if mic:
             suffix = YahooSuffixMapper.mic_to_yahoo_suffix(mic)
@@ -107,8 +118,7 @@ class AssetRegistryService:
                 return
         
         # PRIORIDAD 2: Usar ibkr_exchange (fallback)
-        if not registry.yahoo_suffix and (exchange or registry.ibkr_exchange):
-            target_exchange = exchange or registry.ibkr_exchange
+        if not registry.yahoo_suffix and target_exchange:
             suffix = YahooSuffixMapper.exchange_to_yahoo_suffix(target_exchange)
             if suffix is not None:
                 registry.yahoo_suffix = suffix
