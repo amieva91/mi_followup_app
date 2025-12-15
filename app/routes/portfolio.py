@@ -569,8 +569,8 @@ def holdings_list():
         
         holdings_unified.append(data)
     
-    # Ordenar por símbolo
-    holdings_unified.sort(key=lambda x: x['asset'].symbol if x['asset'] else '')
+    # Ordenar por símbolo (manejar None correctamente)
+    holdings_unified.sort(key=lambda x: (x['asset'].symbol or '') if x['asset'] else '')
     
     return render_template('portfolio/holdings.html', holdings=holdings_unified, unified=True)
 

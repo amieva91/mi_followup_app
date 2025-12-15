@@ -133,21 +133,137 @@
     </div>
     
     <script>
-        // Auto-submit form cuando cambian los filtros
+        // Auto-submit form cuando cambian los filtros (selects, checkboxes, fechas)
         document.querySelectorAll('.auto-submit').forEach(element => {
             element.addEventListener('change', function() {
                 this.form.submit();
             });
         });
         
-        // Auto-submit para el campo de texto con debounce
-        const symbolInput = document.getElementById('symbol');
-        let timeout = null;
-        symbolInput.addEventListener('input', function() {
-            clearTimeout(timeout);
-            timeout = setTimeout(() => {
-                this.form.submit();
-            }, 500); // Espera 500ms después de dejar de escribir
+        // Búsqueda en tiempo real para el campo de símbolo (sin recargar la página)
+        document.addEventListener('DOMContentLoaded', function() {
+            const symbolInput = document.getElementById('symbol');
+            const form = symbolInput ? symbolInput.closest('form') : null;
+            const tableContainer = document.querySelector('.bg-white.rounded-xl.shadow-sm.overflow-hidden');
+            const transactionsCount = document.querySelector('.bg-blue-50.text-blue-700');
+            
+            if (symbolInput && form) {
+                let searchTimeout;
+                let isSearching = false;
+                let searchAbortController = null;
+                
+                symbolInput.addEventListener('input', function() {
+                    clearTimeout(searchTimeout);
+                    
+                    // Cancelar búsqueda anterior si existe
+                    if (searchAbortController) {
+                        searchAbortController.abort();
+                    }
+                    
+                    // Mostrar indicador visual sutil
+                    if (!isSearching) {
+                        isSearching = true;
+                        if (tableContainer) {
+                            tableContainer.style.opacity = '0.5';
+                        }
+                    }
+                    
+                    searchTimeout = setTimeout(() => {
+                        performSearch();
+                    }, 600); // 600ms de debounce para dar tiempo de escribir
+                });
+                
+                // Permitir búsqueda con Enter (inmediata)
+                symbolInput.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        clearTimeout(searchTimeout);
+                        performSearch();
+                    }
+                });
+                
+                function performSearch() {
+                    const formData = new FormData(form);
+                    const params = new URLSearchParams();
+                    
+                    // Recopilar todos los valores del formulario
+                    for (const [key, value] of formData.entries()) {
+                        if (value) {
+                            params.set(key, value);
+                        }
+                    }
+                    
+                    // Crear nuevo AbortController para esta búsqueda
+                    searchAbortController = new AbortController();
+                    
+                    // Hacer petición AJAX
+                    fetch(`${form.action}?${params.toString()}`, {
+                        method: 'GET',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        signal: searchAbortController.signal
+                    })
+                    .then(response => response.text())
+                    .then(html => {
+                        // Crear un elemento temporal para parsear el HTML
+                        const tempDiv = document.createElement('div');
+                        tempDiv.innerHTML = html;
+                        
+                        // Extraer solo la tabla y el contador
+                        const newTableContainer = tempDiv.querySelector('.bg-white.rounded-xl.shadow-sm.overflow-hidden');
+                        const newTransactionsCount = tempDiv.querySelector('.bg-blue-50.text-blue-700');
+                        const newPagination = tempDiv.querySelector('.mt-6.flex.items-center.justify-between');
+                        
+                        if (newTableContainer && tableContainer) {
+                            // Reemplazar solo el contenido de la tabla
+                            tableContainer.innerHTML = newTableContainer.innerHTML;
+                        }
+                        
+                        if (newTransactionsCount && transactionsCount) {
+                            transactionsCount.textContent = newTransactionsCount.textContent;
+                        }
+                        
+                        // Actualizar paginación si existe
+                        const paginationContainer = document.querySelector('.mt-6.flex.items-center.justify-between');
+                        if (newPagination && paginationContainer) {
+                            paginationContainer.innerHTML = newPagination.innerHTML;
+                        } else if (newPagination && !paginationContainer) {
+                            // Si no existe paginación pero debería haberla, añadirla
+                            const tableParent = tableContainer.parentElement;
+                            if (tableParent) {
+                                tableParent.insertAdjacentElement('afterend', newPagination);
+                            }
+                        } else if (!newPagination && paginationContainer) {
+                            // Si no debería haber paginación, eliminarla
+                            paginationContainer.remove();
+                        }
+                        
+                        // Actualizar URL sin recargar
+                        window.history.pushState({}, '', `${form.action}?${params.toString()}`);
+                        
+                        // Restaurar opacidad
+                        if (tableContainer) {
+                            tableContainer.style.opacity = '1';
+                        }
+                        isSearching = false;
+                        searchAbortController = null;
+                    })
+                    .catch(error => {
+                        if (error.name === 'AbortError') {
+                            // Búsqueda cancelada, ignorar
+                            return;
+                        }
+                        console.error('Error en búsqueda:', error);
+                        // En caso de error, hacer submit normal
+                        if (tableContainer) {
+                            tableContainer.style.opacity = '1';
+                        }
+                        isSearching = false;
+                        form.submit();
+                    });
+                }
+            }
         });
     </script>
 

@@ -557,25 +557,121 @@
         currentRegistryId = null;
     }
     
-    // Búsqueda en tiempo real (sin necesidad de botón submit)
+    // Búsqueda en tiempo real (sin recargar la página)
     document.addEventListener('DOMContentLoaded', function() {
         const searchInput = document.querySelector('input[name="search"]');
-        const enrichedCheckbox = document.querySelector('input[name="unenriched"]');
+        const enrichedCheckbox = document.querySelector('input[name="unenriched_only"]');
         const form = searchInput ? searchInput.closest('form') : null;
+        const tableBody = document.querySelector('tbody');
+        const tableFooter = document.querySelector('.bg-gray-50.px-4.py-3.border-t');
         
         if (searchInput && form) {
-            // Búsqueda mientras escribes (con debounce de 300ms)
+            // Búsqueda mientras escribes (con debounce de 600ms para no interrumpir)
             let searchTimeout;
+            let isSearching = false;
+            let searchAbortController = null;
+            
             searchInput.addEventListener('input', function() {
                 clearTimeout(searchTimeout);
+                
+                // Cancelar búsqueda anterior si existe
+                if (searchAbortController) {
+                    searchAbortController.abort();
+                }
+                
+                // Mostrar indicador de búsqueda sutil
+                if (!isSearching) {
+                    isSearching = true;
+                    if (tableBody) {
+                        tableBody.style.opacity = '0.5';
+                    }
+                }
+                
                 searchTimeout = setTimeout(() => {
-                    form.submit();
-                }, 300);
+                    performSearch();
+                }, 600); // 600ms de debounce para dar tiempo de escribir
             });
+            
+            // Permitir búsqueda con Enter (inmediata)
+            searchInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    clearTimeout(searchTimeout);
+                    performSearch();
+                }
+            });
+            
+            function performSearch() {
+                const searchValue = searchInput.value.trim();
+                const unenrichedOnly = enrichedCheckbox && enrichedCheckbox.checked ? '1' : '';
+                const sortBy = new URLSearchParams(window.location.search).get('sort_by') || 'created_at';
+                const sortOrder = new URLSearchParams(window.location.search).get('sort_order') || 'desc';
+                
+                // Crear nuevo AbortController para esta búsqueda
+                searchAbortController = new AbortController();
+                
+                // Construir URL con parámetros
+                const params = new URLSearchParams();
+                if (searchValue) params.set('search', searchValue);
+                if (unenrichedOnly) params.set('unenriched_only', unenrichedOnly);
+                params.set('sort_by', sortBy);
+                params.set('sort_order', sortOrder);
+                
+                // Hacer petición AJAX
+                fetch(`${window.location.pathname}?${params.toString()}`, {
+                    method: 'GET',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    signal: searchAbortController.signal
+                })
+                .then(response => response.text())
+                .then(html => {
+                    // Crear un elemento temporal para parsear el HTML
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = html;
+                    
+                    // Extraer solo el tbody y footer de la tabla
+                    const newTableBody = tempDiv.querySelector('tbody');
+                    const newTableFooter = tempDiv.querySelector('.bg-gray-50.px-4.py-3.border-t');
+                    
+                    if (newTableBody && tableBody) {
+                        // Reemplazar solo el contenido del tbody
+                        tableBody.innerHTML = newTableBody.innerHTML;
+                    }
+                    
+                    if (newTableFooter && tableFooter) {
+                        tableFooter.innerHTML = newTableFooter.innerHTML;
+                    }
+                    
+                    // Actualizar URL sin recargar
+                    window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
+                    
+                    // Restaurar opacidad
+                    if (tableBody) {
+                        tableBody.style.opacity = '1';
+                    }
+                    isSearching = false;
+                    searchAbortController = null;
+                })
+                .catch(error => {
+                    if (error.name === 'AbortError') {
+                        // Búsqueda cancelada, ignorar
+                        return;
+                    }
+                    console.error('Error en búsqueda:', error);
+                    // En caso de error, hacer submit normal
+                    if (tableBody) {
+                        tableBody.style.opacity = '1';
+                    }
+                    isSearching = false;
+                    form.submit();
+                });
+            }
         }
         
         if (enrichedCheckbox && form) {
-            // Filtro checkbox: submit inmediato
+            // Filtro checkbox: recargar página (es menos frecuente)
             enrichedCheckbox.addEventListener('change', function() {
                 form.submit();
             });
