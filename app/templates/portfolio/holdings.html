@@ -39,94 +39,97 @@
                             Cantidad <span class="sort-arrow">⇅</span>
                         </th>
                         <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTableHoldings(3, 'number')">
-                            Precio Medio <span class="sort-arrow">⇅</span>
+                            Precio Medio Compra <span class="sort-arrow">⇅</span>
                         </th>
                         <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTableHoldings(4, 'number')">
-                            Coste Total <span class="sort-arrow">⇅</span>
+                            Precio Actual <span class="sort-arrow">⇅</span>
                         </th>
                         <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTableHoldings(5, 'number')">
                             Valor Actual <span class="sort-arrow">⇅</span>
                         </th>
                         <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTableHoldings(6, 'number')">
-                            P&L No Realizado <span class="sort-arrow">⇅</span>
+                            P&L <span class="sort-arrow">⇅</span>
+                        </th>
+                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTableHoldings(7, 'number')">
+                            Peso % <span class="sort-arrow">⇅</span>
                         </th>
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
                     {% for holding in holdings %}
                     <tr class="hover:bg-gray-50 transition">
-                        <td class="px-6 py-4">
-                            <div class="flex items-center gap-2">
-                            <div>
-                                <div class="font-bold text-gray-900 break-words max-w-xs">
-                                    <a href="{{ url_for('portfolio.asset_detail', id=holding.asset.id) }}" class="hover:text-blue-600">
-                                        {{ holding.asset.name if holding.asset.name else holding.asset.symbol }}
-                                    </a>
-                                    {% if holding.asset.mic and not holding.asset.symbol %}
-                                    <button class="fix-yahoo-btn text-orange-600 hover:text-orange-700 ml-2" 
-                                            data-asset-id="{{ holding.asset.id }}" 
-                                            data-asset-name="{{ holding.asset.name }}"
-                                            title="Corregir con URL de Yahoo Finance">
-                                        🔧
-                                    </button>
-                                    {% endif %}
-                                </div>
-                                <div class="text-sm text-gray-400 break-words max-w-xs">
-                                    {% if holding.asset.asset_type %}{{ holding.asset.asset_type }}{% endif %}
-                                    {% if holding.asset.symbol %} • {{ holding.asset.symbol }}{% endif %}
-                                    {% if holding.asset.exchange %} • {{ holding.asset.exchange }}{% endif %}
-                                    {% if holding.asset.currency %} • {{ holding.asset.currency }}{% endif %}
-                                    {% if holding.asset.isin %} • {{ holding.asset.isin }}{% endif %}
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="flex items-center">
+                                <div>
+                                    <div class="text-sm font-bold text-gray-900">
+                                        <a href="{{ url_for('portfolio.asset_detail', id=holding['asset'].id) }}" class="hover:text-blue-600">
+                                            {{ holding['asset'].name if holding['asset'].name else holding['asset'].symbol }}
+                                        </a>
+                                    </div>
+                                    <div class="text-xs text-gray-400">
+                                        {% if holding['asset'].asset_type %}{{ holding['asset'].asset_type }}{% endif %}
+                                        {% if holding['asset'].symbol %} • {{ holding['asset'].symbol }}{% endif %}
+                                        {% if holding['asset'].exchange %} • {{ holding['asset'].exchange }}{% endif %}
+                                        {% if holding['asset'].currency %} • {{ holding['asset'].currency }}{% endif %}
+                                        {% if holding['asset'].isin %} • {{ holding['asset'].isin }}{% endif %}
+                                    </div>
                                 </div>
                             </div>
-                            </div>
-                        </td>                        <td class="px-6 py-4">
-                            {% for acc in holding.accounts %}
-                            <div class="text-sm font-semibold text-gray-900">{{ acc.broker }}</div>
-                            {% endfor %}
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-right">
-                            {% if unified %}
-                            <div class="text-sm font-medium text-gray-900">{{ holding.total_quantity|number_eu }}</div>
-                            {% else %}
-                            <div class="text-sm font-medium text-gray-900">{{ holding.quantity|number_eu }}</div>
-                            {% endif %}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-right">
-                            <div class="text-sm text-gray-900">{{ holding.average_buy_price|decimal_eu(2) }} <span class="text-xs text-gray-600">{{ holding.asset.currency }}</span></div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-right">
-                            {% if unified %}
-                            <div class="text-sm font-medium text-gray-900">{{ holding.total_cost|decimal_eu(2) }} <span class="text-xs text-gray-600">{{ holding.asset.currency }}</span></div>
-                            {% else %}
-                            <div class="text-sm font-medium text-gray-900">{{ holding.total_cost|decimal_eu(2) }} <span class="text-xs text-gray-600">{{ holding.asset.currency }}</span></div>
-                            {% endif %}
-                        </td>
-                        <td class="px-6 py-4 text-right text-sm">
-                            {% if holding.current_value_eur %}
-                                <div class="font-semibold text-gray-900">
-                                    {{ holding.current_value_eur|decimal_eu(2) }} EUR
-                                </div>
-                                {% if holding.local_currency != 'EUR' %}
-                                <div class="text-xs text-gray-500">
-                                    {{ holding.current_value_local|decimal_eu(2) }} {{ holding.local_currency }}
-                                </div>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm font-medium text-gray-900">
+                                {% set brokers_list = holding.get('brokers', []) %}
+                                {% if brokers_list|length == 1 %}
+                                    {{ brokers_list[0] }}
+                                {% elif brokers_list|length > 1 %}
+                                    {{ brokers_list|length }} cuentas
+                                {% else %}
+                                    <span class="text-xs text-gray-400">-</span>
                                 {% endif %}
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900">
+                            {{ holding['total_quantity']|decimal_eu(0) }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right">
+                            {% if holding['average_buy_price'] and holding['average_buy_price'] > 0 %}
+                            <div class="text-sm text-gray-900">{{ holding['average_buy_price']|decimal_eu(2) }} {{ holding['asset'].currency }}</div>
                             {% else %}
-                                <span class="text-gray-400 text-xs">Sin precio</span>
+                            <span class="text-xs text-gray-400">-</span>
                             {% endif %}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right">
-                            {% if holding.unrealized_pl_eur is not none %}
-                                <div class="text-sm font-medium {% if holding.unrealized_pl_eur > 0 %}text-green-600{% elif holding.unrealized_pl_eur < 0 %}text-red-600{% else %}text-gray-600{% endif %}">
-                                    {{ holding.unrealized_pl_eur|decimal_eu(2) }} EUR
-                                </div>
-                                <div class="text-xs {% if holding.unrealized_pl_pct > 0 %}text-green-600{% elif holding.unrealized_pl_pct < 0 %}text-red-600{% else %}text-gray-600{% endif %}">
-                                    {% if holding.unrealized_pl_pct > 0 %}+{% endif %}{{ holding.unrealized_pl_pct|decimal_eu(2) }}%
-                                </div>
+                            {% if holding['asset'].current_price %}
+                            <div class="text-sm text-gray-900">{{ holding['asset'].current_price|decimal_eu(2) }} {{ holding['asset'].currency }}</div>
                             {% else %}
-                                <span class="text-gray-400 text-xs">-</span>
+                            <span class="text-xs text-gray-400">Sin precio</span>
                             {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right">
+                            {% if 'current_value_eur' in holding %}
+                            <div class="text-sm font-medium text-gray-900">
+                                {{ holding['current_value_eur']|decimal_eu(2) }} EUR
+                            </div>
+                            {% if 'local_currency' in holding and holding['local_currency'] != 'EUR' %}
+                            <div class="text-xs text-gray-500">
+                                ({{ holding['current_value_local']|decimal_eu(2) }} {{ holding['local_currency'] }})
+                            </div>
+                            {% endif %}
+                            {% else %}
+                            <span class="text-xs text-gray-400">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right">
+                            {% if 'pl_eur' in holding and holding['pl_eur'] != 0 %}
+                            <span class="text-sm font-medium {% if holding['pl_eur'] >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                                {% if holding['pl_eur'] >= 0 %}+{% endif %}{{ holding['pl_eur']|decimal_eu(2) }} EUR
+                            </span>
+                            {% else %}
+                            <span class="text-xs text-gray-400">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-500">
+                            {{ holding.get('weight_pct', 0)|decimal_eu(2) }}%
                         </td>
                     </tr>
                     {% endfor %}

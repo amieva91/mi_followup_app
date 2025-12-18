@@ -496,13 +496,17 @@ def currencies_refresh():
 def holdings_list():
     """Lista de posiciones actuales con precios en tiempo real"""
     from collections import defaultdict
+    from sqlalchemy.orm import joinedload
     
-    # Obtener todos los holdings
-    all_holdings = PortfolioHolding.query.filter_by(
+    # Obtener todos los holdings individuales (con eager loading para evitar N+1)
+    all_holdings = PortfolioHolding.query.options(
+        joinedload(PortfolioHolding.account).joinedload(BrokerAccount.broker),
+        joinedload(PortfolioHolding.asset)
+    ).filter_by(
         user_id=current_user.id
     ).filter(PortfolioHolding.quantity > 0).all()
     
-    # Agrupar por asset_id
+    # Agrupar por asset_id (unificar)
     grouped = defaultdict(lambda: {
         'asset': None,
         'total_quantity': 0,
@@ -516,7 +520,7 @@ def holdings_list():
         asset_id = holding.asset_id
         group = grouped[asset_id]
         
-        # Datos del asset (tomar del primer holding)
+        # Datos del asset
         if group['asset'] is None:
             group['asset'] = holding.asset
         
@@ -524,7 +528,7 @@ def holdings_list():
         group['total_quantity'] += holding.quantity
         group['total_cost'] += holding.total_cost
         
-        # Agregar cuenta a la lista
+        # Agregar cuenta a la lista (igual que dashboard)
         group['accounts'].append({
             'broker': holding.account.broker.name,
             'account_name': holding.account.account_name,
@@ -532,47 +536,156 @@ def holdings_list():
             'average_buy_price': holding.average_buy_price
         })
         
-        # Fechas (usar la más antigua para first_purchase y la más reciente para last_transaction)
+        # Fechas
         if group['first_purchase_date'] is None or holding.first_purchase_date < group['first_purchase_date']:
             group['first_purchase_date'] = holding.first_purchase_date
         
         if group['last_transaction_date'] is None or holding.last_transaction_date > group['last_transaction_date']:
             group['last_transaction_date'] = holding.last_transaction_date
     
-    # Convertir a lista y calcular valores actuales
+    # Convertir a lista
     holdings_unified = []
     for asset_id, data in grouped.items():
         data['average_buy_price'] = data['total_cost'] / data['total_quantity'] if data['total_quantity'] > 0 else 0
         data['asset_id'] = asset_id
         
-        # Calcular valor actual y P&L (con conversión EUR)
-        asset = data['asset']
-        if asset.current_price:
-            # Valor en moneda local
-            current_value_local = data['total_quantity'] * asset.current_price
-            
-            # Conversión a EUR
-            current_value_eur = convert_to_eur(current_value_local, asset.currency)
-            total_cost_eur = convert_to_eur(data['total_cost'], asset.currency)
-            
-            data['current_value_local'] = current_value_local
-            data['current_value_eur'] = current_value_eur
-            data['local_currency'] = asset.currency
-            data['unrealized_pl_eur'] = current_value_eur - total_cost_eur
-            data['unrealized_pl_pct'] = ((current_value_eur / total_cost_eur) - 1) * 100 if total_cost_eur > 0 else 0
-        else:
-            data['current_value_local'] = None
-            data['current_value_eur'] = None
-            data['local_currency'] = asset.currency
-            data['unrealized_pl_eur'] = None
-            data['unrealized_pl_pct'] = None
+        # Crear lista de brokers únicos para display
+        brokers_set = set()
+        for acc in data['accounts']:
+            brokers_set.add(acc['broker'])
+        data['brokers'] = sorted(list(brokers_set))
         
         holdings_unified.append(data)
+    
+    # Calcular totales con precios actuales (igual que dashboard)
+    total_value = 0
+    
+    for h in holdings_unified:
+        asset = h['asset']
+        
+        # Convertir coste a EUR (SIEMPRE, incluso sin precio actual)
+        cost_eur = convert_to_eur(h['total_cost'], asset.currency)
+        h['cost_eur'] = cost_eur
+        
+        if asset and asset.current_price:
+            # Calcular valor actual en moneda local
+            current_value_local = h['total_quantity'] * asset.current_price
+            h['current_value_local'] = current_value_local
+            h['local_currency'] = asset.currency
+            
+            # Convertir a EUR
+            current_value_eur = convert_to_eur(current_value_local, asset.currency)
+            h['current_value_eur'] = current_value_eur
+            
+            # Calcular P&L individual
+            pl_individual = current_value_eur - cost_eur
+            h['pl_eur'] = pl_individual
+            
+            # Sumar al total (en EUR)
+            total_value += current_value_eur
+        else:
+            # Si no hay precio, usar el coste en EUR como aproximación
+            total_value += cost_eur
+            h['pl_eur'] = 0
+    
+    # Calcular peso % de cada holding (igual que dashboard)
+    for h in holdings_unified:
+        if 'current_value_eur' in h and total_value > 0:
+            h['weight_pct'] = (h['current_value_eur'] / total_value) * 100
+        else:
+            h['weight_pct'] = 0
     
     # Ordenar por símbolo (manejar None correctamente)
     holdings_unified.sort(key=lambda x: (x['asset'].symbol or '') if x['asset'] else '')
     
     return render_template('portfolio/holdings.html', holdings=holdings_unified, unified=True)
+
+
+@portfolio_bp.route('/holdings-debug')
+@login_required  
+def holdings_debug():
+    """Endpoint temporal de debug para ver los datos de holdings"""
+    from flask import jsonify
+    from collections import defaultdict
+    
+    # Repetir la lógica de holdings_list pero devolver JSON
+    all_holdings = PortfolioHolding.query.filter_by(
+        user_id=current_user.id
+    ).filter(PortfolioHolding.quantity > 0).all()
+    
+    grouped = defaultdict(lambda: {
+        'asset': None,
+        'total_quantity': 0,
+        'total_cost': 0,
+        'accounts': [],
+        'first_purchase_date': None,
+        'last_transaction_date': None
+    })
+    
+    for holding in all_holdings:
+        asset_id = holding.asset_id
+        group = grouped[asset_id]
+        if group['asset'] is None:
+            group['asset'] = holding.asset
+        group['total_quantity'] += holding.quantity
+        group['total_cost'] += holding.total_cost
+        group['accounts'].append({
+            'broker': holding.account.broker.name if holding.account and holding.account.broker else 'UNKNOWN',
+            'account_name': holding.account.account_name if holding.account else 'Unknown',
+            'quantity': holding.quantity,
+            'average_buy_price': holding.average_buy_price
+        })
+    
+    holdings_unified = []
+    for asset_id, data in grouped.items():
+        data['average_buy_price'] = data['total_cost'] / data['total_quantity'] if data['total_quantity'] > 0 else 0
+        brokers_set = set()
+        for acc in data['accounts']:
+            brokers_set.add(acc['broker'])
+        data['brokers'] = sorted(list(brokers_set))
+        
+        # Calcular valores
+        asset = data['asset']
+        cost_eur = convert_to_eur(data['total_cost'], asset.currency if asset else 'EUR')
+        data['cost_eur'] = cost_eur
+        
+        if asset and asset.current_price:
+            current_value_local = data['total_quantity'] * asset.current_price
+            current_value_eur = convert_to_eur(current_value_local, asset.currency)
+            data['current_value_eur'] = current_value_eur
+            data['pl_eur'] = current_value_eur - cost_eur
+        else:
+            data['pl_eur'] = 0
+        
+        holdings_unified.append({
+            'asset_id': asset_id,
+            'asset_name': asset.name if asset else None,
+            'accounts_count': len(data['accounts']),
+            'accounts': data['accounts'],
+            'brokers': data['brokers'],
+            'brokers_length': len(data['brokers']),
+            'total_quantity': data['total_quantity'],
+            'total_cost': data['total_cost'],
+            'cost_eur': cost_eur,
+            'current_value_eur': data.get('current_value_eur'),
+            'pl_eur': data.get('pl_eur', 0),
+            'has_current_value_eur': 'current_value_eur' in data
+        })
+    
+    # Calcular total_value y weight_pct
+    total_value = sum(h.get('current_value_eur', 0) or h.get('cost_eur', 0) for h in holdings_unified)
+    
+    for h in holdings_unified:
+        if h.get('current_value_eur') and total_value > 0:
+            h['weight_pct'] = (h['current_value_eur'] / total_value) * 100
+        else:
+            h['weight_pct'] = 0
+    
+    return jsonify({
+        'total_holdings': len(holdings_unified),
+        'total_value': total_value,
+        'holdings': holdings_unified[:10]  # Primeros 10
+    })
 
 
 @portfolio_bp.route('/transactions')

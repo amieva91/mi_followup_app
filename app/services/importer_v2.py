@@ -158,13 +158,24 @@ class CSVImporterV2:
         ).all()
         
         for txn in existing:
-            key = (
-                txn.transaction_type,
-                txn.asset_id,
-                txn.transaction_date.isoformat() if txn.transaction_date else None,
-                float(txn.quantity) if txn.quantity else 0,
-                float(txn.price) if txn.price else 0
-            )
+            # Para depósitos/retiros/comisiones/dividendos, usar amount en lugar de quantity/price
+            if txn.transaction_type in ('DEPOSIT', 'WITHDRAWAL', 'FEE', 'DIVIDEND'):
+                key = (
+                    txn.transaction_type,
+                    txn.asset_id,
+                    txn.transaction_date.isoformat() if txn.transaction_date else None,
+                    float(txn.amount) if txn.amount else 0,
+                    0  # placeholder para mantener estructura
+                )
+            else:
+                # Para transacciones normales (BUY/SELL), usar quantity y price
+                key = (
+                    txn.transaction_type,
+                    txn.asset_id,
+                    txn.transaction_date.isoformat() if txn.transaction_date else None,
+                    float(txn.quantity) if txn.quantity else 0,
+                    float(txn.price) if txn.price else 0
+                )
             self.existing_transactions_snapshot.add(key)
     
     def _process_assets_to_registry(self, parsed_data: Dict[str, Any]) -> List[str]:
@@ -462,7 +473,9 @@ class CSVImporterV2:
         print(f"   📊 DEBUG _import_transactions: Forex={skipped_forex}, NoAsset={skipped_no_asset}, Duplicados={skipped_duplicate}, Creadas={created}")
     
     def _import_dividends(self, parsed_data: Dict[str, Any]):
-        """Importa dividendos"""
+        """Importa dividendos con verificación de duplicados"""
+        skipped_duplicate = 0
+        
         for div_data in parsed_data.get('dividends', []):
             asset = self._find_asset_by_isin(div_data.get('isin'))
             if not asset:
@@ -477,6 +490,21 @@ class CSVImporterV2:
                 print(f"   ⚠️  ADVERTENCIA: Dividendo sin fecha para {div_data.get('isin')} - {div_data.get('name')} - Saltado")
                 continue
             
+            # Verificar duplicados usando el snapshot (incluye amount y asset_id)
+            div_date_str = div_date.isoformat() if div_date else ''
+            div_amount = float(div_data['amount'])
+            div_key = (
+                'DIVIDEND',
+                asset.id,  # asset_id es importante para dividendos
+                div_date_str,
+                div_amount,  # amount es clave para detectar duplicados
+                0  # placeholder
+            )
+            
+            if div_key in self.existing_transactions_snapshot:
+                skipped_duplicate += 1
+                continue
+            
             transaction = Transaction(
                 user_id=self.user_id,
                 account_id=self.broker_account_id,
@@ -486,7 +514,7 @@ class CSVImporterV2:
                 settlement_date=div_date,
                 quantity=None,
                 price=None,
-                amount=float(div_data['amount']),
+                amount=div_amount,
                 currency=div_data.get('currency', 'EUR'),
                 tax=float(div_data.get('tax', 0)),
                 tax_eur=float(div_data.get('tax_eur', 0)),
@@ -498,9 +526,14 @@ class CSVImporterV2:
             
             db.session.add(transaction)
             self.stats['dividends_created'] += 1
+        
+        if skipped_duplicate > 0:
+            print(f"   📊 DEBUG _import_dividends: {skipped_duplicate} dividendos duplicados saltados")
     
     def _import_fees(self, parsed_data: Dict[str, Any]):
-        """Importa comisiones/fees"""
+        """Importa comisiones/fees con verificación de duplicados"""
+        skipped_duplicate = 0
+        
         for fee_data in parsed_data.get('fees', []):
             # Determinar fecha (con fallback) y convertir a datetime
             fee_date_raw = fee_data.get('date') or fee_data.get('date_time')
@@ -509,6 +542,21 @@ class CSVImporterV2:
             # VALIDACIÓN CRÍTICA: Saltar si no hay fecha válida
             if not fee_date:
                 print(f"   ⚠️  ADVERTENCIA: Fee sin fecha ({fee_data.get('description', 'sin descripción')}) - Saltado")
+                continue
+            
+            # Verificar duplicados usando el snapshot (incluye amount)
+            fee_date_str = fee_date.isoformat() if fee_date else ''
+            fee_amount = float(fee_data['amount'])
+            fee_key = (
+                'FEE',
+                None,  # asset_id es None para comisiones
+                fee_date_str,
+                fee_amount,  # amount es clave para detectar duplicados
+                0  # placeholder
+            )
+            
+            if fee_key in self.existing_transactions_snapshot:
+                skipped_duplicate += 1
                 continue
             
             transaction = Transaction(
@@ -520,7 +568,7 @@ class CSVImporterV2:
                 settlement_date=fee_date,
                 quantity=None,
                 price=None,
-                amount=float(fee_data['amount']),
+                amount=fee_amount,
                 currency=fee_data.get('currency', 'EUR'),
                 description=fee_data.get('description', 'Comisión'),
                 source=parsed_data.get('broker', 'CSV')
@@ -528,9 +576,14 @@ class CSVImporterV2:
             
             db.session.add(transaction)
             self.stats['fees_created'] += 1
+        
+        if skipped_duplicate > 0:
+            print(f"   📊 DEBUG _import_fees: {skipped_duplicate} comisiones duplicadas saltadas")
     
     def _import_cash_movements(self, parsed_data: Dict[str, Any]):
-        """Importa depósitos y retiros"""
+        """Importa depósitos y retiros con verificación de duplicados"""
+        skipped_duplicate = 0
+        
         for deposit_data in parsed_data.get('deposits', []):
             # Determinar fecha (con fallback) y convertir a datetime
             deposit_date_raw = deposit_data.get('date') or deposit_data.get('date_time')
@@ -539,6 +592,21 @@ class CSVImporterV2:
             # VALIDACIÓN CRÍTICA: Saltar si no hay fecha válida
             if not deposit_date:
                 print(f"   ⚠️  ADVERTENCIA: Depósito sin fecha - Saltado")
+                continue
+            
+            # Verificar duplicados usando el snapshot (incluye amount)
+            deposit_date_str = deposit_date.isoformat() if deposit_date else ''
+            deposit_amount = float(deposit_data['amount'])
+            deposit_key = (
+                'DEPOSIT',
+                None,  # asset_id es None para depósitos
+                deposit_date_str,
+                deposit_amount,  # amount es clave para detectar duplicados
+                0  # placeholder
+            )
+            
+            if deposit_key in self.existing_transactions_snapshot:
+                skipped_duplicate += 1
                 continue
             
             transaction = Transaction(
@@ -569,6 +637,21 @@ class CSVImporterV2:
                 print(f"   ⚠️  ADVERTENCIA: Retiro sin fecha - Saltado")
                 continue
             
+            # Verificar duplicados usando el snapshot (incluye amount)
+            withdrawal_date_str = withdrawal_date.isoformat() if withdrawal_date else ''
+            withdrawal_amount = float(withdrawal_data['amount'])
+            withdrawal_key = (
+                'WITHDRAWAL',
+                None,  # asset_id es None para retiros
+                withdrawal_date_str,
+                withdrawal_amount,  # amount es clave para detectar duplicados
+                0  # placeholder
+            )
+            
+            if withdrawal_key in self.existing_transactions_snapshot:
+                skipped_duplicate += 1
+                continue
+            
             transaction = Transaction(
                 user_id=self.user_id,
                 account_id=self.broker_account_id,
@@ -586,6 +669,9 @@ class CSVImporterV2:
             
             db.session.add(transaction)
             self.stats['withdrawals_created'] += 1
+        
+        if skipped_duplicate > 0:
+            print(f"   📊 DEBUG _import_cash_movements: {skipped_duplicate} depósitos/retiros duplicados saltados")
     
     def _recalculate_holdings(self):
         """Recalcula holdings con FIFO robusto"""
