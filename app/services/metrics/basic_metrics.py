@@ -264,12 +264,12 @@ class BasicMetrics:
         #    solo el capital aportado más P&L realizado y flujos de caja.
         user_money = total_deposits - total_withdrawals + pl_realized + total_dividends - total_fees
         
-        # 5. Dinero prestado por broker:
-        #    - No incluir P&L no realizado en el lado del broker tampoco.
-        #    - El valor de cartera incluye implícitamente el P&L no realizado (precio actual - coste),
-        #      por lo que lo restamos para obtener valor “sin P&L no realizado”.
-        current_portfolio_value_ex_unrealized = current_portfolio_value - pl_unrealized
-        broker_money = current_portfolio_value_ex_unrealized - user_money
+        # 6. Dinero prestado por broker:
+        #    - El apalancamiento se calcula como la diferencia entre el coste total de las posiciones
+        #      y el dinero del usuario.
+        #    - El P&L no realizado NO debe afectar el cálculo del apalancamiento.
+        #    - Usamos el coste total (inversión real) en lugar del valor de mercado.
+        broker_money = total_cost_current - user_money
         
         # 6. Ratio de apalancamiento
         leverage_ratio = (broker_money / user_money * 100) if user_money > 0 else 0

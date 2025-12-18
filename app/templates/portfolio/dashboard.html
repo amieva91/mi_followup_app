@@ -469,7 +469,7 @@
                         <span x-show="!showDetails">▼ Ver desglose</span>
                         <span x-show="showDetails">▲ Ocultar</span>
                     </button>
-                    <span class="text-xs text-gray-400 cursor-help" title="Diferencia entre Valor Total Cartera y Dinero del Usuario. Positivo = apalancamiento (broker presta dinero). Negativo = cash disponible sin invertir.">ⓘ</span>
+                    <span class="text-xs text-gray-400 cursor-help" title="Apalancamiento = Coste Total - Dinero del Usuario. Dinero Usuario = Depósitos - Retiradas + P&L Realizado + Dividendos - Comisiones. Positivo = apalancamiento (broker presta dinero). Negativo = cash disponible sin invertir.">ⓘ</span>
                 </div>
             </div>
             <div class="text-2xl font-bold {% if metrics.leverage.broker_money > 0 %}text-red-600{% else %}text-cyan-600{% endif %}">
@@ -479,12 +479,15 @@
             <!-- Desglose detallado -->
             <div x-show="showDetails" x-cloak class="text-xs text-gray-500 mt-3 space-y-1 border-t pt-2">
                 <div class="flex justify-between mb-1">
-                    <span>💼 Valor Total Cartera:</span>
-                    <span class="font-medium">{{ total_value|decimal_eu(2) }} EUR</span>
+                    <span>💼 Coste Total:</span>
+                    <span class="font-medium">{{ total_cost|decimal_eu(2) }} EUR</span>
                 </div>
                 <div class="flex justify-between">
                     <span>💰 Dinero usuario:</span>
                     <span class="font-medium">-{{ metrics.leverage.user_money|decimal_eu(2) }} EUR</span>
+                </div>
+                <div class="text-xs text-gray-500 italic mb-1 mt-1">
+                    <span>Fórmula: Depósitos - Retiradas + P&L Realizado + Dividendos - Comisiones</span>
                 </div>
                 <div class="text-xs text-gray-400 ml-3 space-y-0.5">
                     <div class="flex justify-between">
@@ -498,10 +501,6 @@
                     <div class="flex justify-between">
                         <span>• P&L Realizado:</span>
                         <span>{% if metrics.leverage.pl_realized >= 0 %}+{% endif %}{{ metrics.leverage.pl_realized|decimal_eu(2) }}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span>• P&L No Realizado:</span>
-                        <span>{% if metrics.leverage.pl_unrealized >= 0 %}+{% endif %}{{ metrics.leverage.pl_unrealized|decimal_eu(2) }}</span>
                     </div>
                     <div class="flex justify-between">
                         <span>• Dividendos:</span>
