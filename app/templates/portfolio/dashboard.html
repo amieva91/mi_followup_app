@@ -60,7 +60,7 @@
                         <span x-show="!showDetails">▼ Ver desglose</span>
                         <span x-show="showDetails">▲ Ocultar</span>
                     </button>
-                    <span class="text-xs text-gray-400 cursor-help" title="Todo el dinero del usuario en la cuenta: capital aportado + ganancias/pérdidas + dividendos - comisiones + cash disponible (si lo hay).">ⓘ</span>
+                    <span class="text-xs text-gray-400 cursor-help" title="Dinero real que tendría el usuario si liquidara todas las posiciones: Depósitos - Retiradas + P&L Realizado + P&L No Realizado + Dividendos - Comisiones">ⓘ</span>
                 </div>
             </div>
             <div class="text-2xl font-bold text-indigo-600">
@@ -484,31 +484,35 @@
                 </div>
                 <div class="flex justify-between">
                     <span>💰 Dinero usuario:</span>
-                    <span class="font-medium">-{{ metrics.leverage.user_money|decimal_eu(2) }} EUR</span>
+                    <span class="font-medium">{{ metrics.total_account.total_account_value|decimal_eu(2) }} EUR</span>
                 </div>
                 <div class="text-xs text-gray-500 italic mb-1 mt-1">
-                    <span>Fórmula: Depósitos - Retiradas + P&L Realizado + Dividendos - Comisiones</span>
+                    <span>Fórmula: Depósitos - Retiradas + P&L Realizado + P&L No Realizado + Dividendos - Comisiones</span>
                 </div>
                 <div class="text-xs text-gray-400 ml-3 space-y-0.5">
                     <div class="flex justify-between">
                         <span>• Depósitos:</span>
-                        <span>+{{ metrics.leverage.total_deposits|decimal_eu(2) }}</span>
+                        <span>+{{ metrics.total_account.deposits|decimal_eu(2) }}</span>
                     </div>
                     <div class="flex justify-between">
                         <span>• Retiradas:</span>
-                        <span>-{{ metrics.leverage.total_withdrawals|decimal_eu(2) }}</span>
+                        <span>-{{ metrics.total_account.withdrawals|decimal_eu(2) }}</span>
                     </div>
                     <div class="flex justify-between">
                         <span>• P&L Realizado:</span>
-                        <span>{% if metrics.leverage.pl_realized >= 0 %}+{% endif %}{{ metrics.leverage.pl_realized|decimal_eu(2) }}</span>
+                        <span>{% if metrics.total_account.pl_realized >= 0 %}+{% endif %}{{ metrics.total_account.pl_realized|decimal_eu(2) }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>• P&L No Realizado:</span>
+                        <span>{% if metrics.total_account.pl_unrealized >= 0 %}+{% endif %}{{ metrics.total_account.pl_unrealized|decimal_eu(2) }}</span>
                     </div>
                     <div class="flex justify-between">
                         <span>• Dividendos:</span>
-                        <span>+{{ metrics.leverage.total_dividends|decimal_eu(2) }}</span>
+                        <span>+{{ metrics.total_account.dividends|decimal_eu(2) }}</span>
                     </div>
                     <div class="flex justify-between">
                         <span>• Comisiones:</span>
-                        <span>-{{ metrics.leverage.total_fees|decimal_eu(2) }}</span>
+                        <span>-{{ metrics.total_account.fees|decimal_eu(2) }}</span>
                     </div>
                 </div>
             </div>

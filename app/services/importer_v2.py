@@ -591,12 +591,18 @@ class CSVImporterV2:
             
             # VALIDACIÓN CRÍTICA: Saltar si no hay fecha válida
             if not deposit_date:
-                print(f"   ⚠️  ADVERTENCIA: Depósito sin fecha - Saltado")
+                print(f"   ⚠️  ADVERTENCIA: Depósito sin fecha - Saltado: {deposit_data.get('description', 'N/A')}")
+                continue
+            
+            # Convertir amount a float (puede venir como Decimal del parser)
+            deposit_amount = float(deposit_data['amount'])
+            
+            # VALIDACIÓN: Saltar depósitos con amount = 0 (no tienen impacto económico)
+            if deposit_amount == 0:
                 continue
             
             # Verificar duplicados usando el snapshot (incluye amount)
             deposit_date_str = deposit_date.isoformat() if deposit_date else ''
-            deposit_amount = float(deposit_data['amount'])
             deposit_key = (
                 'DEPOSIT',
                 None,  # asset_id es None para depósitos
@@ -618,7 +624,7 @@ class CSVImporterV2:
                 settlement_date=deposit_date,
                 quantity=None,
                 price=None,
-                amount=float(deposit_data['amount']),
+                amount=deposit_amount,
                 currency=deposit_data.get('currency', 'EUR'),
                 description=deposit_data.get('description', 'Depósito'),
                 source=parsed_data.get('broker', 'CSV')

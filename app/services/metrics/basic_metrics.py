@@ -645,11 +645,21 @@ class BasicMetrics:
         # Calcular Valor Total Cuenta de Inversión (con período)
         account_components = BasicMetrics.calculate_total_account_value(user_id, start_date, end_date)
         
-        # Valor Total Cuenta = Depósitos - Retiradas + P&L Realizado + P&L No Realizado + Dividendos - Comisiones + Cash
-        # Donde Cash = max(0, Cuenta_sin_cash - Valor_Cartera)
+        # Valor Real Cuenta = Dinero Usuario = Depósitos - Retiradas + P&L Realizado + P&L No Realizado + Dividendos - Comisiones
+        # Representa el dinero real que tendría el usuario si liquidara todas las posiciones
+        # Incluye P&L No Realizado porque es parte del valor actual de mercado
+        total_account_value = (
+            account_components['deposits'] -
+            account_components['withdrawals'] +
+            account_components['pl_realized'] +
+            pl_unrealized +  # P&L No Realizado debe incluirse
+            account_components['dividends'] -
+            account_components['fees']
+        )
         
-        # Primero calcular el valor sin contar el cash
-        account_value_without_cash = (
+        # Para el cálculo de cash/apalancamiento usamos el valor sin P&L No Realizado
+        # (el apalancamiento se calcula sobre el coste, no sobre el valor de mercado)
+        account_value_without_unrealized = (
             account_components['deposits'] -
             account_components['withdrawals'] +
             account_components['pl_realized'] +
@@ -657,18 +667,14 @@ class BasicMetrics:
             account_components['fees']
         )
         
-        # Calcular cash/apalancamiento: diferencia entre el dinero del usuario y lo invertido
+        # Calcular cash/apalancamiento: diferencia entre el dinero del usuario (sin P&L No Realizado) y lo invertido
         # Si es negativo: hay cash disponible (dinero sin invertir)
         # Si es positivo: hay apalancamiento (broker prestando dinero)
-        # El valor de cartera incluye P&L no realizado; lo eliminamos para medir apalancamiento
-        current_portfolio_value_ex_unrealized = current_portfolio_value - pl_unrealized
-        leverage_amount = current_portfolio_value_ex_unrealized - account_value_without_cash
+        # Usamos el coste total para medir apalancamiento, no el valor de mercado
+        leverage_amount = total_cost_current - account_value_without_unrealized
         
         # El cash solo existe cuando leverage es negativo
         cash = abs(leverage_amount) if leverage_amount < 0 else 0
-        
-        # Valor Total Cuenta incluye el cash si existe
-        total_account_value = account_value_without_cash + cash
         
         account_components['pl_unrealized'] = round(pl_unrealized, 2)
         account_components['cash'] = round(cash, 2)

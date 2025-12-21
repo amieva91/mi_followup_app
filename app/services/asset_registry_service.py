@@ -97,16 +97,20 @@ class AssetRegistryService:
         """
         Establece yahoo_suffix con prioridad: MIC > ibkr_exchange
         MIC es más confiable por ser estándar internacional ISO 10383
+        
+        Si MIC no tiene mapeo (retorna ''), se usa exchange como fallback.
         """
         # PRIORIDAD 1: Usar MIC (más confiable)
         if mic:
             suffix = YahooSuffixMapper.mic_to_yahoo_suffix(mic)
-            if suffix is not None:
+            # Solo usar MIC si tiene un valor válido (no None y no vacío)
+            if suffix is not None and suffix != '':
                 registry.yahoo_suffix = suffix
                 registry.mic = mic
                 return
         
         # PRIORIDAD 2: Usar ibkr_exchange (fallback)
+        # Se ejecuta si MIC no tiene mapeo o si no hay MIC
         if not registry.yahoo_suffix and (exchange or registry.ibkr_exchange):
             target_exchange = exchange or registry.ibkr_exchange
             suffix = YahooSuffixMapper.exchange_to_yahoo_suffix(target_exchange)

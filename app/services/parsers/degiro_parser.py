@@ -122,28 +122,75 @@ class DeGiroParser:
                     self._store_fx_withdrawal(row)
             # Si tiene producto, ignorar (no parece ocurrir en tu CSV)
         
-        # 4. INTERÉS (Apalancamiento)
-        elif 'Interés' in description or description == 'Interés':
+        # 4. INTERÉS Y DISTRIBUCIONES DE INTERESES (genérico)
+        elif 'interés' in description.lower() or \
+             description.lower() == 'interés' or \
+             'interest income' in description.lower() or \
+             'interest distribution' in description.lower() or \
+             'flatex interest' in description.lower():
             self._process_interest(row)
         
-        # 5. RETIROS (flatex Withdrawal)
-        elif 'flatex Withdrawal' in description:
+        # 5. RETIROS (genérico: withdrawal, pero NO canceladas y NO "Processed")
+        elif ('withdrawal' in description.lower() or 'retirada' in description.lower()) and \
+             'cancelada' not in description.lower() and \
+             'cancel' not in description.lower() and \
+             'processed' not in description.lower():
+            # Excluir "Processed Flatex Withdrawal" porque es solo confirmación de procesamiento,
+            # no una retirada real adicional (ya está contada en "flatex Withdrawal")
             self._process_withdrawal(row)
+        # Si es "Retirada cancelada" o "Processed" o similar, ignorarla (no debe restarse)
         
-        # 6. DEPÓSITOS (solo "Ingreso", NO "Ingreso Cambio de Divisa")
-        elif description == 'Ingreso':
-            self._process_deposit(row)
+        # 6. DEPÓSITOS (genérico: Ingreso, Deposit, Transfer)
+        elif description.lower() == 'ingreso' or \
+             'deposit' in description.lower() or \
+             ('transfer' in description.lower() and 'from' in description.lower()):
+            # Excluir "Transferir desde" (retirada) y "Transferir a" (movimiento interno)
+            if 'transferir desde' not in description.lower():
+                self._process_deposit(row)
         
-        # 7. COMISIONES GENERALES (conectividad, etc.)
-        elif 'Costes de transacción' in description or 'Comisión' in description:
+        # 7. DIVIDENDOS Y RENDIMIENTOS (genérico)
+        elif 'rendimiento de capital' in description.lower() or \
+             'capital gain distribution' in description.lower() or \
+             'distribution' in description.lower() and 'dividend' not in description.lower():
+            # Tratar como dividendo si tiene ISIN
+            if isin and not id_orden:
+                self._store_dividend_related_row(row)
+        
+        # 8. IMPUESTOS DE TRANSACCIÓN Y STAMP DUTIES (deben contarse como comisiones)
+        # Patrones genéricos para detectar impuestos de transacción y stamp duties
+        elif 'transaction tax' in description.lower() or \
+             'impuesto de transacción' in description.lower() or \
+             'stamp duty' in description.lower() or \
+             'impuesto sobre transacciones financieras' in description.lower() or \
+             'spanish transaction tax' in description.lower() or \
+             'impuesto de transacción frances' in description.lower() or \
+             'hong kong stamp duty' in description.lower() or \
+             'london/dublin stamp duty' in description.lower():
+            # Estos impuestos y stamp duties se registran como FEE (comisiones)
+            self._process_fee(row)
+        
+        # 9. COMISIONES Y FEES (genéricas: Pass-Through Fee, ADR/GDR, conectividad, etc.)
+        elif 'pass-through fee' in description.lower() or \
+             'adr/gdr' in description.lower() or \
+             'costes de transacción' in description or \
+             'comisión' in description:
             # IMPORTANTE: Filtrar "Costes de transacción" que hacen referencia a un asset
             # porque ya están incluidos en el CSV de Transacciones
             if 'Costes de transacción' in description and producto:
                 # Es una comisión de transacción específica → IGNORAR (duplicado)
                 pass
             else:
-                # Es una comisión general (conectividad, etc.) → REGISTRAR
+                # Es una comisión general (conectividad, ADR/GDR, Pass-Through, etc.) → REGISTRAR
                 self._process_fee(row)
+        
+        # 10. PROMOCIONES Y BONOS (genéricos: como depósito/ganancia)
+        elif 'promoción' in description.lower() or \
+             'promo' in description.lower() or \
+             'bonus' in description.lower() or \
+             'reward' in description.lower() or \
+             'cashback' in description.lower():
+            # Tratar como depósito (ganancia)
+            self._process_deposit(row)
     
     def _process_trade(self, row: Dict[str, str]):
         """Procesa una compra o venta"""
@@ -542,20 +589,32 @@ class DeGiroParser:
         })
     
     def _process_interest(self, row: Dict[str, str]):
-        """Procesa interés (comisión por apalancamiento)"""
+        """Procesa interés (apalancamiento o distribuciones de intereses)"""
         # Extraer monto
         amount_value = self._extract_first_unnamed_column(row)
         currency = row.get('Variación', 'EUR').strip()
+        description = row.get('Descripción', '').strip()
         
-        fee = {
-            'date': self._parse_date(row.get('Fecha', '')),
-            'amount': abs(amount_value),
-            'currency': currency,
-            'description': 'Apalancamiento DeGiro',
-            'related_symbol': ''  # Sin asset específico
-        }
-        
-        self.fees.append(fee)
+        # Los intereses pueden ser positivos (ganancia) o negativos (costo de apalancamiento)
+        # Intereses negativos (apalancamiento) → FEE (gasto)
+        # Intereses positivos (Interest Income Distribution) → DEPOSIT (ganancia)
+        if amount_value < 0:
+            # Apalancamiento (costo) → FEE
+            self.fees.append({
+                'date': self._parse_date(row.get('Fecha', '')),
+                'amount': abs(amount_value),
+                'currency': currency,
+                'description': description or 'Apalancamiento DeGiro',
+                'related_symbol': ''
+            })
+        else:
+            # Interest Income (ganancia) → DEPOSIT
+            self.deposits.append({
+                'date': self._parse_date(row.get('Fecha', '')),
+                'amount': amount_value,
+                'currency': currency,
+                'description': description or 'Interest Income Distribution'
+            })
     
     def _process_withdrawal(self, row: Dict[str, str]):
         """Procesa retiro (flatex Withdrawal)"""

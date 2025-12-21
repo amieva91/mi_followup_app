@@ -1,154 +1,18 @@
 """
 Mapeo de MIC ISO 10383 a sufijo de Yahoo Finance
+
+NOTA: Todos los mapeos están en la base de datos (MappingRegistry).
+Este módulo solo contiene métodos que leen desde BD.
 """
+from app.models import MappingRegistry
 
 class YahooSuffixMapper:
     """
     Mapea códigos MIC (Market Identifier Code) ISO 10383 a sufijos de Yahoo Finance
-    """
     
-    # MIC ISO 10383 → Yahoo Finance suffix
-    MIC_TO_YAHOO_SUFFIX = {
-        # ==================
-        # US MARKETS
-        # ==================
-        'XNYS': '',     # NYSE
-        'XNAS': '',     # NASDAQ
-        'ARCX': '',     # NYSE Arca
-        'BATS': '',     # Cboe BZX (BATS)
-        'BATY': '',     # Cboe BYX
-        'CDED': '',     # Cboe EDGA
-        'EDGX': '',     # Cboe EDGX
-        'EDGA': '',     # Cboe EDGA (alternate)
-        'SOHO': '',     # NYSE National
-        'MEMX': '',     # Members Exchange
-        'MSPL': '',     # Morgan Stanley
-        'MSCO': '',     # Morgan Stanley (alternate)
-        'EPRL': '',     # MIAX Pearl
-        'XBOS': '',     # Nasdaq BX
-        'IEXG': '',     # IEX
-        'XCIS': '',     # NYSE Chicago
-        'XPSX': '',     # Nasdaq PSX
-        
-        # ==================
-        # UK MARKETS
-        # ==================
-        'XLON': '.L',   # London Stock Exchange
-        'AIMX': '.L',   # AIM (London)
-        'JSSI': '.L',   # LSE (Jersey)
-        'BATE': '.L',   # Cboe Europe (ex-BATS Europe)
-        'CHIX': '.L',   # Cboe Europe CXE (ex-CHI-X)
-        'BART': '.L',   # Barclays MTF
-        'HRSI': '.L',   # RSX (MTF)
-        
-        # ==================
-        # EUROPEAN MARKETS
-        # ==================
-        
-        # France
-        'XPAR': '.PA',  # Euronext Paris
-        
-        # Germany
-        'XETRA': '.DE', # XETRA
-        'XETA': '.DE',  # Frankfurt (alternate)
-        'XETB': '.DE',  # Frankfurt (Xetra Best Execution)
-        'XETU': '.DE',  # Frankfurt (Xetra US)
-        'XFRA': '.F',   # Frankfurt Stock Exchange
-        'FRAA': '.F',   # Frankfurt (alternate)
-        
-        # Spain
-        'XMAD': '.MC',  # Madrid Stock Exchange
-        'MESI': '.MC',  # SIBE (Madrid electronic)
-        'CCEU': '.MC',  # Continuous Market (Spain)
-        'AQXE': '.MC',  # Aquis Exchange (Spain)
-        'GROW': '.MC',  # BME Growth (Spain)
-        'HREU': '.MC',  # BME Latibex
-        
-        # Italy
-        'XMIL': '.MI',  # Borsa Italiana
-        'MTAA': '.MI',  # MTA (Milan)
-        'CEUO': '.MI',  # Cboe Europe (Italy)
-        
-        # Netherlands
-        'XAMS': '.AS',  # Euronext Amsterdam
-        
-        # Sweden
-        'XSTO': '.ST',  # Nasdaq Stockholm
-        
-        # Finland
-        'XHEL': '.HE',  # Nasdaq Helsinki
-        'FNSE': '.HE',  # Helsinki (alternate)
-        
-        # Denmark
-        'XCSE': '.CO',  # Nasdaq Copenhagen
-        'DSME': '.CO',  # Copenhagen (alternate)
-        
-        # Norway
-        'XOSL': '.OL',  # Oslo Stock Exchange
-        
-        # Poland
-        'XWAR': '.WA',  # Warsaw Stock Exchange
-        
-        # Czech Republic
-        'XPRA': '.PR',  # Prague Stock Exchange
-        
-        # Hungary
-        'XBUD': '.BD',  # Budapest Stock Exchange
-        
-        # Belgium
-        'XBRU': '.BR',  # Euronext Brussels
-        
-        # Portugal
-        'XLIS': '.LS',  # Euronext Lisbon
-        
-        # Austria
-        'XWBO': '.VI',  # Vienna Stock Exchange
-        
-        # Switzerland
-        'XSWX': '.SW',  # SIX Swiss Exchange
-        
-        # ==================
-        # PAN-EUROPEAN MTFs
-        # ==================
-        'AQEU': '.L',   # Aquis Exchange (default to London)
-        'CEUX': '.L',   # Cboe Europe (generic)
-        'EUCC': '.L',   # EuroCCP
-        
-        # ==================
-        # ASIAN MARKETS
-        # ==================
-        'XHKG': '.HK',  # Hong Kong
-        'XJPX': '.T',   # Tokyo
-        'XSHG': '.SS',  # Shanghai
-        'XSHE': '.SZ',  # Shenzhen
-        'XKRX': '.KS',  # Korea
-        'XTAI': '.TW',  # Taiwan
-        'XSES': '.SI',  # Singapore
-        
-        # ==================
-        # OCEANIA
-        # ==================
-        'ASXT': '.AX',  # Australian Securities Exchange
-        'XNZE': '.NZ',  # New Zealand
-        
-        # ==================
-        # AMERICAS (non-US)
-        # ==================
-        'XTSE': '.TO',  # Toronto
-        'XATS': '.TO',  # TSE Alpha
-        'XCX2': '.TO',  # TSE (alternate)
-        'XTSX': '.V',   # TSX Venture
-        'CHIC': '.V',   # Chi-X Canada
-        'XBOM': '.BO',  # Bombay
-        'XNSE': '.NS',  # National Stock Exchange India
-        'XSAU': '.SA',  # Sao Paulo
-        'XMEX': '.MX',  # Mexico
-        
-        # ==================
-        # OTHER
-        # ==================
-        'XGAT': '',     # Tradegate (Germany) - no Yahoo suffix known
-    }
+    Todos los mapeos se leen desde MappingRegistry (base de datos).
+    No hay diccionarios hardcodeados en este módulo.
+    """
     
     # Sufijos Yahoo Finance → nombre del mercado
     SUFFIX_NAMES = {
@@ -204,7 +68,6 @@ class YahooSuffixMapper:
             return ''
         
         # Leer desde BD (MappingRegistry)
-        from app.models import MappingRegistry
         result = MappingRegistry.get_mapping('MIC_TO_YAHOO', mic)
         return result if result is not None else ''
     
@@ -223,58 +86,21 @@ class YahooSuffixMapper:
     
     @classmethod
     def get_all_mics(cls):
-        """Retorna todos los MICs soportados"""
-        return list(cls.MIC_TO_YAHOO_SUFFIX.keys())
+        """Retorna todos los MICs soportados desde la base de datos"""
+        mappings = MappingRegistry.query.filter_by(
+            mapping_type='MIC_TO_YAHOO',
+            is_active=True
+        ).all()
+        return [m.source_key for m in mappings]
     
     @classmethod
     def get_all_suffixes(cls):
-        """Retorna todos los sufijos únicos soportados"""
-        return list(set(cls.MIC_TO_YAHOO_SUFFIX.values()))
-    
-    # Mapeo de Exchange (IBKR/unificado) a Yahoo Suffix
-    # Fallback cuando no hay MIC disponible
-    EXCHANGE_TO_YAHOO_SUFFIX = {
-        # US Markets
-        'NASDAQ': '',
-        'NYSE': '',
-        'ARCA': '',
-        'AMEX': '',
-        'BATS': '',
-        
-        # European Markets
-        'LSE': '.L',        # London
-        'SBF': '.PA',       # Paris
-        'IBIS': '.DE',      # Frankfurt/XETRA
-        'BM': '.MC',        # Madrid
-        'BVME': '.MI',      # Milan
-        'AEB': '.AS',       # Amsterdam
-        'SFB': '.ST',       # Stockholm
-        'OSE': '.OL',       # Oslo
-        'CPH': '.CO',       # Copenhagen
-        'WSE': '.WA',       # Warsaw
-        'SWX': '.SW',       # Swiss
-        'VIENNA': '.VI',    # Vienna
-        'SBEL': '.BR',      # Brussels
-        'LISBON': '.LS',    # Lisbon
-        
-        # Canadian Markets
-        'TSE': '.TO',       # Toronto
-        'TSXV': '.V',       # TSX Venture
-        
-        # Asian Markets
-        'SEHK': '.HK',      # Hong Kong
-        'SGX': '.SI',       # Singapore
-        'KSE': '.KS',       # Korea
-        'TSE.JPN': '.T',    # Tokyo
-        'HKSE': '.HK',      # Hong Kong (alternate)
-        
-        # Australian Markets
-        'ASX': '.AX',       # Australia
-        
-        # Other Markets
-        'BOVESPA': '.SA',   # Brazil
-        'BMV': '.MX',       # Mexico
-    }
+        """Retorna todos los sufijos únicos soportados desde la base de datos"""
+        mappings = MappingRegistry.query.filter_by(
+            mapping_type='MIC_TO_YAHOO',
+            is_active=True
+        ).all()
+        return list(set(m.target_value for m in mappings if m.target_value))
     
     @classmethod
     def exchange_to_yahoo_suffix(cls, exchange: str) -> str:
@@ -294,6 +120,5 @@ class YahooSuffixMapper:
             return None
         
         # Leer desde BD (MappingRegistry)
-        from app.models import MappingRegistry
         return MappingRegistry.get_mapping('EXCHANGE_TO_YAHOO', exchange)
 

@@ -10,47 +10,150 @@ app = create_app()
 # Datos de mapeos actuales (extraídos de los mappers hardcodeados)
 MAPPINGS_DATA = {
     'MIC_TO_YAHOO': {
-        # US Markets
+        # ==================
+        # US MARKETS
+        # ==================
         'XNYS': ('', 'NYSE', 'US'),
         'XNAS': ('', 'NASDAQ', 'US'),
         'ARCX': ('', 'NYSE Arca', 'US'),
-        'BATS': ('', 'Cboe BZX', 'US'),
+        'BATS': ('', 'Cboe BZX (BATS)', 'US'),
+        'BATY': ('', 'Cboe BYX', 'US'),
+        'CDED': ('', 'Cboe EDGA', 'US'),
+        'EDGX': ('', 'Cboe EDGX', 'US'),
+        'EDGA': ('', 'Cboe EDGA (alternate)', 'US'),
+        'SOHO': ('', 'NYSE National', 'US'),
+        'MEMX': ('', 'Members Exchange', 'US'),
+        'MSPL': ('', 'Morgan Stanley', 'US'),
+        'MSCO': ('', 'Morgan Stanley (alternate)', 'US'),
+        'EPRL': ('', 'MIAX Pearl', 'US'),
+        'XBOS': ('', 'Nasdaq BX', 'US'),
+        'IEXG': ('', 'IEX', 'US'),
+        'XCIS': ('', 'NYSE Chicago', 'US'),
+        'XPSX': ('', 'Nasdaq PSX', 'US'),
         
-        # UK Markets
+        # ==================
+        # UK MARKETS
+        # ==================
         'XLON': ('.L', 'London Stock Exchange', 'GB'),
-        'AIMX': ('.L', 'AIM London', 'GB'),
+        'AIMX': ('.L', 'AIM (London)', 'GB'),
+        'JSSI': ('.L', 'LSE (Jersey)', 'GB'),
+        'BATE': ('.L', 'Cboe Europe (ex-BATS Europe)', 'GB'),
+        'CHIX': ('.L', 'Cboe Europe CXE (ex-CHI-X)', 'GB'),
+        'BART': ('.L', 'Barclays MTF', 'GB'),
+        'HRSI': ('.L', 'RSX (MTF)', 'GB'),
         
-        # European Markets
-        'XMAD': ('.MC', 'Bolsa de Madrid', 'ES'),
+        # ==================
+        # EUROPEAN MARKETS
+        # ==================
+        
+        # France
         'XPAR': ('.PA', 'Euronext Paris', 'FR'),
-        'XETR': ('.DE', 'Deutsche Börse Xetra', 'DE'),
+        
+        # Germany
+        'XETRA': ('.DE', 'XETRA', 'DE'),
+        'XETR': ('.DE', 'Deutsche Börse Xetra', 'DE'),  # Alias
+        'XETA': ('.DE', 'Frankfurt (alternate)', 'DE'),
+        'XETB': ('.DE', 'Frankfurt (Xetra Best Execution)', 'DE'),
+        'XETU': ('.DE', 'Frankfurt (Xetra US)', 'DE'),
+        'XFRA': ('.F', 'Frankfurt Stock Exchange', 'DE'),
+        'FRAA': ('.F', 'Frankfurt (alternate)', 'DE'),
+        
+        # Spain
+        'XMAD': ('.MC', 'Madrid Stock Exchange', 'ES'),
+        # NOTA: MESI intencionalmente NO incluido para permitir fallback a exchange
+        # Si un asset tiene mic='MESI' pero country='GB', usará exchange='EO' → .L
+        'CCEU': ('.MC', 'Continuous Market (Spain)', 'ES'),
+        'AQXE': ('.MC', 'Aquis Exchange (Spain)', 'ES'),
+        'GROW': ('.MC', 'BME Growth (Spain)', 'ES'),
+        'HREU': ('.MC', 'BME Latibex', 'ES'),
+        
+        # Italy
         'XMIL': ('.MI', 'Borsa Italiana', 'IT'),
+        'MTAA': ('.MI', 'MTA (Milan)', 'IT'),
+        'CEUO': ('.MI', 'Cboe Europe (Italy)', 'IT'),
+        
+        # Netherlands
         'XAMS': ('.AS', 'Euronext Amsterdam', 'NL'),
+        
+        # Sweden
         'XSTO': ('.ST', 'Nasdaq Stockholm', 'SE'),
-        'XOSL': ('.OL', 'Oslo Børs', 'NO'),
+        
+        # Finland
+        'XHEL': ('.HE', 'Nasdaq Helsinki', 'FI'),
+        'FNSE': ('.HE', 'Helsinki (alternate)', 'FI'),
+        
+        # Denmark
         'XCSE': ('.CO', 'Nasdaq Copenhagen', 'DK'),
+        'DSME': ('.CO', 'Copenhagen (alternate)', 'DK'),
+        
+        # Norway
+        'XOSL': ('.OL', 'Oslo Stock Exchange', 'NO'),
+        
+        # Poland
         'XWAR': ('.WA', 'Warsaw Stock Exchange', 'PL'),
-        'XSWX': ('.SW', 'SIX Swiss Exchange', 'CH'),
-        'XWBO': ('.VI', 'Wiener Börse', 'AT'),
+        
+        # Czech Republic
+        'XPRA': ('.PR', 'Prague Stock Exchange', 'CZ'),
+        
+        # Hungary
+        'XBUD': ('.BD', 'Budapest Stock Exchange', 'HU'),
+        
+        # Belgium
         'XBRU': ('.BR', 'Euronext Brussels', 'BE'),
+        
+        # Portugal
         'XLIS': ('.LS', 'Euronext Lisbon', 'PT'),
         
-        # Canadian Markets
-        'XTSE': ('.TO', 'Toronto Stock Exchange', 'CA'),
-        'XTSX': ('.V', 'TSX Venture Exchange', 'CA'),
+        # Austria
+        'XWBO': ('.VI', 'Vienna Stock Exchange', 'AT'),
         
-        # Asian Markets
-        'XHKG': ('.HK', 'Hong Kong Stock Exchange', 'HK'),
-        'XSES': ('.SI', 'Singapore Exchange', 'SG'),
-        'XKRX': ('.KS', 'Korea Exchange', 'KR'),
-        'XTKS': ('.T', 'Tokyo Stock Exchange', 'JP'),
+        # Switzerland
+        'XSWX': ('.SW', 'SIX Swiss Exchange', 'CH'),
         
-        # Australian Markets
-        'XASX': ('.AX', 'Australian Securities Exchange', 'AU'),
+        # ==================
+        # PAN-EUROPEAN MTFs
+        # ==================
+        'AQEU': ('.L', 'Aquis Exchange (default to London)', 'GB'),
+        'CEUX': ('.L', 'Cboe Europe (generic)', 'GB'),
+        'EUCC': ('.L', 'EuroCCP', 'GB'),
         
-        # Other Markets
-        'BVMF': ('.SA', 'B3 Brazil', 'BR'),
-        'XMEX': ('.MX', 'Bolsa Mexicana', 'MX'),
+        # ==================
+        # ASIAN MARKETS
+        # ==================
+        'XHKG': ('.HK', 'Hong Kong', 'HK'),
+        'XJPX': ('.T', 'Tokyo', 'JP'),
+        'XSHG': ('.SS', 'Shanghai', 'CN'),
+        'XSHE': ('.SZ', 'Shenzhen', 'CN'),
+        'XKRX': ('.KS', 'Korea', 'KR'),
+        'XTAI': ('.TW', 'Taiwan', 'TW'),
+        'XSES': ('.SI', 'Singapore', 'SG'),
+        'XTKS': ('.T', 'Tokyo Stock Exchange', 'JP'),  # Alias
+        
+        # ==================
+        # OCEANIA
+        # ==================
+        'ASXT': ('.AX', 'Australian Securities Exchange', 'AU'),
+        'XASX': ('.AX', 'Australian Securities Exchange', 'AU'),  # Alias
+        'XNZE': ('.NZ', 'New Zealand', 'NZ'),
+        
+        # ==================
+        # AMERICAS (non-US)
+        # ==================
+        'XTSE': ('.TO', 'Toronto', 'CA'),
+        'XATS': ('.TO', 'TSE Alpha', 'CA'),
+        'XCX2': ('.TO', 'TSE (alternate)', 'CA'),
+        'XTSX': ('.V', 'TSX Venture', 'CA'),
+        'CHIC': ('.V', 'Chi-X Canada', 'CA'),
+        'XBOM': ('.BO', 'Bombay', 'IN'),
+        'XNSE': ('.NS', 'National Stock Exchange India', 'IN'),
+        'XSAU': ('.SA', 'Sao Paulo', 'BR'),
+        'BVMF': ('.SA', 'B3 Brazil', 'BR'),  # Alias
+        'XMEX': ('.MX', 'Mexico', 'MX'),
+        
+        # ==================
+        # OTHER
+        # ==================
+        'XGAT': ('', 'Tradegate (Germany) - no Yahoo suffix known', 'DE'),
     },
     
     'EXCHANGE_TO_YAHOO': {
