@@ -31,7 +31,7 @@ Cuando se hacen cambios en los datos o en los cálculos de métricas, siempre li
 
 ```python
 from app.services.metrics.cache import MetricsCacheService
-MetricsCacheService.clear(user_id)
+MetricsCacheService.invalidate(user_id)
 ```
 
 ## ✅ Estado Final:
