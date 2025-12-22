@@ -1,10 +1,14 @@
 """
 CSV Importer V2 - Usa AssetRegistry como cache global
 """
+import logging
 from typing import Dict, List, Any, Callable, Union
 from datetime import datetime
 from decimal import Decimal
 from app import db
+
+# Logger específico para importaciones
+import_logger = logging.getLogger('csv_importer')
 from app.models import (
     User, BrokerAccount, Asset, AssetRegistry,
     PortfolioHolding, Transaction, CashFlow
@@ -613,6 +617,9 @@ class CSVImporterV2:
             
             if deposit_key in self.existing_transactions_snapshot:
                 skipped_duplicate += 1
+                msg = f"   ⏭️  Depósito duplicado saltado: {deposit_date.date()} | {deposit_amount:,.2f} EUR | {deposit_data.get('description', 'N/A')[:50]}"
+                print(msg)
+                import_logger.info(msg)
                 continue
             
             transaction = Transaction(
@@ -678,6 +685,13 @@ class CSVImporterV2:
         
         if skipped_duplicate > 0:
             print(f"   📊 DEBUG _import_cash_movements: {skipped_duplicate} depósitos/retiros duplicados saltados")
+        
+        # Log detallado de depósitos procesados
+        total_deposits_in_csv = len(parsed_data.get('deposits', []))
+        if total_deposits_in_csv > 0:
+            msg = f"   📥 Depósitos en CSV: {total_deposits_in_csv}, Importados: {self.stats.get('deposits_created', 0)}, Saltados (duplicados): {skipped_duplicate}"
+            print(msg)
+            import_logger.info(msg)
     
     def _recalculate_holdings(self):
         """Recalcula holdings con FIFO robusto"""
