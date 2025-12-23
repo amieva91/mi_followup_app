@@ -428,6 +428,7 @@ class BenchmarkComparisonService:
         if not self.start_date:
             return {
                 'portfolio_annualized': None,
+                'portfolio_total': None,
                 'benchmarks': {},
                 'differences': {},
                 'start_date': None
@@ -484,9 +485,10 @@ class BenchmarkComparisonService:
         years_total = days_total / 365.25 if days_total > 0 else 1
         
         return {
-            'portfolio_annualized': portfolio_annualized,  # Se muestra anualizado como título
-            'benchmarks': benchmark_totals,  # Pero los benchmarks se muestran como totales acumulados
-            'differences': differences,  # Y las diferencias se calculan con totales
+            'portfolio_annualized': portfolio_annualized,  # Se mantiene para referencia pero no se usa en comparación
+            'portfolio_total': portfolio_total,  # Total acumulado para ser consistente con tabla
+            'benchmarks': benchmark_totals,  # Benchmarks como totales acumulados
+            'differences': differences,  # Diferencias calculadas con totales (portfolio_total - benchmark_total)
             'start_date': self.start_date.strftime('%Y-%m-%d'),
             'years': round(years_total, 2)
         }

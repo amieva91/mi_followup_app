@@ -251,10 +251,11 @@
             <div class="text-sm text-gray-600">🏆 Comparación con Índices</div>
             <span class="text-xs text-gray-400 cursor-help" title="Comparación de tu rentabilidad anualizada con los principales índices de referencia desde tu fecha de inicio ({{ benchmark_annualized.start_date }})">ⓘ</span>
         </div>
-        <div class="text-2xl font-bold {% if benchmark_annualized.portfolio_annualized >= 0 %}text-orange-600{% else %}text-red-600{% endif %} mb-1">
-            {% if benchmark_annualized.portfolio_annualized >= 0 %}+{% endif %}{{ benchmark_annualized.portfolio_annualized|decimal_eu(2) }}%
+        <div class="text-2xl font-bold {% if benchmark_annualized.portfolio_total >= 0 %}text-orange-600{% else %}text-red-600{% endif %} mb-1">
+            {% if benchmark_annualized.portfolio_total >= 0 %}+{% endif %}{{ benchmark_annualized.portfolio_total|decimal_eu(2) }}%
         </div>
-        <div class="text-xs text-gray-500 mb-4">Tu rentabilidad anualizada</div>
+        <div class="text-xs text-gray-500 mb-4">Tu rentabilidad total acumulada</div>
+        <div class="text-xs text-gray-400 mb-2">(Anualizada: {% if benchmark_annualized.portfolio_annualized >= 0 %}+{% endif %}{{ benchmark_annualized.portfolio_annualized|decimal_eu(2) }}%)</div>
         
         <!-- Comparación detallada con benchmarks - Layout horizontal ocupando todo el ancho -->
         {% if benchmark_annualized.benchmarks %}
