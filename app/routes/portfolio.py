@@ -205,6 +205,11 @@ def dashboard():
     annualized_dividends = DividendMetrics.get_annualized_dividends_ytd(current_user.id)
     yearly_dividends = DividendMetrics.get_yearly_dividends_from_start(current_user.id)
     
+    # Calcular comparación con benchmarks (rentabilidades anualizadas)
+    from app.services.metrics.benchmark_comparison import BenchmarkComparisonService
+    benchmark_comparison = BenchmarkComparisonService(current_user.id)
+    benchmark_annualized = benchmark_comparison.get_annualized_returns_summary()
+    
     return render_template(
         'portfolio/dashboard.html',
         accounts=accounts,
@@ -222,7 +227,8 @@ def dashboard():
         yearly_returns=yearly_returns,
         monthly_dividends=monthly_dividends,
         annualized_dividends=annualized_dividends,
-        yearly_dividends=yearly_dividends
+        yearly_dividends=yearly_dividends,
+        benchmark_annualized=benchmark_annualized
     )
 
 
@@ -2358,6 +2364,26 @@ def api_evolution():
     except Exception as e:
         import traceback
         print(f"Error en api_evolution: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
+
+
+@portfolio_bp.route('/api/benchmarks')
+@login_required
+def api_benchmarks():
+    """
+    API endpoint que devuelve datos comparativos con benchmarks (S&P 500, NASDAQ, etc.)
+    HITO 4 - Comparación con Benchmarks
+    """
+    from app.services.metrics.benchmark_comparison import BenchmarkComparisonService
+    
+    try:
+        service = BenchmarkComparisonService(current_user.id)
+        data = service.get_comparison_data()
+        return jsonify(data)
+    except Exception as e:
+        import traceback
+        print(f"Error en api_benchmarks: {str(e)}")
         print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 

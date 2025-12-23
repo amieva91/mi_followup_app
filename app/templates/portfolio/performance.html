@@ -106,6 +106,56 @@
             </div>
         </div>
 
+        <!-- Gráfico 6: Comparación con Benchmarks (HITO 4) -->
+        <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-200">  
+            <div class="mb-4">
+                <h2 class="text-xl font-bold text-gray-900">🏆 Comparación con Índices de Referencia</h2>
+                <p class="text-sm text-gray-600 mt-1">
+                    Evolución de tu portfolio comparada con los principales índices (normalizado a base 100 desde el inicio)
+                </p>
+            </div>
+            <div style="position: relative; height: 400px;">
+                <canvas id="benchmarkChart"></canvas>
+            </div>
+            <div id="benchmarkError" class="hidden bg-red-50 border border-red-200 rounded-lg p-4 mt-4 text-red-800"></div>
+        </div>
+
+        <!-- Tabla Comparativa Anual (HITO 4) -->
+        <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+            <div class="mb-4">
+                <h2 class="text-xl font-bold text-gray-900">📊 Tabla Comparativa Anual</h2>
+                <p class="text-sm text-gray-600 mt-1">
+                    Rentabilidades anuales y diferencia porcentual vs cada índice
+                </p>
+            </div>
+            
+            <!-- Tabla Responsive -->
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Año</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tu Portfolio</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">S&P 500</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">NASDAQ 100</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">MSCI World</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">EuroStoxx 50</th>
+                        </tr>
+                    </thead>
+                    <tbody id="benchmarkTableBody" class="bg-white divide-y divide-gray-200">
+                        <!-- Se llena dinámicamente con JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Sección colapsable para años antiguos (si hay muchos) -->
+            <div id="olderYearsSection" class="mt-4 hidden">
+                <button id="toggleOlderYears" class="text-sm text-blue-600 hover:text-blue-800 font-medium">
+                    Ver años anteriores
+                </button>
+            </div>
+        </div>
+
         <!-- Info Footer -->
         <div class="bg-blue-50 border border-blue-200 rounded-xl p-6">
             <div class="flex items-start">

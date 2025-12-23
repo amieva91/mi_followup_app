@@ -436,9 +436,290 @@ async function loadCharts(frequency = 'weekly') {
     }
 }
 
+/**
+ * Gráfico 6: Comparación con Benchmarks (HITO 4)
+ */
+function createBenchmarkChart(ctx, data) {
+    // Colores para cada benchmark
+    const benchmarkColors = {
+        'S&P 500': 'rgb(34, 197, 94)',      // Verde
+        'NASDAQ 100': 'rgb(59, 130, 246)',  // Azul
+        'MSCI World': 'rgb(168, 85, 247)',  // Púrpura
+        'EuroStoxx 50': 'rgb(245, 158, 11)' // Amarillo/Naranja
+    };
+    
+    // Datasets: Portfolio primero (más destacado)
+    const datasets = [
+        {
+            label: '📊 Tu Portfolio',
+            data: data.datasets.portfolio,
+            borderColor: 'rgb(239, 68, 68)',  // Rojo para destacar
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            borderWidth: 4,
+            fill: false,
+            tension: 0.4,
+            pointRadius: 0,
+            pointHoverRadius: 8
+        }
+    ];
+    
+    // Añadir benchmarks
+    for (const [name, color] of Object.entries(benchmarkColors)) {
+        if (data.datasets[name] && data.datasets[name].length > 0) {
+            datasets.push({
+                label: name,
+                data: data.datasets[name],
+                borderColor: color,
+                backgroundColor: 'transparent',
+                borderWidth: 2,
+                fill: false,
+                tension: 0.4,
+                pointRadius: 0,
+                pointHoverRadius: 6,
+                borderDash: [0]
+            });
+        }
+    }
+    
+    return new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: data.labels,
+            datasets: datasets
+        },
+        options: {
+            ...commonChartOptions,
+            plugins: {
+                ...commonChartOptions.plugins,
+                legend: {
+                    display: true,
+                    position: 'top',
+                    onClick: function(e, legendItem) {
+                        // Toggle visibility al hacer click (comportamiento estándar)
+                        const index = legendItem.datasetIndex;
+                        const chart = this.chart;
+                        const meta = chart.getDatasetMeta(index);
+                        meta.hidden = meta.hidden === null ? !chart.data.datasets[index].hidden : null;
+                        chart.update();
+                    }
+                },
+                tooltip: {
+                    ...commonChartOptions.plugins.tooltip,
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            // Mostrar como índice (base 100)
+                            label += formatEuropeanNumber(context.parsed.y, 2);
+                            return label;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: false,
+                    ticks: {
+                        callback: function(value) {
+                            // Mostrar como porcentaje desde inicio (100 = punto de partida)
+                            return formatEuropeanNumber(value, 0);
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    },
+                    title: {
+                        display: true,
+                        text: 'Índice (Base 100)'
+                    }
+                },
+                x: {
+                    grid: {
+                        display: false
+                    }
+                }
+            }
+        }
+    });
+}
+
+/**
+ * Renderizar tabla comparativa anual
+ */
+function renderBenchmarkTable(annualData) {
+    const tableBody = document.getElementById('benchmarkTableBody');
+    if (!tableBody || !annualData) {
+        console.error('❌ No se puede renderizar tabla: tableBody o annualData es null', { tableBody, annualData });
+        return;
+    }
+    
+    console.log('🔍 Renderizando tabla con datos:', {
+        annual_count: annualData.annual?.length || 0,
+        has_total: !!annualData.total,
+        first_year_benchmarks: annualData.annual?.[0]?.benchmarks ? Object.keys(annualData.annual[0].benchmarks) : []
+    });
+    
+    tableBody.innerHTML = '';
+    
+    // Añadir filas anuales
+    annualData.annual.forEach(yearData => {
+        const row = document.createElement('tr');
+        row.className = 'border-b border-gray-200 hover:bg-gray-50';
+        
+        // Año
+        const yearCell = document.createElement('td');
+        yearCell.className = 'px-4 py-3 font-medium text-gray-900';
+        yearCell.textContent = yearData.year;
+        row.appendChild(yearCell);
+        
+        // Portfolio
+        const portfolioCell = document.createElement('td');
+        portfolioCell.className = 'px-4 py-3 text-gray-900 font-semibold';
+        portfolioCell.textContent = formatEuropeanNumber(yearData.portfolio, 2) + '%';
+        row.appendChild(portfolioCell);
+        
+        // Benchmarks y diferencias
+        for (const benchmarkName of ['S&P 500', 'NASDAQ 100', 'MSCI World', 'EuroStoxx 50']) {
+            const benchmarkCell = document.createElement('td');
+            benchmarkCell.className = 'px-4 py-3';
+            
+            // Debug para NASDAQ 100
+            if (benchmarkName === 'NASDAQ 100' && yearData.year === 2018) {
+                console.log(`🔍 Verificando ${benchmarkName} para año ${yearData.year}:`, {
+                    has_benchmarks: !!yearData.benchmarks,
+                    benchmark_keys: yearData.benchmarks ? Object.keys(yearData.benchmarks) : [],
+                    nasdaq_in_benchmarks: yearData.benchmarks && benchmarkName in yearData.benchmarks,
+                    nasdaq_value: yearData.benchmarks?.[benchmarkName]
+                });
+            }
+            
+            if (benchmarkName in yearData.benchmarks) {
+                const benchReturn = yearData.benchmarks[benchmarkName];
+                const diff = yearData.differences[benchmarkName] || 0;
+                
+                const container = document.createElement('div');
+                container.className = 'space-y-1';
+                
+                // Rentabilidad del benchmark
+                const benchSpan = document.createElement('div');
+                benchSpan.className = 'text-gray-700';
+                benchSpan.textContent = formatEuropeanNumber(benchReturn, 2) + '%';
+                container.appendChild(benchSpan);
+                
+                // Diferencia (portfolio - benchmark)
+                const diffSpan = document.createElement('div');
+                diffSpan.className = diff >= 0 ? 'text-green-600 text-sm font-medium' : 'text-red-600 text-sm font-medium';
+                const diffSign = diff >= 0 ? '+' : '';
+                diffSpan.textContent = diffSign + formatEuropeanNumber(diff, 2) + '%';
+                container.appendChild(diffSpan);
+                
+                benchmarkCell.appendChild(container);
+            } else {
+                benchmarkCell.textContent = '-';
+                benchmarkCell.className += ' text-gray-400';
+            }
+            
+            row.appendChild(benchmarkCell);
+        }
+        
+        tableBody.appendChild(row);
+    });
+    
+    // Añadir fila de total
+    const totalRow = document.createElement('tr');
+    totalRow.className = 'border-t-2 border-gray-400 bg-gray-50 font-semibold';
+    
+    const totalLabelCell = document.createElement('td');
+    totalLabelCell.className = 'px-4 py-3 text-gray-900';
+    totalLabelCell.textContent = 'Total';
+    totalRow.appendChild(totalLabelCell);
+    
+    const totalPortfolioCell = document.createElement('td');
+    totalPortfolioCell.className = 'px-4 py-3 text-gray-900';
+    totalPortfolioCell.textContent = formatEuropeanNumber(annualData.total.portfolio, 2) + '%';
+    totalRow.appendChild(totalPortfolioCell);
+    
+    for (const benchmarkName of ['S&P 500', 'NASDAQ 100', 'MSCI World', 'EuroStoxx 50']) {
+        const totalCell = document.createElement('td');
+        totalCell.className = 'px-4 py-3';
+        
+        if (benchmarkName in annualData.total.benchmarks) {
+            const benchReturn = annualData.total.benchmarks[benchmarkName];
+            const diff = annualData.total.differences[benchmarkName] || 0;
+            
+            const container = document.createElement('div');
+            container.className = 'space-y-1';
+            
+            const benchSpan = document.createElement('div');
+            benchSpan.className = 'text-gray-700';
+            benchSpan.textContent = formatEuropeanNumber(benchReturn, 2) + '%';
+            container.appendChild(benchSpan);
+            
+            const diffSpan = document.createElement('div');
+            diffSpan.className = diff >= 0 ? 'text-green-600 text-sm font-medium' : 'text-red-600 text-sm font-medium';
+            const diffSign = diff >= 0 ? '+' : '';
+            diffSpan.textContent = diffSign + formatEuropeanNumber(diff, 2) + '%';
+            container.appendChild(diffSpan);
+            
+            totalCell.appendChild(container);
+        } else {
+            totalCell.textContent = '-';
+            totalCell.className += ' text-gray-400';
+        }
+        
+        totalRow.appendChild(totalCell);
+    }
+    
+    tableBody.appendChild(totalRow);
+}
+
+/**
+ * Cargar y mostrar datos de comparación con benchmarks
+ */
+async function loadBenchmarkData() {
+    try {
+        const response = await fetch('/portfolio/api/benchmarks');
+        const data = await response.json();
+        
+        if (data.error) {
+            throw new Error(data.error);
+        }
+        
+        // Debug: verificar datos recibidos
+        console.log('📊 Datos de benchmarks recibidos:', {
+            has_annual_returns: !!data.annual_returns,
+            annual_count: data.annual_returns?.annual?.length || 0,
+            first_year_benchmarks: data.annual_returns?.annual?.[0]?.benchmarks ? Object.keys(data.annual_returns.annual[0].benchmarks) : []
+        });
+        
+        // Crear gráfico
+        const ctx = document.getElementById('benchmarkChart').getContext('2d');
+        if (window.benchmarkChart && typeof window.benchmarkChart.destroy === 'function') {
+            window.benchmarkChart.destroy();
+        }
+        window.benchmarkChart = createBenchmarkChart(ctx, data);
+        
+        // Renderizar tabla
+        renderBenchmarkTable(data.annual_returns);
+        
+    } catch (error) {
+        console.error('Error loading benchmark data:', error);
+        const errorDiv = document.getElementById('benchmarkError');
+        if (errorDiv) {
+            errorDiv.classList.remove('hidden');
+            errorDiv.textContent = 'Error al cargar datos de benchmarks: ' + error.message;
+        }
+    }
+}
+
 // Inicializar al cargar la página
 document.addEventListener('DOMContentLoaded', function() {
     // Cargar gráficos en frecuencia mensual (optimizado)
     loadCharts('monthly');
+    
+    // Cargar datos de benchmarks (HITO 4)
+    loadBenchmarkData();
 });
 
