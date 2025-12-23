@@ -363,12 +363,6 @@
   - Tabla comparativa por año (Tu rentabilidad vs índices)
   - Integración de Yahoo Finance API para datos históricos de índices
 - [ ] **HITO 4**: Distribución del Portfolio (Pie charts: asset/sector/industria/broker/moneda/país)
-- [ ] **HITO 5**: Mejoras UX - Modales y Navegación
-  - Convertir detalle de asset (`/portfolio/asset/<id>`) a modal en Dashboard y Holdings
-  - Convertir "Nueva Transacción" a modal con botón "+" en tabla (Dashboard y Holdings)
-  - Formularios con validación Ajax sin recarga
-  - Manejo de errores inline
-  - Mejora experiencia de navegación
 
 **Sprints Futuros** (después de Sprint 4):
 - **Sprint 5**: Actualización Automática de Precios (2 semanas)

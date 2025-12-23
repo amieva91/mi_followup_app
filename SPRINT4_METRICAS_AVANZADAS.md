@@ -477,46 +477,6 @@ flask db upgrade
 
 ---
 
-### **HITO 5: Página de Métricas Completa** (2-3 días)
-**Prioridad**: 🟡 MEDIA
-
-**Estructura de la Página** (`/portfolio/metrics`):
-
-```
-┌────────────────────────────────────────────────────┐
-│ 📊 RESUMEN DE PERFORMANCE                          │
-│                                                    │
-│ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐│
-│ │ROI: 20% │ │TWR: 18% │ │IRR: 19% │ │Sharp:2.1││
-│ └─────────┘ └─────────┘ └─────────┘ └─────────┘│
-└────────────────────────────────────────────────────┘
-
-┌────────────────────────────────────────────────────┐
-│ 📈 EVOLUCIÓN DEL PORTFOLIO                         │
-│                                                    │
-│ [Gráfico de líneas con selector de rango]         │
-└────────────────────────────────────────────────────┘
-
-┌─────────────────────┐ ┌─────────────────────────┐
-│ 🎯 DISTRIBUCIÓN     │ │ 🏆 TOP PERFORMERS       │
-│                     │ │                         │
-│ [Pie charts grid]   │ │ [Barra horizontal]      │
-└─────────────────────┘ └─────────────────────────┘
-
-┌────────────────────────────────────────────────────┐
-│ ⚠️ ANÁLISIS DE RIESGO                              │
-│                                                    │
-│ Max Drawdown: -12.5% | Volatilidad: 15.2%        │
-│ [Gráfico de drawdown histórico]                   │
-└────────────────────────────────────────────────────┘
-```
-
-**Selector de Período**:
-- 1 mes, 3 meses, 6 meses, 1 año, Todo el historial
-- Recalcula todas las métricas para el período seleccionado
-
----
-
 ## 🗄️ ESTRUCTURA DE BASE DE DATOS
 
 ### **Nuevas Tablas (si necesarias)**:
@@ -643,7 +603,6 @@ Peso %:       🥧 (pie)
 
 ### **Semana 3** (18-24 Nov):
 - [ ] HITO 4: Gráficos de Distribución (Pie charts)
-- [ ] HITO 5: Página de Métricas Completa
 - [ ] Testing E2E, deployment a producción
 
 ---
