@@ -617,10 +617,10 @@ Después de subir a producción, verificar:
 
 ## 📊 Estado del Proyecto
 
-**Fase actual**: Sprint 4 - Métricas Avanzadas (En Progreso - 95%)  
-**Última actualización**: 12 Noviembre 2025  
+**Fase actual**: Sprint 4 - Métricas Avanzadas (En Progreso - 98%)  
+**Última actualización**: 22 Diciembre 2025  
 **Versión**: 4.3.0  
-**Progreso**: Sprint 0 ✅ | Sprint 1 ✅ | Sprint 2 ✅ | Sprint 3 ✅ | Sprint 4 🚧 (HITO 1 ✅ | HITO 2 ✅ | Refinements ✅ | UX Avanzadas ✅ | HITO 3 Fase 1 ✅)
+**Progreso**: Sprint 0 ✅ | Sprint 1 ✅ | Sprint 2 ✅ | Sprint 3 ✅ | Sprint 4 🚧 (HITO 1 ✅ | HITO 2 ✅ | Refinements ✅ | UX Avanzadas ✅ | HITO 3 ✅)
 
 **Highlights Sprint 3 Final:**
 - ✅ Precios en tiempo real desde Yahoo Finance (15 métricas)
@@ -651,7 +651,8 @@ Después de subir a producción, verificar:
   - Último punto con precios reales actuales
   - Chart.js 4.0 con tooltips y formateo europeo
 
-**Próximo: Sprint 4 - HITO 3 Fase 2 (Gráficos Adicionales):**
-- 📈 3 gráficos restantes (Apalancamiento, Flujos de caja, P&L Acumulado)
-- 🆚 Fase 3: Comparación con benchmarks (S&P 500, NASDAQ, etc.)
+**Próximo: Sprint 4 - HITO 4 (Comparación con Benchmarks):**
+- 🆚 Integración con índices (S&P 500, NASDAQ, MSCI World)
+- 📊 Gráfico comparativo de rentabilidad normalizado
+- 📋 Tabla comparativa (Anualizada, YTD, Total)
 
