@@ -645,11 +645,14 @@ Después de subir a producción, verificar:
 - ✅ Transacciones manuales avanzadas (auto-selección SELL, autocompletado BUY, venta por quiebra)
 - ✅ Botones de enriquecimiento inteligentes (OpenFIGI + Yahoo URL)
 - ✅ Redirección optimizada a holdings tras transacciones
-- ✅ **Gráficos de Evolución** (`/portfolio/performance`):
-  - Evolución del Valor Real de la Cuenta (mensual, optimizado)
-  - Rentabilidad Acumulada (Modified Dietz)
-  - Último punto con precios reales actuales
-  - Chart.js 4.0 con tooltips y formateo europeo
+- ✅ **Gráficos de Evolución** (`/portfolio/performance`) - **COMPLETADO**:
+  - Gráfico 1: Evolución del Valor Real de la Cuenta (vs Capital Invertido)
+  - Gráfico 2: Rentabilidad Acumulada (Modified Dietz %)
+  - Gráfico 3: Apalancamiento/Cash Histórico (verde=cash, rojo=leverage)
+  - Gráfico 4: Flujos de Caja Acumulados (Capital Invertido Neto)
+  - Gráfico 5: P&L Total Acumulado (Realizado + No Realizado + Dividendos - Comisiones)
+  - Frecuencia mensual optimizada, último punto con precios reales actuales
+  - Chart.js 4.0 con tooltips informativos y formateo europeo
 
 **Próximo: Sprint 4 - HITO 4 (Comparación con Benchmarks):**
 - 🆚 Integración con índices (S&P 500, NASDAQ, MSCI World)
