@@ -91,7 +91,7 @@ Sistema completo de gestión financiera personal.
       - Eliminado doble emoji en botón "Actualizar Precios"
       - Eliminado mensaje innecesario de sincronización en AssetRegistry
       - Navbar alineado al 92% para consistencia visual completa
-- ✅ **Sprint 4 - Métricas Avanzadas (EN PROGRESO - 9 Nov 2025)**
+- ✅ **Sprint 4 - Métricas Avanzadas (COMPLETADO - 23 Dic 2025)**
   - ✅ **HITO 1: Métricas Básicas (v4.0.0-beta - COMPLETADO 8 Nov)**:
     - **8 Métricas implementadas**:
       - P&L Realizado (posiciones cerradas, cálculo con FIFO robusto)
@@ -199,10 +199,19 @@ Sistema completo de gestión financiera personal.
       - Fórmula de leverage corregida: `user_money - holdings_value`
       - P&L No Realizado solo en último punto (HOY), histórico solo P&L Realizado
       - Colores corregidos: verde para cash, rojo para apalancamiento
-  - 🚧 **HITO 4: Comparación con Benchmarks (PENDIENTE)**:
-    - Integración con Yahoo Finance para índices (S&P 500, NASDAQ, etc.)
-    - Gráfico comparativo de rentabilidad vs benchmarks
-    - Tabla comparativa (Anualizada, YTD, Total)
+  - ✅ **HITO 4: Distribución del Portfolio + Comparación con Benchmarks (COMPLETADO - 23 Dic 2025)**:
+    - **Gráficos de Distribución** (6 gráficos en dashboard):
+      - Por País, Sector (ya existían)
+      - Por Asset (Top 10 + Otros) - NUEVO
+      - Por Industria - NUEVO
+      - Por Broker (IBKR, DeGiro, Manual) - NUEVO
+      - Por Tipo (Stock incluye ADR, ETF, Bond, Crypto) - NUEVO
+    - **Comparación con Benchmarks**:
+      - Recuadro expandido en dashboard con comparación horizontal
+      - Integración con Yahoo Finance para índices (S&P 500, NASDAQ 100, MSCI World, EuroStoxx 50)
+      - Gráfico comparativo de rentabilidad normalizado vs benchmarks
+      - Tabla comparativa anual (rentabilidades año a año + diferencias)
+      - Corrección de discrepancias: dashboard y tabla usan totales acumulados consistentes
     - 🆕 Macro (Planificado): nueva pestaña `/macro/inflation` con tabla y gráfico de inflación por país, agregados **OCDE** y **APEC**, filtros por regiones/indicadores y opción “Solo países en cartera/Watchlist”. Fuentes gratuitas: OECD/World Bank/Eurostat. Cache 24h y normalización (% YoY/MoM).
   - 📝 **HITO 3 - Fase 2 (Planificado)**:
     - Nueva pestaña: `/portfolio/commodities`
@@ -654,8 +663,8 @@ Después de subir a producción, verificar:
   - Frecuencia mensual optimizada, último punto con precios reales actuales
   - Chart.js 4.0 con tooltips informativos y formateo europeo
 
-**Próximo: Sprint 4 - HITO 4 (Comparación con Benchmarks):**
-- 🆚 Integración con índices (S&P 500, NASDAQ, MSCI World)
-- 📊 Gráfico comparativo de rentabilidad normalizado
-- 📋 Tabla comparativa (Anualizada, YTD, Total)
+**✅ Sprint 4 COMPLETADO (23 Dic 2025):**
+- ✅ HITO 4: Gráficos de distribución (6 gráficos) + Comparación con benchmarks completa
+- ✅ Corrección de discrepancias en cálculos (dashboard y tabla consistentes)
+- ✅ Recuadro de comparación expandido a ancho completo
 

@@ -242,55 +242,50 @@
             </div>
         </div>
         
-        <!-- Comparación con Benchmarks (si hay datos) -->
-        {% if benchmark_annualized and benchmark_annualized.portfolio_annualized is not none %}
-        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-orange-500" x-data="{ showDetails: false }">
-            <div class="flex items-center justify-between mb-2">
-                <div class="text-sm text-gray-600">🏆 Comparación con Índices</div>
-                <div class="flex items-center gap-2">
-                    <button @click="showDetails = !showDetails" class="text-xs text-blue-600 hover:text-blue-800 font-medium">
-                        <span x-show="!showDetails">▼ Ver índices</span>
-                        <span x-show="showDetails">▲ Ocultar</span>
-                    </button>
-                    <span class="text-xs text-gray-400 cursor-help" title="Comparación de tu rentabilidad anualizada con los principales índices de referencia desde tu fecha de inicio ({{ benchmark_annualized.start_date }})">ⓘ</span>
-                </div>
-            </div>
-            <div class="text-2xl font-bold {% if benchmark_annualized.portfolio_annualized >= 0 %}text-orange-600{% else %}text-red-600{% endif %}">
-                {% if benchmark_annualized.portfolio_annualized >= 0 %}+{% endif %}{{ benchmark_annualized.portfolio_annualized|decimal_eu(2) }}%
-            </div>
-            <div class="text-xs text-gray-500">Tu rentabilidad anualizada</div>
-            
-            <!-- Comparación detallada con benchmarks -->
-            <div x-show="showDetails" x-cloak class="text-xs mt-4 space-y-2 border-t pt-3">
-                {% if benchmark_annualized.benchmarks %}
-                    {% for benchmark_name in ['S&P 500', 'NASDAQ 100', 'MSCI World', 'EuroStoxx 50'] %}
-                        {% if benchmark_name in benchmark_annualized.benchmarks %}
-                            {% set bench_return = benchmark_annualized.benchmarks[benchmark_name] %}
-                            {% set diff = benchmark_annualized.differences[benchmark_name] %}
-                            <div class="flex items-center justify-between p-2 rounded {% if diff >= 0 %}bg-green-50 border border-green-200{% else %}bg-red-50 border border-red-200{% endif %}">
-                                <div class="flex-1">
-                                    <div class="font-medium text-gray-800">{{ benchmark_name }}</div>
-                                    <div class="text-gray-600">{% if bench_return >= 0 %}+{% endif %}{{ bench_return|decimal_eu(2) }}% anualizado</div>
-                                </div>
-                                <div class="text-right">
-                                    <div class="font-bold text-lg {% if diff >= 0 %}text-green-700{% else %}text-red-700{% endif %}">
-                                        {% if diff >= 0 %}+{% endif %}{{ diff|decimal_eu(2) }}%
-                                    </div>
-                                    <div class="text-xs text-gray-500">diferencia</div>
-                                </div>
+    </div>
+    
+    <!-- Comparación con Benchmarks (si hay datos) - OCUPA TODO EL ANCHO -->
+    {% if benchmark_annualized and benchmark_annualized.portfolio_annualized is not none %}
+    <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-orange-500 mb-8">
+        <div class="flex items-center justify-between mb-3">
+            <div class="text-sm text-gray-600">🏆 Comparación con Índices</div>
+            <span class="text-xs text-gray-400 cursor-help" title="Comparación de tu rentabilidad anualizada con los principales índices de referencia desde tu fecha de inicio ({{ benchmark_annualized.start_date }})">ⓘ</span>
+        </div>
+        <div class="text-2xl font-bold {% if benchmark_annualized.portfolio_annualized >= 0 %}text-orange-600{% else %}text-red-600{% endif %} mb-1">
+            {% if benchmark_annualized.portfolio_annualized >= 0 %}+{% endif %}{{ benchmark_annualized.portfolio_annualized|decimal_eu(2) }}%
+        </div>
+        <div class="text-xs text-gray-500 mb-4">Tu rentabilidad anualizada</div>
+        
+        <!-- Comparación detallada con benchmarks - Layout horizontal ocupando todo el ancho -->
+        {% if benchmark_annualized.benchmarks %}
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 border-t pt-4">
+            {% for benchmark_name in ['S&P 500', 'NASDAQ 100', 'MSCI World', 'EuroStoxx 50'] %}
+                {% if benchmark_name in benchmark_annualized.benchmarks %}
+                    {% set bench_return = benchmark_annualized.benchmarks[benchmark_name] %}
+                    {% set diff = benchmark_annualized.differences[benchmark_name] %}
+                        <div class="p-4 rounded-lg {% if diff >= 0 %}bg-green-50 border border-green-200{% else %}bg-red-50 border border-red-200{% endif %}">
+                            <div class="font-medium text-gray-800 text-sm mb-2">{{ benchmark_name }}</div>
+                            <div class="text-xs text-gray-600 mb-3">
+                                {% if bench_return >= 0 %}+{% endif %}{{ bench_return|decimal_eu(2) }}% total
                             </div>
-                        {% endif %}
-                    {% endfor %}
+                            <div class="text-right">
+                                <div class="font-bold text-lg {% if diff >= 0 %}text-green-700{% else %}text-red-700{% endif %}">
+                                    {% if diff >= 0 %}+{% endif %}{{ diff|decimal_eu(2) }}%
+                                </div>
+                                <div class="text-xs text-gray-500">diferencia</div>
+                            </div>
+                        </div>
                 {% endif %}
-                <div class="text-xs text-gray-400 mt-2 pt-2 border-t">
-                    <a href="{{ url_for('portfolio.performance') }}" class="text-blue-600 hover:text-blue-800 font-medium">
-                        Ver gráfico comparativo completo →
-                    </a>
-                </div>
-            </div>
+            {% endfor %}
         </div>
         {% endif %}
+        <div class="text-xs text-gray-400 mt-4 pt-3 border-t">
+            <a href="{{ url_for('portfolio.performance') }}" class="text-blue-600 hover:text-blue-800 font-medium">
+                Ver gráfico comparativo completo →
+            </a>
+        </div>
     </div>
+    {% endif %}
     
     <!-- ============================================ -->
     <!-- RENTABILIDADES AÑO A AÑO                     -->
@@ -575,8 +570,11 @@
         
     </div>
     
-    <!-- Gráficos de Distribución: Países y Sectores -->
-    {% if country_distribution or sector_distribution %}
+    <!-- Gráficos de Distribución: Países y Sectores (Fila 1) -->
+    {% if country_distribution or sector_distribution or asset_distribution or industry_distribution or broker_distribution or asset_type_distribution %}
+    <div class="mb-2 mt-8">
+        <h2 class="text-lg font-semibold text-gray-700">📊 Distribución del Portfolio</h2>
+    </div>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <!-- Gráfico de Países -->
         {% if country_distribution %}
@@ -594,6 +592,46 @@
             <h3 class="text-lg font-semibold text-gray-900 mb-4">🏭 Distribución por Sector</h3>
             <div class="relative" style="height: 300px;">
                 <canvas id="sectorChart"></canvas>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Gráfico de Assets (Top 10) -->
+        {% if asset_distribution %}
+        <div class="bg-white rounded-xl shadow-sm p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">📈 Distribución por Asset (Top 10)</h3>
+            <div class="relative" style="height: 300px;">
+                <canvas id="assetChart"></canvas>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Gráfico de Industrias -->
+        {% if industry_distribution %}
+        <div class="bg-white rounded-xl shadow-sm p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">🏷️ Distribución por Industria</h3>
+            <div class="relative" style="height: 300px;">
+                <canvas id="industryChart"></canvas>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Gráfico de Brokers -->
+        {% if broker_distribution %}
+        <div class="bg-white rounded-xl shadow-sm p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">🏦 Distribución por Broker</h3>
+            <div class="relative" style="height: 300px;">
+                <canvas id="brokerChart"></canvas>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Gráfico de Tipos -->
+        {% if asset_type_distribution %}
+        <div class="bg-white rounded-xl shadow-sm p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">📦 Distribución por Tipo</h3>
+            <div class="relative" style="height: 300px;">
+                <canvas id="assetTypeChart"></canvas>
             </div>
         </div>
         {% endif %}
@@ -1111,6 +1149,186 @@ document.addEventListener('DOMContentLoaded', function() {
         new Chart(sectorCtx, {
             type: 'pie',
             data: sectorData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: {
+                            padding: 15,
+                            font: { size: 12 }
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.label || '';
+                                const value = context.parsed || 0;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = ((value / total) * 100).toFixed(1);
+                                return label + ': ' + value.toLocaleString('es-ES', {style: 'currency', currency: 'EUR', maximumFractionDigits: 0}) + ' (' + percentage + '%)';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+    {% endif %}
+    
+    {% if asset_distribution %}
+    // Gráfico de Assets (Top 10 + Otros)
+    const assetCtx = document.getElementById('assetChart');
+    if (assetCtx) {
+        const assetData = {
+            labels: [{% for asset, value in asset_distribution %}'{{ asset }}'{% if not loop.last %},{% endif %}{% endfor %}],
+            datasets: [{
+                data: [{% for asset, value in asset_distribution %}{{ value }}{% if not loop.last %},{% endif %}{% endfor %}],
+                backgroundColor: colors.slice(0, {{ asset_distribution|length }}),
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        };
+        
+        new Chart(assetCtx, {
+            type: 'pie',
+            data: assetData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: {
+                            padding: 15,
+                            font: { size: 12 }
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.label || '';
+                                const value = context.parsed || 0;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = ((value / total) * 100).toFixed(1);
+                                return label + ': ' + value.toLocaleString('es-ES', {style: 'currency', currency: 'EUR', maximumFractionDigits: 0}) + ' (' + percentage + '%)';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+    {% endif %}
+    
+    {% if industry_distribution %}
+    // Gráfico de Industrias
+    const industryCtx = document.getElementById('industryChart');
+    if (industryCtx) {
+        const industryData = {
+            labels: [{% for industry, value in industry_distribution %}'{{ industry }}'{% if not loop.last %},{% endif %}{% endfor %}],
+            datasets: [{
+                data: [{% for industry, value in industry_distribution %}{{ value }}{% if not loop.last %},{% endif %}{% endfor %}],
+                backgroundColor: colors.slice(0, {{ industry_distribution|length }}),
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        };
+        
+        new Chart(industryCtx, {
+            type: 'pie',
+            data: industryData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: {
+                            padding: 15,
+                            font: { size: 12 }
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.label || '';
+                                const value = context.parsed || 0;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = ((value / total) * 100).toFixed(1);
+                                return label + ': ' + value.toLocaleString('es-ES', {style: 'currency', currency: 'EUR', maximumFractionDigits: 0}) + ' (' + percentage + '%)';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+    {% endif %}
+    
+    {% if broker_distribution %}
+    // Gráfico de Brokers
+    const brokerCtx = document.getElementById('brokerChart');
+    if (brokerCtx) {
+        const brokerData = {
+            labels: [{% for broker, value in broker_distribution %}'{{ broker }}'{% if not loop.last %},{% endif %}{% endfor %}],
+            datasets: [{
+                data: [{% for broker, value in broker_distribution %}{{ value }}{% if not loop.last %},{% endif %}{% endfor %}],
+                backgroundColor: colors.slice(0, {{ broker_distribution|length }}),
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        };
+        
+        new Chart(brokerCtx, {
+            type: 'pie',
+            data: brokerData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: {
+                            padding: 15,
+                            font: { size: 12 }
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.label || '';
+                                const value = context.parsed || 0;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = ((value / total) * 100).toFixed(1);
+                                return label + ': ' + value.toLocaleString('es-ES', {style: 'currency', currency: 'EUR', maximumFractionDigits: 0}) + ' (' + percentage + '%)';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+    {% endif %}
+    
+    {% if asset_type_distribution %}
+    // Gráfico de Tipos de Asset
+    const assetTypeCtx = document.getElementById('assetTypeChart');
+    if (assetTypeCtx) {
+        const assetTypeData = {
+            labels: [{% for asset_type, value in asset_type_distribution %}'{{ asset_type }}'{% if not loop.last %},{% endif %}{% endfor %}],
+            datasets: [{
+                data: [{% for asset_type, value in asset_type_distribution %}{{ value }}{% if not loop.last %},{% endif %}{% endfor %}],
+                backgroundColor: colors.slice(0, {{ asset_type_distribution|length }}),
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        };
+        
+        new Chart(assetTypeCtx, {
+            type: 'pie',
+            data: assetTypeData,
             options: {
                 responsive: true,
                 maintainAspectRatio: false,

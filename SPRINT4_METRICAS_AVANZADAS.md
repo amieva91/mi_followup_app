@@ -4,7 +4,7 @@
 **Versión**: v4.3.0 (HITO 1, HITO 2, Refinements, UX Avanzadas y HITO 3 completados)  
 **Inicio**: 6 Noviembre 2025  
 **Duración estimada**: 3 semanas  
-**Estado**: ✅ HITO 1 COMPLETADO (8 Nov) | ✅ HITO 2 COMPLETADO (9 Nov) | ✅ Refinements COMPLETADO (10 Nov) | ✅ UX Avanzadas COMPLETADO (10 Nov) | ✅ HITO 3 COMPLETADO (12 Nov) | 🚧 HITO 4 SIGUIENTE
+**Estado**: ✅ HITO 1 COMPLETADO (8 Nov) | ✅ HITO 2 COMPLETADO (9 Nov) | ✅ Refinements COMPLETADO (10 Nov) | ✅ UX Avanzadas COMPLETADO (10 Nov) | ✅ HITO 3 COMPLETADO (12 Nov) | ✅ HITO 4 COMPLETADO (23 Dic) - Distribución del Portfolio + Comparación con Benchmarks
 
 ---
 
@@ -433,47 +433,86 @@ flask db upgrade
 
 ---
 
-### **HITO 4: Distribución del Portfolio** (3-4 días)
-**Prioridad**: 🟢 BAJA (nice-to-have)
+### ✅ **HITO 4: Distribución del Portfolio + Comparación con Benchmarks** (COMPLETADO - 23 Dic 2025)
+**Prioridad**: 🟡 MEDIA  
+**Duración real**: 2 días
 
-**Gráficos de Distribución (Pie/Donut Charts)**:
+**✅ PARTE 1: Gráficos de Distribución (Pie Charts) - COMPLETADO**:
 
-1. **Por Asset**
-   - Top 10 assets + "Otros"
-   - Porcentaje y valor absoluto
+Los gráficos se muestran en el dashboard principal, en la sección "📊 Distribución del Portfolio":
 
-2. **Por Sector**
+1. ✅ **Por País** (ya existía, se mantiene)
+   - Distribución geográfica del portfolio
+   - Obtenido del campo `country` de los assets
+
+2. ✅ **Por Sector** (ya existía, se mantiene)
    - Technology, Healthcare, Finance, etc.
-   - Obtenido de Yahoo Finance (ya disponible)
+   - Obtenido de Yahoo Finance
 
-3. **Por Industria**
+3. ✅ **Por Asset (Top 10 + Otros)** (NUEVO)
+   - Top 10 assets por valor
+   - Resto agrupado como "Otros"
+   - Porcentaje y valor absoluto en tooltips
+
+4. ✅ **Por Industria** (NUEVO)
    - Más granular que sector
    - Software, Biotech, Banks, etc.
+   - Obtenido del campo `industry` de los assets
 
-4. **Por Broker**
-   - IBKR vs DeGiro
-   - Útil para identificar concentración
+5. ✅ **Por Broker** (NUEVO)
+   - IBKR, DeGiro, Manual, etc.
+   - Útil para identificar concentración por broker
+   - Calculado desde holdings → accounts → broker
 
-5. **Por Tipo de Asset**
-   - Stocks vs ETFs
-   - Obtenido de parsers (ya disponible)
+6. ✅ **Por Tipo de Asset** (NUEVO)
+   - Stock (incluye ADR agrupado), ETF, Bond, Crypto
+   - ADR se agrupa automáticamente como Stock
+   - Obtenido del campo `asset_type` de los assets
 
-6. **Por Moneda**
-   - USD, EUR, GBP, HKD, etc.
-   - Exposición a divisas
+**❌ NO IMPLEMENTADO**: Por Moneda (excluido por decisión del usuario)
 
-7. **Por País**
-   - US, EU, UK, China, etc.
-   - Diversificación geográfica
+**✅ PARTE 2: Comparación con Benchmarks - COMPLETADO**:
 
-**Archivos**:
-- `app/services/metrics/distribution.py` - Cálculos de distribución
-- `app/templates/portfolio/distribution.html` - Página de distribución
+1. ✅ **Comparación en Dashboard**:
+   - Recuadro expandido a ancho completo (fuera del grid de 4 columnas)
+   - Muestra rentabilidad anualizada del portfolio
+   - Comparación horizontal con 4 índices:
+     - S&P 500
+     - NASDAQ 100 (corregido de ^IXIC a ^NDX)
+     - MSCI World
+     - EuroStoxx 50
+   - Cada índice muestra su rentabilidad total acumulada y diferencia vs portfolio
+   - Colores: verde (mejor que portfolio), rojo (peor que portfolio)
+   - Link a gráfico completo en `/portfolio/performance`
+
+2. ✅ **Gráfico Comparativo en Performance Page**:
+   - Gráfico normalizado a 100 desde fecha inicial
+   - Líneas para portfolio y todos los benchmarks
+   - Datos mensuales desde primera inversión
+
+3. ✅ **Tabla Comparativa Anual**:
+   - Rentabilidades año a año del portfolio vs benchmarks
+   - Diferencia porcentual en cada celda
+   - Fila "Total" con rentabilidades totales acumuladas
+   - Diferencias calculadas usando totales acumulados (consistente con dashboard)
+
+4. ✅ **Corrección de Discrepancias**:
+   - Dashboard y tabla "Total" ahora usan la misma base de cálculo (totales acumulados)
+   - Rentabilidad anualizada solo se muestra como título principal del portfolio
+
+**Archivos Modificados**:
+- ✅ `app/routes/portfolio.py`: Cálculos de distribución (asset, industry, broker, tipo)
+- ✅ `app/templates/portfolio/dashboard.html`: HTML de gráficos + JavaScript Chart.js
+- ✅ `app/services/metrics/benchmark_comparison.py`: Corrección para usar totales acumulados en diferencias
+- ✅ `app/static/js/charts.js`: Renderizado de gráfico y tabla de benchmarks
+- ✅ `app/templates/portfolio/performance.html`: Tabla comparativa anual
 
 **UI**:
-- Grid responsive 2x2 o 3x2
-- Cada pie chart con leyenda
-- Click en slice muestra detalles
+- ✅ Grid responsive 2 columnas (1 en móvil, 2 en desktop)
+- ✅ 6 gráficos en total (País, Sector, Asset, Industria, Broker, Tipo)
+- ✅ Cada pie chart con leyenda y tooltips informativos
+- ✅ Chart.js 4.0 con colores consistentes
+- ✅ Recuadro de benchmarks expandido horizontalmente ocupando todo el ancho
 
 ---
 
@@ -602,8 +641,9 @@ Peso %:       🥧 (pie)
 - [ ] Testing de cálculos matemáticos
 
 ### **Semana 3** (18-24 Nov):
-- [ ] HITO 4: Gráficos de Distribución (Pie charts)
-- [ ] Testing E2E, deployment a producción
+- [x] HITO 4: Gráficos de Distribución (Pie charts) ✅ COMPLETADO (23 Dic)
+- [x] HITO 4: Comparación con Benchmarks ✅ COMPLETADO (23 Dic)
+- [x] Testing E2E, deployment a producción ✅ COMPLETADO
 
 ---
 

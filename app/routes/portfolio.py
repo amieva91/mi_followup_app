@@ -160,23 +160,65 @@ def dashboard():
         else:
             h['weight_pct'] = 0
     
-    # Calcular distribución por países y sectores
+    # Calcular distribuciones: países, sectores, assets, industrias, brokers, tipos
     from collections import defaultdict
     country_distribution = defaultdict(float)
     sector_distribution = defaultdict(float)
+    asset_distribution = defaultdict(float)
+    industry_distribution = defaultdict(float)
+    broker_distribution = defaultdict(float)
+    asset_type_distribution = defaultdict(float)
     
     for h in holdings_unified:
         asset = h['asset']
         value_eur = h.get('current_value_eur', h.get('cost_eur', 0))
         
+        # País
         if asset.country:
             country_distribution[asset.country] += value_eur
+        
+        # Sector
         if asset.sector:
             sector_distribution[asset.sector] += value_eur
+        
+        # Asset (Top 10 se filtrará en el template)
+        if asset.symbol:
+            asset_distribution[asset.symbol] += value_eur
+        
+        # Industria
+        if asset.industry:
+            industry_distribution[asset.industry] += value_eur
+        
+        # Broker (sumar por cada broker único en las cuentas)
+        if 'accounts' in h and len(h['accounts']) > 0:
+            # Obtener brokers únicos para este holding
+            brokers_in_holding = set(acc.get('broker', 'Manual') for acc in h['accounts'])
+            # Dividir el valor entre los brokers únicos (un asset puede estar en múltiples brokers)
+            value_per_broker = value_eur / len(brokers_in_holding) if len(brokers_in_holding) > 0 else value_eur
+            for broker_name in brokers_in_holding:
+                broker_distribution[broker_name] += value_per_broker
+        
+        # Tipo de Asset (ADR se agrupa como Stock)
+        asset_type = asset.asset_type if asset.asset_type else 'Stock'
+        if asset_type == 'ADR':
+            asset_type = 'Stock'  # Agrupar ADR con Stock
+        asset_type_distribution[asset_type] += value_eur
     
     # Convertir a listas ordenadas por valor (descendente)
     country_data = sorted(country_distribution.items(), key=lambda x: x[1], reverse=True)
     sector_data = sorted(sector_distribution.items(), key=lambda x: x[1], reverse=True)
+    asset_data_sorted = sorted(asset_distribution.items(), key=lambda x: x[1], reverse=True)
+    industry_data = sorted(industry_distribution.items(), key=lambda x: x[1], reverse=True)
+    broker_data = sorted(broker_distribution.items(), key=lambda x: x[1], reverse=True)
+    asset_type_data = sorted(asset_type_distribution.items(), key=lambda x: x[1], reverse=True)
+    
+    # Assets: Top 10 + "Otros"
+    asset_data_top10 = asset_data_sorted[:10]
+    asset_data_others = asset_data_sorted[10:]
+    others_total = sum(value for _, value in asset_data_others)
+    if others_total > 0:
+        asset_data_top10.append(('Otros', others_total))
+    asset_data = asset_data_top10
     
     # Calcular métricas básicas (Sprint 4 - HITO 1 + Cache)
     from app.services.metrics.cache import MetricsCacheService
@@ -224,6 +266,10 @@ def dashboard():
         metrics=metrics,
         country_distribution=country_data,
         sector_distribution=sector_data,
+        asset_distribution=asset_data,
+        industry_distribution=industry_data,
+        broker_distribution=broker_data,
+        asset_type_distribution=asset_type_data,
         yearly_returns=yearly_returns,
         monthly_dividends=monthly_dividends,
         annualized_dividends=annualized_dividends,
