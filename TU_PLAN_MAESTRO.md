@@ -3,7 +3,7 @@
 **Fecha de inicio**: 5 Octubre 2025  
 **Timeline**: 6 meses (26 semanas)  
 **Última actualización**: 24 Diciembre 2025  
-**Estado actual**: ✅ Sprint 4 COMPLETADO (v4.3.0) | 🚧 Sprint 5 EN PROGRESO (v5.0.0 - Actualización Automática de Precios)
+**Estado actual**: ✅ Sprint 4 COMPLETADO (v4.3.0) | 🚧 Sprint 6 EN PROGRESO (v6.0.0 - Diversificación y Watchlist)
 
 ## 🎉 PROGRESO RECIENTE
 
@@ -365,9 +365,8 @@
 - [ ] **HITO 4**: Distribución del Portfolio (Pie charts: asset/sector/industria/broker/moneda/país)
 
 **Sprints Futuros** (después de Sprint 4):
-- **Sprint 5**: Actualización Automática de Precios (2 semanas)
-  - Scheduler diario, histórico de precios, gráficos de evolución
-- **Sprint 6**: Diversificación y Watchlist (2 semanas)
+- ~~**Sprint 5**: Actualización Automática de Precios~~ (ELIMINADO de planificación)
+- **Sprint 6**: Diversificación y Watchlist (2 semanas) 🚧 ACTUAL
   - Análisis de concentración, alertas de diversificación, watchlist con comparación
 - **Sprint 7**: Alertas y Notificaciones (2 semanas)
   - Alertas de precio, calendario dividendos, eventos corporativos
