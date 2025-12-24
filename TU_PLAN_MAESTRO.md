@@ -354,11 +354,11 @@
 - [x] **Refinements**: Performance & UX ✅ COMPLETADO (10 Nov 2025)
 - [x] **UX Avanzadas**: Transacciones Manuales ✅ COMPLETADO (10 Nov 2025)
 - [x] **HITO 3 - Fase 1**: Gráficos de Evolución ✅ COMPLETADO (11 Nov 2025)
-- [ ] **HITO 3 - Fase 2**: Gráficos Adicionales 🚧 SIGUIENTE
-  - Gráfico de Apalancamiento/Cash histórico
-  - Gráfico de Flujos de caja (Deposits/Withdrawals)
-  - Gráfico de P&L Acumulado
-- [ ] **HITO 3 - Fase 3**: Comparación con Benchmarks
+- [x] **HITO 3 - Fase 2**: Gráficos Adicionales ✅ COMPLETADO (12 Nov 2025)
+  - ✅ Gráfico de Apalancamiento/Cash histórico
+  - ✅ Gráfico de Flujos de caja (Deposits/Withdrawals)
+  - ✅ Gráfico de P&L Acumulado
+- [x] **HITO 3 - Fase 3**: Comparación con Benchmarks ✅ COMPLETADO (23 Dic 2025) - Ahora parte de HITO 4
   - Modified Dietz vs S&P 500 vs NASDAQ vs Benchmarks (comparación visual)
   - Tabla comparativa por año (Tu rentabilidad vs índices)
   - Integración de Yahoo Finance API para datos históricos de índices

@@ -654,12 +654,13 @@ Después de subir a producción, verificar:
 - ✅ Transacciones manuales avanzadas (auto-selección SELL, autocompletado BUY, venta por quiebra)
 - ✅ Botones de enriquecimiento inteligentes (OpenFIGI + Yahoo URL)
 - ✅ Redirección optimizada a holdings tras transacciones
-- ✅ **Gráficos de Evolución** (`/portfolio/performance`) - **COMPLETADO**:
+- ✅ **Gráficos de Evolución** (`/portfolio/performance`) - **COMPLETADO (HITO 3)**:
   - Gráfico 1: Evolución del Valor Real de la Cuenta (vs Capital Invertido)
   - Gráfico 2: Rentabilidad Acumulada (Modified Dietz %)
-  - Gráfico 3: Apalancamiento/Cash Histórico (verde=cash, rojo=leverage)
-  - Gráfico 4: Flujos de Caja Acumulados (Capital Invertido Neto)
-  - Gráfico 5: P&L Total Acumulado (Realizado + No Realizado + Dividendos - Comisiones)
+  - Gráfico 3: Apalancamiento/Cash Histórico (verde=cash, rojo=leverage) ✅ HITO 3 Fase 2
+  - Gráfico 4: Flujos de Caja Acumulados (Capital Invertido Neto) ✅ HITO 3 Fase 2
+  - Gráfico 5: P&L Total Acumulado (Realizado + No Realizado + Dividendos - Comisiones) ✅ HITO 3 Fase 2
+  - Gráfico 6: Comparación con Benchmarks (normalizado a base 100) ✅ HITO 4
   - Frecuencia mensual optimizada, último punto con precios reales actuales
   - Chart.js 4.0 con tooltips informativos y formateo europeo
 

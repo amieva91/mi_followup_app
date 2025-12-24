@@ -395,29 +395,34 @@ flask db upgrade
 **Prioridad**: 🟡 MEDIA  
 **Duración real**: 3 días (10-12 Nov)
 
-**Gráficos Implementados**:
+**✅ FASE 1: Gráficos Básicos de Evolución**:
 
-1. **Evolución del Portfolio (Línea)**
-   - Eje X: Tiempo (diario/semanal/mensual)
-   - Eje Y: Valor en EUR
-   - Series: Valor Actual, Capital Invertido, P&L Acumulado
-   - Marcadores de cash flows (deposits/withdrawals)
+1. **Evolución del Valor Real de la Cuenta**
+   - Valor de las posiciones vs Capital Invertido Neto
+   - Último punto con precios reales actuales
 
-2. **P&L Acumulado (Área)**
-   - P&L Realizado (verde sólido)
-   - P&L No Realizado (verde transparente)
-   - Línea de suma total
+2. **Rentabilidad Acumulada (Modified Dietz)**
+   - Rentabilidad % calculada según método Modified Dietz (estándar GIPS)
+   - Evolución histórica mensual
 
-3. **Top Ganadores/Perdedores (Barra Horizontal)**
-   - Top 5 assets con mayor P&L %
-   - Top 5 assets con menor P&L %
-   - Colores: verde (ganadores), rojo (perdedores)
+**✅ FASE 2: Gráficos Adicionales (COMPLETADO)**:
 
-4. **Comparación con Benchmarks (Líneas Múltiples)**
-   - Tu portfolio (línea azul gruesa)
-   - S&P 500 (línea gris)
-   - MSCI World (línea naranja)
-   - Normalizado a 100 desde fecha inicial
+3. **Apalancamiento/Cash Histórico**
+   - Dinero prestado por el broker (positivo) o cash disponible sin invertir (negativo)
+   - Verde para cash positivo, rojo para apalancamiento negativo
+   - Función: `createLeverageChart()` en `charts.js`
+
+4. **Flujos de Caja Acumulados**
+   - Suma neta de depósitos y retiradas a lo largo del tiempo
+   - Capital Invertido Neto acumulado
+   - Función: `createCashFlowsChart()` en `charts.js`
+
+5. **P&L Total Acumulado**
+   - Ganancias/Pérdidas totales históricas (Realizado + No Realizado + Dividendos - Comisiones)
+   - Verde para ganancias, rojo para pérdidas
+   - Función: `createPLChart()` en `charts.js`
+
+**Nota**: La comparación con Benchmarks se implementó como parte del HITO 4.
 
 **Librería**: Chart.js 4.0 (ligero, responsive, sin dependencias)
 
