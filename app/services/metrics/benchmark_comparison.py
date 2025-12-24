@@ -155,7 +155,7 @@ class BenchmarkComparisonService:
         normalized_data = self._normalize_to_100(portfolio_monthly, monthly_data)
         
         # 4. Calcular rentabilidades anuales para tabla
-        annual_returns = self._calculate_annual_returns(portfolio_monthly, monthly_data)
+        annual_returns = self._calculate_annual_returns(portfolio_monthly, monthly_data, benchmark_data)
         
         # 5. Preparar datos para gráfico (mensual)
         chart_labels = normalized_data['labels']
@@ -313,9 +313,14 @@ class BenchmarkComparisonService:
             'benchmarks': benchmarks_normalized
         }
     
-    def _calculate_annual_returns(self, portfolio_monthly: Dict[date, float], benchmarks_monthly: Dict[str, Dict[date, float]]) -> List[Dict[str, Any]]:
+    def _calculate_annual_returns(self, portfolio_monthly: Dict[date, float], benchmarks_monthly: Dict[str, Dict[date, float]], benchmark_data: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         Calcula rentabilidades anuales para la tabla comparativa
+        
+        Args:
+            portfolio_monthly: Rentabilidades mensuales del portfolio
+            benchmarks_monthly: Datos mensuales agrupados de benchmarks (para cálculos anuales)
+            benchmark_data: Datos diarios originales de benchmarks (para cálculo de total)
         """
         # Agrupar por año
         years = set()
@@ -387,14 +392,15 @@ class BenchmarkComparisonService:
         )
         portfolio_total = portfolio_total_data['return_pct'] if portfolio_total_data else 0.0
         
-        # Benchmarks: usar rentabilidad total acumulada (no anualizada para la tabla "Total")
+        # Benchmarks: usar rentabilidad total acumulada usando datos DIARIOS
+        # (igual que el Dashboard para que los totales coincidan)
         benchmark_totals = {}
-        for name, monthly_data in benchmarks_monthly.items():
-            if monthly_data:
-                first_date = min(monthly_data.keys())
-                last_date = max(monthly_data.keys())
-                first_price = monthly_data[first_date]
-                last_price = monthly_data[last_date]
+        for name, data in benchmark_data.items():
+            data_points = data.get('data_points', [])
+            if len(data_points) >= 2:
+                # Usar primer y último precio diario (mismo método que Dashboard)
+                first_price = data_points[0]['price']
+                last_price = data_points[-1]['price']
                 if first_price > 0:
                     total_return = ((last_price - first_price) / first_price) * 100
                     benchmark_totals[name] = total_return
@@ -429,7 +435,9 @@ class BenchmarkComparisonService:
             return {
                 'portfolio_annualized': None,
                 'benchmarks': {},
+                'benchmarks_annualized': {},
                 'differences': {},
+                'differences_annualized': {},
                 'start_date': None
             }
         
@@ -458,9 +466,13 @@ class BenchmarkComparisonService:
             if data and data['data_points']:
                 benchmark_data[name] = data
         
-        # Calcular rentabilidades TOTALES acumuladas de benchmarks (no anualizadas)
-        # Para ser consistente con la tabla "Total" en performance
+        # Calcular años transcurridos (para anualización)
+        days_total = (end_date - self.start_date).days
+        years_total = days_total / 365.25 if days_total > 0 else 1
+        
+        # Calcular rentabilidades TOTALES acumuladas y ANUALIZADAS de benchmarks
         benchmark_totals = {}
+        benchmark_annualized = {}
         
         for name, data in benchmark_data.items():
             data_points = data['data_points']
@@ -469,9 +481,18 @@ class BenchmarkComparisonService:
                 last_price = data_points[-1]['price']
                 
                 if first_price > 0:
-                    # Rentabilidad total acumulada (no anualizada): (last - first) / first * 100
-                    total_return_pct = ((last_price - first_price) / first_price) * 100
+                    # Rentabilidad total acumulada: (last - first) / first
+                    total_return = (last_price - first_price) / first_price
+                    total_return_pct = total_return * 100
                     benchmark_totals[name] = total_return_pct
+                    
+                    # Rentabilidad anualizada: (1 + R)^(1/years) - 1
+                    if years_total > 0 and total_return > -1:  # Evitar raíz negativa
+                        annualized_return = ((1 + total_return) ** (1 / years_total)) - 1
+                        annualized_return_pct = annualized_return * 100
+                        benchmark_annualized[name] = annualized_return_pct
+                    else:
+                        benchmark_annualized[name] = None
         
         # Calcular diferencias usando totales acumulados (portfolio_total - benchmark_total)
         # Esto hace que las diferencias sean consistentes con la tabla "Total" en performance
@@ -479,14 +500,18 @@ class BenchmarkComparisonService:
         for name, bench_total in benchmark_totals.items():
             differences[name] = portfolio_total - bench_total
         
-        # Calcular años transcurridos (para info)
-        days_total = (end_date - self.start_date).days
-        years_total = days_total / 365.25 if days_total > 0 else 1
+        # Calcular diferencias en rentabilidades anualizadas (portfolio_annualized - benchmark_annualized)
+        differences_annualized = {}
+        for name, bench_annualized in benchmark_annualized.items():
+            if bench_annualized is not None:
+                differences_annualized[name] = portfolio_annualized - bench_annualized
         
         return {
             'portfolio_annualized': portfolio_annualized,  # Se muestra anualizado como título
-            'benchmarks': benchmark_totals,  # Pero los benchmarks se muestran como totales acumulados
-            'differences': differences,  # Y las diferencias se calculan con totales
+            'benchmarks': benchmark_totals,  # Totales acumulados para consistencia con tabla
+            'benchmarks_annualized': benchmark_annualized,  # Anualizadas desde fecha inicio
+            'differences': differences,  # Diferencias calculadas con totales
+            'differences_annualized': differences_annualized,  # Diferencias en anualizadas
             'start_date': self.start_date.strftime('%Y-%m-%d'),
             'years': round(years_total, 2)
         }
