@@ -263,18 +263,44 @@
                 {% if benchmark_name in benchmark_annualized.benchmarks %}
                     {% set bench_return = benchmark_annualized.benchmarks[benchmark_name] %}
                     {% set diff = benchmark_annualized.differences[benchmark_name] %}
-                        <div class="p-4 rounded-lg {% if diff >= 0 %}bg-green-50 border border-green-200{% else %}bg-red-50 border border-red-200{% endif %}">
-                            <div class="font-medium text-gray-800 text-sm mb-2">{{ benchmark_name }}</div>
-                            <div class="text-xs text-gray-600 mb-3">
-                                {% if bench_return >= 0 %}+{% endif %}{{ bench_return|decimal_eu(2) }}% total
-                            </div>
-                            <div class="text-right">
-                                <div class="font-bold text-lg {% if diff >= 0 %}text-green-700{% else %}text-red-700{% endif %}">
-                                    {% if diff >= 0 %}+{% endif %}{{ diff|decimal_eu(2) }}%
-                                </div>
-                                <div class="text-xs text-gray-500">diferencia</div>
-                            </div>
+                    {% if benchmark_annualized.benchmarks_annualized and benchmark_name in benchmark_annualized.benchmarks_annualized %}
+                        {% set bench_annualized_value = benchmark_annualized.benchmarks_annualized[benchmark_name] %}
+                    {% else %}
+                        {% set bench_annualized_value = None %}
+                    {% endif %}
+                    {% if benchmark_annualized.differences_annualized and benchmark_name in benchmark_annualized.differences_annualized %}
+                        {% set diff_annualized = benchmark_annualized.differences_annualized[benchmark_name] %}
+                    {% else %}
+                        {% set diff_annualized = None %}
+                    {% endif %}
+                    <div class="p-4 rounded-lg {% if diff >= 0 %}bg-green-50 border border-green-200{% else %}bg-red-50 border border-red-200{% endif %}">
+                        <div class="font-medium text-gray-800 text-sm mb-2">{{ benchmark_name }}</div>
+                        {% if bench_annualized_value is not none %}
+                        <div class="text-xs text-gray-700 mb-1 font-medium">
+                            {% if bench_annualized_value >= 0 %}+{% endif %}{{ bench_annualized_value|decimal_eu(2) }}% anualizado
                         </div>
+                        <div class="text-xs text-gray-500 mb-3">
+                            ({% if bench_return >= 0 %}+{% endif %}{{ bench_return|decimal_eu(2) }}% total)
+                        </div>
+                        {% else %}
+                        <div class="text-xs text-gray-600 mb-3">
+                            {% if bench_return >= 0 %}+{% endif %}{{ bench_return|decimal_eu(2) }}% total
+                        </div>
+                        {% endif %}
+                        <div class="text-right">
+                            {% if diff_annualized is not none %}
+                            <div class="font-bold text-lg {% if diff_annualized >= 0 %}text-green-700{% else %}text-red-700{% endif %}">
+                                {% if diff_annualized >= 0 %}+{% endif %}{{ diff_annualized|decimal_eu(2) }}%
+                            </div>
+                            <div class="text-xs text-gray-500">diferencia (anualizado)</div>
+                            {% else %}
+                            <div class="font-bold text-lg {% if diff >= 0 %}text-green-700{% else %}text-red-700{% endif %}">
+                                {% if diff >= 0 %}+{% endif %}{{ diff|decimal_eu(2) }}%
+                            </div>
+                            <div class="text-xs text-gray-500">diferencia</div>
+                            {% endif %}
+                        </div>
+                    </div>
                 {% endif %}
             {% endfor %}
         </div>
