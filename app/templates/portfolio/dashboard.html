@@ -245,33 +245,24 @@
     </div>
     
     <!-- Comparación con Benchmarks (si hay datos) - OCUPA TODO EL ANCHO -->
-    {% if benchmark_annualized and benchmark_annualized.get('portfolio_total') is not none %}
+    {% if benchmark_annualized and benchmark_annualized.portfolio_annualized is not none %}
     <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-orange-500 mb-8">
         <div class="flex items-center justify-between mb-3">
             <div class="text-sm text-gray-600">🏆 Comparación con Índices</div>
-            <span class="text-xs text-gray-400 cursor-help" title="Comparación de tu rentabilidad total acumulada con los principales índices de referencia desde tu fecha de inicio ({{ benchmark_annualized.get('start_date', '') }})">ⓘ</span>
+            <span class="text-xs text-gray-400 cursor-help" title="Comparación de tu rentabilidad anualizada con los principales índices de referencia desde tu fecha de inicio ({{ benchmark_annualized.start_date }})">ⓘ</span>
         </div>
-        {% set portfolio_total = benchmark_annualized.get('portfolio_total', 0) %}
-        <div class="text-2xl font-bold {% if portfolio_total >= 0 %}text-orange-600{% else %}text-red-600{% endif %} mb-1">
-            {% if portfolio_total >= 0 %}+{% endif %}{{ portfolio_total|decimal_eu(2) }}%
+        <div class="text-2xl font-bold {% if benchmark_annualized.portfolio_annualized >= 0 %}text-orange-600{% else %}text-red-600{% endif %} mb-1">
+            {% if benchmark_annualized.portfolio_annualized >= 0 %}+{% endif %}{{ benchmark_annualized.portfolio_annualized|decimal_eu(2) }}%
         </div>
-        <div class="text-xs text-gray-500 mb-1">Tu rentabilidad total acumulada</div>
-        {% if benchmark_annualized.get('portfolio_annualized') is not none %}
-        {% set portfolio_annualized = benchmark_annualized.get('portfolio_annualized', 0) %}
-        <div class="text-xs text-gray-400 mb-4">(Anualizada: {% if portfolio_annualized >= 0 %}+{% endif %}{{ portfolio_annualized|decimal_eu(2) }}%)</div>
-        {% else %}
-        <div class="mb-4"></div>
-        {% endif %}
+        <div class="text-xs text-gray-500 mb-4">Tu rentabilidad anualizada</div>
         
         <!-- Comparación detallada con benchmarks - Layout horizontal ocupando todo el ancho -->
-        {% set benchmarks_dict = benchmark_annualized.get('benchmarks', {}) %}
-        {% set differences_dict = benchmark_annualized.get('differences', {}) %}
-        {% if benchmarks_dict %}
+        {% if benchmark_annualized.benchmarks %}
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 border-t pt-4">
             {% for benchmark_name in ['S&P 500', 'NASDAQ 100', 'MSCI World', 'EuroStoxx 50'] %}
-                {% if benchmark_name in benchmarks_dict %}
-                    {% set bench_return = benchmarks_dict[benchmark_name] %}
-                    {% set diff = differences_dict.get(benchmark_name, 0) %}
+                {% if benchmark_name in benchmark_annualized.benchmarks %}
+                    {% set bench_return = benchmark_annualized.benchmarks[benchmark_name] %}
+                    {% set diff = benchmark_annualized.differences[benchmark_name] %}
                         <div class="p-4 rounded-lg {% if diff >= 0 %}bg-green-50 border border-green-200{% else %}bg-red-50 border border-red-200{% endif %}">
                             <div class="font-medium text-gray-800 text-sm mb-2">{{ benchmark_name }}</div>
                             <div class="text-xs text-gray-600 mb-3">
