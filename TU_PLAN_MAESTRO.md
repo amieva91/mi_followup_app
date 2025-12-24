@@ -2,8 +2,8 @@
 
 **Fecha de inicio**: 5 Octubre 2025  
 **Timeline**: 6 meses (26 semanas)  
-**Última actualización**: 12 Noviembre 2025  
-**Estado actual**: ✅ Sprint 3 COMPLETADO (v3.6.0) | 🚧 Sprint 4 EN PROGRESO (v4.3.0 - HITO 1 ✅ | HITO 2 ✅ | Refinements ✅ | UX Avanzadas ✅ | HITO 3 ✅ | Pendiente: HITO 4)
+**Última actualización**: 24 Diciembre 2025  
+**Estado actual**: ✅ Sprint 4 COMPLETADO (v4.3.0) | 🚧 Sprint 5 EN PROGRESO (v5.0.0 - Actualización Automática de Precios)
 
 ## 🎉 PROGRESO RECIENTE
 

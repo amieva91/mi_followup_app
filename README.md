@@ -2,7 +2,7 @@
 
 Sistema completo de gestión financiera personal.
 
-## ✅ Estado Actual (12 Nov 2025) - v4.3.0
+## ✅ Estado Actual (24 Dic 2025) - v5.0.0
 
 **Funcionalidades Implementadas:**
 - ✅ **Sprint 0 - Arquitectura Base** - Configuración inicial, estructura modular
@@ -668,4 +668,10 @@ Después de subir a producción, verificar:
 - ✅ HITO 4: Gráficos de distribución (6 gráficos) + Comparación con benchmarks completa
 - ✅ Corrección de discrepancias en cálculos (dashboard y tabla consistentes)
 - ✅ Recuadro de comparación expandido a ancho completo
+- ✅ HITO 3 - Fase 2: Gráficos adicionales (Apalancamiento, Flujos de Caja, P&L Acumulado)
+
+**🚧 Sprint 5 EN PLANIFICACIÓN (24 Dic 2025):**
+- 🔜 HITO 1: Scheduler de actualización automática de precios
+- 🔜 HITO 2: Histórico de precios completo
+- 🔜 HITO 3: Gráficos de evolución de precios por asset
 
