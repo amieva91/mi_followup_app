@@ -348,6 +348,10 @@ Cantidad a aumentar/reducir = Cantidad_invertida_actual - Cantidad_del_Tier
 - **Escalabilidad**: Watchlist debería soportar muchos assets sin problemas de rendimiento
 - **Actualización masiva**: Optimizar llamadas a Yahoo Finance API (batch requests si es posible)
 - **Validación de datos**: Manejar casos donde falten datos para cálculos (EPS, PER, CAGR, etc.)
+- **Header fijo (sticky)**: La tabla tendrá 17 columnas y muchos registros, por lo que el header debe quedarse fijo al hacer scroll vertical para mantener referencia de las columnas
+  - Implementación: Usar `position: sticky; top: 0;` en el `<thead>` con `z-index` apropiado
+  - Contenedor de la tabla con altura máxima y `overflow-y-auto` para scroll vertical
+  - Mantener `overflow-x-auto` para scroll horizontal si es necesario
 
 ---
 
@@ -412,6 +416,10 @@ Cantidad a aumentar/reducir = Cantidad_invertida_actual - Cantidad_del_Tier
 - [ ] Página `/portfolio/watchlist`
 - [ ] Tabla única combinada (cartera primero, luego watchlist)
 - [ ] 17 columnas implementadas (ver orden arriba)
+- [ ] **Header fijo (sticky header)**: El thead debe quedar fijo al hacer scroll vertical
+  - [ ] Implementar `position: sticky; top: 0;` en el thead
+  - [ ] Contenedor con altura máxima y `overflow-y-auto` para scroll vertical
+  - [ ] Asegurar que el z-index del header sea superior al contenido
 - [ ] Sistemas de colores implementados:
   - [ ] Peso en cartera (verde/amarillo/rojo según umbrales)
   - [ ] Fecha próximos resultados (verde/amarillo/rojo)
