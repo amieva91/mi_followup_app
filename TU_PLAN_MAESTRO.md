@@ -367,7 +367,9 @@
 **Sprints Futuros** (después de Sprint 4):
 - ~~**Sprint 5**: Actualización Automática de Precios~~ (ELIMINADO de planificación)
 - **Sprint 6**: Diversificación y Watchlist (2 semanas) 🚧 ACTUAL
-  - Análisis de concentración, alertas de diversificación, watchlist con comparación
+  - ✅ HITO 1 COMPLETADO: Análisis de concentración (gráficos de distribución ya implementados)
+  - 🚧 HITO 2 EN PROGRESO: Watchlist con comparación e indicadores de operativa (vender/comprar/mantener)
+  - ⏳ HITO 3 PENDIENTE: Alertas de diversificación por sector/país
 - **Sprint 7**: Alertas y Notificaciones (2 semanas)
   - Alertas de precio, calendario dividendos, eventos corporativos
 - **Sprint 8**: Testing y Optimización (2 semanas)
@@ -1267,69 +1269,72 @@ git tag v3.6.0-auto-update
 
 ### 🎯 SPRINT 6: Diversificación y Watchlist (2 semanas)
 
-**Objetivo**: Análisis de distribución de riesgo y seguimiento de assets
+**Objetivo**: Watchlist con indicadores de operativa y alertas de diversificación  
+**Estado**: 🚧 EN PROGRESO  
+**Versión**: v6.0.0
 
-**Duración**: 14 días
+**✅ HITO 1: Análisis de Concentración (COMPLETADO - Sprint 4)**
+- ✅ Gráficos de distribución implementados en dashboard del portfolio:
+  - Distribución por País (pie chart)
+  - Distribución por Sector (pie chart)
+  - Distribución por Asset - Top 10 + Otros (pie chart)
+  - Distribución por Industria (pie chart)
+  - Distribución por Broker (pie chart)
+  - Distribución por Tipo (pie chart con ADR agrupado como Stock)
+- ✅ Métricas de concentración calculadas correctamente
+- ✅ Visualización integrada en dashboard del portfolio
 
-#### Semana 1: Gráficos de Distribución (Días 1-7)
+**🚧 HITO 2: Watchlist con Comparación e Indicadores de Operativa (EN PROGRESO)**
 
-- [ ] **Gráfico: Distribución por Asset** (ApexCharts pie/donut chart)
-  - % del valor total por cada asset
-  - Colores diferenciados por asset
-  - Click para ver detalles
-  - Mostrar top 10 + "Otros"
+- [ ] **Modelo Watchlist**
+  - Tabla `Watchlist` (relación many-to-many User-Asset)
+  - Migración de BD
+  - Campos: user_id, asset_id, target_price, notes, created_at
 
-- [ ] **Gráfico: Distribución por Sector** (ApexCharts pie chart)
-  - Technology, Healthcare, Finance, Consumer, Energy, etc.
-  - Identificar concentración sectorial
-  - Colores temáticos por sector
+- [ ] **CRUD de Watchlist**
+  - Añadir/eliminar assets a watchlist
+  - Página dedicada de watchlist
+  - Integración con AssetRegistry existente
 
-- [ ] **Gráfico: Distribución por País** (ApexCharts pie chart o mapa)
-  - USA, España, Hong Kong, UK, etc.
-  - Análisis de geografía de riesgo
-  - Opcional: Mapa interactivo con D3.js
+- [ ] **Comparación Watchlist vs Portfolio**
+  - Comparación visual watchlist vs portfolio (gráficos)
+  - Performance comparison
 
-- [ ] **Gráfico: Distribución por Tipo** (ApexCharts donut chart)
-  - Acciones individuales
-  - ETFs
-  - REITs
-  - Otros
+- [ ] **Indicadores de Operativa para Assets en Cartera**
+  - Sistema basado en peso en cartera (%)
+  - **Vender**: cuando peso > umbral máximo configurado (ej: > 10%)
+  - **Comprar**: cuando peso < umbral mínimo configurado (ej: < 5%)
+  - **Mantener**: cuando peso está dentro del rango objetivo
+  - Visualización en watchlist y/o dashboard
+  - Configuración de umbrales por usuario
 
-#### Semana 2: Análisis y Watchlist (Días 8-14)
+- [ ] **Alertas Configurables por Peso en Cartera**
+  - Alertas cuando asset supera umbral máximo (ej: > 10%)
+  - Alertas cuando asset está por debajo de umbral mínimo
+  - Notificaciones/badges en dashboard
 
-- [ ] **Análisis de Concentración de Riesgo**
-  - Indicador visual:
-    - Alta: >30% en un asset (rojo)
-    - Media: 20-30% en un asset (amarillo)
-    - Diversificado: <20% cada asset (verde)
-  - Recomendaciones automáticas
-  - Alertas de concentración
-
-- [ ] **Watchlist (Lista de Seguimiento)**
-  - Tabla `Watchlist` con campos:
-    - user_id, asset_id, target_price, notes, created_at
-  - CRUD de watchlist
-  - Ver precios actuales sin tener holdings
-  - Alertas cuando alcance precio objetivo
+- [ ] **Alertas de Precio para Watchlist**
+  - Alertas cuando asset en watchlist alcanza precio objetivo
   - Notas personales por asset
 
-- [ ] **Rebalanceo Sugerido**
-  - Algoritmo de sugerencias de rebalanceo
-  - Mantener % target por sector/país
-  - Mostrar transacciones sugeridas
+**⏳ HITO 3: Alertas de Diversificación (Sector/País) (PENDIENTE)**
 
-- [ ] **Deploy**
-  - Tag: v3.7.0
+- [ ] **Sistema de Alertas por Sector/País**
+  - Alertas de concentración por sector (ej: > 30% en un sector)
+  - Alertas de concentración por país (ej: > 40% en un país)
+  - Panel de configuración de umbrales
+  - Notificaciones en dashboard cuando se activan alertas
 
 **Entregables**:
-- ✅ 4 gráficos de distribución funcionando
-- ✅ Análisis de concentración automático
-- ✅ Watchlist funcional con alertas
-- ✅ Sugerencias de rebalanceo
+- ✅ Gráficos de distribución funcionando (HITO 1 - COMPLETADO)
+- 🚧 Watchlist funcional con comparación vs portfolio
+- 🚧 Indicadores de operativa (vender/comprar/mantener) funcionando
+- 🚧 Alertas configurables por peso en cartera
+- ⏳ Alertas de diversificación por sector/país
 
 **Checkpoint**: 
 ```bash
-git tag v3.7.0-diversificacion-watchlist
+git tag v6.0.0-watchlist-indicadores
 ```
 
 ---
