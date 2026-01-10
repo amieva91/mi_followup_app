@@ -4,7 +4,10 @@
 **Versión**: v6.0.0  
 **Inicio**: 24 Diciembre 2025  
 **Duración estimada**: 2 semanas  
-**Estado**: 🚧 PLANIFICADO
+**Estado**: 🚧 IMPLEMENTACIÓN EN PROGRESO
+
+**Última actualización**: 10 Enero 2026  
+**Progreso**: ~70% completado
 
 ---
 
@@ -42,15 +45,32 @@ Implementar funcionalidades avanzadas de análisis de diversificación y gestió
 
 ### **HITO 2: Watchlist con Indicadores de Operativa y Métricas Avanzadas**
 **Prioridad**: 🟡 MEDIA  
-**Duración estimada**: 4-5 días
+**Duración estimada**: 4-5 días  
+**Estado**: 🚧 EN PROGRESO (Implementación avanzada)
 
 **Objetivos**:
-- Crear lista de assets a seguir (watchlist) y gestión completa
-- Tabla única combinada con assets en cartera y watchlist
-- Indicadores de operativa y métricas avanzadas por asset
-- Sistema de Tier automático basado en valoración
-- Alertas visuales basadas en peso en cartera y umbrales configurables
-- Integración completa con AssetRegistry existente
+- ✅ Crear lista de assets a seguir (watchlist) y gestión completa
+- ✅ Tabla única combinada con assets en cartera y watchlist
+- ✅ Indicadores de operativa y métricas avanzadas por asset
+- ✅ Sistema de Tier automático basado en valoración
+- ✅ Alertas visuales basadas en peso en cartera y umbrales configurables
+- ✅ Integración completa con AssetRegistry existente
+
+**Progreso actual**:
+- ✅ Modelos Watchlist y WatchlistConfig creados
+- ✅ Servicios: WatchlistService, WatchlistMetricsService, WatchlistPriceUpdateService
+- ✅ Rutas API completas (GET, POST, UPDATE, DELETE)
+- ✅ Página watchlist.html con tabla combinada completa
+- ✅ Sistema de colores implementado (parcialmente probado)
+- ✅ Configuración de umbrales y rangos (Ajustes modal)
+- ✅ Edición de métricas manuales
+- ✅ Actualización de precios en batch
+- ✅ Añadir assets desde Yahoo URL o AssetRegistry
+- ✅ Integración con navegación principal
+- ✅ Tooltips informativos en columnas calculadas
+- ✅ Toast notifications personalizadas
+- ✅ Modal de confirmación personalizado
+- 🚧 Pruebas de colores en progreso (Valoración 12M ✅, Indicador operativa ✅)
 
 ---
 

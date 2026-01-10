@@ -366,9 +366,16 @@
 
 **Sprints Futuros** (después de Sprint 4):
 - ~~**Sprint 5**: Actualización Automática de Precios~~ (ELIMINADO de planificación)
-- **Sprint 6**: Diversificación y Watchlist (2 semanas) 🚧 ACTUAL
+- **Sprint 6**: Diversificación y Watchlist (2 semanas) 🚧 ACTUAL - v6.0.0
   - ✅ HITO 1 COMPLETADO: Análisis de concentración (gráficos de distribución ya implementados)
-  - 🚧 HITO 2 EN PROGRESO: Watchlist con comparación e indicadores de operativa (vender/comprar/mantener)
+  - 🚧 HITO 2 EN PROGRESO (~70%): Watchlist con indicadores de operativa y métricas avanzadas
+    - ✅ Modelos y servicios backend completos
+    - ✅ Página watchlist con tabla combinada completa
+    - ✅ Sistema de colores implementado (parcialmente probado)
+    - ✅ Configuración de umbrales y rangos
+    - ✅ Edición de métricas manuales
+    - ✅ Integración con AssetRegistry y navegación
+    - 🚧 Pruebas de colores en progreso
   - ⏳ HITO 3 PENDIENTE: Alertas de diversificación por sector/país
 - **Sprint 7**: Alertas y Notificaciones (2 semanas)
   - Alertas de precio, calendario dividendos, eventos corporativos

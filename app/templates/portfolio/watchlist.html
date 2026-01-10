@@ -1,0 +1,1260 @@
+{% extends "base/layout.html" %}
+
+{% block title %}Watchlist - FollowUp{% endblock %}
+
+{% block content %}
+<div class="max-w-[98%] mx-auto">
+    <!-- Toast Notification Container -->
+    <div id="toastContainer" class="fixed top-4 right-4 z-50 space-y-2"></div>
+    
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-6">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900">📋 Watchlist</h1>
+            <p class="text-gray-600 mt-1">Gestión de assets en cartera y en seguimiento</p>
+        </div>
+        <div class="flex gap-3">
+            <button onclick="openSettingsModal()" class="btn-secondary flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                </svg>
+                Ajustes
+            </button>
+            <button onclick="updatePrices()" class="btn-secondary flex items-center gap-2" id="updatePricesBtn">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                Actualizar Precios
+            </button>
+            <button onclick="openAddAssetModal()" class="btn-primary flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                </svg>
+                Añadir Asset
+            </button>
+        </div>
+    </div>
+
+    {% if table_data %}
+    <!-- Tabla combinada (Portfolio + Watchlist) -->
+    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <!-- Contenedor con altura máxima y scroll vertical -->
+        <div class="overflow-x-auto" style="max-height: 80vh; overflow-y: auto;">
+            <table class="min-w-full divide-y divide-gray-200">
+                <!-- Sticky Header -->
+                <thead class="bg-gray-50" style="position: sticky; top: 0; z-index: 10;">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTable(0, 'text')">
+                            Nombre <span class="sort-arrow">⇅</span>
+                        </th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <span class="flex items-center gap-1">
+                                Fecha próximos resultados
+                                <span class="cursor-help text-gray-400" title="Manual: Fecha de presentación de resultados. Colores: Verde (futuro), Amarillo (pasado reciente, días configurables en Ajustes), Rojo (pasado lejano)">ⓘ</span>
+                            </span>
+                        </th>
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <span class="flex items-center justify-center gap-1">
+                                Indicador operativa
+                                <span class="cursor-help text-gray-400" title="Calculado: BUY (comprar), HOLD (mantener), SELL (vender). Basado en Cantidad a aumentar/reducir vs Tier">ⓘ</span>
+                            </span>
+                        </th>
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <span class="flex items-center justify-center gap-1">
+                                Tier
+                                <span class="cursor-help text-gray-400" title="Calculado: Tier 1-5 según Valoración actual 12 meses (%). Colores configurables en Ajustes: Verde (dentro umbral configurado), Amarillo (fuera umbral pero dentro umbral amarillo), Rojo (fuera umbral amarillo)">ⓘ</span>
+                            </span>
+                        </th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <span class="flex items-center justify-end gap-1">
+                                Cantidad a aumentar/reducir
+                                <span class="cursor-help text-gray-400" title="Calculado: Diferencia entre cantidad invertida actual y cantidad del Tier (EUR). Positivo = comprar, Negativo = vender">ⓘ</span>
+                            </span>
+                        </th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <span class="flex items-center justify-end gap-1">
+                                Rent. 5 años (%)
+                                <span class="cursor-help text-gray-400" title="Calculado: (Target Price - Precio actual) / Precio actual * 100 + (Dividend Yield * 5 años). Basado en Target Price (5 yr)">ⓘ</span>
+                            </span>
+                        </th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <span class="flex items-center justify-end gap-1">
+                                Valoración 12m (%)
+                                <span class="cursor-help text-gray-400" title="Calculado (PEGY Ratio): -((PER / (CAGR% + Dividend Yield%)) - 1) * 100. Positivo = infravalorado (bueno), Negativo = sobrevalorado (malo). Colores: Verde ≥ 10% (infravalorado), Amarillo 0-10%, Rojo < 0% (sobrevalorado)">ⓘ</span>
+                            </span>
+                        </th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <span class="flex items-center justify-end gap-1">
+                                Rent. Anual (%)
+                                <span class="cursor-help text-gray-400" title="Calculado: Rentabilidad anualizada a 5 años + Dividend Yield anual. Basado en Target Price (5 yr)">ⓘ</span>
+                            </span>
+                        </th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <span class="flex items-center justify-end gap-1">
+                                Target Price (5 yr)
+                                <span class="cursor-help text-gray-400" title="Calculado: EPS * (1 + CAGR Revenue YoY%)^5 * PER">ⓘ</span>
+                            </span>
+                        </th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <span class="flex items-center justify-end gap-1">
+                                Precio actual
+                                <span class="cursor-help text-gray-400" title="Actualizado desde Yahoo Finance. Colores según proximidad a Target Price (5 yr): Verde (cerca), Amarillo (medio), Rojo (lejos)">ⓘ</span>
+                            </span>
+                        </th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <span class="flex items-center justify-end gap-1">
+                                Peso en cartera (%)
+                                <span class="cursor-help text-gray-400" title="Calculado: (Valor actual del asset / Valor total del portfolio) * 100. Colores: Verde (< umbral+10%), Amarillo (umbral+10% a umbral+25%), Rojo (≥ umbral+25%)">ⓘ</span>
+                            </span>
+                        </th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            PER o NTM P/E
+                        </th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            NTM Div. Yield (%)
+                        </th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            EPS
+                        </th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            CAGR Revenue YoY (%)
+                        </th>
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Acciones
+                        </th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for item in table_data %}
+                    {% set asset = item.asset %}
+                    {% set watchlist_item = item.watchlist_item %}
+                    {% set holding = item.holding %}
+                    <tr class="hover:bg-gray-50 transition">
+                        <!-- Nombre (con icono, symbol y país) -->
+                        <td class="px-4 py-3">
+                            <div class="text-sm font-medium text-gray-900 flex items-center gap-2">
+                                {% if item.type == 'portfolio' %}
+                                    <span title="En cartera">💼</span>
+                                {% else %}
+                                    <span title="En seguimiento">👁️</span>
+                                {% endif %}
+                                <a href="{{ url_for('portfolio.asset_detail', id=asset.id) }}" class="hover:text-blue-600">
+                                    {{ asset.name or asset.symbol or '—' }}
+                                </a>
+                            </div>
+                            {% if asset.asset_type or asset.symbol or asset.country %}
+                            <div class="text-xs text-gray-400">
+                                {% if asset.asset_type %}{{ asset.asset_type }}{% endif %}
+                                {% if asset.symbol %} • {{ asset.symbol }}{% endif %}
+                                {% if asset.country %} • {{ asset.country }}{% endif %}
+                            </div>
+                            {% endif %}
+                        </td>
+                        
+                        <!-- Fecha próximos resultados (con colores) -->
+                        <td class="px-4 py-3 whitespace-nowrap">
+                            {% if watchlist_item and watchlist_item.next_earnings_date %}
+                                {% set earnings_date = watchlist_item.next_earnings_date %}
+                                {% set days_diff = (earnings_date - today).days %}
+                                {% set yellow_days = color_thresholds.fecha_resultados.yellow_days if color_thresholds and color_thresholds.fecha_resultados and color_thresholds.fecha_resultados.yellow_days else 15 %}
+                                {% if days_diff > 0 %}
+                                    <span class="text-sm text-green-600 font-medium">{{ earnings_date.strftime('%Y-%m-%d') }}</span>
+                                {% elif days_diff >= -yellow_days %}
+                                    <span class="text-sm text-yellow-600 font-medium">{{ earnings_date.strftime('%Y-%m-%d') }}</span>
+                                {% else %}
+                                    <span class="text-sm text-red-600 font-medium">{{ earnings_date.strftime('%Y-%m-%d') }}</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-xs text-gray-400">—</span>
+                            {% endif %}
+                        </td>
+                        
+                        <!-- Indicador operativa (BUY/SELL/HOLD) -->
+                        <td class="px-4 py-3 whitespace-nowrap text-center">
+                            {% if watchlist_item and watchlist_item.operativa_indicator and watchlist_item.operativa_indicator != '-' %}
+                                {% if watchlist_item.operativa_indicator == 'BUY' %}
+                                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">BUY</span>
+                                {% elif watchlist_item.operativa_indicator == 'SELL' %}
+                                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">SELL</span>
+                                {% elif watchlist_item.operativa_indicator == 'HOLD' %}
+                                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">HOLD</span>
+                                {% else %}
+                                    <span class="text-xs text-gray-400">—</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-xs text-gray-400">—</span>
+                            {% endif %}
+                        </td>
+                        
+                        <!-- Tier (1-5) con colores si está en cartera -->
+                        <td class="px-4 py-3 whitespace-nowrap text-center">
+                            {% if watchlist_item and watchlist_item.tier %}
+                                {% if item.type == 'portfolio' and item.current_value_eur is not none %}
+                                    {% set tier_key = 'tier_' ~ watchlist_item.tier %}
+                                    {% set tier_amount = tier_amounts[tier_key] if tier_key in tier_amounts else 0 %}
+                                    {% set tier_thresholds = color_thresholds.tier if color_thresholds and color_thresholds.tier else {} %}
+                                    {% set tier_green_pct = tier_thresholds.green_pct if tier_thresholds.green_pct is defined else 25.0 %}
+                                    {% set tier_yellow_pct = tier_thresholds.yellow_pct if tier_thresholds.yellow_pct is defined else 50.0 %}
+                                    {% if tier_amount > 0 %}
+                                        {% set desviacion = (item.current_value_eur - tier_amount) | abs %}
+                                        {# Usar current_value como base para que el porcentaje sea simétrico #}
+                                        {# Así ±1000€ da el mismo porcentaje independientemente de si tier_amount es mayor o menor #}
+                                        {% set desviacion_pct = (desviacion / item.current_value_eur * 100) %}
+                                    {% else %}
+                                        {% set desviacion_pct = 0 %}
+                                    {% endif %}
+                                    {% if desviacion_pct <= tier_green_pct %}
+                                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">{{ watchlist_item.tier }}</span>
+                                    {% elif desviacion_pct <= tier_yellow_pct %}
+                                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">{{ watchlist_item.tier }}</span>
+                                    {% else %}
+                                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">{{ watchlist_item.tier }}</span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="px-2 py-1 text-xs font-medium rounded bg-gray-100 text-gray-700">{{ watchlist_item.tier }}</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-xs text-gray-400">—</span>
+                            {% endif %}
+                        </td>
+                        
+                        <!-- Cantidad a aumentar/reducir (solo para assets en cartera) -->
+                        <td class="px-4 py-3 whitespace-nowrap text-right">
+                            {% if item.type == 'portfolio' and watchlist_item and watchlist_item.cantidad_aumentar_reducir is not none %}
+                                {% if watchlist_item.cantidad_aumentar_reducir > 0 %}
+                                    <span class="text-sm font-medium text-green-600">+{{ watchlist_item.cantidad_aumentar_reducir|decimal_eu(0) }} €</span>
+                                {% elif watchlist_item.cantidad_aumentar_reducir < 0 %}
+                                    <span class="text-sm font-medium text-red-600">{{ watchlist_item.cantidad_aumentar_reducir|decimal_eu(0) }} €</span>
+                                {% else %}
+                                    <span class="text-sm text-gray-500">0 €</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-xs text-gray-400">—</span>
+                            {% endif %}
+                        </td>
+                        
+                        <!-- Rentabilidad a 5 años (%) -->
+                        <td class="px-4 py-3 whitespace-nowrap text-right">
+                            {% if watchlist_item and watchlist_item.rentabilidad_5yr is not none %}
+                                {% set rent5yr = watchlist_item.rentabilidad_5yr %}
+                                {% set r5yr_thresholds = color_thresholds.rentabilidad_5yr if color_thresholds and color_thresholds.rentabilidad_5yr else {} %}
+                                {% set r5yr_green_min = r5yr_thresholds.green_min if r5yr_thresholds.green_min is defined else 60.0 %}
+                                {% set r5yr_yellow_min = r5yr_thresholds.yellow_min if r5yr_thresholds.yellow_min is defined else 30.0 %}
+                                {% if rent5yr >= r5yr_green_min %}
+                                    <span class="text-sm font-medium text-green-600">{% if rent5yr >= 0 %}+{% endif %}{{ rent5yr|decimal_eu(1) }}%</span>
+                                {% elif rent5yr >= r5yr_yellow_min %}
+                                    <span class="text-sm font-medium text-yellow-600">{% if rent5yr >= 0 %}+{% endif %}{{ rent5yr|decimal_eu(1) }}%</span>
+                                {% else %}
+                                    <span class="text-sm font-medium text-red-600">{% if rent5yr >= 0 %}+{% endif %}{{ rent5yr|decimal_eu(1) }}%</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-xs text-gray-400">—</span>
+                            {% endif %}
+                        </td>
+                        
+                        <!-- Valoración actual 12 meses (%) con colores -->
+                        <td class="px-4 py-3 whitespace-nowrap text-right">
+                            {% if watchlist_item and watchlist_item.valoracion_12m is not none %}
+                                {% set valoracion = watchlist_item.valoracion_12m %}
+                                {% set v_thresholds = color_thresholds.valoracion_12m if color_thresholds and color_thresholds.valoracion_12m else {} %}
+                                {% set green_min = v_thresholds.green_min if v_thresholds.green_min is defined else 10.0 %}
+                                {% set yellow_min = v_thresholds.yellow_min if v_thresholds.yellow_min is defined else 0.0 %}
+                                {% if valoracion >= green_min %}
+                                    <span class="text-sm font-medium text-green-600">{% if valoracion >= 0 %}+{% endif %}{{ valoracion|decimal_eu(1) }}%</span>
+                                {% elif valoracion >= yellow_min %}
+                                    <span class="text-sm font-medium text-yellow-600">{% if valoracion >= 0 %}+{% endif %}{{ valoracion|decimal_eu(1) }}%</span>
+                                {% else %}
+                                    <span class="text-sm font-medium text-red-600">{{ valoracion|decimal_eu(1) }}%</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-xs text-gray-400">—</span>
+                            {% endif %}
+                        </td>
+                        
+                        <!-- Rentabilidad Anual (%) -->
+                        <td class="px-4 py-3 whitespace-nowrap text-right">
+                            {% if watchlist_item and watchlist_item.rentabilidad_anual is not none %}
+                                {% set rentAnual = watchlist_item.rentabilidad_anual %}
+                                {% set rAnual_thresholds = color_thresholds.rentabilidad_anual if color_thresholds and color_thresholds.rentabilidad_anual else {} %}
+                                {% set rAnual_green_min = rAnual_thresholds.green_min if rAnual_thresholds.green_min is defined else 10.0 %}
+                                {% set rAnual_yellow_min = rAnual_thresholds.yellow_min if rAnual_thresholds.yellow_min is defined else 0.0 %}
+                                {% if rentAnual >= rAnual_green_min %}
+                                    <span class="text-sm font-medium text-green-600">{% if rentAnual >= 0 %}+{% endif %}{{ rentAnual|decimal_eu(1) }}%</span>
+                                {% elif rentAnual >= rAnual_yellow_min %}
+                                    <span class="text-sm font-medium text-yellow-600">{% if rentAnual >= 0 %}+{% endif %}{{ rentAnual|decimal_eu(1) }}%</span>
+                                {% else %}
+                                    <span class="text-sm font-medium text-red-600">{% if rentAnual >= 0 %}+{% endif %}{{ rentAnual|decimal_eu(1) }}%</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-xs text-gray-400">—</span>
+                            {% endif %}
+                        </td>
+                        
+                        <!-- Target Price (5 yr) -->
+                        <td class="px-4 py-3 whitespace-nowrap text-right">
+                            {% if watchlist_item and watchlist_item.target_price_5yr is not none %}
+                                <span class="text-sm text-gray-900">{{ watchlist_item.target_price_5yr|decimal_eu(2) }}</span>
+                            {% else %}
+                                <span class="text-xs text-gray-400">—</span>
+                            {% endif %}
+                        </td>
+                        
+                        <!-- Precio actual -->
+                        <td class="px-4 py-3 whitespace-nowrap text-right">
+                            {% if asset.current_price %}
+                                <span class="text-sm font-medium text-gray-900">{{ asset.current_price|decimal_eu(2) }} {{ asset.currency }}</span>
+                            {% else %}
+                                <span class="text-xs text-gray-400">—</span>
+                            {% endif %}
+                        </td>
+                        
+                        <!-- Peso en cartera (%) con colores -->
+                        <td class="px-4 py-3 whitespace-nowrap text-right">
+                            {% if item.weight_pct is not none %}
+                                {% set threshold = max_weight_threshold %}
+                                {% set weight = item.weight_pct %}
+                                {% set peso_thresholds = color_thresholds.peso_cartera if color_thresholds and color_thresholds.peso_cartera else {} %}
+                                {% set green_max_pct = peso_thresholds.green_max_pct if peso_thresholds.green_max_pct is defined else 10.0 %}
+                                {% set yellow_min_pct = peso_thresholds.yellow_min_pct if peso_thresholds.yellow_min_pct is defined else 10.0 %}
+                                {% set yellow_max_pct = peso_thresholds.yellow_max_pct if peso_thresholds.yellow_max_pct is defined else 25.0 %}
+                                {% set weight_over_threshold = weight - threshold %}
+                                {% if weight_over_threshold < green_max_pct %}
+                                    <span class="text-sm font-medium text-green-600">{{ weight|decimal_eu(2) }}%</span>
+                                {% elif weight_over_threshold >= yellow_min_pct and weight_over_threshold < yellow_max_pct %}
+                                    <span class="text-sm font-medium text-yellow-600">{{ weight|decimal_eu(2) }}%</span>
+                                {% else %}
+                                    <span class="text-sm font-medium text-red-600">{{ weight|decimal_eu(2) }}%</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-xs text-gray-400">—</span>
+                            {% endif %}
+                        </td>
+                        
+                        <!-- PER o NTM P/E -->
+                        <td class="px-4 py-3 whitespace-nowrap text-right">
+                            {% if watchlist_item and watchlist_item.per_ntm is not none %}
+                                <span class="text-sm text-gray-900">{{ watchlist_item.per_ntm|decimal_eu(2) }}</span>
+                            {% else %}
+                                <span class="text-xs text-gray-400">—</span>
+                            {% endif %}
+                        </td>
+                        
+                        <!-- NTM Dividend Yield (%) -->
+                        <td class="px-4 py-3 whitespace-nowrap text-right">
+                            {% if watchlist_item and watchlist_item.ntm_dividend_yield is not none %}
+                                <span class="text-sm text-gray-900">{{ watchlist_item.ntm_dividend_yield|decimal_eu(2) }}%</span>
+                            {% else %}
+                                <span class="text-xs text-gray-400">—</span>
+                            {% endif %}
+                        </td>
+                        
+                        <!-- EPS -->
+                        <td class="px-4 py-3 whitespace-nowrap text-right">
+                            {% if watchlist_item and watchlist_item.eps is not none %}
+                                <span class="text-sm text-gray-900">{{ watchlist_item.eps|decimal_eu(2) }}</span>
+                            {% else %}
+                                <span class="text-xs text-gray-400">—</span>
+                            {% endif %}
+                        </td>
+                        
+                        <!-- CAGR Revenue YoY (%) -->
+                        <td class="px-4 py-3 whitespace-nowrap text-right">
+                            {% if watchlist_item and watchlist_item.cagr_revenue_yoy is not none %}
+                                <span class="text-sm text-gray-900">{{ watchlist_item.cagr_revenue_yoy|decimal_eu(2) }}%</span>
+                            {% else %}
+                                <span class="text-xs text-gray-400">—</span>
+                            {% endif %}
+                        </td>
+                        
+                        <!-- Acciones -->
+                        <td class="px-4 py-3 whitespace-nowrap text-center">
+                            {% if watchlist_item %}
+                            <div class="flex items-center justify-center gap-2">
+                                <button onclick="editWatchlistItem({{ watchlist_item.id }}, {{ asset.id }})" class="text-blue-600 hover:text-blue-800 text-sm" title="Editar">
+                                    ✏️
+                                </button>
+                                <button onclick="deleteWatchlistItem({{ watchlist_item.id }})" class="text-red-600 hover:text-red-800 text-sm" title="Eliminar">
+                                    🗑️
+                                </button>
+                            </div>
+                            {% else %}
+                                <span class="text-xs text-gray-400">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="bg-white rounded-xl shadow-sm p-12 text-center">
+        <p class="text-gray-600 mb-4">No hay assets en watchlist</p>
+        <button onclick="openAddAssetModal()" class="btn-primary">
+            ➕ Añadir primer asset
+        </button>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Modal para añadir asset -->
+<div id="addAssetModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
+        <div class="mt-3">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">➕ Añadir Asset a Watchlist</h3>
+            
+            <!-- Tabs: URL Yahoo o Búsqueda -->
+            <div class="border-b border-gray-200 mb-4">
+                <nav class="-mb-px flex space-x-8">
+                    <button onclick="switchAddMode('yahoo')" id="tabYahoo" class="px-4 py-2 text-sm font-medium text-blue-600 border-b-2 border-blue-600">
+                        URL Yahoo Finance
+                    </button>
+                    <button onclick="switchAddMode('search')" id="tabSearch" class="px-4 py-2 text-sm font-medium text-gray-500 border-b-2 border-transparent hover:text-gray-700 hover:border-gray-300">
+                        Búsqueda AssetRegistry
+                    </button>
+                </nav>
+            </div>
+            
+            <!-- Opción 1: URL Yahoo -->
+            <div id="yahooForm" class="add-form-section">
+                <p class="text-sm text-gray-600 mb-4">
+                    Pega la URL completa del asset desde Yahoo Finance:
+                </p>
+                <input type="text" id="yahooUrlInput" placeholder="https://finance.yahoo.com/quote/AAPL/" 
+                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 mb-4">
+                <div class="flex justify-end gap-2">
+                    <button onclick="closeAddAssetModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">
+                        Cancelar
+                    </button>
+                    <button onclick="addAssetFromYahoo()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        Añadir
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Opción 2: Búsqueda AssetRegistry -->
+            <div id="searchForm" class="add-form-section hidden">
+                <p class="text-sm text-gray-600 mb-4">
+                    Busca un asset en AssetRegistry:
+                </p>
+                <input type="text" id="assetSearchInput" placeholder="Escribe nombre, símbolo o ISIN..." 
+                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 mb-4"
+                       onkeyup="searchAssets(this.value)">
+                <div id="assetSearchResults" class="max-h-60 overflow-y-auto border border-gray-200 rounded-lg mb-4"></div>
+                <div class="flex justify-end gap-2">
+                    <button onclick="closeAddAssetModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">
+                        Cancelar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Ajustes -->
+<div id="settingsModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-10 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
+        <div class="mt-3">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">⚙️ Ajustes de Watchlist</h3>
+            <form id="settingsForm">
+                <input type="hidden" id="settingsUserId" value="{{ current_user.id }}">
+                
+                <!-- Umbral máximo peso en cartera -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Umbral máximo peso en cartera (%)</label>
+                    <input type="number" step="0.1" id="settingsMaxWeightThreshold" class="w-full px-3 py-2 border border-gray-300 rounded-lg" value="{{ max_weight_threshold }}">
+                    <p class="text-xs text-gray-500 mt-1">Umbral base para calcular colores del peso en cartera</p>
+                </div>
+                
+                <!-- Umbrales de colores: Valoración 12m -->
+                <div class="mb-4 p-4 bg-gray-50 rounded-lg">
+                    <h4 class="text-sm font-semibold text-gray-700 mb-3">Valoración actual 12 meses (%)</h4>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">Verde (≥)</label>
+                            <input type="number" step="0.1" id="settingsValoracionGreenMin" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">Amarillo (≥)</label>
+                            <input type="number" step="0.1" id="settingsValoracionYellowMin" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2">Verde: ≥ green_min, Amarillo: ≥ yellow_min y < green_min, Rojo: < yellow_min</p>
+                </div>
+                
+                <!-- Umbrales de colores: Fecha resultados -->
+                <div class="mb-4 p-4 bg-gray-50 rounded-lg">
+                    <h4 class="text-sm font-semibold text-gray-700 mb-3">Fecha próximos resultados</h4>
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">Días para amarillo (después de pasar)</label>
+                        <input type="number" step="1" id="settingsFechaResultadosYellowDays" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
+                        <p class="text-xs text-gray-500 mt-1">Verde (futuro), Amarillo (pasado ≤ X días), Rojo (pasado > X días)</p>
+                    </div>
+                </div>
+                
+                <!-- Umbrales de colores: Peso en cartera -->
+                <div class="mb-4 p-4 bg-gray-50 rounded-lg">
+                    <h4 class="text-sm font-semibold text-gray-700 mb-3">Peso en cartera (%)</h4>
+                    <div class="grid grid-cols-3 gap-3">
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">Verde (máx % sobre umbral)</label>
+                            <input type="number" step="0.1" id="settingsPesoCarteraGreenMax" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">Amarillo (min % sobre umbral)</label>
+                            <input type="number" step="0.1" id="settingsPesoCarteraYellowMin" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">Amarillo (máx % sobre umbral)</label>
+                            <input type="number" step="0.1" id="settingsPesoCarteraYellowMax" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2">Verde: &lt; umbral + verde_max%, Amarillo: umbral + yellow_min% a yellow_max%, Rojo: ≥ umbral + yellow_max%</p>
+                </div>
+                
+                <!-- Umbrales de colores: Tier -->
+                <div class="mb-4 p-4 bg-gray-50 rounded-lg">
+                    <h4 class="text-sm font-semibold text-gray-700 mb-3">Tier (desviación del valor del Tier)</h4>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">Verde (dentro %)</label>
+                            <input type="number" step="0.1" id="settingsTierGreenPct" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">Amarillo (dentro %)</label>
+                            <input type="number" step="0.1" id="settingsTierYellowPct" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2">Verde: dentro ±green_pct%, Amarillo: fuera ±green_pct% pero dentro ±yellow_pct%, Rojo: fuera ±yellow_pct%</p>
+                </div>
+                
+                <!-- Configuración de rangos de Tier -->
+                <div class="mb-4 p-4 bg-green-50 rounded-lg border border-green-200">
+                    <h4 class="text-sm font-semibold text-gray-700 mb-3">Rangos de Tier (según Valoración 12m %)</h4>
+                    <p class="text-xs text-gray-600 mb-3">Define el valor mínimo de Valoración 12m (%) para cada Tier (2-5). Tier 1 se calcula automáticamente como todos los valores &lt; Tier 2.</p>
+                    <div class="space-y-2">
+                        <div class="grid grid-cols-4 gap-2 text-xs">
+                            <div>
+                                <label class="block text-gray-600 mb-1">Tier 5 (≥ %)</label>
+                                <input type="number" step="0.1" id="settingsTier5Value" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
+                                <p class="text-gray-500 mt-1 text-[10px]">≥ valor%</p>
+                            </div>
+                            <div>
+                                <label class="block text-gray-600 mb-1">Tier 4 (≥ %)</label>
+                                <input type="number" step="0.1" id="settingsTier4Value" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
+                                <p class="text-gray-500 mt-1 text-[10px]">≥ valor%</p>
+                            </div>
+                            <div>
+                                <label class="block text-gray-600 mb-1">Tier 3 (≥ %)</label>
+                                <input type="number" step="0.1" id="settingsTier3Value" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
+                                <p class="text-gray-500 mt-1 text-[10px]">≥ valor%</p>
+                            </div>
+                            <div>
+                                <label class="block text-gray-600 mb-1">Tier 2 (≥ %)</label>
+                                <input type="number" step="0.1" id="settingsTier2Value" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
+                                <p class="text-gray-500 mt-1 text-[10px]">≥ valor%</p>
+                            </div>
+                        </div>
+                        <div class="mt-3 p-2 bg-gray-100 rounded border border-gray-300">
+                            <p class="text-xs text-gray-700">
+                                <span class="font-semibold">Tier 1:</span> Automático - Todos los valores &lt; Tier 2 (sobrevalorado)
+                            </p>
+                            <p class="text-xs text-gray-500 mt-1" id="tier1Info">
+                                Si Tier 2 = 10%, entonces Tier 1 = valores &lt; 10%
+                            </p>
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-3">Los rangos se construyen así: Tier 5 ≥ valor_tier5, Tier 4 ≥ valor_tier4 y &lt; valor_tier5, Tier 3 ≥ valor_tier3 y &lt; valor_tier4, Tier 2 ≥ valor_tier2 y &lt; valor_tier3, Tier 1 &lt; valor_tier2 (automático)</p>
+                    <p class="text-xs text-gray-600 mt-1 font-medium">Tier 5: mayor posición (muy infravalorado), Tier 1: menor posición (sobrevalorado)</p>
+                </div>
+                
+                <!-- Umbrales de colores: Rentabilidad 5 años -->
+                <div class="mb-4 p-4 bg-gray-50 rounded-lg">
+                    <h4 class="text-sm font-semibold text-gray-700 mb-3">Rentabilidad a 5 años (%)</h4>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">Verde (≥)</label>
+                            <input type="number" step="0.1" id="settingsRentabilidad5yrGreenMin" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">Amarillo (≥)</label>
+                            <input type="number" step="0.1" id="settingsRentabilidad5yrYellowMin" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2">Verde: ≥ green_min, Amarillo: ≥ yellow_min y < green_min, Rojo: < yellow_min</p>
+                </div>
+                
+                <!-- Umbrales de colores: Rentabilidad Anual -->
+                <div class="mb-4 p-4 bg-gray-50 rounded-lg">
+                    <h4 class="text-sm font-semibold text-gray-700 mb-3">Rentabilidad Anual (%)</h4>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">Verde (≥)</label>
+                            <input type="number" step="0.1" id="settingsRentabilidadAnualGreenMin" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">Amarillo (≥)</label>
+                            <input type="number" step="0.1" id="settingsRentabilidadAnualYellowMin" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2">Verde: ≥ green_min, Amarillo: ≥ yellow_min y < green_min, Rojo: < yellow_min</p>
+                </div>
+                
+                <!-- Configuración de cantidades por Tier -->
+                <div class="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <h4 class="text-sm font-semibold text-gray-700 mb-3">Cantidades por Tier (EUR)</h4>
+                    <p class="text-xs text-gray-600 mb-3">Define las cantidades absolutas en EUR para cada Tier de inversión</p>
+                    <div class="grid grid-cols-5 gap-2">
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">Tier 1 (EUR)</label>
+                            <input type="number" step="0.01" id="settingsTier1Amount" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">Tier 2 (EUR)</label>
+                            <input type="number" step="0.01" id="settingsTier2Amount" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">Tier 3 (EUR)</label>
+                            <input type="number" step="0.01" id="settingsTier3Amount" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">Tier 4 (EUR)</label>
+                            <input type="number" step="0.01" id="settingsTier4Amount" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">Tier 5 (EUR)</label>
+                            <input type="number" step="0.01" id="settingsTier5Amount" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex justify-end gap-2 mt-6">
+                    <button type="button" onclick="closeSettingsModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">
+                        Cancelar
+                    </button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        Guardar Ajustes
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para editar watchlist item -->
+<div id="editWatchlistModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
+        <div class="mt-3">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">✏️ Editar Métricas</h3>
+            <form id="editWatchlistForm">
+                <input type="hidden" id="editWatchlistId">
+                <input type="hidden" id="editAssetId">
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Fecha próximos resultados</label>
+                        <input type="date" id="editNextEarningsDate" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">PER o NTM P/E</label>
+                        <input type="number" step="0.01" id="editPerNtm" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">NTM Dividend Yield (%)</label>
+                        <input type="number" step="0.01" id="editNtmDividendYield" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">EPS</label>
+                        <input type="number" step="0.01" id="editEps" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">CAGR Revenue YoY (%)</label>
+                        <input type="number" step="0.01" id="editCagrRevenueYoy" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    </div>
+                </div>
+                
+                <div class="flex justify-end gap-2 mt-6">
+                    <button type="button" onclick="closeEditWatchlistModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">
+                        Cancelar
+                    </button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        Guardar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmación -->
+<div id="confirmModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
+        <div class="mt-3">
+            <h3 class="text-lg font-medium text-gray-900 mb-4" id="confirmModalTitle">Confirmar acción</h3>
+            <p class="text-sm text-gray-600 mb-6" id="confirmModalMessage">¿Estás seguro de que quieres realizar esta acción?</p>
+            <div class="flex justify-end gap-2">
+                <button type="button" onclick="closeConfirmModal(false)" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">
+                    Cancelar
+                </button>
+                <button type="button" onclick="closeConfirmModal(true)" id="confirmModalOk" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
+                    Confirmar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Variables globales
+let currentAddMode = 'yahoo';
+let searchTimeout = null;
+let confirmCallback = null;
+
+// ========== SISTEMA DE TOAST NOTIFICATIONS ==========
+function showToast(message, type = 'success') {
+    const container = document.getElementById('toastContainer');
+    if (!container) {
+        console.error('Toast container not found');
+        return;
+    }
+    
+    const toast = document.createElement('div');
+    
+    const bgColor = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500';
+    const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️';
+    
+    toast.className = `${bgColor} text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 min-w-[300px] transform transition-all duration-300 translate-x-full opacity-0`;
+    toast.innerHTML = `
+        <span class="text-lg">${icon}</span>
+        <span class="flex-1">${message}</span>
+    `;
+    
+    container.appendChild(toast);
+    
+    // Animar entrada
+    setTimeout(() => {
+        toast.classList.remove('translate-x-full', 'opacity-0');
+        toast.classList.add('translate-x-0', 'opacity-100');
+    }, 10);
+    
+    // Auto-ocultar después de 3 segundos
+    setTimeout(() => {
+        toast.classList.add('translate-x-full', 'opacity-0');
+        setTimeout(() => {
+            if (container.contains(toast)) {
+                container.removeChild(toast);
+            }
+        }, 300);
+    }, 3000);
+}
+
+// Funciones para modal de añadir asset
+function openAddAssetModal() {
+    document.getElementById('addAssetModal').classList.remove('hidden');
+    switchAddMode('yahoo');
+}
+
+function closeAddAssetModal() {
+    document.getElementById('addAssetModal').classList.add('hidden');
+    document.getElementById('yahooUrlInput').value = '';
+    document.getElementById('assetSearchInput').value = '';
+    document.getElementById('assetSearchResults').innerHTML = '';
+}
+
+function switchAddMode(mode) {
+    currentAddMode = mode;
+    if (mode === 'yahoo') {
+        document.getElementById('yahooForm').classList.remove('hidden');
+        document.getElementById('searchForm').classList.add('hidden');
+        document.getElementById('tabYahoo').className = 'px-4 py-2 text-sm font-medium text-blue-600 border-b-2 border-blue-600';
+        document.getElementById('tabSearch').className = 'px-4 py-2 text-sm font-medium text-gray-500 border-b-2 border-transparent hover:text-gray-700 hover:border-gray-300';
+    } else {
+        document.getElementById('yahooForm').classList.add('hidden');
+        document.getElementById('searchForm').classList.remove('hidden');
+        document.getElementById('tabYahoo').className = 'px-4 py-2 text-sm font-medium text-gray-500 border-b-2 border-transparent hover:text-gray-700 hover:border-gray-300';
+        document.getElementById('tabSearch').className = 'px-4 py-2 text-sm font-medium text-blue-600 border-b-2 border-blue-600';
+    }
+}
+
+async function addAssetFromYahoo() {
+    const url = document.getElementById('yahooUrlInput').value.trim();
+    if (!url) {
+        showToast('Por favor, ingresa una URL de Yahoo Finance', 'error');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/portfolio/watchlist/add', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ yahoo_url: url })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast('Asset añadido correctamente', 'success');
+            setTimeout(() => location.reload(), 500);
+        } else {
+            showToast('Error: ' + data.error, 'error');
+        }
+    } catch (error) {
+        showToast('Error de conexión: ' + error.message, 'error');
+    }
+}
+
+async function searchAssets(query) {
+    if (query.length < 2) {
+        document.getElementById('assetSearchResults').innerHTML = '';
+        return;
+    }
+    
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(async () => {
+        try {
+            const response = await fetch(`/portfolio/api/assets/search?q=${encodeURIComponent(query)}`);
+            const data = await response.json();
+            
+            if (data.success && data.results.length > 0) {
+                let html = '';
+                data.results.forEach(asset => {
+                    html += `
+                        <div class="p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100" onclick="selectAssetFromSearch(${asset.id})">
+                            <div class="font-medium text-gray-900">${asset.symbol || '—'} - ${asset.name || '—'}</div>
+                            <div class="text-xs text-gray-500">${asset.exchange || ''} • ${asset.currency || ''}</div>
+                        </div>
+                    `;
+                });
+                document.getElementById('assetSearchResults').innerHTML = html;
+            } else {
+                document.getElementById('assetSearchResults').innerHTML = '<div class="p-3 text-sm text-gray-500">No se encontraron resultados</div>';
+            }
+        } catch (error) {
+            console.error('Error en búsqueda:', error);
+        }
+    }, 300);
+}
+
+async function selectAssetFromSearch(assetRegistryId) {
+    try {
+        const response = await fetch('/portfolio/watchlist/add', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ asset_registry_id: assetRegistryId })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast('Asset añadido correctamente', 'success');
+            setTimeout(() => location.reload(), 500);
+        } else {
+            showToast('Error: ' + data.error, 'error');
+        }
+    } catch (error) {
+        showToast('Error de conexión: ' + error.message, 'error');
+    }
+}
+
+// Funciones para actualizar precios
+async function updatePrices() {
+    const btn = document.getElementById('updatePricesBtn');
+    const originalText = btn.innerHTML;
+    
+    btn.disabled = true;
+    btn.innerHTML = '<span class="animate-spin">⏳</span> Actualizando...';
+    
+    try {
+        const response = await fetch('/portfolio/watchlist/update-prices', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast('Precios actualizados: ' + data.message, 'success');
+            setTimeout(() => location.reload(), 500);
+        } else {
+            showToast('Error: ' + data.error, 'error');
+        }
+    } catch (error) {
+        showToast('Error de conexión: ' + error.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }
+}
+
+// Funciones para editar watchlist item
+async function editWatchlistItem(watchlistId, assetId) {
+    document.getElementById('editWatchlistId').value = watchlistId;
+    document.getElementById('editAssetId').value = assetId;
+    
+    // Limpiar campos
+    document.getElementById('editNextEarningsDate').value = '';
+    document.getElementById('editPerNtm').value = '';
+    document.getElementById('editNtmDividendYield').value = '';
+    document.getElementById('editEps').value = '';
+    document.getElementById('editCagrRevenueYoy').value = '';
+    
+    // Cargar datos actuales
+    try {
+        const response = await fetch(`/portfolio/watchlist/${watchlistId}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            const item = data.data;
+            if (item.next_earnings_date) {
+                document.getElementById('editNextEarningsDate').value = item.next_earnings_date;
+            }
+            if (item.per_ntm) {
+                document.getElementById('editPerNtm').value = item.per_ntm;
+            }
+            if (item.ntm_dividend_yield) {
+                document.getElementById('editNtmDividendYield').value = item.ntm_dividend_yield;
+            }
+            if (item.eps) {
+                document.getElementById('editEps').value = item.eps;
+            }
+            if (item.cagr_revenue_yoy) {
+                document.getElementById('editCagrRevenueYoy').value = item.cagr_revenue_yoy;
+            }
+        }
+    } catch (error) {
+        console.error('Error cargando datos:', error);
+    }
+    
+    document.getElementById('editWatchlistModal').classList.remove('hidden');
+}
+
+function closeEditWatchlistModal() {
+    document.getElementById('editWatchlistModal').classList.add('hidden');
+}
+
+// Funciones de confirmación personalizada
+function showConfirmModal(title, message, callback) {
+    document.getElementById('confirmModalTitle').textContent = title;
+    document.getElementById('confirmModalMessage').textContent = message;
+    confirmCallback = callback;
+    document.getElementById('confirmModal').classList.remove('hidden');
+}
+
+function closeConfirmModal(confirmed) {
+    document.getElementById('confirmModal').classList.add('hidden');
+    if (confirmed && confirmCallback) {
+        confirmCallback();
+    }
+    confirmCallback = null;
+}
+
+// Registrar event listeners cuando el DOM esté listo
+document.addEventListener('DOMContentLoaded', function() {
+    const editForm = document.getElementById('editWatchlistForm');
+    if (editForm) {
+        editForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const watchlistId = document.getElementById('editWatchlistId').value;
+            const data = {
+                next_earnings_date: document.getElementById('editNextEarningsDate').value || null,
+                per_ntm: document.getElementById('editPerNtm').value ? parseFloat(document.getElementById('editPerNtm').value) : null,
+                ntm_dividend_yield: document.getElementById('editNtmDividendYield').value ? parseFloat(document.getElementById('editNtmDividendYield').value) : null,
+                eps: document.getElementById('editEps').value ? parseFloat(document.getElementById('editEps').value) : null,
+                cagr_revenue_yoy: document.getElementById('editCagrRevenueYoy').value ? parseFloat(document.getElementById('editCagrRevenueYoy').value) : null
+            };
+            
+            try {
+                const response = await fetch(`/portfolio/watchlist/${watchlistId}/update`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast('Métricas actualizadas correctamente', 'success');
+                    closeEditWatchlistModal();
+                    setTimeout(() => location.reload(), 500);
+                } else {
+                    showToast('Error: ' + result.error, 'error');
+                }
+            } catch (error) {
+                showToast('Error de conexión: ' + error.message, 'error');
+            }
+        });
+    }
+    
+    const settingsForm = document.getElementById('settingsForm');
+    if (settingsForm) {
+        settingsForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const colorThresholds = {
+                valoracion_12m: {
+                    green_min: parseFloat(document.getElementById('settingsValoracionGreenMin').value) || 10.0,
+                    yellow_min: parseFloat(document.getElementById('settingsValoracionYellowMin').value) || 0.0
+                },
+                fecha_resultados: {
+                    yellow_days: parseInt(document.getElementById('settingsFechaResultadosYellowDays').value) || 15
+                },
+                peso_cartera: {
+                    green_max_pct: parseFloat(document.getElementById('settingsPesoCarteraGreenMax').value) || 10.0,
+                    yellow_min_pct: parseFloat(document.getElementById('settingsPesoCarteraYellowMin').value) || 10.0,
+                    yellow_max_pct: parseFloat(document.getElementById('settingsPesoCarteraYellowMax').value) || 25.0
+                },
+                tier: {
+                    green_pct: parseFloat(document.getElementById('settingsTierGreenPct').value) || 25.0,
+                    yellow_pct: parseFloat(document.getElementById('settingsTierYellowPct').value) || 50.0
+                },
+                rentabilidad_5yr: {
+                    green_min: parseFloat(document.getElementById('settingsRentabilidad5yrGreenMin').value) || 60.0,
+                    yellow_min: parseFloat(document.getElementById('settingsRentabilidad5yrYellowMin').value) || 30.0
+                },
+                rentabilidad_anual: {
+                    green_min: parseFloat(document.getElementById('settingsRentabilidadAnualGreenMin').value) || 10.0,
+                    yellow_min: parseFloat(document.getElementById('settingsRentabilidadAnualYellowMin').value) || 0.0
+                }
+            };
+            
+            const tierAmounts = {
+                tier_1: parseFloat(document.getElementById('settingsTier1Amount').value) || 500.0,
+                tier_2: parseFloat(document.getElementById('settingsTier2Amount').value) || 1000.0,
+                tier_3: parseFloat(document.getElementById('settingsTier3Amount').value) || 2000.0,
+                tier_4: parseFloat(document.getElementById('settingsTier4Amount').value) || 5000.0,
+                tier_5: parseFloat(document.getElementById('settingsTier5Amount').value) || 10000.0
+            };
+            
+            // Construir rangos de Tier desde valores simples (el max de cada tier es el min del tier superior)
+            // Tier 1 es automático: < valor_tier2
+            const tierRanges = {};
+            const tier5Val = parseFloat(document.getElementById('settingsTier5Value').value);
+            const tier4Val = parseFloat(document.getElementById('settingsTier4Value').value);
+            const tier3Val = parseFloat(document.getElementById('settingsTier3Value').value);
+            const tier2Val = parseFloat(document.getElementById('settingsTier2Value').value);
+            
+            // Tier 5: >= valor_tier5 (sin máximo)
+            if (!isNaN(tier5Val)) {
+                tierRanges.tier_5 = { min: tier5Val };
+            }
+            
+            // Tier 4: >= valor_tier4 y < valor_tier5 (si tier5Val está configurado)
+            // Si tier5Val no está configurado, solo tiene min
+            if (!isNaN(tier4Val)) {
+                tierRanges.tier_4 = { min: tier4Val };
+                if (!isNaN(tier5Val)) {
+                    tierRanges.tier_4.max = tier5Val;
+                }
+            }
+            
+            // Tier 3: >= valor_tier3 y < valor_tier4 (si tier4Val está configurado)
+            // Si tier4Val no está configurado, solo tiene min
+            if (!isNaN(tier3Val)) {
+                tierRanges.tier_3 = { min: tier3Val };
+                if (!isNaN(tier4Val)) {
+                    tierRanges.tier_3.max = tier4Val;
+                }
+            }
+            
+            // Tier 2: >= valor_tier2 y < valor_tier3 (si tier3Val está configurado)
+            // Si tier3Val no está configurado, solo tiene min
+            if (!isNaN(tier2Val)) {
+                tierRanges.tier_2 = { min: tier2Val };
+                if (!isNaN(tier3Val)) {
+                    tierRanges.tier_2.max = tier3Val;
+                }
+            }
+            
+            // Tier 1: AUTOMÁTICO - < valor_tier2 (siempre se calcula desde tier2)
+            if (!isNaN(tier2Val)) {
+                tierRanges.tier_1 = { max: tier2Val };
+            }
+            
+            const data = {
+                max_weight_threshold: parseFloat(document.getElementById('settingsMaxWeightThreshold').value) || 10.0,
+                color_thresholds: colorThresholds,
+                tier_ranges: Object.keys(tierRanges).length > 0 ? tierRanges : undefined,
+                tier_amounts: tierAmounts
+            };
+            
+            try {
+                const response = await fetch('/portfolio/watchlist/api/config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast('Ajustes guardados correctamente', 'success');
+                    closeSettingsModal();
+                    setTimeout(() => location.reload(), 500);
+                } else {
+                    showToast('Error: ' + result.error, 'error');
+                }
+            } catch (error) {
+                showToast('Error de conexión: ' + error.message, 'error');
+            }
+        });
+    }
+});
+
+// Funciones para modal de ajustes
+function openSettingsModal() {
+    // Cargar configuración actual
+    fetch('/portfolio/watchlist/api/config')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.config) {
+                const config = data.config;
+                document.getElementById('settingsMaxWeightThreshold').value = config.max_weight_threshold || 10.0;
+                
+                // Cargar umbrales de colores
+                const colorThresholds = config.color_thresholds || {};
+                const valoracion = colorThresholds.valoracion_12m || {};
+                const fecha = colorThresholds.fecha_resultados || {};
+                const peso = colorThresholds.peso_cartera || {};
+                const tier = colorThresholds.tier || {};
+                const rent5yr = colorThresholds.rentabilidad_5yr || {};
+                const rentAnual = colorThresholds.rentabilidad_anual || {};
+                
+                document.getElementById('settingsValoracionGreenMin').value = valoracion.green_min || 10.0;
+                document.getElementById('settingsValoracionYellowMin').value = valoracion.yellow_min || 0.0;
+                document.getElementById('settingsFechaResultadosYellowDays').value = fecha.yellow_days || 15;
+                document.getElementById('settingsPesoCarteraGreenMax').value = peso.green_max_pct || 10.0;
+                document.getElementById('settingsPesoCarteraYellowMin').value = peso.yellow_min_pct || 10.0;
+                document.getElementById('settingsPesoCarteraYellowMax').value = peso.yellow_max_pct || 25.0;
+                document.getElementById('settingsTierGreenPct').value = tier.green_pct || 25.0;
+                document.getElementById('settingsTierYellowPct').value = tier.yellow_pct || 50.0;
+                document.getElementById('settingsRentabilidad5yrGreenMin').value = rent5yr.green_min || 60.0;
+                document.getElementById('settingsRentabilidad5yrYellowMin').value = rent5yr.yellow_min || 30.0;
+                document.getElementById('settingsRentabilidadAnualGreenMin').value = rentAnual.green_min || 10.0;
+                document.getElementById('settingsRentabilidadAnualYellowMin').value = rentAnual.yellow_min || 0.0;
+                
+                // Cargar rangos de Tier (reconstruir valores simples desde rangos)
+                const tierRanges = config.tier_ranges || {};
+                // Valores por defecto si no existen
+                const defaultTierRanges = {
+                    tier_5: { min: 50.0 },
+                    tier_4: { min: 30.0, max: 50.0 },
+                    tier_3: { min: 10.0, max: 30.0 },
+                    tier_2: { min: 0.0, max: 10.0 },
+                    tier_1: { max: 0.0 }
+                };
+                const finalTierRanges = Object.keys(tierRanges).length > 0 ? tierRanges : defaultTierRanges;
+                
+                // Extraer valores simples desde los rangos
+                // Tier 5: solo tiene min
+                if (finalTierRanges.tier_5 && finalTierRanges.tier_5.min !== undefined) {
+                    document.getElementById('settingsTier5Value').value = finalTierRanges.tier_5.min;
+                }
+                
+                // Tier 4: min es el valor del tier, max viene del tier 5
+                if (finalTierRanges.tier_4 && finalTierRanges.tier_4.min !== undefined) {
+                    document.getElementById('settingsTier4Value').value = finalTierRanges.tier_4.min;
+                }
+                
+                // Tier 3: min es el valor del tier, max viene del tier 4
+                if (finalTierRanges.tier_3 && finalTierRanges.tier_3.min !== undefined) {
+                    document.getElementById('settingsTier3Value').value = finalTierRanges.tier_3.min;
+                }
+                
+                // Tier 2: min es el valor del tier, max viene del tier 3
+                if (finalTierRanges.tier_2 && finalTierRanges.tier_2.min !== undefined) {
+                    document.getElementById('settingsTier2Value').value = finalTierRanges.tier_2.min;
+                }
+                
+                // Tier 1: AUTOMÁTICO - no se carga, se calcula dinámicamente desde Tier 2
+                // Actualizar información de Tier 1 en la UI
+                const tier2Input = document.getElementById('settingsTier2Value');
+                const tier1InfoEl = document.getElementById('tier1Info');
+                
+                const updateTier1Info = function() {
+                    const tier2Val = tier2Input.value || 0.0;
+                    if (tier1InfoEl) {
+                        tier1InfoEl.textContent = 
+                            `Si Tier 2 = ${tier2Val}%, entonces Tier 1 = valores < ${tier2Val}%`;
+                    }
+                };
+                
+                // Actualizar inicialmente
+                if (tier2Input && tier1InfoEl) {
+                    const tier2ValLoaded = tier2Input.value || 0.0;
+                    tier1InfoEl.textContent = 
+                        `Si Tier 2 = ${tier2ValLoaded}%, entonces Tier 1 = valores < ${tier2ValLoaded}%`;
+                    
+                    // Añadir listener para actualizar Tier 1 cuando cambie Tier 2
+                    tier2Input.addEventListener('input', updateTier1Info);
+                }
+                
+                // Cargar cantidades de Tier
+                const tierAmounts = config.tier_amounts || {};
+                document.getElementById('settingsTier1Amount').value = tierAmounts.tier_1 || 500.0;
+                document.getElementById('settingsTier2Amount').value = tierAmounts.tier_2 || 1000.0;
+                document.getElementById('settingsTier3Amount').value = tierAmounts.tier_3 || 2000.0;
+                document.getElementById('settingsTier4Amount').value = tierAmounts.tier_4 || 5000.0;
+                document.getElementById('settingsTier5Amount').value = tierAmounts.tier_5 || 10000.0;
+            }
+        })
+        .catch(error => {
+            console.error('Error cargando configuración:', error);
+        });
+    
+    document.getElementById('settingsModal').classList.remove('hidden');
+}
+
+function closeSettingsModal() {
+    document.getElementById('settingsModal').classList.add('hidden');
+}
+
+// Funciones para eliminar watchlist item
+async function deleteWatchlistItem(watchlistId) {
+    showConfirmModal(
+        'Eliminar Asset',
+        '¿Estás seguro de que quieres eliminar este asset de la watchlist?',
+        async function() {
+            try {
+                const response = await fetch(`/portfolio/watchlist/${watchlistId}/delete`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showToast('Asset eliminado de la watchlist', 'success');
+                    setTimeout(() => location.reload(), 500);
+                } else {
+                    showToast('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showToast('Error de conexión: ' + error.message, 'error');
+            }
+        }
+    );
+}
+
+// Función de ordenamiento básica (simplificada)
+function sortTable(columnIndex, type) {
+    // Implementación básica - se puede mejorar
+    console.log('Sorting column', columnIndex, type);
+}
+</script>
+
+{% endblock %}
+
