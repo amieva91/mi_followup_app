@@ -670,8 +670,12 @@ Después de subir a producción, verificar:
 - ✅ Recuadro de comparación expandido a ancho completo
 - ✅ HITO 3 - Fase 2: Gráficos adicionales (Apalancamiento, Flujos de Caja, P&L Acumulado)
 
-**🚧 Sprint 6 EN PLANIFICACIÓN (24 Dic 2025):**
-- 🔜 HITO 1: Análisis de Concentración (métricas y alertas)
-- 🔜 HITO 2: Watchlist con Comparación vs Portfolio
-- 🔜 HITO 3: Alertas de Diversificación configurables
+**🚧 Sprint 6 EN PROGRESO (v6.0.0 - 10 Ene 2026):**
+- ✅ HITO 1 COMPLETADO: Análisis de Concentración (gráficos de distribución implementados)
+- 🚧 HITO 2 EN PROGRESO (~70%): Watchlist con indicadores de operativa y métricas avanzadas
+  - Modelos y servicios backend completos
+  - Página watchlist con tabla combinada completa
+  - Sistema de colores implementado (parcialmente probado)
+  - Configuración de umbrales y rangos
+- 🔜 HITO 3 PENDIENTE: Alertas de Diversificación configurables
 
