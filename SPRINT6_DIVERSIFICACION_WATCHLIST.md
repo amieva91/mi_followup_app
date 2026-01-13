@@ -114,15 +114,17 @@ Implementar funcionalidades avanzadas de análisis de diversificación y gestió
 
 ### 1. Peso en cartera (%)
 
-**Umbral máximo configurable** (ej: 10%):
-- 🟢 **Verde**: peso < (umbral + 10%) = < 11%
-- 🟡 **Amarillo**: peso >= (umbral + 10%) y < (umbral + 25%) = >= 11% y < 12.5%
-- 🔴 **Rojo**: peso >= (umbral + 25%) = >= 12.5%
+**Umbral máximo configurable** (ej: 10%) + **2 valores configurables** (Verde y Amarillo):
+- 🟢 **Verde**: peso < (umbral + valor_verde)
+- 🟡 **Amarillo**: (umbral + valor_verde) <= peso < (umbral + valor_amarillo)
+- 🔴 **Rojo**: peso >= (umbral + valor_amarillo)
 
-**Ejemplo con umbral = 10%**:
-- Verde: 0% - 10.99%
-- Amarillo: 11% - 12.49%
-- Rojo: >= 12.5%
+**Valores por defecto**: Verde = 1.0%, Amarillo = 2.5%
+
+**Ejemplo con umbral = 10% y valores por defecto**:
+- Verde: peso < 11%
+- Amarillo: 11% <= peso < 12.5%
+- Rojo: peso >= 12.5%
 
 ### 2. Fecha próximos resultados
 
