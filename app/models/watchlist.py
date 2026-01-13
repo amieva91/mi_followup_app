@@ -134,10 +134,8 @@ class WatchlistConfig(db.Model):
                 # Rojo si < yellow_min% (después de invertir signo: sobrevalorado = negativo = rojo)
             },
             "peso_cartera": {
-                "green_max_pct": 10.0,  # Verde si < umbral + 10%
-                "yellow_min_pct": 10.0,  # Amarillo si umbral+10% <= x < umbral+25%
-                "yellow_max_pct": 25.0,
-                "red_min_pct": 25.0  # Rojo si >= umbral + 25%
+                "green_max_pct": 1.0,  # Verde si < umbral + 1.0% (puntos porcentuales sobre umbral)
+                "yellow_max_pct": 2.5,  # Amarillo si umbral+green_max_pct <= x < umbral+yellow_max_pct, Rojo si >= umbral + yellow_max_pct
             },
             "fecha_resultados": {
                 "yellow_days": 15  # Amarillo si pasó <= 15 días
@@ -147,8 +145,8 @@ class WatchlistConfig(db.Model):
                 "yellow_pct": 50.0  # Amarillo si dentro ±50%
             },
             "rentabilidad_5yr": {
-                "green_min": 60.0,  # Verde si >= 60%
-                "yellow_min": 30.0  # Amarillo si >= 30% y < 60%, Rojo si < 30%
+                "green_min": 10.0,  # Verde si >= 10%
+                "yellow_min": 0.0   # Amarillo si >= 0% y < 10%, Rojo si < 0%
             },
             "rentabilidad_anual": {
                 "green_min": 10.0,  # Verde si >= 10%

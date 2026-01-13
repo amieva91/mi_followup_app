@@ -239,8 +239,8 @@
                             {% if watchlist_item and watchlist_item.rentabilidad_5yr is not none %}
                                 {% set rent5yr = watchlist_item.rentabilidad_5yr %}
                                 {% set r5yr_thresholds = color_thresholds.rentabilidad_5yr if color_thresholds and color_thresholds.rentabilidad_5yr else {} %}
-                                {% set r5yr_green_min = r5yr_thresholds.green_min if r5yr_thresholds.green_min is defined else 60.0 %}
-                                {% set r5yr_yellow_min = r5yr_thresholds.yellow_min if r5yr_thresholds.yellow_min is defined else 30.0 %}
+                                {% set r5yr_green_min = r5yr_thresholds.green_min if r5yr_thresholds.green_min is defined else 10.0 %}
+                                {% set r5yr_yellow_min = r5yr_thresholds.yellow_min if r5yr_thresholds.yellow_min is defined else 0.0 %}
                                 {% if rent5yr >= r5yr_green_min %}
                                     <span class="text-sm font-medium text-green-600">{% if rent5yr >= 0 %}+{% endif %}{{ rent5yr|decimal_eu(1) }}%</span>
                                 {% elif rent5yr >= r5yr_yellow_min %}
@@ -315,13 +315,16 @@
                                 {% set threshold = max_weight_threshold %}
                                 {% set weight = item.weight_pct %}
                                 {% set peso_thresholds = color_thresholds.peso_cartera if color_thresholds and color_thresholds.peso_cartera else {} %}
-                                {% set green_max_pct = peso_thresholds.green_max_pct if peso_thresholds.green_max_pct is defined else 10.0 %}
-                                {% set yellow_min_pct = peso_thresholds.yellow_min_pct if peso_thresholds.yellow_min_pct is defined else 10.0 %}
-                                {% set yellow_max_pct = peso_thresholds.yellow_max_pct if peso_thresholds.yellow_max_pct is defined else 25.0 %}
-                                {% set weight_over_threshold = weight - threshold %}
-                                {% if weight_over_threshold < green_max_pct %}
+                                {# Valores por defecto: incrementos en puntos porcentuales sobre el umbral #}
+                                {# Verde si peso < (umbral + green_max_pct), Amarillo si >= (umbral + green_max_pct) y < (umbral + yellow_max_pct), Rojo si >= (umbral + yellow_max_pct) #}
+                                {% set green_max_pct = peso_thresholds.green_max_pct if peso_thresholds.green_max_pct is defined else 1.0 %}
+                                {% set yellow_max_pct = peso_thresholds.yellow_max_pct if peso_thresholds.yellow_max_pct is defined else 2.5 %}
+                                {# Lógica: Verde si peso < (umbral + green_max_pct), Amarillo si >= (umbral + green_max_pct) y < (umbral + yellow_max_pct), Rojo si >= (umbral + yellow_max_pct) #}
+                                {% set green_limit = threshold + green_max_pct %}
+                                {% set yellow_max_limit = threshold + yellow_max_pct %}
+                                {% if weight < green_limit %}
                                     <span class="text-sm font-medium text-green-600">{{ weight|decimal_eu(2) }}%</span>
-                                {% elif weight_over_threshold >= yellow_min_pct and weight_over_threshold < yellow_max_pct %}
+                                {% elif weight >= green_limit and weight < yellow_max_limit %}
                                     <span class="text-sm font-medium text-yellow-600">{{ weight|decimal_eu(2) }}%</span>
                                 {% else %}
                                     <span class="text-sm font-medium text-red-600">{{ weight|decimal_eu(2) }}%</span>
@@ -480,7 +483,7 @@
                             <input type="number" step="0.1" id="settingsValoracionYellowMin" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
                         </div>
                     </div>
-                    <p class="text-xs text-gray-500 mt-2">Verde: ≥ green_min, Amarillo: ≥ yellow_min y < green_min, Rojo: < yellow_min</p>
+                    <p class="text-xs text-gray-500 mt-2">Verde: ≥ valor verde, Amarillo: ≥ valor amarillo y &lt; valor verde, Rojo: &lt; valor amarillo</p>
                 </div>
                 
                 <!-- Umbrales de colores: Fecha resultados -->
@@ -496,21 +499,17 @@
                 <!-- Umbrales de colores: Peso en cartera -->
                 <div class="mb-4 p-4 bg-gray-50 rounded-lg">
                     <h4 class="text-sm font-semibold text-gray-700 mb-3">Peso en cartera (%)</h4>
-                    <div class="grid grid-cols-3 gap-3">
+                    <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs text-gray-600 mb-1">Verde (máx % sobre umbral)</label>
                             <input type="number" step="0.1" id="settingsPesoCarteraGreenMax" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-600 mb-1">Amarillo (min % sobre umbral)</label>
-                            <input type="number" step="0.1" id="settingsPesoCarteraYellowMin" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
                         </div>
                         <div>
                             <label class="block text-xs text-gray-600 mb-1">Amarillo (máx % sobre umbral)</label>
                             <input type="number" step="0.1" id="settingsPesoCarteraYellowMax" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
                         </div>
                     </div>
-                    <p class="text-xs text-gray-500 mt-2">Verde: &lt; umbral + verde_max%, Amarillo: umbral + yellow_min% a yellow_max%, Rojo: ≥ umbral + yellow_max%</p>
+                    <p class="text-xs text-gray-500 mt-2">Verde: &lt; umbral + verde_max%, Amarillo: umbral + verde_max% a amarillo_max%, Rojo: ≥ umbral + amarillo_max%</p>
                 </div>
                 
                 <!-- Umbrales de colores: Tier -->
@@ -582,7 +581,7 @@
                             <input type="number" step="0.1" id="settingsRentabilidad5yrYellowMin" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
                         </div>
                     </div>
-                    <p class="text-xs text-gray-500 mt-2">Verde: ≥ green_min, Amarillo: ≥ yellow_min y < green_min, Rojo: < yellow_min</p>
+                    <p class="text-xs text-gray-500 mt-2">Verde: ≥ valor verde, Amarillo: ≥ valor amarillo y &lt; valor verde, Rojo: &lt; valor amarillo</p>
                 </div>
                 
                 <!-- Umbrales de colores: Rentabilidad Anual -->
@@ -598,7 +597,7 @@
                             <input type="number" step="0.1" id="settingsRentabilidadAnualYellowMin" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
                         </div>
                     </div>
-                    <p class="text-xs text-gray-500 mt-2">Verde: ≥ green_min, Amarillo: ≥ yellow_min y < green_min, Rojo: < yellow_min</p>
+                    <p class="text-xs text-gray-500 mt-2">Verde: ≥ valor verde, Amarillo: ≥ valor amarillo y &lt; valor verde, Rojo: &lt; valor amarillo</p>
                 </div>
                 
                 <!-- Configuración de cantidades por Tier -->
@@ -1009,17 +1008,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     yellow_days: parseInt(document.getElementById('settingsFechaResultadosYellowDays').value) || 15
                 },
                 peso_cartera: {
-                    green_max_pct: parseFloat(document.getElementById('settingsPesoCarteraGreenMax').value) || 10.0,
-                    yellow_min_pct: parseFloat(document.getElementById('settingsPesoCarteraYellowMin').value) || 10.0,
-                    yellow_max_pct: parseFloat(document.getElementById('settingsPesoCarteraYellowMax').value) || 25.0
+                    green_max_pct: parseFloat(document.getElementById('settingsPesoCarteraGreenMax').value) || 1.0,
+                    yellow_max_pct: parseFloat(document.getElementById('settingsPesoCarteraYellowMax').value) || 2.5
                 },
                 tier: {
                     green_pct: parseFloat(document.getElementById('settingsTierGreenPct').value) || 25.0,
                     yellow_pct: parseFloat(document.getElementById('settingsTierYellowPct').value) || 50.0
                 },
                 rentabilidad_5yr: {
-                    green_min: parseFloat(document.getElementById('settingsRentabilidad5yrGreenMin').value) || 60.0,
-                    yellow_min: parseFloat(document.getElementById('settingsRentabilidad5yrYellowMin').value) || 30.0
+                    green_min: parseFloat(document.getElementById('settingsRentabilidad5yrGreenMin').value) || 10.0,
+                    yellow_min: parseFloat(document.getElementById('settingsRentabilidad5yrYellowMin').value) || 0.0
                 },
                 rentabilidad_anual: {
                     green_min: parseFloat(document.getElementById('settingsRentabilidadAnualGreenMin').value) || 10.0,
@@ -1134,13 +1132,12 @@ function openSettingsModal() {
                 document.getElementById('settingsValoracionGreenMin').value = valoracion.green_min || 10.0;
                 document.getElementById('settingsValoracionYellowMin').value = valoracion.yellow_min || 0.0;
                 document.getElementById('settingsFechaResultadosYellowDays').value = fecha.yellow_days || 15;
-                document.getElementById('settingsPesoCarteraGreenMax').value = peso.green_max_pct || 10.0;
-                document.getElementById('settingsPesoCarteraYellowMin').value = peso.yellow_min_pct || 10.0;
-                document.getElementById('settingsPesoCarteraYellowMax').value = peso.yellow_max_pct || 25.0;
+                document.getElementById('settingsPesoCarteraGreenMax').value = peso.green_max_pct || 1.0;
+                document.getElementById('settingsPesoCarteraYellowMax').value = peso.yellow_max_pct || 2.5;
                 document.getElementById('settingsTierGreenPct').value = tier.green_pct || 25.0;
                 document.getElementById('settingsTierYellowPct').value = tier.yellow_pct || 50.0;
-                document.getElementById('settingsRentabilidad5yrGreenMin').value = rent5yr.green_min || 60.0;
-                document.getElementById('settingsRentabilidad5yrYellowMin').value = rent5yr.yellow_min || 30.0;
+                document.getElementById('settingsRentabilidad5yrGreenMin').value = rent5yr.green_min || 10.0;
+                document.getElementById('settingsRentabilidad5yrYellowMin').value = rent5yr.yellow_min || 0.0;
                 document.getElementById('settingsRentabilidadAnualGreenMin').value = rentAnual.green_min || 10.0;
                 document.getElementById('settingsRentabilidadAnualYellowMin').value = rentAnual.yellow_min || 0.0;
                 
