@@ -359,6 +359,8 @@ Cantidad a aumentar/reducir = Cantidad_del_Tier - Cantidad_invertida_actual
 - ✅ Configuración de umbrales y Tier flexible y fácil de usar
 - ✅ Integración completa con AssetRegistry
 - ✅ Actualización masiva de precios funcionando
+- ✅ Ordenación por fecha próximos resultados implementada (orden descendente por defecto)
+- ✅ Header fijo (sticky) funcionando correctamente
 
 ---
 
