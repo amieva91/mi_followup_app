@@ -2621,8 +2621,22 @@ def watchlist():
     db.session.commit()
     
     # Fecha actual para comparaciones en el template
-    from datetime import date
     today = date.today()
+    max_date = date.max  # Capturar date.max antes de la función anidada
+    
+    # Ordenar por fecha próximos resultados por defecto (descendente - fechas más lejanas primero)
+    # Los que no tienen fecha van al final
+    def get_sort_key(item):
+        watchlist_item = item.get('watchlist_item')
+        if watchlist_item and watchlist_item.next_earnings_date:
+            # Para orden descendente, usamos el negativo de los días desde una fecha de referencia
+            # Fechas más lejanas (mayores) aparecerán primero
+            return (0, watchlist_item.next_earnings_date)
+        else:
+            return (1, max_date)  # Sin fecha (prioridad 1, al final)
+    
+    # Ordenar primero, luego revertir para que las fechas más lejanas estén primero
+    table_data.sort(key=get_sort_key, reverse=True)
     
     return render_template(
         'portfolio/watchlist.html',

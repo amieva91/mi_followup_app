@@ -6,8 +6,8 @@
 **Duración estimada**: 2 semanas  
 **Estado**: 🚧 IMPLEMENTACIÓN EN PROGRESO
 
-**Última actualización**: 13 Enero 2026  
-**Progreso**: ~75% completado
+**Última actualización**: 20 Enero 2026  
+**Progreso**: ~80% completado
 
 ---
 
@@ -70,7 +70,10 @@ Implementar funcionalidades avanzadas de análisis de diversificación y gestió
 - ✅ Tooltips informativos en columnas calculadas
 - ✅ Toast notifications personalizadas
 - ✅ Modal de confirmación personalizado
-- 🚧 Pruebas de colores en progreso (Valoración 12M ✅, Indicador operativa ✅)
+- ✅ Ordenación por fecha próximos resultados (orden descendente por defecto)
+- ✅ Header fijo (sticky header) implementado
+- ✅ Sistemas de colores implementados y funcionando
+- ✅ Todas las funcionalidades principales completadas
 
 ---
 
@@ -79,8 +82,10 @@ Implementar funcionalidades avanzadas de análisis de diversificación y gestió
 **Tabla única combinada:**
 - **Primero**: Assets en cartera (con peso e indicadores)
 - **Después**: Assets en watchlist (sin holdings)
-- **Ordenable** por cualquier columna
+- **Ordenable** por cualquier columna (clic en header para alternar ascendente/descendente)
+- **Orden por defecto**: Fecha próximos resultados (descendente - fechas más lejanas primero)
 - **Assets seleccionables**: Click en asset muestra información detallada (igual que en portfolio)
+- **Header fijo (sticky)**: El encabezado de la tabla permanece visible al hacer scroll
 
 ---
 
@@ -196,27 +201,27 @@ Valoración actual = ((PER + NTM Dividend Yield%) / CAGR Revenue YoY%) * 100
 
 ### 5. Cantidad a aumentar/reducir (EUR)
 ```
-Cantidad a aumentar/reducir = Cantidad_invertida_actual - Cantidad_del_Tier
+Cantidad a aumentar/reducir = Cantidad_del_Tier - Cantidad_invertida_actual
 ```
-- **Negativo**: Hay que vender (SELL) - por encima del Tier
+- **Positivo**: Hay que comprar (BUY) - tienes menos que el Tier objetivo
 - **Cero o pequeño (±25% del Tier)**: Dentro del margen (HOLD)
-- **Positivo**: Hay que comprar (BUY) - por debajo del Tier
+- **Negativo**: Hay que vender (SELL) - tienes más que el Tier objetivo
 
 **Ejemplo**:
-- Tier 1 = 2500€, invertido = 5000€ → -2500€ (SELL, rojo)
+- Tier 5 = 10000€, invertido = 3970€ → +6030€ (BUY, verde) - necesitas comprar más
 - Tier 1 = 2500€, invertido = 2600€ → -100€ (HOLD, gris - dentro del ±25%)
-- Tier 1 = 2500€, invertido = 2000€ → +500€ (BUY, verde)
+- Tier 1 = 2500€, invertido = 5000€ → -2500€ (SELL, rojo) - tienes que vender
 
 ### 6. Indicador operativa (BUY/SELL/HOLD)
 - **Calculado automáticamente** basado en "Cantidad a aumentar/reducir" vs Tier
-- **BUY**: Cantidad a aumentar/reducir > 0 (positivo) → Verde
+- **BUY**: Cantidad a aumentar/reducir > 0 (positivo, necesitas comprar más) → Verde
 - **HOLD**: Cantidad dentro del margen (±25% del Tier) → Gris
-- **SELL**: Cantidad a aumentar/reducir < 0 (negativo, por encima del Tier) → Rojo
+- **SELL**: Cantidad a aumentar/reducir < 0 (negativo, necesitas vender) → Rojo
 
 **Lógica**:
 - Si `|cantidad_aumentar_reducir| <= Tier_amount * 0.25` → HOLD
-- Si `cantidad_aumentar_reducir > Tier_amount * 0.25` → BUY
-- Si `cantidad_aumentar_reducir < -(Tier_amount * 0.25)` → SELL
+- Si `cantidad_aumentar_reducir > Tier_amount * 0.25` → BUY (necesitas comprar)
+- Si `cantidad_aumentar_reducir < -(Tier_amount * 0.25)` → SELL (necesitas vender)
 
 ---
 

@@ -222,19 +222,23 @@ class WatchlistMetricsService:
         """
         Calcula cantidad a aumentar/reducir (EUR)
         
-        Fórmula: Cantidad_aumentar_reducir = Cantidad_invertida_actual - Cantidad_del_Tier
+        Fórmula: Cantidad_aumentar_reducir = Cantidad_del_Tier - Cantidad_invertida_actual
+        
+        Interpretación:
+        - Positivo: Necesitas comprar más (BUY) - tienes menos que el Tier
+        - Negativo: Necesitas vender (SELL) - tienes más que el Tier
         
         Args:
             current_value_eur: Cantidad invertida actual (EUR)
-            tier_amount: Cantidad del Tier (EUR)
+            tier_amount: Cantidad del Tier objetivo (EUR)
         
         Returns:
-            Diferencia en EUR (negativo = vender, positivo = comprar) o None si faltan datos
+            Diferencia en EUR (positivo = comprar, negativo = vender) o None si faltan datos
         """
         if current_value_eur is None or tier_amount is None:
             return None
         
-        cantidad_aumentar_reducir = current_value_eur - tier_amount
+        cantidad_aumentar_reducir = tier_amount - current_value_eur
         
         return cantidad_aumentar_reducir
     
@@ -243,14 +247,14 @@ class WatchlistMetricsService:
         """
         Calcula indicador de operativa (BUY/SELL/HOLD) basado en cantidad a aumentar/reducir
         
-        Lógica:
+        Lógica (con fórmula invertida):
         - HOLD: si |cantidad_aumentar_reducir| <= Tier_amount * 0.25 (dentro del margen ±25%)
-        - BUY: si cantidad_aumentar_reducir > Tier_amount * 0.25 (positivo, por debajo del Tier)
-        - SELL: si cantidad_aumentar_reducir < -(Tier_amount * 0.25) (negativo, por encima del Tier)
+        - BUY: si cantidad_aumentar_reducir > Tier_amount * 0.25 (positivo, necesitas comprar más)
+        - SELL: si cantidad_aumentar_reducir < -(Tier_amount * 0.25) (negativo, necesitas vender)
         
         Args:
-            cantidad_aumentar_reducir: Diferencia vs Tier (EUR)
-            tier_amount: Cantidad del Tier (EUR)
+            cantidad_aumentar_reducir: Diferencia vs Tier (EUR) - Positivo = comprar, Negativo = vender
+            tier_amount: Cantidad del Tier objetivo (EUR)
         
         Returns:
             'BUY', 'SELL', 'HOLD', o '-' (si faltan datos)
@@ -266,8 +270,10 @@ class WatchlistMetricsService:
         if abs(cantidad_aumentar_reducir) <= margen:
             return 'HOLD'
         elif cantidad_aumentar_reducir > margen:
+            # Positivo: tienes menos que el Tier, necesitas comprar
             return 'BUY'
         else:  # cantidad_aumentar_reducir < -margen
+            # Negativo: tienes más que el Tier, necesitas vender
             return 'SELL'
     
     @staticmethod
