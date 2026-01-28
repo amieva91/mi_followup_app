@@ -58,7 +58,7 @@
                         <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                             <span class="flex items-center justify-center gap-1">
                                 Indicador operativa
-                                <span class="cursor-help text-gray-400" title="Calculado: BUY (comprar), HOLD (mantener), SELL (vender). Basado en Cantidad a aumentar/reducir vs Tier">ⓘ</span>
+                                <span class="cursor-help text-gray-400" title="Calculado: INCREASE/HOLD/REDUCE (basado en Tier y cantidad a aumentar/reducir) + señales globales BUY/SELL basadas en Valoración 12m y Rentabilidad Anual. BUY/SELL prevalecen sobre el resto.">ⓘ</span>
                             </span>
                         </th>
                         <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -171,13 +171,17 @@
                             {% endif %}
                         </td>
                         
-                        <!-- Indicador operativa (BUY/SELL/HOLD) -->
+                        <!-- Indicador operativa (INCREASE/HOLD/REDUCE + BUY/SELL globales) -->
                         <td class="px-4 py-3 whitespace-nowrap text-center">
                             {% if watchlist_item and watchlist_item.operativa_indicator and watchlist_item.operativa_indicator != '-' %}
                                 {% if watchlist_item.operativa_indicator == 'BUY' %}
                                     <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">BUY</span>
                                 {% elif watchlist_item.operativa_indicator == 'SELL' %}
                                     <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">SELL</span>
+                                {% elif watchlist_item.operativa_indicator == 'INCREASE' %}
+                                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">INCREASE</span>
+                                {% elif watchlist_item.operativa_indicator == 'REDUCE' %}
+                                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">REDUCE</span>
                                 {% elif watchlist_item.operativa_indicator == 'HOLD' %}
                                     <span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">HOLD</span>
                                 {% else %}
@@ -220,9 +224,10 @@
                             {% endif %}
                         </td>
                         
-                        <!-- Cantidad a aumentar/reducir (solo para assets en cartera) - Misma lógica de colores que Tier -->
+                        <!-- Cantidad a aumentar/reducir -->
                         <td class="px-4 py-3 whitespace-nowrap text-right">
                             {% if item.type == 'portfolio' and watchlist_item and watchlist_item.cantidad_aumentar_reducir is not none %}
+                                {# Lógica existente para assets en cartera: misma que colores de Tier #}
                                 {% if watchlist_item.tier and item.current_value_eur is not none %}
                                     {# Calcular desviación porcentual igual que Tier para usar los mismos umbrales #}
                                     {% set tier_key = 'tier_' ~ watchlist_item.tier %}
@@ -282,6 +287,15 @@
                                     {% else %}
                                         <span class="text-sm text-gray-500">0 €</span>
                                     {% endif %}
+                                {% endif %}
+                            {% elif item.type == 'watchlist_only' and watchlist_item and watchlist_item.tier %}
+                                {# Asset solo en watchlist (sin posición): mostrar cantidad objetivo del Tier como compra inicial #}
+                                {% set tier_key = 'tier_' ~ watchlist_item.tier %}
+                                {% set tier_amount = tier_amounts[tier_key] if tier_key in tier_amounts else 0 %}
+                                {% if tier_amount > 0 %}
+                                    <span class="text-sm font-medium text-green-600">+{{ tier_amount|decimal_eu(0) }} €</span>
+                                {% else %}
+                                    <span class="text-xs text-gray-400">—</span>
                                 {% endif %}
                             {% else %}
                                 <span class="text-xs text-gray-400">—</span>
@@ -652,6 +666,93 @@
                         </div>
                     </div>
                     <p class="text-xs text-gray-500 mt-2">Verde: ≥ valor verde, Amarillo: ≥ valor amarillo y &lt; valor verde, Rojo: &lt; valor amarillo</p>
+                </div>
+                
+                <!-- Reglas de Indicador Operativa (BUY/SELL globales) -->
+                <div class="mb-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
+                    <h4 class="text-sm font-semibold text-gray-700 mb-3">Indicador operativa (BUY/SELL global)</h4>
+                    <p class="text-xs text-gray-600 mb-3">
+                        Configura las reglas para señales fuertes de compra (BUY) y venta (SELL) basadas en
+                        <span class="font-semibold">Valoración 12m (%)</span> y <span class="font-semibold">Rentabilidad Anual (%)</span>.
+                        Estas señales prevalecen sobre INCREASE/HOLD/REDUCE.
+                    </p>
+                    
+                    <!-- Reglas BUY (solo assets en watchlist sin posición) -->
+                    <div class="mb-3 p-3 bg-white rounded border border-purple-100">
+                        <h5 class="text-xs font-semibold text-purple-800 mb-2">Regla BUY (assets en seguimiento, sin posición)</h5>
+                        <div class="space-y-2">
+                            <div class="grid grid-cols-3 gap-2 items-center">
+                                <span class="text-xs text-gray-600">Condición 1: Valoración 12m</span>
+                                <select id="settingsBuyValoracionOp" class="px-2 py-1 text-xs border border-gray-300 rounded">
+                                    <option value=">">&gt;</option>
+                                    <option value=">=">&gt;=</option>
+                                    <option value="<">&lt;</option>
+                                    <option value="<=">&lt;=</option>
+                                    <option value="=">=</option>
+                                </select>
+                                <input type="number" step="0.1" id="settingsBuyValoracionValue" class="w-full px-2 py-1 text-xs border border-gray-300 rounded" placeholder="Ej: -12.5">
+                            </div>
+                            <div class="grid grid-cols-3 gap-2 items-center">
+                                <span class="text-xs text-gray-600">Condición 2: Rent. Anual</span>
+                                <select id="settingsBuyRentAnualOp" class="px-2 py-1 text-xs border border-gray-300 rounded">
+                                    <option value="">(sin usar)</option>
+                                    <option value=">">&gt;</option>
+                                    <option value=">=">&gt;=</option>
+                                    <option value="<">&lt;</option>
+                                    <option value="<=">&lt;=</option>
+                                    <option value="=">=</option>
+                                </select>
+                                <input type="number" step="0.1" id="settingsBuyRentAnualValue" class="w-full px-2 py-1 text-xs border border-gray-300 rounded" placeholder="Ej: 60">
+                            </div>
+                            <div class="grid grid-cols-3 gap-2 items-center">
+                                <span class="text-xs text-gray-600">Combinar condiciones</span>
+                                <select id="settingsBuyCombiner" class="px-2 py-1 text-xs border border-gray-300 rounded">
+                                    <option value="AND">Ambas (AND)</option>
+                                    <option value="OR">Al menos una (OR)</option>
+                                </select>
+                                <span class="text-[11px] text-gray-500">Por defecto: Rent. Anual ≥ 60% AND Valoración 12m &gt; -12.5%</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Reglas SELL (solo assets en cartera con posición) -->
+                    <div class="p-3 bg-white rounded border border-purple-100">
+                        <h5 class="text-xs font-semibold text-purple-800 mb-2">Regla SELL (solo assets en cartera)</h5>
+                        <div class="space-y-2">
+                            <div class="grid grid-cols-3 gap-2 items-center">
+                                <span class="text-xs text-gray-600">Condición 1: Valoración 12m</span>
+                                <select id="settingsSellValoracionOp" class="px-2 py-1 text-xs border border-gray-300 rounded">
+                                    <option value="">(sin usar)</option>
+                                    <option value=">">&gt;</option>
+                                    <option value=">=">&gt;=</option>
+                                    <option value="<">&lt;</option>
+                                    <option value="<=">&lt;=</option>
+                                    <option value="=">=</option>
+                                </select>
+                                <input type="number" step="0.1" id="settingsSellValoracionValue" class="w-full px-2 py-1 text-xs border border-gray-300 rounded" placeholder="Ej: -30">
+                            </div>
+                            <div class="grid grid-cols-3 gap-2 items-center">
+                                <span class="text-xs text-gray-600">Condición 2: Rent. Anual</span>
+                                <select id="settingsSellRentAnualOp" class="px-2 py-1 text-xs border border-gray-300 rounded">
+                                    <option value="">(sin usar)</option>
+                                    <option value=">">&gt;</option>
+                                    <option value=">=">&gt;=</option>
+                                    <option value="<">&lt;</option>
+                                    <option value="<=">&lt;=</option>
+                                    <option value="=">=</option>
+                                </select>
+                                <input type="number" step="0.1" id="settingsSellRentAnualValue" class="w-full px-2 py-1 text-xs border border-gray-300 rounded" placeholder="Ej: 0">
+                            </div>
+                            <div class="grid grid-cols-3 gap-2 items-center">
+                                <span class="text-xs text-gray-600">Combinar condiciones</span>
+                                <select id="settingsSellCombiner" class="px-2 py-1 text-xs border border-gray-300 rounded">
+                                    <option value="AND">Ambas (AND)</option>
+                                    <option value="OR">Al menos una (OR)</option>
+                                </select>
+                                <span class="text-[11px] text-gray-500">Por defecto sin reglas activas (no se dispara SELL hasta que configures condiciones).</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 
                 <!-- Configuración de cantidades por Tier -->
@@ -1076,6 +1177,50 @@ document.addEventListener('DOMContentLoaded', function() {
                 rentabilidad_anual: {
                     green_min: parseFloat(document.getElementById('settingsRentabilidadAnualGreenMin').value) || 10.0,
                     yellow_min: parseFloat(document.getElementById('settingsRentabilidadAnualYellowMin').value) || 0.0
+                },
+                operativa_rules: {
+                    buy: {
+                        valoracion_12m: (function() {
+                            const op = document.getElementById('settingsBuyValoracionOp').value;
+                            const valStr = document.getElementById('settingsBuyValoracionValue').value;
+                            const val = valStr === '' ? null : parseFloat(valStr);
+                            if (!op || val === null || isNaN(val)) {
+                                return {};
+                            }
+                            return { op: op, value: val };
+                        })(),
+                        rentabilidad_anual: (function() {
+                            const op = document.getElementById('settingsBuyRentAnualOp').value;
+                            const valStr = document.getElementById('settingsBuyRentAnualValue').value;
+                            const val = valStr === '' ? null : parseFloat(valStr);
+                            if (!op || val === null || isNaN(val)) {
+                                return {};
+                            }
+                            return { op: op, value: val };
+                        })(),
+                        combiner: document.getElementById('settingsBuyCombiner').value || 'AND'
+                    },
+                    sell: {
+                        valoracion_12m: (function() {
+                            const op = document.getElementById('settingsSellValoracionOp').value;
+                            const valStr = document.getElementById('settingsSellValoracionValue').value;
+                            const val = valStr === '' ? null : parseFloat(valStr);
+                            if (!op || val === null || isNaN(val)) {
+                                return {};
+                            }
+                            return { op: op, value: val };
+                        })(),
+                        rentabilidad_anual: (function() {
+                            const op = document.getElementById('settingsSellRentAnualOp').value;
+                            const valStr = document.getElementById('settingsSellRentAnualValue').value;
+                            const val = valStr === '' ? null : parseFloat(valStr);
+                            if (!op || val === null || isNaN(val)) {
+                                return {};
+                            }
+                            return { op: op, value: val };
+                        })(),
+                        combiner: document.getElementById('settingsSellCombiner').value || 'AND'
+                    }
                 }
             };
             
@@ -1182,6 +1327,7 @@ function openSettingsModal() {
                 const tier = colorThresholds.tier || {};
                 const rent5yr = colorThresholds.rentabilidad_5yr || {};
                 const rentAnual = colorThresholds.rentabilidad_anual || {};
+                const operativaRules = colorThresholds.operativa_rules || {};
                 
                 document.getElementById('settingsValoracionGreenMin').value = valoracion.green_min || 10.0;
                 document.getElementById('settingsValoracionYellowMin').value = valoracion.yellow_min || 0.0;
@@ -1194,6 +1340,31 @@ function openSettingsModal() {
                 document.getElementById('settingsRentabilidad5yrYellowMin').value = rent5yr.yellow_min || 0.0;
                 document.getElementById('settingsRentabilidadAnualGreenMin').value = rentAnual.green_min || 10.0;
                 document.getElementById('settingsRentabilidadAnualYellowMin').value = rentAnual.yellow_min || 0.0;
+                
+                // Cargar reglas de operativa (BUY/SELL)
+                const buyRules = operativaRules.buy || {};
+                const sellRules = operativaRules.sell || {};
+                
+                const buyValCfg = buyRules.valoracion_12m || {};
+                const buyRentCfg = buyRules.rentabilidad_anual || {};
+                const sellValCfg = sellRules.valoracion_12m || {};
+                const sellRentCfg = sellRules.rentabilidad_anual || {};
+                
+                document.getElementById('settingsBuyValoracionOp').value = buyValCfg.op || '>';
+                document.getElementById('settingsBuyValoracionValue').value = 
+                    buyValCfg.value !== undefined ? buyValCfg.value : -12.5;
+                document.getElementById('settingsBuyRentAnualOp').value = buyRentCfg.op || '>=';
+                document.getElementById('settingsBuyRentAnualValue').value = 
+                    buyRentCfg.value !== undefined ? buyRentCfg.value : 60.0;
+                document.getElementById('settingsBuyCombiner').value = buyRules.combiner || 'AND';
+                
+                document.getElementById('settingsSellValoracionOp').value = sellValCfg.op || '';
+                document.getElementById('settingsSellValoracionValue').value = 
+                    sellValCfg.value !== undefined ? sellValCfg.value : '';
+                document.getElementById('settingsSellRentAnualOp').value = sellRentCfg.op || '';
+                document.getElementById('settingsSellRentAnualValue').value = 
+                    sellRentCfg.value !== undefined ? sellRentCfg.value : '';
+                document.getElementById('settingsSellCombiner').value = sellRules.combiner || 'AND';
                 
                 // Cargar rangos de Tier (reconstruir valores simples desde rangos)
                 const tierRanges = config.tier_ranges || {};

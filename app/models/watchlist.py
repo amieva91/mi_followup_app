@@ -151,6 +151,19 @@ class WatchlistConfig(db.Model):
             "rentabilidad_anual": {
                 "green_min": 10.0,  # Verde si >= 10%
                 "yellow_min": 0.0   # Amarillo si >= 0% y < 10%, Rojo si < 0%
+            },
+            # Reglas para indicador de operativa global (BUY/SELL)
+            "operativa_rules": {
+                "buy": {
+                    # Por defecto: Rentabilidad anual >= 60% AND Valoración 12m > -12.5%
+                    "valoracion_12m": {"op": ">", "value": -12.5},
+                    "rentabilidad_anual": {"op": ">=", "value": 60.0},
+                    "combiner": "AND",
+                },
+                "sell": {
+                    # Por defecto sin reglas activas (el usuario puede configurarlas en Ajustes)
+                    "combiner": "AND",
+                },
             }
         }
     

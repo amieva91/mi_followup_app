@@ -96,9 +96,9 @@ Implementar funcionalidades avanzadas de análisis de diversificación y gestió
 | 1 | **Symbol** | - | Símbolo del asset | - |
 | 2 | **Nombre** | - | Nombre del asset | - |
 | 3 | **Fecha próximos resultados** | Manual | Fecha de próxima presentación de resultados | Con colores (verde/amarillo/rojo) |
-| 4 | **Indicador operativa** | Calculado | BUY / SELL / HOLD | Automático basado en cantidad a aumentar/reducir vs Tier |
+| 4 | **Indicador operativa** | Calculado | BUY / SELL / INCREASE / HOLD / REDUCE | Combina señales globales BUY/SELL (reglas configurables) con indicador por Tier (INCREASE/HOLD/REDUCE) |
 | 5 | **Tier (1-5)** | Calculado | Tier de inversión según valoración | Basado en Valoración actual 12 meses (%). Con colores para assets en cartera |
-| 6 | **Cantidad a aumentar/reducir** | Calculado | Diferencia vs cantidad del Tier (EUR) | Negativo = vender, Positivo = comprar. Solo para assets en cartera |
+| 6 | **Cantidad a aumentar/reducir** | Calculado | Diferencia vs cantidad del Tier (EUR) | En cartera: diferencia vs Tier. En watchlist sin cartera: muestra directamente la cantidad objetivo del Tier (sugerencia de compra inicial) |
 | 7 | **Rentabilidad a 5 años (%)** | Calculado | Rentabilidad proyectada a 5 años | Basada en Target Price + Dividend Yield |
 | 8 | **Rentabilidad Anual (%)** | Calculado | Rentabilidad anual proyectada | Basada en Target Price + Dividend Yield |
 | 9 | **Valoración actual 12 meses (%)** | Calculado | Indicador barata/cara (punto de entrada) | Con colores (verde/amarillo/rojo) |
@@ -145,9 +145,17 @@ Implementar funcionalidades avanzadas de análisis de diversificación y gestió
 
 ### 4. Indicador operativa
 
-- 🟢 **BUY** → Verde (cantidad a aumentar positiva)
-- ⚪ **HOLD** → Gris (dentro del margen del Tier)
-- 🔴 **SELL** → Rojo (cantidad a reducir negativa)
+Combina dos niveles:
+
+- **Indicador global BUY/SELL** (señales fuertes):
+  - **BUY** (verde): Solo para assets en seguimiento sin posición (watchlist). Basado en reglas configurables sobre Valoración 12m y Rentabilidad Anual.
+  - **SELL** (rojo): Solo para assets en cartera (con posición). Basado en reglas configurables sobre Valoración 12m y Rentabilidad Anual.
+  - BUY/SELL globales **prevalecen** sobre el indicador por Tier.
+
+- **Indicador por Tier** (solo para assets en cartera):
+  - 🟢 **INCREASE** → Verde: muy por debajo del Tier objetivo (hay que aumentar posición).
+  - ⚪ **HOLD** → Gris: dentro del margen aceptable alrededor del Tier (±25%).
+  - 🟡 **REDUCE** → Amarillo: por encima del Tier objetivo (hay que reducir, pero sin ser señal fuerte de venta).
 
 ### 5. Tier (solo para assets en cartera)
 
@@ -175,53 +183,163 @@ Implementar funcionalidades avanzadas de análisis de diversificación y gestió
 
 ### 1. Target Price (5 yr)
 ```
-Target Price = (EPS * (1 + CAGR Revenue YoY%)^5) * PER
+Target Price = EPS * (1 + CAGR Revenue YoY%)^5 * PER
 ```
+
+**Ejemplo con VICI**:
+- EPS = 2.77
+- CAGR = 3.1% (0.031 en decimal)
+- PER = 12.0
+- Factor de crecimiento = (1 + 0.031)^5 = 1.164913
+- Target Price = 2.77 * 1.164913 * 12.0 = 38.72
 
 ### 2. Valoración actual 12 meses (%)
 ```
-Valoración actual = ((PER + NTM Dividend Yield%) / CAGR Revenue YoY%) * 100
+PEGY = PER / (CAGR% + Dividend Yield%)
+Desviación = (PEGY - 1) * 100
+Valoración final = -Desviación
 ```
-- Si resultado >= 10%: Alcista/barata (verde)
-- Si resultado 0-10%: Neutro (amarillo)
-- Si resultado < 0%: Bajista/cara (rojo)
 
-**Ejemplos**:
-- PER=10, Dividend Yield=2%, CAGR=20% → (10+2)/20 * 100 = 60% (verde)
-- PER=10, Dividend Yield=2%, CAGR=10% → (10+2)/10 * 100 = 120% (rojo)
+**Interpretación** (después de invertir el signo):
+- **Verde (>= 10%)**: La acción está BARATA/INFRAVALORADA (PEGY < 1) → Buen punto de entrada
+- **Amarillo (0% a < 10%)**: La acción está en rango NEUTRO
+- **Rojo (< 0%)**: La acción está CARA/SOBREVALORADA (PEGY > 1) → Mal punto de entrada
 
-### 3. Rentabilidad a 5 años / Anual
-- Basada en Target Price (5 yr) calculado
-- Incluye NTM Dividend Yield (dividendo constante anual durante 5 años)
+**Ejemplo con VICI**:
+- PER = 12.0
+- Dividend Yield = 6.4%
+- CAGR = 3.1%
+- Denominador = 3.1% + 6.4% = 9.5%
+- PEGY = 12.0 / 9.5 = 1.263158
+- Desviación = (1.263158 - 1) * 100 = 26.32%
+- **Valoración final = -26.32%** (ROJO: acción cara/sobrevalorada)
+
+**Ejemplos adicionales**:
+- PER=10, Dividend Yield=2%, CAGR=20% → PEGY = 10/(20+2) = 0.455 → Desviación = -54.5% → Valoración = +54.5% (VERDE: barata)
+- PER=10, Dividend Yield=2%, CAGR=10% → PEGY = 10/(10+2) = 0.833 → Desviación = -16.7% → Valoración = +16.7% (VERDE: barata)
+
+### 3. Rentabilidad a 5 años (%)
+```
+Ganancia de capital = (Target Price - Precio actual) / Precio actual * 100
+Dividendos acumulados = Dividend Yield% * 5
+Rentabilidad 5yr = Ganancia de capital + Dividendos acumulados
+```
+
+**Ejemplo con VICI**:
+- Precio actual = 28.51
+- Target Price 5yr = 38.72
+- Dividend Yield = 6.4%
+- Ganancia de capital = (38.72 - 28.51) / 28.51 * 100 = 35.82%
+- Dividendos acumulados = 6.4% * 5 = 32.00%
+- **Rentabilidad 5yr = 35.82% + 32.00% = 67.82%**
+
+### 4. Rentabilidad Anual (%)
+```
+Si ganancia de capital > 0:
+  Ganancia capital anualizada = ((Target Price / Precio actual)^(1/5) - 1) * 100
+Si ganancia de capital <= 0:
+  Pérdida capital anualizada = (Ganancia de capital / Precio actual) / 5 * 100
+
+Rentabilidad anual = Ganancia capital anualizada + Dividend Yield%
+```
+
+**Ejemplo con VICI**:
+- Precio actual = 28.51
+- Target Price 5yr = 38.72
+- Dividend Yield = 6.4%
+- Ganancia capital anualizada = ((38.72 / 28.51)^(1/5) - 1) * 100 = 6.31%
+- **Rentabilidad anual = 6.31% + 6.4% = 12.71%**
 
 ### 4. Tier (1-5)
 - **Calculado automáticamente** basado en Valoración actual 12 meses (%)
 - El usuario configura los rangos que determinan cada Tier
 - Rangos configurables (ej: Tier 5 si >= 50%, Tier 4 si 30-50%, etc.)
 
+**Rangos por defecto**:
+- **Tier 5**: Valoración >= 50% (mejor valoración, más barata)
+- **Tier 4**: Valoración >= 30% y < 50%
+- **Tier 3**: Valoración >= 10% y < 30%
+- **Tier 2**: Valoración >= 0% y < 10%
+- **Tier 1**: Valoración < 0% (peor valoración, más cara)
+
+**Ejemplo con VICI**:
+- Valoración 12M = -26.32% (negativa)
+- Como -26.32% < 0% → **Tier 1** (acción cara, no es buen momento de entrada)
+
 ### 5. Cantidad a aumentar/reducir (EUR)
 ```
 Cantidad a aumentar/reducir = Cantidad_del_Tier - Cantidad_invertida_actual
 ```
-- **Positivo**: Hay que comprar (BUY) - tienes menos que el Tier objetivo
+- **Positivo**: Hay que comprar (INCREASE) - tienes menos que el Tier objetivo
 - **Cero o pequeño (±25% del Tier)**: Dentro del margen (HOLD)
-- **Negativo**: Hay que vender (SELL) - tienes más que el Tier objetivo
+- **Negativo**: Hay que reducir (REDUCE) - tienes más que el Tier objetivo
 
 **Ejemplo**:
 - Tier 5 = 10000€, invertido = 3970€ → +6030€ (BUY, verde) - necesitas comprar más
 - Tier 1 = 2500€, invertido = 2600€ → -100€ (HOLD, gris - dentro del ±25%)
 - Tier 1 = 2500€, invertido = 5000€ → -2500€ (SELL, rojo) - tienes que vender
 
-### 6. Indicador operativa (BUY/SELL/HOLD)
-- **Calculado automáticamente** basado en "Cantidad a aumentar/reducir" vs Tier
-- **BUY**: Cantidad a aumentar/reducir > 0 (positivo, necesitas comprar más) → Verde
-- **HOLD**: Cantidad dentro del margen (±25% del Tier) → Gris
-- **SELL**: Cantidad a aumentar/reducir < 0 (negativo, necesitas vender) → Rojo
+### 6. Indicador operativa (BUY/SELL/INCREASE/HOLD/REDUCE)
 
-**Lógica**:
-- Si `|cantidad_aumentar_reducir| <= Tier_amount * 0.25` → HOLD
-- Si `cantidad_aumentar_reducir > Tier_amount * 0.25` → BUY (necesitas comprar)
-- Si `cantidad_aumentar_reducir < -(Tier_amount * 0.25)` → SELL (necesitas vender)
+#### 6.1 Indicador por Tier (solo cartera)
+- **Calculado automáticamente** basado en "Cantidad a aumentar/reducir" vs Tier
+- **INCREASE**: Cantidad a aumentar/reducir > Tier_amount * 0.25 (positivo, necesitas comprar más) → Verde
+- **HOLD**: `|cantidad_aumentar_reducir| <= Tier_amount * 0.25` (dentro del margen ±25%) → Gris
+- **REDUCE**: Cantidad a aumentar/reducir < -(Tier_amount * 0.25) (negativo, necesitas vender/reducir) → Amarillo
+
+**Lógica detallada**:
+- Margen = Tier_amount * 0.25 (25% del Tier)
+- Si `|cantidad_aumentar_reducir| <= margen` → HOLD
+- Si `cantidad_aumentar_reducir > margen` → INCREASE (tienes menos que el Tier, necesitas comprar)
+- Si `cantidad_aumentar_reducir < -margen` → REDUCE (tienes más que el Tier, necesitas reducir)
+
+**Ejemplos (cartera)**:
+- Tier 1 = 2500€, invertido = 2000€ → cantidad = 2500 - 2000 = +500€
+  - Margen = 2500 * 0.25 = 625€
+  - Como 500€ <= 625€ → **HOLD** (dentro del margen)
+- Tier 5 = 10000€, invertido = 3970€ → cantidad = 10000 - 3970 = +6030€
+  - Margen = 10000 * 0.25 = 2500€
+  - Como 6030€ > 2500€ → **INCREASE** (verde, necesitas comprar más)
+- Tier 1 = 2500€, invertido = 5000€ → cantidad = 2500 - 5000 = -2500€
+  - Margen = 2500 * 0.25 = 625€
+  - Como -2500€ < -625€ → **REDUCE** (amarillo, necesitas reducir posición)
+
+#### 6.2 Indicador global BUY/SELL (reglas configurables)
+
+Definido en configuración (`operativa_rules`) con esta estructura:
+```json
+{
+  "buy": {
+    "valoracion_12m": {"op": ">", "value": -12.5},
+    "rentabilidad_anual": {"op": ">=", "value": 60.0},
+    "combiner": "AND"
+  },
+  "sell": {
+    "valoracion_12m": {"op": "<", "value": -12.5},
+    "rentabilidad_anual": {},
+    "combiner": "AND"
+  }
+}
+```
+
+- **BUY**:
+  - Solo se aplica a assets **en seguimiento sin posición** (watchlist_only).
+  - Se evalúan hasta dos condiciones:
+    - Condición 1: Valoración 12m con operador (=, >, >=, <, <=) y valor.
+    - Condición 2 (opcional): Rentabilidad Anual con operador y valor.
+  - El usuario elige cómo combinarlas: **AND** (ambas) o **OR** (al menos una).
+  - **Valores por defecto**:
+    - Rentabilidad Anual `>= 60%`
+    - Valoración 12m `> -12.5%`
+    - Combiner `AND`.
+
+- **SELL**:
+  - Solo se aplica a assets **en cartera** (con posición).
+  - Misma estructura de reglas (Valoración 12m + Rentabilidad Anual) y combiner AND/OR.
+  - Por defecto viene sin condiciones activas (no dispara hasta que el usuario las configure).
+
+**Prioridad**:
+- Si se enciende BUY o SELL global, **prevalece** sobre INCREASE/HOLD/REDUCE y es lo que se muestra en la columna de Indicador operativa.
 
 ---
 

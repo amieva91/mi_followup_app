@@ -225,8 +225,8 @@ class WatchlistMetricsService:
         Fórmula: Cantidad_aumentar_reducir = Cantidad_del_Tier - Cantidad_invertida_actual
         
         Interpretación:
-        - Positivo: Necesitas comprar más (BUY) - tienes menos que el Tier
-        - Negativo: Necesitas vender (SELL) - tienes más que el Tier
+        - Positivo: Necesitas comprar más (INCREASE) - tienes menos que el Tier
+        - Negativo: Necesitas reducir (REDUCE) - tienes más que el Tier
         
         Args:
             current_value_eur: Cantidad invertida actual (EUR)
@@ -245,19 +245,19 @@ class WatchlistMetricsService:
     @staticmethod
     def calculate_operativa_indicator(cantidad_aumentar_reducir: Optional[float], tier_amount: Optional[float]) -> str:
         """
-        Calcula indicador de operativa (BUY/SELL/HOLD) basado en cantidad a aumentar/reducir
+        Calcula indicador de operativa basado en cantidad a aumentar/reducir respecto al Tier
         
-        Lógica (con fórmula invertida):
+        Indicador basado en Tier (no en reglas globales):
         - HOLD: si |cantidad_aumentar_reducir| <= Tier_amount * 0.25 (dentro del margen ±25%)
-        - BUY: si cantidad_aumentar_reducir > Tier_amount * 0.25 (positivo, necesitas comprar más)
-        - SELL: si cantidad_aumentar_reducir < -(Tier_amount * 0.25) (negativo, necesitas vender)
+        - INCREASE: si cantidad_aumentar_reducir > Tier_amount * 0.25 (positivo, necesitas comprar más)
+        - REDUCE: si cantidad_aumentar_reducir < -(Tier_amount * 0.25) (negativo, necesitas vender/reducir)
         
         Args:
             cantidad_aumentar_reducir: Diferencia vs Tier (EUR) - Positivo = comprar, Negativo = vender
             tier_amount: Cantidad del Tier objetivo (EUR)
         
         Returns:
-            'BUY', 'SELL', 'HOLD', o '-' (si faltan datos)
+            'INCREASE', 'REDUCE', 'HOLD', o '-' (si faltan datos)
         """
         if cantidad_aumentar_reducir is None or tier_amount is None:
             return '-'
@@ -271,10 +271,116 @@ class WatchlistMetricsService:
             return 'HOLD'
         elif cantidad_aumentar_reducir > margen:
             # Positivo: tienes menos que el Tier, necesitas comprar
-            return 'BUY'
+            return 'INCREASE'
         else:  # cantidad_aumentar_reducir < -margen
             # Negativo: tienes más que el Tier, necesitas vender
-            return 'SELL'
+            return 'REDUCE'
+
+    @staticmethod
+    def _evaluate_rule_condition(metric_value: Optional[float], rule_config: Optional[Dict[str, Any]]) -> Optional[bool]:
+        """
+        Evalúa una condición simple (operador + valor) sobre una métrica.
+        
+        Returns:
+            True / False si la regla está definida, None si no hay regla que evaluar.
+        """
+        if not rule_config:
+            return None
+        
+        op = rule_config.get("op")
+        value = rule_config.get("value")
+        
+        if op is None or value is None:
+            return None
+        
+        if metric_value is None:
+            # Si no hay dato de métrica, la condición no se puede cumplir
+            return False
+        
+        if op == "=":
+            return metric_value == value
+        if op == ">":
+            return metric_value > value
+        if op == "<":
+            return metric_value < value
+        if op == ">=":
+            return metric_value >= value
+        if op == "<=":
+            return metric_value <= value
+        
+        # Operador desconocido: considerar que no se cumple
+        return False
+
+    @staticmethod
+    def calculate_operativa_global(
+        watchlist_item: Watchlist,
+        operativa_rules: Optional[Dict[str, Any]],
+        has_position: bool
+    ) -> Optional[str]:
+        """
+        Calcula indicador de operativa global (BUY/SELL) basado en reglas configurables.
+        
+        - BUY: señal fuerte de compra (solo para assets en seguimiento sin posición en cartera)
+        - SELL: señal fuerte de venta (solo para assets con posición en cartera)
+        
+        Las reglas se definen en WatchlistConfig.color_thresholds["operativa_rules"] con esta estructura:
+        
+        {
+            "buy": {
+                "valoracion_12m": {"op": ">", "value": -12.5},
+                "rentabilidad_anual": {"op": ">=", "value": 60.0},
+                "combiner": "AND"  # o "OR"
+            },
+            "sell": {
+                "valoracion_12m": {...},
+                "rentabilidad_anual": {...},
+                "combiner": "AND" | "OR"
+            }
+        }
+        """
+        if not operativa_rules:
+            return None
+        
+        valoracion_12m = watchlist_item.valoracion_12m
+        rent_anual = watchlist_item.rentabilidad_anual
+        
+        def eval_rule(rule_key: str) -> Optional[bool]:
+            cfg = operativa_rules.get(rule_key) or {}
+            val_cfg = cfg.get("valoracion_12m")
+            rent_cfg = cfg.get("rentabilidad_anual")
+            combiner = (cfg.get("combiner") or "AND").upper()
+            
+            val_res = WatchlistMetricsService._evaluate_rule_condition(valoracion_12m, val_cfg)
+            rent_res = WatchlistMetricsService._evaluate_rule_condition(rent_anual, rent_cfg)
+            
+            # Si ninguna condición está definida, no hay regla que evaluar
+            if val_res is None and rent_res is None:
+                return None
+            
+            # Si solo hay una condición definida, usarla directamente
+            if val_res is None:
+                return rent_res
+            if rent_res is None:
+                return val_res
+            
+            if combiner == "OR":
+                return bool(val_res or rent_res)
+            # Por defecto AND
+            return bool(val_res and rent_res)
+        
+        # BUY solo para assets SIN posición (watchlist)
+        if not has_position:
+            buy_match = eval_rule("buy")
+            if buy_match:
+                return "BUY"
+        
+        # SELL solo para assets CON posición (cartera)
+        if has_position:
+            sell_match = eval_rule("sell")
+            if sell_match:
+                return "SELL"
+        
+        return None
     
     @staticmethod
     def calculate_tier_color(current_value_eur: Optional[float], tier_amount: Optional[float]) -> Optional[str]:
@@ -356,7 +462,7 @@ class WatchlistMetricsService:
         
         watchlist_item.tier = tier
         
-        # 4. Si hay Tier y cantidad invertida, calcular cantidad a aumentar/reducir
+        # 4. Si hay Tier y cantidad invertida, calcular cantidad a aumentar/reducir e indicador basado en Tier
         if tier is not None and current_value_eur is not None:
             tier_amounts = config.get_tier_amounts_dict()
             tier_key = f"tier_{tier}"
@@ -369,7 +475,7 @@ class WatchlistMetricsService:
                 )
                 watchlist_item.cantidad_aumentar_reducir = cantidad_aumentar_reducir
                 
-                # 5. Calcular indicador de operativa
+                # Indicador basado en Tier: INCREASE / HOLD / REDUCE
                 operativa_indicator = WatchlistMetricsService.calculate_operativa_indicator(
                     cantidad_aumentar_reducir,
                     tier_amount
@@ -381,7 +487,7 @@ class WatchlistMetricsService:
                 watchlist_item.operativa_indicator = '-'
             watchlist_item.cantidad_aumentar_reducir = None
         
-        # 6. Calcular Rentabilidad a 5 años
+        # 5. Calcular Rentabilidad a 5 años
         rentabilidad_5yr = WatchlistMetricsService.calculate_rentabilidad_5yr(
             target_price_5yr,
             watchlist_item.precio_actual,
@@ -389,13 +495,33 @@ class WatchlistMetricsService:
         )
         watchlist_item.rentabilidad_5yr = rentabilidad_5yr
         
-        # 7. Calcular Rentabilidad Anual
+        # 6. Calcular Rentabilidad Anual
         rentabilidad_anual = WatchlistMetricsService.calculate_rentabilidad_anual(
             target_price_5yr,
             watchlist_item.precio_actual,
             watchlist_item.ntm_dividend_yield
         )
         watchlist_item.rentabilidad_anual = rentabilidad_anual
+        
+        # 7. Aplicar reglas globales de BUY/SELL (prevalecen sobre INCREASE/HOLD/REDUCE)
+        color_thresholds = config.get_color_thresholds_dict()
+        operativa_rules = color_thresholds.get("operativa_rules", {}) if isinstance(color_thresholds, dict) else {}
+        has_position = current_value_eur is not None and current_value_eur > 0
+        
+        global_indicator = WatchlistMetricsService.calculate_operativa_global(
+            watchlist_item,
+            operativa_rules,
+            has_position=has_position
+        )
+        
+        if global_indicator:
+            # BUY / SELL global prevalecen sobre INCREASE/HOLD/REDUCE
+            watchlist_item.operativa_indicator = global_indicator
+        else:
+            # Si antes había un BUY global en un asset sin posición y ahora ya no se cumplen
+            # las reglas, devolver a estado neutro '-'
+            if not has_position:
+                watchlist_item.operativa_indicator = '-'
         
         return watchlist_item
 
