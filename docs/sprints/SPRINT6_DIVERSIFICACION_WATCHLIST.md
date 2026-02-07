@@ -4,7 +4,7 @@
 **Versión**: v6.0.0  
 **Inicio**: 24 Diciembre 2025  
 **Duración estimada**: 2 semanas  
-**Estado**: 🚧 IMPLEMENTACIÓN EN PROGRESO
+**Estado**: ✅ COMPLETADO (HITO 3 descoped)
 
 **Última actualización**: 6 Febrero 2026  
 **Progreso**: ~85% completado
@@ -501,26 +501,11 @@ Definido en configuración (`operativa_rules`) con esta estructura:
 
 ---
 
-### **HITO 3: Alertas de Diversificación**
-**Prioridad**: 🟡 MEDIA  
-**Duración estimada**: 2-3 días
+### **HITO 3: Alertas de Diversificación** ❌ DESESTIMADO
+**Prioridad**: —  
+**Estado**: No se implementará (descoped)
 
-**Estado**: ⚠️ REVISAR (funcionalidad parcialmente movida al HITO 2)
-
-**Objetivos**:
-- Sistema de alertas configurables para diversificación por sector/país
-- Alertas cuando el portfolio está demasiado concentrado en sectores/países
-- Recomendaciones de diversificación
-- Configuración de umbrales personalizados
-
-**Tareas**:
-- [ ] Sistema de configuración de alertas por usuario (para sector/país)
-- [ ] Alertas de concentración por sector (ej: > 30% en un sector)
-- [ ] Alertas de concentración por país (ej: > 40% en un país)
-- [ ] Panel de configuración de alertas (sector/país)
-- [ ] Notificaciones en dashboard cuando se activan alertas
-
-**Nota**: Las alertas por asset (concentración individual) se implementan en el HITO 2 como parte de los indicadores de operativa.
+Las alertas por asset (concentración individual) ya están en el HITO 2. Las alertas por sector/país no forman parte del alcance del sprint.
 
 ---
 
@@ -578,7 +563,7 @@ Definido en configuración (`operativa_rules`) con esta estructura:
 - Métricas existentes: `app/services/metrics/basic_metrics.py`
 - Gráficos de distribución: `app/templates/portfolio/dashboard.html`
 - AssetRegistry: `app/models/asset.py`, `app/routes/portfolio.py`
-- Sistema de alertas: Considerar integración futura con notificaciones (Sprint 7)
+- Sistema de alertas sector/país: Descoped; podría retomarse en sprint futuro si se desea
 
 ---
 
@@ -672,12 +657,6 @@ Definido en configuración (`operativa_rules`) con esta estructura:
 - [x] Audio resumen TTS con Gemini 2.5 (background, descarga WAV)
 - [x] Tab Informes en Asset Detail con botones y estados
 
-### HITO 3: Alertas de Diversificación (Sector/País)
-- [ ] Modelo de configuración de alertas por sector/país
-- [ ] Sistema de evaluación de alertas (sector/país)
-- [ ] Alertas de concentración por sector (ej: > 30%)
-- [ ] Alertas de concentración por país (ej: > 40%)
-- [ ] Visualización de alertas activas en dashboard
-- [ ] Panel de configuración de umbrales (sector/país)
-- [ ] Logging de alertas activadas
+### HITO 3: Alertas de Diversificación ❌ DESESTIMADO
+- (No implementado — descoped)
 

@@ -3,7 +3,7 @@
 **Fecha de inicio**: 5 Octubre 2025  
 **Timeline**: 6 meses (26 semanas)  
 **Última actualización**: 24 Diciembre 2025  
-**Estado actual**: ✅ Sprint 4 COMPLETADO (v4.3.0) | 🚧 Sprint 6 EN PROGRESO (v6.0.0 - Diversificación y Watchlist)
+**Estado actual**: ✅ Sprint 6 COMPLETADO (v6.0.0) | 🚧 Sprint 7 EN PROGRESO (v7.0.0 - Alertas y Notificaciones)
 
 ## 🎉 PROGRESO RECIENTE
 
@@ -366,18 +366,16 @@
 
 **Sprints Futuros** (después de Sprint 4):
 - ~~**Sprint 5**: Actualización Automática de Precios~~ (ELIMINADO de planificación)
-- **Sprint 6**: Diversificación y Watchlist (2 semanas) 🚧 ACTUAL - v6.0.0
-  - ✅ HITO 1 COMPLETADO: Análisis de concentración (gráficos de distribución ya implementados)
-  - 🚧 HITO 2 EN PROGRESO (~70%): Watchlist con indicadores de operativa y métricas avanzadas
-    - ✅ Modelos y servicios backend completos
-    - ✅ Página watchlist con tabla combinada completa
-    - ✅ Sistema de colores implementado (parcialmente probado)
-    - ✅ Configuración de umbrales y rangos
-    - ✅ Edición de métricas manuales
-    - ✅ Integración con AssetRegistry y navegación
-    - 🚧 Pruebas de colores en progreso
-  - ⏳ HITO 3 PENDIENTE: Alertas de diversificación por sector/país
-- **Sprint 7**: Alertas y Notificaciones (2 semanas)
+- **Sprint 6**: Diversificación y Watchlist (2 semanas) ✅ COMPLETADO - v6.0.0
+  - ✅ HITO 1 COMPLETADO: Análisis de concentración (gráficos de distribución)
+  - ✅ **Informes Gemini** (Ene-Feb 2026):
+    - Envío de informes por correo al email registrado del usuario (Flask-Mail)
+    - Audio resumen TTS con Gemini 2.5 (generación en background, descarga WAV)
+    - Configuración: MAIL_* (Gmail requiere Contraseña de aplicación), GEMINI_API_KEY
+  - ✅ HITO 2 COMPLETADO: Watchlist con indicadores de operativa y métricas avanzadas
+  - ✅ HITO 2bis COMPLETADO: Informes Gemini (Deep Research, TTS, correo)
+  - ❌ HITO 3 DESESTIMADO: Alertas sector/país (descoped)
+- **Sprint 7**: Alertas y Notificaciones (2 semanas) 🚧 ACTUAL - v7.0.0
   - Alertas de precio, calendario dividendos, eventos corporativos
 - **Sprint 8**: Testing y Optimización (2 semanas)
   - Tests 80%+, optimización SQL, logging, monitoring, deployment automatizado

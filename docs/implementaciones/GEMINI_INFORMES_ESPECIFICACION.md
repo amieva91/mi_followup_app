@@ -390,4 +390,11 @@ google-genai>=1.0.0
 
 ---
 
+## 13. Documentación relacionada
+
+- **`GEMINI_IA.md`** — Documento oficial de integración Gemini (modelos, configuración, arquitectura general)
+- **`env.example`** — Plantilla de variables de entorno
+
+---
+
 *Documento creado el 29 de enero de 2026. Revisar antes de implementar por posibles actualizaciones de la API de Gemini.*

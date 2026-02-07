@@ -1425,6 +1425,18 @@ Donde:
 
 ---
 
-**Última actualización**: 10 Noviembre 2025
+### ✅ Informes de Investigación - Extensiones (Ene 2026)
+
+**Ubicación**: Tab "Informes" en Asset Detail (`/portfolio/asset/<id>`), panel de detalle del informe.
+
+**Botones y elementos** (solo cuando informe completado):
+- ✅ **"Enviar por correo"** (azul): Envía el informe al email registrado del usuario. Requiere MAIL_* configurado.
+- ✅ **"Generar audio resumen"** (indigo): Inicia generación TTS en background. Oculto si audio ya existe.
+- ✅ **Estado de audio**: Badge "Generando audio...", "Audio listo" o mensaje de error. Polling automático cada 4s.
+- ✅ **"Descargar audio"** (verde): Enlace para descargar WAV cuando audio_status=completed.
+
+---
+
+**Última actualización**: 6 Febrero 2026
 **Próxima revisión**: Después de Sprint 4 - HITO 3
 

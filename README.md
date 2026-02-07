@@ -223,7 +223,7 @@ Sistema completo de gestión financiera personal.
   - Resumen "About the Company" (generación rápida)
   - **Envío por correo**: botón para enviar informes al email (Flask-Mail). Si existe audio TTS, se adjunta automáticamente el WAV
   - **Audio resumen TTS**: generación de audio con Gemini 2.5 TTS en segundo plano, descarga WAV
-  - Requiere: `GEMINI_API_KEY`, `MAIL_*`. Opcional: `GEMINI_MODEL_FLASH`, `GEMINI_MODEL_TTS`, `GEMINI_AGENT_DEEP_RESEARCH` para cambiar modelos (ver env.example)
+  - Requiere: `GEMINI_API_KEY`, `MAIL_*`. Opcional: `GEMINI_MODEL_FLASH`, `GEMINI_MODEL_TTS`, `GEMINI_AGENT_DEEP_RESEARCH` para cambiar modelos. Ver **`GEMINI_IA.md`** para documentación completa de la integración con Gemini.
 - ✅ **Dashboard** - KPIs en tiempo real (ingresos/gastos/balance mensual + portfolio completo con 9 métricas + Modified Dietz)
 - ✅ **Sistema desplegado** - Funcionando en https://followup.fit/
 
@@ -307,15 +307,16 @@ python run.py
 
 ### 📄 Documentos Principales (Raíz)
 
-**IMPORTANTE**: El directorio raíz debe mantenerse limpio. Solo deben permanecer en la raíz estos 5 archivos:
+**IMPORTANTE**: El directorio raíz debe mantenerse limpio. Solo deben permanecer en la raíz estos **6 archivos**:
 
 1. **`README.md`** - Este archivo (estado actual, setup, arquitectura, metodología de trabajo)
 2. **`TU_PLAN_MAESTRO.md`** - Plan general del proyecto con todos los sprints y progreso
 3. **`WORKFLOW_DEV_A_PRODUCCION.md`** - Proceso completo de deploy, Git workflow y configuración de entornos
 4. **`DESIGN_SYSTEM.md`** - Sistema de diseño y componentes UI
-5. **`SPRINT[X]_[NOMBRE].md`** - Documento del sprint actual en progreso (ej: `SPRINT4_METRICAS_AVANZADAS.md`)
+5. **`GEMINI_IA.md`** - Integración con Gemini AI: modelos en uso, configuración y funcionalidades de IA
+6. **`SPRINT[X]_[NOMBRE].md`** - Documento del sprint actual en progreso (ej: `SPRINT7_ALERTAS_NOTIFICACIONES.md`)
 
-**Todos los demás archivos `.md` deben moverse a `docs/` al finalizar cada sprint.**
+**Todos los demás archivos `.md` deben moverse a `docs/` en la carpeta correspondiente.**
 
 ### 📁 Documentación Organizada (`docs/`)
 
@@ -325,7 +326,7 @@ python run.py
 - **`docs/migraciones/`** - Documentos de migraciones históricas
 - **`docs/indices/`** - Índices de documentación
 - **`docs/fixes/`** - Documentación de fixes y correcciones
-- **`docs/implementaciones/`** - Documentación de implementaciones específicas
+- **`docs/implementaciones/`** - Documentación de implementaciones específicas (incl. especificación detallada de informes Gemini)
 - **`docs/guias/`** - Guías de uso y procedimientos
 
 ---
@@ -342,6 +343,7 @@ Para entender completamente el flujo de trabajo, consulta estos documentos en or
 2. **`TU_PLAN_MAESTRO.md`** - Plan maestro con todos los sprints e hitos
 3. **`DESIGN_SYSTEM.md`** - Guías de diseño y componentes UI
 4. **`SPRINT[X]_[NOMBRE].md`** - Documento del sprint actual con hitos y tareas
+5. **`GEMINI_IA.md`** - Integración con Gemini AI (modelos, configuración, funcionalidades de IA)
 
 ### 🖥️ Entornos de Trabajo
 
@@ -475,12 +477,13 @@ python run.py
 
 #### 4. Limpieza del Directorio Raíz (Antes de Subir a Pro)
 
-**IMPORTANTE**: El directorio raíz debe mantenerse limpio. Solo deben quedar:
+**IMPORTANTE**: El directorio raíz debe mantenerse limpio. Solo deben quedar **6 archivos**:
 
 - ✅ `README.md`
 - ✅ `TU_PLAN_MAESTRO.md`
 - ✅ `WORKFLOW_DEV_A_PRODUCCION.md`
 - ✅ `DESIGN_SYSTEM.md`
+- ✅ `GEMINI_IA.md`
 - ✅ `SPRINT[X]_[NOMBRE].md` (solo el sprint actual)
 
 **Proceso de limpieza**:
@@ -492,15 +495,15 @@ ls *.md
 
 # 2. Mover archivos temporales/documentación a docs/
 # Ejemplo:
-mv PROGRESO_PLAN_MAESTRO.md docs/sprints/
-mv CACHE_IMPLEMENTATION.md docs/implementaciones/
-# ... etc
+mv CHECKLIST_*.md docs/guias/
+mv EXPLICACION_*.md docs/implementaciones/
+# ... etc (ver docs/guias, docs/implementaciones, docs/sprints, etc.)
 
-# 3. Verificar que solo quedan los 5 archivos principales
+# 3. Verificar que solo quedan los 6 archivos principales
 ls *.md
 ```
 
-**Regla**: Si un archivo `.md` no es uno de los 5 principales, debe moverse a `docs/` en la carpeta correspondiente.
+**Regla**: Si un archivo `.md` no es uno de los 6 principales, debe moverse a `docs/` en la carpeta correspondiente.
 
 #### 5. Commit y Push a Develop
 
@@ -571,32 +574,49 @@ sudo systemctl status followup.service
 
 **Ver checklist completo en**: `WORKFLOW_DEV_A_PRODUCCION.md` (FASE 5: Validación en Producción)
 
-#### 9. Finalización de Sprint (Movimiento de Archivos)
+#### 9. Finalización de Sprint (Cuando el sprint está 100% terminado)
 
-**IMPORTANTE**: Al finalizar un sprint completamente:
+**IMPORTANTE**: Este proceso se ejecuta **después** de: pruebas completadas, documentación actualizada y cambios subidos al repositorio (push a `main`).
 
-1. **Mover archivo del sprint a `docs/sprints/`**:
+**Orden de pasos**:
+
+1. **Limpieza del directorio raíz**
+   - Mover cualquier `.md` que no sea de los 6 principales a `docs/` (guías, implementaciones, etc.)
+   - Verificar: `ls *.md` debe mostrar solo los 6 archivos principales
+
+2. **Mover el sprint completado a `docs/sprints/`**
    ```bash
-   mv SPRINT4_METRICAS_AVANZADAS.md docs/sprints/
+   mv SPRINT6_DIVERSIFICACION_WATCHLIST.md docs/sprints/
+   # (ajustar nombre según el sprint que termina)
    ```
 
-2. **Crear nuevo archivo para el siguiente sprint**:
+3. **Crear el nuevo documento del siguiente sprint** en la raíz
+   - Usar la estructura de sprints anteriores como plantilla
+   - Ejemplo: `SPRINT7_ALERTAS_NOTIFICACIONES.md`
    ```bash
-   # Crear SPRINT5_[NOMBRE].md en la raíz
-   # Seguir la estructura de sprints anteriores
+   # Crear el archivo con: objetivos, hitos, tareas, etc.
    ```
 
-3. **Actualizar `TU_PLAN_MAESTRO.md`**:
-   - Marcar sprint como completado
-   - Actualizar estado del siguiente sprint
+4. **Actualizar `TU_PLAN_MAESTRO.md`**
+   - Marcar el sprint completado como ✅
+   - Actualizar el estado del siguiente sprint como 🚧 EN PROGRESO
+
+5. **Commit y push de la finalización**
+   ```bash
+   git add .
+   git commit -m "chore: Finalización Sprint X - mover a docs, crear Sprint Y"
+   git push origin main
+   ```
+
+**Resumen**: Pruebas → Documentación → Push al repo → Limpiar raíz → Mover sprint → Crear nuevo sprint → Actualizar plan maestro → Commit final
 
 ### 📋 Checklist Pre-Deploy
 
 Antes de subir a producción, verificar:
 
 - [ ] Código funcional en desarrollo (todas las pruebas pasaron)
-- [ ] Documentación actualizada (4 documentos principales + sprint actual)
-- [ ] Directorio raíz limpio (solo 5 archivos `.md` principales)
+- [ ] Documentación actualizada (6 documentos principales + sprint actual)
+- [ ] Directorio raíz limpio (solo 6 archivos `.md` principales)
 - [ ] Commit con mensaje descriptivo
 - [ ] Push a `develop` exitoso
 - [ ] Merge a `main` realizado
@@ -679,12 +699,12 @@ Después de subir a producción, verificar:
 - ✅ Recuadro de comparación expandido a ancho completo
 - ✅ HITO 3 - Fase 2: Gráficos adicionales (Apalancamiento, Flujos de Caja, P&L Acumulado)
 
-**🚧 Sprint 6 EN PROGRESO (v6.0.0 - 10 Ene 2026):**
-- ✅ HITO 1 COMPLETADO: Análisis de Concentración (gráficos de distribución implementados)
-- 🚧 HITO 2 EN PROGRESO (~70%): Watchlist con indicadores de operativa y métricas avanzadas
-  - Modelos y servicios backend completos
-  - Página watchlist con tabla combinada completa
-  - Sistema de colores implementado (parcialmente probado)
-  - Configuración de umbrales y rangos
-- 🔜 HITO 3 PENDIENTE: Alertas de Diversificación configurables
+**✅ Sprint 6 COMPLETADO (v6.0.0 - Feb 2026):**
+- ✅ HITO 1: Análisis de Concentración (gráficos de distribución)
+- ✅ HITO 2: Watchlist con indicadores de operativa y métricas avanzadas
+- ✅ HITO 2bis: Informes Gemini (Deep Research, TTS, correo con audio adjunto)
+- ❌ HITO 3 descoped: Alertas sector/país
+
+**🚧 Sprint 7 EN PROGRESO (v7.0.0 - Alertas y Notificaciones):**
+- Ver `SPRINT7_ALERTAS_NOTIFICACIONES.md` para hitos planificados
 
