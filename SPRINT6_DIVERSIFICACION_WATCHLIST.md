@@ -6,8 +6,8 @@
 **Duración estimada**: 2 semanas  
 **Estado**: 🚧 IMPLEMENTACIÓN EN PROGRESO
 
-**Última actualización**: 20 Enero 2026  
-**Progreso**: ~80% completado
+**Última actualización**: 6 Febrero 2026  
+**Progreso**: ~85% completado
 
 ---
 
@@ -74,6 +74,74 @@ Implementar funcionalidades avanzadas de análisis de diversificación y gestió
 - ✅ Header fijo (sticky header) implementado
 - ✅ Sistemas de colores implementados y funcionando
 - ✅ Todas las funcionalidades principales completadas
+
+---
+
+### **HITO 2bis: Informes de Investigación con API Gemini**
+**Prioridad**: 🟡 MEDIA  
+**Estado**: ✅ COMPLETADO (Ene-Feb 2026)
+
+**Nota**: Esta funcionalidad no estaba estipulada originalmente en el Sprint 6; se implementó como extensión del detalle de asset (accesible desde Portfolio y Watchlist al hacer clic en un asset).
+
+**Objetivos implementados**:
+
+1. **Generación de informes Deep Research** (API Gemini Interactions)
+   - Informes detallados sobre compañías usando el agente `deep-research-pro-preview-12-2025`
+   - Ejecución en segundo plano (varios minutos, hasta ~20-60 min)
+   - Máximo 5 informes por (usuario, asset); al generar el 6º se elimina el más antiguo
+   - Contenido en Markdown, renderizado a HTML en frontend (marked.js)
+
+2. **Plantillas configurables** (modelo `ReportTemplate`)
+   - Cada usuario define plantillas con: **título**, **descripción** (obligatoria), **puntos/preguntas** (opcionales)
+   - Modal "Ajustes" en tab Informes para gestionar plantillas
+   - Botón "Generar informe" habilitado solo si existe al menos una plantilla con descripción válida
+   - Se selecciona plantilla antes de generar
+
+3. **Resumen "About the Company"**
+   - Descripción corta (3-5 líneas) de qué hace la compañía
+   - API `generate_content` con `gemini-2.0-flash` (respuesta rápida, segundos)
+   - Sección en tab Overview del asset
+   - Se sobrescribe al volver a generar
+
+4. **Envío por correo**
+   - Botón "Enviar por correo" en el detalle del informe (solo si status=completed)
+   - Envía el informe al **email registrado del usuario** (Flask-Mail)
+   - Contenido Markdown convertido a HTML (librería `markdown`)
+   - Requiere: `MAIL_SERVER`, `MAIL_USERNAME`, `MAIL_PASSWORD` (Gmail: **Contraseña de aplicación**, no la contraseña normal)
+
+5. **Audio resumen TTS**
+   - Botón "Generar audio resumen" en el detalle del informe
+   - Generación en segundo plano con Gemini 2.5 TTS (`gemini-2.5-flash-preview-tts`)
+   - Flujo: 1) Resumen corto del informe con `gemini-2.0-flash`; 2) TTS sobre ese resumen; 3) Guardar WAV en `output/reports_audio/`
+   - Polling automático cada 4s hasta completar o fallar
+   - Botón "Descargar audio" cuando está listo
+
+**Modelos y tablas**:
+- `ReportTemplate`: user_id, title, description, points (JSON)
+- `CompanyReport`: user_id, asset_id, template_title, content, status, error_msg, gemini_interaction_id, **audio_path**, **audio_status**, **audio_error_msg**, **audio_completed_at**, created_at, completed_at
+- `AssetAboutSummary`: user_id, asset_id, summary
+
+**Endpoints**:
+- `POST /portfolio/asset/<id>/reports/generate` – Iniciar informe
+- `GET /portfolio/asset/<id>/reports` – Listar informes
+- `GET /portfolio/asset/<id>/reports/<report_id>` – Detalle de informe
+- `GET /portfolio/api/reports/<report_id>/status` – Estado (incluye audio_status)
+- `POST /portfolio/asset/<id>/reports/<report_id>/send-email` – Enviar por correo
+- `POST /portfolio/asset/<id>/reports/<report_id>/generate-audio` – Iniciar TTS
+- `GET /portfolio/asset/<id>/reports/<report_id>/audio` – Descargar WAV
+
+**Configuración (.env)**:
+- `GEMINI_API_KEY` – Obligatoria para informes y audio
+- `MAIL_SERVER`, `MAIL_PORT`, `MAIL_USE_TLS`, `MAIL_USERNAME`, `MAIL_PASSWORD` – Para envío por correo
+- **Modelos Gemini** (opcionales, ver env.example): `GEMINI_MODEL_FLASH`, `GEMINI_MODEL_TTS`, `GEMINI_AGENT_DEEP_RESEARCH` – Permiten actualizar modelos sin cambiar código cuando Google lance nuevas versiones
+
+**Archivos principales**:
+- `app/services/gemini_service.py` – `run_deep_research_report`, `generate_about_summary`, `generate_report_tts_audio`
+- `app/utils/email.py` – `send_report_email` (adjunta audio WAV si existe)
+- `app/routes/portfolio.py` – Rutas de informes, email, audio; helper `_get_report_audio_path()`
+- `app/templates/portfolio/asset_detail.html` – Tab Informes, toast notifications, estilos report-markdown
+
+**Mejoras UX**: Toast en lugar de alert; botón Volver con history.back(); generación paralela de informes/audios
 
 ---
 
@@ -392,6 +460,7 @@ Definido en configuración (`operativa_rules`) con esta estructura:
 - Click en cualquier asset de la tabla
 - Muestra información detallada (igual que en pestaña portfolio)
 - Modal o navegación a página de detalle
+- La página de detalle incluye la **tab Informes** (HITO 2bis) con generación de informes Gemini, envío por correo y audio TTS
 
 ### 4. Peso en cartera
 - Se calcula igual que en la pestaña portfolio
@@ -479,6 +548,7 @@ Definido en configuración (`operativa_rules`) con esta estructura:
 - ✅ Actualización masiva de precios funcionando
 - ✅ Ordenación por fecha próximos resultados implementada (orden descendente por defecto)
 - ✅ Header fijo (sticky) funcionando correctamente
+- ✅ Informes de investigación con Gemini API (HITO 2bis): Deep Research, plantillas, envío por correo, audio TTS
 
 ---
 
@@ -495,6 +565,7 @@ Definido en configuración (`operativa_rules`) con esta estructura:
 - **Escalabilidad**: Watchlist debería soportar muchos assets sin problemas de rendimiento
 - **Actualización masiva**: Optimizar llamadas a Yahoo Finance API (batch requests si es posible)
 - **Validación de datos**: Manejar casos donde falten datos para cálculos (EPS, PER, CAGR, etc.)
+- **HITO 2bis - Informes Gemini**: No estaba en la especificación original; implementado como extensión. Requiere GEMINI_API_KEY y MAIL_* para correo (Gmail: Contraseña de aplicación)
 - **Header fijo (sticky)**: La tabla tendrá 17 columnas y muchos registros, por lo que el header debe quedarse fijo al hacer scroll vertical para mantener referencia de las columnas
   - Implementación: Usar `position: sticky; top: 0;` en el `<thead>` con `z-index` apropiado
   - Contenedor de la tabla con altura máxima y `overflow-y-auto` para scroll vertical
@@ -592,6 +663,14 @@ Definido en configuración (`operativa_rules`) con esta estructura:
 - [ ] Integración con AssetRegistry (búsqueda y creación)
 - [ ] Integración con página de detalle de asset (misma info que portfolio)
 - [ ] Integración con servicio de actualización de precios Yahoo Finance
+
+### HITO 2bis: Informes de Investigación con Gemini API ✅ COMPLETADO
+- [x] Generación de informes Deep Research (API Interactions, background)
+- [x] Plantillas configurables (ReportTemplate: título, descripción, puntos)
+- [x] Resumen "About the Company" (API rápida)
+- [x] Envío por correo al email del usuario (Flask-Mail)
+- [x] Audio resumen TTS con Gemini 2.5 (background, descarga WAV)
+- [x] Tab Informes en Asset Detail con botones y estados
 
 ### HITO 3: Alertas de Diversificación (Sector/País)
 - [ ] Modelo de configuración de alertas por sector/país

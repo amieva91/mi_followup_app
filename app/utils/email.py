@@ -92,3 +92,80 @@ El equipo de FollowUp
         current_app.logger.error(f'Failed to send reset email to {user.email}: {str(e)}')
         raise
 
+
+def send_report_email(user, asset_name, report_title, report_content_markdown, audio_file_path=None):
+    """
+    Enviar informe por correo al usuario.
+    report_content_markdown: contenido del informe en Markdown (se convierte a HTML internamente)
+    audio_file_path: ruta absoluta al archivo WAV del audio resumen (opcional). Si existe, se adjunta.
+    """
+    try:
+        import markdown
+        report_content_html = markdown.markdown(report_content_markdown or '', extensions=['extra', 'nl2br'])
+    except ImportError:
+        report_content_html = (report_content_markdown or '').replace('\n', '<br>')
+    msg = Message(
+        f'Informe: {report_title} - {asset_name}',
+        sender=current_app.config.get('MAIL_DEFAULT_SENDER') or current_app.config.get('MAIL_USERNAME'),
+        recipients=[user.email]
+    )
+    audio_attached = False
+    if audio_file_path:
+        from pathlib import Path
+        p = Path(audio_file_path)
+        if p.exists() and p.is_file():
+            with open(p, 'rb') as f:
+                safe_name = ''.join(c if c.isalnum() or c in ' -_' else '_' for c in asset_name)[:50]
+                msg.attach(
+                    filename=f'resumen_audio_{safe_name.strip() or "informe"}.wav',
+                    content_type='audio/wav',
+                    data=f.read()
+                )
+            audio_attached = True
+
+    msg.body = f"""Hola {user.username},
+
+Te enviamos el informe "{report_title}" para {asset_name}.
+{f'Se adjunta el audio resumen (archivo WAV).' if audio_attached else ''}
+
+Puedes ver el contenido completo en la aplicación FollowUp.
+
+Saludos,
+El equipo de FollowUp
+"""
+    msg.html = f"""
+    <html>
+    <head>
+        <style>
+            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+            .container {{ max-width: 700px; margin: 0 auto; padding: 20px; }}
+            .header {{ background: #1e3a8a; color: white; padding: 20px; text-align: center; }}
+            .content {{ padding: 30px; background: #f9fafb; }}
+            .report {{ background: white; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px; margin-top: 20px; }}
+            .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>📄 Informe: {report_title}</h1>
+                <p>{asset_name}</p>
+            </div>
+            <div class="content">
+                <p>Hola <strong>{user.username}</strong>,</p>
+                <p>Aquí tienes el informe que solicitaste:</p>
+                {f'<p class="text-indigo-600 text-sm">🎧 Se adjunta el audio resumen.</p>' if audio_attached else ''}
+                <div class="report">
+                    {report_content_html}
+                </div>
+            </div>
+            <div class="footer">
+                <p>&copy; 2025 FollowUp - Gestión Financiera Personal</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    mail.send(msg)
+    current_app.logger.info(f'Report email sent to {user.email}')
+

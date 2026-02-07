@@ -222,6 +222,11 @@ pip install -r requirements.txt
 # 16. Ejecutar migraciones de BD (si hay nuevas tablas/campos)
 flask db upgrade
 
+# 16b. Variables de entorno en producción (verificar .env del servidor):
+#     - MAIL_SERVER, MAIL_USERNAME, MAIL_PASSWORD (para envío de informes por correo)
+#     - GEMINI_API_KEY (para informes y audio TTS). Gmail: usar Contraseña de aplicación.
+#     - GEMINI_MODEL_FLASH, GEMINI_MODEL_TTS, GEMINI_AGENT_DEEP_RESEARCH (opcionales, para actualizar modelos)
+
 # 17. Reiniciar la aplicación
 sudo systemctl restart followup.service
 

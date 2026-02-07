@@ -99,7 +99,9 @@ class WatchlistService:
     @staticmethod
     def remove_from_watchlist(user_id: int, asset_id: int) -> bool:
         """
-        Elimina un asset de la watchlist del usuario
+        Elimina un asset de la watchlist del usuario.
+        También borra en cascada: informes de compañía (company_reports)
+        y resumen About (asset_about_summary) para ese usuario y asset.
         
         Args:
             user_id: ID del usuario
@@ -111,7 +113,12 @@ class WatchlistService:
         watchlist_item = Watchlist.query.filter_by(user_id=user_id, asset_id=asset_id).first()
         if not watchlist_item:
             return False
-        
+
+        # Borrado en cascada: informes y resumen About
+        from app.models.company_report import CompanyReport, AssetAboutSummary
+        CompanyReport.query.filter_by(user_id=user_id, asset_id=asset_id).delete()
+        AssetAboutSummary.query.filter_by(user_id=user_id, asset_id=asset_id).delete()
+
         db.session.delete(watchlist_item)
         db.session.commit()
         return True

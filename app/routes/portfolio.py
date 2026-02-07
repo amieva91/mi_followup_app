@@ -1,12 +1,13 @@
 """
 Rutas para gestión de portfolio
 """
-from flask import render_template, redirect, url_for, flash, request, jsonify, session
+from flask import render_template, redirect, url_for, flash, request, jsonify, session, current_app
 from flask_login import login_required, current_user
 from datetime import datetime, date
 from werkzeug.utils import secure_filename
 import os
 import time
+from pathlib import Path
 from threading import Lock
 from app.routes import portfolio_bp
 from app import db, csrf
@@ -20,11 +21,13 @@ price_update_progress_cache = {}
 price_progress_lock = Lock()
 from app.models import (
     BrokerAccount, Asset, PortfolioHolding, 
-    Transaction, Broker, Watchlist
+    Transaction, Broker, Watchlist, CompanyReport
 )
 from app.forms import (
     BrokerAccountForm, ManualTransactionForm
 )
+from sqlalchemy import update, delete, select, func, text, bindparam
+
 from app.services.csv_detector import detect_and_parse
 from app.services.importer_v2 import CSVImporterV2
 from app.services.metrics import BasicMetrics
@@ -2261,6 +2264,15 @@ def asset_detail(id):
         ).join(BrokerAccount).filter(
             BrokerAccount.user_id == current_user.id
         ).order_by(Transaction.transaction_date.desc()).limit(10).all()
+
+    # Datos para informes Gemini
+    from app.models import ReportTemplate, AssetAboutSummary
+    from app.services.gemini_service import is_gemini_available
+    report_templates = ReportTemplate.query.filter_by(user_id=current_user.id).order_by(ReportTemplate.title).all()
+    has_valid_templates = any(t.has_valid_description() for t in report_templates)
+    about_summary_obj = AssetAboutSummary.query.filter_by(user_id=current_user.id, asset_id=id).first()
+    about_summary = about_summary_obj.summary if about_summary_obj else None
+    gemini_available = is_gemini_available()
     
     return render_template(
         'portfolio/asset_detail.html',
@@ -2273,8 +2285,626 @@ def asset_detail(id):
         unrealized_pl=unrealized_pl,
         unrealized_pl_pct=unrealized_pl_pct,
         transactions=transactions,
-        is_in_watchlist=is_in_watchlist
+        is_in_watchlist=is_in_watchlist,
+        report_templates=report_templates,
+        has_valid_templates=has_valid_templates,
+        about_summary=about_summary,
+        gemini_available=gemini_available,
+        api_report_templates_url=url_for('portfolio.api_report_templates_list'),
     )
+
+
+# ==================== GEMINI INFORMES (API) ====================
+
+def _get_report_audio_path(report):
+    """Devuelve la ruta absoluta del archivo WAV del informe si existe, o None."""
+    if getattr(report, 'audio_status', None) != 'completed' or not getattr(report, 'audio_path', None):
+        return None
+    output_folder = current_app.config.get('OUTPUT_FOLDER') or (Path(__file__).resolve().parent.parent.parent / 'output')
+    full_path = (Path(output_folder).resolve() / report.audio_path).resolve()
+    return full_path if full_path.exists() and full_path.is_file() else None
+
+
+def _user_can_access_asset_reports(user_id, asset_id):
+    """True si el usuario puede generar/ver informes del asset (en cartera o watchlist)"""
+    holdings = PortfolioHolding.query.filter_by(
+        user_id=user_id, asset_id=asset_id
+    ).filter(PortfolioHolding.quantity > 0).first()
+    if holdings:
+        return True
+    watchlist_item = Watchlist.query.filter_by(
+        user_id=user_id, asset_id=asset_id
+    ).first()
+    return watchlist_item is not None
+
+
+@portfolio_bp.route('/api/report-templates', methods=['GET'], strict_slashes=False)
+@login_required
+def api_report_templates_list():
+    """Listar plantillas del usuario"""
+    from app.models import ReportTemplate
+    templates = ReportTemplate.query.filter_by(user_id=current_user.id).order_by(ReportTemplate.title).all()
+    return jsonify({
+        'templates': [
+            {
+                'id': t.id,
+                'title': t.title,
+                'description': t.description or '',
+                'points': t.get_points_list()
+            }
+            for t in templates
+        ]
+    })
+
+
+@portfolio_bp.route('/api/report-templates', methods=['POST'], strict_slashes=False)
+@login_required
+@csrf.exempt
+def api_report_templates_create():
+    """Crear plantilla de informe"""
+    from app.models import ReportTemplate
+    try:
+        data = request.get_json() or {}
+        title = (data.get('title') or '').strip()
+        description = (data.get('description') or '').strip()
+        points = data.get('points') or []
+        if not isinstance(points, list):
+            points = [p for p in (points or '').split('\n') if p.strip()] if isinstance(points, str) else []
+        if not title:
+            return jsonify({'success': False, 'error': 'El título es obligatorio'}), 400
+        if not description:
+            return jsonify({'success': False, 'error': 'La descripción es obligatoria'}), 400
+
+        t = ReportTemplate(
+            user_id=current_user.id,
+            title=title,
+            description=description
+        )
+        t.set_points_list([str(p).strip() for p in points if str(p).strip()])
+        db.session.add(t)
+        db.session.commit()
+        return jsonify({'success': True, 'template': {'id': t.id, 'title': t.title, 'description': t.description, 'points': t.get_points_list()}})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@portfolio_bp.route('/api/report-templates/<int:template_id>', methods=['GET'], strict_slashes=False)
+@login_required
+def api_report_template_get(template_id):
+    """Obtener una plantilla"""
+    from app.models import ReportTemplate
+    t = ReportTemplate.query.filter_by(id=template_id, user_id=current_user.id).first()
+    if not t:
+        return jsonify({'success': False, 'error': 'Plantilla no encontrada'}), 404
+    return jsonify({'id': t.id, 'title': t.title, 'description': t.description or '', 'points': t.get_points_list()})
+
+
+@portfolio_bp.route('/api/report-templates/<int:template_id>', methods=['PUT'], strict_slashes=False)
+@login_required
+@csrf.exempt
+def api_report_template_update(template_id):
+    """Actualizar plantilla"""
+    from app.models import ReportTemplate
+    t = ReportTemplate.query.filter_by(id=template_id, user_id=current_user.id).first()
+    if not t:
+        return jsonify({'success': False, 'error': 'Plantilla no encontrada'}), 404
+    try:
+        data = request.get_json() or {}
+        if 'title' in data:
+            t.title = (data.get('title') or '').strip() or t.title
+        if 'description' in data:
+            t.description = (data.get('description') or '').strip()
+        if 'points' in data:
+            points = data['points']
+            if not isinstance(points, list):
+                points = [p for p in (points or '').split('\n') if p.strip()] if isinstance(points, str) else []
+            t.set_points_list([str(p).strip() for p in points if str(p).strip()])
+        db.session.commit()
+        return jsonify({'success': True, 'template': {'id': t.id, 'title': t.title, 'description': t.description, 'points': t.get_points_list()}})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@portfolio_bp.route('/api/report-templates/<int:template_id>', methods=['DELETE'], strict_slashes=False)
+@login_required
+@csrf.exempt
+def api_report_template_delete(template_id):
+    """Eliminar plantilla"""
+    from app.models import ReportTemplate
+    t = ReportTemplate.query.filter_by(id=template_id, user_id=current_user.id).first()
+    if not t:
+        return jsonify({'success': False, 'error': 'Plantilla no encontrada'}), 404
+    db.session.delete(t)
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+@portfolio_bp.route('/asset/<int:id>/reports/generate', methods=['POST'])
+@login_required
+@csrf.exempt
+def asset_reports_generate(id):
+    """Iniciar generación de informe Deep Research para un asset"""
+    try:
+        from app.models import ReportTemplate, CompanyReport
+        from app.services.gemini_service import run_deep_research_report, GeminiServiceError, is_gemini_available
+        from flask import current_app
+        import threading
+
+        asset = Asset.query.get(id)
+        if not asset:
+            return jsonify({'success': False, 'error': 'Asset no encontrado'}), 404
+        if not _user_can_access_asset_reports(current_user.id, id):
+            return jsonify({'success': False, 'error': 'Asset no está en tu cartera ni en watchlist'}), 403
+
+        if not is_gemini_available():
+            return jsonify({'success': False, 'error': 'GEMINI_API_KEY no configurada'}), 503
+
+        data = request.get_json() or {}
+        template_id = data.get('template_id')
+        if not template_id:
+            return jsonify({'success': False, 'error': 'Selecciona una plantilla'}), 400
+
+        template = ReportTemplate.query.filter_by(id=template_id, user_id=current_user.id).first()
+        if not template:
+            return jsonify({'success': False, 'error': 'Plantilla no encontrada'}), 404
+        if not template.has_valid_description():
+            return jsonify({'success': False, 'error': 'La plantilla debe tener descripción'}), 400
+
+        # Crear registro pendiente
+        report = CompanyReport(
+            user_id=current_user.id,
+            asset_id=id,
+            template_id=template.id,
+            template_title=template.title,
+            status='pending'
+        )
+        db.session.add(report)
+        db.session.commit()
+
+        # Capturar valores para el hilo (no pasar objetos ORM: quedan desvinculados de la sesión)
+        report_id = report.id
+        user_id = current_user.id
+        asset_id = id
+        description = template.description
+        points = template.get_points_list()
+
+        app = current_app._get_current_object()
+
+        def run_report_background():
+            """Hilo: usa conexión raw (sin sesión ORM) para evitar 'Instance is not bound to a Session'."""
+            with app.app_context():
+                engine = db.engine
+
+                def _update_status(st, content_val=None, error_val=None):
+                    now_str = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+                    with engine.connect() as conn:
+                        conn.execute(text("""
+                            UPDATE company_reports SET status = :st, completed_at = :now
+                            , content = :content, error_msg = :error WHERE id = :rid
+                        """), {'st': st, 'now': now_str, 'content': content_val, 'error': error_val, 'rid': report_id})
+                        conn.commit()
+
+                try:
+                    with engine.connect() as conn:
+                        r = conn.execute(text("""
+                            UPDATE company_reports SET status = 'processing' WHERE id = :rid AND status = 'pending'
+                        """), {'rid': report_id})
+                        conn.commit()
+                        if r.rowcount == 0:
+                            return
+                except Exception as e:
+                    import traceback
+                    try:
+                        _update_status('failed', error_val=str(e))
+                    except Exception:
+                        pass
+                    print(traceback.format_exc())
+                    return
+
+                try:
+                    with engine.connect() as conn:
+                        row = conn.execute(text(
+                            "SELECT name, symbol, isin FROM assets WHERE id = :aid"
+                        ), {'aid': asset_id}).fetchone()
+                    if not row:
+                        _update_status('failed', error_val='Asset no encontrado')
+                        return
+                    aname = (row[0] or 'Desconocida')
+                    asym = (row[1] or '')
+                    aisn = (row[2] or '')
+
+                    status, content = run_deep_research_report(
+                        aname, asym, aisn,
+                        description,
+                        points
+                    )
+
+                    content_val = content if status == 'completed' else None
+                    error_val = content if status == 'failed' else None
+                    _update_status(status, content_val=content_val, error_val=error_val)
+
+                    if status == 'completed':
+                        with engine.connect() as conn:
+                            cnt = conn.execute(text(
+                                "SELECT COUNT(*) FROM company_reports WHERE user_id = :uid AND asset_id = :aid"
+                            ), {'uid': user_id, 'aid': asset_id}).scalar()
+                            if cnt and cnt > 5:
+                                lim = int(cnt) - 5
+                                ids = [r[0] for r in conn.execute(text("""
+                                    SELECT id FROM company_reports
+                                    WHERE user_id = :uid AND asset_id = :aid
+                                    ORDER BY created_at ASC LIMIT :lim
+                                """), {'uid': user_id, 'aid': asset_id, 'lim': lim}).fetchall()]
+                                if ids:
+                                    stmt = text("DELETE FROM company_reports WHERE id IN :ids").bindparams(
+                                        bindparam('ids', expanding=True)
+                                    )
+                                    conn.execute(stmt, {'ids': ids})
+                            conn.commit()
+                except GeminiServiceError as e:
+                    try:
+                        _update_status('failed', error_val=str(e))
+                    except Exception:
+                        pass
+                except Exception as e:
+                    import traceback
+                    try:
+                        _update_status('failed', error_val=str(e))
+                    except Exception:
+                        pass
+                    print(traceback.format_exc())
+
+        thread = threading.Thread(target=run_report_background, daemon=True)
+        thread.start()
+
+        return jsonify({
+            'success': True,
+            'report_id': report.id,
+            'message': 'Generación iniciada. El informe aparecerá cuando finalice.'
+        })
+    except Exception as e:
+        import traceback
+        db.session.rollback()
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@portfolio_bp.route('/asset/<int:id>/reports')
+@login_required
+def asset_reports_list(id):
+    """Listar informes del asset (máx 5)"""
+    from app.models import CompanyReport
+
+    asset = Asset.query.get_or_404(id)
+    if not _user_can_access_asset_reports(current_user.id, id):
+        return jsonify({'error': 'No autorizado'}), 403
+
+    reports = CompanyReport.query.filter_by(
+        user_id=current_user.id,
+        asset_id=id
+    ).order_by(CompanyReport.created_at.desc()).limit(5).all()
+
+    return jsonify({
+        'reports': [
+            {
+                'id': r.id,
+                'status': r.status,
+                'audio_status': getattr(r, 'audio_status', None),
+                'template_title': r.template_title or f'Informe {r.id}',
+                'created_at': r.created_at.isoformat() if r.created_at else None,
+                'completed_at': r.completed_at.isoformat() if r.completed_at else None,
+            }
+            for r in reports
+        ]
+    })
+
+
+@portfolio_bp.route('/asset/<int:id>/reports/<int:report_id>')
+@login_required
+def asset_report_detail(id, report_id):
+    """Obtener un informe concreto"""
+    from app.models import CompanyReport
+
+    asset = Asset.query.get_or_404(id)
+    if not _user_can_access_asset_reports(current_user.id, id):
+        return jsonify({'error': 'No autorizado'}), 403
+
+    report = CompanyReport.query.filter_by(
+        id=report_id,
+        user_id=current_user.id,
+        asset_id=id
+    ).first_or_404()
+
+    return jsonify({
+        'id': report.id,
+        'content': report.content,
+        'status': report.status,
+        'error_msg': report.error_msg,
+        'template_title': report.template_title,
+        'created_at': report.created_at.isoformat() if report.created_at else None,
+        'completed_at': report.completed_at.isoformat() if report.completed_at else None,
+        'audio_status': getattr(report, 'audio_status', None),
+        'audio_path': getattr(report, 'audio_path', None),
+        'audio_error_msg': getattr(report, 'audio_error_msg', None),
+        'audio_completed_at': report.audio_completed_at.isoformat() if getattr(report, 'audio_completed_at', None) else None,
+    })
+
+
+@portfolio_bp.route('/asset/<int:id>/reports/<int:report_id>/send-email', methods=['POST'])
+@login_required
+@csrf.exempt
+def asset_report_send_email(id, report_id):
+    """Enviar informe por correo al usuario registrado"""
+    from app.utils.email import send_report_email
+
+    asset = Asset.query.get_or_404(id)
+    if not _user_can_access_asset_reports(current_user.id, id):
+        return jsonify({'success': False, 'error': 'No autorizado'}), 403
+
+    report = CompanyReport.query.filter_by(
+        id=report_id,
+        user_id=current_user.id,
+        asset_id=id
+    ).first_or_404()
+
+    if report.status != 'completed':
+        return jsonify({'success': False, 'error': 'Solo se pueden enviar informes completados'}), 400
+
+    if not current_user.email:
+        return jsonify({'success': False, 'error': 'No tienes correo asociado a tu cuenta'}), 400
+
+    if not current_app.config.get('MAIL_SERVER') or not current_app.config.get('MAIL_USERNAME'):
+        return jsonify({'success': False, 'error': 'El correo no está configurado en el servidor'}), 503
+
+    try:
+        audio_path_arg = None
+        audio_path_obj = _get_report_audio_path(report)
+        if audio_path_obj:
+            audio_path_arg = str(audio_path_obj)
+            current_app.logger.info('Enviando informe con audio adjunto: %s', audio_path_arg)
+        else:
+            current_app.logger.info('Enviando informe sin audio (no encontrado o no generado): report_id=%s, audio_status=%s, audio_path=%s',
+                report_id, getattr(report, 'audio_status', None), getattr(report, 'audio_path', None))
+        send_report_email(
+            user=current_user,
+            asset_name=asset.name or asset.symbol or asset.isin or 'Activo',
+            report_title=report.template_title or f'Informe {report.id}',
+            report_content_markdown=report.content or '',
+            audio_file_path=audio_path_arg,
+        )
+        msg = 'Informe enviado a ' + current_user.email
+        if audio_path_arg:
+            msg += ' (con audio adjunto)'
+        return jsonify({'success': True, 'message': msg})
+    except Exception as e:
+        current_app.logger.exception('Error enviando informe por correo')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@portfolio_bp.route('/asset/<int:id>/reports/<int:report_id>/generate-audio', methods=['POST'])
+@login_required
+@csrf.exempt
+def asset_report_generate_audio(id, report_id):
+    """Iniciar generación de audio TTS en background"""
+    from app.services.gemini_service import generate_report_tts_audio, GeminiServiceError, is_gemini_available
+    from flask import current_app
+    import threading
+
+    asset = Asset.query.get_or_404(id)
+    if not _user_can_access_asset_reports(current_user.id, id):
+        return jsonify({'success': False, 'error': 'No autorizado'}), 403
+
+    report = CompanyReport.query.filter_by(
+        id=report_id,
+        user_id=current_user.id,
+        asset_id=id
+    ).first_or_404()
+
+    if report.status != 'completed':
+        return jsonify({'success': False, 'error': 'Solo se puede generar audio de informes completados'}), 400
+
+    if not is_gemini_available():
+        return jsonify({'success': False, 'error': 'GEMINI_API_KEY no configurada'}), 503
+
+    audio_status = getattr(report, 'audio_status', None)
+    if audio_status == 'processing':
+        return jsonify({'success': False, 'error': 'Ya hay una generación de audio en curso'}), 400
+    if audio_status == 'completed' and getattr(report, 'audio_path', None):
+        return jsonify({'success': True, 'message': 'El audio ya existe', 'audio_ready': True})
+
+    output_folder = current_app.config.get('OUTPUT_FOLDER') or (Path(__file__).resolve().parent.parent.parent / 'output')
+    audio_dir = Path(output_folder).resolve() / 'reports_audio'
+    audio_path = audio_dir / f'report_{report_id}.wav'
+    report_content = report.content or ''
+    app_obj = current_app._get_current_object()
+
+    def _run_tts():
+        with app_obj.app_context():
+            conn = db.engine.connect()
+            try:
+                conn.execute(text("""
+                    UPDATE company_reports SET audio_status = 'processing', audio_error_msg = NULL
+                    WHERE id = :rid
+                """), {'rid': report_id})
+                conn.commit()
+            except Exception:
+                conn.rollback()
+            finally:
+                conn.close()
+
+            status = 'failed'
+            error_msg = None
+            final_path = f'reports_audio/report_{report_id}.wav'
+            now_str = datetime.utcnow().isoformat()
+            try:
+                generate_report_tts_audio(report_content, str(audio_path))
+                status = 'completed'
+            except Exception as e:
+                error_msg = str(e)
+                final_path = None
+                current_app.logger.exception('TTS falló: %s', e)
+
+            conn2 = db.engine.connect()
+            try:
+                conn2.execute(text("""
+                    UPDATE company_reports
+                    SET audio_status = :st, audio_error_msg = :err, audio_path = :path, audio_completed_at = :now
+                    WHERE id = :rid
+                """), {'st': status, 'err': error_msg, 'path': final_path if status == 'completed' else None, 'now': now_str if status == 'completed' else None, 'rid': report_id})
+                conn2.commit()
+            except Exception:
+                conn2.rollback()
+            finally:
+                conn2.close()
+
+    threading.Thread(target=_run_tts, daemon=True).start()
+    return jsonify({'success': True, 'message': 'Generando audio en segundo plano. Puede tardar unos minutos.'})
+
+
+@portfolio_bp.route('/asset/<int:id>/reports/<int:report_id>/reset-audio', methods=['POST'])
+@login_required
+@csrf.exempt
+def asset_report_reset_audio(id, report_id):
+    """Resetear estado de audio para permitir reintentar (cuando falló o se quedó colgado)"""
+    asset = Asset.query.get_or_404(id)
+    if not _user_can_access_asset_reports(current_user.id, id):
+        return jsonify({'success': False, 'error': 'No autorizado'}), 403
+
+    report = CompanyReport.query.filter_by(
+        id=report_id,
+        user_id=current_user.id,
+        asset_id=id
+    ).first_or_404()
+
+    if report.status != 'completed':
+        return jsonify({'success': False, 'error': 'Solo se puede resetear audio de informes completados'}), 400
+
+    conn = db.engine.connect()
+    try:
+        conn.execute(text("""
+            UPDATE company_reports
+            SET audio_status = NULL, audio_path = NULL, audio_error_msg = NULL, audio_completed_at = NULL
+            WHERE id = :rid
+        """), {'rid': report_id})
+        conn.commit()
+    except Exception:
+        conn.rollback()
+    finally:
+        conn.close()
+
+    return jsonify({'success': True, 'message': 'Audio reseteado. Puedes generar de nuevo.'})
+
+
+@portfolio_bp.route('/asset/<int:id>/reports/<int:report_id>/audio')
+@login_required
+def asset_report_audio(id, report_id):
+    """Descargar o reproducir el audio TTS del informe"""
+    from flask import send_file
+
+    asset = Asset.query.get_or_404(id)
+    if not _user_can_access_asset_reports(current_user.id, id):
+        return jsonify({'error': 'No autorizado'}), 403
+
+    report = CompanyReport.query.filter_by(
+        id=report_id,
+        user_id=current_user.id,
+        asset_id=id
+    ).first_or_404()
+
+    full_path = _get_report_audio_path(report)
+    if not full_path:
+        return jsonify({'error': 'Archivo de audio no encontrado'}), 404
+
+    # download=1 en query → forzar descarga; sin param → permitir reproducción en navegador
+    force_download = request.args.get('download') == '1'
+    download_name = f'informe_{report.template_title or report_id}_{asset.name or asset.symbol or "report"}.wav'.replace(' ', '_')
+    return send_file(
+        str(full_path),
+        mimetype='audio/wav',
+        as_attachment=force_download,
+        download_name=download_name
+    )
+
+
+@portfolio_bp.route('/api/reports/<int:report_id>/status')
+@login_required
+def api_report_status(report_id):
+    """Estado de un informe (para poll desde frontend)"""
+    from app.models import CompanyReport
+
+    report = CompanyReport.query.filter_by(
+        id=report_id,
+        user_id=current_user.id
+    ).first_or_404()
+
+    return jsonify({
+        'id': report.id,
+        'status': report.status,
+        'error_msg': report.error_msg,
+        'completed_at': report.completed_at.isoformat() if report.completed_at else None,
+        'audio_status': getattr(report, 'audio_status', None),
+        'audio_path': getattr(report, 'audio_path', None),
+        'audio_error_msg': getattr(report, 'audio_error_msg', None),
+    })
+
+
+@portfolio_bp.route('/asset/<int:id>/about/generate', methods=['POST'])
+@login_required
+@csrf.exempt
+def asset_about_generate(id):
+    """Generar resumen About the Company (llamada rápida, síncrona)"""
+    from app.models import AssetAboutSummary
+    from app.services.gemini_service import generate_about_summary, GeminiServiceError, is_gemini_available
+
+    asset = Asset.query.get_or_404(id)
+    if not _user_can_access_asset_reports(current_user.id, id):
+        return jsonify({'success': False, 'error': 'Asset no está en tu cartera ni en watchlist'}), 403
+
+    if not is_gemini_available():
+        return jsonify({'success': False, 'error': 'GEMINI_API_KEY no configurada'}), 503
+
+    try:
+        summary_text = generate_about_summary(asset)
+    except GeminiServiceError as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+    # Guardar o actualizar
+    about = AssetAboutSummary.query.filter_by(
+        user_id=current_user.id,
+        asset_id=id
+    ).first()
+    if not about:
+        about = AssetAboutSummary(user_id=current_user.id, asset_id=id)
+        db.session.add(about)
+    about.summary = summary_text
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'summary': summary_text
+    })
+
+
+@portfolio_bp.route('/asset/<int:id>/about')
+@login_required
+def asset_about_get(id):
+    """Obtener resumen About the Company guardado"""
+    from app.models import AssetAboutSummary
+
+    asset = Asset.query.get_or_404(id)
+    if not _user_can_access_asset_reports(current_user.id, id):
+        return jsonify({'error': 'No autorizado'}), 403
+
+    about = AssetAboutSummary.query.filter_by(
+        user_id=current_user.id,
+        asset_id=id
+    ).first()
+
+    return jsonify({
+        'summary': about.summary if about else None
+    })
 
 
 # ==================== PRICE UPDATES (Sprint 3 Final) ====================
@@ -2638,6 +3268,12 @@ def watchlist():
     # Ordenar primero, luego revertir para que las fechas más lejanas estén primero
     table_data.sort(key=get_sort_key, reverse=True)
     
+    from app.models import ReportTemplate
+    from app.services.gemini_service import is_gemini_available
+    report_templates = ReportTemplate.query.filter_by(user_id=current_user.id).order_by(ReportTemplate.title).all()
+    has_valid_templates = any(t.has_valid_description() for t in report_templates)
+    gemini_available = is_gemini_available()
+
     return render_template(
         'portfolio/watchlist.html',
         table_data=table_data,
@@ -2647,7 +3283,10 @@ def watchlist():
         tier_ranges=config.get_tier_ranges_dict(),
         tier_amounts=config.get_tier_amounts_dict(),
         color_thresholds=config.get_color_thresholds_dict(),
-        today=today
+        today=today,
+        report_templates=report_templates,
+        has_valid_templates=has_valid_templates,
+        gemini_available=gemini_available
     )
 
 

@@ -13,6 +13,7 @@ from app.models.transaction import Transaction, CashFlow
 from app.models.metrics import PortfolioMetrics
 from app.models.metrics_cache import MetricsCache
 from app.models.watchlist import Watchlist, WatchlistConfig
+from app.models.company_report import ReportSettings, ReportTemplate, CompanyReport, AssetAboutSummary
 
 __all__ = [
     'User', 
@@ -27,6 +28,10 @@ __all__ = [
     'PortfolioMetrics',
     'MetricsCache',
     'Watchlist',
-    'WatchlistConfig'
+    'WatchlistConfig',
+    'ReportSettings',
+    'ReportTemplate',
+    'CompanyReport',
+    'AssetAboutSummary'
 ]
 

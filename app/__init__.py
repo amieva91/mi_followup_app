@@ -66,6 +66,14 @@ def create_app(config_name='default'):
     login_manager.login_view = 'auth.login'
     login_manager.login_message = 'Por favor inicia sesión para acceder a esta página.'
     login_manager.login_message_category = 'info'
+
+    @login_manager.unauthorized_handler
+    def unauthorized():
+        from flask import request, jsonify, redirect, url_for
+        # Para rutas API, devolver JSON en lugar de redirect (evita "is not valid JSON")
+        if request.path.startswith('/portfolio/api/'):
+            return jsonify({'success': False, 'error': 'Sesión expirada. Recarga la página.'}), 401
+        return redirect(url_for(login_manager.login_view))
     
     # User loader para Flask-Login
     from app.models import User
@@ -96,11 +104,28 @@ def create_app(config_name='default'):
     app.register_blueprint(expenses_bp)
     app.register_blueprint(incomes_bp)
     app.register_blueprint(portfolio_bp)
+
+    # Para rutas API: devolver JSON en 404/500 (evita "is not valid JSON" en frontend)
+    @app.errorhandler(404)
+    def not_found_handler(e):
+        from flask import request, jsonify
+        # Cualquier ruta que parezca API debe devolver JSON
+        if '/api/' in request.path or request.path.endswith('/api/report-templates') or 'report-templates' in request.path:
+            return jsonify({'success': False, 'error': 'Recurso no encontrado'}), 404
+        return '<h1>Página no encontrada</h1>', 404
+
+    @app.errorhandler(500)
+    def server_error_handler(e):
+        from flask import request, jsonify
+        if '/api/' in request.path or 'report-templates' in request.path:
+            return jsonify({'success': False, 'error': 'Error interno del servidor'}), 500
+        return '<h1>Error interno</h1>', 500
     
     # Crear carpetas necesarias
     import os
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     os.makedirs(app.config['OUTPUT_FOLDER'], exist_ok=True)
+    os.makedirs(os.path.join(app.config['OUTPUT_FOLDER'], 'reports_audio'), exist_ok=True)
     os.makedirs(app.root_path + '/../instance', exist_ok=True)
     
     return app

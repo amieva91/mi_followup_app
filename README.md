@@ -218,6 +218,12 @@ Sistema completo de gestión financiera personal.
     - Gráfico con 3 líneas: Oro (XAUUSD=X), Plata (XAGUSD=X) normalizados a 100 y Correlación rolling 30d (eje secundario -1..1)
     - Filtros de visibilidad por serie (legend/checkboxes)
     - Endpoint JSON: `/portfolio/api/commodities?range=1Y&interval=1d&window=30`
+- ✅ **Informes de Investigación con Gemini** (Ene 2026):
+  - Informes Deep Research sobre assets en watchlist (plantillas configurables)
+  - Resumen "About the Company" (generación rápida)
+  - **Envío por correo**: botón para enviar informes al email (Flask-Mail). Si existe audio TTS, se adjunta automáticamente el WAV
+  - **Audio resumen TTS**: generación de audio con Gemini 2.5 TTS en segundo plano, descarga WAV
+  - Requiere: `GEMINI_API_KEY`, `MAIL_*`. Opcional: `GEMINI_MODEL_FLASH`, `GEMINI_MODEL_TTS`, `GEMINI_AGENT_DEEP_RESEARCH` para cambiar modelos (ver env.example)
 - ✅ **Dashboard** - KPIs en tiempo real (ingresos/gastos/balance mensual + portfolio completo con 9 métricas + Modified Dietz)
 - ✅ **Sistema desplegado** - Funcionando en https://followup.fit/
 
@@ -280,8 +286,11 @@ pip install -r requirements.txt
 
 ### 3. Variables de entorno
 ```bash
-cp .env.example .env
-# Editar .env con tus credenciales
+cp env.example .env
+# Editar .env con tus credenciales:
+# - MAIL_* para envío de informes por correo (Gmail: usar Contraseña de aplicación)
+# - GEMINI_API_KEY para informes, audio TTS y resumen About
+# - GEMINI_MODEL_FLASH, GEMINI_MODEL_TTS, GEMINI_AGENT_DEEP_RESEARCH (opcionales, para actualizar modelos)
 ```
 
 ### 4. Inicializar base de datos

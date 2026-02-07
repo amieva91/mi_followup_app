@@ -16,9 +16,14 @@ class Config:
     # Flask
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production'
     
-    # Database
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
-        f'sqlite:///{basedir / "instance" / "followup.db"}'
+    # Database - forzar ruta absoluta para SQLite (evita "unable to open database file" con nohup/cwd distinto)
+    _db_path = (basedir / 'instance' / 'followup.db').resolve()
+    _env_db = os.environ.get('DATABASE_URL')
+    if _env_db and 'sqlite' in _env_db and 'instance' in _env_db:
+        # Si es sqlite con instance, usar siempre ruta absoluta
+        SQLALCHEMY_DATABASE_URI = f'sqlite:///{_db_path}'
+    else:
+        SQLALCHEMY_DATABASE_URI = _env_db or f'sqlite:///{_db_path}'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {
         'pool_pre_ping': True,
