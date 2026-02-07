@@ -699,12 +699,15 @@ Después de subir a producción, verificar:
 - ✅ Recuadro de comparación expandido a ancho completo
 - ✅ HITO 3 - Fase 2: Gráficos adicionales (Apalancamiento, Flujos de Caja, P&L Acumulado)
 
-**✅ Sprint 6 COMPLETADO (v6.0.0 - Feb 2026):**
+**✅ Sprint 6 COMPLETADO (v6.0.0):**
 - ✅ HITO 1: Análisis de Concentración (gráficos de distribución)
 - ✅ HITO 2: Watchlist con indicadores de operativa y métricas avanzadas
 - ✅ HITO 2bis: Informes Gemini (Deep Research, TTS, correo con audio adjunto)
 - ❌ HITO 3 descoped: Alertas sector/país
 
-**🚧 Sprint 7 EN PROGRESO (v7.0.0 - Alertas y Notificaciones):**
-- Ver `SPRINT7_ALERTAS_NOTIFICACIONES.md` para hitos planificados
+**✅ Sprint 7 COMPLETADO** (sin hitos, descoped)  
+**✅ Sprint 8 COMPLETADO** (todos los hitos pospuestos al final del proyecto)
+
+**🚧 Sprint 9 EN PROGRESO (v9.0.0 - Planificación Financiera):**
+- Ver `SPRINT9_PLANIFICACION_FINANCIERA.md` para hitos planificados
 

@@ -3,7 +3,7 @@
 **Fecha de inicio**: 5 Octubre 2025  
 **Timeline**: 6 meses (26 semanas)  
 **Última actualización**: 24 Diciembre 2025  
-**Estado actual**: ✅ Sprint 6 COMPLETADO (v6.0.0) | 🚧 Sprint 7 EN PROGRESO (v7.0.0 - Alertas y Notificaciones)
+**Estado actual**: ✅ Sprint 8 COMPLETADO (todos pospuestos al final) | 🚧 Sprint 9 EN PROGRESO (v9.0.0 - Planificación Financiera)
 
 ## 🎉 PROGRESO RECIENTE
 
@@ -375,10 +375,9 @@
   - ✅ HITO 2 COMPLETADO: Watchlist con indicadores de operativa y métricas avanzadas
   - ✅ HITO 2bis COMPLETADO: Informes Gemini (Deep Research, TTS, correo)
   - ❌ HITO 3 DESESTIMADO: Alertas sector/país (descoped)
-- **Sprint 7**: Alertas y Notificaciones (2 semanas) 🚧 ACTUAL - v7.0.0
-  - Alertas de precio, calendario dividendos, eventos corporativos
-- **Sprint 8**: Testing y Optimización (2 semanas)
-  - Tests 80%+, optimización SQL, logging, monitoring, deployment automatizado
+- **Sprint 7**: Alertas y Notificaciones ✅ COMPLETADO (todos los hitos descoped)
+- **Sprint 8**: Testing y Optimización ✅ COMPLETADO (todos los hitos pospuestos al final del proyecto)
+- **Sprint 9**: Planificación Financiera y Cash Flow Forecast (3 semanas) 🚧 ACTUAL - v9.0.0
 - **Sprint 9**: Planificación Financiera y Cash Flow Forecast (3 semanas)
   - Gastos planificados/deseados (viajes, caprichos, compras grandes)
   - Proyección de flujo de caja a 12 meses
