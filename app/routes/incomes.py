@@ -1,7 +1,7 @@
 """
 Blueprint para gestión de ingresos
 """
-from flask import Blueprint, render_template, redirect, url_for, flash, request
+from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_required, current_user
 from app import db
 from app.models import IncomeCategory, Income
@@ -16,10 +16,20 @@ incomes_bp = Blueprint('incomes', __name__, url_prefix='/incomes')
 @incomes_bp.route('/categories')
 @login_required
 def categories():
-    """Listar categorías de ingresos"""
-    categories = IncomeCategory.query.filter_by(
-        user_id=current_user.id
+    """Listar categorías de ingresos (agrupadas jerárquicamente)"""
+    parent_categories = IncomeCategory.query.filter_by(
+        user_id=current_user.id,
+        parent_id=None
     ).order_by(IncomeCategory.name).all()
+    
+    categories = []
+    for parent in parent_categories:
+        categories.append(parent)
+        subcategories = IncomeCategory.query.filter_by(
+            user_id=current_user.id,
+            parent_id=parent.id
+        ).order_by(IncomeCategory.name).all()
+        categories.extend(subcategories)
     
     return render_template(
         'incomes/categories.html',
@@ -27,18 +37,47 @@ def categories():
     )
 
 
+@incomes_bp.route('/categories/quick-create', methods=['POST'])
+@login_required
+def quick_create_category():
+    """API: crear categoría de ingreso desde modal, devuelve JSON."""
+    name = request.form.get('name') or (request.json.get('name') if request.is_json else None)
+    icon = request.form.get('icon', '💵') or '💵'
+    if not name or not name.strip():
+        return jsonify({'error': 'El nombre es requerido'}), 400
+    parent_id = request.form.get('parent_id', type=int) or (request.json.get('parent_id') if request.is_json else 0) or 0
+    cat = IncomeCategory(
+        name=name.strip(),
+        icon=icon or '💵',
+        color='green',
+        user_id=current_user.id,
+        parent_id=parent_id if parent_id else None
+    )
+    db.session.add(cat)
+    db.session.commit()
+    label = f"{cat.icon} {cat.full_name}"
+    return jsonify({'id': cat.id, 'name': cat.name, 'icon': cat.icon, 'full_name': cat.full_name, 'label': label})
+
+
 @incomes_bp.route('/categories/new', methods=['GET', 'POST'])
 @login_required
 def new_category():
     """Crear nueva categoría"""
     form = IncomeCategoryForm()
+    form.parent_id.choices = [(0, '-- Sin categoría padre --')] + [
+        (c.id, c.name) for c in IncomeCategory.query.filter_by(
+            user_id=current_user.id,
+            parent_id=None
+        ).order_by(IncomeCategory.name).all()
+    ]
     
     if form.validate_on_submit():
         category = IncomeCategory(
             name=form.name.data,
             icon=form.icon.data or '💵',
             color=form.color.data,
-            user_id=current_user.id
+            user_id=current_user.id,
+            parent_id=form.parent_id.data if form.parent_id.data != 0 else None
         )
         
         db.session.add(category)
@@ -61,11 +100,19 @@ def edit_category(id):
         return redirect(url_for('incomes.categories'))
     
     form = IncomeCategoryForm(obj=category)
+    form.parent_id.choices = [(0, '-- Sin categoría padre --')] + [
+        (c.id, c.name) for c in IncomeCategory.query.filter_by(
+            user_id=current_user.id,
+            parent_id=None
+        ).filter(IncomeCategory.id != id).order_by(IncomeCategory.name).all()
+    ]
+    form.parent_id.data = category.parent_id or 0
     
     if form.validate_on_submit():
         category.name = form.name.data
         category.icon = form.icon.data or '💵'
         category.color = form.color.data
+        category.parent_id = form.parent_id.data if form.parent_id.data != 0 else None
         
         db.session.commit()
         
@@ -133,12 +180,16 @@ def list():
     categories = IncomeCategory.query.filter_by(
         user_id=current_user.id
     ).order_by(IncomeCategory.name).all()
+
+    # Resumen por categoría (12 meses)
+    category_summary = Income.get_category_summary(current_user.id, months=12)
     
     return render_template(
         'incomes/list.html',
         incomes=incomes,
         categories=categories,
-        selected_category=category_id
+        selected_category=category_id,
+        category_summary=category_summary
     )
 
 
@@ -157,7 +208,7 @@ def new():
         flash('Primero debes crear al menos una categoría de ingresos', 'warning')
         return redirect(url_for('incomes.new_category'))
     
-    form.category_id.choices = [(c.id, f"{c.icon} {c.name}") for c in categories]
+    form.category_id.choices = [(c.id, f"{c.icon} {c.full_name}") for c in categories]
     
     if form.validate_on_submit():
         # Crear instancia base (sin guardar aún)
@@ -210,7 +261,7 @@ def edit(id):
         user_id=current_user.id
     ).order_by(IncomeCategory.name).all()
     
-    form.category_id.choices = [(c.id, f"{c.icon} {c.name}") for c in categories]
+    form.category_id.choices = [(c.id, f"{c.icon} {c.full_name}") for c in categories]
     
     # Verificar si es parte de una serie recurrente
     is_part_of_series = income.is_recurring and income.recurrence_group_id

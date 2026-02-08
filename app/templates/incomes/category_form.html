@@ -26,7 +26,7 @@
             </div>
 
             <!-- Icono y Color en Grid -->
-            <div class="grid grid-cols-2 gap-4 mb-6">
+            <div class="grid grid-cols-2 gap-4 mb-4">
                 <!-- Icono -->
                 <div>
                     {{ form.icon.label(class="block text-gray-700 font-semibold mb-2") }}
@@ -45,6 +45,15 @@
                     {{ form.color.label(class="block text-gray-700 font-semibold mb-2") }}
                     {{ form.color(class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500") }}
                 </div>
+            </div>
+
+            <!-- Categoría Padre -->
+            <div class="mb-6">
+                {{ form.parent_id.label(class="block text-gray-700 font-semibold mb-2") }}
+                {{ form.parent_id(class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500") }}
+                <p class="text-sm text-gray-500 mt-1">
+                    Opcional: Permite crear subcategorías (ej: Salario > Nómina)
+                </p>
             </div>
 
             <!-- Botones -->

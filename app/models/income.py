@@ -1,12 +1,13 @@
 """
 Modelos para gestión de ingresos variables
 """
-from datetime import datetime
+from datetime import datetime, date
+from dateutil.relativedelta import relativedelta
 from app import db
 
 
 class IncomeCategory(db.Model):
-    """Categorías de ingresos variables"""
+    """Categorías de ingresos variables (jerárquicas)"""
     
     __tablename__ = 'income_categories'
     
@@ -15,6 +16,7 @@ class IncomeCategory(db.Model):
     icon = db.Column(db.String(50), default='💵')  # Emoji o nombre de icono
     color = db.Column(db.String(20), default='green')  # Color Tailwind
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    parent_id = db.Column(db.Integer, db.ForeignKey('income_categories.id'), nullable=True)
     
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
@@ -22,9 +24,21 @@ class IncomeCategory(db.Model):
     # Relaciones
     user = db.relationship('User', backref='income_categories')
     incomes = db.relationship('Income', backref='category', lazy='dynamic', cascade='all, delete-orphan')
+    children = db.relationship(
+        'IncomeCategory',
+        backref=db.backref('parent', remote_side=[id]),
+        lazy='dynamic'
+    )
     
     def __repr__(self):
         return f'<IncomeCategory {self.name}>'
+    
+    @property
+    def full_name(self):
+        """Nombre completo con padre (si existe)"""
+        if self.parent:
+            return f"{self.parent.name} > {self.name}"
+        return self.name
     
     def total_income(self, start_date=None, end_date=None):
         """Total de ingresos en esta categoría"""
@@ -105,6 +119,7 @@ class Income(db.Model):
     def get_by_category(user_id, start_date, end_date):
         """Ingresos agrupados por categoría"""
         results = db.session.query(
+            IncomeCategory.id,
             IncomeCategory.name,
             IncomeCategory.icon,
             IncomeCategory.color,
@@ -117,6 +132,7 @@ class Income(db.Model):
         
         return [
             {
+                'id': r.id,
                 'category': r.name,
                 'icon': r.icon,
                 'color': r.color,
@@ -124,4 +140,12 @@ class Income(db.Model):
             }
             for r in results
         ]
+
+    @staticmethod
+    def get_category_summary(user_id, months=12):
+        """Resumen por categoría para últimos N meses. Returns lista de {id, category, icon, total}."""
+        today = date.today()
+        start_date = today - relativedelta(months=months)
+        end_date = today
+        return Income.get_by_category(user_id, start_date, end_date)
 

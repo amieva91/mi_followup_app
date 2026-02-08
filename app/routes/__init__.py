@@ -13,5 +13,6 @@ from app.routes import main_routes
 from app.routes.auth import auth_bp
 from app.routes.expenses import expenses_bp
 from app.routes.incomes import incomes_bp
+from app.routes.debts import debts_bp
 from app.routes import portfolio
 

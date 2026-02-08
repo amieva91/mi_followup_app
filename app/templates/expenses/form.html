@@ -27,13 +27,17 @@
 
     <!-- Formulario -->
     <div class="bg-white rounded-lg shadow-md p-6">
-        <form method="POST" action="" x-data="{ is_recurring: {{ 'true' if form.is_recurring.data else 'false' }} }">
+        <form method="POST" action="" id="expense-form" novalidate>
             {{ form.hidden_tag() }}
 
             <!-- Categoría -->
             <div class="mb-4">
                 {{ form.category_id.label(class="block text-gray-700 font-semibold mb-2") }}
-                {{ form.category_id(class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500") }}
+                <div class="flex items-center gap-2">
+                    {{ form.category_id(id='category_id', class="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500") }}
+                    {% set category_select_id = 'category_id' %}
+                    {% include 'components/category_modal_expense.html' %}
+                </div>
                 {% if form.category_id.errors %}
                     <div class="text-red-600 text-sm mt-1">
                         {% for error in form.category_id.errors %}
@@ -94,13 +98,13 @@
             <!-- Checkbox Recurrente -->
             <div class="mb-4 bg-blue-50 p-4 rounded-lg">
                 <label class="flex items-center space-x-3 cursor-pointer">
-                    {{ form.is_recurring(class="w-5 h-5", **{'x-model': 'is_recurring'}) }}
+                    {{ form.is_recurring(class="w-5 h-5", id="is_recurring") }}
                     <span class="text-gray-700 font-semibold">Este gasto es recurrente (se repite periódicamente)</span>
                 </label>
             </div>
 
-            <!-- Campos de Recurrencia (se muestran solo si is_recurring está activo) -->
-            <div x-show="is_recurring" x-transition class="mb-6 border-l-4 border-blue-500 pl-4">
+            <!-- Campos de Recurrencia (se muestran solo si is_recurring está marcado) -->
+            <div id="recurrence-fields" class="mb-6 border-l-4 border-blue-500 pl-4" style="display: {{ 'block' if form.is_recurring.data else 'none' }};">
                 <h3 class="font-bold text-gray-700 mb-3">⚙️ Configuración de Recurrencia</h3>
                 
                 <!-- Frecuencia y Fecha Fin -->
@@ -134,15 +138,26 @@
                 </div>
             </div>
 
-            <!-- Botones -->
-            <div class="flex space-x-3">
-                {{ form.submit(class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition font-semibold") }}
+            <div class="flex space-x-3 mt-4">
+                <button type="button" onclick="var f=document.getElementById('expense-form');f.requestSubmit?f.requestSubmit():f.submit()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition font-semibold">
+                    Guardar Gasto
+                </button>
                 <a href="{{ url_for('expenses.list') }}" 
                    class="flex-1 text-center bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-3 rounded-lg transition font-semibold">
                     Cancelar
                 </a>
             </div>
         </form>
+    </div>
+
+    <!-- Enlace a deudas -->
+    <div class="mt-6 bg-blue-50 rounded-lg p-4">
+        <p class="text-sm text-gray-700">
+            ¿Pagando algo a plazos?
+            <a href="{{ url_for('debts.new', next='expenses') }}" class="text-blue-600 hover:text-blue-800 font-medium">
+                Crear plan de deuda a plazos →
+            </a>
+        </p>
     </div>
 
     <!-- Ayuda -->
@@ -156,5 +171,18 @@
         </ul>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var cb = document.getElementById('is_recurring');
+    var div = document.getElementById('recurrence-fields');
+    if (!cb || !div) return;
+    var freqSelect = div.querySelector('select[name="recurrence_frequency"]');
+    cb.addEventListener('change', function() {
+        div.style.display = this.checked ? 'block' : 'none';
+        if (freqSelect && !this.checked) freqSelect.value = '';
+    });
+});
+</script>
 {% endblock %}
 

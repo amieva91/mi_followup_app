@@ -12,12 +12,66 @@
                class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition">
                 📂 Categorías
             </a>
+            <a href="{{ url_for('debts.new', next='expenses') }}" 
+               class="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg transition">
+                📋 Pagar a plazos
+            </a>
             <a href="{{ url_for('expenses.new') }}" 
                class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition">
                 + Nuevo Gasto
             </a>
         </div>
     </div>
+
+    <!-- Resumen por categoría (12 meses) -->
+    {% if category_summary %}
+    <div class="bg-white rounded-lg shadow p-4 mb-6">
+        <h2 class="text-lg font-bold text-gray-800 mb-3">📊 Resumen por categoría (últimos 12 meses)</h2>
+        <div class="space-y-2" x-data="{ expanded: {} }">
+            {% for parent in category_summary %}
+            <div class="border border-gray-200 rounded-lg overflow-hidden">
+                {% if parent.children %}
+                <button type="button" @click="expanded['{{ parent.id }}'] = !expanded['{{ parent.id }}']"
+                        class="w-full flex justify-between items-center px-4 py-3 text-left hover:bg-gray-50 transition">
+                    <span class="flex items-center gap-2">
+                        <span class="text-xl">{{ parent.icon }}</span>
+                        <span class="font-medium text-gray-800">{{ parent.name }}</span>
+                    </span>
+                    <span class="flex items-center gap-2">
+                        <span class="text-red-600 font-semibold">-{{ '%.2f'|format(parent.total) }} €</span>
+                        <span class="text-gray-400 text-sm" x-text="expanded['{{ parent.id }}'] ? '▼' : '▶'">▶</span>
+                    </span>
+                </button>
+                {% else %}
+                <a href="{{ url_for('expenses.list', category=parent.id) }}"
+                   class="flex justify-between items-center px-4 py-3 hover:bg-gray-50 transition">
+                    <span class="flex items-center gap-2">
+                        <span class="text-xl">{{ parent.icon }}</span>
+                        <span class="font-medium text-gray-800">{{ parent.name }}</span>
+                    </span>
+                    <span class="text-red-600 font-semibold">-{{ '%.2f'|format(parent.total) }} €</span>
+                </a>
+                {% endif %}
+                {% if parent.children %}
+                <div x-show="expanded['{{ parent.id }}']" x-cloak x-transition
+                     class="border-t border-gray-100 bg-gray-50">
+                    {% for child in parent.children %}
+                    <a href="{{ url_for('expenses.list', category=child.id) }}"
+                       class="flex justify-between items-center px-4 py-2 pl-12 hover:bg-gray-100">
+                        <span class="flex items-center gap-2 text-gray-700">
+                            <span>{{ child.icon }}</span>
+                            <span>{{ child.name }}</span>
+                        </span>
+                        <span class="text-red-600 font-medium">-{{ '%.2f'|format(child.total) }} €</span>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
 
     <!-- Filtro por categoría -->
     {% if categories %}
@@ -86,18 +140,25 @@
                             <td class="px-6 py-4 text-sm text-gray-700">
                                 <div>{{ expense.description }}</div>
                                 {% if expense.notes %}
-                                    <div class="text-xs text-gray-500 mt-1">{{ expense.notes[:50] }}...</div>
+                                    <div class="text-xs text-gray-500 mt-1">{{ expense.notes }}</div>
                                 {% endif %}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-semibold text-red-600">
                                 -€{{ '%.2f'|format(expense.amount) }}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-center text-sm">
-                                <div class="flex justify-center space-x-2" x-data="{ showDeleteModal: false, expenseId: {{ expense.id }}, isRecurring: {{ 'true' if expense.is_recurring and expense.recurrence_group_id else 'false' }} }">
+                                <div class="flex justify-center space-x-2" x-data="{ showDeleteModal: false, expenseId: {{ expense.id }}, isRecurring: {{ 'true' if expense.is_recurring and expense.recurrence_group_id and not expense.debt_plan_id else 'false' }}, isDebtInstallment: {{ 'true' if expense.debt_plan_id else 'false' }}, debtPlanId: {{ expense.debt_plan_id or 0 }} }">
+                                    {% if expense.debt_plan_id %}
+                                    <a href="{{ url_for('debts.edit', id=expense.debt_plan_id, next='expenses') }}" 
+                                       class="text-blue-600 hover:text-blue-800" title="Editar plan de deuda">
+                                        ✏️
+                                    </a>
+                                    {% else %}
                                     <a href="{{ url_for('expenses.edit', id=expense.id) }}" 
                                        class="text-blue-600 hover:text-blue-800" title="Editar">
                                         ✏️
                                     </a>
+                                    {% endif %}
                                     <button @click="showDeleteModal = true" class="text-red-600 hover:text-red-800" title="Eliminar">
                                         🗑️
                                     </button>
@@ -107,12 +168,42 @@
                                         <div @click.away="showDeleteModal = false" class="bg-white rounded-lg shadow-xl p-6 max-w-md">
                                             <h3 class="text-lg font-bold mb-4">🗑️ Confirmar Eliminación</h3>
                                             
-                                            <template x-if="isRecurring">
+                                            {% if expense.debt_plan_id %}
+                                            <template x-if="isDebtInstallment">
+                                                <div>
+                                                    <p class="text-gray-700 mb-4">Este gasto es una cuota de un plan de deuda. ¿Qué deseas hacer?</p>
+                                                    
+                                                    <div class="space-y-3">
+                                                        <form method="POST" action="{{ url_for('debts.cancel', id=expense.debt_plan_id) }}">
+                                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                            <input type="hidden" name="delete_future_only" value="true">
+                                                            <input type="hidden" name="from_expense_id" value="{{ expense.id }}">
+                                                            <input type="hidden" name="next" value="expenses">
+                                                            <button type="submit" class="w-full bg-amber-500 hover:bg-amber-600 text-white px-4 py-3 rounded-lg transition">
+                                                                ⏹ Eliminar entradas futuras
+                                                            </button>
+                                                        </form>
+                                                        
+                                                        <form method="POST" action="{{ url_for('debts.cancel', id=expense.debt_plan_id) }}">
+                                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                            <input type="hidden" name="delete_future_only" value="false">
+                                                            <input type="hidden" name="next" value="expenses">
+                                                            <button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-lg transition">
+                                                                🔥 Eliminar toda la serie
+                                                            </button>
+                                                        </form>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                            {% endif %}
+                                            
+                                            <template x-if="isRecurring && !isDebtInstallment">
                                                 <div>
                                                     <p class="text-gray-700 mb-4">Este gasto es parte de una serie recurrente. ¿Qué deseas hacer?</p>
                                                     
                                                     <div class="space-y-3">
                                                         <form method="POST" action="{{ url_for('expenses.delete', id=expense.id) }}">
+                                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                                             <input type="hidden" name="delete_series" value="false">
                                                             <button type="submit" class="w-full bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-3 rounded-lg transition">
                                                                 📌 Eliminar solo esta entrada
@@ -120,6 +211,7 @@
                                                         </form>
                                                         
                                                         <form method="POST" action="{{ url_for('expenses.delete', id=expense.id) }}">
+                                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                                             <input type="hidden" name="delete_series" value="true">
                                                             <button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-lg transition">
                                                                 🔥 Eliminar toda la serie
@@ -129,10 +221,11 @@
                                                 </div>
                                             </template>
                                             
-                                            <template x-if="!isRecurring">
+                                            <template x-if="!isRecurring && !isDebtInstallment">
                                                 <div>
                                                     <p class="text-gray-700 mb-4">¿Estás seguro de que deseas eliminar este gasto?</p>
                                                     <form method="POST" action="{{ url_for('expenses.delete', id=expense.id) }}">
+                                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                                         <button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-lg transition">
                                                             Sí, eliminar
                                                         </button>

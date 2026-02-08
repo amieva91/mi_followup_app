@@ -10,6 +10,7 @@ Sistema completo de gestión financiera personal.
 - ✅ **Sprint 2 - Gastos e Ingresos** 
   - Categorías jerárquicas con padre/hijo
   - Gastos y ingresos puntuales y recurrentes
+  - **Mejoras v9.0.0 (Feb 2026)**: Planes de deuda con edición completa, pago anticipado mejorado, categorías jerárquicas de ingresos, modales personalizados. Ver `docs/cambios/MEJORAS_DEUDAS_GASTOS_INGRESOS_FEB2026.md`
   - Generación automática de instancias históricas
   - Edición y eliminación de series completas
   - Emoji picker interactivo
@@ -325,6 +326,7 @@ python run.py
 - **`docs/archivo/`** - Análisis inicial y propuestas
 - **`docs/migraciones/`** - Documentos de migraciones históricas
 - **`docs/indices/`** - Índices de documentación
+- **`docs/cambios/`** - Registro de cambios y mejoras (ej: `MEJORAS_DEUDAS_GASTOS_INGRESOS_FEB2026.md`)
 - **`docs/fixes/`** - Documentación de fixes y correcciones
 - **`docs/implementaciones/`** - Documentación de implementaciones específicas (incl. especificación detallada de informes Gemini)
 - **`docs/guias/`** - Guías de uso y procedimientos

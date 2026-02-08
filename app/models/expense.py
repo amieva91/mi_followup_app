@@ -1,7 +1,8 @@
 """
 Modelos para gestión de gastos
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
+from dateutil.relativedelta import relativedelta
 from app import db
 
 
@@ -74,6 +75,9 @@ class Expense(db.Model):
     date = db.Column(db.Date, nullable=False, index=True)
     notes = db.Column(db.Text, nullable=True)
     
+    # Deuda a plazos
+    debt_plan_id = db.Column(db.Integer, db.ForeignKey('debt_plans.id'), nullable=True)
+    
     # Recurrencia
     is_recurring = db.Column(db.Boolean, default=False, nullable=False)
     recurrence_frequency = db.Column(
@@ -141,4 +145,67 @@ class Expense(db.Model):
             }
             for r in results
         ]
+
+    @staticmethod
+    def get_category_summary(user_id, months=12):
+        """
+        Resumen por categoría padre (con hijos expandibles) para últimos N meses.
+        Cuotas de deuda: solo incluye las ya vencidas (date <= hoy), igual que la lista.
+        Returns: lista de {id, name, icon, total, children: [{id, name, icon, total}, ...]}
+        """
+        today = date.today()
+        start_date = today - relativedelta(months=months)
+        end_date = today
+
+        # Mismo filtro que la lista: debt_plan_id solo si date <= hoy
+        base_filter = db.and_(
+            Expense.user_id == user_id,
+            Expense.date >= start_date,
+            Expense.date <= end_date,
+            db.or_(
+                Expense.debt_plan_id.is_(None),
+                Expense.date <= today
+            )
+        )
+
+        # Totales por categoría
+        totals = db.session.query(
+            Expense.category_id,
+            db.func.sum(Expense.amount).label('total')
+        ).filter(base_filter).group_by(Expense.category_id).all()
+        totals_map = {r.category_id: float(r.total) for r in totals}
+
+        # Categorías padre
+        parents = ExpenseCategory.query.filter_by(
+            user_id=user_id,
+            parent_id=None
+        ).order_by(ExpenseCategory.name).all()
+
+        result = []
+        for parent in parents:
+            # Total del padre: suma de sus gastos directos + hijos
+            child_ids = [c.id for c in parent.children.all()]
+            parent_total = totals_map.get(parent.id, 0)
+            for cid in child_ids:
+                parent_total += totals_map.get(cid, 0)
+
+            children = []
+            for child in parent.children.order_by(ExpenseCategory.name):
+                t = totals_map.get(child.id, 0)
+                if t > 0:
+                    children.append({
+                        'id': child.id,
+                        'name': child.name,
+                        'icon': child.icon,
+                        'total': round(t, 2)
+                    })
+            if parent_total > 0:
+                result.append({
+                    'id': parent.id,
+                    'name': parent.name,
+                    'icon': parent.icon,
+                    'total': round(parent_total, 2),
+                    'children': children
+                })
+        return result
 

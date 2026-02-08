@@ -1,0 +1,358 @@
+{% extends 'base/layout.html' %}
+
+{% block title %}Deudas - FollowUp{% endblock %}
+
+{% block content %}
+<div class="max-w-[92%] mx-auto px-4 py-8">
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-3xl font-bold text-gray-800">📋 Mis Deudas</h1>
+        <a href="{{ url_for('debts.new', next='debts') }}" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition font-medium">
+            + Nueva deuda
+        </a>
+    </div>
+
+    {% if not limit_info.is_full_year %}
+    <div class="bg-amber-50 border-l-4 border-amber-400 p-4 mb-6">
+        <p class="text-sm text-amber-800">
+            <strong>⚠️ Aviso:</strong> Tienes menos de 12 meses de historial de ingresos. Los cálculos de capacidad de endeudamiento pueden no ser precisos hasta que tengas al menos 12 meses de datos.
+        </p>
+    </div>
+    {% endif %}
+
+    <!-- Resumen y Límite -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-red-500">
+            <p class="text-gray-600 text-sm font-medium">Total deuda pendiente</p>
+            <p class="text-2xl font-bold text-gray-900">{{ total_debt|decimal_eu(2) }} €</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-blue-500">
+            <p class="text-gray-600 text-sm font-medium">Ingresos medios (12m)</p>
+            <p class="text-2xl font-bold text-gray-900">{{ limit_info.avg_monthly_income|decimal_eu(2) }} €</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4 border-l-4 {% if limit_info.margin >= 0 %}border-green-500{% else %}border-red-500{% endif %}">
+            <p class="text-gray-600 text-sm font-medium">Margen disponible</p>
+            <p class="text-2xl font-bold {% if limit_info.margin >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                {{ limit_info.margin|decimal_eu(2) }} €
+            </p>
+            <p class="text-xs text-gray-500">Según límite {{ limit_info.debt_limit_percent|decimal_eu(0) }}%</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-gray-500">
+            <p class="text-gray-600 text-sm font-medium">Límite máximo mensual</p>
+            <p class="text-2xl font-bold text-gray-900">{{ limit_info.max_monthly_debt|decimal_eu(2) }} €</p>
+            <p class="text-xs text-gray-500">{{ limit_info.max_yearly_debt|decimal_eu(2) }} €/año</p>
+        </div>
+    </div>
+
+    <!-- Configurar límite -->
+    <div class="bg-white rounded-lg shadow p-4 mb-6">
+        <h2 class="text-lg font-bold text-gray-800 mb-3">⚙️ Límite de endeudamiento</h2>
+        <form method="POST" action="{{ url_for('debts.update_limit') }}" class="flex items-end gap-3">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="flex-1 max-w-xs">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Máximo % de ingresos para deuda</label>
+                <input type="number" name="debt_limit_percent" value="{{ limit_info.debt_limit_percent }}"
+                       min="5" max="100" step="0.5"
+                       class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+            </div>
+            <button type="submit" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg">
+                Guardar límite
+            </button>
+        </form>
+        <p class="text-xs text-gray-500 mt-2">Recomendación: 30-40%. Indica el % de tus ingresos mensuales que destinarías como máximo al pago de deudas.</p>
+    </div>
+
+    <!-- Gráfico de barras -->
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <h2 class="text-xl font-bold text-gray-800 mb-4">📊 Pagos por mes (histórico y próximos 12 meses)</h2>
+        <p class="text-sm text-gray-600 mb-4">La línea roja marca tu límite máximo mensual. Pasa el cursor sobre una fila para resaltar su plan en el gráfico.</p>
+        <div style="position: relative; height: 400px;">
+            <canvas id="debtChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Lista de planes activos -->
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <h2 class="text-xl font-bold text-gray-800 p-4 border-b">Planes activos</h2>
+        {% if plans %}
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nombre</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cuota/mes</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Meses</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Inicio</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Categoría</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for plan in plans %}
+                <tr class="hover:bg-gray-50 cursor-pointer transition" data-plan-id="{{ plan.id }}" onmouseenter="window.debtChartHighlightPlan&&window.debtChartHighlightPlan({{ plan.id }})" onmouseleave="window.debtChartUnhighlight&&window.debtChartUnhighlight()" x-data="{ showPayOffModal: false, showCancelFutureModal: false }">
+                    <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ plan.name }}</td>
+                    <td class="px-6 py-4 text-sm text-gray-700">{{ plan.total_amount|decimal_eu(2) }} €</td>
+                    <td class="px-6 py-4 text-sm text-gray-700">{{ plan.monthly_payment|decimal_eu(2) }} €</td>
+                    <td class="px-6 py-4 text-sm text-gray-700">{{ get_months_paid(plan.id) }}/{{ plan.months }}</td>
+                    <td class="px-6 py-4 text-sm text-gray-700">{{ plan.start_date.strftime('%d/%m/%Y') }}</td>
+                    <td class="px-6 py-4 text-sm text-gray-700">{{ plan.category.icon }} {{ plan.category.name }}</td>
+                    <td class="px-6 py-4 text-right space-x-2">
+                        <a href="{{ url_for('debts.edit', id=plan.id) }}" class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                            ✏️ Editar
+                        </a>
+                        <span class="text-gray-300">|</span>
+                        <a href="{{ url_for('debts.restructure', id=plan.id) }}" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
+                            🔄 Reestructurar
+                        </a>
+                        <span class="text-gray-300">|</span>
+                        <button type="button" @click="showPayOffModal = true" class="text-green-600 hover:text-green-800 text-sm font-medium">
+                            ✓ Pagar anticipado
+                        </button>
+                        <!-- Modal Pagar anticipado -->
+                        <div x-show="showPayOffModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" style="display: none;">
+                            <div @click.away="showPayOffModal = false" class="bg-white rounded-lg shadow-xl p-6 max-w-md mx-4">
+                                <h3 class="text-lg font-bold mb-4">✓ Marcar como pagado</h3>
+                                <p class="text-gray-700 mb-4">¿Marcar como pagado? Se eliminarán las cuotas futuras.</p>
+                                <form method="POST" action="{{ url_for('debts.pay_off', id=plan.id) }}" class="space-y-2">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <div class="flex gap-2">
+                                        <button type="submit" class="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition">
+                                            Sí, marcar como pagado
+                                        </button>
+                                        <button type="button" @click="showPayOffModal = false" class="bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-lg transition">
+                                            Cancelar
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                        <span class="text-gray-300">|</span>
+                        <button type="button" @click="showCancelFutureModal = true" class="text-amber-600 hover:text-amber-800 text-sm font-medium">
+                            ⏹ Solo futuras
+                        </button>
+                        <!-- Modal Solo futuras -->
+                        <div x-show="showCancelFutureModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" style="display: none;">
+                            <div @click.away="showCancelFutureModal = false" class="bg-white rounded-lg shadow-xl p-6 max-w-md mx-4">
+                                <h3 class="text-lg font-bold mb-4">⏹ Cancelar cuotas futuras</h3>
+                                <p class="text-gray-700 mb-4">¿Cancelar solo cuotas futuras?</p>
+                                <form method="POST" action="{{ url_for('debts.cancel', id=plan.id) }}" class="space-y-2">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="delete_future_only" value="true">
+                                    <div class="flex gap-2">
+                                        <button type="submit" class="flex-1 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg transition">
+                                            Sí, cancelar futuras
+                                        </button>
+                                        <button type="button" @click="showCancelFutureModal = false" class="bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-lg transition">
+                                            Cancelar
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                        <span class="text-gray-300">|</span>
+                        <form method="POST" action="{{ url_for('debts.cancel', id=plan.id) }}" class="inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="delete_future_only" value="false">
+                            <button type="submit" class="text-red-600 hover:text-red-800 text-sm font-medium">
+                                🗑 Eliminar todo
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="p-8 text-center text-gray-500">
+            <p class="text-lg">No tienes planes de deuda activos.</p>
+            <a href="{{ url_for('debts.new', next='debts') }}" class="text-blue-600 hover:underline mt-2 inline-block">Crear primera deuda</a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Planes no activos (PAID_OFF / CANCELLED) -->
+    {% if inactive_plans %}
+    <div class="bg-white rounded-lg shadow overflow-hidden mt-6">
+        <h2 class="text-xl font-bold text-gray-800 p-4 border-b">📂 Histórico (pagados / cancelados)</h2>
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nombre</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cuota/mes</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Meses</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Inicio</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Categoría</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for plan in inactive_plans %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ plan.name }}</td>
+                    <td class="px-6 py-4 text-sm text-gray-700">{{ plan.total_amount|decimal_eu(2) }} €</td>
+                    <td class="px-6 py-4 text-sm text-gray-700">{{ plan.monthly_payment|decimal_eu(2) }} €</td>
+                    <td class="px-6 py-4 text-sm text-gray-700">{{ get_months_paid(plan.id) }}/{{ plan.months }}</td>
+                    <td class="px-6 py-4 text-sm">
+                        {% if plan.status == 'PAID_OFF' %}
+                        <span class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-medium">✓ Pagado</span>
+                        {% else %}
+                        <span class="bg-gray-100 text-gray-800 px-2 py-1 rounded text-xs font-medium">⏹ Cancelado</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-700">{{ plan.start_date.strftime('%d/%m/%Y') }}</td>
+                    <td class="px-6 py-4 text-sm text-gray-700">{{ plan.category.icon }} {{ plan.category.name }}</td>
+                    <td class="px-6 py-4 text-right space-x-2">
+                        <a href="{{ url_for('debts.edit', id=plan.id) }}" class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                            ✏️ Editar
+                        </a>
+                        <span class="text-gray-300">|</span>
+                        <form method="POST" action="{{ url_for('debts.cancel', id=plan.id) }}" class="inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="delete_future_only" value="false">
+                            <button type="submit" class="text-red-600 hover:text-red-800 text-sm font-medium">
+                                🗑 Eliminar
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function() {
+    const scheduleData = {{ schedule_data | tojson }};
+    const maxMonthlyDebt = {{ limit_info.max_monthly_debt }};
+
+    const ctx = document.getElementById('debtChart');
+    if (!ctx) return;
+
+    const months = scheduleData.months || scheduleData;
+    const labels = months.map(s => s.month_label);
+    const limitLine = months.map(() => maxMonthlyDebt);
+
+    // Índice del último mes pasado (mes actual - 1)
+    const today = new Date();
+    const currentMonthKey = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0');
+    const currentMonthIdx = months.findIndex(m => m.month_key === currentMonthKey);
+    const lastPastMonthIdx = currentMonthIdx > 0 ? currentMonthIdx - 1 : -1;
+
+    // Plugin: fondo gris para meses pasados
+    const grayPastMonthsPlugin = {
+        id: 'grayPastMonths',
+        beforeDatasetsDraw(chart) {
+            if (lastPastMonthIdx < 0) return;
+            const { ctx, chartArea: { left, top, right, bottom }, scales: { x } } = chart;
+            const rightEdge = lastPastMonthIdx < labels.length - 1
+                ? (x.getPixelForValue(labels[lastPastMonthIdx]) + x.getPixelForValue(labels[lastPastMonthIdx + 1])) / 2
+                : x.right;
+            ctx.save();
+            ctx.fillStyle = 'rgba(156, 163, 175, 0.2)';
+            ctx.fillRect(left, top, rightEdge - left, bottom - top);
+            ctx.restore();
+        }
+    };
+
+    // Construir datasets: uno por plan (stacked) + línea de límite
+    const datasets = [];
+    if (scheduleData.plan_ids && scheduleData.plan_ids.length > 0) {
+        const planColors = scheduleData.plan_colors || {};
+        const planNames = scheduleData.plan_names || {};
+        scheduleData.plan_ids.forEach(planId => {
+            const data = months.map(m => (m.by_plan && m.by_plan[String(planId)]) ? m.by_plan[String(planId)] : 0);
+            datasets.push({
+                label: planNames[String(planId)] || 'Plan ' + planId,
+                data: data,
+                backgroundColor: planColors[String(planId)] || 'rgba(59, 130, 246, 0.7)',
+                borderColor: planColors[String(planId)] ? planColors[String(planId)].replace('0.8', '1') : 'rgb(59, 130, 246)',
+                borderWidth: 1,
+                order: 2,
+                planId: planId
+            });
+        });
+    } else {
+        const amounts = months.map(s => s.amount || 0);
+        datasets.push({
+            label: 'Pago de deuda (€)',
+            data: amounts,
+            backgroundColor: 'rgba(59, 130, 246, 0.7)',
+            borderColor: 'rgb(59, 130, 246)',
+            borderWidth: 1,
+            order: 2
+        });
+    }
+    datasets.push({
+        label: 'Límite máximo mensual',
+        data: limitLine,
+        type: 'line',
+        borderColor: 'rgb(239, 68, 68)',
+        borderWidth: 2,
+        borderDash: [5, 5],
+        fill: false,
+        pointRadius: 0,
+        pointHoverRadius: 0,
+        order: 1
+    });
+
+    const debtChart = new Chart(ctx, {
+        type: 'bar',
+        plugins: [grayPastMonthsPlugin],
+        data: {
+            labels: labels,
+            datasets: datasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: true, position: 'top' },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) {
+                            return (ctx.dataset.label || '') + ': ' + (typeof ctx.raw === 'number' ? ctx.raw.toLocaleString('es-ES', { minimumFractionDigits: 2 }) + ' €' : ctx.raw);
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    stacked: scheduleData.plan_ids && scheduleData.plan_ids.length > 1,
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(v) { return v.toLocaleString('es-ES') + ' €'; }
+                    }
+                },
+                x: {
+                    stacked: scheduleData.plan_ids && scheduleData.plan_ids.length > 1,
+                    grid: { display: false }
+                }
+            }
+        }
+    });
+
+    window.debtChartInstance = debtChart;
+    window.debtChartHighlightPlan = function(planId) {
+        if (!debtChart) return;
+        const idx = debtChart.data.datasets.findIndex(ds => ds.planId === planId);
+        if (idx >= 0) debtChart.setDatasetVisibility(idx, true);
+        debtChart.data.datasets.forEach((ds, i) => {
+            if (ds.planId && ds.planId !== planId) debtChart.setDatasetVisibility(i, false);
+        });
+        debtChart.update('none');
+    };
+    window.debtChartUnhighlight = function() {
+        if (!debtChart) return;
+        debtChart.data.datasets.forEach((ds, i) => {
+            if (ds.planId) debtChart.setDatasetVisibility(i, true);
+        });
+        debtChart.update('none');
+    };
+})();
+</script>
+{% endblock %}

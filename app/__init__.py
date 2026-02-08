@@ -94,7 +94,7 @@ def create_app(config_name='default'):
         return dict(csrf_token=generate_csrf)
     
     # Registrar blueprints
-    from app.routes import main_bp, portfolio_bp
+    from app.routes import main_bp, portfolio_bp, debts_bp
     from app.routes.auth import auth_bp
     from app.routes.expenses import expenses_bp
     from app.routes.incomes import incomes_bp
@@ -103,6 +103,7 @@ def create_app(config_name='default'):
     app.register_blueprint(auth_bp)
     app.register_blueprint(expenses_bp)
     app.register_blueprint(incomes_bp)
+    app.register_blueprint(debts_bp)
     app.register_blueprint(portfolio_bp)
 
     # Para rutas API: devolver JSON en 404/500 (evita "is not valid JSON" en frontend)

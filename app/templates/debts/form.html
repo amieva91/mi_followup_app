@@ -1,0 +1,79 @@
+{% extends 'base/layout.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-[92%] mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold text-gray-800 mb-6">{{ title }}</h1>
+
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <form method="POST" action="" id="debt-form" novalidate x-data="{ total: {{ form.total_amount.data or 0 }}, months: {{ form.months.data or 12 }} }">
+            {{ form.hidden_tag() }}
+            {% if next_page %}<input type="hidden" name="next" value="{{ next_page }}">{% endif %}
+
+            <div class="mb-4">
+                {{ form.name.label(class="block text-gray-700 font-semibold mb-2") }}
+                {{ form.name(class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500") }}
+                {% if form.name.errors %}<div class="text-red-600 text-sm mt-1">{% for e in form.name.errors %}{{ e }}{% endfor %}</div>{% endif %}
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    {{ form.total_amount.label(class="block text-gray-700 font-semibold mb-2") }}
+                    {{ form.total_amount(class="w-full px-4 py-2 border rounded-lg", **{'x-model': 'total', '@input': 'total = parseFloat($event.target.value) || 0'}) }}
+                    {% if form.total_amount.errors %}<div class="text-red-600 text-sm mt-1">{% for e in form.total_amount.errors %}{{ e }}{% endfor %}</div>{% endif %}
+                </div>
+                <div>
+                    {{ form.months.label(class="block text-gray-700 font-semibold mb-2") }}
+                    {{ form.months(class="w-full px-4 py-2 border rounded-lg", **{'x-model': 'months', '@input': 'months = parseInt($event.target.value) || 0'}) }}
+                    {% if form.months.errors %}<div class="text-red-600 text-sm mt-1">{% for e in form.months.errors %}{{ e }}{% endfor %}</div>{% endif %}
+                </div>
+            </div>
+
+            <div class="mb-4 bg-blue-50 p-3 rounded-lg" x-show="months > 0">
+                <p class="text-sm text-gray-700">
+                    <strong>Cuota mensual aproximada:</strong>
+                    <span x-text="(total / (months || 1)).toFixed(2) + ' €'"></span>
+                </p>
+            </div>
+
+            <div class="mb-4">
+                {{ form.start_date.label(class="block text-gray-700 font-semibold mb-2") }}
+                {{ form.start_date(class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500") }}
+                {% if form.start_date.errors %}<div class="text-red-600 text-sm mt-1">{% for e in form.start_date.errors %}{{ e }}{% endfor %}</div>{% endif %}
+            </div>
+
+            <div class="mb-4">
+                {{ form.category_id.label(class="block text-gray-700 font-semibold mb-2") }}
+                <div class="flex items-center gap-2">
+                    {{ form.category_id(id='category_id', class="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500") }}
+                    {% set category_select_id = 'category_id' %}
+                    {% include 'components/category_modal_expense.html' %}
+                </div>
+                {% if form.category_id.errors %}<div class="text-red-600 text-sm mt-1">{% for e in form.category_id.errors %}{{ e }}{% endfor %}</div>{% endif %}
+            </div>
+
+            <div class="mb-6">
+                {{ form.notes.label(class="block text-gray-700 font-semibold mb-2") }}
+                {{ form.notes(class="w-full px-4 py-2 border rounded-lg") }}
+            </div>
+
+            <div class="flex space-x-3 mt-4">
+                <button type="button" onclick="var f=document.getElementById('debt-form');f.requestSubmit?f.requestSubmit():f.submit()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition font-semibold">
+                    Crear plan de deuda
+                </button>
+                <a href="{{ url_for('expenses.list') if next_page == 'expenses' else url_for('debts.dashboard') }}" class="flex-1 text-center bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-3 rounded-lg transition font-semibold">Cancelar</a>
+            </div>
+        </form>
+    </div>
+
+    <div class="mt-6 bg-yellow-50 rounded-lg p-4">
+        <p class="font-semibold text-gray-700 mb-2">💡 Sobre los pagos a plazos</p>
+        <ul class="text-sm text-gray-600 space-y-1">
+            <li>• Las cuotas se crearán automáticamente y aparecerán en tu lista de Gastos</li>
+            <li>• Cada cuota usa la categoría que selecciones (ej: Tecnología, Hogar)</li>
+            <li>• La fecha de inicio puede ser pasada o futura</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}

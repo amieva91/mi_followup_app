@@ -45,9 +45,15 @@ def dashboard():
     # Balance del mes (ingresos - gastos)
     balance_this_month = incomes_this_month - expenses_this_month
     
-    # Últimos gastos (top 5)
-    recent_expenses = Expense.query.filter_by(
-        user_id=current_user.id
+    # Últimos gastos (top 5) - excluir cuotas futuras de deuda
+    today = date.today()
+    recent_expenses = Expense.query.filter(
+        Expense.user_id == current_user.id
+    ).filter(
+        db.or_(
+            Expense.debt_plan_id.is_(None),
+            Expense.date <= today
+        )
     ).order_by(Expense.date.desc()).limit(5).all()
     
     # Últimos ingresos (top 5)

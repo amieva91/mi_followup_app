@@ -1,8 +1,9 @@
 """
 Blueprint para gestión de gastos
 """
-from flask import Blueprint, render_template, redirect, url_for, flash, request
+from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_required, current_user
+from sqlalchemy.orm import joinedload
 from datetime import datetime, date
 from app import db
 from app.models import ExpenseCategory, Expense
@@ -39,6 +40,32 @@ def categories():
         'expenses/categories.html',
         categories=categories
     )
+
+
+@expenses_bp.route('/categories/quick-create', methods=['POST'])
+@login_required
+def quick_create_category():
+    """API: crear categoría de gasto desde modal, devuelve JSON."""
+    name = request.form.get('name') or request.json.get('name') if request.is_json else request.form.get('name')
+    icon = request.form.get('icon', '💰') or '💰'
+    parent_id = request.form.get('parent_id', type=int) or 0
+    if not name or not name.strip():
+        return jsonify({'error': 'El nombre es requerido'}), 400
+    if parent_id:
+        parent = ExpenseCategory.query.filter_by(id=parent_id, user_id=current_user.id).first()
+        if not parent:
+            return jsonify({'error': 'Categoría padre no válida'}), 400
+    cat = ExpenseCategory(
+        name=name.strip(),
+        icon=icon or '💰',
+        color='gray',
+        user_id=current_user.id,
+        parent_id=parent_id if parent_id else None
+    )
+    db.session.add(cat)
+    db.session.commit()
+    label = f"{cat.icon} {cat.full_name}"
+    return jsonify({'id': cat.id, 'name': cat.name, 'icon': cat.icon, 'full_name': cat.full_name, 'label': label})
 
 
 @expenses_bp.route('/categories/new', methods=['GET', 'POST'])
@@ -142,11 +169,22 @@ def delete_category(id):
 @login_required
 def list():
     """Listar gastos"""
+    from datetime import date
+    
     page = request.args.get('page', 1, type=int)
     category_id = request.args.get('category', type=int)
     
-    # Query base
-    query = Expense.query.filter_by(user_id=current_user.id)
+    # Query base (joinedload para asegurar categoría actualizada tras ediciones)
+    query = Expense.query.options(joinedload(Expense.category)).filter_by(user_id=current_user.id)
+    
+    # Cuotas de deuda: solo mostrar las ya vencidas (fecha <= hoy)
+    today = date.today()
+    query = query.filter(
+        db.or_(
+            Expense.debt_plan_id.is_(None),
+            Expense.date <= today
+        )
+    )
     
     # Filtrar por categoría si se especifica
     if category_id:
@@ -166,12 +204,16 @@ def list():
     categories = ExpenseCategory.query.filter_by(
         user_id=current_user.id
     ).order_by(ExpenseCategory.name).all()
+
+    # Resumen por categoría (12 meses, jerárquico)
+    category_summary = Expense.get_category_summary(current_user.id, months=12)
     
     return render_template(
         'expenses/list.html',
         expenses=expenses,
         categories=categories,
-        selected_category=category_id
+        selected_category=category_id,
+        category_summary=category_summary
     )
 
 

@@ -77,6 +77,9 @@
                                     <a href="{{ url_for('expenses.new') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
                                         + Nuevo Gasto
                                     </a>
+                                    <a href="{{ url_for('debts.new', next='expenses') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
+                                        📋 Pagar a plazos
+                                    </a>
                                     <a href="{{ url_for('expenses.categories') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
                                         📂 Categorías
                                     </a>
@@ -101,6 +104,25 @@
                                     </a>
                                     <a href="{{ url_for('incomes.categories') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
                                         📂 Categorías
+                                    </a>
+                                </div>
+                            </div>
+
+                            <!-- Dropdown Deudas -->
+                            <div class="relative" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false">
+                                <button class="hover:text-blue-200 transition flex items-center space-x-1">
+                                    <span>📋 Deudas</span>
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                    </svg>
+                                </button>
+                                <div x-show="open" x-cloak x-transition 
+                                     class="absolute left-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2 z-50">
+                                    <a href="{{ url_for('debts.dashboard') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
+                                        📊 Dashboard
+                                    </a>
+                                    <a href="{{ url_for('debts.new', next='debts') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
+                                        + Nueva deuda
                                     </a>
                                 </div>
                             </div>
