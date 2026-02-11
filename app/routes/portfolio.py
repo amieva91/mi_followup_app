@@ -1728,6 +1728,9 @@ def get_or_create_broker_account(user_id, broker_format):
     elif broker_format_lower == 'ibkr':
         broker_search_name = 'IBKR'
         account_default_name = 'IBKR'
+    elif broker_format_lower == 'revolut_x':
+        broker_search_name = 'Revolut'
+        account_default_name = 'Revolut Crypto'
     else:
         # Fallback para formatos no reconocidos
         broker_search_name = broker_format.upper()
@@ -1745,7 +1748,8 @@ def get_or_create_broker_account(user_id, broker_format):
         broker_full_names = {
             'IBKR': 'Interactive Brokers',
             'DeGiro': 'DeGiro',
-            'Degiro': 'DeGiro'
+            'Degiro': 'DeGiro',
+            'Revolut': 'Revolut X - Criptomonedas',
         }
         full_name = broker_full_names.get(broker_search_name, broker_search_name)
         

@@ -98,13 +98,15 @@ def create_app(config_name='default'):
     from app.routes.auth import auth_bp
     from app.routes.expenses import expenses_bp
     from app.routes.incomes import incomes_bp
-    
+    from app.routes.crypto import crypto_bp
+
     app.register_blueprint(main_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(expenses_bp)
     app.register_blueprint(incomes_bp)
     app.register_blueprint(debts_bp)
     app.register_blueprint(portfolio_bp)
+    app.register_blueprint(crypto_bp)
 
     # Para rutas API: devolver JSON en 404/500 (evita "is not valid JSON" en frontend)
     @app.errorhandler(404)

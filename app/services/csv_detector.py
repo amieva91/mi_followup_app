@@ -54,6 +54,12 @@ class CSVDetector:
             else:
                 return 'DEGIRO'  # Formato genérico por compatibilidad
         
+        # Detectar Revolut X (crypto)
+        # Formato: Symbol,Type,Quantity,Price,Value,Fees,Date
+        revx_columns = ['Symbol', 'Type', 'Quantity', 'Price', 'Value', 'Fees', 'Date']
+        if all(col in first_line for col in revx_columns):
+            return 'REVOLUT_X'
+        
         return 'UNKNOWN'
     
     @staticmethod
@@ -96,6 +102,9 @@ class CSVDetector:
         elif format_type in ('DEGIRO_ACCOUNT', 'DEGIRO'):
             from app.services.parsers.degiro_parser import DeGiroParser
             return DeGiroParser
+        elif format_type == 'REVOLUT_X':
+            from app.services.parsers.revolut_x_parser import RevolutXParser
+            return RevolutXParser
         else:
             raise ValueError(f"Formato no soportado: {format_type}")
 

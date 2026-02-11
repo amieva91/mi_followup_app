@@ -271,8 +271,12 @@ class CSVImporterV2:
         - Sin symbol → Consultar OpenFIGI para obtener symbol
         - Sin MIC → Consultar OpenFIGI para obtener MIC
         
-        No distingue origen del asset (broker), solo verifica campos faltantes
+        Crypto (CRYPTO:XXX): no usar OpenFIGI, ya tiene symbol
         """
+        # Crypto: no enriquecer con OpenFIGI (no tiene ISIN real)
+        if isin and isin.startswith('CRYPTO:'):
+            return False
+
         registry = AssetRegistry.query.filter_by(isin=isin).first()
         if not registry:
             return False

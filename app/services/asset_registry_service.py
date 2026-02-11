@@ -61,6 +61,10 @@ class AssetRegistryService:
                 registry.mic = mic
                 if not registry.yahoo_suffix:
                     registry.yahoo_suffix = YahooSuffixMapper.mic_to_yahoo_suffix(mic)
+
+            # Crypto: asegurar yahoo_suffix -EUR
+            if registry.asset_type == 'Crypto' and registry.symbol and not registry.yahoo_suffix:
+                registry.yahoo_suffix = '-EUR'
             
             return registry
         
@@ -85,8 +89,12 @@ class AssetRegistryService:
         if not registry.ibkr_exchange and degiro_exchange:
             registry.ibkr_exchange = ExchangeMapper.degiro_to_unified(degiro_exchange)
         
-        # Generar yahoo_suffix con PRIORIDAD: MIC > ibkr_exchange
-        self._set_yahoo_suffix(registry, mic, exchange)
+        # Crypto: Yahoo Finance usa BTC-EUR, ADA-EUR, etc.
+        if asset_type == 'Crypto' and symbol:
+            registry.yahoo_suffix = '-EUR'
+        else:
+            # Generar yahoo_suffix con PRIORIDAD: MIC > ibkr_exchange
+            self._set_yahoo_suffix(registry, mic, exchange)
         
         db.session.add(registry)
         db.session.flush()
