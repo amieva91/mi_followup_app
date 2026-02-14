@@ -6,18 +6,19 @@ Esta carpeta contiene toda la documentación del proyecto FollowUp v2.0.
 
 ### 📋 Índice de Documentos
 
-#### **Guías Principales**
-- **[README.md](../README.md)** - Documentación principal del proyecto
-- **[TU_PLAN_MAESTRO.md](../TU_PLAN_MAESTRO.md)** - Plan personalizado completo del proyecto
+#### **Documentos Oficiales (raíz)**
+- **[README.md](../README.md)** - Documentación principal
+- **[TU_PLAN_MAESTRO.md](../TU_PLAN_MAESTRO.md)** - Plan maestro
 - **[SPRINT9_PLANIFICACION_FINANCIERA.md](../SPRINT9_PLANIFICACION_FINANCIERA.md)** - Sprint actual
+- **[WORKFLOW_DEV_A_PRODUCCION.md](../WORKFLOW_DEV_A_PRODUCCION.md)** - Deploy y Git
+- **[DESIGN_SYSTEM.md](../DESIGN_SYSTEM.md)** - Sistema de diseño
+- **[GEMINI_IA.md](../GEMINI_IA.md)** - Integración Gemini AI
+
+#### **Otras Guías**
 - **[INICIO_RAPIDO.md](archivo/INICIO_RAPIDO.md)** - Guía de inicio rápido
 
 #### **Workflow y Procesos**
-- **[WORKFLOW_DEV_A_PRODUCCION.md](WORKFLOW_DEV_A_PRODUCCION.md)** - Flujo de desarrollo a producción
-- **[MIGRATION_TO_PRODUCTION.md](../MIGRATION_TO_PRODUCTION.md)** - Guía de migración
-
-#### **Diseño y Arquitectura**
-- **[DESIGN_SYSTEM.md](DESIGN_SYSTEM.md)** - Sistema de diseño y guía visual
+- **[MIGRATION_TO_PRODUCTION.md](migraciones/MIGRATION_TO_PRODUCTION.md)** - Guía de migración
 - **[PROPUESTA_BASE_DATOS_MVP.md](../PROPUESTA_BASE_DATOS_MVP.md)** - Diseño de base de datos
 
 #### **Análisis Técnico**
@@ -39,8 +40,8 @@ Esta carpeta contiene toda la documentación del proyecto FollowUp v2.0.
 ## 🎯 Por Dónde Empezar
 
 1. **Nuevo en el proyecto**: Lee [INICIO_RAPIDO.md](archivo/INICIO_RAPIDO.md)
-2. **Desarrollador**: Lee [TU_PLAN_MAESTRO.md](../TU_PLAN_MAESTRO.md) y [WORKFLOW_DEV_A_PRODUCCION.md](WORKFLOW_DEV_A_PRODUCCION.md)
-3. **Diseño/Frontend**: Lee [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md)
+2. **Desarrollador**: Lee [TU_PLAN_MAESTRO.md](../TU_PLAN_MAESTRO.md) y [WORKFLOW_DEV_A_PRODUCCION.md](../WORKFLOW_DEV_A_PRODUCCION.md)
+3. **Diseño/Frontend**: Lee [DESIGN_SYSTEM.md](../DESIGN_SYSTEM.md)
 4. **Database**: Lee [PROPUESTA_BASE_DATOS_MVP.md](../PROPUESTA_BASE_DATOS_MVP.md)
 
 ---
