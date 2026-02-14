@@ -1,6 +1,6 @@
 {% extends "base/layout.html" %}
 
-{% block title %}Mis Posiciones - FollowUp{% endblock %}
+{% block title %}Cartera de Acciones - FollowUp{% endblock %}
 
 <!-- Template actualizada: 2025-10-12 14:30 - Symbol condicional (solo si != name y < 15 chars) -->
 
@@ -9,13 +9,49 @@
     <!-- Header -->
     <div class="flex justify-between items-center mb-8">
         <div>
-            <h1 class="text-3xl font-bold text-gray-900">📈 Mis Posiciones</h1>
-            <p class="text-gray-600 mt-1">Holdings actuales de tu portfolio</p>
+            <h1 class="text-3xl font-bold text-gray-900">📈 Cartera</h1>
+            <p class="text-gray-600 mt-1">Posiciones actuales en acciones y ETFs</p>
         </div>
         <a href="{{ url_for('portfolio.transaction_new') }}" class="btn-primary">
             📝 Nueva Transacción
         </a>
     </div>
+
+    <!-- Indicadores Stock+ETF (Dinero en Cuenta, Apalancamiento, B/P) -->
+    {% if metrics %}
+    <div class="mb-8">
+        <h2 class="text-lg font-semibold text-gray-700 mb-4">📊 Indicadores de la Cartera</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- Valor Total Cartera -->
+            <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-blue-500">
+                <div class="text-sm text-gray-600 mb-1">💰 Valor Cartera</div>
+                <div class="text-xl font-bold text-gray-900">{{ total_value|decimal_eu(2) }} EUR</div>
+            </div>
+            <!-- Dinero en Cuenta / Cash / Apalancamiento -->
+            <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 {% if metrics.leverage.broker_money > 0 %}border-red-500{% else %}border-cyan-500{% endif %}">
+                <div class="text-sm text-gray-600 mb-1">
+                    {% if metrics.leverage.broker_money > 0 %}⚡ Dinero Prestado{% else %}💵 Cash en Cuenta{% endif %}
+                </div>
+                <div class="text-xl font-bold {% if metrics.leverage.broker_money > 0 %}text-red-600{% else %}text-cyan-600{% endif %}">
+                    {% if metrics.leverage.broker_money >= 0 %}+{% endif %}{{ metrics.leverage.broker_money|decimal_eu(2) }} EUR
+                </div>
+            </div>
+            <!-- Dinero Usuario -->
+            <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-indigo-500">
+                <div class="text-sm text-gray-600 mb-1">💼 Dinero Usuario</div>
+                <div class="text-xl font-bold text-indigo-600">{{ metrics.total_account.total_account_value|decimal_eu(2) }} EUR</div>
+            </div>
+            <!-- B/P Total -->
+            <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 {% if metrics.total_pl.total_pl >= 0 %}border-green-600{% else %}border-red-600{% endif %}">
+                <div class="text-sm text-gray-600 mb-1">📈 B/P Total</div>
+                <div class="text-xl font-bold {% if metrics.total_pl.total_pl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                    {% if metrics.total_pl.total_pl >= 0 %}+{% endif %}{{ metrics.total_pl.total_pl|decimal_eu(2) }} EUR
+                    <span class="text-sm font-normal">({{ metrics.total_pl.total_pl_pct|decimal_eu(2) }}%)</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     {% if holdings %}
     <div class="bg-white rounded-xl shadow-sm overflow-hidden">

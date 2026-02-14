@@ -1,43 +1,38 @@
 {% extends "base/layout.html" %}
 
-{% block title %}Cryptomonedas - FollowUp{% endblock %}
+{% block title %}Metales - FollowUp{% endblock %}
 
 {% block content %}
 <div class="max-w-[92%] mx-auto">
     <!-- Header -->
     <div class="flex justify-between items-center mb-8">
         <div>
-            <h1 class="text-3xl font-bold text-gray-900">🪙 Cryptomonedas</h1>
-            <p class="text-gray-600 mt-1">Fiat, cuasi-fiat y posiciones en EUR</p>
+            <h1 class="text-3xl font-bold text-gray-900">🥇 Metales</h1>
+            <p class="text-gray-600 mt-1">Oro, plata, platino y paladio en gramos</p>
         </div>
         <div class="flex gap-3">
-            <button onclick="startPriceUpdate && startPriceUpdate()" class="btn-secondary flex items-center gap-2">
+            <button onclick="startPriceUpdate()" class="btn-secondary flex items-center gap-2">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
                 </svg>
                 Actualizar Precios
             </button>
-            <a href="{{ url_for('portfolio.import_csv') }}" class="btn-secondary">📥 Importar CSV</a>
+            <a href="{{ url_for('metales.transaction_new') }}" class="btn-primary">➕ Nueva Compra/Venta</a>
             <a href="{{ url_for('portfolio.dashboard') }}" class="btn-secondary">📊 Ver Portfolio</a>
         </div>
     </div>
 
     {% if metrics.posiciones %}
     <!-- Métricas principales -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-        <!-- Capital invertido -->
-        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-indigo-500">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-amber-600">
             <div class="text-sm text-gray-600 mb-1">💰 Capital invertido</div>
-            <div class="text-2xl font-bold text-indigo-600">{{ metrics.capital_invertido|decimal_eu(2) }} EUR</div>
+            <div class="text-2xl font-bold text-amber-600">{{ metrics.capital_invertido|decimal_eu(2) }} EUR</div>
         </div>
-
-        <!-- Valor total -->
         <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-blue-500">
             <div class="text-sm text-gray-600 mb-1">📈 Valor actual</div>
             <div class="text-2xl font-bold text-blue-600">{{ metrics.valor_total|decimal_eu(2) }} EUR</div>
         </div>
-
-        <!-- P&L Total -->
         <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if metrics.pl_total >= 0 %}border-green-500{% else %}border-red-500{% endif %}">
             <div class="text-sm text-gray-600 mb-1">📊 P&L Total</div>
             <div class="text-2xl font-bold {% if metrics.pl_total >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
@@ -49,56 +44,38 @@
         </div>
     </div>
 
-    <!-- Fiat total + Rewards -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        <div class="bg-white rounded-xl shadow-sm p-6">
-            <div class="text-sm text-gray-600 mb-1">💵 Fiat total (capital + cuasi-fiat)</div>
-            <div class="text-xl font-bold text-gray-900">{{ metrics.fiat_total|decimal_eu(2) }} EUR</div>
-            <p class="text-xs text-gray-500 mt-1">Desglose: capital {{ metrics.capital_invertido|decimal_eu(2) }} + cuasi-fiat {{ metrics.cuasi_fiat|decimal_eu(2) }}</p>
-        </div>
-        <div class="bg-white rounded-xl shadow-sm p-6">
-            <div class="text-sm text-gray-600 mb-1">🎁 Rewards (valor estimado)</div>
-            <div class="text-xl font-bold text-purple-600">{{ metrics.rewards_total|decimal_eu(2) }} EUR</div>
-            <p class="text-xs text-gray-500 mt-1">Staking rewards valorados al precio actual</p>
-        </div>
-    </div>
-
     <!-- Tabla de posiciones -->
     <div class="bg-white rounded-xl shadow-sm overflow-hidden">
         <div class="px-6 py-4 border-b">
             <h2 class="text-lg font-semibold text-gray-800">Posiciones</h2>
-            <p class="text-sm text-gray-500">Activos crypto con coste, valor y P&L</p>
+            <p class="text-sm text-gray-500">Metales físicos con cantidad en gramos y P&L</p>
         </div>
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Activo</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Cantidad</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Precio medio</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Precio</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Metal</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Cantidad (g)</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Precio medio €/oz</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Precio actual €/oz</th>
                     <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Coste</th>
                     <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Valor</th>
                     <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">P&L</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Rewards</th>
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
                 {% for p in metrics.posiciones %}
                 <tr class="hover:bg-gray-50">
                     <td class="px-6 py-4">
-                        <span class="font-medium text-gray-900">{{ p.symbol }}</span>
+                        <span class="font-medium text-gray-900">{{ p.name }}</span>
                     </td>
-                    <td class="px-6 py-4 text-right text-sm text-gray-700">{{ p.quantity|decimal_eu(4) }}</td>
-                    <td class="px-6 py-4 text-right text-sm text-gray-700">{{ (p.average_buy_price or (p.cost / p.quantity if p.quantity else 0))|decimal_eu(5) if (p.average_buy_price or p.quantity) else '—' }}</td>
-                    <td class="px-6 py-4 text-right text-sm text-gray-700">{{ p.price|decimal_eu(4) if p.price else '—' }}</td>
+                    <td class="px-6 py-4 text-right text-sm text-gray-700">{{ p.quantity|decimal_eu(2) }}</td>
+                    <td class="px-6 py-4 text-right text-sm text-gray-700">{{ (p.average_buy_price * 31.1035)|decimal_eu(2) }}</td>
+                    <td class="px-6 py-4 text-right text-sm text-gray-700">{{ (p.price * 31.1035)|decimal_eu(2) if p.price else '—' }}</td>
                     <td class="px-6 py-4 text-right text-sm text-gray-700">{{ p.cost|decimal_eu(2) }} €</td>
                     <td class="px-6 py-4 text-right text-sm text-gray-700">{{ p.value|decimal_eu(2) }} €</td>
                     <td class="px-6 py-4 text-right text-sm {% if p.pl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
                         {% if p.pl >= 0 %}+{% endif %}{{ p.pl|decimal_eu(2) }} €
                         <span class="text-xs">({% if p.pl_pct >= 0 %}+{% endif %}{{ p.pl_pct|decimal_eu(1) }}%)</span>
-                    </td>
-                    <td class="px-6 py-4 text-right text-sm text-purple-600">
-                        {% if p.reward_quantity > 0 %}{{ p.reward_value|decimal_eu(2) }} €{% else %}—{% endif %}
                     </td>
                 </tr>
                 {% endfor %}
@@ -109,17 +86,18 @@
     {% else %}
     <!-- Estado vacío -->
     <div class="bg-white rounded-xl shadow-sm p-12 text-center">
-        <div class="text-6xl mb-4">🪙</div>
-        <h2 class="text-xl font-semibold text-gray-800 mb-2">Sin posiciones en cryptomonedas</h2>
-        <p class="text-gray-600 mb-6">Sube tu extracto Revolut X para importar tus posiciones</p>
-        <a href="{{ url_for('portfolio.import_csv') }}" class="btn-primary inline-flex items-center gap-2">
-            📥 Importar CSV Revolut X
+        <div class="text-6xl mb-4">🥇</div>
+        <h2 class="text-xl font-semibold text-gray-800 mb-2">Sin posiciones en metales</h2>
+        <p class="text-gray-600 mb-6">Registra tu primera compra de oro, plata, platino o paladio</p>
+        <a href="{{ url_for('metales.transaction_new') }}" class="btn-primary inline-flex items-center gap-2">
+            ➕ Nueva Compra
         </a>
+        <p class="text-xs text-gray-500 mt-4">Precios desde Yahoo Finance (futuros GC=F, SI=F, PL=F, PA=F)</p>
     </div>
     {% endif %}
 </div>
 
-<!-- Modal de actualización de precios (compartido con Portfolio) -->
+<!-- Modal de actualización de precios (mismo flujo que Portfolio/Crypto) -->
 <div id="priceUpdateModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
     <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
         <div class="mt-3">
@@ -130,7 +108,6 @@
             <div class="mb-4">
                 <div class="flex justify-between text-sm text-gray-600 mb-1">
                     <span id="progressText">0 / 0</span>
-                    <span id="estimatedTime"></span>
                 </div>
                 <div class="w-full bg-gray-200 rounded-full h-2.5">
                     <div id="progressBar" class="bg-blue-600 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
@@ -152,7 +129,6 @@
 </div>
 
 <script>
-// Actualizar precios: mismo flujo que Portfolio, al terminar recarga /crypto/
 function startPriceUpdate() {
     const modal = document.getElementById('priceUpdateModal');
     const modalTitle = document.getElementById('modalTitle');
@@ -174,7 +150,7 @@ function startPriceUpdate() {
         .then(r => r.json())
         .then(data => {
             if (data.status === 'started') pollPriceProgress();
-            else errorMessage.textContent = 'Error al iniciar actualización';
+            else { errorMessage.textContent = data.message || 'Error al iniciar actualización'; errorMessage.classList.remove('hidden'); }
         })
         .catch(err => { errorMessage.textContent = 'Error de red: ' + err.message; errorMessage.classList.remove('hidden'); });
 
@@ -209,7 +185,7 @@ function startPriceUpdate() {
 }
 function closePriceModal() {
     document.getElementById('priceUpdateModal').classList.add('hidden');
-    window.location.reload();  // Recarga /crypto/ para mostrar precios actualizados
+    window.location.reload();
 }
 </script>
 {% endblock %}

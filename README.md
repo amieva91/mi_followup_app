@@ -2,7 +2,7 @@
 
 Sistema completo de gestión financiera personal.
 
-## ✅ Estado Actual (24 Dic 2025) - v6.0.0
+## ✅ Estado Actual (29 Ene 2026) - v9.0.0
 
 **Funcionalidades Implementadas:**
 - ✅ **Sprint 0 - Arquitectura Base** - Configuración inicial, estructura modular
@@ -206,7 +206,13 @@ Sistema completo de gestión financiera personal.
       - Por Asset (Top 10 + Otros) - NUEVO
       - Por Industria - NUEVO
       - Por Broker (IBKR, DeGiro, Manual) - NUEVO
-      - Por Tipo (Stock incluye ADR, ETF, Bond, Crypto) - NUEVO
+      - Por Tipo (Stock incluye ADR, ETF, Bond, Crypto, Commodity)
+- ✅ **Plan Acciones y Metales (Ene 2026)** — Ver `docs/cambios/IMPLEMENTACION_ACCIONES_METALES_FEB2026.md`:
+  - **Acciones** (dropdown): Cartera y Watchlist solo Stock+ETF, indicadores (Dinero Cuenta, Apalancamiento, B/P)
+  - **Metales**: dashboard oro/plata/platino/paladio, formulario compra/venta, precios €/oz, actualizar precios
+  - **Cryptomonedas**: integrado en Portfolio global
+  - **Portfolio**: vista global (Stock, ETF, Crypto, Commodity), filtro por tipo en Transacciones
+  - Fix valoración Commodity en Modified Dietz (gramos vs oz en PortfolioValuation)
     - **Comparación con Benchmarks**:
       - Recuadro expandido en dashboard con comparación horizontal
       - Integración con Yahoo Finance para índices (S&P 500, NASDAQ 100, MSCI World, EuroStoxx 50)
@@ -224,7 +230,7 @@ Sistema completo de gestión financiera personal.
   - Resumen "About the Company" (generación rápida)
   - **Envío por correo**: botón para enviar informes al email (Flask-Mail). Si existe audio TTS, se adjunta automáticamente el WAV
   - **Audio resumen TTS**: generación de audio con Gemini 2.5 TTS en segundo plano, descarga WAV
-  - Requiere: `GEMINI_API_KEY`, `MAIL_*`. Opcional: `GEMINI_MODEL_FLASH`, `GEMINI_MODEL_TTS`, `GEMINI_AGENT_DEEP_RESEARCH` para cambiar modelos. Ver **`GEMINI_IA.md`** para documentación completa de la integración con Gemini.
+  - Requiere: `GEMINI_API_KEY`, `MAIL_*`. Opcional: `GEMINI_MODEL_FLASH`, `GEMINI_MODEL_TTS`, `GEMINI_AGENT_DEEP_RESEARCH` para cambiar modelos. Ver **`docs/GEMINI_IA.md`** para documentación completa de la integración con Gemini.
 - ✅ **Dashboard** - KPIs en tiempo real (ingresos/gastos/balance mensual + portfolio completo con 9 métricas + Modified Dietz)
 - ✅ **Sistema desplegado** - Funcionando en https://followup.fit/
 
@@ -308,16 +314,16 @@ python run.py
 
 ### 📄 Documentos Principales (Raíz)
 
-**IMPORTANTE**: El directorio raíz debe mantenerse limpio. Solo deben permanecer en la raíz estos **6 archivos**:
+**IMPORTANTE**: El directorio raíz debe mantenerse limpio. Solo permanecen en la raíz:
 
 1. **`README.md`** - Este archivo (estado actual, setup, arquitectura, metodología de trabajo)
 2. **`TU_PLAN_MAESTRO.md`** - Plan general del proyecto con todos los sprints y progreso
-3. **`WORKFLOW_DEV_A_PRODUCCION.md`** - Proceso completo de deploy, Git workflow y configuración de entornos
-4. **`DESIGN_SYSTEM.md`** - Sistema de diseño y componentes UI
-5. **`GEMINI_IA.md`** - Integración con Gemini AI: modelos en uso, configuración y funcionalidades de IA
-6. **`SPRINT[X]_[NOMBRE].md`** - Documento del sprint actual en progreso (ej: `SPRINT7_ALERTAS_NOTIFICACIONES.md`)
+3. **`SPRINT[X]_[NOMBRE].md`** - Documento del sprint actual (ej: `SPRINT9_PLANIFICACION_FINANCIERA.md`)
 
-**Todos los demás archivos `.md` deben moverse a `docs/` en la carpeta correspondiente.**
+**Documentos de referencia** (en `docs/`):
+- `docs/WORKFLOW_DEV_A_PRODUCCION.md` - Proceso de deploy y Git workflow
+- `docs/DESIGN_SYSTEM.md` - Sistema de diseño y componentes UI
+- `docs/GEMINI_IA.md` - Integración con Gemini AI
 
 ### 📁 Documentación Organizada (`docs/`)
 
@@ -341,11 +347,11 @@ python run.py
 
 Para entender completamente el flujo de trabajo, consulta estos documentos en orden:
 
-1. **`WORKFLOW_DEV_A_PRODUCCION.md`** - Proceso completo de desarrollo y deploy
-2. **`TU_PLAN_MAESTRO.md`** - Plan maestro con todos los sprints e hitos
-3. **`DESIGN_SYSTEM.md`** - Guías de diseño y componentes UI
-4. **`SPRINT[X]_[NOMBRE].md`** - Documento del sprint actual con hitos y tareas
-5. **`GEMINI_IA.md`** - Integración con Gemini AI (modelos, configuración, funcionalidades de IA)
+1. **`TU_PLAN_MAESTRO.md`** - Plan maestro con todos los sprints e hitos
+2. **`SPRINT[X]_[NOMBRE].md`** - Documento del sprint actual con hitos y tareas
+3. **`docs/WORKFLOW_DEV_A_PRODUCCION.md`** - Proceso completo de desarrollo y deploy
+4. **`docs/DESIGN_SYSTEM.md`** - Guías de diseño y componentes UI
+5. **`docs/GEMINI_IA.md`** - Integración con Gemini AI
 
 ### 🖥️ Entornos de Trabajo
 
@@ -463,12 +469,12 @@ python run.py
    - Actualizar progreso
    - Añadir notas de lo completado
 
-3. **Actualizar `WORKFLOW_DEV_A_PRODUCCION.md`**:
+3. **Actualizar `docs/WORKFLOW_DEV_A_PRODUCCION.md`**:
    - Añadir cambios del último deploy
    - Actualizar versión y fecha
    - Documentar cualquier cambio en el proceso
 
-4. **Actualizar `DESIGN_SYSTEM.md`**:
+4. **Actualizar `docs/DESIGN_SYSTEM.md`**:
    - Añadir nuevos componentes UI si los hay
    - Documentar cambios en diseño
 
@@ -483,9 +489,9 @@ python run.py
 
 - ✅ `README.md`
 - ✅ `TU_PLAN_MAESTRO.md`
-- ✅ `WORKFLOW_DEV_A_PRODUCCION.md`
-- ✅ `DESIGN_SYSTEM.md`
-- ✅ `GEMINI_IA.md`
+- ✅ `docs/WORKFLOW_DEV_A_PRODUCCION.md`
+- ✅ `docs/DESIGN_SYSTEM.md`
+- ✅ `docs/GEMINI_IA.md`
 - ✅ `SPRINT[X]_[NOMBRE].md` (solo el sprint actual)
 
 **Proceso de limpieza**:
@@ -548,7 +554,7 @@ git push origin main
 
 #### 7. Deploy a Producción
 
-**Ver proceso completo en**: `WORKFLOW_DEV_A_PRODUCCION.md` (FASE 4: Deploy a Producción)
+**Ver proceso completo en**: `docs/WORKFLOW_DEV_A_PRODUCCION.md` (FASE 4: Deploy a Producción)
 
 Resumen:
 ```bash
@@ -574,7 +580,7 @@ sudo systemctl status followup.service
 - [ ] Features anteriores siguen funcionando
 - [ ] No hay errores en consola del navegador
 
-**Ver checklist completo en**: `WORKFLOW_DEV_A_PRODUCCION.md` (FASE 5: Validación en Producción)
+**Ver checklist completo en**: `docs/WORKFLOW_DEV_A_PRODUCCION.md` (FASE 5: Validación en Producción)
 
 #### 9. Finalización de Sprint (Cuando el sprint está 100% terminado)
 
@@ -648,12 +654,12 @@ Después de subir a producción, verificar:
 
 ### 📞 Referencias Rápidas
 
-- **Proceso de deploy completo**: Ver `WORKFLOW_DEV_A_PRODUCCION.md`
+- **Proceso de deploy completo**: Ver `docs/WORKFLOW_DEV_A_PRODUCCION.md`
 - **Plan maestro y progreso**: Ver `TU_PLAN_MAESTRO.md`
-- **Sistema de diseño**: Ver `DESIGN_SYSTEM.md`
+- **Sistema de diseño**: Ver `docs/DESIGN_SYSTEM.md`
 - **Sprint actual**: Ver `SPRINT[X]_[NOMBRE].md`
 
-> **Nota**: Para el flujo completo de Git y Deploy, consulta la sección **"🔄 METODOLOGÍA DE TRABAJO"** arriba, o el documento detallado **`WORKFLOW_DEV_A_PRODUCCION.md`**.
+> **Nota**: Para el flujo completo de Git y Deploy, consulta la sección **"🔄 METODOLOGÍA DE TRABAJO"** arriba, o el documento detallado **`docs/WORKFLOW_DEV_A_PRODUCCION.md`**.
 
 ## 📊 Estado del Proyecto
 

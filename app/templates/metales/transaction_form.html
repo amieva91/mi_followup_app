@@ -1,0 +1,90 @@
+{% extends "base/layout.html" %}
+
+{% block title %}Nueva Compra/Venta - Metales{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <div class="mb-8">
+        <a href="{{ url_for('metales.dashboard') }}" class="text-blue-600 hover:text-blue-700 text-sm font-medium mb-4 inline-block">
+            ← Volver a Metales
+        </a>
+        <h1 class="text-3xl font-bold text-gray-900">➕ Nueva Compra o Venta</h1>
+        <p class="text-gray-600 mt-1">Registra una operación de metal precioso (oro, plata, platino, paladio)</p>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm p-8">
+        <form method="POST" action="">
+            {{ form.hidden_tag() }}
+
+            <div class="space-y-6">
+                <div>
+                    {{ form.metal_id.label(class="block text-sm font-medium text-gray-700 mb-2") }}
+                    {{ form.metal_id(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500") }}
+                    {% if form.metal_id.errors %}
+                        <div class="mt-1 text-sm text-red-600">{{ form.metal_id.errors[0] }}</div>
+                    {% endif %}
+                </div>
+
+                <div>
+                    {{ form.transaction_type.label(class="block text-sm font-medium text-gray-700 mb-2") }}
+                    <div class="flex gap-4">
+                        {% for choice in form.transaction_type %}
+                        <label class="inline-flex items-center">
+                            {{ choice }}
+                            <span class="ml-2">{{ choice.label.text }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div>
+                    {{ form.unit.label(class="block text-sm font-medium text-gray-700 mb-2") }}
+                    <div class="flex gap-4">
+                        {% for choice in form.unit %}
+                        <label class="inline-flex items-center">
+                            {{ choice }}
+                            <span class="ml-2">{{ choice.label.text }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        {{ form.quantity_grams.label(class="block text-sm font-medium text-gray-700 mb-2") }}
+                        {{ form.quantity_grams(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500", placeholder="Ej: 31.1") }}
+                        {% if form.quantity_grams.errors %}
+                            <div class="mt-1 text-sm text-red-600">{{ form.quantity_grams.errors[0] }}</div>
+                        {% endif %}
+                    </div>
+                    <div>
+                        {{ form.total_amount.label(class="block text-sm font-medium text-gray-700 mb-2") }}
+                        {{ form.total_amount(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500", placeholder="Ej: 8500") }}
+                        {% if form.total_amount.errors %}
+                            <div class="mt-1 text-sm text-red-600">{{ form.total_amount.errors[0] }}</div>
+                        {% endif %}
+                        <p class="text-xs text-gray-500 mt-1">Importe total de la compra o venta en EUR</p>
+                    </div>
+                </div>
+
+                <div>
+                    {{ form.transaction_date.label(class="block text-sm font-medium text-gray-700 mb-2") }}
+                    {{ form.transaction_date(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500") }}
+                    {% if form.transaction_date.errors %}
+                        <div class="mt-1 text-sm text-red-600">{{ form.transaction_date.errors[0] }}</div>
+                    {% endif %}
+                </div>
+
+                <div>
+                    {{ form.notes.label(class="block text-sm font-medium text-gray-700 mb-2") }}
+                    {{ form.notes(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500", rows=3, placeholder="Opcional") }}
+                </div>
+
+                <div class="pt-4">
+                    {{ form.submit(class="btn-primary w-full md:w-auto") }}
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

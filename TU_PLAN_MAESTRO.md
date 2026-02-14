@@ -2,7 +2,7 @@
 
 **Fecha de inicio**: 5 Octubre 2025  
 **Timeline**: 6 meses (26 semanas)  
-**Última actualización**: 24 Diciembre 2025  
+**Última actualización**: 29 Enero 2026  
 **Estado actual**: ✅ Sprint 8 COMPLETADO (todos pospuestos al final) | 🚧 Sprint 9 EN PROGRESO (v9.0.0 - Planificación Financiera)
 
 ## 🎉 PROGRESO RECIENTE
@@ -377,6 +377,11 @@
   - ❌ HITO 3 DESESTIMADO: Alertas sector/país (descoped)
 - **Sprint 7**: Alertas y Notificaciones ✅ COMPLETADO (todos los hitos descoped)
 - **Sprint 8**: Testing y Optimización ✅ COMPLETADO (todos los hitos pospuestos al final del proyecto)
+- **Plan Acciones y Metales** (29 Ene 2026) ✅ COMPLETADO — Ver `docs/implementaciones/PLAN_ACCIONES_Y_METALES.md` y `docs/cambios/IMPLEMENTACION_ACCIONES_METALES_FEB2026.md`:
+  - Dropdown Acciones (Cartera + Watchlist solo Stock+ETF)
+  - Módulo Metales (dashboard, formulario, precios €/oz, Commodity)
+  - Cryptomonedas integrado en Portfolio global
+  - Fix valoración Commodity en PortfolioValuation (gramos vs oz)
 - **Sprint 9**: Planificación Financiera y Cash Flow Forecast (3 semanas) 🚧 ACTUAL - v9.0.0
 - **Sprint 9**: Planificación Financiera y Cash Flow Forecast (3 semanas)
   - Gastos planificados/deseados (viajes, caprichos, compras grandes)

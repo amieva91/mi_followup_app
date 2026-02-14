@@ -43,6 +43,7 @@ class ManualTransactionForm(FlaskForm):
         ('ETF', 'ETF'),
         ('Bond', 'Bono'),
         ('Crypto', 'Criptomoneda'),
+        ('Commodity', 'Commodity (metales)'),
     ], validators=[DataRequired()])
     currency = SelectField('Divisa', choices=[
         ('USD', 'USD'), ('EUR', 'EUR'), ('GBP', 'GBP'),

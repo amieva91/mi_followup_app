@@ -13,6 +13,9 @@ from app.models.asset import Asset
 from app.services.fifo_calculator import FIFOCalculator
 from app.services.currency_service import convert_to_eur
 
+# Metales: cantidad en gramos, Yahoo precio USD/oz. 1 oz troy = 31.1035 g
+OZ_TROY_TO_G = 31.1035
+
 
 class PortfolioValuation:
     """
@@ -120,19 +123,27 @@ class PortfolioValuation:
 
             # Decidir qué precio usar
             if use_current_prices and is_today and asset.current_price:
-                # Para HOY con precios actualizados: usar precio de mercado
                 price = asset.current_price
             else:
-                # Para histórico o sin precios actuales: usar precio medio de compra
                 price = position['average_buy_price']
 
-            # Calcular valor en moneda local
-            value_local = current_quantity * price
-            cost_local = current_quantity * position['average_buy_price']
-
-            # Convertir a EUR
-            value_eur = convert_to_eur(value_local, asset.currency)
-            cost_eur = convert_to_eur(cost_local, asset.currency)
+            # Commodity (metales): cantidad en gramos, Yahoo precio USD/oz
+            # Coste medio: transacciones manuales en EUR/g
+            if getattr(asset, 'asset_type', None) == 'Commodity':
+                oz_from_g = current_quantity / OZ_TROY_TO_G
+                if use_current_prices and is_today and asset.current_price:
+                    value_local = oz_from_g * price  # USD
+                    value_eur = convert_to_eur(value_local, 'USD')
+                else:
+                    value_local = current_quantity * price  # EUR (avg_buy en EUR/g)
+                    value_eur = convert_to_eur(value_local, 'EUR')
+                cost_local = current_quantity * position['average_buy_price']  # EUR/g * g = EUR
+                cost_eur = convert_to_eur(cost_local, 'EUR')
+            else:
+                value_local = current_quantity * price
+                cost_local = current_quantity * position['average_buy_price']
+                value_eur = convert_to_eur(value_local, asset.currency)
+                cost_eur = convert_to_eur(cost_local, asset.currency)
             
             holdings_value += value_eur
             holdings_cost += cost_eur
@@ -228,11 +239,21 @@ class PortfolioValuation:
             else:
                 price = position['average_buy_price']
 
-            value_local = current_quantity * price
-            cost_local = current_quantity * position['average_buy_price']
-
-            value_eur = convert_to_eur(value_local, asset.currency)
-            cost_eur = convert_to_eur(cost_local, asset.currency)
+            if getattr(asset, 'asset_type', None) == 'Commodity':
+                oz_from_g = current_quantity / OZ_TROY_TO_G
+                if use_current_prices and is_today and asset.current_price:
+                    value_local = oz_from_g * price
+                    value_eur = convert_to_eur(value_local, 'USD')
+                else:
+                    value_local = current_quantity * price
+                    value_eur = convert_to_eur(value_local, 'EUR')
+                cost_local = current_quantity * position['average_buy_price']
+                cost_eur = convert_to_eur(cost_local, 'EUR')
+            else:
+                value_local = current_quantity * price
+                cost_local = current_quantity * position['average_buy_price']
+                value_eur = convert_to_eur(value_local, asset.currency)
+                cost_eur = convert_to_eur(cost_local, asset.currency)
             
             holdings_value += value_eur
             holdings_cost += cost_eur
@@ -347,12 +368,16 @@ class PortfolioValuation:
             
             # Solo usar precio actual si es HOY
             if is_today and asset.current_price:
-                current_value_local = current_quantity * asset.current_price
-                current_value_eur = convert_to_eur(current_value_local, asset.currency)
-                
-                current_cost = position['total_cost']
-                current_cost_eur = convert_to_eur(current_cost, asset.currency)
-                
+                if getattr(asset, 'asset_type', None) == 'Commodity':
+                    oz_from_g = current_quantity / OZ_TROY_TO_G
+                    current_value_local = oz_from_g * asset.current_price
+                    current_value_eur = convert_to_eur(current_value_local, 'USD')
+                    current_cost_eur = convert_to_eur(position['total_cost'], 'EUR')
+                else:
+                    current_value_local = current_quantity * asset.current_price
+                    current_value_eur = convert_to_eur(current_value_local, asset.currency)
+                    current_cost = position['total_cost']
+                    current_cost_eur = convert_to_eur(current_cost, asset.currency)
                 pl_unrealized += (current_value_eur - current_cost_eur)
         
         # Dinero total del usuario

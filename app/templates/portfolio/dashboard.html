@@ -539,18 +539,18 @@
                         <span x-show="!showDetails">▼ Ver desglose</span>
                         <span x-show="showDetails">▲ Ocultar</span>
                     </button>
-                    <span class="text-xs text-gray-400 cursor-help" title="Apalancamiento = Coste Total - Dinero del Usuario. Dinero Usuario = Depósitos - Retiradas + P&L Realizado + Dividendos - Comisiones. Positivo = apalancamiento (broker presta dinero). Negativo = cash disponible sin invertir.">ⓘ</span>
+                    <span class="text-xs text-gray-400 cursor-help" title="Apalancamiento (solo Stock+ETF): Coste - Dinero Usuario. Crypto excluido: Revolut X CSV no incluye depósitos. Positivo = broker presta. Negativo = cash disponible.">ⓘ</span>
                 </div>
             </div>
             <div class="text-2xl font-bold {% if metrics.leverage.broker_money > 0 %}text-red-600{% else %}text-cyan-600{% endif %}">
                 {% if metrics.leverage.broker_money >= 0 %}+{% endif %}{{ metrics.leverage.broker_money|decimal_eu(2) }} EUR
             </div>
             
-            <!-- Desglose detallado -->
+            <!-- Desglose detallado (solo Stock+ETF: crypto excluido por falta de depósitos en CSV Revolut) -->
             <div x-show="showDetails" x-cloak class="text-xs text-gray-500 mt-3 space-y-1 border-t pt-2">
                 <div class="flex justify-between mb-1">
-                    <span>💼 Coste Total:</span>
-                    <span class="font-medium">{{ total_cost|decimal_eu(2) }} EUR</span>
+                    <span>💼 Coste Total (Stock+ETF):</span>
+                    <span class="font-medium">{{ leverage_cost|default(total_cost)|decimal_eu(2) }} EUR</span>
                 </div>
                 <div class="flex justify-between">
                     <span>💰 Dinero usuario:</span>

@@ -63,6 +63,20 @@
                     </select>
                 </div>
 
+                <!-- Filtro por tipo de activo -->
+                <div>
+                    <label for="asset_type" class="block text-sm font-medium text-gray-700 mb-1">
+                        📊 Tipo de activo
+                    </label>
+                    <select id="asset_type" name="asset_type" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 auto-submit">
+                        <option value="">Todos</option>
+                        <option value="Stock" {% if request.args.get('asset_type') == 'Stock' %}selected{% endif %}>Acciones</option>
+                        <option value="ETF" {% if request.args.get('asset_type') == 'ETF' %}selected{% endif %}>ETF</option>
+                        <option value="Crypto" {% if request.args.get('asset_type') == 'Crypto' %}selected{% endif %}>Crypto</option>
+                        <option value="Commodity" {% if request.args.get('asset_type') == 'Commodity' %}selected{% endif %}>Metales</option>
+                    </select>
+                </div>
+
                 <!-- Filtro por fecha desde -->
                 <div>
                     <label for="date_from" class="block text-sm font-medium text-gray-700 mb-1">

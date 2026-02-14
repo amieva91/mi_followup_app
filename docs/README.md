@@ -7,16 +7,17 @@ Esta carpeta contiene toda la documentación del proyecto FollowUp v2.0.
 ### 📋 Índice de Documentos
 
 #### **Guías Principales**
-- **[TU_PLAN_MAESTRO.md](../TU_PLAN_MAESTRO.md)** - Plan personalizado completo del proyecto
-- **[INICIO_RAPIDO.md](../INICIO_RAPIDO.md)** - Guía de inicio rápido
 - **[README.md](../README.md)** - Documentación principal del proyecto
+- **[TU_PLAN_MAESTRO.md](../TU_PLAN_MAESTRO.md)** - Plan personalizado completo del proyecto
+- **[SPRINT9_PLANIFICACION_FINANCIERA.md](../SPRINT9_PLANIFICACION_FINANCIERA.md)** - Sprint actual
+- **[INICIO_RAPIDO.md](archivo/INICIO_RAPIDO.md)** - Guía de inicio rápido
 
 #### **Workflow y Procesos**
-- **[WORKFLOW_DEV_A_PRODUCCION.md](../WORKFLOW_DEV_A_PRODUCCION.md)** - Flujo de desarrollo a producción
+- **[WORKFLOW_DEV_A_PRODUCCION.md](WORKFLOW_DEV_A_PRODUCCION.md)** - Flujo de desarrollo a producción
 - **[MIGRATION_TO_PRODUCTION.md](../MIGRATION_TO_PRODUCTION.md)** - Guía de migración
 
 #### **Diseño y Arquitectura**
-- **[DESIGN_SYSTEM.md](../DESIGN_SYSTEM.md)** - Sistema de diseño y guía visual
+- **[DESIGN_SYSTEM.md](DESIGN_SYSTEM.md)** - Sistema de diseño y guía visual
 - **[PROPUESTA_BASE_DATOS_MVP.md](../PROPUESTA_BASE_DATOS_MVP.md)** - Diseño de base de datos
 
 #### **Análisis Técnico**
@@ -37,13 +38,13 @@ Esta carpeta contiene toda la documentación del proyecto FollowUp v2.0.
 
 ## 🎯 Por Dónde Empezar
 
-1. **Nuevo en el proyecto**: Lee [INICIO_RAPIDO.md](../INICIO_RAPIDO.md)
-2. **Desarrollador**: Lee [TU_PLAN_MAESTRO.md](../TU_PLAN_MAESTRO.md) y [WORKFLOW_DEV_A_PRODUCCION.md](../WORKFLOW_DEV_A_PRODUCCION.md)
-3. **Diseño/Frontend**: Lee [DESIGN_SYSTEM.md](../DESIGN_SYSTEM.md)
+1. **Nuevo en el proyecto**: Lee [INICIO_RAPIDO.md](archivo/INICIO_RAPIDO.md)
+2. **Desarrollador**: Lee [TU_PLAN_MAESTRO.md](../TU_PLAN_MAESTRO.md) y [WORKFLOW_DEV_A_PRODUCCION.md](WORKFLOW_DEV_A_PRODUCCION.md)
+3. **Diseño/Frontend**: Lee [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md)
 4. **Database**: Lee [PROPUESTA_BASE_DATOS_MVP.md](../PROPUESTA_BASE_DATOS_MVP.md)
 
 ---
 
-**Última actualización**: Octubre 2025  
-**Versión del proyecto**: 2.0.0 (Rebuild)
+**Última actualización**: Febrero 2026  
+**Versión del proyecto**: v9.0.0
 

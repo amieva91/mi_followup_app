@@ -127,7 +127,7 @@
                                 </div>
                             </div>
                             
-                            <!-- Dropdown Portfolio -->
+                            <!-- Dropdown Portfolio (vista global) -->
                             <div class="relative" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false">
                                 <button class="hover:text-blue-200 transition flex items-center space-x-1">
                                     <span>📊 Portfolio</span>
@@ -140,14 +140,8 @@
                                     <a href="{{ url_for('portfolio.dashboard') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
                                         📊 Dashboard
                                     </a>
-                                    <a href="{{ url_for('portfolio.holdings_list') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
-                                        📈 Posiciones
-                                    </a>
                                     <a href="{{ url_for('portfolio.performance') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
-                                        📊 Performance
-                                    </a>
-                                    <a href="{{ url_for('portfolio.watchlist') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
-                                        📋 Watchlist
+                                        📈 Performance
                                     </a>
                                     <a href="{{ url_for('portfolio.currencies') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
                                         💱 Divisas
@@ -168,9 +162,33 @@
                                 </div>
                             </div>
 
+                            <!-- Dropdown Acciones (Stock + ETF) -->
+                            <div class="relative" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false">
+                                <button class="hover:text-blue-200 transition flex items-center space-x-1">
+                                    <span>📈 Acciones</span>
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                    </svg>
+                                </button>
+                                <div x-show="open" x-cloak x-transition 
+                                     class="absolute left-0 mt-2 w-56 bg-white rounded-lg shadow-lg py-2 z-50">
+                                    <a href="{{ url_for('portfolio.holdings_list') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
+                                        📈 Cartera
+                                    </a>
+                                    <a href="{{ url_for('portfolio.watchlist') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
+                                        📋 Watchlist
+                                    </a>
+                                </div>
+                            </div>
+
                             <!-- Cryptomonedas -->
                             <a href="{{ url_for('crypto.dashboard') }}" class="hover:text-blue-200 transition">
                                 🪙 Cryptomonedas
+                            </a>
+
+                            <!-- Metales -->
+                            <a href="{{ url_for('metales.dashboard') }}" class="hover:text-blue-200 transition">
+                                🥇 Metales
                             </a>
                         </div>
                         

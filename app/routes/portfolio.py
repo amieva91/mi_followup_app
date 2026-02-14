@@ -118,27 +118,36 @@ def dashboard():
     total_pl = 0
     last_price_update = None
     
+    OZ_TROY_TO_G = 31.1035
     for h in holdings_unified:
         asset = h['asset']
         
-        # Convertir coste a EUR (SIEMPRE, incluso sin precio actual)
-        cost_eur = convert_to_eur(h['total_cost'], asset.currency)
-        h['cost_eur'] = cost_eur  # Guardar para el template
+        # Coste: Commodity (metales) usa transacciones manuales en EUR
+        if asset.asset_type == 'Commodity':
+            cost_eur = h['total_cost']
+        else:
+            cost_eur = convert_to_eur(h['total_cost'], asset.currency)
+        h['cost_eur'] = cost_eur
         total_cost += cost_eur
         
         if asset and asset.current_price:
-            # Calcular valor actual en moneda local
-            current_value_local = h['total_quantity'] * asset.current_price
-            h['current_value_local'] = current_value_local
-            h['local_currency'] = asset.currency
-            
-            # Convertir a EUR
-            current_value_eur = convert_to_eur(current_value_local, asset.currency)
-            h['current_value_eur'] = current_value_eur
+            # Commodity: precio Yahoo USD/oz, cantidad en gramos
+            if asset.asset_type == 'Commodity':
+                oz_from_g = h['total_quantity'] / OZ_TROY_TO_G
+                value_usd = oz_from_g * asset.current_price
+                current_value_eur = convert_to_eur(value_usd, 'USD')
+                h['current_value_local'] = value_usd
+                h['local_currency'] = 'USD'
+            else:
+                current_value_local = h['total_quantity'] * asset.current_price
+                h['current_value_local'] = current_value_local
+                h['local_currency'] = asset.currency
+                current_value_eur = convert_to_eur(current_value_local, asset.currency)
             
             # Calcular P&L individual
             pl_individual = current_value_eur - cost_eur
             h['pl_eur'] = pl_individual  # Guardar para el template
+            h['current_value_eur'] = current_value_eur  # Para peso % y template
             
             # Sumar al total (en EUR)
             total_value += current_value_eur
@@ -152,6 +161,7 @@ def dashboard():
             # Si no hay precio, usar el coste en EUR como aproximación
             total_value += cost_eur
             h['pl_eur'] = 0  # Sin precio, P&L es 0
+            h['current_value_eur'] = cost_eur  # Para peso % y template
     
     # Calcular porcentaje
     total_pl_pct = (total_pl / total_cost * 100) if total_cost > 0 else 0
@@ -225,6 +235,7 @@ def dashboard():
     
     # Calcular métricas básicas (Sprint 4 - HITO 1 + Cache)
     from app.services.metrics.cache import MetricsCacheService
+    from app.services.metrics.stocks_etf_metrics import StocksEtfMetrics
     
     # Intentar obtener del cache primero
     metrics = MetricsCacheService.get(current_user.id)
@@ -239,6 +250,30 @@ def dashboard():
         )
         # Guardar en cache para próximas visitas
         MetricsCacheService.set(current_user.id, metrics)
+
+    # Apalancamiento: excluir crypto (Revolut X no incluye depósitos/retiradas en CSV)
+    # Usar métricas Stock+ETF solo para Dinero Prestado y desglose
+    leverage_cost = total_cost  # fallback por defecto
+    holdings_stock_etf = [h for h in holdings_unified if h.get('asset') and (h['asset'].asset_type or '').strip() in ('Stock', 'ETF')]
+    if holdings_stock_etf:
+        total_value_stock_etf = sum(h.get('current_value_eur', h.get('cost_eur', 0)) for h in holdings_stock_etf)
+        total_cost_stock_etf = sum(h.get('cost_eur', 0) for h in holdings_stock_etf)
+        pl_unrealized_stock_etf = total_value_stock_etf - total_cost_stock_etf
+        metrics_stock_etf = StocksEtfMetrics.get_all_metrics(
+            current_user.id, total_value_stock_etf, total_cost_stock_etf, pl_unrealized_stock_etf
+        )
+        metrics['leverage'] = metrics_stock_etf['leverage']
+        metrics['total_account'] = metrics_stock_etf['total_account']
+        leverage_cost = total_cost_stock_etf
+    else:
+        # Solo crypto: no se puede calcular apalancamiento (sin depósitos en CSV Revolut)
+        metrics['leverage'] = {'broker_money': 0.0, 'user_money': 0.0, 'leverage_ratio': 0.0,
+                              'total_deposits': 0.0, 'total_withdrawals': 0.0, 'pl_realized': 0.0,
+                              'pl_unrealized': 0.0, 'total_dividends': 0.0, 'total_fees': 0.0}
+        metrics['total_account'] = {'total_account_value': 0.0, 'deposits': 0.0, 'withdrawals': 0.0,
+                                   'pl_realized': 0.0, 'pl_unrealized': 0.0, 'dividends': 0.0, 'fees': 0.0,
+                                   'cash': 0.0, 'leverage': 0.0}
+        leverage_cost = 0.0
     
     # Calcular rentabilidades año a año
     from app.services.metrics.modified_dietz import ModifiedDietzCalculator
@@ -263,6 +298,7 @@ def dashboard():
         total_cost=total_cost,
         total_pl=total_pl,
         total_pl_pct=total_pl_pct,
+        leverage_cost=leverage_cost,  # Stock+ETF solo (apalancamiento excluye crypto)
         last_price_update=last_price_update,
         last_sync=last_sync,
         unified=True,  # Flag para indicar que son holdings unificados
@@ -551,15 +587,23 @@ def currencies_refresh():
 def holdings_list():
     """Lista de posiciones actuales con precios en tiempo real"""
     from collections import defaultdict
+    from app.models import Asset
     from sqlalchemy.orm import joinedload
     
-    # Obtener todos los holdings individuales (con eager loading para evitar N+1)
-    all_holdings = PortfolioHolding.query.options(
-        joinedload(PortfolioHolding.account).joinedload(BrokerAccount.broker),
-        joinedload(PortfolioHolding.asset)
-    ).filter_by(
-        user_id=current_user.id
-    ).filter(PortfolioHolding.quantity > 0).all()
+    # Obtener todos los holdings individuales (solo Stock y ETF, con eager loading para evitar N+1)
+    all_holdings = (
+        PortfolioHolding.query.options(
+            joinedload(PortfolioHolding.account).joinedload(BrokerAccount.broker),
+            joinedload(PortfolioHolding.asset)
+        )
+        .join(Asset, PortfolioHolding.asset_id == Asset.id)
+        .filter(
+            PortfolioHolding.user_id == current_user.id,
+            PortfolioHolding.quantity > 0,
+            Asset.asset_type.in_(['Stock', 'ETF'])
+        )
+        .all()
+    )
     
     # Agrupar por asset_id (unificar)
     grouped = defaultdict(lambda: {
@@ -612,6 +656,9 @@ def holdings_list():
         
         holdings_unified.append(data)
     
+    # Excluir Crypto y otros tipos: solo Stock y ETF en Cartera (Acciones)
+    holdings_unified = [h for h in holdings_unified if h['asset'] and (h['asset'].asset_type or '').strip() in ('Stock', 'ETF')]
+    
     # Calcular totales con precios actuales (igual que dashboard)
     total_value = 0
     
@@ -652,8 +699,28 @@ def holdings_list():
     
     # Ordenar por símbolo (manejar None correctamente)
     holdings_unified.sort(key=lambda x: (x['asset'].symbol or '') if x['asset'] else '')
-    
-    return render_template('portfolio/holdings.html', holdings=holdings_unified, unified=True)
+
+    # Calcular total_cost y pl_unrealized para métricas Stock+ETF
+    total_cost = sum(h.get('cost_eur', 0) for h in holdings_unified)
+    pl_unrealized = total_value - total_cost
+    total_pl_pct = (pl_unrealized / total_cost * 100) if total_cost > 0 else 0
+
+    # Métricas filtradas solo Stock+ETF (indicadores de Cartera)
+    from app.services.metrics.stocks_etf_metrics import StocksEtfMetrics
+    metrics = StocksEtfMetrics.get_all_metrics(
+        current_user.id, total_value, total_cost, pl_unrealized
+    ) if holdings_unified else None
+
+    return render_template(
+        'portfolio/holdings.html',
+        holdings=holdings_unified,
+        unified=True,
+        total_value=total_value,
+        total_cost=total_cost,
+        total_pl=pl_unrealized,
+        total_pl_pct=total_pl_pct,
+        metrics=metrics,
+    )
 
 
 @portfolio_bp.route('/holdings-debug')
@@ -787,7 +854,14 @@ def transactions_list():
             query = query.filter_by(account_id=int(account_id))
         except ValueError:
             pass
-    
+
+    # Filtro por tipo de activo (Stock, ETF, Crypto, Commodity)
+    asset_type_filter = request.args.get('asset_type', '').strip()
+    if asset_type_filter:
+        filtered = True
+        asset_ids_subq = db.session.query(Asset.id).filter(Asset.asset_type == asset_type_filter)
+        query = query.filter(Transaction.asset_id.in_(asset_ids_subq))
+
     # Filtro por fecha desde
     date_from = request.args.get('date_from', '').strip()
     if date_from:
@@ -3093,6 +3167,7 @@ def watchlist():
     Página principal de watchlist con tabla combinada (portfolio holdings + watchlist items)
     """
     from collections import defaultdict
+    from app.models import Asset
     from app.services.watchlist_service import WatchlistService
     from app.services.watchlist_metrics_service import WatchlistMetricsService
     
@@ -3100,10 +3175,17 @@ def watchlist():
     config = WatchlistService.get_or_create_config(current_user.id)
     
     # ========== PARTE 1: HOLDINGS EN CARTERA ==========
-    # Obtener todos los holdings individuales (igual que dashboard)
-    all_holdings = PortfolioHolding.query.filter_by(
-        user_id=current_user.id
-    ).filter(PortfolioHolding.quantity > 0).all()
+    # Obtener todos los holdings individuales (igual que dashboard), solo Stock y ETF
+    all_holdings = (
+        PortfolioHolding.query
+        .join(Asset, PortfolioHolding.asset_id == Asset.id)
+        .filter(
+            PortfolioHolding.user_id == current_user.id,
+            PortfolioHolding.quantity > 0,
+            Asset.asset_type.in_(['Stock', 'ETF'])
+        )
+        .all()
+    )
     
     # Agrupar por asset_id (unificar)
     grouped = defaultdict(lambda: {
@@ -3228,10 +3310,12 @@ def watchlist():
             'current_value_eur': holding.get('current_value_eur', 0)
         })
     
-    # Segundo: Assets solo en watchlist (no en cartera)
+    # Segundo: Assets solo en watchlist (no en cartera) - solo Stock y ETF
     for watchlist_item in watchlist_items:
         if watchlist_item.asset_id not in holdings_asset_ids:
             asset = watchlist_item.asset
+            if not asset or asset.asset_type not in ('Stock', 'ETF'):
+                continue
             
             # Actualizar precio_actual desde asset si está disponible
             if asset.current_price is not None:
