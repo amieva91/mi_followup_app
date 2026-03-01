@@ -209,3 +209,30 @@ class Expense(db.Model):
                 })
         return result
 
+    @staticmethod
+    def get_monthly_totals(user_id, months=12):
+        """Totales mensuales para últimos N meses. Solo incluye cuotas ya vencidas (date <= hoy).
+        Returns lista de {month_label, total} ordenada cronológicamente."""
+        today = date.today()
+        result = []
+        for i in range(months - 1, -1, -1):
+            d = today - relativedelta(months=i)
+            start = d.replace(day=1)
+            if d.month == 12:
+                end = d.replace(day=31)
+            else:
+                end = (d.replace(day=28) + relativedelta(months=1)) - relativedelta(days=1)
+            base_filter = db.and_(
+                Expense.user_id == user_id,
+                Expense.date >= start,
+                Expense.date <= end,
+                db.or_(
+                    Expense.debt_plan_id.is_(None),
+                    Expense.date <= today
+                )
+            )
+            total = db.session.query(db.func.sum(Expense.amount)).filter(base_filter).scalar() or 0
+            month_label = start.strftime('%b %Y')
+            result.append({'month_label': month_label, 'total': float(total)})
+        return result
+

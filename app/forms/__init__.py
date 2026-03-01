@@ -10,11 +10,13 @@ from app.forms.finance_forms import (
 from app.forms.portfolio_forms import (
     BrokerAccountForm, ManualTransactionForm
 )
+from app.forms.bank_forms import BankForm
 
 __all__ = [
     'LoginForm', 'RegisterForm', 'RequestResetForm', 'ResetPasswordForm',
     'ExpenseCategoryForm', 'IncomeCategoryForm', 'ExpenseForm', 'IncomeForm',
     'DebtPlanForm', 'DebtPlanEditForm', 'DebtRestructureForm', 'DebtLimitForm',
-    'BrokerAccountForm', 'ManualTransactionForm'
+    'BrokerAccountForm', 'ManualTransactionForm',
+    'BankForm'
 ]
 

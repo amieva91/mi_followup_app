@@ -7,6 +7,13 @@ from app import db
 from app.models import IncomeCategory, Income
 from app.forms import IncomeCategoryForm, IncomeForm
 from app.utils.recurrence import create_recurrence_instances
+from app.services.category_helpers import filter_editable_categories, is_ajustes_category
+from app.services.income_expense_aggregator import (
+    get_income_category_summary_with_adjustment,
+    get_income_monthly_totals_with_adjustment,
+    get_synthetic_income_entries_by_month,
+)
+from app.services.summary_metrics_service import get_income_summary_metrics
 
 incomes_bp = Blueprint('incomes', __name__, url_prefix='/incomes')
 
@@ -72,6 +79,9 @@ def new_category():
     ]
     
     if form.validate_on_submit():
+        if form.name.data.strip() == 'Ajustes':
+            flash('El nombre "Ajustes" está reservado para el sistema', 'warning')
+            return redirect(url_for('incomes.new_category'))
         category = IncomeCategory(
             name=form.name.data,
             icon=form.icon.data or '💵',
@@ -95,6 +105,9 @@ def edit_category(id):
     """Editar categoría"""
     category = IncomeCategory.query.get_or_404(id)
     
+    if is_ajustes_category(category):
+        flash('La categoría Ajustes está reservada para el sistema y no puede editarse', 'warning')
+        return redirect(url_for('incomes.categories'))
     if category.user_id != current_user.id:
         flash('No tienes permiso para editar esta categoría', 'error')
         return redirect(url_for('incomes.categories'))
@@ -109,6 +122,9 @@ def edit_category(id):
     form.parent_id.data = category.parent_id or 0
     
     if form.validate_on_submit():
+        if form.name.data.strip() == 'Ajustes':
+            flash('El nombre "Ajustes" está reservado para el sistema', 'warning')
+            return redirect(url_for('incomes.categories'))
         category.name = form.name.data
         category.icon = form.icon.data or '💵'
         category.color = form.color.data
@@ -133,6 +149,9 @@ def delete_category(id):
     """Eliminar categoría"""
     category = IncomeCategory.query.get_or_404(id)
     
+    if is_ajustes_category(category):
+        flash('La categoría Ajustes está reservada para el sistema y no puede eliminarse', 'warning')
+        return redirect(url_for('incomes.categories'))
     if category.user_id != current_user.id:
         flash('No tienes permiso para eliminar esta categoría', 'error')
         return redirect(url_for('incomes.categories'))
@@ -181,15 +200,49 @@ def list():
         user_id=current_user.id
     ).order_by(IncomeCategory.name).all()
 
-    # Resumen por categoría (12 meses)
-    category_summary = Income.get_category_summary(current_user.id, months=12)
+    # Resumen por categoría (12 meses) incluyendo ajuste de reconciliación
+    category_summary = get_income_category_summary_with_adjustment(current_user.id, months=12)
+    # Totales mensuales (12 meses) para gráfico de barras incluyendo ajuste
+    monthly_totals = get_income_monthly_totals_with_adjustment(current_user.id, months=12)
+    # Métricas de resumen (Fase 6)
+    summary_metrics = get_income_summary_metrics(current_user.id, months=12)
+    # Entradas sintéticas por mes (Ajustes y Stock Market) - todo el histórico
+    synthetic_entries = get_synthetic_income_entries_by_month(current_user.id, months=None)
     
+    # Calcular meses con entradas sintéticas pero SIN ingresos reales
+    # para mostrarlos como filas independientes en la tabla
+    orphan_synthetic_entries = []
+    if synthetic_entries:
+        # Obtener todos los meses únicos que tienen ingresos reales
+        months_with_real_incomes = set()
+        all_incomes_query = Income.query.filter_by(user_id=current_user.id).with_entities(
+            db.func.extract('year', Income.date).label('year'),
+            db.func.extract('month', Income.date).label('month')
+        ).distinct().all()
+        for row in all_incomes_query:
+            months_with_real_incomes.add((int(row.year), int(row.month)))
+        
+        # Identificar meses sintéticos huérfanos (sin ingresos reales)
+        for (year, month), data in sorted(synthetic_entries.items(), reverse=True):
+            if (year, month) not in months_with_real_incomes:
+                orphan_synthetic_entries.append({
+                    'year': year,
+                    'month': month,
+                    'month_label': data['month_label'],
+                    'ajuste': data['ajuste'],
+                    'stock_market': data['stock_market']
+                })
+
     return render_template(
         'incomes/list.html',
         incomes=incomes,
         categories=categories,
         selected_category=category_id,
-        category_summary=category_summary
+        category_summary=category_summary,
+        monthly_totals=monthly_totals,
+        summary_metrics=summary_metrics,
+        synthetic_entries=synthetic_entries,
+        orphan_synthetic_entries=orphan_synthetic_entries
     )
 
 
@@ -199,10 +252,10 @@ def new():
     """Crear nuevo ingreso"""
     form = IncomeForm()
     
-    # Cargar categorías
-    categories = IncomeCategory.query.filter_by(
-        user_id=current_user.id
-    ).order_by(IncomeCategory.name).all()
+    # Cargar categorías (excluir Ajustes, reservada para el sistema)
+    categories = filter_editable_categories(
+        IncomeCategory.query.filter_by(user_id=current_user.id).order_by(IncomeCategory.name).all()
+    )
     
     if not categories:
         flash('Primero debes crear al menos una categoría de ingresos', 'warning')

@@ -15,6 +15,7 @@ from app.models.metrics_cache import MetricsCache
 from app.models.watchlist import Watchlist, WatchlistConfig
 from app.models.company_report import ReportSettings, ReportTemplate, CompanyReport, AssetAboutSummary
 from app.models.debt_plan import DebtPlan
+from app.models.bank import Bank, BankBalance
 
 __all__ = [
     'User', 
@@ -34,6 +35,7 @@ __all__ = [
     'ReportTemplate',
     'CompanyReport',
     'AssetAboutSummary',
-    'DebtPlan'
+    'DebtPlan',
+    'Bank', 'BankBalance'
 ]
 

@@ -2,6 +2,19 @@
 Filtros personalizados para templates Jinja2
 """
 
+MESES_ES = (
+    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+)
+
+
+def format_month_es(value):
+    """Formatea una fecha como 'Enero 2025' en español."""
+    if value is None:
+        return ''
+    return f"{MESES_ES[value.month - 1]} {value.year}"
+
+
 def format_number_eu(value):
     """
     Formatea un número en formato europeo sin decimales innecesarios
@@ -55,4 +68,5 @@ def register_filters(app):
     """
     app.jinja_env.filters['number_eu'] = format_number_eu
     app.jinja_env.filters['decimal_eu'] = format_decimal_eu
+    app.jinja_env.filters['month_es'] = format_month_es
 

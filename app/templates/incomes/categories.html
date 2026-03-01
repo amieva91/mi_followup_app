@@ -76,6 +76,9 @@
                                 {{ category.incomes.count() }}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-center">
+                                {% if category.name == 'Ajustes' %}
+                                <span class="text-xs text-gray-500">Sistema (solo lectura)</span>
+                                {% else %}
                                 <div class="flex justify-center space-x-2">
                                     <a href="{{ url_for('incomes.edit_category', id=category.id) }}" 
                                        class="text-blue-600 hover:text-blue-800" title="Editar">
@@ -89,6 +92,7 @@
                                         </button>
                                     </form>
                                 </div>
+                                {% endif %}
                             </td>
                         </tr>
                     {% endfor %}

@@ -10,7 +10,7 @@ Sistema completo de gestión financiera personal.
 - ✅ **Sprint 2 - Gastos e Ingresos** 
   - Categorías jerárquicas con padre/hijo
   - Gastos y ingresos puntuales y recurrentes
-  - **Mejoras v9.0.0 (Feb 2026)**: Planes de deuda con edición completa, pago anticipado mejorado, categorías jerárquicas de ingresos, modales personalizados. Ver `docs/cambios/MEJORAS_DEUDAS_GASTOS_INGRESOS_FEB2026.md`
+  - **Mejoras v9.0.0 (Feb 2026)**: Planes de deuda con edición completa, pago anticipado mejorado, categorías jerárquicas de ingresos, modales personalizados. **Gráficos de barras** (ingresos/gastos últimos 12 meses) y **separadores de mes** en las tablas al hacer scroll. Ver `docs/cambios/MEJORAS_DEUDAS_GASTOS_INGRESOS_FEB2026.md`
   - Generación automática de instancias históricas
   - Edición y eliminación de series completas
   - Emoji picker interactivo

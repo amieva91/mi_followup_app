@@ -37,6 +37,8 @@
 
 **Gastos e Ingresos**
 - ✅ Tablas jerárquicas con subcategorías indentadas
+- ✅ Gráficos de barras (Chart.js 4.4.0) - Ingresos/Gastos últimos 12 meses
+- ✅ Separadores de mes en tablas - Línea con nombre del mes al cambiar de mes al hacer scroll
 - ✅ Emoji picker interactivo
 - ✅ Formularios de recurrencia (daily/weekly/monthly/yearly)
 - ✅ Modal de confirmación para eliminación de series
@@ -67,7 +69,7 @@
 
 **Mejoras Finales Sprint 3 (v3.2.0)**
 - ✅ **Formato Europeo**: Números con punto como separador de miles y coma como decimal (1.234,56)
-- ✅ **Filtros Jinja2 personalizados**: `number_eu` y `decimal_eu(2)` para formateo consistente
+- ✅ **Filtros Jinja2 personalizados**: `number_eu`, `decimal_eu(2)`, `month_es` (fecha → "Enero 2025")
 - ✅ **Visualización de Assets**: Línea gris con formato `Type • Currency • ISIN` en lugar de nombre duplicado
 - ✅ **Jerarquía visual mejorada**: Símbolos en bold, información secundaria en gris claro
 - ✅ **Búsqueda avanzada**: Filtros real-time sin botón "Buscar"

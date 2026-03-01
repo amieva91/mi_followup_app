@@ -9,6 +9,13 @@ from app import db
 from app.models import ExpenseCategory, Expense
 from app.forms import ExpenseCategoryForm, ExpenseForm
 from app.utils.recurrence import create_recurrence_instances
+from app.services.category_helpers import filter_editable_categories, is_ajustes_category
+from app.services.income_expense_aggregator import (
+    get_expense_category_summary_with_adjustment,
+    get_expense_monthly_totals_with_adjustment,
+    get_synthetic_expense_entries_by_month,
+)
+from app.services.summary_metrics_service import get_expense_summary_metrics
 
 expenses_bp = Blueprint('expenses', __name__, url_prefix='/expenses')
 
@@ -83,6 +90,9 @@ def new_category():
     ]
     
     if form.validate_on_submit():
+        if form.name.data.strip() == 'Ajustes':
+            flash('El nombre "Ajustes" está reservado para el sistema', 'warning')
+            return redirect(url_for('expenses.new_category'))
         category = ExpenseCategory(
             name=form.name.data,
             icon=form.icon.data or '💰',
@@ -106,7 +116,9 @@ def edit_category(id):
     """Editar categoría"""
     category = ExpenseCategory.query.get_or_404(id)
     
-    # Verificar que pertenece al usuario
+    if is_ajustes_category(category):
+        flash('La categoría Ajustes está reservada para el sistema y no puede editarse', 'warning')
+        return redirect(url_for('expenses.categories'))
     if category.user_id != current_user.id:
         flash('No tienes permiso para editar esta categoría', 'error')
         return redirect(url_for('expenses.categories'))
@@ -122,6 +134,9 @@ def edit_category(id):
     ]
     
     if form.validate_on_submit():
+        if form.name.data.strip() == 'Ajustes':
+            flash('El nombre "Ajustes" está reservado para el sistema', 'warning')
+            return redirect(url_for('expenses.categories'))
         category.name = form.name.data
         category.icon = form.icon.data or '💰'
         category.color = form.color.data
@@ -146,6 +161,9 @@ def delete_category(id):
     """Eliminar categoría"""
     category = ExpenseCategory.query.get_or_404(id)
     
+    if is_ajustes_category(category):
+        flash('La categoría Ajustes está reservada para el sistema y no puede eliminarse', 'warning')
+        return redirect(url_for('expenses.categories'))
     if category.user_id != current_user.id:
         flash('No tienes permiso para eliminar esta categoría', 'error')
         return redirect(url_for('expenses.categories'))
@@ -205,15 +223,49 @@ def list():
         user_id=current_user.id
     ).order_by(ExpenseCategory.name).all()
 
-    # Resumen por categoría (12 meses, jerárquico)
-    category_summary = Expense.get_category_summary(current_user.id, months=12)
+    # Resumen por categoría (12 meses, jerárquico) incluyendo ajuste de reconciliación
+    category_summary = get_expense_category_summary_with_adjustment(current_user.id, months=12)
+    # Totales mensuales (12 meses) para gráfico de barras incluyendo ajuste
+    monthly_totals = get_expense_monthly_totals_with_adjustment(current_user.id, months=12)
+    # Métricas de resumen (Fase 6)
+    summary_metrics = get_expense_summary_metrics(current_user.id, months=12)
+    # Entradas sintéticas por mes (Ajustes y Stock Market) - todo el histórico
+    synthetic_entries = get_synthetic_expense_entries_by_month(current_user.id, months=None)
     
+    # Calcular meses con entradas sintéticas pero SIN gastos reales
+    # para mostrarlos como filas independientes en la tabla
+    orphan_synthetic_entries = []
+    if synthetic_entries:
+        # Obtener todos los meses únicos que tienen gastos reales
+        months_with_real_expenses = set()
+        all_expenses_query = Expense.query.filter_by(user_id=current_user.id).with_entities(
+            db.func.extract('year', Expense.date).label('year'),
+            db.func.extract('month', Expense.date).label('month')
+        ).distinct().all()
+        for row in all_expenses_query:
+            months_with_real_expenses.add((int(row.year), int(row.month)))
+        
+        # Identificar meses sintéticos huérfanos (sin gastos reales)
+        for (year, month), data in sorted(synthetic_entries.items(), reverse=True):
+            if (year, month) not in months_with_real_expenses:
+                orphan_synthetic_entries.append({
+                    'year': year,
+                    'month': month,
+                    'month_label': data['month_label'],
+                    'ajuste': data['ajuste'],
+                    'stock_market': data['stock_market']
+                })
+
     return render_template(
         'expenses/list.html',
         expenses=expenses,
         categories=categories,
         selected_category=category_id,
-        category_summary=category_summary
+        category_summary=category_summary,
+        monthly_totals=monthly_totals,
+        summary_metrics=summary_metrics,
+        synthetic_entries=synthetic_entries,
+        orphan_synthetic_entries=orphan_synthetic_entries
     )
 
 
@@ -223,10 +275,10 @@ def new():
     """Crear nuevo gasto"""
     form = ExpenseForm()
     
-    # Cargar categorías
-    categories = ExpenseCategory.query.filter_by(
-        user_id=current_user.id
-    ).order_by(ExpenseCategory.name).all()
+    # Cargar categorías (excluir Ajustes, reservada para el sistema)
+    categories = filter_editable_categories(
+        ExpenseCategory.query.filter_by(user_id=current_user.id).order_by(ExpenseCategory.name).all()
+    )
     
     if not categories:
         flash('Primero debes crear al menos una categoría de gastos', 'warning')

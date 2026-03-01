@@ -23,52 +23,77 @@
         </div>
     </div>
 
+    <!-- Fase 6: Cuadros de resumen -->
+    {% if summary_metrics %}
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-red-500">
+            <p class="text-sm text-gray-500 uppercase tracking-wide">Media mensual</p>
+            <p class="text-xl font-bold text-red-600">-{{ '%.2f'|format(summary_metrics.media_mensual) }} €</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-red-600">
+            <p class="text-sm text-gray-500 uppercase tracking-wide">Total período</p>
+            <p class="text-xl font-bold text-red-700">-{{ '%.2f'|format(summary_metrics.total_periodo) }} €</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-red-400">
+            <p class="text-sm text-gray-500 uppercase tracking-wide">Mes con más gastos</p>
+            <p class="text-lg font-semibold text-gray-800">{{ summary_metrics.mes_max.label }}</p>
+            <p class="text-sm text-red-600">-{{ '%.2f'|format(summary_metrics.mes_max.amount) }} €</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-gray-400">
+            <p class="text-sm text-gray-500 uppercase tracking-wide">Meses con datos</p>
+            <p class="text-xl font-bold text-gray-700">{{ summary_metrics.meses_con_datos }}/12</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-blue-400">
+            <p class="text-sm text-gray-500 uppercase tracking-wide">Tendencia</p>
+            <p class="text-2xl font-bold" title="Último mes vs media">
+                {% if summary_metrics.tendencia == '↑' %}📈{% elif summary_metrics.tendencia == '↓' %}📉{% else %}➡️{% endif %}
+            </p>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Resumen por categoría (12 meses) -->
     {% if category_summary %}
     <div class="bg-white rounded-lg shadow p-4 mb-6">
         <h2 class="text-lg font-bold text-gray-800 mb-3">📊 Resumen por categoría (últimos 12 meses)</h2>
-        <div class="space-y-2" x-data="{ expanded: {} }">
+        <div class="flex flex-wrap gap-3">
             {% for parent in category_summary %}
-            <div class="border border-gray-200 rounded-lg overflow-hidden">
-                {% if parent.children %}
-                <button type="button" @click="expanded['{{ parent.id }}'] = !expanded['{{ parent.id }}']"
-                        class="w-full flex justify-between items-center px-4 py-3 text-left hover:bg-gray-50 transition">
-                    <span class="flex items-center gap-2">
-                        <span class="text-xl">{{ parent.icon }}</span>
-                        <span class="font-medium text-gray-800">{{ parent.name }}</span>
-                    </span>
-                    <span class="flex items-center gap-2">
-                        <span class="text-red-600 font-semibold">-{{ '%.2f'|format(parent.total) }} €</span>
-                        <span class="text-gray-400 text-sm" x-text="expanded['{{ parent.id }}'] ? '▼' : '▶'">▶</span>
-                    </span>
-                </button>
-                {% else %}
-                <a href="{{ url_for('expenses.list', category=parent.id) }}"
-                   class="flex justify-between items-center px-4 py-3 hover:bg-gray-50 transition">
-                    <span class="flex items-center gap-2">
-                        <span class="text-xl">{{ parent.icon }}</span>
-                        <span class="font-medium text-gray-800">{{ parent.name }}</span>
-                    </span>
-                    <span class="text-red-600 font-semibold">-{{ '%.2f'|format(parent.total) }} €</span>
-                </a>
-                {% endif %}
-                {% if parent.children %}
-                <div x-show="expanded['{{ parent.id }}']" x-cloak x-transition
-                     class="border-t border-gray-100 bg-gray-50">
-                    {% for child in parent.children %}
-                    <a href="{{ url_for('expenses.list', category=child.id) }}"
-                       class="flex justify-between items-center px-4 py-2 pl-12 hover:bg-gray-100">
-                        <span class="flex items-center gap-2 text-gray-700">
-                            <span>{{ child.icon }}</span>
-                            <span>{{ child.name }}</span>
-                        </span>
-                        <span class="text-red-600 font-medium">-{{ '%.2f'|format(child.total) }} €</span>
-                    </a>
-                    {% endfor %}
-                </div>
-                {% endif %}
-            </div>
+            {% if parent.children %}
+            {% for child in parent.children %}
+            <a href="{{ url_for('expenses.list', category=child.id) }}"
+               class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 hover:bg-red-50 hover:border-red-300 transition">
+                <span class="text-xl">{{ child.icon }}</span>
+                <span class="font-medium text-gray-800">{{ child.name }}</span>
+                <span class="text-red-600 font-semibold">-{{ '%.2f'|format(child.average) }} €/mes ({{ '%.2f'|format(child.total) }} €)</span>
+            </a>
             {% endfor %}
+            {% else %}
+            {% if parent.name == 'Ajustes' %}
+            <span class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 bg-gray-50" title="Ajuste de cierre calculado a partir de saldos bancarios (solo lectura)">
+                <span class="text-xl">{{ parent.icon }}</span>
+                <span class="font-medium text-gray-800">{{ parent.name }}</span>
+                <span class="text-red-600 font-semibold">-{{ '%.2f'|format(parent.average) }} €/mes ({{ '%.2f'|format(parent.total) }} €)</span>
+            </span>
+            {% else %}
+            <a href="{{ url_for('expenses.list', category=parent.id) }}"
+               class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 hover:bg-red-50 hover:border-red-300 transition">
+                <span class="text-xl">{{ parent.icon }}</span>
+                <span class="font-medium text-gray-800">{{ parent.name }}</span>
+                <span class="text-red-600 font-semibold">-{{ '%.2f'|format(parent.average) }} €/mes ({{ '%.2f'|format(parent.total) }} €)</span>
+            </a>
+            {% endif %}
+            {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Gráfico: Gastos últimos 12 meses -->
+    {% if monthly_totals %}
+    <div class="bg-white rounded-lg shadow p-4 mb-6">
+        <h2 class="text-lg font-bold text-gray-800 mb-3">📈 Gastos por mes (últimos 12 meses)</h2>
+        <div class="h-64">
+            <canvas id="monthlyExpensesChart"></canvas>
         </div>
     </div>
     {% endif %}
@@ -121,7 +146,52 @@
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
+                    {% set ns = namespace(last_month=None) %}
                     {% for expense in expenses.items %}
+                        {% if ns.last_month != expense.date.strftime('%Y-%m') %}
+                            {% set ns.last_month = expense.date.strftime('%Y-%m') %}
+                            {% set current_year = expense.date.year %}
+                            {% set current_month = expense.date.month %}
+                        <tr class="bg-gray-100 border-t-2 border-gray-300">
+                            <td colspan="5" class="px-6 py-2.5 text-sm font-semibold text-gray-600">
+                                📅 {{ expense.date | month_es }}
+                            </td>
+                        </tr>
+                        {# Filas sintéticas: Ajustes y Stock Market del mes #}
+                        {% if synthetic_entries and (current_year, current_month) in synthetic_entries %}
+                            {% set syn = synthetic_entries[(current_year, current_month)] %}
+                            {% if syn.stock_market > 0 %}
+                        <tr class="hover:bg-gray-50" title="Depósitos a broker IBKR/DeGiro en este mes (calculado automáticamente)">
+                            <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-500 italic">—</td>
+                            <td class="px-6 py-3 whitespace-nowrap">
+                                <span class="inline-flex items-center space-x-2">
+                                    <span>📈</span>
+                                    <span class="text-sm text-gray-700">Stock Market</span>
+                                </span>
+                                <span class="ml-2 text-xs bg-red-100 text-red-800 px-2 py-1 rounded">auto</span>
+                            </td>
+                            <td class="px-6 py-3 text-sm text-gray-500 italic">Depósitos a broker (DEPOSIT)</td>
+                            <td class="px-6 py-3 whitespace-nowrap text-right text-sm font-semibold text-red-600">-€{{ '%.2f'|format(syn.stock_market) }}</td>
+                            <td class="px-6 py-3 text-center text-gray-400">—</td>
+                        </tr>
+                            {% endif %}
+                            {% if syn.ajuste > 0 %}
+                        <tr class="bg-gray-50 hover:bg-gray-100" title="Ajuste de reconciliación: diferencia entre saldo bancario real y gastos/ingresos registrados">
+                            <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-500 italic">—</td>
+                            <td class="px-6 py-3 whitespace-nowrap">
+                                <span class="inline-flex items-center space-x-2">
+                                    <span>⚖️</span>
+                                    <span class="text-sm text-gray-700">Ajustes</span>
+                                </span>
+                                <span class="ml-2 text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded">auto</span>
+                            </td>
+                            <td class="px-6 py-3 text-sm text-gray-500 italic">Gasto no registrado (reconciliación bancaria)</td>
+                            <td class="px-6 py-3 whitespace-nowrap text-right text-sm font-semibold text-red-600">-€{{ '%.2f'|format(syn.ajuste) }}</td>
+                            <td class="px-6 py-3 text-center text-gray-400">—</td>
+                        </tr>
+                            {% endif %}
+                        {% endif %}
+                        {% endif %}
                         <tr class="hover:bg-gray-50">
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                                 {{ expense.date.strftime('%d/%m/%Y') }}
@@ -242,6 +312,47 @@
                             </td>
                         </tr>
                     {% endfor %}
+                    
+                    {# Meses huérfanos: entradas sintéticas sin gastos reales en ese mes (solo en última página) #}
+                    {% if orphan_synthetic_entries and not expenses.has_next %}
+                    {% for orphan in orphan_synthetic_entries %}
+                        <tr class="bg-gray-100 border-t-2 border-gray-300">
+                            <td colspan="5" class="px-6 py-2.5 text-sm font-semibold text-gray-600">
+                                📅 {{ orphan.month_label }}
+                            </td>
+                        </tr>
+                        {% if orphan.stock_market > 0 %}
+                        <tr class="hover:bg-gray-50" title="Depósitos a broker IBKR/DeGiro en este mes (calculado automáticamente)">
+                            <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-500 italic">—</td>
+                            <td class="px-6 py-3 whitespace-nowrap">
+                                <span class="inline-flex items-center space-x-2">
+                                    <span>📈</span>
+                                    <span class="text-sm text-gray-700">Stock Market</span>
+                                </span>
+                                <span class="ml-2 text-xs bg-red-100 text-red-800 px-2 py-1 rounded">auto</span>
+                            </td>
+                            <td class="px-6 py-3 text-sm text-gray-500 italic">Depósitos a broker (DEPOSIT)</td>
+                            <td class="px-6 py-3 whitespace-nowrap text-right text-sm font-semibold text-red-600">-€{{ '%.2f'|format(orphan.stock_market) }}</td>
+                            <td class="px-6 py-3 text-center text-gray-400">—</td>
+                        </tr>
+                        {% endif %}
+                        {% if orphan.ajuste > 0 %}
+                        <tr class="bg-gray-50 hover:bg-gray-100" title="Ajuste de reconciliación: diferencia entre saldo bancario real y gastos/ingresos registrados">
+                            <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-500 italic">—</td>
+                            <td class="px-6 py-3 whitespace-nowrap">
+                                <span class="inline-flex items-center space-x-2">
+                                    <span>⚖️</span>
+                                    <span class="text-sm text-gray-700">Ajustes</span>
+                                </span>
+                                <span class="ml-2 text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded">auto</span>
+                            </td>
+                            <td class="px-6 py-3 text-sm text-gray-500 italic">Gasto no registrado (reconciliación bancaria)</td>
+                            <td class="px-6 py-3 whitespace-nowrap text-right text-sm font-semibold text-red-600">-€{{ '%.2f'|format(orphan.ajuste) }}</td>
+                            <td class="px-6 py-3 text-center text-gray-400">—</td>
+                        </tr>
+                        {% endif %}
+                    {% endfor %}
+                    {% endif %}
                 </tbody>
                 <tfoot class="bg-gray-50">
                     <tr>
@@ -304,5 +415,54 @@
         </div>
     {% endif %}
 </div>
+
+{% if monthly_totals %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function() {
+    const monthlyTotals = {{ monthly_totals | tojson }};
+    const ctx = document.getElementById('monthlyExpensesChart');
+    if (!ctx) return;
+    const labels = monthlyTotals.map(m => m.month_label);
+    const data = monthlyTotals.map(m => m.total);
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Gastos (€)',
+                data: data,
+                backgroundColor: 'rgba(239, 68, 68, 0.7)',
+                borderColor: 'rgb(239, 68, 68)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) {
+                            return ctx.raw.toLocaleString('es-ES', { minimumFractionDigits: 2 }) + ' €';
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(v) { return v.toLocaleString('es-ES') + ' €'; }
+                    }
+                },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+})();
+</script>
+{% endif %}
 {% endblock %}
 

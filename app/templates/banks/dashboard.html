@@ -1,0 +1,169 @@
+{% extends 'base/layout.html' %}
+
+{% block title %}Bancos - FollowUp{% endblock %}
+
+{% block content %}
+<div class="max-w-[92%] mx-auto px-4 py-8">
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-3xl font-bold text-gray-800">🏦 Mis Bancos</h1>
+        <a href="{{ url_for('banks.new') }}" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition">
+            + Añadir banco
+        </a>
+    </div>
+
+    {% if banks %}
+    <!-- Selector de mes -->
+    <div class="bg-white rounded-lg shadow p-4 mb-6">
+        <h2 class="text-lg font-bold text-gray-800 mb-3">📅 Registrar saldos</h2>
+        <form method="POST" action="{{ url_for('banks.save_balances') }}" class="flex flex-wrap items-end gap-4">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="year" value="{{ selected_year }}">
+            <input type="hidden" name="month" value="{{ selected_month }}">
+
+            <div class="flex gap-3 items-center">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Mes</label>
+                    <select name="nav_month" onchange="navigateMonth(this)" class="px-3 py-2 border rounded-lg">
+                        {% set mes_nombres = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'] %}
+                        {% for m in range(1, 13) %}
+                        <option value="{{ m }}" {% if m == selected_month %}selected{% endif %}>{{ mes_nombres[m-1] }} {{ selected_year }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Año</label>
+                    <input type="number" name="nav_year" value="{{ selected_year }}" min="2020" max="2030" onchange="navigateYear(this)" class="px-3 py-2 border rounded-lg w-24">
+                </div>
+                <a href="{{ url_for('banks.dashboard', year=selected_year, month=selected_month) }}" id="nav-link" class="text-blue-600 hover:underline text-sm">Ir</a>
+            </div>
+
+            <div class="flex-1"></div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 flex-1 min-w-0">
+                {% for bank in banks %}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">{{ bank.icon }} {{ bank.name }}</label>
+                    <input type="number" name="balance_{{ bank.id }}" value="{{ balances.get(bank.id, '') }}" step="0.01" placeholder="0.00"
+                           class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                </div>
+                {% endfor %}
+            </div>
+
+            <button type="submit" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg transition h-10">
+                Guardar saldos
+            </button>
+        </form>
+        <p class="text-xs text-gray-500 mt-2">Introduce el saldo total de cada cuenta al cierre del mes seleccionado.</p>
+    </div>
+
+    <!-- Total del mes -->
+    <div class="bg-white rounded-lg shadow p-4 mb-6">
+        <p class="text-gray-600">Total efectivo bancario ({{ ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][selected_month-1] }} {{ selected_year }}):</p>
+        <p class="text-2xl font-bold text-indigo-600">{{ total_cash|decimal_eu(2) }} €</p>
+    </div>
+
+    <!-- Gráfico evolución -->
+    {% if cash_evolution %}
+    <div class="bg-white rounded-lg shadow p-4 mb-6">
+        <h2 class="text-lg font-bold text-gray-800 mb-3">📈 Evolución del efectivo bancario (últimos 12 meses)</h2>
+        <div class="h-64">
+            <canvas id="cashEvolutionChart"></canvas>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Lista de bancos -->
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <h2 class="text-lg font-bold text-gray-800 p-4 border-b">Entidades registradas</h2>
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Banco</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for bank in banks %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4">
+                        <span class="text-xl">{{ bank.icon }}</span>
+                        <span class="font-medium text-gray-900 ml-2">{{ bank.name }}</span>
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <a href="{{ url_for('banks.edit', id=bank.id) }}" class="text-blue-600 hover:text-blue-800 mr-3">Editar</a>
+                        <form method="POST" action="{{ url_for('banks.delete', id=bank.id) }}" class="inline" onsubmit="return confirm('¿Eliminar este banco y todos sus saldos?')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="text-red-600 hover:text-red-800">Eliminar</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% else %}
+    <!-- Empty state -->
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-8 text-center">
+        <p class="text-xl text-blue-800 mb-4">🏦 No tienes bancos registrados</p>
+        <p class="text-gray-600 mb-6">Añade las entidades bancarias donde tienes tus cuentas para registrar los saldos mensuales.</p>
+        <a href="{{ url_for('banks.new') }}" class="inline-block bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition">
+            + Añadir primer banco
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+{% if cash_evolution %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function() {
+    const data = {{ cash_evolution | tojson }};
+    const ctx = document.getElementById('cashEvolutionChart');
+    if (!ctx) return;
+    const labels = data.map(d => d.month_label);
+    const values = data.map(d => d.total);
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Efectivo (€)',
+                data: values,
+                borderColor: 'rgb(79, 70, 229)',
+                backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                fill: true,
+                tension: 0.3
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { callback: v => v.toLocaleString('es-ES') + ' €' }
+                },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+})();
+</script>
+{% endif %}
+
+<script>
+function navigateMonth(sel) {
+    const m = sel.value;
+    const y = document.querySelector('input[name="nav_year"]').value;
+    window.location = "{{ url_for('banks.dashboard') }}?year=" + y + "&month=" + m;
+}
+function navigateYear(inp) {
+    const y = inp.value;
+    const m = document.querySelector('select[name="nav_month"]').value;
+    window.location = "{{ url_for('banks.dashboard') }}?year=" + y + "&month=" + m;
+}
+</script>
+{% endblock %}

@@ -98,6 +98,7 @@ def create_app(config_name='default'):
     from app.routes.auth import auth_bp
     from app.routes.expenses import expenses_bp
     from app.routes.incomes import incomes_bp
+    from app.routes.banks import banks_bp
     from app.routes.crypto import crypto_bp
     from app.routes.metales import metales_bp
 
@@ -105,6 +106,7 @@ def create_app(config_name='default'):
     app.register_blueprint(auth_bp)
     app.register_blueprint(expenses_bp)
     app.register_blueprint(incomes_bp)
+    app.register_blueprint(banks_bp)
     app.register_blueprint(debts_bp)
     app.register_blueprint(portfolio_bp)
     app.register_blueprint(crypto_bp)

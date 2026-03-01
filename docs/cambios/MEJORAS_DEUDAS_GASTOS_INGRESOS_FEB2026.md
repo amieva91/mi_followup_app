@@ -8,7 +8,7 @@
 
 ## Resumen ejecutivo
 
-Mejoras en los módulos de planificación financiera: planes de deuda con edición completa, pago anticipado mejorado, categorías jerárquicas de ingresos, modales personalizados y correcciones en formularios y sincronización de datos.
+Mejoras en los módulos de planificación financiera: planes de deuda con edición completa, pago anticipado mejorado, categorías jerárquicas de ingresos, modales personalizados, gráficos de barras (últimos 12 meses) y separadores de mes en las listas de ingresos y gastos, y correcciones en formularios y sincronización de datos.
 
 ---
 
@@ -59,6 +59,13 @@ Mejoras en los módulos de planificación financiera: planes de deuda con edici�
 
 ## GASTOS (Expenses)
 
+### Gráfico y separadores de mes
+
+| Cambio | Descripción |
+|--------|-------------|
+| **Gráfico de barras** | Gráfico "Gastos por mes (últimos 12 meses)" con Chart.js 4.4.0; totales mensuales en rojo |
+| **Separadores de mes** | Línea con el nombre del mes (ej. "Enero 2025") cuando cambia el mes al hacer scroll en la tabla |
+
 ### Lista de gastos
 
 | Cambio | Descripción |
@@ -89,6 +96,13 @@ Mejoras en los módulos de planificación financiera: planes de deuda con edici�
 ---
 
 ## INGRESOS (Income)
+
+### Gráfico y separadores de mes
+
+| Cambio | Descripción |
+|--------|-------------|
+| **Gráfico de barras** | Gráfico "Ingresos por mes (últimos 12 meses)" con Chart.js 4.4.0; totales mensuales en verde |
+| **Separadores de mes** | Línea con el nombre del mes (ej. "Enero 2025") cuando cambia el mes al hacer scroll en la tabla |
 
 ### Modelo y base de datos
 
@@ -143,11 +157,13 @@ Mejoras en los módulos de planificación financiera: planes de deuda con edici�
 
 ### Modificados
 - `app/forms/finance_forms.py` - DebtPlanEditForm con todos los campos, IncomeCategoryForm con parent_id
-- `app/models/income.py` - parent_id, children, parent, full_name
-- `app/routes/expenses.py` - joinedload, next parameter
-- `app/routes/incomes.py` - parent_id, full_name, jerarquía
-- `app/templates/expenses/*` - modales, next, joinedload
-- `app/templates/incomes/*` - parent_id, jerarquía, full_name
+- `app/models/income.py` - parent_id, children, parent, full_name, get_monthly_totals()
+- `app/models/expense.py` - get_monthly_totals()
+- `app/routes/expenses.py` - joinedload, next parameter, monthly_totals
+- `app/routes/incomes.py` - parent_id, full_name, jerarquía, monthly_totals
+- `app/templates/expenses/*` - modales, next, joinedload, gráfico barras, separadores mes
+- `app/templates/incomes/*` - parent_id, jerarquía, full_name, gráfico barras, separadores mes
+- `app/utils/template_filters.py` - filtro month_es (meses en español)
 - `app/templates/base/layout.html` - enlaces deuda
 - `app/routes/__init__.py`, `app/__init__.py` - blueprints debts
 
