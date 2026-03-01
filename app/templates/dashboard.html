@@ -1,237 +1,1009 @@
 {% extends "base/layout.html" %}
 
-{% block title %}Dashboard{% endblock %}
+{% block title %}Dashboard - Patrimonio{% endblock %}
 
 {% block content %}
-<div class="max-w-[92%] mx-auto px-4 py-8">
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<style>
+    .widget-row { 
+        transition: transform 0.2s; 
+        position: relative; 
+    }
+    .widget-row.sortable-ghost { opacity: 0.4; background: #f3f4f6; border-radius: 12px; }
+    .widget-row.sortable-chosen { transform: scale(1.01); box-shadow: 0 10px 40px rgba(0,0,0,0.15); z-index: 100; }
+    .widget-row.sortable-drag { opacity: 0.9; }
+    .row-drag-handle { 
+        position: absolute; 
+        left: -24px; 
+        top: 50%;
+        transform: translateY(-50%);
+        width: 20px; 
+        height: 40px;
+        cursor: grab; 
+        display: flex; 
+        align-items: center; 
+        justify-content: center;
+        background: #e5e7eb;
+        border-radius: 4px;
+        color: #6b7280;
+        font-size: 14px;
+        transition: all 0.2s;
+        user-select: none;
+        z-index: 10;
+    }
+    .row-drag-handle:hover { 
+        background: #c7d2fe; 
+        color: #4f46e5; 
+    }
+    .row-drag-handle:active { cursor: grabbing; }
+    #sortable-widgets { padding-left: 28px; }
+</style>
+<div class="max-w-[95%] mx-auto px-4 py-6" x-data="dashboardConfig()" x-init="initSortable()">
     
-    <!-- Welcome Header -->
-    <div class="bg-gradient-to-r from-blue-600 to-blue-800 rounded-lg shadow-lg p-8 mb-8 text-white">
-        <div class="flex items-center justify-between">
+    <!-- Header con Patrimonio Total -->
+    <div class="bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-800 rounded-xl shadow-xl p-6 mb-6 text-white">
+        <div class="flex flex-wrap items-center justify-between gap-4">
             <div>
-                <h1 class="text-3xl font-bold mb-2">¡Bienvenido, {{ current_user.username }}! 👋</h1>
-                <p class="text-blue-100">Aquí está el resumen de tus finanzas</p>
-            </div>
-            <div class="text-right">
-                <p class="text-sm text-blue-200">Último acceso:</p>
-                <p class="text-lg font-semibold">
-                    {% if current_user.last_login %}
-                        {{ current_user.last_login.strftime('%d/%m/%Y %H:%M') }}
+                <p class="text-indigo-200 text-sm font-medium uppercase tracking-wide">Patrimonio Neto Total</p>
+                <h1 class="text-4xl md:text-5xl font-bold mt-1">{{ "%.2f"|format(summary.net_worth) }} EUR</h1>
+                <div class="flex items-center gap-4 mt-2 text-sm">
+                    {% if summary.changes.month >= 0 %}
+                    <span class="bg-green-500/30 px-2 py-1 rounded">+{{ "%.2f"|format(summary.changes.month) }} EUR mes</span>
                     {% else %}
-                        Primera vez
+                    <span class="bg-red-500/30 px-2 py-1 rounded">{{ "%.2f"|format(summary.changes.month) }} EUR mes</span>
                     {% endif %}
-                </p>
+                    <span class="bg-white/20 px-2 py-1 rounded">{{ summary.changes.ytd_pct }}% YTD</span>
+                </div>
+            </div>
+            <button @click="showConfig = !showConfig" class="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition">Configurar</button>
+        </div>
+    </div>
+
+    <!-- Panel de Configuracion -->
+    <div x-show="showConfig" x-collapse class="bg-white rounded-xl shadow-lg p-6 mb-6">
+        <h3 class="font-bold text-gray-800 mb-4">Configurar widgets visibles</h3>
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+            {% for widget in default_widgets %}
+            <label class="flex items-center justify-between p-3 rounded-lg bg-gray-50 hover:bg-gray-100 cursor-pointer">
+                <span class="text-sm">{{ widget.icon }} {{ widget.name }}</span>
+                <button type="button" 
+                    @click="widgets['{{ widget.id }}'] = !widgets['{{ widget.id }}']; saveConfig()"
+                    :class="widgets['{{ widget.id }}'] ? 'bg-indigo-600' : 'bg-gray-300'"
+                    class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none">
+                    <span :class="widgets['{{ widget.id }}'] ? 'translate-x-5' : 'translate-x-0'"
+                        class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out mt-0.5 ml-0.5"></span>
+                </button>
+            </label>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Contenedor de widgets arrastrables -->
+    <div id="sortable-widgets">
+
+    <!-- Fila 1: Grafico Evolucion + Distribucion Activos -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6 widget-row" data-widget="row-evolution">
+        <span class="row-drag-handle">⋮⋮</span>
+        <template x-if="widgets.evolution_chart">
+        <div class="lg:col-span-2 bg-white rounded-xl shadow-lg p-6">
+            <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+                <h3 class="font-bold text-gray-800 drag-handle">Evolucion del Patrimonio</h3>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs text-gray-500">Periodo:</span>
+                    <div class="flex bg-gray-100 rounded-lg p-1" id="periodButtons">
+                        <button onclick="selectPeriod(12, this)" class="period-btn active px-3 py-1 text-xs font-medium rounded-md transition bg-white shadow text-indigo-600">1A</button>
+                        <button onclick="selectPeriod(36, this)" class="period-btn px-3 py-1 text-xs font-medium rounded-md transition text-gray-600">3A</button>
+                        <button onclick="selectPeriod(60, this)" class="period-btn px-3 py-1 text-xs font-medium rounded-md transition text-gray-600">5A</button>
+                        <button onclick="selectPeriod(0, this)" class="period-btn px-3 py-1 text-xs font-medium rounded-md transition text-gray-600">Todo</button>
+                    </div>
+                </div>
+            </div>
+            <div class="h-72"><canvas id="evolutionChart"></canvas></div>
+            <div class="flex flex-wrap items-center gap-3 mt-3 pt-3 border-t">
+                <span class="text-xs text-gray-500">Mostrar:</span>
+                <label class="flex items-center gap-1.5 cursor-pointer">
+                    <input type="checkbox" checked onchange="toggleChartDataset(0, this.checked)" class="w-3.5 h-3.5 text-indigo-600 rounded">
+                    <span class="text-xs text-indigo-600 font-medium">Patrimonio Neto</span>
+                </label>
+                <label class="flex items-center gap-1.5 cursor-pointer">
+                    <input type="checkbox" onchange="toggleChartDataset(1, this.checked)" class="w-3.5 h-3.5 text-emerald-600 rounded">
+                    <span class="text-xs text-emerald-600">Cash</span>
+                </label>
+                <label class="flex items-center gap-1.5 cursor-pointer">
+                    <input type="checkbox" onchange="toggleChartDataset(2, this.checked)" class="w-3.5 h-3.5 text-blue-600 rounded">
+                    <span class="text-xs text-blue-600">Broker</span>
+                </label>
+                <label class="flex items-center gap-1.5 cursor-pointer">
+                    <input type="checkbox" onchange="toggleChartDataset(3, this.checked)" class="w-3.5 h-3.5 text-amber-500 rounded">
+                    <span class="text-xs text-amber-500">Crypto</span>
+                </label>
+                <label class="flex items-center gap-1.5 cursor-pointer">
+                    <input type="checkbox" onchange="toggleChartDataset(4, this.checked)" class="w-3.5 h-3.5 text-yellow-500 rounded">
+                    <span class="text-xs text-yellow-500">Metales</span>
+                </label>
+            </div>
+            <p class="text-xs text-gray-400 mt-2 italic">Patrimonio = Cash + Broker + Crypto + Metales</p>
+        </div>
+        </template>
+
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <h3 class="font-bold text-gray-800 mb-4">Distribucion de Activos</h3>
+            <div class="h-48"><canvas id="distributionChart"></canvas></div>
+            <div class="mt-4 grid grid-cols-2 gap-2 text-sm">
+                <div class="flex items-center gap-2"><span class="w-3 h-3 bg-emerald-500 rounded-full"></span>Cash {{ summary.breakdown.breakdown_pct.cash }}%</div>
+                <div class="flex items-center gap-2"><span class="w-3 h-3 bg-blue-500 rounded-full"></span>Portfolio {{ summary.breakdown.breakdown_pct.portfolio }}%</div>
+                <div class="flex items-center gap-2"><span class="w-3 h-3 bg-amber-500 rounded-full"></span>Crypto {{ summary.breakdown.breakdown_pct.crypto }}%</div>
+                <div class="flex items-center gap-2"><span class="w-3 h-3 bg-yellow-500 rounded-full"></span>Metales {{ summary.breakdown.breakdown_pct.metales }}%</div>
             </div>
         </div>
     </div>
 
-    <!-- Quick Stats -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-        <!-- Card 1: Ingresos del Mes -->
-        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-green-500 hover:shadow-lg transition">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-gray-600 text-sm font-medium">Ingresos ({{ current_month_name }})</p>
-                    <p class="text-2xl font-bold text-green-600">+€{{ '%.2f'|format(incomes_this_month) }}</p>
-                </div>
-                <div class="bg-green-100 rounded-full p-3">
-                    <span class="text-2xl">💵</span>
-                </div>
-            </div>
-            <a href="{{ url_for('incomes.list') }}" class="mt-3 text-sm text-green-600 hover:text-green-800 inline-flex items-center">
-                Ver todos →
+    <!-- Fila 2: Cards de Activos con Detalle -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 widget-row" data-widget="row-assets">
+        <span class="row-drag-handle">⋮⋮</span>
+        <!-- Cash con detalle -->
+        <template x-if="widgets.cash">
+        <div class="bg-white rounded-xl shadow p-5 border-l-4 border-emerald-500">
+            <a href="{{ url_for('banks.dashboard') }}" class="flex items-center justify-between mb-3">
+                <span class="text-gray-500 text-sm">Cash & Bancos</span>
+                <span class="text-gray-400">→</span>
             </a>
-        </div>
-
-        <!-- Card 2: Gastos del Mes -->
-        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-red-500 hover:shadow-lg transition">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-gray-600 text-sm font-medium">Gastos ({{ current_month_name }})</p>
-                    <p class="text-2xl font-bold text-red-600">-€{{ '%.2f'|format(expenses_this_month) }}</p>
+            <p class="text-2xl font-bold text-gray-800">{{ "%.2f"|format(summary.breakdown.cash) }} EUR</p>
+            <div class="mt-3 pt-3 border-t space-y-1">
+                {% for bank in summary.cash_details[:3] %}
+                <div class="flex justify-between text-sm">
+                    <span class="text-gray-500">{{ bank.icon }} {{ bank.name }}</span>
+                    <span class="font-medium">{{ "%.2f"|format(bank.amount) }} EUR</span>
                 </div>
-                <div class="bg-red-100 rounded-full p-3">
-                    <span class="text-2xl">💸</span>
-                </div>
+                {% endfor %}
             </div>
-            <a href="{{ url_for('expenses.list') }}" class="mt-3 text-sm text-red-600 hover:text-red-800 inline-flex items-center">
-                Ver todos →
+        </div>
+        </template>
+
+        <!-- Portfolio con detalle -->
+        <template x-if="widgets.portfolio">
+        <div class="bg-white rounded-xl shadow p-5 border-l-4 border-blue-500">
+            <a href="{{ url_for('portfolio.dashboard') }}" class="flex items-center justify-between mb-3">
+                <span class="text-gray-500 text-sm">Portfolio ({{ summary.portfolio_details.holdings_count }})</span>
+                <span class="text-gray-400">→</span>
             </a>
-        </div>
-
-        <!-- Card 3: Balance del Mes -->
-        <div class="bg-white rounded-lg shadow p-6 border-l-4 {% if balance_this_month >= 0 %}border-blue-500{% else %}border-yellow-500{% endif %} hover:shadow-lg transition">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-gray-600 text-sm font-medium">Balance ({{ current_month_name }})</p>
-                    <p class="text-2xl font-bold {% if balance_this_month >= 0 %}text-blue-600{% else %}text-yellow-600{% endif %}">
-                        €{{ '%.2f'|format(balance_this_month) }}
-                    </p>
-                </div>
-                <div class="{% if balance_this_month >= 0 %}bg-blue-100{% else %}bg-yellow-100{% endif %} rounded-full p-3">
-                    <span class="text-2xl">{% if balance_this_month >= 0 %}📈{% else %}📊{% endif %}</span>
-                </div>
-            </div>
-            <p class="mt-3 text-xs text-gray-500">
-                {% if balance_this_month >= 0 %}
-                    ✅ Estás ahorrando este mes
-                {% else %}
-                    ⚠️ Gastos superan a ingresos
-                {% endif %}
+            <p class="text-2xl font-bold text-gray-800">{{ "%.2f"|format(summary.portfolio_details.total_value) }} EUR</p>
+            <p class="text-sm {% if summary.portfolio_details.total_pnl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                {% if summary.portfolio_details.total_pnl >= 0 %}+{% endif %}{{ "%.2f"|format(summary.portfolio_details.total_pnl) }} EUR ({{ summary.portfolio_details.total_pnl_pct }}%)
             </p>
+            <div class="mt-3 pt-3 border-t space-y-1">
+                {% for h in summary.portfolio_details.top_holdings[:3] %}
+                <div class="flex justify-between text-sm">
+                    <span class="text-gray-500">{{ h.ticker }}</span>
+                    <span class="{% if h.pnl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">{{ "%.2f"|format(h.value) }} EUR</span>
+                </div>
+                {% endfor %}
+            </div>
         </div>
+        </template>
+
+        <!-- Crypto con detalle -->
+        <template x-if="widgets.crypto">
+        <div class="bg-white rounded-xl shadow p-5 border-l-4 border-amber-500">
+            <a href="{{ url_for('crypto.dashboard') }}" class="flex items-center justify-between mb-3">
+                <span class="text-gray-500 text-sm">Crypto</span>
+                <span class="text-gray-400">→</span>
+            </a>
+            <p class="text-2xl font-bold text-gray-800">{{ "%.2f"|format(summary.crypto_details.valor_total) }} EUR</p>
+            <p class="text-sm {% if summary.crypto_details.rentabilidad >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                {% if summary.crypto_details.rentabilidad >= 0 %}+{% endif %}{{ "%.2f"|format(summary.crypto_details.rentabilidad) }} EUR
+            </p>
+            <div class="mt-3 pt-3 border-t space-y-1">
+                {% for pos in summary.crypto_details.posiciones[:3] %}
+                <div class="flex justify-between text-sm">
+                    <span class="text-gray-500">{{ pos.symbol }}</span>
+                    <span>{{ "%.2f"|format(pos.value) }} EUR</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        </template>
+
+        <!-- Metales con detalle -->
+        <template x-if="widgets.metales">
+        <div class="bg-white rounded-xl shadow p-5 border-l-4 border-yellow-500">
+            <a href="{{ url_for('metales.dashboard') }}" class="flex items-center justify-between mb-3">
+                <span class="text-gray-500 text-sm">Metales</span>
+                <span class="text-gray-400">→</span>
+            </a>
+            <p class="text-2xl font-bold text-gray-800">{{ "%.2f"|format(summary.metales_details.valor_total) }} EUR</p>
+            <p class="text-sm {% if summary.metales_details.rentabilidad >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                {% if summary.metales_details.rentabilidad >= 0 %}+{% endif %}{{ "%.2f"|format(summary.metales_details.rentabilidad) }} EUR
+            </p>
+            <div class="mt-3 pt-3 border-t space-y-1">
+                {% for pos in summary.metales_details.posiciones[:3] %}
+                <div class="flex justify-between text-sm">
+                    <span class="text-gray-500">{{ pos.symbol }}</span>
+                    <span>{{ "%.2f"|format(pos.value) }} EUR</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        </template>
     </div>
 
-    <!-- Quick Actions -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        <!-- Acciones de Gastos -->
-        <div class="bg-gradient-to-br from-red-50 to-red-100 rounded-lg shadow p-6">
-            <h3 class="font-bold text-gray-800 mb-4 flex items-center">
-                <span class="text-2xl mr-2">💸</span>
-                Gestión de Gastos
-            </h3>
-            <div class="space-y-2">
-                <a href="{{ url_for('expenses.new') }}" 
-                   class="block bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition text-center">
-                    + Registrar Gasto
-                </a>
-                <a href="{{ url_for('expenses.list') }}" 
-                   class="block bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg transition text-center">
-                    📋 Ver Todos los Gastos
-                </a>
-                <a href="{{ url_for('expenses.categories') }}" 
-                   class="block bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg transition text-center">
-                    📂 Categorías de Gastos
-                </a>
-            </div>
+    <!-- Fila 3: Ingresos vs Gastos + Proyecciones + Deudas -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6 widget-row" data-widget="row-income">
+        <span class="row-drag-handle">⋮⋮</span>
+        <!-- Grafico Ingresos vs Gastos -->
+        <template x-if="widgets.income_expense">
+        <div class="lg:col-span-2 bg-white rounded-xl shadow-lg p-6">
+            <h3 class="font-bold text-gray-800 mb-4">Ingresos vs Gastos (12 meses)</h3>
+            <div class="h-64"><canvas id="incomeExpenseChart"></canvas></div>
         </div>
+        </template>
 
-        <!-- Acciones de Ingresos -->
-        <div class="bg-gradient-to-br from-green-50 to-green-100 rounded-lg shadow p-6">
-            <h3 class="font-bold text-gray-800 mb-4 flex items-center">
-                <span class="text-2xl mr-2">💵</span>
-                Gestión de Ingresos
-            </h3>
-            <div class="space-y-2">
-                <a href="{{ url_for('incomes.new') }}" 
-                   class="block bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition text-center">
-                    + Registrar Ingreso
-                </a>
-                <a href="{{ url_for('incomes.list') }}" 
-                   class="block bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg transition text-center">
-                    📋 Ver Todos los Ingresos
-                </a>
-                <a href="{{ url_for('incomes.categories') }}" 
-                   class="block bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg transition text-center">
-                    📂 Categorías de Ingresos
-                </a>
+        <!-- Proyecciones -->
+        <template x-if="widgets.projection">
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <h3 class="font-bold text-gray-800 mb-4">Prevision Patrimonio</h3>
+            <p class="text-sm text-gray-500 mb-4">Ahorro mensual: <span class="font-semibold text-green-600">+{{ "%.2f"|format(summary.projections.avg_monthly_savings) }} EUR</span></p>
+            <div class="grid grid-cols-3 gap-3 mb-4">
+                {% for key, proj in summary.projections.projections.items() %}
+                <div class="border-l-4 border-indigo-400 pl-3">
+                    <p class="text-xs text-gray-500">{{ proj.years }} {% if proj.years == 1 %}año{% else %}años{% endif %}</p>
+                    <p class="text-lg font-bold text-gray-800">{{ "%.0f"|format(proj.projected_value) }}€</p>
+                    <p class="text-xs {% if proj.growth >= 0 %}text-green-600{% else %}text-red-600{% endif %}">{{ proj.growth_pct }}%</p>
+                </div>
+                {% endfor %}
+            </div>
+            <div class="h-48 mt-4">
+                <canvas id="projectionChart"></canvas>
             </div>
         </div>
+        </template>
     </div>
 
-    <!-- Main Content Area -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <!-- Next Steps -->
-        <div class="bg-white rounded-lg shadow-lg p-6">
-            <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
-                <svg class="w-6 h-6 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
-                </svg>
-                Próximos Pasos
-            </h2>
-            <div class="space-y-4">
-                <div class="flex items-start">
-                    <div class="bg-blue-100 rounded-full p-2 mr-3">
-                        <span class="text-blue-600 font-bold">1</span>
-                    </div>
-                    <div>
-                        <p class="font-semibold text-gray-800">Configura tus objetivos financieros</p>
-                        <p class="text-sm text-gray-600">Define metas para ahorros, inversiones y gastos</p>
+    <!-- Fila 4: Deudas + Tasa Ahorro -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 widget-row" data-widget="row-debt">
+        <span class="row-drag-handle">⋮⋮</span>
+        <!-- Deudas con detalle -->
+        <template x-if="widgets.debt">
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <a href="{{ url_for('debts.dashboard') }}" class="flex items-center justify-between mb-4">
+                <h3 class="font-bold text-gray-800">Deudas ({{ summary.debt_details.plans_count }} activas)</h3>
+                <span class="text-gray-400">→</span>
+            </a>
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <p class="text-sm text-gray-500">Total pendiente</p>
+                    <p class="text-2xl font-bold text-red-600">-{{ "%.2f"|format(summary.debt_details.total_debt) }} EUR</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-sm text-gray-500">Cuota mensual</p>
+                    <p class="text-xl font-bold text-gray-800">{{ "%.2f"|format(summary.debt_details.total_monthly) }} EUR</p>
+                </div>
+            </div>
+            <div class="space-y-2 pt-3 border-t">
+                {% for plan in summary.debt_details.plans[:4] %}
+                <div class="flex justify-between items-center text-sm">
+                    <span class="text-gray-600">{{ plan.name }}</span>
+                    <div class="text-right">
+                        <span class="font-medium">{{ "%.2f"|format(plan.remaining) }} EUR</span>
+                        {% if plan.next_date %}<span class="text-xs text-gray-400 ml-2">prox: {{ plan.next_date }}</span>{% endif %}
                     </div>
                 </div>
-                <div class="flex items-start">
-                    <div class="bg-blue-100 rounded-full p-2 mr-3">
-                        <span class="text-blue-600 font-bold">2</span>
-                    </div>
-                    <div>
-                        <p class="font-semibold text-gray-800">Registra tus primeros movimientos</p>
-                        <p class="text-sm text-gray-600">Añade ingresos, gastos o inversiones</p>
-                    </div>
+                {% endfor %}
+            </div>
+        </div>
+        </template>
+
+        <!-- Tasa de Ahorro con detalle -->
+        <template x-if="widgets.savings_rate">
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <h3 class="font-bold text-gray-800 mb-4">Tasa de Ahorro (12 meses)</h3>
+            <div class="flex items-center gap-6">
+                <div class="relative w-28 h-28">
+                    <svg class="w-28 h-28 transform -rotate-90" viewBox="0 0 36 36">
+                        <path class="text-gray-200" stroke="currentColor" stroke-width="3" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                        <path class="{% if summary.savings.savings_rate >= 20 %}text-green-500{% elif summary.savings.savings_rate >= 10 %}text-yellow-500{% else %}text-red-500{% endif %}" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="{{ summary.savings.savings_rate }}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                    </svg>
+                    <span class="absolute inset-0 flex items-center justify-center text-2xl font-bold">{{ summary.savings.savings_rate }}%</span>
                 </div>
-                <div class="flex items-start">
-                    <div class="bg-blue-100 rounded-full p-2 mr-3">
-                        <span class="text-blue-600 font-bold">3</span>
+                <div class="flex-1 space-y-2">
+                    <div class="flex justify-between">
+                        <span class="text-gray-500">Ingresos totales</span>
+                        <span class="font-medium text-green-600">+{{ "%.2f"|format(summary.savings.total_income) }} EUR</span>
                     </div>
-                    <div>
-                        <p class="font-semibold text-gray-800">Explora los módulos disponibles</p>
-                        <p class="text-sm text-gray-600">Portfolio, cripto, metales preciosos y más</p>
+                    <div class="flex justify-between">
+                        <span class="text-gray-500">Gastos totales</span>
+                        <span class="font-medium text-red-600">-{{ "%.2f"|format(summary.savings.total_expense) }} EUR</span>
+                    </div>
+                    <div class="flex justify-between pt-2 border-t">
+                        <span class="text-gray-700 font-medium">Ahorro total</span>
+                        <span class="font-bold {% if summary.savings.total_savings >= 0 %}text-blue-600{% else %}text-red-600{% endif %}">{{ "%.2f"|format(summary.savings.total_savings) }} EUR</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-400">Media mensual</span>
+                        <span class="text-gray-600">{{ "%.2f"|format(summary.savings.avg_monthly_savings) }} EUR/mes</span>
                     </div>
                 </div>
             </div>
         </div>
+        </template>
+    </div>
 
-        <!-- Account Info -->
-        <div class="bg-white rounded-lg shadow-lg p-6">
-            <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
-                <svg class="w-6 h-6 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
-                </svg>
-                Información de la Cuenta
-            </h2>
+    <!-- Fila 5: Top Gastos + Próximos Pagos + Últimos Movimientos -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 widget-row" data-widget="row-expenses">
+        <span class="row-drag-handle">⋮⋮</span>
+        <!-- Top Gastos del Mes -->
+        <template x-if="widgets.top_expenses">
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <h3 class="font-bold text-gray-800 mb-1">🔥 Top Gastos - {{ summary.top_expenses.month }}</h3>
+            <p class="text-xs text-gray-500 mb-4">Total: {{ "%.2f"|format(summary.top_expenses.total) }} EUR</p>
             <div class="space-y-3">
-                <div class="flex justify-between items-center border-b border-gray-200 pb-2">
-                    <span class="text-gray-600">Usuario:</span>
-                    <span class="font-semibold text-gray-800">{{ current_user.username }}</span>
+                {% for cat in summary.top_expenses.categories %}
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span>{{ cat.icon }}</span>
+                        <span class="text-sm text-gray-700">{{ cat.category }}</span>
+                    </div>
+                    <div class="text-right">
+                        <span class="font-medium">{{ "%.0f"|format(cat.amount) }}€</span>
+                        {% if cat.diff != 0 %}
+                        <span class="text-xs ml-1 {% if cat.diff > 0 %}text-red-500{% else %}text-green-500{% endif %}">
+                            {% if cat.diff > 0 %}+{% endif %}{{ "%.0f"|format(cat.diff_pct) }}%
+                        </span>
+                        {% endif %}
+                    </div>
                 </div>
-                <div class="flex justify-between items-center border-b border-gray-200 pb-2">
-                    <span class="text-gray-600">Email:</span>
-                    <span class="font-semibold text-gray-800">{{ current_user.email }}</span>
+                {% endfor %}
+            </div>
+        </div>
+        </template>
+
+        <!-- Próximos Pagos -->
+        <template x-if="widgets.upcoming_payments">
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <h3 class="font-bold text-gray-800 mb-4">📅 Próximos Pagos</h3>
+            {% if summary.upcoming_payments %}
+            <div class="space-y-3">
+                {% for payment in summary.upcoming_payments[:5] %}
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span>{{ payment.icon }}</span>
+                        <div>
+                            <p class="text-sm text-gray-700">{{ payment.name }}</p>
+                            <p class="text-xs text-gray-400">{{ payment.date }} ({{ payment.days_until }}d)</p>
+                        </div>
+                    </div>
+                    <span class="font-medium text-red-600">-{{ "%.2f"|format(payment.amount) }}€</span>
                 </div>
-                <div class="flex justify-between items-center border-b border-gray-200 pb-2">
-                    <span class="text-gray-600">Miembro desde:</span>
-                    <span class="font-semibold text-gray-800">{{ current_user.created_at.strftime('%d/%m/%Y') }}</span>
-                </div>
-                <div class="flex justify-between items-center">
-                    <span class="text-gray-600">Rol:</span>
-                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium {% if current_user.is_admin %}bg-purple-100 text-purple-800{% else %}bg-blue-100 text-blue-800{% endif %}">
-                        {% if current_user.is_admin %}👑 Admin{% else %}👤 Usuario{% endif %}
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-gray-500 text-sm">No hay pagos próximos</p>
+            {% endif %}
+        </div>
+        </template>
+
+        <!-- Últimos Movimientos -->
+        <template x-if="widgets.recent_transactions">
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <h3 class="font-bold text-gray-800 mb-4">🔄 Últimos Movimientos</h3>
+            <div class="space-y-3">
+                {% for tx in summary.recent_transactions %}
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span>{{ tx.icon }}</span>
+                        <div>
+                            <p class="text-sm text-gray-700 truncate max-w-32">{{ tx.description }}</p>
+                            <p class="text-xs text-gray-400">{{ tx.date_str }}</p>
+                        </div>
+                    </div>
+                    <span class="font-medium {% if tx.type == 'income' %}text-green-600{% else %}text-red-600{% endif %}">
+                        {% if tx.type == 'income' %}+{% else %}-{% endif %}{{ "%.2f"|format(tx.amount) }}€
                     </span>
                 </div>
-            </div>
-            
-            <!-- Actions -->
-            <div class="mt-6 space-y-2">
-                <a href="{{ url_for('auth.logout') }}" class="block w-full text-center py-2 px-4 bg-red-600 hover:bg-red-700 text-white rounded-lg transition">
-                    Cerrar Sesión
-                </a>
+                {% endfor %}
             </div>
         </div>
+        </template>
     </div>
 
-    <!-- Progress Note -->
-    <div class="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-6">
-        <div class="flex items-start">
-            <svg class="w-6 h-6 text-blue-600 mr-3 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-            </svg>
-            <div>
-                <h3 class="font-semibold text-blue-900 mb-2">Estado del Proyecto</h3>
-                <ul class="text-sm text-blue-800 space-y-1">
-                    <li>✅ <strong>Sprint 0 - Arquitectura Base:</strong> Completado</li>
-                    <li>✅ <strong>Sprint 1 - Autenticación:</strong> Completado</li>
-                    <li>✅ <strong>Sprint 2 - Gastos e Ingresos:</strong> Completado</li>
-                    <li>✅ <strong>Sprint 3 - CSV Processor (Portfolio):</strong> Completado (v3.6.0)</li>
-                    <li>✅ <strong>Sprint 4 - Métricas Avanzadas:</strong> Completado (v4.3.0)</li>
-                    <li>✅ <strong>Sprint 6 - Diversificación y Watchlist:</strong> Completado (v6.0.0)</li>
-                    <li>✅ <strong>Sprint 7 - Alertas y Notificaciones:</strong> Completado (descoped)</li>
-                    <li>✅ <strong>Sprint 8 - Testing y Optimización:</strong> Completado (pospuesto)</li>
-                    <li>🚧 <strong>Sprint 9 - Planificación Financiera:</strong> En progreso (v9.0.0)</li>
-                </ul>
-                <p class="text-xs text-blue-700 mt-3">Última actualización: Feb 2026</p>
+    <!-- Fila 6: Rentabilidad Inversiones + Exposición Divisas -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 widget-row" data-widget="row-investments">
+        <span class="row-drag-handle">⋮⋮</span>
+        <!-- Rentabilidad Inversiones -->
+        <template x-if="widgets.investments_summary">
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <h3 class="font-bold text-gray-800 mb-4">📈 Rentabilidad Inversiones</h3>
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <p class="text-sm text-gray-500">Valor Total</p>
+                    <p class="text-2xl font-bold">{{ "%.2f"|format(summary.investments_summary.total_value) }} EUR</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-sm text-gray-500">P&L Total</p>
+                    <p class="text-xl font-bold {% if summary.investments_summary.total_pnl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                        {% if summary.investments_summary.total_pnl >= 0 %}+{% endif %}{{ "%.2f"|format(summary.investments_summary.total_pnl) }} EUR
+                        <span class="text-sm">({{ summary.investments_summary.total_pnl_pct }}%)</span>
+                    </p>
+                </div>
+            </div>
+            <div class="space-y-2 pt-3 border-t">
+                {% for inv in summary.investments_summary.by_type %}
+                <div class="flex justify-between items-center text-sm">
+                    <span class="text-gray-600">{{ inv.name }}</span>
+                    <div>
+                        <span class="font-medium">{{ "%.0f"|format(inv.value) }}€</span>
+                        <span class="ml-2 {% if inv.pnl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                            {% if inv.pnl >= 0 %}+{% endif %}{{ "%.1f"|format(inv.pnl_pct) }}%
+                        </span>
+                    </div>
+                </div>
+                {% endfor %}
             </div>
         </div>
+        </template>
+
+        <!-- Exposición Divisas -->
+        <template x-if="widgets.currency_exposure">
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <h3 class="font-bold text-gray-800 mb-4">💱 Exposición por Divisa</h3>
+            <div class="space-y-3">
+                {% for curr in summary.currency_exposure.currencies %}
+                <div>
+                    <div class="flex justify-between text-sm mb-1">
+                        <span class="font-medium">{{ curr.currency }}</span>
+                        <span>{{ "%.2f"|format(curr.value_eur) }} EUR ({{ curr.pct }}%)</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-2">
+                        <div class="bg-indigo-500 h-2 rounded-full" style="width: {{ curr.pct }}%"></div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        </template>
     </div>
 
+    <!-- Fila 7: Comparativa Anual + Salud Financiera -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 widget-row" data-widget="row-comparison">
+        <span class="row-drag-handle">⋮⋮</span>
+        <!-- Comparativa Anual -->
+        <template x-if="widgets.year_comparison">
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <h3 class="font-bold text-gray-800 mb-4">📊 {{ summary.year_comparison.current_year }} vs {{ summary.year_comparison.prev_year }}</h3>
+            <p class="text-xs text-gray-500 mb-4">Primeros {{ summary.year_comparison.months_compared }} meses</p>
+            <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                    <span class="text-gray-600">Ingresos</span>
+                    <div class="text-right">
+                        <span class="font-medium">{{ "%.0f"|format(summary.year_comparison.income.current) }}€</span>
+                        <span class="text-sm ml-2 {% if summary.year_comparison.income.change_pct >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                            {% if summary.year_comparison.income.change_pct >= 0 %}+{% endif %}{{ summary.year_comparison.income.change_pct }}%
+                        </span>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-gray-600">Gastos</span>
+                    <div class="text-right">
+                        <span class="font-medium">{{ "%.0f"|format(summary.year_comparison.expense.current) }}€</span>
+                        <span class="text-sm ml-2 {% if summary.year_comparison.expense.change_pct <= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                            {% if summary.year_comparison.expense.change_pct >= 0 %}+{% endif %}{{ summary.year_comparison.expense.change_pct }}%
+                        </span>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between pt-2 border-t">
+                    <span class="text-gray-700 font-medium">Ahorro</span>
+                    <div class="text-right">
+                        <span class="font-bold {% if summary.year_comparison.savings.current >= 0 %}text-blue-600{% else %}text-red-600{% endif %}">{{ "%.0f"|format(summary.year_comparison.savings.current) }}€</span>
+                        <span class="text-sm ml-2 {% if summary.year_comparison.savings.change_pct >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                            {% if summary.year_comparison.savings.change_pct >= 0 %}+{% endif %}{{ summary.year_comparison.savings.change_pct }}%
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        </template>
+
+        <!-- Salud Financiera - Widget Compacto -->
+        <template x-if="widgets.health_score">
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="font-bold text-gray-800">{{ summary.health_score.emoji }} Salud Financiera</h3>
+                <a href="#health-detail" class="text-sm text-indigo-600 hover:underline">Ver detalle</a>
+            </div>
+            <div class="flex items-center gap-6">
+                <div class="relative w-28 h-28">
+                    <svg class="w-28 h-28 transform -rotate-90" viewBox="0 0 36 36">
+                        <path class="text-gray-200" stroke="currentColor" stroke-width="3" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                        <path class="{% if summary.health_score.color == 'green' %}text-green-500{% elif summary.health_score.color == 'blue' %}text-blue-500{% elif summary.health_score.color == 'yellow' %}text-yellow-500{% else %}text-red-500{% endif %}" 
+                              stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="{{ summary.health_score.score }}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                    </svg>
+                    <div class="absolute inset-0 flex flex-col items-center justify-center">
+                        <span class="text-3xl font-bold">{{ summary.health_score.score }}</span>
+                        <span class="text-xs text-gray-500">/ 100</span>
+                    </div>
+                </div>
+                <div class="flex-1">
+                    <p class="text-xl font-bold mb-2 {% if summary.health_score.color == 'green' %}text-green-600{% elif summary.health_score.color == 'blue' %}text-blue-600{% elif summary.health_score.color == 'yellow' %}text-yellow-600{% else %}text-red-600{% endif %}">
+                        {{ summary.health_score.level }}
+                    </p>
+                    {% if summary.health_score.alerts %}
+                    <div class="space-y-1">
+                        {% for alert in summary.health_score.alerts[:2] %}
+                        <p class="text-xs {% if alert.type == 'danger' %}text-red-600{% else %}text-yellow-600{% endif %}">
+                            {{ alert.icon }} {{ alert.text }}
+                        </p>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-sm text-gray-500">Sin alertas activas</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        </template>
+    </div>
+
+    <!-- Sección Detallada de Salud Financiera -->
+    <div class="mb-6 widget-row" data-widget="row-health-detail">
+        <span class="row-drag-handle">⋮⋮</span>
+        <template x-if="widgets.health_score">
+        <div id="health-detail" class="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl shadow-lg p-6">
+        <h3 class="text-xl font-bold text-gray-800 mb-6">❤️ Análisis Detallado de Salud Financiera</h3>
+        
+        <!-- Grid de Métricas -->
+        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-6">
+            {% for key, comp in summary.health_score.components.items() %}
+            <div class="bg-white rounded-lg p-4 shadow-sm">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs text-gray-500">{{ comp.label }}</span>
+                    <span class="text-xs px-1.5 py-0.5 rounded {% if comp.status == 'good' %}bg-green-100 text-green-700{% elif comp.status == 'warning' %}bg-yellow-100 text-yellow-700{% else %}bg-red-100 text-red-700{% endif %}">
+                        {{ comp.score }}/{{ comp.max }}
+                    </span>
+                </div>
+                <p class="text-lg font-bold text-gray-800">{{ comp.value }}</p>
+                <p class="text-xs text-gray-400 mt-1">Ideal: {{ comp.ideal }}</p>
+                <div class="mt-2 w-full bg-gray-200 rounded-full h-1.5">
+                    <div class="h-1.5 rounded-full {% if comp.status == 'good' %}bg-green-500{% elif comp.status == 'warning' %}bg-yellow-500{% else %}bg-red-500{% endif %}" 
+                         style="width: {{ (comp.score / comp.max * 100)|int }}%"></div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Consejos Priorizados -->
+        {% if summary.health_score.tips %}
+        <div class="bg-white rounded-lg p-5 shadow-sm mb-6">
+            <h4 class="font-bold text-gray-800 mb-4">💡 Recomendaciones Personalizadas</h4>
+            <div class="space-y-3">
+                {% for tip in summary.health_score.tips %}
+                <div class="flex items-start gap-3 p-3 rounded-lg {% if tip.priority == 'high' %}bg-red-50 border-l-4 border-red-400{% elif tip.priority == 'medium' %}bg-yellow-50 border-l-4 border-yellow-400{% else %}bg-blue-50 border-l-4 border-blue-400{% endif %}">
+                    <span class="text-xl">{{ tip.icon }}</span>
+                    <div class="flex-1">
+                        <p class="font-medium text-gray-800">{{ tip.title }}</p>
+                        <p class="text-sm text-gray-600">{{ tip.text }}</p>
+                        <p class="text-sm font-medium mt-1 {% if tip.priority == 'high' %}text-red-600{% elif tip.priority == 'medium' %}text-yellow-600{% else %}text-blue-600{% endif %}">
+                            → {{ tip.action }}
+                        </p>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Resumen Visual -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Distribución de Activos -->
+            <div class="bg-white rounded-lg p-5 shadow-sm">
+                <h4 class="font-bold text-gray-800 mb-4">📊 Distribución de Activos</h4>
+                <div class="space-y-3">
+                    <div>
+                        <div class="flex justify-between text-sm mb-1">
+                            <span>Cash</span>
+                            <span>{{ summary.health_score.components.diversification.breakdown.cash }}%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-3">
+                            <div class="bg-emerald-500 h-3 rounded-full" style="width: {{ summary.health_score.components.diversification.breakdown.cash }}%"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-sm mb-1">
+                            <span>Portfolio</span>
+                            <span>{{ summary.health_score.components.diversification.breakdown.portfolio }}%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-3">
+                            <div class="bg-blue-500 h-3 rounded-full" style="width: {{ summary.health_score.components.diversification.breakdown.portfolio }}%"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-sm mb-1">
+                            <span>Crypto</span>
+                            <span>{{ summary.health_score.components.diversification.breakdown.crypto }}%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-3">
+                            <div class="bg-amber-500 h-3 rounded-full" style="width: {{ summary.health_score.components.diversification.breakdown.crypto }}%"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-sm mb-1">
+                            <span>Metales</span>
+                            <span>{{ summary.health_score.components.diversification.breakdown.metales }}%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-3">
+                            <div class="bg-yellow-500 h-3 rounded-full" style="width: {{ summary.health_score.components.diversification.breakdown.metales }}%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Fondo de Emergencia -->
+            <div class="bg-white rounded-lg p-5 shadow-sm">
+                <h4 class="font-bold text-gray-800 mb-4">🛡️ Fondo de Emergencia</h4>
+                <div class="flex items-center gap-4 mb-4">
+                    <div class="relative w-20 h-20">
+                        <svg class="w-20 h-20 transform -rotate-90" viewBox="0 0 36 36">
+                            <path class="text-gray-200" stroke="currentColor" stroke-width="4" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                            <path class="{% if summary.health_score.summary.months_runway >= 6 %}text-green-500{% elif summary.health_score.summary.months_runway >= 3 %}text-yellow-500{% else %}text-red-500{% endif %}" 
+                                  stroke="currentColor" stroke-width="4" fill="none" 
+                                  stroke-dasharray="{{ [summary.health_score.summary.months_runway / 6 * 100, 100] | min }}, 100" 
+                                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                        </svg>
+                        <div class="absolute inset-0 flex flex-col items-center justify-center">
+                            <span class="text-lg font-bold">{{ "%.1f"|format(summary.health_score.summary.months_runway) }}</span>
+                            <span class="text-xs text-gray-500">meses</span>
+                        </div>
+                    </div>
+                    <div class="flex-1">
+                        <p class="text-sm text-gray-600">Tienes <span class="font-bold">{{ "%.2f"|format(summary.health_score.components.emergency_fund.current_amount) }} EUR</span></p>
+                        <p class="text-sm text-gray-600">Objetivo: <span class="font-medium">{{ "%.2f"|format(summary.health_score.components.emergency_fund.target_amount) }} EUR</span></p>
+                        {% if summary.health_score.components.emergency_fund.target_amount > summary.health_score.components.emergency_fund.current_amount %}
+                        <p class="text-sm text-red-600 mt-1">
+                            Faltan {{ "%.2f"|format(summary.health_score.components.emergency_fund.target_amount - summary.health_score.components.emergency_fund.current_amount) }} EUR
+                        </p>
+                        {% else %}
+                        <p class="text-sm text-green-600 mt-1">✓ Objetivo alcanzado</p>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-4">
+                    <div class="{% if summary.health_score.summary.months_runway >= 6 %}bg-green-500{% elif summary.health_score.summary.months_runway >= 3 %}bg-yellow-500{% else %}bg-red-500{% endif %} h-4 rounded-full transition-all" 
+                         style="width: {{ [summary.health_score.components.emergency_fund.current_amount / summary.health_score.components.emergency_fund.target_amount * 100, 100] | min }}%"></div>
+                </div>
+            </div>
+        </div>
+        </div>
+        </template>
+    </div>
+
+    </div><!-- Fin sortable-widgets -->
+
+    <!-- Enlaces rapidos -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <a href="{{ url_for('incomes.new') }}" class="bg-green-50 hover:bg-green-100 rounded-xl p-4 text-center transition">
+            <span class="text-2xl">+</span>
+            <p class="text-sm font-medium text-green-800 mt-1">Nuevo Ingreso</p>
+        </a>
+        <a href="{{ url_for('expenses.new') }}" class="bg-red-50 hover:bg-red-100 rounded-xl p-4 text-center transition">
+            <span class="text-2xl">-</span>
+            <p class="text-sm font-medium text-red-800 mt-1">Nuevo Gasto</p>
+        </a>
+        <a href="{{ url_for('incomes.list') }}" class="bg-blue-50 hover:bg-blue-100 rounded-xl p-4 text-center transition">
+            <p class="text-sm font-medium text-blue-800">Ver Ingresos</p>
+        </a>
+        <a href="{{ url_for('expenses.list') }}" class="bg-purple-50 hover:bg-purple-100 rounded-xl p-4 text-center transition">
+            <p class="text-sm font-medium text-purple-800">Ver Gastos</p>
+        </a>
+    </div>
 </div>
-{% endblock %}
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+// Datos globales del histórico
+const fullHistory = {{ summary.history | tojson }};
+const historyMeta = {{ summary.history_meta | tojson }};
+let evolutionChart = null;
+let currentChartPeriod = 12;
+
+// Función global para toggle de datasets
+function toggleChartDataset(index, show) {
+    if (!evolutionChart) return;
+    evolutionChart.data.datasets[index].hidden = !show;
+    evolutionChart.update();
+}
+
+// Función global para actualizar periodo
+function selectPeriod(months, btn) {
+    if (!evolutionChart) return;
+    currentChartPeriod = months;
+    
+    // Actualizar estilos de botones
+    document.querySelectorAll('.period-btn').forEach(b => {
+        b.classList.remove('bg-white', 'shadow', 'text-indigo-600');
+        b.classList.add('text-gray-600');
+    });
+    btn.classList.remove('text-gray-600');
+    btn.classList.add('bg-white', 'shadow', 'text-indigo-600');
+    
+    let filteredHistory = fullHistory;
+    if (months > 0) {
+        filteredHistory = fullHistory.slice(-months);
+    }
+    
+    evolutionChart.data.labels = filteredHistory.map(h => h.month_label);
+    evolutionChart.data.datasets[0].data = filteredHistory.map(h => h.net_worth);
+    evolutionChart.data.datasets[1].data = filteredHistory.map(h => h.cash);
+    evolutionChart.data.datasets[2].data = filteredHistory.map(h => h.broker_total);
+    evolutionChart.data.datasets[3].data = filteredHistory.map(h => h.crypto);
+    evolutionChart.data.datasets[4].data = filteredHistory.map(h => h.metales);
+    evolutionChart.update();
+}
+
+function dashboardConfig() {
+    return {
+        showConfig: false,
+        chartPeriod: 12,
+        widgets: { {% for widget in default_widgets %}'{{ widget.id }}': {{ 'true' if widget_config[widget.id].enabled else 'false' }},{% endfor %} },
+        
+        initSortable() {
+            const container = document.getElementById('sortable-widgets');
+            if (container && typeof Sortable !== 'undefined') {
+                new Sortable(container, {
+                    animation: 150,
+                    handle: '.row-drag-handle',
+                    ghostClass: 'sortable-ghost',
+                    chosenClass: 'sortable-chosen',
+                    dragClass: 'sortable-drag',
+                    onEnd: (evt) => this.saveWidgetOrder()
+                });
+            }
+        },
+        
+        async saveConfig() {
+            const widgetList = Object.entries(this.widgets).map(([id, enabled], idx) => ({id, enabled, position: idx}));
+            try {
+                await fetch('{{ url_for("main.save_dashboard_config") }}', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'},
+                    body: JSON.stringify({ widgets: widgetList })
+                });
+            } catch (e) { console.error('Error:', e); }
+        },
+        
+        saveWidgetOrder() {
+            // Guardar orden de widgets en localStorage
+            const rows = document.querySelectorAll('.widget-row');
+            const order = Array.from(rows).map(r => r.dataset.widget);
+            localStorage.setItem('dashboard_widget_order', JSON.stringify(order));
+        },
+        
+        updateEvolutionChart() {
+            if (!evolutionChart) return;
+            
+            let filteredHistory = fullHistory;
+            if (this.chartPeriod > 0) {
+                filteredHistory = fullHistory.slice(-this.chartPeriod);
+            }
+            
+            evolutionChart.data.labels = filteredHistory.map(h => h.month_label);
+            evolutionChart.data.datasets[0].data = filteredHistory.map(h => h.net_worth);
+            evolutionChart.data.datasets[1].data = filteredHistory.map(h => h.cash);
+            evolutionChart.data.datasets[2].data = filteredHistory.map(h => h.broker_total);
+            evolutionChart.data.datasets[3].data = filteredHistory.map(h => h.crypto);
+            evolutionChart.data.datasets[4].data = filteredHistory.map(h => h.metales);
+            evolutionChart.update();
+        },
+        
+        toggleDataset(index) {
+            if (!evolutionChart) return;
+            const meta = evolutionChart.getDatasetMeta(index);
+            meta.hidden = !meta.hidden;
+            evolutionChart.update();
+        }
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Grafico Evolucion Patrimonio con desglose
+    const evoCtx = document.getElementById('evolutionChart');
+    if (evoCtx) {
+        // Por defecto mostrar últimos 12 meses
+        const initialHistory = fullHistory.slice(-12);
+        
+        evolutionChart = new Chart(evoCtx, {
+            type: 'line',
+            data: {
+                labels: initialHistory.map(h => h.month_label),
+                datasets: [
+                    {
+                        label: 'Patrimonio Neto',
+                        data: initialHistory.map(h => h.net_worth),
+                        borderColor: 'rgb(99, 102, 241)',
+                        backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.3,
+                        order: 0,
+                        hidden: false
+                    },
+                    {
+                        label: 'Cash (Bancos)',
+                        data: initialHistory.map(h => h.cash),
+                        borderColor: 'rgb(16, 185, 129)',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.3,
+                        order: 1,
+                        hidden: true
+                    },
+                    {
+                        label: 'Broker (Acciones)',
+                        data: initialHistory.map(h => h.broker_total),
+                        borderColor: 'rgb(59, 130, 246)',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.3,
+                        order: 2,
+                        hidden: true
+                    },
+                    {
+                        label: 'Crypto',
+                        data: initialHistory.map(h => h.crypto),
+                        borderColor: 'rgb(245, 158, 11)',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.3,
+                        order: 3,
+                        hidden: true
+                    },
+                    {
+                        label: 'Metales',
+                        data: initialHistory.map(h => h.metales),
+                        borderColor: 'rgb(234, 179, 8)',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.3,
+                        order: 4,
+                        hidden: true
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                },
+                plugins: { 
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => {
+                                if (ctx.parsed.y === null) return null;
+                                return ctx.dataset.label + ': ' + ctx.parsed.y.toLocaleString('es-ES') + ' EUR';
+                            }
+                        },
+                        filter: item => item.parsed.y !== null
+                    }
+                },
+                scales: { 
+                    y: { 
+                        beginAtZero: false, 
+                        ticks: { callback: v => (v/1000).toFixed(0) + 'k' } 
+                    } 
+                }
+            }
+        });
+    }
+
+    // Grafico Distribucion Activos (Donut)
+    const distCtx = document.getElementById('distributionChart');
+    if (distCtx) {
+        new Chart(distCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Cash', 'Portfolio', 'Crypto', 'Metales'],
+                datasets: [{
+                    data: [{{ summary.breakdown.cash }}, {{ summary.breakdown.portfolio }}, {{ summary.breakdown.crypto }}, {{ summary.breakdown.metales }}],
+                    backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#eab308'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                cutout: '65%'
+            }
+        });
+    }
+
+    // Grafico Ingresos vs Gastos
+    const ieCtx = document.getElementById('incomeExpenseChart');
+    if (ieCtx) {
+        const ieData = {{ summary.income_expense_monthly | tojson }};
+        new Chart(ieCtx, {
+            type: 'bar',
+            data: {
+                labels: ieData.map(d => d.month_label),
+                datasets: [
+                    {
+                        label: 'Ingresos',
+                        data: ieData.map(d => d.income),
+                        backgroundColor: 'rgba(16, 185, 129, 0.7)',
+                        borderColor: 'rgb(16, 185, 129)',
+                        borderWidth: 1
+                    },
+                    {
+                        label: 'Gastos',
+                        data: ieData.map(d => d.expense),
+                        backgroundColor: 'rgba(239, 68, 68, 0.7)',
+                        borderColor: 'rgb(239, 68, 68)',
+                        borderWidth: 1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'top' } },
+                scales: { y: { beginAtZero: true, ticks: { callback: v => v.toLocaleString('es-ES') + ' EUR' } } }
+            }
+        });
+    }
+
+    // Grafico Proyeccion 10 años
+    const projCtx = document.getElementById('projectionChart');
+    if (projCtx) {
+        const projData = {{ summary.projections.projection_chart | tojson }};
+        const currentValue = {{ summary.projections.current }};
+        new Chart(projCtx, {
+            type: 'line',
+            data: {
+                labels: projData.map(d => d.year + 'a'),
+                datasets: [{
+                    label: 'Proyección',
+                    data: projData.map(d => d.value),
+                    borderColor: 'rgb(99, 102, 241)',
+                    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: projData.map(d => d.label ? 4 : 0),
+                    pointBackgroundColor: 'rgb(99, 102, 241)'
+                }, {
+                    label: 'Actual',
+                    data: projData.map(() => currentValue),
+                    borderColor: 'rgba(156, 163, 175, 0.5)',
+                    borderDash: [5, 5],
+                    pointRadius: 0,
+                    fill: false
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { 
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => ctx.parsed.y.toLocaleString('es-ES') + ' EUR'
+                        }
+                    }
+                },
+                scales: { 
+                    x: { 
+                        ticks: { 
+                            callback: (val, idx) => idx % 4 === 0 ? projData[idx]?.year + ' años' : '' 
+                        }
+                    },
+                    y: { 
+                        beginAtZero: false, 
+                        ticks: { callback: v => (v/1000).toFixed(0) + 'k' } 
+                    } 
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock %}
