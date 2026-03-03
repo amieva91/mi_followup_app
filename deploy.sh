@@ -12,7 +12,15 @@ APP_USER="followup"
 
 echo "=== Instalando dependencias del sistema ==="
 sudo apt-get update
-sudo apt-get install -y python3 python3-pip python3-venv nginx certbot python3-certbot-nginx git
+sudo add-apt-repository -y universe 2>/dev/null || true
+sudo apt-get update
+sudo apt-get install -y python3 python3-pip python3-venv nginx git
+
+# Certbot: apt en Ubuntu 22/24 o snap como fallback
+if ! sudo apt-get install -y certbot python3-certbot-nginx 2>/dev/null; then
+    sudo snap install --classic certbot 2>/dev/null || true
+    sudo ln -sf /snap/bin/certbot /usr/bin/certbot 2>/dev/null || true
+fi
 
 echo "=== Creando usuario y directorio ==="
 sudo useradd -m -s /bin/bash $APP_USER 2>/dev/null || true
