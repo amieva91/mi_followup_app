@@ -7,7 +7,7 @@ set -e
 
 DOMAIN="followup.fit"
 REPO="https://github.com/amieva91/mi_followup_app.git"
-APP_DIR="/home/followup"
+APP_DIR="/var/www/followup"
 APP_USER="followup"
 
 echo "=== Instalando dependencias del sistema ==="
@@ -28,12 +28,11 @@ sudo mkdir -p $APP_DIR
 sudo chown $APP_USER:$APP_USER $APP_DIR
 
 echo "=== Clonando repositorio ==="
+sudo rm -rf $APP_DIR
+sudo mkdir -p $APP_DIR
+sudo chown $APP_USER:$APP_USER $APP_DIR
 cd $APP_DIR
-if [ -d "app" ]; then
-    sudo -u $APP_USER git -C . pull 2>/dev/null || sudo -u $APP_USER git clone $REPO . --depth 1
-else
-    sudo -u $APP_USER git clone $REPO . --depth 1
-fi
+sudo -u $APP_USER git clone $REPO . --depth 1
 
 echo "=== Configurando entorno Python ==="
 sudo -u $APP_USER python3 -m venv venv
