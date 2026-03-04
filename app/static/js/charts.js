@@ -714,12 +714,13 @@ async function loadBenchmarkData() {
     }
 }
 
-// Inicializar al cargar la página
+// Inicializar al cargar la página (condicional: performance tiene evolution, index-comparison solo benchmarks)
 document.addEventListener('DOMContentLoaded', function() {
-    // Cargar gráficos en frecuencia mensual (optimizado)
-    loadCharts('monthly');
-    
-    // Cargar datos de benchmarks (HITO 4)
-    loadBenchmarkData();
+    if (document.getElementById('portfolioValueChart')) {
+        loadCharts('monthly');
+    }
+    if (document.getElementById('benchmarkChart')) {
+        loadBenchmarkData();
+    }
 });
 

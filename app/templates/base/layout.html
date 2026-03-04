@@ -162,21 +162,17 @@
                                     <a href="{{ url_for('portfolio.performance') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
                                         📈 Performance
                                     </a>
+                                    <a href="{{ url_for('portfolio.dividendos') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
+                                        💰 Dividendos
+                                    </a>
+                                    <a href="{{ url_for('portfolio.index_comparison') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
+                                        🏆 Index Comparison
+                                    </a>
+                                    <a href="{{ url_for('portfolio.diversificacion') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
+                                        📊 Diversificación
+                                    </a>
                                     <a href="{{ url_for('portfolio.currencies') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
                                         💱 Divisas
-                                    </a>
-                                    <a href="{{ url_for('portfolio.transactions_list') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
-                                        📝 Transacciones
-                                    </a>
-                                    <hr class="my-2">
-                                    <a href="{{ url_for('portfolio.accounts_list') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
-                                        🏦 Cuentas
-                                    </a>
-                                    <a href="{{ url_for('portfolio.transaction_new') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
-                                        + Nueva Transacción
-                                    </a>
-                                    <a href="{{ url_for('portfolio.import_csv') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
-                                        📥 Importar CSV
                                     </a>
                                 </div>
                             </div>
@@ -209,6 +205,28 @@
                             <a href="{{ url_for('metales.dashboard') }}" class="hover:text-blue-200 transition">
                                 🥇 Metales
                             </a>
+
+                            <!-- Dropdown Import / Carga de Datos -->
+                            <div class="relative" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false">
+                                <button class="hover:text-blue-200 transition flex items-center space-x-1">
+                                    <span>📥 Carga de Datos</span>
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                    </svg>
+                                </button>
+                                <div x-show="open" x-cloak x-transition 
+                                     class="absolute left-0 mt-2 w-56 bg-white rounded-lg shadow-lg py-2 z-50">
+                                    <a href="{{ url_for('portfolio.transactions_list') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
+                                        📝 Transacciones
+                                    </a>
+                                    <a href="{{ url_for('portfolio.import_csv') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
+                                        📥 Importar CSV
+                                    </a>
+                                    <a href="{{ url_for('portfolio.accounts_list') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
+                                        🏦 Cuentas
+                                    </a>
+                                </div>
+                            </div>
                         </div>
                         
                         <div class="border-l border-blue-700 h-6"></div>

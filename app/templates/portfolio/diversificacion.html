@@ -1,0 +1,189 @@
+{% extends "base/layout.html" %}
+
+{% block title %}Diversificación - Portfolio - FollowUp{% endblock %}
+
+{% block content %}
+<div class="max-w-[92%] mx-auto">
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-8">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900">📊 Diversificación</h1>
+            <p class="text-gray-600 mt-1">Distribución del portfolio por países, sectores, activos y más</p>
+        </div>
+        <a href="{{ url_for('portfolio.dashboard') }}" class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm font-medium text-gray-700">
+            ← Volver al Dashboard
+        </a>
+    </div>
+
+    {% if country_distribution or sector_distribution or asset_distribution or industry_distribution or broker_distribution or asset_type_distribution %}
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        {% if country_distribution %}
+        <div class="bg-white rounded-xl shadow-sm p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">🌍 Distribución por País</h3>
+            <div class="relative" style="height: 300px;">
+                <canvas id="countryChart"></canvas>
+            </div>
+        </div>
+        {% endif %}
+        
+        {% if sector_distribution %}
+        <div class="bg-white rounded-xl shadow-sm p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">🏭 Distribución por Sector</h3>
+            <div class="relative" style="height: 300px;">
+                <canvas id="sectorChart"></canvas>
+            </div>
+        </div>
+        {% endif %}
+        
+        {% if asset_distribution %}
+        <div class="bg-white rounded-xl shadow-sm p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">📈 Distribución por Asset (Top 10)</h3>
+            <div class="relative" style="height: 300px;">
+                <canvas id="assetChart"></canvas>
+            </div>
+        </div>
+        {% endif %}
+        
+        {% if industry_distribution %}
+        <div class="bg-white rounded-xl shadow-sm p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">🏷️ Distribución por Industria</h3>
+            <div class="relative" style="height: 300px;">
+                <canvas id="industryChart"></canvas>
+            </div>
+        </div>
+        {% endif %}
+        
+        {% if broker_distribution %}
+        <div class="bg-white rounded-xl shadow-sm p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">🏦 Distribución por Broker</h3>
+            <div class="relative" style="height: 300px;">
+                <canvas id="brokerChart"></canvas>
+            </div>
+        </div>
+        {% endif %}
+        
+        {% if asset_type_distribution %}
+        <div class="bg-white rounded-xl shadow-sm p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">📦 Distribución por Tipo</h3>
+            <div class="relative" style="height: 300px;">
+                <canvas id="assetTypeChart"></canvas>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% else %}
+    <div class="bg-gray-50 rounded-xl p-12 text-center text-gray-600">
+        <p class="text-lg">No hay datos de diversificación disponibles.</p>
+        <p class="text-sm mt-2">Asegúrate de tener posiciones abiertas con información de país, sector, etc.</p>
+    </div>
+    {% endif %}
+</div>
+
+{% if country_distribution or sector_distribution or asset_distribution or industry_distribution or broker_distribution or asset_type_distribution %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const colors = [
+        '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
+        '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1',
+        '#14B8A6', '#A855F7', '#F43F5E', '#0EA5E9', '#22C55E'
+    ];
+    const pieOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { position: 'right', labels: { padding: 15, font: { size: 12 } } },
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        const value = context.parsed || 0;
+                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                        const pct = ((value / total) * 100).toFixed(1);
+                        return (context.label || '') + ': ' + value.toLocaleString('es-ES', {style: 'currency', currency: 'EUR', maximumFractionDigits: 0}) + ' (' + pct + '%)';
+                    }
+                }
+            }
+        }
+    };
+    {% if country_distribution %}
+    const countryCtx = document.getElementById('countryChart');
+    if (countryCtx) {
+        new Chart(countryCtx, {
+            type: 'pie',
+            data: {
+                labels: [{% for c, v in country_distribution %}'{{ c }}'{% if not loop.last %},{% endif %}{% endfor %}],
+                datasets: [{ data: [{% for c, v in country_distribution %}{{ v }}{% if not loop.last %},{% endif %}{% endfor %}], backgroundColor: colors.slice(0, {{ country_distribution|length }}), borderWidth: 2, borderColor: '#fff' }]
+            },
+            options: pieOptions
+        });
+    }
+    {% endif %}
+    {% if sector_distribution %}
+    const sectorCtx = document.getElementById('sectorChart');
+    if (sectorCtx) {
+        new Chart(sectorCtx, {
+            type: 'pie',
+            data: {
+                labels: [{% for s, v in sector_distribution %}'{{ s }}'{% if not loop.last %},{% endif %}{% endfor %}],
+                datasets: [{ data: [{% for s, v in sector_distribution %}{{ v }}{% if not loop.last %},{% endif %}{% endfor %}], backgroundColor: colors.slice(0, {{ sector_distribution|length }}), borderWidth: 2, borderColor: '#fff' }]
+            },
+            options: pieOptions
+        });
+    }
+    {% endif %}
+    {% if asset_distribution %}
+    const assetCtx = document.getElementById('assetChart');
+    if (assetCtx) {
+        new Chart(assetCtx, {
+            type: 'pie',
+            data: {
+                labels: [{% for a, v in asset_distribution %}'{{ a }}'{% if not loop.last %},{% endif %}{% endfor %}],
+                datasets: [{ data: [{% for a, v in asset_distribution %}{{ v }}{% if not loop.last %},{% endif %}{% endfor %}], backgroundColor: colors.slice(0, {{ asset_distribution|length }}), borderWidth: 2, borderColor: '#fff' }]
+            },
+            options: pieOptions
+        });
+    }
+    {% endif %}
+    {% if industry_distribution %}
+    const industryCtx = document.getElementById('industryChart');
+    if (industryCtx) {
+        new Chart(industryCtx, {
+            type: 'pie',
+            data: {
+                labels: [{% for i, v in industry_distribution %}'{{ i }}'{% if not loop.last %},{% endif %}{% endfor %}],
+                datasets: [{ data: [{% for i, v in industry_distribution %}{{ v }}{% if not loop.last %},{% endif %}{% endfor %}], backgroundColor: colors.slice(0, {{ industry_distribution|length }}), borderWidth: 2, borderColor: '#fff' }]
+            },
+            options: pieOptions
+        });
+    }
+    {% endif %}
+    {% if broker_distribution %}
+    const brokerCtx = document.getElementById('brokerChart');
+    if (brokerCtx) {
+        new Chart(brokerCtx, {
+            type: 'pie',
+            data: {
+                labels: [{% for b, v in broker_distribution %}'{{ b }}'{% if not loop.last %},{% endif %}{% endfor %}],
+                datasets: [{ data: [{% for b, v in broker_distribution %}{{ v }}{% if not loop.last %},{% endif %}{% endfor %}], backgroundColor: colors.slice(0, {{ broker_distribution|length }}), borderWidth: 2, borderColor: '#fff' }]
+            },
+            options: pieOptions
+        });
+    }
+    {% endif %}
+    {% if asset_type_distribution %}
+    const assetTypeCtx = document.getElementById('assetTypeChart');
+    if (assetTypeCtx) {
+        new Chart(assetTypeCtx, {
+            type: 'pie',
+            data: {
+                labels: [{% for t, v in asset_type_distribution %}'{{ t }}'{% if not loop.last %},{% endif %}{% endfor %}],
+                datasets: [{ data: [{% for t, v in asset_type_distribution %}{{ v }}{% if not loop.last %},{% endif %}{% endfor %}], backgroundColor: colors.slice(0, {{ asset_type_distribution|length }}), borderWidth: 2, borderColor: '#fff' }]
+            },
+            options: pieOptions
+        });
+    }
+    {% endif %}
+});
+</script>
+{% endif %}
+{% endblock %}
