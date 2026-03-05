@@ -2,115 +2,78 @@
 
 {% block title %}Inicio{% endblock %}
 
-{% block content %}
-<div class="max-w-[92%] mx-auto px-4 py-12">
-    
-    <!-- Hero Section -->
-    <div class="text-center mb-16">
-        <h1 class="text-5xl font-bold text-gray-800 mb-4">
-            🚀 ¡Bienvenido a FollowUp v9.0!
-        </h1>
-        <p class="text-xl text-gray-600 mb-8">
-            Tu sistema de gestión financiera personal ha sido completamente reconstruido
-        </p>
-        <div class="inline-flex items-center space-x-2 bg-green-100 text-green-800 px-6 py-3 rounded-lg mb-8">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-            </svg>
-            <span class="font-semibold">Sistema operativo y funcionando correctamente</span>
-        </div>
-        
-        <!-- Auth Buttons -->
-        <div class="flex justify-center space-x-4">
-            <a href="{{ url_for('auth.login') }}" class="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-lg transition transform hover:scale-105">
-                Iniciar Sesión
-            </a>
-            <a href="{{ url_for('auth.register') }}" class="px-8 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-lg transition transform hover:scale-105">
-                Crear Cuenta
-            </a>
-        </div>
-    </div>
-    
-    <!-- Estado del Sistema -->
-    <div class="max-w-4xl mx-auto">
-        <h2 class="text-2xl font-bold text-gray-800 mb-6">📊 Estado del Sistema</h2>
-        
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-            <!-- Card: Infraestructura -->
-            <div class="bg-white rounded-lg shadow-md p-6 border-t-4 border-green-500">
-                <div class="flex items-center justify-between mb-3">
-                    <h3 class="font-semibold text-gray-800">Infraestructura</h3>
-                    <span class="text-2xl">✅</span>
-                </div>
-                <ul class="text-sm text-gray-600 space-y-1">
-                    <li>• Desarrollo (WSL): OK</li>
-                    <li>• Producción: OK</li>
-                    <li>• GitHub: Sincronizado</li>
-                </ul>
-            </div>
-            
-            <!-- Card: Arquitectura -->
-            <div class="bg-white rounded-lg shadow-md p-6 border-t-4 border-green-500">
-                <div class="flex items-center justify-between mb-3">
-                    <h3 class="font-semibold text-gray-800">Arquitectura</h3>
-                    <span class="text-2xl">✅</span>
-                </div>
-                <ul class="text-sm text-gray-600 space-y-1">
-                    <li>• Factory Pattern</li>
-                    <li>• Estructura Modular</li>
-                    <li>• Blueprints</li>
-                </ul>
-            </div>
-            
-            <!-- Card: Funcionalidades -->
-            <div class="bg-white rounded-lg shadow-md p-6 border-t-4 border-green-500">
-                <div class="flex items-center justify-between mb-3">
-                    <h3 class="font-semibold text-gray-800">Funcionalidades</h3>
-                    <span class="text-2xl">✅</span>
-                </div>
-                <ul class="text-sm text-gray-600 space-y-1">
-                    <li>• Gastos e Ingresos</li>
-                    <li>• Portfolio + Watchlist</li>
-                    <li>• Informes Gemini (IA)</li>
-                </ul>
-            </div>
-        </div>
-        
-        <!-- Estado del Proyecto -->
-        <div class="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8">
-            <h2 class="text-xl font-bold text-blue-900 mb-4">🎯 Estado del Proyecto - v8.0</h2>
-            <div class="space-y-2">
-                <p class="text-sm text-gray-700">✅ <strong>Sprints 0-4:</strong> Completados (Auth, Gastos, Portfolio, Métricas)</p>
-                <p class="text-sm text-gray-700">✅ <strong>Sprint 6:</strong> Diversificación, Watchlist, Informes Gemini</p>
-                <p class="text-sm text-gray-700">✅ <strong>Sprint 7:</strong> Alertas (descoped)</p>
-                <p class="text-sm text-gray-700">🚧 <strong>Sprint 8:</strong> Testing y Optimización (en progreso)</p>
-            </div>
-        </div>
-        
-        <!-- Información Técnica -->
-        <div class="mt-8 bg-gray-800 text-gray-300 rounded-lg p-6">
-            <h3 class="text-lg font-semibold mb-3 text-white">💻 Información Técnica</h3>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm font-mono">
-                <div>
-                    <span class="text-gray-500">Versión:</span> 
-                    <span class="text-white">9.0.0</span>
-                </div>
-                <div>
-                    <span class="text-gray-500">Framework:</span> 
-                    <span class="text-white">Flask</span>
-                </div>
-                <div>
-                    <span class="text-gray-500">Frontend:</span> 
-                    <span class="text-white">Tailwind + Alpine.js</span>
-                </div>
-                <div>
-                    <span class="text-gray-500">Base de datos:</span> 
-                    <span class="text-white">SQLite</span>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-</div>
+{% block extra_css %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Source+Sans+3:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  .index-page {
+    font-family: 'Source Sans 3', sans-serif;
+    background: linear-gradient(165deg, #0f172a 0%, #1e293b 40%, #0f172a 100%);
+    min-height: 100vh;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 6vh 1rem 10vh;
+  }
+  .index-page::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(71, 85, 105, 0.4), transparent),
+                radial-gradient(ellipse 60% 40% at 80% 60%, rgba(30, 41, 59, 0.6), transparent);
+    pointer-events: none;
+  }
+  .index-page::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      225deg,
+      transparent 0%,
+      transparent 25%,
+      rgba(148, 163, 184, 0.04) 35%,
+      rgba(203, 213, 225, 0.07) 50%,
+      rgba(148, 163, 184, 0.04) 65%,
+      transparent 75%,
+      transparent 100%
+    );
+    pointer-events: none;
+  }
+  .index-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+  .index-sub {
+    font-family: 'Source Sans 3', sans-serif;
+    font-weight: 300;
+  }
+</style>
 {% endblock %}
 
+{% block content %}
+<div class="index-page -mx-4 px-4 relative">
+  <!-- Título (arriba) -->
+  <div class="max-w-4xl mx-auto w-full relative z-10 text-center">
+    <p class="index-sub text-slate-400 text-sm uppercase tracking-[0.2em] mb-6">Gestión Financiera Personal</p>
+    <h1 class="index-title text-5xl sm:text-6xl lg:text-7xl text-slate-50 mb-6 leading-tight">FollowUp</h1>
+    <p class="index-sub text-slate-300 text-lg sm:text-xl max-w-xl mx-auto leading-relaxed">Tu patrimonio, en un solo lugar</p>
+  </div>
+  <!-- Botones (abajo) -->
+  <div class="max-w-4xl mx-auto w-full relative z-10 flex flex-col items-center text-center">
+      <div class="flex flex-col sm:flex-row justify-center gap-4 mb-4">
+        <a href="{{ url_for('auth.register') }}" class="px-10 py-4 bg-slate-50 text-slate-900 font-medium rounded-sm hover:bg-white transition duration-200">
+          Crear cuenta
+        </a>
+        <a href="{{ url_for('auth.login') }}" class="px-10 py-4 border border-slate-500 text-slate-200 font-medium rounded-sm hover:border-slate-400 hover:text-white transition duration-200">
+          Iniciar sesión
+        </a>
+      </div>
+    <p class="text-slate-500 text-sm">
+      <a href="{{ url_for('auth.register') }}" class="text-slate-400 hover:text-slate-300 transition">Empezar ahora</a>
+    </p>
+  </div>
+</div>
+{% endblock %}

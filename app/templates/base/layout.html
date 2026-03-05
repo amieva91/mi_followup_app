@@ -38,7 +38,8 @@
 </head>
 <body class="bg-gray-50 min-h-screen">
     
-    <!-- Navbar -->
+    <!-- Navbar (oculta en portada) -->
+    {% if request.endpoint != 'main.index' %}
     <nav class="bg-blue-900 text-white shadow-lg">
         <div class="w-full px-4 sm:px-6 py-3">
             <div class="flex items-center justify-between gap-4">
@@ -255,6 +256,7 @@
             </div>
         </div>
     </nav>
+    {% endif %}
     
     <!-- Flash messages (para mensajes del sistema) -->
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -274,7 +276,8 @@
         {% block content %}{% endblock %}
     </main>
     
-    <!-- Footer -->
+    <!-- Footer (oculto en portada) -->
+    {% if request.endpoint != 'main.index' %}
     <footer class="bg-gray-800 text-white mt-12 py-6">
         <div class="container mx-auto px-4 text-center">
             <p class="text-sm text-gray-400">
@@ -282,6 +285,7 @@
             </p>
         </div>
     </footer>
+    {% endif %}
     
     {% block extra_js %}{% endblock %}
 </body>
