@@ -5,43 +5,82 @@
 {% block content %}
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <style>
-    .widget-row { 
-        transition: transform 0.2s; 
-        position: relative; 
+    :root {
+        --card-radius: 20px;
+        --card-shadow: 0 4px 20px rgba(0,0,0,0.06);
+        --card-shadow-hover: 0 12px 40px rgba(0,0,0,0.1);
     }
-    .widget-row.sortable-ghost { opacity: 0.4; background: #f3f4f6; border-radius: 12px; }
-    .widget-row.sortable-chosen { transform: scale(1.01); box-shadow: 0 10px 40px rgba(0,0,0,0.15); z-index: 100; }
-    .widget-row.sortable-drag { opacity: 0.9; }
-    .row-drag-handle { 
-        position: absolute; 
-        left: -24px; 
-        top: 50%;
-        transform: translateY(-50%);
-        width: 20px; 
-        height: 40px;
-        cursor: grab; 
-        display: flex; 
-        align-items: center; 
-        justify-content: center;
-        background: #e5e7eb;
-        border-radius: 4px;
-        color: #6b7280;
-        font-size: 14px;
-        transition: all 0.2s;
-        user-select: none;
-        z-index: 10;
+    #sortable-widgets {
+        display: grid;
+        grid-template-columns: repeat(1, 1fr);
+        gap: 1.25rem;
     }
-    .row-drag-handle:hover { 
-        background: #c7d2fe; 
-        color: #4f46e5; 
+    @media (min-width: 768px) {
+        #sortable-widgets { grid-template-columns: repeat(2, 1fr); }
     }
-    .row-drag-handle:active { cursor: grabbing; }
-    #sortable-widgets { padding-left: 28px; }
+    @media (min-width: 1280px) {
+        #sortable-widgets { grid-template-columns: repeat(3, 1fr); }
+    }
+    .dashboard-card {
+        background: linear-gradient(145deg, #ffffff 0%, #fafbfc 100%);
+        border-radius: var(--card-radius);
+        box-shadow: var(--card-shadow);
+        border: 1px solid rgba(0,0,0,0.04);
+        overflow-y: auto;
+        overflow-x: hidden;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        min-height: 260px;
+    }
+    .dashboard-card:hover {
+        box-shadow: var(--card-shadow-hover);
+        transform: translateY(-2px);
+    }
+    .dashboard-card.dashboard-card--wide { grid-column: 1 / -1; }
+    @media (min-width: 768px) {
+        .dashboard-card.dashboard-card--wide { grid-column: span 2; }
+    }
+    @media (min-width: 1280px) {
+        .dashboard-card.dashboard-card--wide { grid-column: span 2; }
+    }
+    .card-drag-handle {
+        cursor: grab; opacity: 0.4; padding: 4px 8px; border-radius: 8px;
+        font-size: 11px; transition: opacity 0.2s, background 0.2s;
+    }
+    .card-drag-handle:hover { opacity: 0.8; background: rgba(99,102,241,0.08); }
+    .card-drag-handle:active { cursor: grabbing; }
+    .expand-btn {
+        padding: 6px 12px; border-radius: 10px; font-size: 12px;
+        transition: background 0.2s, color 0.2s;
+    }
+    .expand-btn:hover { background: rgba(99,102,241,0.1); }
+    .sortable-ghost { opacity: 0.35; border: 2px dashed #c7d2fe; }
+    .sortable-chosen { box-shadow: 0 16px 48px rgba(99,102,241,0.15); z-index: 20; transform: scale(1.01); }
+    .expand-modal {
+        position: fixed; inset: 0; z-index: 9999;
+        background: rgba(15,23,42,0.4); backdrop-filter: blur(4px);
+        display: flex; align-items: center; justify-content: center; padding: 1.5rem;
+        cursor: pointer; /* clic en overlay = cerrar */
+        overflow-y: auto;
+    }
+    .expand-modal-inner {
+        background: white; border-radius: 20px; padding: 1.5rem;
+        max-width: 90vw; max-height: 85vh;
+        box-shadow: 0 25px 60px rgba(0,0,0,0.2);
+        cursor: default; /* cursor normal sobre el contenido */
+        pointer-events: auto;
+        margin: auto;
+    }
 </style>
-<div class="max-w-[95%] mx-auto px-4 py-6" x-data="dashboardConfig()" x-init="initSortable()">
+    <div class="w-full px-4 sm:px-5 lg:px-6 py-6" x-data="dashboardConfig()" x-init="
+        initSortable();
+        widgets.health_detail_metrics = true;
+        widgets.health_detail_tips = true;
+        widgets.health_detail_distribution = true;
+        widgets.health_detail_emergency = true;
+    ">
     
-    <!-- Header con Patrimonio Total -->
-    <div class="bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-800 rounded-xl shadow-xl p-6 mb-6 text-white">
+    <!-- Header Patrimonio -->
+    <div class="bg-gradient-to-br from-indigo-600 via-indigo-700 to-violet-700 rounded-[20px] shadow-xl p-8 mb-8 text-white overflow-hidden relative">
         <div class="flex flex-wrap items-center justify-between gap-4">
             <div>
                 <p class="text-indigo-200 text-sm font-medium uppercase tracking-wide">Patrimonio Neto Total</p>
@@ -55,40 +94,79 @@
                     <span class="bg-white/20 px-2 py-1 rounded">{{ summary.changes.ytd_pct }}% YTD</span>
                 </div>
             </div>
-            <button @click="showConfig = !showConfig" class="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition">Configurar</button>
+            <button @click="showConfig = !showConfig" class="bg-white/20 hover:bg-white/30 px-5 py-2.5 rounded-xl font-medium transition-all duration-200">⚙️ Configurar</button>
         </div>
     </div>
 
-    <!-- Panel de Configuracion -->
-    <div x-show="showConfig" x-collapse class="bg-white rounded-xl shadow-lg p-6 mb-6">
-        <h3 class="font-bold text-gray-800 mb-4">Configurar widgets visibles</h3>
-        <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+    <!-- Panel Configurar -->
+    <div x-show="showConfig" x-collapse class="bg-white/95 backdrop-blur rounded-[20px] shadow-xl p-6 mb-8 border border-gray-100">
+        <h3 class="font-bold text-gray-800 text-lg mb-2">⚙️ Configurar indicadores</h3>
+        <p class="text-sm text-gray-500 mb-6">Activa o desactiva cada bloque. Arrastra con ⋮⋮ para reordenar.</p>
+        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 mb-6">
             {% for widget in default_widgets %}
-            <label class="flex items-center justify-between p-3 rounded-lg bg-gray-50 hover:bg-gray-100 cursor-pointer">
-                <span class="text-sm">{{ widget.icon }} {{ widget.name }}</span>
-                <button type="button" 
-                    @click="widgets['{{ widget.id }}'] = !widgets['{{ widget.id }}']; saveConfig()"
+            {% if not widget.id.startswith('health_detail_') %}
+            <label class="flex items-center justify-between p-3 rounded-xl bg-gray-50 hover:bg-indigo-50/50 cursor-pointer transition-colors border border-transparent hover:border-indigo-100">
+                <span class="text-sm font-medium text-gray-700">{{ widget.icon }} {{ widget.name }}</span>
+                <button type="button" @click="widgets['{{ widget.id }}'] = !widgets['{{ widget.id }}']; saveConfig()"
                     :class="widgets['{{ widget.id }}'] ? 'bg-indigo-600' : 'bg-gray-300'"
-                    class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none">
+                    class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 focus:outline-none">
                     <span :class="widgets['{{ widget.id }}'] ? 'translate-x-5' : 'translate-x-0'"
-                        class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out mt-0.5 ml-0.5"></span>
+                        class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200 mt-0.5 ml-0.5"></span>
                 </button>
             </label>
+            {% endif %}
             {% endfor %}
+        </div>
+        <h4 class="font-semibold text-gray-700 mb-3 text-sm">❤️ Salud Financiera — qué mostrar dentro:</h4>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <label class="flex items-center justify-between p-3 rounded-xl bg-rose-50/80 hover:bg-rose-100/80 cursor-pointer transition-colors border border-rose-100">
+                <span class="text-sm text-gray-700">📊 Métricas componentes</span>
+                <button type="button" @click="widgets.health_detail_metrics = !widgets.health_detail_metrics; saveConfig()"
+                    :class="widgets.health_detail_metrics ? 'bg-indigo-600' : 'bg-gray-300'"
+                    class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 focus:outline-none">
+                    <span :class="widgets.health_detail_metrics ? 'translate-x-4' : 'translate-x-0.5'"
+                        class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200 mt-0.5"></span>
+                </button>
+            </label>
+            <label class="flex items-center justify-between p-3 rounded-xl bg-rose-50/80 hover:bg-rose-100/80 cursor-pointer transition-colors border border-rose-100">
+                <span class="text-sm text-gray-700">💡 Recomendaciones</span>
+                <button type="button" @click="widgets.health_detail_tips = !widgets.health_detail_tips; saveConfig()"
+                    :class="widgets.health_detail_tips ? 'bg-indigo-600' : 'bg-gray-300'"
+                    class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 focus:outline-none">
+                    <span :class="widgets.health_detail_tips ? 'translate-x-4' : 'translate-x-0.5'"
+                        class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200 mt-0.5"></span>
+                </button>
+            </label>
+            <label class="flex items-center justify-between p-3 rounded-xl bg-rose-50/80 hover:bg-rose-100/80 cursor-pointer transition-colors border border-rose-100">
+                <span class="text-sm text-gray-700">📈 Distribución activos</span>
+                <button type="button" @click="widgets.health_detail_distribution = !widgets.health_detail_distribution; saveConfig()"
+                    :class="widgets.health_detail_distribution ? 'bg-indigo-600' : 'bg-gray-300'"
+                    class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 focus:outline-none">
+                    <span :class="widgets.health_detail_distribution ? 'translate-x-4' : 'translate-x-0.5'"
+                        class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200 mt-0.5"></span>
+                </button>
+            </label>
+            <label class="flex items-center justify-between p-3 rounded-xl bg-rose-50/80 hover:bg-rose-100/80 cursor-pointer transition-colors border border-rose-100">
+                <span class="text-sm text-gray-700">🛡️ Fondo emergencia</span>
+                <button type="button" @click="widgets.health_detail_emergency = !widgets.health_detail_emergency; saveConfig()"
+                    :class="widgets.health_detail_emergency ? 'bg-indigo-600' : 'bg-gray-300'"
+                    class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 focus:outline-none">
+                    <span :class="widgets.health_detail_emergency ? 'translate-x-4' : 'translate-x-0.5'"
+                        class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200 mt-0.5"></span>
+                </button>
+            </label>
         </div>
     </div>
 
-    <!-- Contenedor de widgets arrastrables -->
-    <div id="sortable-widgets">
-
-    <!-- Fila 1: Grafico Evolucion + Distribucion Activos -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6 widget-row" data-widget="row-evolution">
-        <span class="row-drag-handle">⋮⋮</span>
-        <template x-if="widgets.evolution_chart">
-        <div class="lg:col-span-2 bg-white rounded-xl shadow-lg p-6">
-            <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
-                <h3 class="font-bold text-gray-800 drag-handle">Evolucion del Patrimonio</h3>
+    <!-- Cuadrícula uniforme - todos los recuadros mismo tamaño, arrastrables -->
+    <div id="sortable-widgets" class="mb-6">
+        <!-- Evolución Patrimonio (wide) -->
+        <div x-show="widgets.evolution_chart" class="dashboard-card dashboard-card--wide p-6" data-card-id="evolution_chart" x-data="{ expanded: false }">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
+                <h3 class="text-sm font-bold text-gray-800">Evolución del Patrimonio</h3>
                 <div class="flex items-center gap-2">
+                    <button @click="expanded = true; document.body.style.overflow = 'hidden'; $nextTick(() => openEvolutionModal())" class="expand-btn px-2 py-1 text-indigo-600 hover:bg-indigo-50 rounded cursor-pointer" title="Ampliar gráfico">⊞ Ampliar</button>
                     <span class="text-xs text-gray-500">Periodo:</span>
                     <div class="flex bg-gray-100 rounded-lg p-1" id="periodButtons">
                         <button onclick="selectPeriod(12, this)" class="period-btn active px-3 py-1 text-xs font-medium rounded-md transition bg-white shadow text-indigo-600">1A</button>
@@ -98,7 +176,7 @@
                     </div>
                 </div>
             </div>
-            <div class="h-72"><canvas id="evolutionChart"></canvas></div>
+            <div class="h-[340px] flex-1 min-h-0"><canvas id="evolutionChart"></canvas></div>
             <div class="flex flex-wrap items-center gap-3 mt-3 pt-3 border-t">
                 <span class="text-xs text-gray-500">Mostrar:</span>
                 <label class="flex items-center gap-1.5 cursor-pointer">
@@ -123,33 +201,56 @@
                 </label>
             </div>
             <p class="text-xs text-gray-400 mt-2 italic">Patrimonio = Cash + Broker + Crypto + Metales</p>
+            <!-- Modal emergente - clic en fondo para cerrar -->
+            <template x-teleport="body">
+            <div x-show="expanded" x-transition x-cloak
+                 class="expand-modal"
+                 @click.self="expanded = false; closeEvolutionModal(); document.body.style.overflow = ''"
+                 @keydown.escape.window="if(expanded) { expanded = false; closeEvolutionModal(); document.body.style.overflow = '' }"
+                 style="display: none;">
+                <div class="expand-modal-inner w-[90vw] max-w-4xl" @click.stop>
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="font-bold text-gray-800">Evolución del Patrimonio</h3>
+                        <button @click="expanded = false; closeEvolutionModal(); document.body.style.overflow = ''" class="text-gray-500 hover:text-gray-700 cursor-pointer">✕ Cerrar</button>
+                    </div>
+                    <div class="flex bg-gray-100 rounded-lg p-1 mb-3">
+                        <button onclick="selectPeriod(12, this); updateEvolutionModal()" class="period-btn active px-3 py-1 text-xs font-medium rounded-md">1A</button>
+                        <button onclick="selectPeriod(36, this); updateEvolutionModal()" class="period-btn px-3 py-1 text-xs font-medium rounded-md">3A</button>
+                        <button onclick="selectPeriod(60, this); updateEvolutionModal()" class="period-btn px-3 py-1 text-xs font-medium rounded-md">5A</button>
+                        <button onclick="selectPeriod(0, this); updateEvolutionModal()" class="period-btn px-3 py-1 text-xs font-medium rounded-md">Todo</button>
+                    </div>
+                    <div style="width: 100%; height: 400px;"><canvas id="evolutionChartModal"></canvas></div>
+                </div>
+            </div>
+            </template>
         </div>
-        </template>
 
-        <div class="bg-white rounded-xl shadow-lg p-6">
-            <h3 class="font-bold text-gray-800 mb-4">Distribucion de Activos</h3>
-            <div class="h-48"><canvas id="distributionChart"></canvas></div>
-            <div class="mt-4 grid grid-cols-2 gap-2 text-sm">
-                <div class="flex items-center gap-2"><span class="w-3 h-3 bg-emerald-500 rounded-full"></span>Cash {{ summary.breakdown.breakdown_pct.cash }}%</div>
-                <div class="flex items-center gap-2"><span class="w-3 h-3 bg-blue-500 rounded-full"></span>Portfolio {{ summary.breakdown.breakdown_pct.portfolio }}%</div>
-                <div class="flex items-center gap-2"><span class="w-3 h-3 bg-amber-500 rounded-full"></span>Crypto {{ summary.breakdown.breakdown_pct.crypto }}%</div>
-                <div class="flex items-center gap-2"><span class="w-3 h-3 bg-yellow-500 rounded-full"></span>Metales {{ summary.breakdown.breakdown_pct.metales }}%</div>
+        <!-- Distribución Activos -->
+        <div class="dashboard-card p-5" data-card-id="distribution">
+            <div class="flex items-center justify-between mb-2">
+                <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
+                <h3 class="text-sm font-bold text-gray-800">Distribución de Activos</h3>
+            </div>
+            <div class="h-[320px] flex-1 min-h-0"><canvas id="distributionChart"></canvas></div>
+            <div class="mt-2 grid grid-cols-2 gap-2 text-xs">
+                <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 bg-emerald-500 rounded-full"></span>Cash {{ summary.breakdown.breakdown_pct.cash }}%</div>
+                <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 bg-blue-500 rounded-full"></span>Portfolio {{ summary.breakdown.breakdown_pct.portfolio }}%</div>
+                <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 bg-amber-500 rounded-full"></span>Crypto {{ summary.breakdown.breakdown_pct.crypto }}%</div>
+                <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 bg-yellow-500 rounded-full"></span>Metales {{ summary.breakdown.breakdown_pct.metales }}%</div>
             </div>
         </div>
-    </div>
 
-    <!-- Fila 2: Cards de Activos con Detalle -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 widget-row" data-widget="row-assets">
-        <span class="row-drag-handle">⋮⋮</span>
-        <!-- Cash con detalle -->
-        <template x-if="widgets.cash">
-        <div class="bg-white rounded-xl shadow p-5 border-l-4 border-emerald-500">
-            <a href="{{ url_for('banks.dashboard') }}" class="flex items-center justify-between mb-3">
-                <span class="text-gray-500 text-sm">Cash & Bancos</span>
-                <span class="text-gray-400">→</span>
-            </a>
-            <p class="text-2xl font-bold text-gray-800">{{ "%.2f"|format(summary.breakdown.cash) }} EUR</p>
-            <div class="mt-3 pt-3 border-t space-y-1">
+        <!-- Cash -->
+        <div x-show="widgets.cash" class="dashboard-card p-5 border-l-4 border-emerald-500" data-card-id="cash">
+            <div class="flex items-center justify-between mb-2">
+                <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
+                <a href="{{ url_for('banks.dashboard') }}" class="flex items-center justify-between flex-1">
+                    <span class="text-gray-500 text-xs">Cash & Bancos</span>
+                    <span class="text-gray-400">→</span>
+                </a>
+            </div>
+            <p class="text-xl font-bold text-gray-800">{{ "%.2f"|format(summary.breakdown.cash) }} EUR</p>
+            <div class="mt-2 pt-2 border-t space-y-1">
                 {% for bank in summary.cash_details[:3] %}
                 <div class="flex justify-between text-sm">
                     <span class="text-gray-500">{{ bank.icon }} {{ bank.name }}</span>
@@ -158,20 +259,21 @@
                 {% endfor %}
             </div>
         </div>
-        </template>
 
-        <!-- Portfolio con detalle -->
-        <template x-if="widgets.portfolio">
-        <div class="bg-white rounded-xl shadow p-5 border-l-4 border-blue-500">
-            <a href="{{ url_for('portfolio.dashboard') }}" class="flex items-center justify-between mb-3">
-                <span class="text-gray-500 text-sm">Portfolio ({{ summary.portfolio_details.holdings_count }})</span>
-                <span class="text-gray-400">→</span>
-            </a>
-            <p class="text-2xl font-bold text-gray-800">{{ "%.2f"|format(summary.portfolio_details.total_value) }} EUR</p>
+        <!-- Portfolio -->
+        <div x-show="widgets.portfolio" class="dashboard-card p-5 border-l-4 border-blue-500" data-card-id="portfolio">
+            <div class="flex items-center justify-between mb-2">
+                <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
+                <a href="{{ url_for('portfolio.dashboard') }}" class="flex items-center justify-between flex-1">
+                    <span class="text-gray-500 text-xs">Portfolio ({{ summary.portfolio_details.holdings_count }})</span>
+                    <span class="text-gray-400">→</span>
+                </a>
+            </div>
+            <p class="text-xl font-bold text-gray-800">{{ "%.2f"|format(summary.portfolio_details.total_value) }} EUR</p>
             <p class="text-sm {% if summary.portfolio_details.total_pnl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
                 {% if summary.portfolio_details.total_pnl >= 0 %}+{% endif %}{{ "%.2f"|format(summary.portfolio_details.total_pnl) }} EUR ({{ summary.portfolio_details.total_pnl_pct }}%)
             </p>
-            <div class="mt-3 pt-3 border-t space-y-1">
+            <div class="mt-2 pt-2 border-t space-y-1">
                 {% for h in summary.portfolio_details.top_holdings[:3] %}
                 <div class="flex justify-between text-sm">
                     <span class="text-gray-500">{{ h.ticker }}</span>
@@ -180,20 +282,21 @@
                 {% endfor %}
             </div>
         </div>
-        </template>
 
-        <!-- Crypto con detalle -->
-        <template x-if="widgets.crypto">
-        <div class="bg-white rounded-xl shadow p-5 border-l-4 border-amber-500">
-            <a href="{{ url_for('crypto.dashboard') }}" class="flex items-center justify-between mb-3">
-                <span class="text-gray-500 text-sm">Crypto</span>
-                <span class="text-gray-400">→</span>
-            </a>
-            <p class="text-2xl font-bold text-gray-800">{{ "%.2f"|format(summary.crypto_details.valor_total) }} EUR</p>
+        <!-- Crypto -->
+        <div x-show="widgets.crypto" class="dashboard-card p-5 border-l-4 border-amber-500" data-card-id="crypto">
+            <div class="flex items-center justify-between mb-2">
+                <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
+                <a href="{{ url_for('crypto.dashboard') }}" class="flex items-center justify-between flex-1">
+                    <span class="text-gray-500 text-xs">Crypto</span>
+                    <span class="text-gray-400">→</span>
+                </a>
+            </div>
+            <p class="text-xl font-bold text-gray-800">{{ "%.2f"|format(summary.crypto_details.valor_total) }} EUR</p>
             <p class="text-sm {% if summary.crypto_details.rentabilidad >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
                 {% if summary.crypto_details.rentabilidad >= 0 %}+{% endif %}{{ "%.2f"|format(summary.crypto_details.rentabilidad) }} EUR
             </p>
-            <div class="mt-3 pt-3 border-t space-y-1">
+            <div class="mt-2 pt-2 border-t space-y-1">
                 {% for pos in summary.crypto_details.posiciones[:3] %}
                 <div class="flex justify-between text-sm">
                     <span class="text-gray-500">{{ pos.symbol }}</span>
@@ -202,20 +305,21 @@
                 {% endfor %}
             </div>
         </div>
-        </template>
 
-        <!-- Metales con detalle -->
-        <template x-if="widgets.metales">
-        <div class="bg-white rounded-xl shadow p-5 border-l-4 border-yellow-500">
-            <a href="{{ url_for('metales.dashboard') }}" class="flex items-center justify-between mb-3">
-                <span class="text-gray-500 text-sm">Metales</span>
-                <span class="text-gray-400">→</span>
-            </a>
-            <p class="text-2xl font-bold text-gray-800">{{ "%.2f"|format(summary.metales_details.valor_total) }} EUR</p>
+        <!-- Metales -->
+        <div x-show="widgets.metales" class="dashboard-card p-5 border-l-4 border-yellow-500" data-card-id="metales">
+            <div class="flex items-center justify-between mb-2">
+                <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
+                <a href="{{ url_for('metales.dashboard') }}" class="flex items-center justify-between flex-1">
+                    <span class="text-gray-500 text-xs">Metales</span>
+                    <span class="text-gray-400">→</span>
+                </a>
+            </div>
+            <p class="text-xl font-bold text-gray-800">{{ "%.2f"|format(summary.metales_details.valor_total) }} EUR</p>
             <p class="text-sm {% if summary.metales_details.rentabilidad >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
                 {% if summary.metales_details.rentabilidad >= 0 %}+{% endif %}{{ "%.2f"|format(summary.metales_details.rentabilidad) }} EUR
             </p>
-            <div class="mt-3 pt-3 border-t space-y-1">
+            <div class="mt-2 pt-2 border-t space-y-1">
                 {% for pos in summary.metales_details.posiciones[:3] %}
                 <div class="flex justify-between text-sm">
                     <span class="text-gray-500">{{ pos.symbol }}</span>
@@ -224,24 +328,38 @@
                 {% endfor %}
             </div>
         </div>
-        </template>
-    </div>
 
-    <!-- Fila 3: Ingresos vs Gastos + Proyecciones + Deudas -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6 widget-row" data-widget="row-income">
-        <span class="row-drag-handle">⋮⋮</span>
-        <!-- Grafico Ingresos vs Gastos -->
-        <template x-if="widgets.income_expense">
-        <div class="lg:col-span-2 bg-white rounded-xl shadow-lg p-6">
-            <h3 class="font-bold text-gray-800 mb-4">Ingresos vs Gastos (12 meses)</h3>
-            <div class="h-64"><canvas id="incomeExpenseChart"></canvas></div>
+        <!-- Ingresos vs Gastos (wide) -->
+        <div x-show="widgets.income_expense" class="dashboard-card dashboard-card--wide p-6" data-card-id="income_expense" x-data="{ expanded: false }">
+            <div class="flex items-center justify-between mb-2">
+                <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
+                <h3 class="text-sm font-bold text-gray-800">Ingresos vs Gastos (12 meses)</h3>
+                <button @click="expanded = true; document.body.style.overflow = 'hidden'; $nextTick(() => openIncomeExpenseModal())" class="expand-btn px-2 py-1 text-indigo-600 hover:bg-indigo-50 rounded cursor-pointer" title="Ampliar gráfico">⊞ Ampliar</button>
+            </div>
+            <div class="h-[340px] flex-1 min-h-0"><canvas id="incomeExpenseChart"></canvas></div>
+            <!-- Modal emergente - clic en fondo para cerrar -->
+            <template x-teleport="body">
+            <div x-show="expanded" x-transition x-cloak class="expand-modal"
+                 @click.self="expanded = false; closeIncomeExpenseModal(); document.body.style.overflow = ''"
+                 @keydown.escape.window="if(expanded) { expanded = false; closeIncomeExpenseModal(); document.body.style.overflow = '' }"
+                 style="display: none;">
+                <div class="expand-modal-inner w-[90vw] max-w-4xl" @click.stop>
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="font-bold text-gray-800">Ingresos vs Gastos (12 meses)</h3>
+                        <button @click="expanded = false; closeIncomeExpenseModal(); document.body.style.overflow = ''" class="text-gray-500 hover:text-gray-700 cursor-pointer">✕ Cerrar</button>
+                    </div>
+                    <div style="width: 100%; height: 400px;"><canvas id="incomeExpenseChartModal"></canvas></div>
+                </div>
+            </div>
+            </template>
         </div>
-        </template>
 
         <!-- Proyecciones -->
-        <template x-if="widgets.projection">
-        <div class="bg-white rounded-xl shadow-lg p-6">
-            <h3 class="font-bold text-gray-800 mb-4">Prevision Patrimonio</h3>
+        <div x-show="widgets.projection" class="dashboard-card p-5" data-card-id="projection">
+            <div class="flex items-center justify-between mb-2">
+                <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
+                <h3 class="text-sm font-bold text-gray-800">Previsión Patrimonio</h3>
+            </div>
             <p class="text-sm text-gray-500 mb-4">Ahorro mensual: <span class="font-semibold text-green-600">+{{ "%.2f"|format(summary.projections.avg_monthly_savings) }} EUR</span></p>
             <div class="grid grid-cols-3 gap-3 mb-4">
                 {% for key, proj in summary.projections.projections.items() %}
@@ -252,31 +370,28 @@
                 </div>
                 {% endfor %}
             </div>
-            <div class="h-48 mt-4">
+            <div class="h-48 mt-2 flex-1 min-h-0">
                 <canvas id="projectionChart"></canvas>
             </div>
         </div>
-        </template>
-    </div>
 
-    <!-- Fila 4: Deudas + Tasa Ahorro -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 widget-row" data-widget="row-debt">
-        <span class="row-drag-handle">⋮⋮</span>
-        <!-- Deudas con detalle -->
-        <template x-if="widgets.debt">
-        <div class="bg-white rounded-xl shadow-lg p-6">
-            <a href="{{ url_for('debts.dashboard') }}" class="flex items-center justify-between mb-4">
-                <h3 class="font-bold text-gray-800">Deudas ({{ summary.debt_details.plans_count }} activas)</h3>
-                <span class="text-gray-400">→</span>
-            </a>
-            <div class="flex items-center justify-between mb-4">
+        <!-- Deudas -->
+        <div x-show="widgets.debt" class="dashboard-card p-5 border-l-4 border-red-400" data-card-id="debt">
+            <div class="flex items-center justify-between mb-2">
+                <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
+                <a href="{{ url_for('debts.dashboard') }}" class="flex items-center justify-between flex-1">
+                    <h3 class="text-sm font-bold text-gray-800">Deudas ({{ summary.debt_details.plans_count }})</h3>
+                    <span class="text-gray-400">→</span>
+                </a>
+            </div>
+            <div class="flex items-center justify-between mb-3">
                 <div>
-                    <p class="text-sm text-gray-500">Total pendiente</p>
-                    <p class="text-2xl font-bold text-red-600">-{{ "%.2f"|format(summary.debt_details.total_debt) }} EUR</p>
+                    <p class="text-xs text-gray-500">Total pendiente</p>
+                    <p class="text-xl font-bold text-red-600">-{{ "%.2f"|format(summary.debt_details.total_debt) }} EUR</p>
                 </div>
                 <div class="text-right">
-                    <p class="text-sm text-gray-500">Cuota mensual</p>
-                    <p class="text-xl font-bold text-gray-800">{{ "%.2f"|format(summary.debt_details.total_monthly) }} EUR</p>
+                    <p class="text-xs text-gray-500">Cuota mensual</p>
+                    <p class="text-lg font-bold text-gray-800">{{ "%.2f"|format(summary.debt_details.total_monthly) }} EUR</p>
                 </div>
             </div>
             <div class="space-y-2 pt-3 border-t">
@@ -291,12 +406,13 @@
                 {% endfor %}
             </div>
         </div>
-        </template>
 
-        <!-- Tasa de Ahorro con detalle -->
-        <template x-if="widgets.savings_rate">
-        <div class="bg-white rounded-xl shadow-lg p-6">
-            <h3 class="font-bold text-gray-800 mb-4">Tasa de Ahorro (12 meses)</h3>
+        <!-- Tasa de Ahorro -->
+        <div x-show="widgets.savings_rate" class="dashboard-card p-5" data-card-id="savings_rate">
+            <div class="flex items-center justify-between mb-2">
+                <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
+                <h3 class="text-sm font-bold text-gray-800">Tasa de Ahorro (12 meses)</h3>
+            </div>
             <div class="flex items-center gap-6">
                 <div class="relative w-28 h-28">
                     <svg class="w-28 h-28 transform -rotate-90" viewBox="0 0 36 36">
@@ -325,17 +441,16 @@
                 </div>
             </div>
         </div>
-        </template>
-    </div>
 
-    <!-- Fila 5: Top Gastos + Próximos Pagos + Últimos Movimientos -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 widget-row" data-widget="row-expenses">
-        <span class="row-drag-handle">⋮⋮</span>
-        <!-- Top Gastos del Mes -->
-        <template x-if="widgets.top_expenses">
-        <div class="bg-white rounded-xl shadow-lg p-6">
-            <h3 class="font-bold text-gray-800 mb-1">🔥 Top Gastos - {{ summary.top_expenses.month }}</h3>
-            <p class="text-xs text-gray-500 mb-4">Total: {{ "%.2f"|format(summary.top_expenses.total) }} EUR</p>
+        <!-- Top Gastos -->
+        <div x-show="widgets.top_expenses" class="dashboard-card p-5" data-card-id="top_expenses">
+            <div class="flex items-center justify-between mb-2">
+                <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
+            <div>
+                <h3 class="text-sm font-bold text-gray-800">🔥 Top Gastos - {{ summary.top_expenses.month }}</h3>
+                <p class="text-xs text-gray-500">Total: {{ "%.2f"|format(summary.top_expenses.total) }} EUR</p>
+            </div>
+            </div>
             <div class="space-y-3">
                 {% for cat in summary.top_expenses.categories %}
                 <div class="flex items-center justify-between">
@@ -355,12 +470,13 @@
                 {% endfor %}
             </div>
         </div>
-        </template>
 
         <!-- Próximos Pagos -->
-        <template x-if="widgets.upcoming_payments">
-        <div class="bg-white rounded-xl shadow-lg p-6">
-            <h3 class="font-bold text-gray-800 mb-4">📅 Próximos Pagos</h3>
+        <div x-show="widgets.upcoming_payments" class="dashboard-card p-5" data-card-id="upcoming_payments">
+            <div class="flex items-center justify-between mb-2">
+                <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
+                <h3 class="text-sm font-bold text-gray-800">📅 Próximos Pagos</h3>
+            </div>
             {% if summary.upcoming_payments %}
             <div class="space-y-3">
                 {% for payment in summary.upcoming_payments[:5] %}
@@ -380,12 +496,13 @@
             <p class="text-gray-500 text-sm">No hay pagos próximos</p>
             {% endif %}
         </div>
-        </template>
 
         <!-- Últimos Movimientos -->
-        <template x-if="widgets.recent_transactions">
-        <div class="bg-white rounded-xl shadow-lg p-6">
-            <h3 class="font-bold text-gray-800 mb-4">🔄 Últimos Movimientos</h3>
+        <div x-show="widgets.recent_transactions" class="dashboard-card p-5" data-card-id="recent_transactions">
+            <div class="flex items-center justify-between mb-2">
+                <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
+                <h3 class="text-sm font-bold text-gray-800">🔄 Últimos Movimientos</h3>
+            </div>
             <div class="space-y-3">
                 {% for tx in summary.recent_transactions %}
                 <div class="flex items-center justify-between">
@@ -403,20 +520,17 @@
                 {% endfor %}
             </div>
         </div>
-        </template>
-    </div>
 
-    <!-- Fila 6: Rentabilidad Inversiones + Exposición Divisas -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 widget-row" data-widget="row-investments">
-        <span class="row-drag-handle">⋮⋮</span>
         <!-- Rentabilidad Inversiones -->
-        <template x-if="widgets.investments_summary">
-        <div class="bg-white rounded-xl shadow-lg p-6">
-            <h3 class="font-bold text-gray-800 mb-4">📈 Rentabilidad Inversiones</h3>
+        <div x-show="widgets.investments_summary" class="dashboard-card p-5" data-card-id="investments_summary">
+            <div class="flex items-center justify-between mb-2">
+                <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
+                <h3 class="text-sm font-bold text-gray-800">📈 Rentabilidad Inversiones</h3>
+            </div>
             <div class="flex items-center justify-between mb-4">
                 <div>
                     <p class="text-sm text-gray-500">Valor Total</p>
-                    <p class="text-2xl font-bold">{{ "%.2f"|format(summary.investments_summary.total_value) }} EUR</p>
+                    <p class="text-xl font-bold">{{ "%.2f"|format(summary.investments_summary.total_value) }} EUR</p>
                 </div>
                 <div class="text-right">
                     <p class="text-sm text-gray-500">P&L Total</p>
@@ -440,12 +554,13 @@
                 {% endfor %}
             </div>
         </div>
-        </template>
 
         <!-- Exposición Divisas -->
-        <template x-if="widgets.currency_exposure">
-        <div class="bg-white rounded-xl shadow-lg p-6">
-            <h3 class="font-bold text-gray-800 mb-4">💱 Exposición por Divisa</h3>
+        <div x-show="widgets.currency_exposure" class="dashboard-card p-5" data-card-id="currency_exposure">
+            <div class="flex items-center justify-between mb-2">
+                <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
+                <h3 class="text-sm font-bold text-gray-800">💱 Exposición por Divisa</h3>
+            </div>
             <div class="space-y-3">
                 {% for curr in summary.currency_exposure.currencies %}
                 <div>
@@ -460,16 +575,13 @@
                 {% endfor %}
             </div>
         </div>
-        </template>
-    </div>
 
-    <!-- Fila 7: Comparativa Anual + Salud Financiera -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 widget-row" data-widget="row-comparison">
-        <span class="row-drag-handle">⋮⋮</span>
         <!-- Comparativa Anual -->
-        <template x-if="widgets.year_comparison">
-        <div class="bg-white rounded-xl shadow-lg p-6">
-            <h3 class="font-bold text-gray-800 mb-4">📊 {{ summary.year_comparison.current_year }} vs {{ summary.year_comparison.prev_year }}</h3>
+        <div x-show="widgets.year_comparison" class="dashboard-card p-5" data-card-id="year_comparison">
+            <div class="flex items-center justify-between mb-2">
+                <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
+                <h3 class="text-sm font-bold text-gray-800">📊 {{ summary.year_comparison.current_year }} vs {{ summary.year_comparison.prev_year }}</h3>
+            </div>
             <p class="text-xs text-gray-500 mb-4">Primeros {{ summary.year_comparison.months_compared }} meses</p>
             <div class="space-y-4">
                 <div class="flex items-center justify-between">
@@ -501,197 +613,160 @@
                 </div>
             </div>
         </div>
-        </template>
 
-        <!-- Salud Financiera - Widget Compacto -->
-        <template x-if="widgets.health_score">
-        <div class="bg-white rounded-xl shadow-lg p-6">
+        <!-- Salud Financiera completa: score + todos los indicadores -->
+        <div x-show="widgets.health_score" class="dashboard-card dashboard-card--wide p-6 bg-gradient-to-br from-slate-50/80 to-indigo-50/50 border-indigo-100/50" data-card-id="health_score">
             <div class="flex items-center justify-between mb-4">
-                <h3 class="font-bold text-gray-800">{{ summary.health_score.emoji }} Salud Financiera</h3>
-                <a href="#health-detail" class="text-sm text-indigo-600 hover:underline">Ver detalle</a>
+                <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
+                <h3 class="text-lg font-bold text-gray-800">{{ summary.health_score.emoji }} Salud Financiera</h3>
             </div>
-            <div class="flex items-center gap-6">
-                <div class="relative w-28 h-28">
-                    <svg class="w-28 h-28 transform -rotate-90" viewBox="0 0 36 36">
-                        <path class="text-gray-200" stroke="currentColor" stroke-width="3" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
-                        <path class="{% if summary.health_score.color == 'green' %}text-green-500{% elif summary.health_score.color == 'blue' %}text-blue-500{% elif summary.health_score.color == 'yellow' %}text-yellow-500{% else %}text-red-500{% endif %}" 
-                              stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="{{ summary.health_score.score }}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
-                    </svg>
-                    <div class="absolute inset-0 flex flex-col items-center justify-center">
-                        <span class="text-3xl font-bold">{{ summary.health_score.score }}</span>
-                        <span class="text-xs text-gray-500">/ 100</span>
-                    </div>
-                </div>
-                <div class="flex-1">
-                    <p class="text-xl font-bold mb-2 {% if summary.health_score.color == 'green' %}text-green-600{% elif summary.health_score.color == 'blue' %}text-blue-600{% elif summary.health_score.color == 'yellow' %}text-yellow-600{% else %}text-red-600{% endif %}">
-                        {{ summary.health_score.level }}
-                    </p>
-                    {% if summary.health_score.alerts %}
-                    <div class="space-y-1">
-                        {% for alert in summary.health_score.alerts[:2] %}
-                        <p class="text-xs {% if alert.type == 'danger' %}text-red-600{% else %}text-yellow-600{% endif %}">
-                            {{ alert.icon }} {{ alert.text }}
-                        </p>
-                        {% endfor %}
-                    </div>
-                    {% else %}
-                    <p class="text-sm text-gray-500">Sin alertas activas</p>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-        </template>
-    </div>
-
-    <!-- Sección Detallada de Salud Financiera -->
-    <div class="mb-6 widget-row" data-widget="row-health-detail">
-        <span class="row-drag-handle">⋮⋮</span>
-        <template x-if="widgets.health_score">
-        <div id="health-detail" class="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl shadow-lg p-6">
-        <h3 class="text-xl font-bold text-gray-800 mb-6">❤️ Análisis Detallado de Salud Financiera</h3>
-        
-        <!-- Grid de Métricas -->
-        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-6">
-            {% for key, comp in summary.health_score.components.items() %}
-            <div class="bg-white rounded-lg p-4 shadow-sm">
-                <div class="flex items-center justify-between mb-2">
-                    <span class="text-xs text-gray-500">{{ comp.label }}</span>
-                    <span class="text-xs px-1.5 py-0.5 rounded {% if comp.status == 'good' %}bg-green-100 text-green-700{% elif comp.status == 'warning' %}bg-yellow-100 text-yellow-700{% else %}bg-red-100 text-red-700{% endif %}">
-                        {{ comp.score }}/{{ comp.max }}
-                    </span>
-                </div>
-                <p class="text-lg font-bold text-gray-800">{{ comp.value }}</p>
-                <p class="text-xs text-gray-400 mt-1">Ideal: {{ comp.ideal }}</p>
-                <div class="mt-2 w-full bg-gray-200 rounded-full h-1.5">
-                    <div class="h-1.5 rounded-full {% if comp.status == 'good' %}bg-green-500{% elif comp.status == 'warning' %}bg-yellow-500{% else %}bg-red-500{% endif %}" 
-                         style="width: {{ (comp.score / comp.max * 100)|int }}%"></div>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-
-        <!-- Consejos Priorizados -->
-        {% if summary.health_score.tips %}
-        <div class="bg-white rounded-lg p-5 shadow-sm mb-6">
-            <h4 class="font-bold text-gray-800 mb-4">💡 Recomendaciones Personalizadas</h4>
-            <div class="space-y-3">
-                {% for tip in summary.health_score.tips %}
-                <div class="flex items-start gap-3 p-3 rounded-lg {% if tip.priority == 'high' %}bg-red-50 border-l-4 border-red-400{% elif tip.priority == 'medium' %}bg-yellow-50 border-l-4 border-yellow-400{% else %}bg-blue-50 border-l-4 border-blue-400{% endif %}">
-                    <span class="text-xl">{{ tip.icon }}</span>
-                    <div class="flex-1">
-                        <p class="font-medium text-gray-800">{{ tip.title }}</p>
-                        <p class="text-sm text-gray-600">{{ tip.text }}</p>
-                        <p class="text-sm font-medium mt-1 {% if tip.priority == 'high' %}text-red-600{% elif tip.priority == 'medium' %}text-yellow-600{% else %}text-blue-600{% endif %}">
-                            → {{ tip.action }}
-                        </p>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- Resumen Visual -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <!-- Distribución de Activos -->
-            <div class="bg-white rounded-lg p-5 shadow-sm">
-                <h4 class="font-bold text-gray-800 mb-4">📊 Distribución de Activos</h4>
-                <div class="space-y-3">
-                    <div>
-                        <div class="flex justify-between text-sm mb-1">
-                            <span>Cash</span>
-                            <span>{{ summary.health_score.components.diversification.breakdown.cash }}%</span>
-                        </div>
-                        <div class="w-full bg-gray-200 rounded-full h-3">
-                            <div class="bg-emerald-500 h-3 rounded-full" style="width: {{ summary.health_score.components.diversification.breakdown.cash }}%"></div>
-                        </div>
-                    </div>
-                    <div>
-                        <div class="flex justify-between text-sm mb-1">
-                            <span>Portfolio</span>
-                            <span>{{ summary.health_score.components.diversification.breakdown.portfolio }}%</span>
-                        </div>
-                        <div class="w-full bg-gray-200 rounded-full h-3">
-                            <div class="bg-blue-500 h-3 rounded-full" style="width: {{ summary.health_score.components.diversification.breakdown.portfolio }}%"></div>
-                        </div>
-                    </div>
-                    <div>
-                        <div class="flex justify-between text-sm mb-1">
-                            <span>Crypto</span>
-                            <span>{{ summary.health_score.components.diversification.breakdown.crypto }}%</span>
-                        </div>
-                        <div class="w-full bg-gray-200 rounded-full h-3">
-                            <div class="bg-amber-500 h-3 rounded-full" style="width: {{ summary.health_score.components.diversification.breakdown.crypto }}%"></div>
-                        </div>
-                    </div>
-                    <div>
-                        <div class="flex justify-between text-sm mb-1">
-                            <span>Metales</span>
-                            <span>{{ summary.health_score.components.diversification.breakdown.metales }}%</span>
-                        </div>
-                        <div class="w-full bg-gray-200 rounded-full h-3">
-                            <div class="bg-yellow-500 h-3 rounded-full" style="width: {{ summary.health_score.components.diversification.breakdown.metales }}%"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Fondo de Emergencia -->
-            <div class="bg-white rounded-lg p-5 shadow-sm">
-                <h4 class="font-bold text-gray-800 mb-4">🛡️ Fondo de Emergencia</h4>
-                <div class="flex items-center gap-4 mb-4">
-                    <div class="relative w-20 h-20">
-                        <svg class="w-20 h-20 transform -rotate-90" viewBox="0 0 36 36">
-                            <path class="text-gray-200" stroke="currentColor" stroke-width="4" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
-                            <path class="{% if summary.health_score.summary.months_runway >= 6 %}text-green-500{% elif summary.health_score.summary.months_runway >= 3 %}text-yellow-500{% else %}text-red-500{% endif %}" 
-                                  stroke="currentColor" stroke-width="4" fill="none" 
-                                  stroke-dasharray="{{ [summary.health_score.summary.months_runway / 6 * 100, 100] | min }}, 100" 
-                                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+            <div class="space-y-6">
+                <!-- Score principal -->
+                <div class="flex flex-wrap items-center gap-8 p-4 bg-white rounded-xl shadow-sm">
+                    <div class="relative w-24 h-24 flex-shrink-0">
+                        <svg class="w-24 h-24 transform -rotate-90" viewBox="0 0 36 36">
+                            <path class="text-gray-200" stroke="currentColor" stroke-width="3" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                            <path class="{% if summary.health_score.color == 'green' %}text-green-500{% elif summary.health_score.color == 'blue' %}text-blue-500{% elif summary.health_score.color == 'yellow' %}text-yellow-500{% else %}text-red-500{% endif %}" 
+                                  stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="{{ summary.health_score.score }}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
                         </svg>
                         <div class="absolute inset-0 flex flex-col items-center justify-center">
-                            <span class="text-lg font-bold">{{ "%.1f"|format(summary.health_score.summary.months_runway) }}</span>
-                            <span class="text-xs text-gray-500">meses</span>
+                            <span class="text-2xl font-bold">{{ summary.health_score.score }}</span>
+                            <span class="text-xs text-gray-500">/ 100</span>
                         </div>
                     </div>
                     <div class="flex-1">
-                        <p class="text-sm text-gray-600">Tienes <span class="font-bold">{{ "%.2f"|format(summary.health_score.components.emergency_fund.current_amount) }} EUR</span></p>
-                        <p class="text-sm text-gray-600">Objetivo: <span class="font-medium">{{ "%.2f"|format(summary.health_score.components.emergency_fund.target_amount) }} EUR</span></p>
-                        {% if summary.health_score.components.emergency_fund.target_amount > summary.health_score.components.emergency_fund.current_amount %}
-                        <p class="text-sm text-red-600 mt-1">
-                            Faltan {{ "%.2f"|format(summary.health_score.components.emergency_fund.target_amount - summary.health_score.components.emergency_fund.current_amount) }} EUR
+                        <p class="text-xl font-bold {% if summary.health_score.color == 'green' %}text-green-600{% elif summary.health_score.color == 'blue' %}text-blue-600{% elif summary.health_score.color == 'yellow' %}text-yellow-600{% else %}text-red-600{% endif %}">
+                            {{ summary.health_score.level }}
                         </p>
+                        {% if summary.health_score.alerts %}
+                        <div class="mt-2 space-y-1">
+                            {% for alert in summary.health_score.alerts %}
+                            <p class="text-sm {% if alert.type == 'danger' %}text-red-600{% else %}text-yellow-600{% endif %}">
+                                {{ alert.icon }} {{ alert.text }}
+                            </p>
+                            {% endfor %}
+                        </div>
                         {% else %}
-                        <p class="text-sm text-green-600 mt-1">✓ Objetivo alcanzado</p>
+                        <p class="text-sm text-gray-500 mt-2">Sin alertas activas</p>
                         {% endif %}
                     </div>
                 </div>
-                <div class="w-full bg-gray-200 rounded-full h-4">
-                    <div class="{% if summary.health_score.summary.months_runway >= 6 %}bg-green-500{% elif summary.health_score.summary.months_runway >= 3 %}bg-yellow-500{% else %}bg-red-500{% endif %} h-4 rounded-full transition-all" 
-                         style="width: {{ [summary.health_score.components.emergency_fund.current_amount / summary.health_score.components.emergency_fund.target_amount * 100, 100] | min }}%"></div>
+
+                <!-- Métricas (si activo en config) -->
+                <div x-show="widgets.health_detail_metrics !== false" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+                    {% for key, comp in summary.health_score.components.items() %}
+                    <div class="bg-white rounded-lg p-4 shadow-sm">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm text-gray-600">{{ comp.label }}</span>
+                            <span class="text-xs px-1.5 py-0.5 rounded {% if comp.status == 'good' %}bg-green-100 text-green-700{% elif comp.status == 'warning' %}bg-yellow-100 text-yellow-700{% else %}bg-red-100 text-red-700{% endif %}">
+                                {{ comp.score }}/{{ comp.max }}
+                            </span>
+                        </div>
+                        <p class="text-lg font-bold text-gray-800">{{ comp.value }}</p>
+                        <p class="text-xs text-gray-400 mt-1">Ideal: {{ comp.ideal }}</p>
+                        <div class="mt-2 w-full bg-gray-200 rounded-full h-2">
+                            <div class="h-2 rounded-full {% if comp.status == 'good' %}bg-green-500{% elif comp.status == 'warning' %}bg-yellow-500{% else %}bg-red-500{% endif %}" 
+                                 style="width: {{ (comp.score / comp.max * 100)|int }}%"></div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Recomendaciones (si activo en config) -->
+                {% if summary.health_score.tips %}
+                <div x-show="widgets.health_detail_tips !== false" class="bg-white rounded-xl p-5 shadow-sm">
+                    <h4 class="font-bold text-gray-800 mb-4">💡 Recomendaciones Personalizadas</h4>
+                    <div class="grid md:grid-cols-2 gap-4">
+                        {% for tip in summary.health_score.tips %}
+                        <div class="flex items-start gap-3 p-3 rounded-lg {% if tip.priority == 'high' %}bg-red-50 border-l-4 border-red-400{% elif tip.priority == 'medium' %}bg-yellow-50 border-l-4 border-yellow-400{% else %}bg-blue-50 border-l-4 border-blue-400{% endif %}">
+                            <span class="text-xl">{{ tip.icon }}</span>
+                            <div class="flex-1">
+                                <p class="font-medium text-gray-800">{{ tip.title }}</p>
+                                <p class="text-sm text-gray-600">{{ tip.text }}</p>
+                                <p class="text-sm font-medium mt-1 {% if tip.priority == 'high' %}text-red-600{% elif tip.priority == 'medium' %}text-yellow-600{% else %}text-blue-600{% endif %}">
+                                    → {{ tip.action }}
+                                </p>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Distribución + Fondo Emergencia -->
+                <div class="grid md:grid-cols-2 gap-6" x-show="widgets.health_detail_distribution !== false || widgets.health_detail_emergency !== false">
+                    <div x-show="widgets.health_detail_distribution !== false" class="bg-white rounded-xl p-5 shadow-sm">
+                        <h4 class="font-bold text-gray-800 mb-4">📊 Distribución de Activos</h4>
+                        <div class="space-y-3">
+                            <div>
+                                <div class="flex justify-between text-sm mb-1"><span>Cash</span><span>{{ summary.health_score.components.diversification.breakdown.cash }}%</span></div>
+                                <div class="w-full bg-gray-200 rounded-full h-3"><div class="bg-emerald-500 h-3 rounded-full" style="width: {{ summary.health_score.components.diversification.breakdown.cash }}%"></div></div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-sm mb-1"><span>Portfolio</span><span>{{ summary.health_score.components.diversification.breakdown.portfolio }}%</span></div>
+                                <div class="w-full bg-gray-200 rounded-full h-3"><div class="bg-blue-500 h-3 rounded-full" style="width: {{ summary.health_score.components.diversification.breakdown.portfolio }}%"></div></div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-sm mb-1"><span>Crypto</span><span>{{ summary.health_score.components.diversification.breakdown.crypto }}%</span></div>
+                                <div class="w-full bg-gray-200 rounded-full h-3"><div class="bg-amber-500 h-3 rounded-full" style="width: {{ summary.health_score.components.diversification.breakdown.crypto }}%"></div></div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-sm mb-1"><span>Metales</span><span>{{ summary.health_score.components.diversification.breakdown.metales }}%</span></div>
+                                <div class="w-full bg-gray-200 rounded-full h-3"><div class="bg-yellow-500 h-3 rounded-full" style="width: {{ summary.health_score.components.diversification.breakdown.metales }}%"></div></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div x-show="widgets.health_detail_emergency !== false" class="bg-white rounded-xl p-5 shadow-sm">
+                        <h4 class="font-bold text-gray-800 mb-4">🛡️ Fondo de Emergencia</h4>
+                        <div class="flex items-center gap-4 mb-4">
+                            <div class="relative w-20 h-20">
+                                <svg class="w-20 h-20 transform -rotate-90" viewBox="0 0 36 36">
+                                    <path class="text-gray-200" stroke="currentColor" stroke-width="4" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                                    <path class="{% if summary.health_score.summary.months_runway >= 6 %}text-green-500{% elif summary.health_score.summary.months_runway >= 3 %}text-yellow-500{% else %}text-red-500{% endif %}" 
+                                          stroke="currentColor" stroke-width="4" fill="none" stroke-dasharray="{{ [summary.health_score.summary.months_runway / 6 * 100, 100] | min }}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                                </svg>
+                                <div class="absolute inset-0 flex flex-col items-center justify-center">
+                                    <span class="text-lg font-bold">{{ "%.1f"|format(summary.health_score.summary.months_runway) }}</span>
+                                    <span class="text-xs text-gray-500">meses</span>
+                                </div>
+                            </div>
+                            <div class="flex-1">
+                                <p class="text-sm text-gray-600">Tienes <span class="font-bold">{{ "%.2f"|format(summary.health_score.components.emergency_fund.current_amount) }} EUR</span></p>
+                                <p class="text-sm text-gray-600">Objetivo: <span class="font-medium">{{ "%.2f"|format(summary.health_score.components.emergency_fund.target_amount) }} EUR</span></p>
+                                {% if summary.health_score.components.emergency_fund.target_amount > summary.health_score.components.emergency_fund.current_amount %}
+                                <p class="text-sm text-red-600 mt-1">Faltan {{ "%.2f"|format(summary.health_score.components.emergency_fund.target_amount - summary.health_score.components.emergency_fund.current_amount) }} EUR</p>
+                                {% else %}
+                                <p class="text-sm text-green-600 mt-1">✓ Objetivo alcanzado</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-4">
+                            <div class="{% if summary.health_score.summary.months_runway >= 6 %}bg-green-500{% elif summary.health_score.summary.months_runway >= 3 %}bg-yellow-500{% else %}bg-red-500{% endif %} h-4 rounded-full transition-all" 
+                                 style="width: {{ [summary.health_score.components.emergency_fund.current_amount / summary.health_score.components.emergency_fund.target_amount * 100, 100] | min }}%"></div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
-        </div>
-        </template>
-    </div>
-
     </div><!-- Fin sortable-widgets -->
 
-    <!-- Enlaces rapidos -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <a href="{{ url_for('incomes.new') }}" class="bg-green-50 hover:bg-green-100 rounded-xl p-4 text-center transition">
-            <span class="text-2xl">+</span>
-            <p class="text-sm font-medium text-green-800 mt-1">Nuevo Ingreso</p>
+    <!-- Acciones rápidas -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
+        <a href="{{ url_for('incomes.new') }}" class="group flex flex-col items-center justify-center rounded-[20px] bg-emerald-50 hover:bg-emerald-100 p-6 text-center transition-all duration-200 border border-emerald-100 hover:shadow-lg hover:-translate-y-0.5">
+            <span class="text-2xl mb-2">+</span>
+            <p class="text-sm font-semibold text-emerald-800">Nuevo Ingreso</p>
         </a>
-        <a href="{{ url_for('expenses.new') }}" class="bg-red-50 hover:bg-red-100 rounded-xl p-4 text-center transition">
-            <span class="text-2xl">-</span>
-            <p class="text-sm font-medium text-red-800 mt-1">Nuevo Gasto</p>
+        <a href="{{ url_for('expenses.new') }}" class="group flex flex-col items-center justify-center rounded-[20px] bg-rose-50 hover:bg-rose-100 p-6 text-center transition-all duration-200 border border-rose-100 hover:shadow-lg hover:-translate-y-0.5">
+            <span class="text-2xl mb-2">−</span>
+            <p class="text-sm font-semibold text-rose-800">Nuevo Gasto</p>
         </a>
-        <a href="{{ url_for('incomes.list') }}" class="bg-blue-50 hover:bg-blue-100 rounded-xl p-4 text-center transition">
-            <p class="text-sm font-medium text-blue-800">Ver Ingresos</p>
+        <a href="{{ url_for('incomes.list') }}" class="group flex flex-col items-center justify-center rounded-[20px] bg-blue-50 hover:bg-blue-100 p-6 text-center transition-all duration-200 border border-blue-100 hover:shadow-lg hover:-translate-y-0.5">
+            <span class="text-xl mb-2">💵</span>
+            <p class="text-sm font-semibold text-blue-800">Ver Ingresos</p>
         </a>
-        <a href="{{ url_for('expenses.list') }}" class="bg-purple-50 hover:bg-purple-100 rounded-xl p-4 text-center transition">
-            <p class="text-sm font-medium text-purple-800">Ver Gastos</p>
+        <a href="{{ url_for('expenses.list') }}" class="group flex flex-col items-center justify-center rounded-[20px] bg-violet-50 hover:bg-violet-100 p-6 text-center transition-all duration-200 border border-violet-100 hover:shadow-lg hover:-translate-y-0.5">
+            <span class="text-xl mb-2">📋</span>
+            <p class="text-sm font-semibold text-violet-800">Ver Gastos</p>
         </a>
     </div>
 </div>
@@ -702,7 +777,65 @@
 const fullHistory = {{ summary.history | tojson }};
 const historyMeta = {{ summary.history_meta | tojson }};
 let evolutionChart = null;
+let evolutionModalChart = null;
+let incomeExpenseModalChart = null;
 let currentChartPeriod = 12;
+
+function openEvolutionModal() {
+    const ctx = document.getElementById('evolutionChartModal');
+    if (!ctx || evolutionModalChart) return;
+    let filtered = currentChartPeriod > 0 ? fullHistory.slice(-currentChartPeriod) : fullHistory;
+    evolutionModalChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: filtered.map(h => h.month_label),
+            datasets: [
+                { label: 'Patrimonio Neto', data: filtered.map(h => h.net_worth), borderColor: 'rgb(99, 102, 241)', backgroundColor: 'rgba(99, 102, 241, 0.1)', borderWidth: 3, fill: true, tension: 0.3, hidden: false },
+                { label: 'Cash', data: filtered.map(h => h.cash), borderColor: 'rgb(16, 185, 129)', borderWidth: 2, fill: false, tension: 0.3, hidden: true },
+                { label: 'Broker', data: filtered.map(h => h.broker_total), borderColor: 'rgb(59, 130, 246)', borderWidth: 2, fill: false, tension: 0.3, hidden: true },
+                { label: 'Crypto', data: filtered.map(h => h.crypto), borderColor: 'rgb(245, 158, 11)', borderWidth: 2, fill: false, tension: 0.3, hidden: true },
+                { label: 'Metales', data: filtered.map(h => h.metales), borderColor: 'rgb(234, 179, 8)', borderWidth: 2, fill: false, tension: 0.3, hidden: true }
+            ]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } },
+            scales: { y: { beginAtZero: true, ticks: { callback: v => (v/1000).toFixed(0) + 'k' } } } }
+    });
+}
+function closeEvolutionModal() {
+    if (evolutionModalChart) { evolutionModalChart.destroy(); evolutionModalChart = null; }
+}
+function updateEvolutionModal() {
+    if (!evolutionModalChart) return;
+    let filtered = currentChartPeriod > 0 ? fullHistory.slice(-currentChartPeriod) : fullHistory;
+    evolutionModalChart.data.labels = filtered.map(h => h.month_label);
+    evolutionModalChart.data.datasets[0].data = filtered.map(h => h.net_worth);
+    evolutionModalChart.data.datasets[1].data = filtered.map(h => h.cash);
+    evolutionModalChart.data.datasets[2].data = filtered.map(h => h.broker_total);
+    evolutionModalChart.data.datasets[3].data = filtered.map(h => h.crypto);
+    evolutionModalChart.data.datasets[4].data = filtered.map(h => h.metales);
+    evolutionModalChart.update();
+}
+
+const ieChartData = {{ summary.income_expense_monthly | tojson }};
+function openIncomeExpenseModal() {
+    const ctx = document.getElementById('incomeExpenseChartModal');
+    if (!ctx || incomeExpenseModalChart) return;
+    incomeExpenseModalChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ieChartData.map(d => d.month_label),
+            datasets: [
+                { label: 'Ingresos', data: ieChartData.map(d => d.income), backgroundColor: 'rgba(16, 185, 129, 0.7)', borderColor: 'rgb(16, 185, 129)', borderWidth: 1 },
+                { label: 'Gastos', data: ieChartData.map(d => d.expense), backgroundColor: 'rgba(239, 68, 68, 0.7)', borderColor: 'rgb(239, 68, 68)', borderWidth: 1 }
+            ]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } },
+            scales: { y: { beginAtZero: true, ticks: { callback: v => v.toLocaleString('es-ES') + ' EUR' } } } }
+    });
+}
+function closeIncomeExpenseModal() {
+    if (incomeExpenseModalChart) { incomeExpenseModalChart.destroy(); incomeExpenseModalChart = null; }
+}
 
 // Función global para toggle de datasets
 function toggleChartDataset(index, show) {
@@ -742,17 +875,32 @@ function dashboardConfig() {
     return {
         showConfig: false,
         chartPeriod: 12,
-        widgets: { {% for widget in default_widgets %}'{{ widget.id }}': {{ 'true' if widget_config[widget.id].enabled else 'false' }},{% endfor %} },
+        widgets: { {% for widget in default_widgets %}'{{ widget.id }}': {% if widget.id.startswith('health_detail_') %}true{% else %}{{ 'true' if (widget_config.get(widget.id) or {'enabled': True}).get('enabled', True) else 'false' }}{% endif %},{% endfor %} },
         
+        loadWidgetOrder() {
+            const container = document.getElementById('sortable-widgets');
+            const saved = localStorage.getItem('dashboard_card_order');
+            if (!container || !saved) return;
+            try {
+                const order = JSON.parse(saved);
+                const cards = container.querySelectorAll('[data-card-id]');
+                const byId = {};
+                cards.forEach(c => { byId[c.dataset.cardId] = c; });
+                order.forEach(id => {
+                    const el = byId[id];
+                    if (el) container.appendChild(el);
+                });
+            } catch (e) { /* ignore */ }
+        },
         initSortable() {
+            this.loadWidgetOrder();
             const container = document.getElementById('sortable-widgets');
             if (container && typeof Sortable !== 'undefined') {
                 new Sortable(container, {
                     animation: 150,
-                    handle: '.row-drag-handle',
+                    handle: '.card-drag-handle',
                     ghostClass: 'sortable-ghost',
                     chosenClass: 'sortable-chosen',
-                    dragClass: 'sortable-drag',
                     onEnd: (evt) => this.saveWidgetOrder()
                 });
             }
@@ -770,10 +918,11 @@ function dashboardConfig() {
         },
         
         saveWidgetOrder() {
-            // Guardar orden de widgets en localStorage
-            const rows = document.querySelectorAll('.widget-row');
-            const order = Array.from(rows).map(r => r.dataset.widget);
-            localStorage.setItem('dashboard_widget_order', JSON.stringify(order));
+            const container = document.getElementById('sortable-widgets');
+            if (!container) return;
+            const cards = container.querySelectorAll('[data-card-id]');
+            const order = Array.from(cards).map(c => c.dataset.cardId).filter(Boolean);
+            localStorage.setItem('dashboard_card_order', JSON.stringify(order));
         },
         
         updateEvolutionChart() {

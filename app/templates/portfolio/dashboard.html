@@ -3,6 +3,39 @@
 
 {% block title %}Portfolio - FollowUp{% endblock %}
 
+{% block extra_css %}
+<style>
+/* Dashboard compacto - Design System */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+}
+.dashboard-card {
+  min-height: 140px;
+  transition: box-shadow 0.2s, transform 0.15s;
+}
+.dashboard-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+.dashboard-card--chart { min-height: 200px; }
+.dashboard-card--chart.dashboard-card--expanded { min-height: 400px; grid-column: 1 / -1; }
+.dashboard-card__handle {
+  cursor: grab;
+  opacity: 0.5;
+  padding: 4px;
+  border-radius: 4px;
+}
+.dashboard-card__handle:hover { opacity: 0.8; background: #f3f4f6; }
+.dashboard-card__handle:active { cursor: grabbing; }
+.dashboard-card .expand-btn {
+  opacity: 0.6;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 14px;
+}
+.dashboard-card .expand-btn:hover { opacity: 1; background: #e5e7eb; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="max-w-[92%] mx-auto">
     <!-- Header -->
@@ -36,13 +69,13 @@
     </div>
 
     <!-- ============================================ -->
-    <!-- MÉTRICAS GLOBALES E HISTÓRICAS (PRIMERO)    -->
+    <!-- GRID DE CARDS (arrastrables, compactas)     -->
     <!-- ============================================ -->
     {% if metrics %}
     <div class="mb-2 flex justify-between items-center">
         <div>
-            <h2 class="text-lg font-semibold text-gray-700">🌍 Métricas Globales e Históricas</h2>
-            <p class="text-xs text-gray-500">Incluyen todo el histórico (posiciones actuales + cerradas + cash)</p>
+            <h2 class="text-lg font-semibold text-gray-700">📊 Indicadores</h2>
+            <p class="text-xs text-gray-500">Arrastra para reordenar • Haz clic en ⛶ para ampliar gráficos</p>
         </div>
         {% if metrics.get('_from_cache') %}
         <div class="text-xs text-gray-500 bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
@@ -50,11 +83,12 @@
         </div>
         {% endif %}
     </div>
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <!-- Valor Real Cuenta de Inversión -->
-        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-indigo-500" x-data="{ showDetails: false }">
-            <div class="flex items-center justify-between mb-2">
-                <div class="text-sm text-gray-600">🏦 Valor Real Cuenta</div>
+    <div id="dashboardGrid" class="dashboard-grid mb-8">
+        <!-- Valor Real Cuenta -->
+        <div class="dashboard-card bg-white rounded-lg shadow-sm p-4 border-l-4 border-indigo-500" data-card-id="metric-total-account" x-data="{ showDetails: false }">
+            <div class="flex items-center justify-between mb-1">
+                <span class="dashboard-card__handle" title="Arrastrar">⋮⋮</span>
+                <div class="text-xs text-gray-600">🏦 Valor Real Cuenta</div>
                 <div class="flex items-center gap-2">
                     <button @click="showDetails = !showDetails" class="text-xs text-blue-600 hover:text-blue-800 font-medium">
                         <span x-show="!showDetails">▼ Ver desglose</span>
@@ -63,7 +97,7 @@
                     <span class="text-xs text-gray-400 cursor-help" title="Dinero real que tendría el usuario si liquidara todas las posiciones: Depósitos - Retiradas + P&L Realizado + P&L No Realizado + Dividendos - Comisiones">ⓘ</span>
                 </div>
             </div>
-            <div class="text-2xl font-bold text-indigo-600">
+            <div class="text-xl font-bold text-indigo-600">
                 {{ metrics.total_account.total_account_value|decimal_eu(2) }} EUR
             </div>
             
@@ -117,10 +151,11 @@
             {% endif %}
         </div>
         
-        <!-- P&L Total (UNIFICADO) -->
-        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if metrics.total_pl.total_pl >= 0 %}border-green-600{% else %}border-red-600{% endif %}" x-data="{ showDetails: false }">
-            <div class="flex items-center justify-between mb-2">
-                <div class="text-sm text-gray-600">📊 P&L Total</div>
+        <!-- P&L Total -->
+        <div class="dashboard-card bg-white rounded-lg shadow-sm p-4 border-l-4 {% if metrics.total_pl.total_pl >= 0 %}border-green-600{% else %}border-red-600{% endif %}" data-card-id="metric-pl-total" x-data="{ showDetails: false }">
+            <div class="flex items-center justify-between mb-1">
+                <span class="dashboard-card__handle" title="Arrastrar">⋮⋮</span>
+                <div class="text-xs text-gray-600">📊 P&L Total</div>
                 <div class="flex items-center gap-2">
                     <button @click="showDetails = !showDetails" class="text-xs text-blue-600 hover:text-blue-800 font-medium">
                         <span x-show="!showDetails">▼ Ver desglose</span>
@@ -129,7 +164,7 @@
                     <span class="text-xs text-gray-400 cursor-help" title="Ganancia/pérdida TOTAL histórica: P&L Realizado + P&L No Realizado + Dividendos - Comisiones">ⓘ</span>
                 </div>
             </div>
-            <div class="text-2xl font-bold {% if metrics.total_pl.total_pl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+            <div class="text-xl font-bold {% if metrics.total_pl.total_pl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
                 {% if metrics.total_pl.total_pl >= 0 %}+{% endif %}{{ metrics.total_pl.total_pl|decimal_eu(2) }} EUR
             </div>
             
@@ -161,9 +196,10 @@
         </div>
         
         <!-- ROI -->
-        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if metrics.roi.roi >= 0 %}border-blue-500{% else %}border-red-500{% endif %}" x-data="{ showDetails: false }">
-            <div class="flex items-center justify-between mb-2">
-                <div class="text-sm text-gray-600">📈 ROI</div>
+        <div class="dashboard-card bg-white rounded-lg shadow-sm p-4 border-l-4 {% if metrics.roi.roi >= 0 %}border-blue-500{% else %}border-red-500{% endif %}" data-card-id="metric-roi" x-data="{ showDetails: false }">
+            <div class="flex items-center justify-between mb-1">
+                <span class="dashboard-card__handle" title="Arrastrar">⋮⋮</span>
+                <div class="text-xs text-gray-600">📈 ROI</div>
                 <div class="flex items-center gap-2">
                     <button @click="showDetails = !showDetails" class="text-xs text-blue-600 hover:text-blue-800 font-medium">
                         <span x-show="!showDetails">▼ Ver desglose</span>
@@ -172,7 +208,7 @@
                     <span class="text-xs text-gray-400 cursor-help" title="Return on Investment: rentabilidad total sobre el capital aportado. Fórmula: (Valor Actual + Retiradas - Depósitos) / Depósitos × 100">ⓘ</span>
                 </div>
             </div>
-            <div class="text-2xl font-bold {% if metrics.roi.roi >= 0 %}text-blue-600{% else %}text-red-600{% endif %}">
+            <div class="text-xl font-bold {% if metrics.roi.roi >= 0 %}text-blue-600{% else %}text-red-600{% endif %}">
                 {% if metrics.roi.roi >= 0 %}+{% endif %}{{ metrics.roi.roi|decimal_eu(2) }}%
             </div>
             
@@ -197,10 +233,11 @@
             </div>
         </div>
         
-        <!-- Modified Dietz (Rentabilidad) -->
-        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if metrics.modified_dietz.total.return_pct >= 0 %}border-purple-500{% else %}border-red-500{% endif %}" x-data="{ showDetails: false }">
-            <div class="flex items-center justify-between mb-2">
-                <div class="text-sm text-gray-600">💎 Rentabilidad (Modified Dietz)</div>
+        <!-- Modified Dietz -->
+        <div class="dashboard-card bg-white rounded-lg shadow-sm p-4 border-l-4 {% if metrics.modified_dietz.total.return_pct >= 0 %}border-purple-500{% else %}border-red-500{% endif %}" data-card-id="metric-dietz" x-data="{ showDetails: false }">
+            <div class="flex items-center justify-between mb-1">
+                <span class="dashboard-card__handle" title="Arrastrar">⋮⋮</span>
+                <div class="text-xs text-gray-600">💎 Rentab. (Dietz)</div>
                 <div class="flex items-center gap-2">
                     <button @click="showDetails = !showDetails" class="text-xs text-blue-600 hover:text-blue-800 font-medium">
                         <span x-show="!showDetails">▼ Ver desglose</span>
@@ -209,7 +246,7 @@
                     <span class="text-xs text-gray-400 cursor-help" title="Rentabilidad usando Modified Dietz Method (estándar GIPS). Elimina el efecto de los flujos de caja (deposits/withdrawals) para medir la performance real de tu estrategia.">ⓘ</span>
                 </div>
             </div>
-            <div class="text-2xl font-bold {% if metrics.modified_dietz.annualized.return_pct >= 0 %}text-purple-600{% else %}text-red-600{% endif %}">
+            <div class="text-xl font-bold {% if metrics.modified_dietz.annualized.return_pct >= 0 %}text-purple-600{% else %}text-red-600{% endif %}">
                 {% if metrics.modified_dietz.annualized.return_pct >= 0 %}+{% endif %}{{ metrics.modified_dietz.annualized.return_pct|decimal_eu(2) }}%
             </div>
             <div class="text-xs text-gray-500">Anualizada ({{ metrics.modified_dietz.annualized.years }} años)</div>
@@ -244,19 +281,19 @@
         
     </div>
     
-    <!-- ============================================ -->
-    <!-- RENTABILIDADES AÑO A AÑO                     -->
-    <!-- ============================================ -->
+    <!-- Rentabilidades Año a Año (card expandible) -->
     {% if yearly_returns and yearly_returns|length > 0 %}
-    <div class="mb-2 mt-8">
-        <h2 class="text-lg font-semibold text-gray-700">📅 Rentabilidades Año a Año</h2>
-        <p class="text-xs text-gray-500">Rentabilidad anual calculada con Modified Dietz (el último año es YTD)</p>
-    </div>
-    <div class="bg-white rounded-xl shadow-sm p-6 mb-8 border border-gray-200">
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <!-- Lista de rentabilidades -->
+    <div class="dashboard-card dashboard-card--chart bg-white rounded-lg shadow-sm p-4 border border-gray-200" data-card-id="chart-yearly" x-data="{ expanded: false }" :class="{ 'dashboard-card--expanded': expanded }">
+        <div class="flex items-center justify-between mb-3">
+            <span class="dashboard-card__handle" title="Arrastrar">⋮⋮</span>
+            <h3 class="text-sm font-semibold text-gray-800">📅 Rentabilidades Año a Año</h3>
+            <button @click="expanded = !expanded; setTimeout(() => window.dispatchEvent(new Event('resize')), 320)" class="expand-btn" :title="expanded ? 'Contraer' : 'Ampliar gráfico'">
+                <span x-text="expanded ? '⊟' : '⊞'">⊞</span>
+            </button>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4" x-show="true">
             <div x-data="{ showAll: false }">
-                <h3 class="text-md font-semibold text-gray-800 mb-4">📊 Resumen por Año</h3>
+                <h4 class="text-xs font-semibold text-gray-600 mb-3">📊 Resumen por Año</h4>
                 <div class="space-y-3">
                     {% set recent_years = yearly_returns[:5] %}
                     {% set older_years = yearly_returns[5:] %}
@@ -310,28 +347,18 @@
             
             <!-- Gráfico de barras -->
             <div>
-                <h3 class="text-md font-semibold text-gray-800 mb-4">📈 Gráfico de Rentabilidades</h3>
-                <div class="relative" style="height: 300px;">
+                <h4 class="text-xs font-semibold text-gray-600 mb-2">📈 Gráfico</h4>
+                <div class="relative transition-all duration-300" :style="expanded ? 'height: 350px' : 'height: 180px'">
                     <canvas id="yearlyReturnsChart"></canvas>
                 </div>
             </div>
         </div>
-    </div>
-    {% endif %}
-    
-    <!-- ============================================ -->
-    <!-- MÉTRICAS DEL PORTFOLIO ACTUAL (SEGUNDO)     -->
-    <!-- ============================================ -->
-    <div class="mb-2">
-        <h2 class="text-lg font-semibold text-gray-700">📊 Métricas del Portfolio Actual</h2>
-        <p class="text-xs text-gray-500">Basadas solo en las posiciones abiertas actuales</p>
-    </div>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
-        <!-- Valor Total Cartera (CON COSTE TOTAL DENTRO) -->
-        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-blue-500" x-data="{ showDetails: false }">
+        <!-- Valor Total Cartera -->
+        <div class="dashboard-card bg-white rounded-lg shadow-sm p-4 border-l-4 border-blue-500" data-card-id="metric-value" x-data="{ showDetails: false }">
             <div class="flex items-center justify-between mb-1">
-                <div class="text-sm text-gray-600">💰 Valor Total Cartera</div>
-                <div class="flex items-center gap-2">
+                <span class="dashboard-card__handle" title="Arrastrar">⋮⋮</span>
+                <div class="text-xs text-gray-600">💰 Valor Total Cartera</div>
+                <div class="flex items-center gap-1">
                     <button @click="showDetails = !showDetails" class="text-xs text-blue-600 hover:text-blue-800 font-medium">
                         <span x-show="!showDetails">▼ Ver desglose</span>
                         <span x-show="showDetails">▲ Ocultar</span>
@@ -339,7 +366,7 @@
                     <span class="text-xs text-gray-400 cursor-help" title="Valor actual de todas las posiciones abiertas. Se calcula sumando (cantidad × precio actual) para cada activo.">ⓘ</span>
                 </div>
             </div>
-            <div class="text-2xl font-bold text-gray-900">
+            <div class="text-xl font-bold text-gray-900">
                 {{ total_value|decimal_eu(2) }} EUR
             </div>
             
@@ -357,31 +384,34 @@
         </div>
         
         <!-- P&L No Realizado -->
-        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if total_pl >= 0 %}border-green-600{% else %}border-red-600{% endif %}">
+        <div class="dashboard-card bg-white rounded-lg shadow-sm p-4 border-l-4 {% if total_pl >= 0 %}border-green-600{% else %}border-red-600{% endif %}" data-card-id="metric-pl-unrealized">
             <div class="flex items-center justify-between mb-1">
-                <div class="text-sm text-gray-600">📈 P&L No Realizado</div>
+                <span class="dashboard-card__handle" title="Arrastrar">⋮⋮</span>
+                <div class="text-xs text-gray-600">📈 P&L No Realizado</div>
                 <span class="text-xs text-gray-400 cursor-help" title="Ganancia/pérdida de posiciones abiertas: Valor Actual - Coste Total. No incluye posiciones cerradas.">ⓘ</span>
             </div>
-            <div class="text-2xl font-bold {% if total_pl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+            <div class="text-xl font-bold {% if total_pl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
                 {% if total_pl >= 0 %}+{% endif %}{{ total_pl|decimal_eu(2) }} EUR
             </div>
         </div>
         
         <!-- Retorno % -->
-        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if total_pl_pct >= 0 %}border-green-600{% else %}border-red-600{% endif %}">
+        <div class="dashboard-card bg-white rounded-lg shadow-sm p-4 border-l-4 {% if total_pl_pct >= 0 %}border-green-600{% else %}border-red-600{% endif %}" data-card-id="metric-return">
             <div class="flex items-center justify-between mb-1">
-                <div class="text-sm text-gray-600">📊 Retorno</div>
+                <span class="dashboard-card__handle" title="Arrastrar">⋮⋮</span>
+                <div class="text-xs text-gray-600">📊 Retorno</div>
                 <span class="text-xs text-gray-400 cursor-help" title="Porcentaje de retorno sobre el coste de las posiciones actuales: (P&L No Realizado / Coste Total) × 100">ⓘ</span>
             </div>
-            <div class="text-2xl font-bold {% if total_pl_pct >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+            <div class="text-xl font-bold {% if total_pl_pct >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
                 {% if total_pl_pct >= 0 %}+{% endif %}{{ total_pl_pct|decimal_eu(2) }}%
             </div>
         </div>
         
         <!-- Leverage / Dinero Prestado o Cash -->
-        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if metrics.leverage.broker_money > 0 %}border-red-500{% else %}border-cyan-500{% endif %}" x-data="{ showDetails: false }">
-            <div class="flex items-center justify-between mb-2">
-                <div class="text-sm text-gray-600">
+        <div class="dashboard-card bg-white rounded-lg shadow-sm p-4 border-l-4 {% if metrics.leverage.broker_money > 0 %}border-red-500{% else %}border-cyan-500{% endif %}" data-card-id="metric-leverage" x-data="{ showDetails: false }">
+            <div class="flex items-center justify-between mb-1">
+                <span class="dashboard-card__handle" title="Arrastrar">⋮⋮</span>
+                <div class="text-xs text-gray-600">
                     {% if metrics.leverage.broker_money > 0 %}
                     ⚡ Dinero Prestado
                     {% else %}
@@ -396,7 +426,7 @@
                     <span class="text-xs text-gray-400 cursor-help" title="Apalancamiento (solo Stock+ETF): Coste - Dinero Usuario. Crypto excluido: Revolut X CSV no incluye depósitos. Positivo = broker presta. Negativo = cash disponible.">ⓘ</span>
                 </div>
             </div>
-            <div class="text-2xl font-bold {% if metrics.leverage.broker_money > 0 %}text-red-600{% else %}text-cyan-600{% endif %}">
+            <div class="text-xl font-bold {% if metrics.leverage.broker_money > 0 %}text-red-600{% else %}text-cyan-600{% endif %}">
                 {% if metrics.leverage.broker_money >= 0 %}+{% endif %}{{ metrics.leverage.broker_money|decimal_eu(2) }} EUR
             </div>
             
@@ -958,5 +988,39 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 {% endif %}
+
+<!-- SortableJS para drag-and-drop -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const grid = document.getElementById('dashboardGrid');
+    if (!grid) return;
+    
+    const STORAGE_KEY = 'portfolio-dashboard-order';
+    
+    // Restaurar orden guardado
+    const savedOrder = localStorage.getItem(STORAGE_KEY);
+    if (savedOrder) {
+        try {
+            const ids = JSON.parse(savedOrder);
+            const cards = Array.from(grid.children);
+            const byId = {};
+            cards.forEach(el => { const id = el.dataset.cardId; if (id) byId[id] = el; });
+            ids.forEach(id => { if (byId[id]) grid.appendChild(byId[id]); });
+        } catch (e) {}
+    }
+    
+    new Sortable(grid, {
+        animation: 150,
+        handle: '.dashboard-card__handle',
+        ghostClass: 'opacity-50',
+        chosenClass: 'ring-2 ring-blue-400',
+        onEnd: function() {
+            const ids = Array.from(grid.querySelectorAll('[data-card-id]')).map(el => el.dataset.cardId).filter(Boolean);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
+        }
+    });
+});
+</script>
 {% endblock %}
 

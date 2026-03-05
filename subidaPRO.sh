@@ -1,13 +1,21 @@
 #!/bin/bash
 # Script de deploy a producción (unificado y optimizado)
 # Uso: ./subidaPRO.sh
+#
+# Requiere: SSH key en ~/.ssh/ssh-key-2025-08-21.key
+# Producción: Oracle Cloud 140.238.120.92 (ubuntu@) o configurar GCP
 
 set -e  # Exit on error
 
-echo "🚀 Iniciando deploy a producción..."
+# Configuración
+SSH_KEY="${SSH_KEY:-$HOME/.ssh/ssh-key-2025-08-21.key}"
+SSH_HOST="${SSH_HOST:-ubuntu@140.238.120.92}"
+
+echo "🚀 Iniciando deploy a producción ($SSH_HOST)..."
 echo ""
 
-ssh -i ~/.ssh/ssh-key-2025-08-21.key ubuntu@140.238.120.92 << 'EOF'
+ssh -T -o BatchMode=yes -o ConnectTimeout=15 \
+    -i "$SSH_KEY" "$SSH_HOST" 'bash -s' << 'REMOTE_SCRIPT'
 cd ~/www
 
 # Backup de BD
@@ -32,14 +40,10 @@ echo "   ✓ Código actualizado"
 # Activar venv
 source venv/bin/activate
 
-# Instalar dependencias (solo si cambió requirements.txt)
-if git diff HEAD@{1} HEAD --name-only | grep -q "requirements.txt"; then
-    echo "📚 Instalando dependencias nuevas..."
-    pip install -r requirements.txt --quiet
-    echo "   ✓ Dependencias actualizadas"
-else
-    echo "📚 Sin cambios en dependencias"
-fi
+# Instalar/comprobar dependencias
+echo "📚 Comprobando dependencias..."
+pip install -r requirements.txt --quiet
+echo "   ✓ Dependencias OK"
 
 # Migraciones
 echo "🗄️  Aplicando migraciones..."
@@ -60,8 +64,8 @@ echo "=========================================="
 echo ""
 sudo systemctl status followup.service --no-pager -l
 
-EOF
+REMOTE_SCRIPT
 
 echo ""
 echo "🌐 Aplicación disponible en: https://followup.fit/"
-echo "📊 Ver logs: ssh -i ~/.ssh/ssh-key-2025-08-21.key ubuntu@140.238.120.92 'sudo journalctl -u followup.service -f'"
+echo "📊 Ver logs: ssh -i $SSH_KEY $SSH_HOST 'sudo journalctl -u followup.service -f'"

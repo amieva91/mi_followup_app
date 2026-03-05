@@ -678,6 +678,57 @@ mb-8  = 32px  ← Separación entre secciones de página
 
 ---
 
+## 📊 ESTÁNDARES DASHBOARD - CARDS COMPACTAS
+
+**Objetivo**: Vista compacta, uniforme, con drag-and-drop y opción de ampliar.
+
+### Tamaños de Cards
+
+| Tipo | Clase | Altura | Uso |
+|------|-------|--------|-----|
+| **KPI compacto** | `dashboard-card` | min-h-[140px] | Métricas (Valor, P&L, ROI, etc.) |
+| **Chart compacto** | `dashboard-card dashboard-card--chart` | min-h-[200px] | Gráficos colapsables |
+| **Chart expandido** | `dashboard-card--expanded` | min-h-[400px] | Gráficos ampliados |
+
+### Grid Base
+
+```css
+/* Grid responsive: 2-4 columnas, celdas uniformes */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;  /* gap-4 = 16px */
+}
+```
+
+### Card Base (compacta)
+
+```html
+<div class="dashboard-card bg-white rounded-lg shadow-sm p-4 border-l-4 border-blue-500"
+     data-card-id="metric-roi">
+  <!-- Header con título + expand (opcional) -->
+  <div class="flex items-center justify-between mb-2">
+    <span class="text-xs text-gray-600">📈 ROI</span>
+    <button class="expand-btn">⛶</button>  <!-- Solo en cards expandibles -->
+  </div>
+  <div class="text-xl font-bold">+12,5%</div>
+</div>
+```
+
+### Cards Expandibles (gráficos)
+
+- Botón ⛶ (expandir) / ⛶ (contraer) en esquina
+- Colapsado: altura ~200px, gráfico reducido
+- Expandido: altura ~400px, gráfico full
+
+### Drag-and-Drop
+
+- Handle ⋮⋮ en esquina superior izquierda
+- Orden persistido en `localStorage` (key: `portfolio-dashboard-order`)
+- Librería: SortableJS (CDN)
+
+---
+
 ## 🎭 ICONOS
 
 ### Librería: Heroicons

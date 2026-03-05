@@ -24,6 +24,11 @@ DEFAULT_WIDGETS = [
     {'id': 'currency_exposure', 'name': 'Exposición Divisas', 'icon': '💱', 'enabled': True, 'position': 15},
     {'id': 'year_comparison', 'name': 'Comparativa Anual', 'icon': '📊', 'enabled': True, 'position': 16},
     {'id': 'health_score', 'name': 'Salud Financiera', 'icon': '❤️', 'enabled': True, 'position': 17},
+    # Sub-indicadores de Análisis Detallado (si ninguno activo, no se muestra el recuadro)
+    {'id': 'health_detail_metrics', 'name': '❤️ Métricas componentes', 'icon': '📊', 'enabled': True, 'position': 18},
+    {'id': 'health_detail_tips', 'name': '❤️ Recomendaciones', 'icon': '💡', 'enabled': True, 'position': 19},
+    {'id': 'health_detail_distribution', 'name': '❤️ Distribución activos', 'icon': '📈', 'enabled': True, 'position': 20},
+    {'id': 'health_detail_emergency', 'name': '❤️ Fondo emergencia', 'icon': '🛡️', 'enabled': True, 'position': 21},
 ]
 
 
@@ -63,18 +68,25 @@ class UserDashboardConfig(db.Model):
         for config in configs:
             widget_default = next((w for w in DEFAULT_WIDGETS if w['id'] == config.widget_id), None)
             if widget_default:
+                enabled = config.enabled
+                # Sub-indicadores Salud Financiera: por defecto habilitados
+                if config.widget_id.startswith('health_detail_'):
+                    enabled = True
                 result[config.widget_id] = {
                     'id': config.widget_id,
                     'name': widget_default['name'],
                     'icon': widget_default['icon'],
-                    'enabled': config.enabled,
+                    'enabled': enabled,
                     'position': config.position
                 }
         
-        # Añadir widgets por defecto que no estén guardados
+        # Añadir widgets por defecto que no estén guardados (health_detail_* siempre enabled por defecto)
         for w in DEFAULT_WIDGETS:
             if w['id'] not in saved_ids:
-                result[w['id']] = w.copy()
+                r = w.copy()
+                if r['id'].startswith('health_detail_'):
+                    r['enabled'] = True
+                result[w['id']] = r
         
         return result
     
@@ -85,19 +97,23 @@ class UserDashboardConfig(db.Model):
         widget_configs: lista de dicts con {id, enabled, position}
         """
         for wc in widget_configs:
+            enabled = wc.get('enabled', True)
+            # Sub-indicadores Salud Financiera: siempre persistir como habilitados
+            if wc['id'].startswith('health_detail_'):
+                enabled = True
             existing = cls.query.filter_by(
                 user_id=user_id, 
                 widget_id=wc['id']
             ).first()
             
             if existing:
-                existing.enabled = wc.get('enabled', True)
+                existing.enabled = enabled
                 existing.position = wc.get('position', 0)
             else:
                 new_config = cls(
                     user_id=user_id,
                     widget_id=wc['id'],
-                    enabled=wc.get('enabled', True),
+                    enabled=enabled,
                     position=wc.get('position', 0)
                 )
                 db.session.add(new_config)
