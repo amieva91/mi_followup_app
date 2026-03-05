@@ -4,9 +4,16 @@ Blueprint de autenticación
 from flask import Blueprint, render_template, redirect, url_for, flash, request, make_response
 from flask_login import login_user, logout_user, current_user, login_required
 from app import db
-from app.models import User, MODULES, AVATARS
+from app.models import (
+    User, MODULES, AVATARS,
+    CashFlow, Transaction, PortfolioHolding, PortfolioMetrics, BrokerAccount,
+    Expense, ExpenseCategory, Income, IncomeCategory, DebtPlan,
+    Bank, BankBalance, Watchlist, WatchlistConfig,
+    UserDashboardConfig, MetricsCache,
+    ReportSettings, ReportTemplate, CompanyReport, AssetAboutSummary,
+)
 from app.forms import LoginForm, RegisterForm, RequestResetForm, ResetPasswordForm
-from app.forms.profile_forms import ProfileForm, ChangePasswordForm
+from app.forms.profile_forms import ProfileForm, ChangePasswordForm, DeleteAccountForm
 from app.utils.email import send_reset_email
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
@@ -134,6 +141,7 @@ def profile():
         'auth/profile.html',
         form=form,
         password_form=ChangePasswordForm(),
+        delete_account_form=DeleteAccountForm(),
         modules=MODULES,
         avatars=AVATARS,
     ))
@@ -161,6 +169,65 @@ def change_password():
         'auth/profile.html',
         form=profile_form,
         password_form=form,
+        delete_account_form=DeleteAccountForm(),
+        modules=MODULES,
+        avatars=AVATARS,
+    )
+
+
+def _delete_user_data(user_id):
+    """Elimina todos los datos asociados al usuario (orden correcto por FKs)."""
+    CashFlow.query.filter_by(user_id=user_id).delete()
+    Transaction.query.filter_by(user_id=user_id).delete()
+    for acc in BrokerAccount.query.filter_by(user_id=user_id).all():
+        PortfolioHolding.query.filter_by(account_id=acc.id).delete()
+        PortfolioMetrics.query.filter_by(account_id=acc.id).delete()
+    PortfolioMetrics.query.filter_by(user_id=user_id).delete()
+    BrokerAccount.query.filter_by(user_id=user_id).delete()
+    Expense.query.filter_by(user_id=user_id).delete()
+    ExpenseCategory.query.filter_by(user_id=user_id).delete()
+    Income.query.filter_by(user_id=user_id).delete()
+    IncomeCategory.query.filter_by(user_id=user_id).delete()
+    DebtPlan.query.filter_by(user_id=user_id).delete()
+    BankBalance.query.filter_by(user_id=user_id).delete()
+    Bank.query.filter_by(user_id=user_id).delete()
+    Watchlist.query.filter_by(user_id=user_id).delete()
+    WatchlistConfig.query.filter_by(user_id=user_id).delete()
+    UserDashboardConfig.query.filter_by(user_id=user_id).delete()
+    MetricsCache.query.filter_by(user_id=user_id).delete()
+    ReportTemplate.query.filter_by(user_id=user_id).delete()
+    CompanyReport.query.filter_by(user_id=user_id).delete()
+    AssetAboutSummary.query.filter_by(user_id=user_id).delete()
+    ReportSettings.query.filter_by(user_id=user_id).delete()
+
+
+@auth_bp.route('/profile/delete-account', methods=['POST'])
+@login_required
+def delete_account():
+    """Eliminar cuenta del usuario definitivamente"""
+    form = DeleteAccountForm()
+    if form.validate_on_submit():
+        user_id = current_user.id
+        _delete_user_data(user_id)
+        user = User.query.get(user_id)
+        if user:
+            db.session.delete(user)
+            db.session.commit()
+        logout_user()
+        flash('Tu cuenta ha sido eliminada. Sentimos que te vayas.', 'info')
+        return redirect(url_for('main.index'))
+    # Si hay errores de validación, mostrar perfil con mensaje
+    flash('No se pudo eliminar. Verifica la contraseña y que escribiste BORRAR.', 'error')
+    user = db.session.get(User, current_user.id)
+    profile_form = ProfileForm(obj=user)
+    profile_form.username.data = user.username
+    profile_form.email.data = user.email
+    profile_form.birth_year.data = str(user.birth_year) if user.birth_year else ''
+    return render_template(
+        'auth/profile.html',
+        form=profile_form,
+        password_form=ChangePasswordForm(),
+        delete_account_form=form,
         modules=MODULES,
         avatars=AVATARS,
     )

@@ -89,3 +89,29 @@ class ChangePasswordForm(FlaskForm):
     def validate_current_password(self, field):
         if not current_user.check_password(field.data):
             raise ValidationError('La contraseña actual no es correcta.')
+
+
+class DeleteAccountForm(FlaskForm):
+    """Formulario para borrar la cuenta (requiere confirmación con contraseña)"""
+
+    password = PasswordField(
+        'Contraseña',
+        validators=[DataRequired(message='Introduce tu contraseña para confirmar')],
+        render_kw={'placeholder': '••••••••', 'class': 'form-input'},
+    )
+    confirm_text = StringField(
+        'Escribe BORRAR para confirmar',
+        validators=[
+            DataRequired(message='Debes escribir BORRAR para confirmar'),
+        ],
+        render_kw={'placeholder': 'BORRAR', 'class': 'form-input'},
+    )
+    submit = SubmitField('Eliminar mi cuenta definitivamente')
+
+    def validate_password(self, field):
+        if not current_user.check_password(field.data):
+            raise ValidationError('La contraseña no es correcta.')
+
+    def validate_confirm_text(self, field):
+        if field.data and field.data.strip().upper() != 'BORRAR':
+            raise ValidationError('Debes escribir exactamente BORRAR para confirmar.')
