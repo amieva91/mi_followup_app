@@ -7,7 +7,7 @@ from flask_login import login_required, current_user
 
 from app.routes import portfolio_bp
 from app import db
-from app.models import BrokerAccount, Asset, Transaction
+from app.models import BrokerAccount, Asset, Transaction, PortfolioHolding
 from app.forms import ManualTransactionForm
 
 @portfolio_bp.route('/transactions')
@@ -311,19 +311,17 @@ def transaction_new():
     """Registrar nueva transacción manual"""
     form = ManualTransactionForm()
     
-    # Poblar choices dinámicamente con opción "Todas"
+    # Poblar choices con cuentas del usuario
     accounts = BrokerAccount.query.filter_by(user_id=current_user.id, is_active=True).all()
-    form.account_id.choices = [('', '-- Todas las cuentas --')] + [
+    form.account_id.choices = [
         (acc.id, f'{acc.broker.name} - {acc.account_name}')
         for acc in accounts
     ]
+    if not form.account_id.choices:
+        flash('No tienes ninguna cuenta. Crea una en Cuentas antes de registrar transacciones.', 'warning')
+        return redirect(url_for('portfolio.accounts_list'))
     
     if form.validate_on_submit():
-        # Si no se seleccionó cuenta específica y es SELL, requerir selección
-        if not form.account_id.data:
-            flash('❌ Debes seleccionar una cuenta específica para registrar la transacción', 'error')
-            return render_template('portfolio/transaction_form.html', form=form, transaction=None)
-        
         account_id = int(form.account_id.data)
         # Buscar o crear el activo
         asset = Asset.query.filter_by(symbol=form.symbol.data, currency=form.currency.data).first()

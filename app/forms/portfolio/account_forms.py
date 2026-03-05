@@ -1,19 +1,36 @@
 """Formularios para cuentas de broker"""
 from flask_wtf import FlaskForm
 from wtforms import StringField, SelectField, SubmitField
-from wtforms.validators import DataRequired, Optional, Length
+from wtforms.validators import DataRequired, Optional, Length, ValidationError
 from app.models import Broker
 
 
 class BrokerAccountForm(FlaskForm):
     """Formulario para crear/editar cuenta de broker"""
-    broker_id = SelectField('Broker', coerce=int, validators=[DataRequired()])
+    broker_id = SelectField('Broker', coerce=lambda x: int(x) if x else None, validators=[Optional()])
+    broker_name_new = StringField(
+        'Nombre del broker (si es nuevo)',
+        validators=[Optional(), Length(max=100)],
+        render_kw={'placeholder': 'Ej: Binance, Revolut, Kraken...'}
+    )
     account_name = StringField('Nombre de la Cuenta', validators=[DataRequired(), Length(max=100)])
     account_number = StringField('Número de Cuenta (opcional)', validators=[Optional(), Length(max=50)])
     base_currency = SelectField('Divisa Base', choices=[
         ('EUR', 'EUR - Euro'), ('USD', 'USD'), ('GBP', 'GBP'), ('CHF', 'CHF')], validators=[DataRequired()])
     submit = SubmitField('Guardar Cuenta')
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, add_new_broker_option=False, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.broker_id.choices = [(b.id, f"{b.name} - {b.full_name}") for b in Broker.query.filter_by(is_active=True).all()]
+        self.add_new_broker_option = add_new_broker_option
+        choices = [(b.id, f"{b.name} - {b.full_name or b.name}") for b in Broker.query.filter_by(is_active=True).all()]
+        if add_new_broker_option:
+            choices = [('', '➕ Crear nuevo broker...')] + choices
+        self.broker_id.choices = choices
+
+    def validate_broker_id(self, field):
+        """Debe elegir broker existente o indicar nombre de uno nuevo"""
+        if self.add_new_broker_option:
+            if not field.data and (self.broker_name_new.data or '').strip():
+                return  # broker_name_new proporcionado, ok
+            if not field.data and not (self.broker_name_new.data or '').strip():
+                raise ValidationError('Selecciona un broker existente o escribe el nombre de uno nuevo.')

@@ -6,6 +6,11 @@ from wtforms.validators import DataRequired, NumberRange, Optional
 
 class MetalTransactionForm(FlaskForm):
     """Compra o venta de metal"""
+    account_id = SelectField(
+        'Cuenta / Broker',
+        coerce=lambda x: int(x) if x else None,
+        validators=[DataRequired(message='Debes seleccionar una cuenta')]
+    )
     metal_id = SelectField('Metal', coerce=int, validators=[DataRequired()])
     transaction_type = RadioField('Tipo', choices=[('BUY', 'Compra'), ('SELL', 'Venta')], default='BUY')
     unit = RadioField('Unidad', choices=[('g', 'Gramos (g)'), ('oz', 'Onzas troy (oz)')], default='g')

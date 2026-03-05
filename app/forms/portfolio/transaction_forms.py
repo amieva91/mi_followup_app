@@ -11,7 +11,7 @@ from app.models import BrokerAccount
 
 class ManualTransactionForm(FlaskForm):
     """Formulario para entrada manual de transacciones (compra/venta)"""
-    account_id = SelectField('Cuenta', coerce=lambda x: int(x) if x else None, validators=[Optional()])
+    account_id = SelectField('Cuenta / Broker', coerce=lambda x: int(x) if x else None, validators=[DataRequired(message='Debes seleccionar una cuenta')])
 
     # Datos del activo
     symbol = StringField('Símbolo', validators=[DataRequired(), Length(max=20)])

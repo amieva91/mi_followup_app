@@ -6,7 +6,7 @@ from flask_login import login_required, current_user
 from datetime import datetime
 
 from app import db
-from app.models import Broker, BrokerAccount, Asset, Transaction, PortfolioHolding
+from app.models import BrokerAccount, Asset, Transaction
 from app.services.metales_metrics import compute_metales_metrics, get_metales_holdings
 from app.services.currency_service import convert_to_eur
 
@@ -24,28 +24,6 @@ def dashboard():
     return render_template('metales/dashboard.html', metrics=metrics)
 
 
-def _get_or_create_commodities_account():
-    """Obtiene o crea la cuenta Commodities del usuario"""
-    broker = Broker.query.filter(Broker.name.ilike('%commodit%')).first()
-    if not broker:
-        return None
-    account = BrokerAccount.query.filter_by(
-        user_id=current_user.id,
-        broker_id=broker.id,
-        is_active=True
-    ).first()
-    if not account:
-        account = BrokerAccount(
-            user_id=current_user.id,
-            broker_id=broker.id,
-            account_name='Commodities',
-            base_currency='EUR',
-        )
-        db.session.add(account)
-        db.session.flush()
-    return account
-
-
 @metales_bp.route('/nueva', methods=['GET', 'POST'])
 @login_required
 def transaction_new():
@@ -61,12 +39,17 @@ def transaction_new():
     form = MetalTransactionForm()
     form.metal_id.choices = [(m.id, f"{m.symbol} - {m.name}") for m in metals]
 
-    if form.validate_on_submit():
-        account = _get_or_create_commodities_account()
-        if not account:
-            flash('Error: No existe el broker Commodities. Ejecuta el seed.', 'error')
-            return redirect(url_for('metales.dashboard'))
+    accounts = BrokerAccount.query.filter_by(user_id=current_user.id, is_active=True).all()
+    form.account_id.choices = [
+        (acc.id, f'{acc.broker.name} - {acc.account_name}')
+        for acc in accounts
+    ]
+    if not form.account_id.choices:
+        flash('No tienes ninguna cuenta. Crea una en Carga de Datos → Cuentas.', 'warning')
+        return redirect(url_for('portfolio.accounts_list'))
 
+    if form.validate_on_submit():
+        account_id = int(form.account_id.data)
         metal = Asset.query.get(form.metal_id.data)
         if not metal or metal.asset_type != 'Commodity':
             flash('Metal no válido', 'error')
@@ -83,7 +66,7 @@ def transaction_new():
 
         txn = Transaction(
             user_id=current_user.id,
-            account_id=account.id,
+            account_id=account_id,
             asset_id=metal.id,
             transaction_type=form.transaction_type.data,
             transaction_date=datetime.combine(form.transaction_date.data, datetime.min.time()),
@@ -100,7 +83,7 @@ def transaction_new():
         from app.services.portfolio_holding_service import recalculate_holdings
         from app.services.metrics.cache import MetricsCacheService
 
-        recalculate_holdings(current_user.id, account.id)
+        recalculate_holdings(current_user.id, account_id)
         db.session.commit()
         MetricsCacheService.invalidate(current_user.id)
 

@@ -6,7 +6,7 @@ from flask_login import login_required, current_user
 
 from app.routes import portfolio_bp
 from app import db
-from app.models import BrokerAccount, PortfolioHolding, Transaction
+from app.models import Broker, BrokerAccount, PortfolioHolding, Transaction
 from app.forms import BrokerAccountForm
 
 
@@ -25,12 +25,22 @@ def accounts_list():
 @login_required
 def account_new():
     """Crear nueva cuenta de broker"""
-    form = BrokerAccountForm()
+    form = BrokerAccountForm(add_new_broker_option=True)
 
     if form.validate_on_submit():
+        broker_id = form.broker_id.data
+        if not broker_id and form.broker_name_new.data:
+            name = form.broker_name_new.data.strip()
+            broker = Broker.query.filter(db.func.lower(Broker.name) == name.lower()).first()
+            if not broker:
+                broker = Broker(name=name, full_name=name, is_active=True)
+                db.session.add(broker)
+                db.session.flush()
+            broker_id = broker.id
+
         account = BrokerAccount(
             user_id=current_user.id,
-            broker_id=form.broker_id.data,
+            broker_id=broker_id,
             account_name=form.account_name.data,
             account_number=form.account_number.data,
             base_currency=form.base_currency.data
