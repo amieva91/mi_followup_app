@@ -43,7 +43,7 @@
         <div class="w-full px-4 sm:px-6 py-3">
             <div class="flex items-center justify-between gap-4">
                 <!-- Logo + Menú (izquierda) -->
-                <div class="flex items-center space-x-4 sm:space-x-6 flex-1 min-w-0 overflow-x-auto">
+                <div class="flex items-center space-x-4 sm:space-x-6 flex-1 min-w-0 overflow-visible">
                     <a href="{{ url_for('main.index') }}" class="flex items-center space-x-2 hover:opacity-80 transition flex-shrink-0">
                         <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
@@ -59,137 +59,111 @@
                             </a>
                             
                             <!-- Dropdown Gastos -->
-                            <div class="relative" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false">
-                                <button class="hover:text-blue-200 transition flex items-center space-x-1">
+                            <div class="relative inline-block" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false" @click.away="open = false">
+                                <button type="button" @click="open = !open" class="hover:text-blue-200 transition flex items-center space-x-1 py-2">
                                     <span>💸 Gastos</span>
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                                     </svg>
                                 </button>
-                                <div x-show="open" x-cloak x-transition 
-                                     class="absolute left-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2 z-50">
-                                    <a href="{{ url_for('expenses.list') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
-                                        📋 Ver Gastos
-                                    </a>
-                                    <a href="{{ url_for('expenses.new') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
-                                        + Nuevo Gasto
-                                    </a>
-                                    <a href="{{ url_for('debts.new', next='expenses') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
-                                        📋 Pagar a plazos
-                                    </a>
-                                    <a href="{{ url_for('expenses.categories') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
-                                        📂 Categorías
-                                    </a>
+                                <div x-show="open" x-cloak x-transition
+                                     class="absolute left-0 top-full pt-1 w-48 z-[100]">
+                                    <div class="bg-white rounded-lg shadow-lg py-2 text-gray-900">
+                                        <a href="{{ url_for('expenses.list') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">📋 Ver Gastos</a>
+                                        <a href="{{ url_for('expenses.new') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">+ Nuevo Gasto</a>
+                                        <a href="{{ url_for('debts.new', next='expenses') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">📋 Pagar a plazos</a>
+                                        <a href="{{ url_for('expenses.categories') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">📂 Categorías</a>
+                                    </div>
                                 </div>
                             </div>
                             
                             <!-- Dropdown Ingresos -->
-                            <div class="relative" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false">
-                                <button class="hover:text-blue-200 transition flex items-center space-x-1">
+                            <div class="relative inline-block" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false" @click.away="open = false">
+                                <button type="button" @click="open = !open" class="hover:text-blue-200 transition flex items-center space-x-1 py-2">
                                     <span>💵 Ingresos</span>
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                                     </svg>
                                 </button>
-                                <div x-show="open" x-cloak x-transition 
-                                     class="absolute left-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2 z-50">
-                                    <a href="{{ url_for('incomes.list') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
-                                        📋 Ver Ingresos
-                                    </a>
-                                    <a href="{{ url_for('incomes.new') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
-                                        + Nuevo Ingreso
-                                    </a>
-                                    <a href="{{ url_for('incomes.categories') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
-                                        📂 Categorías
-                                    </a>
+                                <div x-show="open" x-cloak x-transition
+                                     class="absolute left-0 top-full pt-1 w-48 z-[100]">
+                                    <div class="bg-white rounded-lg shadow-lg py-2 text-gray-900">
+                                        <a href="{{ url_for('incomes.list') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">📋 Ver Ingresos</a>
+                                        <a href="{{ url_for('incomes.new') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">+ Nuevo Ingreso</a>
+                                        <a href="{{ url_for('incomes.categories') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">📂 Categorías</a>
+                                    </div>
                                 </div>
                             </div>
 
                             <!-- Dropdown Deudas -->
-                            <div class="relative" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false">
-                                <button class="hover:text-blue-200 transition flex items-center space-x-1">
+                            <div class="relative inline-block" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false" @click.away="open = false">
+                                <button type="button" @click="open = !open" class="hover:text-blue-200 transition flex items-center space-x-1 py-2">
                                     <span>📋 Deudas</span>
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                                     </svg>
                                 </button>
-                                <div x-show="open" x-cloak x-transition 
-                                     class="absolute left-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2 z-50">
-                                    <a href="{{ url_for('debts.dashboard') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
-                                        📊 Dashboard
-                                    </a>
-                                    <a href="{{ url_for('debts.new', next='debts') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
-                                        + Nueva deuda
-                                    </a>
+                                <div x-show="open" x-cloak x-transition
+                                     class="absolute left-0 top-full pt-1 w-48 z-[100]">
+                                    <div class="bg-white rounded-lg shadow-lg py-2 text-gray-900">
+                                        <a href="{{ url_for('debts.dashboard') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">📊 Dashboard</a>
+                                        <a href="{{ url_for('debts.new', next='debts') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">+ Nueva deuda</a>
+                                    </div>
                                 </div>
                             </div>
 
                             <!-- Dropdown Bancos -->
-                            <div class="relative" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false">
-                                <button class="hover:text-blue-200 transition flex items-center space-x-1">
+                            <div class="relative inline-block" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false" @click.away="open = false">
+                                <button type="button" @click="open = !open" class="hover:text-blue-200 transition flex items-center space-x-1 py-2">
                                     <span>🏦 Bancos</span>
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                                     </svg>
                                 </button>
                                 <div x-show="open" x-cloak x-transition
-                                     class="absolute left-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2 z-50">
-                                    <a href="{{ url_for('banks.dashboard') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
-                                        📊 Saldos bancarios
-                                    </a>
-                                    <a href="{{ url_for('banks.new') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
-                                        + Añadir banco
-                                    </a>
+                                     class="absolute left-0 top-full pt-1 w-48 z-[100]">
+                                    <div class="bg-white rounded-lg shadow-lg py-2 text-gray-900">
+                                        <a href="{{ url_for('banks.dashboard') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">📊 Saldos bancarios</a>
+                                        <a href="{{ url_for('banks.new') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">+ Añadir banco</a>
+                                    </div>
                                 </div>
                             </div>
 
-                            <!-- Dropdown Portfolio (vista global) -->
-                            <div class="relative" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false">
-                                <button class="hover:text-blue-200 transition flex items-center space-x-1">
+                            <!-- Dropdown Portfolio -->
+                            <div class="relative inline-block" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false" @click.away="open = false">
+                                <button type="button" @click="open = !open" class="hover:text-blue-200 transition flex items-center space-x-1 py-2">
                                     <span>📊 Portfolio</span>
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                                     </svg>
                                 </button>
-                                <div x-show="open" x-cloak x-transition 
-                                     class="absolute left-0 mt-2 w-56 bg-white rounded-lg shadow-lg py-2 z-50">
-                                    <a href="{{ url_for('portfolio.dashboard') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
-                                        📊 Dashboard
-                                    </a>
-                                    <a href="{{ url_for('portfolio.performance') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
-                                        📈 Performance
-                                    </a>
-                                    <a href="{{ url_for('portfolio.dividendos') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
-                                        💰 Dividendos
-                                    </a>
-                                    <a href="{{ url_for('portfolio.index_comparison') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
-                                        🏆 Index Comparison
-                                    </a>
-                                    <a href="{{ url_for('portfolio.diversificacion') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
-                                        📊 Diversificación
-                                    </a>
-                                    <a href="{{ url_for('portfolio.currencies') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
-                                        💱 Divisas
-                                    </a>
+                                <div x-show="open" x-cloak x-transition
+                                     class="absolute left-0 top-full pt-1 w-56 z-[100]">
+                                    <div class="bg-white rounded-lg shadow-lg py-2 text-gray-900">
+                                        <a href="{{ url_for('portfolio.dashboard') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">📊 Dashboard</a>
+                                        <a href="{{ url_for('portfolio.performance') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">📈 Performance</a>
+                                        <a href="{{ url_for('portfolio.dividendos') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">💰 Dividendos</a>
+                                        <a href="{{ url_for('portfolio.index_comparison') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">🏆 Index Comparison</a>
+                                        <a href="{{ url_for('portfolio.diversificacion') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">📊 Diversificación</a>
+                                        <a href="{{ url_for('portfolio.currencies') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">💱 Divisas</a>
+                                    </div>
                                 </div>
                             </div>
 
-                            <!-- Dropdown Acciones (Stock + ETF) -->
-                            <div class="relative" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false">
-                                <button class="hover:text-blue-200 transition flex items-center space-x-1">
+                            <!-- Dropdown Acciones -->
+                            <div class="relative inline-block" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false" @click.away="open = false">
+                                <button type="button" @click="open = !open" class="hover:text-blue-200 transition flex items-center space-x-1 py-2">
                                     <span>📈 Acciones</span>
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                                     </svg>
                                 </button>
-                                <div x-show="open" x-cloak x-transition 
-                                     class="absolute left-0 mt-2 w-56 bg-white rounded-lg shadow-lg py-2 z-50">
-                                    <a href="{{ url_for('portfolio.holdings_list') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
-                                        📈 Cartera
-                                    </a>
-                                    <a href="{{ url_for('portfolio.watchlist') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
-                                        📋 Watchlist
-                                    </a>
+                                <div x-show="open" x-cloak x-transition
+                                     class="absolute left-0 top-full pt-1 w-56 z-[100]">
+                                    <div class="bg-white rounded-lg shadow-lg py-2 text-gray-900">
+                                        <a href="{{ url_for('portfolio.holdings_list') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">📈 Cartera</a>
+                                        <a href="{{ url_for('portfolio.watchlist') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">📋 Watchlist</a>
+                                    </div>
                                 </div>
                             </div>
 
@@ -203,25 +177,21 @@
                                 🥇 Metales
                             </a>
 
-                            <!-- Dropdown Import / Carga de Datos -->
-                            <div class="relative" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false">
-                                <button class="hover:text-blue-200 transition flex items-center space-x-1">
+                            <!-- Dropdown Carga de Datos -->
+                            <div class="relative inline-block" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false" @click.away="open = false">
+                                <button type="button" @click="open = !open" class="hover:text-blue-200 transition flex items-center space-x-1 py-2">
                                     <span>📥 Carga de Datos</span>
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                                     </svg>
                                 </button>
-                                <div x-show="open" x-cloak x-transition 
-                                     class="absolute left-0 mt-2 w-56 bg-white rounded-lg shadow-lg py-2 z-50">
-                                    <a href="{{ url_for('portfolio.transactions_list') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
-                                        📝 Transacciones
-                                    </a>
-                                    <a href="{{ url_for('portfolio.import_csv') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
-                                        📥 Importar CSV
-                                    </a>
-                                    <a href="{{ url_for('portfolio.accounts_list') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
-                                        🏦 Cuentas
-                                    </a>
+                                <div x-show="open" x-cloak x-transition
+                                     class="absolute left-0 top-full pt-1 w-56 z-[100]">
+                                    <div class="bg-white rounded-lg shadow-lg py-2 text-gray-900">
+                                        <a href="{{ url_for('portfolio.transactions_list') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">📝 Transacciones</a>
+                                        <a href="{{ url_for('portfolio.import_csv') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">📥 Importar CSV</a>
+                                        <a href="{{ url_for('portfolio.accounts_list') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">🏦 Cuentas</a>
+                                    </div>
                                 </div>
                             </div>
                         </div>

@@ -2,39 +2,45 @@
 # Script de deploy a producción (unificado y optimizado)
 # Uso: ./subidaPRO.sh
 #
-# Requiere: SSH key en ~/.ssh/ssh-key-2025-08-21.key
-# Producción: Oracle Cloud 140.238.120.92 (ubuntu@) o configurar GCP
+# Usa gcloud compute ssh (sin timeouts de firewall)
+# Producción: GCP VM followup (gen-lang-client-0658912226)
 
 set -e  # Exit on error
 
-# Configuración
-SSH_KEY="${SSH_KEY:-$HOME/.ssh/ssh-key-2025-08-21.key}"
-SSH_HOST="${SSH_HOST:-ubuntu@140.238.120.92}"
+# Configuración GCP (misma que scripts/connect-gcp.sh)
+PROJECT="gen-lang-client-0658912226"
+INSTANCE="followup"
+ZONE="us-central1-c"
 
-echo "🚀 Iniciando deploy a producción ($SSH_HOST)..."
+gcloud config set project "$PROJECT" 2>/dev/null
+
+echo "🚀 Iniciando deploy a producción (GCP: $INSTANCE)..."
 echo ""
 
-ssh -T -o BatchMode=yes -o ConnectTimeout=15 \
-    -i "$SSH_KEY" "$SSH_HOST" 'bash -s' << 'REMOTE_SCRIPT'
-cd ~/www
+gcloud compute ssh "$INSTANCE" --zone="$ZONE" --command="bash -s" << 'REMOTE_SCRIPT'
+APP_DIR="/var/www/followup"
+# Ejecutar deploy con sudo (acceso completo a /var/www/followup)
+sudo bash -s << 'DEPLOY_STEPS'
+APP_DIR="/var/www/followup"
+cd "$APP_DIR"
 
-# Backup de BD
+# Backup de BD (en directorio de la app, con permisos www-data)
 echo "📦 Haciendo backup de BD..."
-mkdir -p ~/backups
+mkdir -p "$APP_DIR/backups"
 if [ -f instance/followup.db ]; then
-    cp instance/followup.db ~/backups/followup_$(date +%Y%m%d_%H%M%S).db
+    cp instance/followup.db "$APP_DIR/backups/followup_$(date +%Y%m%d_%H%M%S).db"
     echo "   ✓ Backup creado"
 elif [ -f instance/app.db ]; then
-    cp instance/app.db ~/backups/app_$(date +%Y%m%d_%H%M%S).db
+    cp instance/app.db "$APP_DIR/backups/app_$(date +%Y%m%d_%H%M%S).db"
     echo "   ✓ Backup creado (app.db)"
 else
     echo "   ⚠️  No se encontró BD para backup"
 fi
 
-# Pull código
+# Pull código (-c safe.directory evita dubious ownership sin modificar .gitconfig)
 echo "📥 Descargando cambios desde main..."
-git fetch origin
-git pull origin main
+git -c safe.directory=/var/www/followup fetch origin
+git -c safe.directory=/var/www/followup pull origin main
 echo "   ✓ Código actualizado"
 
 # Activar venv
@@ -42,16 +48,18 @@ source venv/bin/activate
 
 # Instalar/comprobar dependencias
 echo "📚 Comprobando dependencias..."
-pip install -r requirements.txt --quiet
+pip install --no-cache-dir -r requirements.txt --quiet
 echo "   ✓ Dependencias OK"
 
 # Migraciones
 echo "🗄️  Aplicando migraciones..."
 export FLASK_APP=run.py
+export FLASK_ENV=production
 flask db upgrade
 echo "   ✓ Migraciones aplicadas"
+DEPLOY_STEPS
 
-# Reiniciar servicio
+# Reiniciar servicio (fuera del bloque www-data)
 echo "🔄 Reiniciando aplicación..."
 sudo systemctl restart followup.service
 echo "   ✓ Servicio reiniciado"
@@ -68,4 +76,4 @@ REMOTE_SCRIPT
 
 echo ""
 echo "🌐 Aplicación disponible en: https://followup.fit/"
-echo "📊 Ver logs: ssh -i $SSH_KEY $SSH_HOST 'sudo journalctl -u followup.service -f'"
+echo "📊 Ver logs: ./scripts/connect-gcp.sh 'sudo journalctl -u followup.service -f'"

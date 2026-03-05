@@ -65,3 +65,16 @@ check_*.py
 fix_*.py
 show_*.py
 sync_*.py
+
+# Dev/debug scripts en app/services
+app/services/debug_*.py
+app/services/analyze_*.py
+app/services/verify_*.py
+app/services/inspect_*.py
+app/services/discover_*.py
+app/services/diagnose_*.py
+app/services/complete_*.py
+app/services/clean_*.py
+app/services/delete_*.py
+app/services/find_*.py
+app/services/list_*.py

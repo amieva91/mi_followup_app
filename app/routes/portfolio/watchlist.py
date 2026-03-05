@@ -2,6 +2,7 @@
 Rutas de watchlist
 """
 from collections import defaultdict
+from datetime import date, datetime
 from flask import render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_required, current_user
 

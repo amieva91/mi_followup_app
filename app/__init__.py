@@ -33,16 +33,19 @@ def create_app(config_name='default'):
     
     # Configurar handler para archivo (solo en producción)
     if config_name == 'production':
-        file_handler = RotatingFileHandler(
-            os.path.join(log_dir, 'followup.log'),
-            maxBytes=10240000,  # 10MB
-            backupCount=10
-        )
-        file_handler.setFormatter(logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        ))
-        file_handler.setLevel(logging.INFO)
-        app.logger.addHandler(file_handler)
+        try:
+            file_handler = RotatingFileHandler(
+                os.path.join(log_dir, 'followup.log'),
+                maxBytes=10240000,  # 10MB
+                backupCount=10
+            )
+            file_handler.setFormatter(logging.Formatter(
+                '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+            ))
+            file_handler.setLevel(logging.INFO)
+            app.logger.addHandler(file_handler)
+        except (PermissionError, OSError):
+            pass  # Fallback a solo consola si no hay permisos
     
     # Configurar logging básico (consola)
     logging.basicConfig(

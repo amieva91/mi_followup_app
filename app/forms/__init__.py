@@ -7,9 +7,7 @@ from app.forms.finance_forms import (
     ExpenseForm, IncomeForm,
     DebtPlanForm, DebtPlanEditForm, DebtRestructureForm, DebtLimitForm
 )
-from app.forms.portfolio_forms import (
-    BrokerAccountForm, ManualTransactionForm
-)
+from app.forms.portfolio import BrokerAccountForm, ManualTransactionForm
 from app.forms.bank_forms import BankForm
 
 __all__ = [
