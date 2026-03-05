@@ -2,81 +2,118 @@
 
 {% block title %}Iniciar Sesión{% endblock %}
 
-{% block content %}
-<div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100 py-12 px-4 sm:px-6 lg:px-8">
-    <div class="max-w-md w-full space-y-8">
-        <!-- Card -->
-        <div class="bg-white rounded-2xl shadow-2xl p-8">
-            <!-- Header -->
-            <div class="text-center mb-8">
-                <div class="mx-auto h-16 w-16 bg-blue-600 rounded-full flex items-center justify-center mb-4">
-                    <svg class="h-10 w-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
-                    </svg>
-                </div>
-                <h2 class="text-3xl font-bold text-gray-900">Iniciar Sesión</h2>
-                <p class="mt-2 text-sm text-gray-600">Accede a tu cuenta de FollowUp</p>
-            </div>
-
-            <!-- Form -->
-            <form method="POST" action="{{ url_for('auth.login') }}" class="space-y-6">
-                {{ form.hidden_tag() }}
-                
-                <!-- Email -->
-                <div>
-                    {{ form.email.label(class="block text-sm font-medium text-gray-700 mb-2") }}
-                    {{ form.email(class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition") }}
-                    {% if form.email.errors %}
-                        <p class="mt-1 text-sm text-red-600">{{ form.email.errors[0] }}</p>
-                    {% endif %}
-                </div>
-
-                <!-- Password -->
-                <div>
-                    {{ form.password.label(class="block text-sm font-medium text-gray-700 mb-2") }}
-                    {{ form.password(class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition") }}
-                    {% if form.password.errors %}
-                        <p class="mt-1 text-sm text-red-600">{{ form.password.errors[0] }}</p>
-                    {% endif %}
-                </div>
-
-                <!-- Remember Me & Forgot Password -->
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center">
-                        {{ form.remember_me(class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded") }}
-                        {{ form.remember_me.label(class="ml-2 block text-sm text-gray-700") }}
-                    </div>
-                    <div class="text-sm">
-                        <a href="{{ url_for('auth.request_reset') }}" class="font-medium text-blue-600 hover:text-blue-500">
-                            ¿Olvidaste tu contraseña?
-                        </a>
-                    </div>
-                </div>
-
-                <!-- Submit Button -->
-                <div>
-                    {{ form.submit(class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition cursor-pointer") }}
-                </div>
-            </form>
-
-            <!-- Register Link -->
-            <div class="mt-6 text-center">
-                <p class="text-sm text-gray-600">
-                    ¿No tienes cuenta?
-                    <a href="{{ url_for('auth.register') }}" class="font-medium text-blue-600 hover:text-blue-500">
-                        Regístrate aquí
-                    </a>
-                </p>
-            </div>
-        </div>
-
-        <!-- Back to home -->
-        <div class="text-center">
-            <a href="{{ url_for('main.index') }}" class="text-sm text-gray-600 hover:text-gray-900">
-                ← Volver al inicio
-            </a>
-        </div>
-    </div>
-</div>
+{% block extra_css %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Source+Sans+3:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  .auth-page {
+    font-family: 'Source Sans 3', sans-serif;
+    background: linear-gradient(165deg, #0f172a 0%, #1e293b 40%, #0f172a 100%);
+    min-height: 100vh;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+  }
+  .auth-page::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(71, 85, 105, 0.4), transparent),
+                radial-gradient(ellipse 60% 40% at 80% 60%, rgba(30, 41, 59, 0.6), transparent);
+    pointer-events: none;
+  }
+  .auth-page::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      225deg,
+      transparent 0%,
+      transparent 25%,
+      rgba(148, 163, 184, 0.04) 35%,
+      rgba(203, 213, 225, 0.07) 50%,
+      rgba(148, 163, 184, 0.04) 65%,
+      transparent 75%,
+      transparent 100%
+    );
+    pointer-events: none;
+  }
+  .auth-card {
+    background: rgba(30, 41, 59, 0.5);
+    border: 1px solid rgba(71, 85, 105, 0.4);
+    backdrop-filter: blur(12px);
+  }
+  .auth-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 500;
+  }
+</style>
 {% endblock %}
 
+{% block content %}
+<div class="auth-page -mx-4 relative">
+  <div class="flex flex-col items-center w-full max-w-md">
+  <div class="auth-card rounded-sm w-full p-8 sm:p-10 relative z-10">
+    
+    <div class="text-center mb-8">
+      <p class="text-slate-400 text-xs uppercase tracking-[0.2em] mb-4">FollowUp</p>
+      <h2 class="auth-title text-3xl text-slate-50 mb-2">Iniciar sesión</h2>
+      <p class="text-slate-400 text-sm">Accede a tu cuenta</p>
+    </div>
+
+    <form method="POST" action="{{ url_for('auth.login') }}" class="space-y-5">
+      {{ form.hidden_tag() }}
+      
+      <div>
+        {{ form.email.label(class="block text-sm font-medium text-slate-300 mb-2") }}
+        {{ form.email(class="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 text-slate-100 rounded-sm placeholder-slate-500 focus:ring-1 focus:ring-slate-500 focus:border-slate-500 focus:outline-none transition") }}
+        {% if form.email.errors %}
+          <p class="mt-1 text-sm text-amber-400">{{ form.email.errors[0] }}</p>
+        {% endif %}
+      </div>
+
+      <div>
+        {{ form.password.label(class="block text-sm font-medium text-slate-300 mb-2") }}
+        {{ form.password(class="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 text-slate-100 rounded-sm placeholder-slate-500 focus:ring-1 focus:ring-slate-500 focus:border-slate-500 focus:outline-none transition") }}
+        {% if form.password.errors %}
+          <p class="mt-1 text-sm text-amber-400">{{ form.password.errors[0] }}</p>
+        {% endif %}
+      </div>
+
+      <div class="flex items-center justify-between">
+        <div class="flex items-center">
+          {{ form.remember_me(class="h-4 w-4 rounded border-slate-600 bg-slate-800/50 text-slate-400 focus:ring-slate-500 focus:ring-offset-0") }}
+          {{ form.remember_me.label(class="ml-2 text-sm text-slate-400") }}
+        </div>
+        <a href="{{ url_for('auth.request_reset') }}" class="text-sm text-slate-400 hover:text-slate-300 transition">
+          ¿Olvidaste tu contraseña?
+        </a>
+      </div>
+
+      <div>
+        {{ form.submit(class="w-full py-3 px-4 bg-slate-50 text-slate-900 font-medium rounded-sm hover:bg-white transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-slate-900") }}
+      </div>
+    </form>
+
+    <div class="mt-6 text-center">
+      <p class="text-sm text-slate-500">
+        ¿No tienes cuenta?
+        <a href="{{ url_for('auth.register') }}" class="text-slate-400 hover:text-slate-300 font-medium transition">
+          Regístrate aquí
+        </a>
+      </p>
+    </div>
+  </div>
+
+  <div class="text-center mt-6 w-full relative z-10">
+    <a href="{{ url_for('main.index') }}" class="text-sm text-slate-500 hover:text-slate-400 transition">
+      ← Volver al inicio
+    </a>
+  </div>
+  </div>
+</div>
+{% endblock %}
