@@ -1,0 +1,132 @@
+{% extends "base/layout.html" %}
+
+{% block title %}Perfil / Cuenta{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8 max-w-2xl">
+    <h1 class="text-2xl font-bold text-gray-900 mb-6">Perfil y cuenta</h1>
+
+    <form method="POST" action="{{ url_for('auth.profile') }}">
+        {{ form.hidden_tag() }}
+        <!-- Avatar -->
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 class="text-lg font-semibold text-gray-800 mb-4">Avatar</h2>
+            <div class="flex flex-wrap gap-4 items-center">
+                <label class="flex flex-col items-center cursor-pointer">
+                    <input type="radio" name="avatar_id" value="0" class="sr-only peer"
+                           {% if not current_user.avatar_id %}checked{% endif %}>
+                    <span class="w-14 h-14 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm peer-checked:ring-2 peer-checked:ring-blue-500">
+                        {{ current_user.get_initials() }}
+                    </span>
+                    <span class="text-xs mt-1">Iniciales</span>
+                </label>
+                {% for aid, path in avatars.items() %}
+                <label class="flex flex-col items-center cursor-pointer">
+                    <input type="radio" name="avatar_id" value="{{ aid }}" class="sr-only peer"
+                           {% if current_user.avatar_id == aid %}checked{% endif %}>
+                    <img src="{{ url_for('static', filename=path) }}" alt="Avatar {{ aid }}"
+                         class="w-14 h-14 rounded-full object-cover peer-checked:ring-2 peer-checked:ring-blue-500">
+                </label>
+                {% endfor %}
+            </div>
+            <p class="text-sm text-gray-500 mt-3">Selecciona uno y pulsa <strong>Guardar cambios</strong>.</p>
+            <div class="mt-3">
+                {{ form.submit(class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer") }}
+            </div>
+        </div>
+
+        <!-- Datos personales -->
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 class="text-lg font-semibold text-gray-800 mb-4">Datos personales</h2>
+            <div class="space-y-4">
+                <div>
+                    {{ form.username.label(class="block text-sm font-medium text-gray-700 mb-1") }}
+                    {{ form.username(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500") }}
+                    {% if form.username.errors %}
+                        <p class="mt-1 text-sm text-red-600">{{ form.username.errors[0] }}</p>
+                    {% endif %}
+                </div>
+                <div>
+                    {{ form.email.label(class="block text-sm font-medium text-gray-700 mb-1") }}
+                    {{ form.email(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500") }}
+                    {% if form.email.errors %}
+                        <p class="mt-1 text-sm text-red-600">{{ form.email.errors[0] }}</p>
+                    {% endif %}
+                </div>
+                <div>
+                    {{ form.birth_year.label(class="block text-sm font-medium text-gray-700 mb-1") }}
+                    {{ form.birth_year(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500") }}
+                    {% if form.birth_year.errors %}
+                        <p class="mt-1 text-sm text-red-600">{{ form.birth_year.errors[0] }}</p>
+                    {% endif %}
+                </div>
+            </div>
+            <p class="text-sm text-gray-500 mt-4">Los cambios se guardan al pulsar <strong>Guardar cambios</strong>.</p>
+            <div class="mt-3">
+                {{ form.submit(class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer") }}
+            </div>
+        </div>
+
+        <!-- Módulos de interés -->
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <h2 class="text-lg font-semibold text-gray-800 mb-2">Áreas de interés</h2>
+        <p class="text-sm text-gray-600 mb-4">Activa o desactiva los módulos que quieres ver en la barra de navegación.</p>
+        <div class="space-y-3">
+            {% for key, label in modules.items() %}
+            <label class="flex items-center gap-3 cursor-pointer">
+                <input type="checkbox" name="module_{{ key }}" value="on"
+                       class="h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
+                       {% if current_user|user_has_module(key) %}checked{% endif %}>
+                <span class="text-gray-700">{{ label }}</span>
+            </label>
+            {% endfor %}
+        </div>
+            <div class="mt-4">
+                {{ form.submit(class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer") }}
+            </div>
+        </div>
+    </form>
+
+    <!-- Cambiar contraseña -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold text-gray-800 mb-4">Cambiar contraseña</h2>
+        <form method="POST" action="{{ url_for('auth.change_password') }}">
+            {{ password_form.hidden_tag() }}
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Contraseña actual</label>
+                    <input type="password" name="current_password" required
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                           placeholder="••••••••">
+                    {% if password_form and password_form.current_password.errors %}
+                        <p class="mt-1 text-sm text-red-600">{{ password_form.current_password.errors[0] }}</p>
+                    {% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Nueva contraseña</label>
+                    <input type="password" name="password" required minlength="6"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                           placeholder="••••••••">
+                    {% if password_form and password_form.password.errors %}
+                        <p class="mt-1 text-sm text-red-600">{{ password_form.password.errors[0] }}</p>
+                    {% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Confirmar nueva contraseña</label>
+                    <input type="password" name="confirm_password" required
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                           placeholder="••••••••">
+                    {% if password_form and password_form.confirm_password.errors %}
+                        <p class="mt-1 text-sm text-red-600">{{ password_form.confirm_password.errors[0] }}</p>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="mt-4">
+                <button type="submit" class="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 cursor-pointer">
+                    Cambiar contraseña
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

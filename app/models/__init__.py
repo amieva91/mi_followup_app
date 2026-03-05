@@ -1,7 +1,7 @@
 """
 Modelos de la aplicación
 """
-from app.models.user import User
+from app.models.user import User, MODULES, AVATARS
 from app.models.expense import ExpenseCategory, Expense
 from app.models.income import IncomeCategory, Income
 from app.models.broker import Broker, BrokerAccount
@@ -19,7 +19,7 @@ from app.models.bank import Bank, BankBalance
 from app.models.dashboard_config import UserDashboardConfig, DEFAULT_WIDGETS
 
 __all__ = [
-    'User', 
+    'User', 'MODULES', 'AVATARS', 
     'ExpenseCategory', 'Expense', 
     'IncomeCategory', 'Income',
     'Broker', 'BrokerAccount',

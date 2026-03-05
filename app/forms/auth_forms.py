@@ -70,7 +70,8 @@ class RegisterForm(FlaskForm):
         ],
         render_kw={'placeholder': '••••••••', 'class': 'form-input'}
     )
-    
+
+    # Módulos: se pasan desde la vista (MODULES) como checkboxes en el template
     submit = SubmitField('Registrarse')
     
     def validate_username(self, username):

@@ -62,6 +62,15 @@ def format_decimal_eu(value, decimals=2):
     return formatted
 
 
+def user_has_module(user, key):
+    """Indica si el usuario tiene el módulo activado. Compatible con AnonymousUser y User antiguo."""
+    if not user or not getattr(user, 'is_authenticated', False) or not user.is_authenticated:
+        return False
+    if not hasattr(user, 'has_module'):
+        return True  # Usuario antiguo sin enabled_modules: mostrar todo
+    return user.has_module(key)
+
+
 def register_filters(app):
     """
     Registra los filtros personalizados en la aplicación Flask
@@ -69,4 +78,5 @@ def register_filters(app):
     app.jinja_env.filters['number_eu'] = format_number_eu
     app.jinja_env.filters['decimal_eu'] = format_decimal_eu
     app.jinja_env.filters['month_es'] = format_month_es
+    app.jinja_env.filters['user_has_module'] = user_has_module
 

@@ -57,7 +57,8 @@
                             <a href="{{ url_for('main.dashboard') }}" class="hover:text-blue-200 transition">
                                 🏠 Dashboard
                             </a>
-                            
+
+                            {% if current_user|user_has_module('finance') %}
                             <!-- Dropdown Gastos -->
                             <div class="relative inline-block" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false" @click.away="open = false">
                                 <button type="button" @click="open = !open" class="hover:text-blue-200 transition flex items-center space-x-1 py-2">
@@ -128,7 +129,9 @@
                                     </div>
                                 </div>
                             </div>
+                            {% endif %}
 
+                            {% if current_user|user_has_module('stock') %}
                             <!-- Dropdown Portfolio -->
                             <div class="relative inline-block" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false" @click.away="open = false">
                                 <button type="button" @click="open = !open" class="hover:text-blue-200 transition flex items-center space-x-1 py-2">
@@ -167,16 +170,6 @@
                                 </div>
                             </div>
 
-                            <!-- Cryptomonedas -->
-                            <a href="{{ url_for('crypto.dashboard') }}" class="hover:text-blue-200 transition">
-                                🪙 Cryptomonedas
-                            </a>
-
-                            <!-- Metales -->
-                            <a href="{{ url_for('metales.dashboard') }}" class="hover:text-blue-200 transition">
-                                🥇 Metales
-                            </a>
-
                             <!-- Dropdown Carga de Datos -->
                             <div class="relative inline-block" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false" @click.away="open = false">
                                 <button type="button" @click="open = !open" class="hover:text-blue-200 transition flex items-center space-x-1 py-2">
@@ -194,17 +187,60 @@
                                     </div>
                                 </div>
                             </div>
+                            {% endif %}
+
+                            {% if current_user|user_has_module('crypto') %}
+                            <!-- Cryptomonedas -->
+                            <a href="{{ url_for('crypto.dashboard') }}" class="hover:text-blue-200 transition">
+                                🪙 Cryptomonedas
+                            </a>
+                            {% endif %}
+
+                            {% if current_user|user_has_module('metales') %}
+                            <!-- Metales -->
+                            <a href="{{ url_for('metales.dashboard') }}" class="hover:text-blue-200 transition">
+                                🥇 Metales
+                            </a>
+                            {% endif %}
                         </div>
                     {% endif %}
                 </div>
                 
-                <!-- Usuario + Salir (solo derecha) -->
+                <!-- Menú usuario (derecha) -->
                 {% if current_user.is_authenticated %}
-                <div class="flex items-center space-x-3 flex-shrink-0 ml-4">
-                    <span class="text-blue-200 text-sm">{{ current_user.username }}</span>
-                    <a href="{{ url_for('auth.logout') }}" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg transition text-sm">
-                        Salir
-                    </a>
+                <div class="relative inline-block flex-shrink-0 ml-4" x-data="{ open: false }" @click.away="open = false">
+                    <button type="button" @click="open = !open" class="flex items-center gap-2 hover:opacity-90 transition py-1">
+                        {% if current_user.get_avatar_url() %}
+                        <img src="{{ current_user.get_avatar_url() }}" alt="" class="w-8 h-8 rounded-full object-cover ring-2 ring-blue-200">
+                        {% else %}
+                        <span class="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold">{{ current_user.get_initials() }}</span>
+                        {% endif %}
+                        <span class="text-blue-200 text-sm font-medium">{{ current_user.username }}</span>
+                        <svg class="w-4 h-4 text-blue-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </button>
+                    <div x-show="open" x-cloak x-transition
+                         class="absolute right-0 top-full pt-1 w-56 z-[100]">
+                        <div class="bg-white rounded-lg shadow-lg py-2 text-gray-900">
+                            <div class="px-4 py-3 border-b border-gray-100 flex items-center gap-3">
+                                {% if current_user.get_avatar_url() %}
+                                <img src="{{ current_user.get_avatar_url() }}" alt="" class="w-10 h-10 rounded-full object-cover">
+                                {% else %}
+                                <span class="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold">{{ current_user.get_initials() }}</span>
+                                {% endif %}
+                                <span class="font-medium">{{ current_user.username }}</span>
+                            </div>
+                            <a href="{{ url_for('auth.profile') }}" class="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-100">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                                Perfil / Cuenta
+                            </a>
+                            <a href="{{ url_for('auth.logout') }}" class="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                                Cerrar sesión
+                            </a>
+                        </div>
+                    </div>
                 </div>
                 {% else %}
                 <div class="flex items-center space-x-3 flex-shrink-0">

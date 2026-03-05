@@ -2,6 +2,7 @@
 Formularios de la aplicación
 """
 from app.forms.auth_forms import LoginForm, RegisterForm, RequestResetForm, ResetPasswordForm
+from app.forms.profile_forms import ProfileForm, ChangePasswordForm
 from app.forms.finance_forms import (
     ExpenseCategoryForm, IncomeCategoryForm,
     ExpenseForm, IncomeForm,
@@ -12,6 +13,7 @@ from app.forms.bank_forms import BankForm
 
 __all__ = [
     'LoginForm', 'RegisterForm', 'RequestResetForm', 'ResetPasswordForm',
+    'ProfileForm', 'ChangePasswordForm',
     'ExpenseCategoryForm', 'IncomeCategoryForm', 'ExpenseForm', 'IncomeForm',
     'DebtPlanForm', 'DebtPlanEditForm', 'DebtRestructureForm', 'DebtLimitForm',
     'BrokerAccountForm', 'ManualTransactionForm',
