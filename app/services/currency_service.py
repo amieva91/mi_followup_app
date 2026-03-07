@@ -18,11 +18,18 @@ _exchange_rates_cache = {
 }
 _cache_lock = Lock()
 
+# Alias de monedas incorrectos -> códigos ISO 4217
+# BG es código país (Bulgaria), la moneda correcta es BGN (Lev búlgaro)
+CURRENCY_ALIASES = {
+    'BG': 'BGN',   # Bulgaria - común en ISINs que empiezan por BG
+}
+
 # Tasas de fallback (si API falla)
 FALLBACK_RATES = {
     'EUR': 1.0,
     'USD': 0.92,
     'GBP': 1.17,
+    'BGN': 0.51,   # Lev búlgaro
     'JPY': 0.0062,
     'CHF': 1.06,
     'AUD': 0.60,
@@ -142,13 +149,21 @@ def _fetch_rates_from_ecb():
     return rates_to_eur
 
 
+def _normalize_currency(currency: str) -> str:
+    """Resuelve alias (ej: BG -> BGN) para códigos mal escritos o truncados."""
+    if not currency:
+        return ''
+    cu = currency.upper()
+    return CURRENCY_ALIASES.get(cu, cu)
+
+
 def convert_to_eur(amount, currency):
     """
     Convierte una cantidad en cualquier moneda a EUR.
     
     Args:
         amount: Cantidad a convertir
-        currency: Código de moneda (ej: 'USD', 'GBP', etc.)
+        currency: Código de moneda (ej: 'USD', 'GBP', 'BGN', etc.)
         
     Returns:
         Cantidad equivalente en EUR
@@ -163,8 +178,8 @@ def convert_to_eur(amount, currency):
     # Obtener tasas (usa cache si está disponible)
     rates = get_exchange_rates()
     
-    # Obtener tasa de conversión
-    currency_upper = currency.upper()
+    # Resolver alias (BG -> BGN, etc.)
+    currency_upper = _normalize_currency(currency)
     rate = rates.get(currency_upper)
     
     if rate is None:

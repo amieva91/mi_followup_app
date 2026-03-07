@@ -150,6 +150,9 @@ def compute_crypto_metrics(user_id: int) -> Dict[str, Any]:
 
 
 def _empty_metrics() -> Dict[str, Any]:
+    snapshot = create_asset_category_snapshot(
+        category='crypto', positions=[], extra={'cuasi_fiat': 0.0, 'rewards_total': 0.0}
+    )
     return {
         'total_cost': 0.0,
         'total_value': 0.0,
@@ -164,4 +167,5 @@ def _empty_metrics() -> Dict[str, Any]:
         'rewards_total': 0.0,
         'posiciones': [],
         'holdings': [],
+        'snapshot': snapshot,
     }

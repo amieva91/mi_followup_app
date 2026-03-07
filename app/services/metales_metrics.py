@@ -108,6 +108,7 @@ def compute_metales_metrics(user_id: int) -> Dict[str, Any]:
 
 
 def _empty_metrics() -> Dict[str, Any]:
+    snapshot = create_asset_category_snapshot(category='metales', positions=[])
     return {
         'total_cost': 0.0,
         'total_value': 0.0,
@@ -119,4 +120,5 @@ def _empty_metrics() -> Dict[str, Any]:
         'pl_pct_total': 0.0,
         'posiciones': [],
         'holdings': [],
+        'snapshot': snapshot,
     }

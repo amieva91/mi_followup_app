@@ -174,11 +174,8 @@
                 <h3 class="text-sm font-bold text-gray-800">Distribución de Activos</h3>
             </div>
             <div class="h-[320px] flex-1 min-h-0"><canvas id="distributionChart"></canvas></div>
-            <div class="mt-2 grid grid-cols-2 gap-2 text-xs">
-                <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 bg-emerald-500 rounded-full"></span>Cash {{ summary.breakdown.breakdown_pct.cash }}%</div>
-                <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 bg-blue-500 rounded-full"></span>Portfolio {{ summary.breakdown.breakdown_pct.portfolio }}%</div>
-                <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 bg-amber-500 rounded-full"></span>Crypto {{ summary.breakdown.breakdown_pct.crypto }}%</div>
-                <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 bg-yellow-500 rounded-full"></span>Metales {{ summary.breakdown.breakdown_pct.metales }}%</div>
+            <div id="distributionLegend" class="mt-2 grid grid-cols-2 gap-2 text-xs">
+                {# Leyenda generada por JS (solo categorías con valor > 0) #}
             </div>
         </div>
 
@@ -640,22 +637,30 @@
                     <div x-show="widgets.health_detail_distribution !== false" class="bg-white rounded-xl p-5 shadow-sm">
                         <h4 class="font-bold text-gray-800 mb-4">📊 Distribución de Activos</h4>
                         <div class="space-y-3">
+                            {% if summary.health_score.components.diversification.breakdown.cash > 0 %}
                             <div>
                                 <div class="flex justify-between text-sm mb-1"><span>Cash</span><span>{{ summary.health_score.components.diversification.breakdown.cash }}%</span></div>
                                 <div class="w-full bg-gray-200 rounded-full h-3"><div class="bg-emerald-500 h-3 rounded-full" style="width: {{ summary.health_score.components.diversification.breakdown.cash }}%"></div></div>
                             </div>
+                            {% endif %}
+                            {% if summary.health_score.components.diversification.breakdown.portfolio > 0 %}
                             <div>
                                 <div class="flex justify-between text-sm mb-1"><span>Portfolio</span><span>{{ summary.health_score.components.diversification.breakdown.portfolio }}%</span></div>
                                 <div class="w-full bg-gray-200 rounded-full h-3"><div class="bg-blue-500 h-3 rounded-full" style="width: {{ summary.health_score.components.diversification.breakdown.portfolio }}%"></div></div>
                             </div>
+                            {% endif %}
+                            {% if summary.health_score.components.diversification.breakdown.crypto > 0 %}
                             <div>
                                 <div class="flex justify-between text-sm mb-1"><span>Crypto</span><span>{{ summary.health_score.components.diversification.breakdown.crypto }}%</span></div>
                                 <div class="w-full bg-gray-200 rounded-full h-3"><div class="bg-amber-500 h-3 rounded-full" style="width: {{ summary.health_score.components.diversification.breakdown.crypto }}%"></div></div>
                             </div>
+                            {% endif %}
+                            {% if summary.health_score.components.diversification.breakdown.metales > 0 %}
                             <div>
                                 <div class="flex justify-between text-sm mb-1"><span>Metales</span><span>{{ summary.health_score.components.diversification.breakdown.metales }}%</span></div>
                                 <div class="w-full bg-gray-200 rounded-full h-3"><div class="bg-yellow-500 h-3 rounded-full" style="width: {{ summary.health_score.components.diversification.breakdown.metales }}%"></div></div>
                             </div>
+                            {% endif %}
                         </div>
                     </div>
                     <div x-show="widgets.health_detail_emergency !== false" class="bg-white rounded-xl p-5 shadow-sm">
@@ -987,16 +992,24 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Grafico Distribucion Activos (Donut)
+    // Grafico Distribucion Activos (Donut) - solo categorías con valor > 0
     const distCtx = document.getElementById('distributionChart');
+    const distLegend = document.getElementById('distributionLegend');
     if (distCtx) {
+        const distCategories = [
+            { label: 'Cash', value: {{ summary.breakdown.cash }}, pct: {{ summary.breakdown.breakdown_pct.cash }}, color: '#10b981' },
+            { label: 'Portfolio', value: {{ summary.breakdown.portfolio }}, pct: {{ summary.breakdown.breakdown_pct.portfolio }}, color: '#3b82f6' },
+            { label: 'Crypto', value: {{ summary.breakdown.crypto }}, pct: {{ summary.breakdown.breakdown_pct.crypto }}, color: '#f59e0b' },
+            { label: 'Metales', value: {{ summary.breakdown.metales }}, pct: {{ summary.breakdown.breakdown_pct.metales }}, color: '#eab308' }
+        ];
+        const distFiltered = distCategories.filter(c => c.value > 0);
         new Chart(distCtx, {
             type: 'doughnut',
             data: {
-                labels: ['Cash', 'Portfolio', 'Crypto', 'Metales'],
+                labels: distFiltered.map(c => c.label),
                 datasets: [{
-                    data: [{{ summary.breakdown.cash }}, {{ summary.breakdown.portfolio }}, {{ summary.breakdown.crypto }}, {{ summary.breakdown.metales }}],
-                    backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#eab308'],
+                    data: distFiltered.map(c => c.value),
+                    backgroundColor: distFiltered.map(c => c.color),
                     borderWidth: 0
                 }]
             },
@@ -1007,6 +1020,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 cutout: '65%'
             }
         });
+        // Leyenda: solo categorías con valor
+        if (distLegend && distFiltered.length > 0) {
+            distLegend.innerHTML = distFiltered.map(c =>
+                `<div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full" style="background-color:${c.color}"></span>${c.label} ${c.pct}%</div>`
+            ).join('');
+        }
     }
 
     // Grafico Ingresos vs Gastos

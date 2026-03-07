@@ -96,6 +96,7 @@ def compute_stocks_metrics(user_id: int, top_n: int = None) -> Dict[str, Any]:
 
 
 def _empty_metrics(top_n: int = None) -> Dict[str, Any]:
+    snapshot = create_asset_category_snapshot(category='stocks', positions=[])
     return {
         'total_cost': 0.0,
         'total_value': 0.0,
@@ -105,4 +106,5 @@ def _empty_metrics(top_n: int = None) -> Dict[str, Any]:
         'positions': [],
         'top_holdings': [],
         'holdings': [],
+        'snapshot': snapshot,
     }
