@@ -165,7 +165,7 @@ def _get_broker_value_at_date(user_id: int, target_date, use_current_prices: boo
     transactions = Transaction.query.filter(
         Transaction.user_id == user_id,
         Transaction.transaction_date <= target_date
-    ).order_by(Transaction.transaction_date).all()
+    ).order_by(Transaction.transaction_date, Transaction.id).all()
     
     fifo_calculators = {}
     cash_balance = 0.0
@@ -274,7 +274,7 @@ def _get_holdings_value_at_date(user_id: int, target_date, asset_types: List[str
     transactions = Transaction.query.filter(
         Transaction.user_id == user_id,
         Transaction.transaction_date <= target_date
-    ).order_by(Transaction.transaction_date).all()
+    ).order_by(Transaction.transaction_date, Transaction.id).all()
     
     fifo_calculators = {}
     
@@ -366,7 +366,7 @@ def _get_holdings_breakdown_at_date(user_id: int, target_date, use_current_price
     transactions = Transaction.query.filter(
         Transaction.user_id == user_id,
         Transaction.transaction_date <= target_date
-    ).order_by(Transaction.transaction_date).all()
+    ).order_by(Transaction.transaction_date, Transaction.id).all()
     
     # Reconstruir FIFO por asset
     fifo_calculators = {}

@@ -733,7 +733,7 @@ class CSVImporterV2:
             account_id=self.broker_account_id
         ).filter(
             Transaction.transaction_type.in_(['BUY', 'SELL'])
-        ).order_by(Transaction.transaction_date).all()
+        ).order_by(Transaction.transaction_date, Transaction.id).all()
         
         _idebug.debug(f"Procesando {len(transactions)} transacciones para FIFO")
         

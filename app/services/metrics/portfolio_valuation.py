@@ -40,7 +40,7 @@ class PortfolioValuation:
         transactions = Transaction.query.filter(
             Transaction.user_id == user_id,
             Transaction.transaction_date <= target_date
-        ).order_by(Transaction.transaction_date).all()
+        ).order_by(Transaction.transaction_date, Transaction.id).all()
         
         # 2. Reconstruir estado del portfolio con FIFO
         fifo_calculators = {}  # {asset_id: FIFOCalculator}
@@ -171,7 +171,7 @@ class PortfolioValuation:
         transactions = Transaction.query.filter(
             Transaction.user_id == user_id,
             Transaction.transaction_date <= target_date
-        ).order_by(Transaction.transaction_date).all()
+        ).order_by(Transaction.transaction_date, Transaction.id).all()
 
         fifo_calculators = {}
         cash_balance = 0.0
@@ -290,7 +290,7 @@ class PortfolioValuation:
         transactions = Transaction.query.filter(
             Transaction.user_id == user_id,
             Transaction.transaction_date <= target_date
-        ).order_by(Transaction.transaction_date).all()
+        ).order_by(Transaction.transaction_date, Transaction.id).all()
         
         total_deposits = 0.0
         total_withdrawals = 0.0

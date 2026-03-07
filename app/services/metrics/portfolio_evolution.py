@@ -259,7 +259,7 @@ class PortfolioEvolutionService:
             Transaction.user_id == self.user_id,
             Transaction.transaction_date <= date_dt,
             Transaction.transaction_type.in_(['BUY', 'SELL'])
-        ).order_by(Transaction.transaction_date).all()
+        ).order_by(Transaction.transaction_date, Transaction.id).all()
         
         # Reconstruir FIFO por asset
         fifo_by_asset = {}

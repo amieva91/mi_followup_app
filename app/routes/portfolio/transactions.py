@@ -381,7 +381,7 @@ def transaction_new():
             user_id=current_user.id,
             account_id=account_id,
             asset_id=asset.id
-        ).order_by(Transaction.transaction_date).all()
+        ).order_by(Transaction.transaction_date, Transaction.id).all()
         
         # Calcular holding con FIFO
         fifo = FIFOCalculator()

@@ -462,7 +462,7 @@ class CSVImporter:
             user_id=self.user_id
         ).filter(
             Transaction.transaction_type.in_(['BUY', 'SELL'])
-        ).order_by(Transaction.transaction_date).all()
+        ).order_by(Transaction.transaction_date, Transaction.id).all()
         
         print(f"   📝 Procesando {len(transactions)} transacciones...")
         

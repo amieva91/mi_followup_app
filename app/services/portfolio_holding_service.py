@@ -22,7 +22,7 @@ def recalculate_holdings(user_id: int, account_id: int) -> int:
         Transaction.query
         .filter_by(user_id=user_id, account_id=account_id)
         .filter(Transaction.transaction_type.in_(['BUY', 'SELL']))
-        .order_by(Transaction.transaction_date)
+        .order_by(Transaction.transaction_date, Transaction.id)
         .all()
     )
 

@@ -96,7 +96,7 @@ def _maybe_create_delisting_sell(
         Transaction.query
         .filter_by(user_id=user_id, account_id=account_id, asset_id=asset.id)
         .filter(Transaction.transaction_type.in_(['BUY', 'SELL']))
-        .order_by(Transaction.transaction_date)
+        .order_by(Transaction.transaction_date, Transaction.id)
         .all()
     )
 
