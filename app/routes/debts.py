@@ -5,7 +5,7 @@ from datetime import datetime
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
 from app import db
-from app.models import DebtPlan, Expense, ExpenseCategory
+from app.models import DebtPlan, Expense, ExpenseCategory, RealEstateProperty
 from app.forms import DebtPlanForm, DebtPlanEditForm, DebtRestructureForm
 from app.services.debt_service import DebtService
 
@@ -49,27 +49,42 @@ def new():
 
     form.category_id.choices = [(c.id, f"{c.icon} {c.full_name}") for c in categories]
 
+    # Propiedades disponibles para hipoteca (las que no tienen ya plan activo vinculado)
+    available_props = RealEstateProperty.query.filter_by(user_id=current_user.id).all()
+    props_without_mortgage = [
+        p for p in available_props
+        if DebtPlan.query.filter_by(property_id=p.id, status='ACTIVE').first() is None
+    ]
+    form.property_id.choices = [('', '-- Selecciona un inmueble --')] + [
+        (p.id, f"{p.get_icon()} {p.address}") for p in props_without_mortgage
+    ]
+
     if form.validate_on_submit():
-        plan = DebtService.create_debt_plan(
-            user_id=current_user.id,
-            name=form.name.data,
-            total_amount=form.total_amount.data,
-            months=form.months.data,
-            start_date=form.start_date.data,
-            category_id=form.category_id.data,
-            notes=form.notes.data
-        )
-        if plan:
-            flash(
-                f'✅ Plan de deuda creado: {plan.name} - '
-                f'€{plan.monthly_payment:.2f}/mes durante {plan.months} meses',
-                'success'
+        property_id = form.property_id.data if form.is_mortgage.data else None
+        if form.is_mortgage.data and not property_id:
+            flash('Selecciona un inmueble para vincular la hipoteca', 'error')
+        else:
+            plan = DebtService.create_debt_plan(
+                user_id=current_user.id,
+                name=form.name.data,
+                total_amount=form.total_amount.data,
+                months=form.months.data,
+                start_date=form.start_date.data,
+                category_id=form.category_id.data,
+                notes=form.notes.data,
+                property_id=property_id
             )
-            next_page = request.args.get('next') or request.form.get('next')
-            if next_page == 'expenses':
-                return redirect(url_for('expenses.list'))
-            return redirect(url_for('debts.dashboard'))
-        flash('Error al crear el plan de deuda', 'error')
+            if plan:
+                flash(
+                    f'✅ Plan de deuda creado: {plan.name} - '
+                    f'€{plan.monthly_payment:.2f}/mes durante {plan.months} meses',
+                    'success'
+                )
+                next_page = request.args.get('next') or request.form.get('next')
+                if next_page == 'expenses':
+                    return redirect(url_for('expenses.list'))
+                return redirect(url_for('debts.dashboard'))
+            flash('Error al crear el plan de deuda', 'error')
 
     next_page = request.args.get('next')
     return render_template('debts/form.html', form=form, title='Nueva deuda', next_page=next_page)

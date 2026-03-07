@@ -28,6 +28,13 @@ class DebtPlan(db.Model):
     )  # ACTIVE, PAID_OFF, CANCELLED
     
     notes = db.Column(db.Text, nullable=True)
+
+    # Hipoteca vinculada a inmueble (1:1)
+    property_id = db.Column(
+        db.Integer,
+        db.ForeignKey('real_estate_properties.id', ondelete='SET NULL'),
+        nullable=True
+    )
     
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)

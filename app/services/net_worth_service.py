@@ -45,6 +45,32 @@ def get_metales_value(user_id: int) -> float:
     return metrics.get('total_value', 0.0)
 
 
+def get_real_estate_value(user_id: int) -> float:
+    """Valor total estimado de inmuebles (última tasación o precio compra)."""
+    from app.models import RealEstateProperty
+    props = RealEstateProperty.query.filter_by(user_id=user_id).all()
+    return sum(p.get_estimated_value() for p in props)
+
+
+def _get_real_estate_value_at_date(user_id: int, target_date) -> float:
+    """Valor de inmuebles en una fecha: propiedades compradas antes de la fecha, última tasación hasta ese año."""
+    from app.models import RealEstateProperty, PropertyValuation
+    today = target_date.date() if hasattr(target_date, 'date') else target_date
+    props = RealEstateProperty.query.filter(
+        RealEstateProperty.user_id == user_id,
+        RealEstateProperty.purchase_date <= today
+    ).all()
+    total = 0.0
+    for p in props:
+        # Última tasación con año <= target_date.year
+        last_val = PropertyValuation.query.filter(
+            PropertyValuation.property_id == p.id,
+            PropertyValuation.year <= today.year
+        ).order_by(PropertyValuation.year.desc()).first()
+        total += last_val.value if last_val else p.purchase_price
+    return total
+
+
 def get_debt_total(user_id: int) -> float:
     """Deuda total pendiente."""
     return DebtService.get_total_debt_remaining(user_id) or 0.0
@@ -66,11 +92,12 @@ def get_net_worth_breakdown(user_id: int) -> Dict[str, Any]:
     # Crypto y Metales: valor directo (no tienen apalancamiento)
     crypto = _get_holdings_value_at_date(user_id, datetime.now(), ['Crypto'], use_current_prices=True)
     metales = _get_holdings_value_at_date(user_id, datetime.now(), ['Commodity'], use_current_prices=True)
-    
+    real_estate = get_real_estate_value(user_id)
+
     debt = get_debt_total(user_id)
-    
-    # Patrimonio = Cash + Portfolio + Crypto + Metales (sin restar deudas)
-    assets_total = cash + portfolio + crypto + metales
+
+    # Patrimonio = Cash + Portfolio + Crypto + Metales + Inmuebles (sin restar deudas)
+    assets_total = cash + portfolio + crypto + metales + real_estate
     net_worth = assets_total  # No restamos deuda
     
     return {
@@ -78,6 +105,7 @@ def get_net_worth_breakdown(user_id: int) -> Dict[str, Any]:
         'portfolio': round(portfolio, 2),  # Valor real del broker
         'crypto': round(crypto, 2),
         'metales': round(metales, 2),
+        'real_estate': round(real_estate, 2),
         'assets_total': round(assets_total, 2),
         'debt': round(debt, 2),  # Informativo
         'net_worth': round(net_worth, 2),
@@ -86,6 +114,7 @@ def get_net_worth_breakdown(user_id: int) -> Dict[str, Any]:
             'portfolio': round(portfolio / assets_total * 100, 1) if assets_total > 0 else 0,
             'crypto': round(crypto / assets_total * 100, 1) if assets_total > 0 else 0,
             'metales': round(metales / assets_total * 100, 1) if assets_total > 0 else 0,
+            'real_estate': round(real_estate / assets_total * 100, 1) if assets_total > 0 else 0,
         }
     }
 
@@ -131,9 +160,10 @@ def get_net_worth_history(user_id: int, months: int = 12) -> List[Dict[str, Any]
         # Crypto y Metales - NO tienen apalancamiento, valor directo de holdings
         crypto = _get_holdings_value_at_date(user_id, target_date, ['Crypto'], is_current_month)
         metales = _get_holdings_value_at_date(user_id, target_date, ['Commodity'], is_current_month)
-        
-        # Patrimonio = Cash + Broker + Crypto + Metales (dinero real del usuario)
-        net_worth = cash + broker_total + crypto + metales
+        real_estate = _get_real_estate_value_at_date(user_id, target_date)
+
+        # Patrimonio = Cash + Broker + Crypto + Metales + Inmuebles (dinero real del usuario)
+        net_worth = cash + broker_total + crypto + metales + real_estate
         
         history.append({
             'year': year,
@@ -143,7 +173,8 @@ def get_net_worth_history(user_id: int, months: int = 12) -> List[Dict[str, Any]
             'broker_total': round(broker_total, 2),  # Valor real broker (acciones con apalancamiento)
             'crypto': round(crypto, 2),  # Valor directo crypto (sin apalancamiento)
             'metales': round(metales, 2),  # Valor directo metales (sin apalancamiento)
-            'investments': round(broker_total + crypto + metales, 2),
+            'real_estate': round(real_estate, 2),  # Inmuebles (última tasación o precio compra)
+            'investments': round(broker_total + crypto + metales + real_estate, 2),
             'debt': round(debt, 2),  # Deuda (informativo, no se resta)
             'net_worth': round(net_worth, 2)
         })
@@ -654,6 +685,20 @@ def get_metales_details(user_id: int) -> Dict[str, Any]:
     }
 
 
+def get_real_estate_details(user_id: int) -> Dict[str, Any]:
+    """Detalle de inmuebles."""
+    from app.models import RealEstateProperty
+    props = RealEstateProperty.query.filter_by(user_id=user_id).all()
+    total = sum(p.get_estimated_value() for p in props)
+    return {
+        'total_value': round(total, 2),
+        'properties': [
+            {'id': p.id, 'address': p.address, 'type': p.property_type, 'value': p.get_estimated_value(), 'icon': p.get_icon()}
+            for p in props
+        ],
+    }
+
+
 def get_debt_details(user_id: int) -> Dict[str, Any]:
     """Detalle de deudas con próximas cuotas."""
     from app.models import DebtPlan, Expense
@@ -1045,7 +1090,8 @@ def get_financial_health_score(user_id: int) -> Dict[str, Any]:
         'cash': breakdown['cash'],
         'portfolio': breakdown['portfolio'],
         'crypto': breakdown['crypto'],
-        'metales': breakdown['metales']
+        'metales': breakdown['metales'],
+        'real_estate': breakdown.get('real_estate', 0),
     }
     assets_with_value = sum(1 for v in asset_values.values() if v > 0)
     
@@ -1383,6 +1429,7 @@ def get_dashboard_summary(user_id: int) -> Dict[str, Any]:
     portfolio_details = get_portfolio_details(user_id)
     crypto_details = get_crypto_details(user_id)
     metales_details = get_metales_details(user_id)
+    real_estate_details = get_real_estate_details(user_id)
     debt_details = get_debt_details(user_id)
     
     # Datos para gráficos adicionales
@@ -1440,6 +1487,7 @@ def get_dashboard_summary(user_id: int) -> Dict[str, Any]:
         'portfolio_details': portfolio_details,
         'crypto_details': crypto_details,
         'metales_details': metales_details,
+        'real_estate_details': real_estate_details,
         'debt_details': debt_details,
         'income_expense_monthly': income_expense_monthly,
         # Nuevos widgets

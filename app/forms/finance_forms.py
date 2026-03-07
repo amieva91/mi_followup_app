@@ -289,6 +289,17 @@ class DebtPlanForm(FlaskForm):
         render_kw={'placeholder': 'Información adicional...', 'rows': '2', 'class': 'form-input'}
     )
 
+    is_mortgage = BooleanField(
+        '¿Es hipoteca de un inmueble registrado?',
+        default=False
+    )
+    property_id = SelectField(
+        'Inmueble',
+        coerce=lambda x: int(x) if x and x != '' else None,
+        validators=[Optional()],
+        render_kw={'class': 'form-input'}
+    )
+
     submit = SubmitField('Crear plan de deuda')
 
 

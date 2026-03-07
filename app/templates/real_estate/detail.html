@@ -1,0 +1,147 @@
+{% extends "base/layout.html" %}
+
+{% block title %}{{ property.get_icon() }} {{ property.address }}{% endblock %}
+
+{% block content %}
+<div class="max-w-[92%] mx-auto" x-data="{ showDeleteModal: false }">
+    <div class="flex justify-between items-start mb-8">
+        <div>
+            <a href="{{ url_for('real_estate.dashboard') }}" class="text-blue-600 hover:underline text-sm mb-2 inline-block">← Volver a Inmuebles</a>
+            <h1 class="text-3xl font-bold text-gray-900 flex items-center gap-2">
+                <span>{{ property.get_icon() }}</span>
+                {{ property.address }}
+            </h1>
+            <p class="text-gray-500 mt-1">{{ property.property_type|replace('terreno','Terreno')|replace('casa','Casa')|replace('piso','Piso')|replace('garaje','Garaje')|replace('oficina','Oficina') }} · Comprado {{ property.purchase_date.strftime('%d/%m/%Y') }}</p>
+        </div>
+        <div class="flex gap-2">
+            <a href="{{ url_for('real_estate.edit', id=property.id) }}" class="btn-secondary">Editar</a>
+            <button type="button" @click="showDeleteModal = true" class="px-4 py-2 bg-red-100 text-red-700 hover:bg-red-200 rounded-lg">Eliminar</button>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-blue-600">
+            <div class="text-sm text-gray-600 mb-1">Precio de compra</div>
+            <div class="text-xl font-bold text-gray-900">{{ property.purchase_price|decimal_eu(2) }} €</div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-green-500">
+            <div class="text-sm text-gray-600 mb-1">Valor estimado</div>
+            <div class="text-xl font-bold text-green-600">{{ property.get_estimated_value()|decimal_eu(2) }} €</div>
+            <div class="text-xs text-gray-500">Tasación {{ property.get_valuation_year() }}</div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if debt_plan %}border-amber-600{% else %}border-gray-400{% endif %}">
+            <div class="text-sm text-gray-600 mb-1">Patrimonio neto</div>
+            <div class="text-xl font-bold {% if debt_plan %}text-amber-600{% else %}text-gray-900{% endif %}">
+                {{ (property.get_estimated_value() - remaining)|decimal_eu(2) }} €
+            </div>
+            {% if debt_plan %}
+            <div class="text-xs text-amber-700">Hipoteca pendiente: {{ remaining|decimal_eu(2) }} €</div>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if debt_plan %}
+    <div class="bg-amber-50 border border-amber-200 rounded-xl p-6 mb-8">
+        <h2 class="text-lg font-semibold text-amber-900 mb-2">🏦 Hipoteca vinculada</h2>
+        <p class="text-amber-800">
+            <strong>{{ debt_plan.name }}</strong> · Pendiente: {{ remaining|decimal_eu(2) }} €
+            · {{ DebtService.get_months_paid(debt_plan.id) }}/{{ debt_plan.months }} cuotas pagadas
+        </p>
+        <a href="{{ url_for('debts.edit', id=debt_plan.id) }}" class="text-amber-800 hover:underline text-sm mt-2 inline-block">Ver en Deudas →</a>
+    </div>
+    {% endif %}
+
+    <!-- Tasaciones -->
+    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b flex justify-between items-center">
+            <h2 class="text-lg font-semibold text-gray-800">Tasaciones anuales</h2>
+            <form method="POST" action="{{ url_for('real_estate.add_valuation', id=property.id) }}" class="flex gap-2 items-end">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Año</label>
+                    <input type="number" name="year" value="{{ current_year }}" min="{{ property.purchase_date.year }}" max="{{ current_year }}" class="px-3 py-1.5 border rounded w-20" title="Entre {{ property.purchase_date.year }} y {{ current_year }}">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Valor (€)</label>
+                    <input type="number" name="value" step="0.01" min="0" class="px-3 py-1.5 border rounded w-28" placeholder="0.00" required>
+                </div>
+                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">Añadir</button>
+            </form>
+        </div>
+        {% if valuations %}
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-2 text-left text-xs font-medium text-gray-500 uppercase">Año</th>
+                    <th class="px-6 py-2 text-right text-xs font-medium text-gray-500 uppercase">Valor</th>
+                    <th class="px-6 py-2 text-right text-xs font-medium text-gray-500 uppercase">Variación</th>
+                    <th class="px-6 py-2 text-right text-xs font-medium text-gray-500 uppercase"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for v in valuations %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-3 text-gray-900">{{ v.year }}</td>
+                    <td class="px-6 py-3 text-right font-medium">{{ v.value|decimal_eu(2) }} €</td>
+                    <td class="px-6 py-3 text-right">
+                        {% if loop.first %}
+                        {% set d = v.value - property.purchase_price %}
+                        {% set p = (d / property.purchase_price * 100) if property.purchase_price else 0 %}
+                        <span class="{% if d >= 0 %}text-green-600{% else %}text-red-600{% endif %} text-sm">
+                            vs compra: {% if d >= 0 %}+{% endif %}{{ d|decimal_eu(0) }} € ({% if p >= 0 %}+{% endif %}{{ p|decimal_eu(1) }}%)
+                        </span>
+                        {% else %}
+                        {% set prev_val = valuations[loop.index0 - 1].value %}
+                        {% set diff = v.value - prev_val %}
+                        {% set pct = (diff / prev_val * 100) if prev_val else 0 %}
+                        <span class="{% if diff >= 0 %}text-green-600{% else %}text-red-600{% endif %} text-sm">
+                            {% if diff >= 0 %}+{% endif %}{{ diff|decimal_eu(0) }} € ({% if pct >= 0 %}+{% endif %}{{ pct|decimal_eu(1) }}%)
+                        </span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-3 text-right">
+                        <form method="POST" action="{{ url_for('real_estate.delete_valuation', prop_id=property.id, val_id=v.id) }}" class="inline" onsubmit="return confirm('¿Eliminar la tasación de {{ v.year }}?')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="text-red-600 hover:underline text-xs">Eliminar</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="p-6 text-center text-gray-500">
+            No hay tasaciones. Añade una para ver la evolución del valor.
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Modal confirmar borrar inmueble -->
+    <div x-show="showDeleteModal" x-cloak x-transition
+         class="fixed inset-0 z-50 flex items-center justify-center p-4"
+         style="display: none;">
+        <div class="absolute inset-0 bg-gray-900/50" @click="showDeleteModal = false"></div>
+        <div class="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">¿Eliminar este inmueble?</h3>
+            {% if debt_plan %}
+            <p class="text-gray-600 text-sm mb-4">Se eliminará también el plan de deuda vinculado.</p>
+            {% else %}
+            <p class="text-gray-600 text-sm mb-4">Esta acción no se puede deshacer.</p>
+            {% endif %}
+            <div class="flex gap-3 justify-end">
+                <button type="button" @click="showDeleteModal = false" class="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium">Cancelar</button>
+                <form method="POST" action="{{ url_for('real_estate.delete', id=property.id) }}" class="inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium">Eliminar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    {% if property.notes %}
+    <div class="mt-6 p-4 bg-gray-50 rounded-lg">
+        <p class="text-sm text-gray-600"><strong>Notas:</strong> {{ property.notes }}</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

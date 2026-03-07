@@ -104,6 +104,7 @@ def create_app(config_name='default'):
     from app.routes.banks import banks_bp
     from app.routes.crypto import crypto_bp
     from app.routes.metales import metales_bp
+    from app.routes.real_estate import real_estate_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(auth_bp)
@@ -114,6 +115,7 @@ def create_app(config_name='default'):
     app.register_blueprint(portfolio_bp)
     app.register_blueprint(crypto_bp)
     app.register_blueprint(metales_bp)
+    app.register_blueprint(real_estate_bp)
 
     # Para rutas API: devolver JSON en 404/500 (evita "is not valid JSON" en frontend)
     @app.errorhandler(404)

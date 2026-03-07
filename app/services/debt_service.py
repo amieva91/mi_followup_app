@@ -13,16 +13,19 @@ class DebtService:
     """Servicio para planes de deuda"""
 
     @staticmethod
-    def create_debt_plan(user_id, name, total_amount, months, start_date, category_id, notes=None):
+    def create_debt_plan(user_id, name, total_amount, months, start_date, category_id, notes=None, property_id=None):
         """
         Crea un DebtPlan y genera los Expense (cuotas) correspondientes.
+        
+        Args:
+            property_id: Si es hipoteca, ID del inmueble vinculado.
         
         Returns:
             DebtPlan creado o None si hay error
         """
         if months <= 0 or total_amount <= 0:
             return None
-        
+
         monthly_payment = round(total_amount / months, 2)
         plan = DebtPlan(
             user_id=user_id,
@@ -32,7 +35,8 @@ class DebtService:
             months=months,
             start_date=start_date,
             status='ACTIVE',
-            notes=notes
+            notes=notes,
+            property_id=property_id
         )
         db.session.add(plan)
         db.session.flush()
@@ -422,6 +426,19 @@ class DebtService:
         total = db.session.query(func.sum(Expense.amount)).filter(
             Expense.user_id == user_id,
             Expense.debt_plan_id.isnot(None),
+            Expense.date > today
+        ).scalar()
+        return float(total or 0)
+
+    @staticmethod
+    def get_remaining_amount(plan_id, user_id):
+        """Deuda pendiente (suma cuotas futuras) de un plan concreto."""
+        plan = DebtPlan.query.filter_by(id=plan_id, user_id=user_id).first()
+        if not plan:
+            return 0.0
+        today = date.today()
+        total = db.session.query(func.sum(Expense.amount)).filter(
+            Expense.debt_plan_id == plan_id,
             Expense.date > today
         ).scalar()
         return float(total or 0)

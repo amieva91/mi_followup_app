@@ -141,8 +141,12 @@
                     <input type="checkbox" onchange="toggleChartDataset(4, this.checked)" class="w-3.5 h-3.5 text-yellow-500 rounded">
                     <span class="text-xs text-yellow-500">Metales</span>
                 </label>
+                <label class="flex items-center gap-1.5 cursor-pointer">
+                    <input type="checkbox" onchange="toggleChartDataset(5, this.checked)" class="w-3.5 h-3.5 text-teal-600 rounded">
+                    <span class="text-xs text-teal-600">Inmuebles</span>
+                </label>
             </div>
-            <p class="text-xs text-gray-400 mt-2 italic">Patrimonio = Cash + Broker + Crypto + Metales</p>
+            <p class="text-xs text-gray-400 mt-2 italic">Patrimonio = Cash + Broker + Crypto + Metales + Inmuebles</p>
             <!-- Modal emergente - clic en fondo para cerrar -->
             <template x-teleport="body">
             <div x-show="expanded" x-transition x-cloak
@@ -263,6 +267,26 @@
                 <div class="flex justify-between text-sm">
                     <span class="text-gray-500">{{ pos.symbol }}</span>
                     <span>{{ "%.2f"|format(pos.value) }} EUR</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Inmuebles -->
+        <div x-show="widgets.real_estate" class="dashboard-card p-5 border-l-4 border-teal-500" data-card-id="real_estate">
+            <div class="flex items-center justify-between mb-2">
+                <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
+                <a href="{{ url_for('real_estate.dashboard') }}" class="flex items-center justify-between flex-1">
+                    <span class="text-gray-500 text-xs">Inmuebles</span>
+                    <span class="text-gray-400">→</span>
+                </a>
+            </div>
+            <p class="text-xl font-bold text-gray-800">{{ "%.2f"|format(summary.real_estate_details.total_value) }} EUR</p>
+            <div class="mt-2 pt-2 border-t space-y-1">
+                {% for prop in summary.real_estate_details.properties[:3] %}
+                <div class="flex justify-between text-sm">
+                    <span class="text-gray-500">{{ prop.icon }} {{ prop.address[:25] }}{% if prop.address|length > 25 %}...{% endif %}</span>
+                    <span>{{ "%.2f"|format(prop.value) }} EUR</span>
                 </div>
                 {% endfor %}
             </div>
@@ -661,6 +685,12 @@
                                 <div class="w-full bg-gray-200 rounded-full h-3"><div class="bg-yellow-500 h-3 rounded-full" style="width: {{ summary.health_score.components.diversification.breakdown.metales }}%"></div></div>
                             </div>
                             {% endif %}
+                            {% if (summary.health_score.components.diversification.breakdown.real_estate|default(0)) > 0 %}
+                            <div>
+                                <div class="flex justify-between text-sm mb-1"><span>Inmuebles</span><span>{{ summary.health_score.components.diversification.breakdown.real_estate }}%</span></div>
+                                <div class="w-full bg-gray-200 rounded-full h-3"><div class="bg-teal-500 h-3 rounded-full" style="width: {{ summary.health_score.components.diversification.breakdown.real_estate }}%"></div></div>
+                            </div>
+                            {% endif %}
                         </div>
                     </div>
                     <div x-show="widgets.health_detail_emergency !== false" class="bg-white rounded-xl p-5 shadow-sm">
@@ -741,7 +771,8 @@ function openEvolutionModal() {
                 { label: 'Cash', data: filtered.map(h => h.cash), borderColor: 'rgb(16, 185, 129)', borderWidth: 2, fill: false, tension: 0.3, hidden: true },
                 { label: 'Broker', data: filtered.map(h => h.broker_total), borderColor: 'rgb(59, 130, 246)', borderWidth: 2, fill: false, tension: 0.3, hidden: true },
                 { label: 'Crypto', data: filtered.map(h => h.crypto), borderColor: 'rgb(245, 158, 11)', borderWidth: 2, fill: false, tension: 0.3, hidden: true },
-                { label: 'Metales', data: filtered.map(h => h.metales), borderColor: 'rgb(234, 179, 8)', borderWidth: 2, fill: false, tension: 0.3, hidden: true }
+                { label: 'Metales', data: filtered.map(h => h.metales), borderColor: 'rgb(234, 179, 8)', borderWidth: 2, fill: false, tension: 0.3, hidden: true },
+                { label: 'Inmuebles', data: filtered.map(h => h.real_estate || 0), borderColor: 'rgb(13, 148, 136)', borderWidth: 2, fill: false, tension: 0.3, hidden: true }
             ]
         },
         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } },
@@ -760,6 +791,7 @@ function updateEvolutionModal() {
     evolutionModalChart.data.datasets[2].data = filtered.map(h => h.broker_total);
     evolutionModalChart.data.datasets[3].data = filtered.map(h => h.crypto);
     evolutionModalChart.data.datasets[4].data = filtered.map(h => h.metales);
+    evolutionModalChart.data.datasets[5].data = filtered.map(h => h.real_estate || 0);
     evolutionModalChart.update();
 }
 
@@ -815,6 +847,7 @@ function selectPeriod(months, btn) {
     evolutionChart.data.datasets[2].data = filteredHistory.map(h => h.broker_total);
     evolutionChart.data.datasets[3].data = filteredHistory.map(h => h.crypto);
     evolutionChart.data.datasets[4].data = filteredHistory.map(h => h.metales);
+    evolutionChart.data.datasets[5].data = filteredHistory.map(h => h.real_estate || 0);
     evolutionChart.update();
 }
 
@@ -886,6 +919,7 @@ function dashboardConfig() {
             evolutionChart.data.datasets[2].data = filteredHistory.map(h => h.broker_total);
             evolutionChart.data.datasets[3].data = filteredHistory.map(h => h.crypto);
             evolutionChart.data.datasets[4].data = filteredHistory.map(h => h.metales);
+            evolutionChart.data.datasets[5].data = filteredHistory.map(h => h.real_estate || 0);
             evolutionChart.update();
         },
         
@@ -960,6 +994,16 @@ document.addEventListener('DOMContentLoaded', function() {
                         tension: 0.3,
                         order: 4,
                         hidden: true
+                    },
+                    {
+                        label: 'Inmuebles',
+                        data: initialHistory.map(h => h.real_estate || 0),
+                        borderColor: 'rgb(13, 148, 136)',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.3,
+                        order: 5,
+                        hidden: true
                     }
                 ]
             },
@@ -1000,7 +1044,8 @@ document.addEventListener('DOMContentLoaded', function() {
             { label: 'Cash', value: {{ summary.breakdown.cash }}, pct: {{ summary.breakdown.breakdown_pct.cash }}, color: '#10b981' },
             { label: 'Portfolio', value: {{ summary.breakdown.portfolio }}, pct: {{ summary.breakdown.breakdown_pct.portfolio }}, color: '#3b82f6' },
             { label: 'Crypto', value: {{ summary.breakdown.crypto }}, pct: {{ summary.breakdown.breakdown_pct.crypto }}, color: '#f59e0b' },
-            { label: 'Metales', value: {{ summary.breakdown.metales }}, pct: {{ summary.breakdown.breakdown_pct.metales }}, color: '#eab308' }
+            { label: 'Metales', value: {{ summary.breakdown.metales }}, pct: {{ summary.breakdown.breakdown_pct.metales }}, color: '#eab308' },
+            { label: 'Inmuebles', value: {{ summary.breakdown.real_estate|default(0) }}, pct: {{ summary.breakdown.breakdown_pct.real_estate|default(0) }}, color: '#0d9488' }
         ];
         const distFiltered = distCategories.filter(c => c.value > 0);
         new Chart(distCtx, {

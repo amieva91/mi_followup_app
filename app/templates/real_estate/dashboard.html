@@ -1,0 +1,129 @@
+{% extends "base/layout.html" %}
+
+{% block title %}Inmuebles - FollowUp{% endblock %}
+
+{% block content %}
+<div class="max-w-[92%] mx-auto" x-data="{ showDeleteModal: false, deleteUrl: '', deleteHasMortgage: false }">
+    <div class="flex justify-between items-center mb-8">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900">🏠 Inmuebles</h1>
+            <p class="text-gray-600 mt-1">Propiedades, tasaciones e hipotecas</p>
+        </div>
+        <a href="{{ url_for('real_estate.new') }}" class="btn-primary">➕ Nuevo inmueble</a>
+    </div>
+
+    {% if properties %}
+    <!-- Métricas -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-blue-600">
+            <div class="text-sm text-gray-600 mb-1">Valor total estimado</div>
+            <div class="text-2xl font-bold text-blue-600">{{ total_value|decimal_eu(2) }} €</div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-amber-600">
+            <div class="text-sm text-gray-600 mb-1">Hipotecas pendientes</div>
+            <div class="text-2xl font-bold text-amber-600">{{ total_debt|decimal_eu(2) }} €</div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-green-500">
+            <div class="text-sm text-gray-600 mb-1">Patrimonio inmobiliario neto</div>
+            <div class="text-2xl font-bold text-green-600">{{ (total_value - total_debt)|decimal_eu(2) }} €</div>
+        </div>
+    </div>
+
+    <!-- Lista de inmuebles -->
+    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b">
+            <h2 class="text-lg font-semibold text-gray-800">Mis propiedades</h2>
+        </div>
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipo / Dirección</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Valor estimado</th>
+                    <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Estado</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for p in properties %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4">
+                        <a href="{{ url_for('real_estate.detail', id=p.id) }}" class="flex items-center gap-2 hover:text-blue-600">
+                            <span class="text-xl">{{ p.get_icon() }}</span>
+                            <div>
+                                <span class="font-medium text-gray-900">{{ p.address }}</span>
+                                <span class="text-xs text-gray-500 block">{{ p.property_type|replace('terreno','Terreno')|replace('casa','Casa')|replace('piso','Piso')|replace('garaje','Garaje')|replace('oficina','Oficina') }}</span>
+                            </div>
+                        </a>
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <div class="text-sm font-medium text-gray-900">{{ p.get_estimated_value()|decimal_eu(2) }} €</div>
+                        {% set v_yr = p.get_valuation_year() %}
+                        {% if v_yr != p.purchase_date.year %}<span class="text-xs text-gray-500">({{ v_yr }})</span>{% endif %}
+                        {% set rev_diff, rev_pct = p.get_revaluation_since_purchase() %}
+                        {% if rev_diff != 0 %}
+                        <div class="text-xs {% if rev_diff >= 0 %}text-green-600{% else %}text-red-600{% endif %} mt-0.5">
+                            {% if rev_diff >= 0 %}+{% endif %}{{ rev_diff|decimal_eu(0) }} € ({% if rev_pct >= 0 %}+{% endif %}{{ rev_pct|decimal_eu(1) }}%) desde compra
+                        </div>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                        {% set plan = DebtPlan.query.filter_by(property_id=p.id, status='ACTIVE').first() %}
+                        {% if plan %}
+                        <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                            Hipoteca activa
+                        </span>
+                        {% set paid = DebtService.get_months_paid(plan.id) %}
+                        {% set total = plan.months %}
+                        {% set pct = (paid / total * 100) if total else 0 %}
+                        <div class="mt-1 w-28 mx-auto">
+                            <div class="h-1.5 bg-gray-200 rounded overflow-hidden">
+                                <div class="h-full bg-amber-500 rounded" style="width: {{ pct }}%"></div>
+                            </div>
+                            <span class="text-xs text-gray-500">{{ paid }}/{{ total }} ({{ pct|decimal_eu(0) }}%)</span>
+                        </div>
+                        {% else %}
+                        <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            Pagada / Sin hipoteca
+                        </span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <a href="{{ url_for('real_estate.detail', id=p.id) }}" class="text-blue-600 hover:underline text-sm">Ver</a>
+                        <a href="{{ url_for('real_estate.edit', id=p.id) }}" class="ml-3 text-gray-600 hover:underline text-sm">Editar</a>
+                        <button type="button" @click="showDeleteModal = true; deleteUrl = '{{ url_for('real_estate.delete', id=p.id) }}'; deleteHasMortgage = {{ 'true' if plan else 'false' }}" class="ml-2 text-red-600 hover:underline text-sm">Eliminar</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Modal confirmar borrar inmueble -->
+    <div x-show="showDeleteModal" x-cloak x-transition
+         class="fixed inset-0 z-50 flex items-center justify-center p-4"
+         style="display: none;">
+        <div class="absolute inset-0 bg-gray-900/50" @click="showDeleteModal = false"></div>
+        <div class="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">¿Eliminar este inmueble?</h3>
+            <p class="text-gray-600 text-sm mb-4" x-show="deleteHasMortgage">Se eliminará también el plan de deuda vinculado.</p>
+            <p class="text-gray-600 text-sm mb-4" x-show="!deleteHasMortgage">Esta acción no se puede deshacer.</p>
+            <div class="flex gap-3 justify-end">
+                <button type="button" @click="showDeleteModal = false" class="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium">Cancelar</button>
+                <form :action="deleteUrl" method="POST" class="inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium">Eliminar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    {% else %}
+    <div class="bg-white rounded-xl shadow-sm p-12 text-center">
+        <div class="text-6xl mb-4">🏠</div>
+        <h2 class="text-xl font-semibold text-gray-800 mb-2">Sin inmuebles registrados</h2>
+        <p class="text-gray-600 mb-6">Registra tu primera propiedad para llevar el control de tasaciones e hipotecas</p>
+        <a href="{{ url_for('real_estate.new') }}" class="btn-primary inline-flex items-center gap-2">➕ Nuevo inmueble</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
