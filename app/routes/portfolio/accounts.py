@@ -42,7 +42,6 @@ def account_new():
             user_id=current_user.id,
             broker_id=broker_id,
             account_name=form.account_name.data,
-            account_number=form.account_number.data,
             base_currency=form.base_currency.data
         )
         db.session.add(account)
@@ -68,7 +67,6 @@ def account_edit(id):
     if form.validate_on_submit():
         account.broker_id = form.broker_id.data
         account.account_name = form.account_name.data
-        account.account_number = form.account_number.data
         account.base_currency = form.base_currency.data
         db.session.commit()
         flash('Cuenta actualizada correctamente', 'success')

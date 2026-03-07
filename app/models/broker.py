@@ -28,8 +28,7 @@ class BrokerAccount(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     broker_id = db.Column(db.Integer, db.ForeignKey('brokers.id'), nullable=False)
-    
-    account_number = db.Column(db.String(50), nullable=True)  # 'U12722327'
+
     account_name = db.Column(db.String(100))  # Nombre descriptivo
     base_currency = db.Column(db.String(3), default='EUR')  # Divisa base
     

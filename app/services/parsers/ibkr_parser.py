@@ -2,6 +2,9 @@
 IBKR Parser - Parse CSV from Interactive Brokers Activity Statement
 """
 import csv
+import logging
+
+_idebug = logging.getLogger('import_debug')
 from datetime import datetime
 from decimal import Decimal
 from typing import Dict, List, Any
@@ -56,36 +59,39 @@ class IBKRParser:
     def parse(self, file_path: str) -> Dict[str, Any]:
         """
         Parsea un archivo CSV de IBKR
-        
+
         Args:
             file_path: Ruta al archivo CSV
-            
+
         Returns:
             Dict con datos parseados y normalizados
         """
-        # Leer y organizar por secciones
-        self._read_sections(file_path)
-        
-        # Parsear cada sección
-        self._parse_account_info()
-        self._parse_financial_instruments()  # Primero ISINs
-        self._parse_trades()
-        self._parse_holdings()
-        self._parse_dividends()
-        self._parse_deposits_withdrawals()
-        self._parse_interest()
-        
-        # Retornar datos normalizados
-        return {
-            'broker': 'IBKR',
-            'account_info': self.account_info,
-            'trades': self.trades,
-            'holdings': self.holdings,
-            'dividends': self.dividends,
-            'deposits': self.deposits,
-            'withdrawals': self.withdrawals,
-            'fees': self.fees
-        }
+        try:
+            _idebug.debug(f"IBKRParser.parse: inicio {file_path}")
+            self._read_sections(file_path)
+            self._parse_account_info()
+            self._parse_financial_instruments()
+            self._parse_trades()
+            self._parse_holdings()
+            self._parse_dividends()
+            self._parse_deposits_withdrawals()
+            self._parse_interest()
+
+            result = {
+                'broker': 'IBKR',
+                'account_info': self.account_info,
+                'trades': self.trades,
+                'holdings': self.holdings,
+                'dividends': self.dividends,
+                'deposits': self.deposits,
+                'withdrawals': self.withdrawals,
+                'fees': self.fees
+            }
+            _idebug.info(f"IBKRParser.parse: OK trades={len(self.trades)} divs={len(self.dividends)} deps={len(self.deposits)} fees={len(self.fees)}")
+            return result
+        except Exception as e:
+            _idebug.error(f"IBKRParser.parse: ERROR {e}")
+            raise
     
     def _read_sections(self, file_path: str):
         """Lee el CSV y organiza las líneas por secciones"""

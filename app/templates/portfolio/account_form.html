@@ -21,7 +21,7 @@
             <!-- Broker -->
             <div class="mb-6">
                 {{ form.broker_id.label(class="block text-sm font-medium text-gray-700 mb-2") }}
-                {{ form.broker_id(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent") }}
+                {{ form.broker_id(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent", id="broker_select") }}
                 {% if form.broker_id.errors %}
                     <div class="mt-1 text-sm text-red-600">{{ form.broker_id.errors[0] }}</div>
                 {% endif %}
@@ -31,8 +31,8 @@
             </div>
 
             {% if form.add_new_broker_option %}
-            <!-- Nombre del nuevo broker (cuando se elige Crear nuevo) -->
-            <div class="mb-6" id="broker-new-wrap">
+            <!-- Nombre del nuevo broker (solo visible cuando se elige Crear nuevo broker) -->
+            <div class="mb-6 hidden" id="broker-new-wrap">
                 {{ form.broker_name_new.label(class="block text-sm font-medium text-gray-700 mb-2") }}
                 {{ form.broker_name_new(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent", placeholder="Ej: Binance, Revolut, Kraken...") }}
                 {% if form.broker_name_new.errors %}
@@ -48,16 +48,6 @@
                 <p class="mt-1 text-sm text-gray-500">Un nombre descriptivo para identificar esta cuenta</p>
                 {% if form.account_name.errors %}
                     <div class="mt-1 text-sm text-red-600">{{ form.account_name.errors[0] }}</div>
-                {% endif %}
-            </div>
-
-            <!-- Número de Cuenta -->
-            <div class="mb-6">
-                {{ form.account_number.label(class="block text-sm font-medium text-gray-700 mb-2") }}
-                {{ form.account_number(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent", placeholder="Ej: U12345678") }}
-                <p class="mt-1 text-sm text-gray-500">Número de cuenta del broker (opcional)</p>
-                {% if form.account_number.errors %}
-                    <div class="mt-1 text-sm text-red-600">{{ form.account_number.errors[0] }}</div>
                 {% endif %}
             </div>
 
@@ -81,5 +71,19 @@
         </form>
     </div>
 </div>
+{% if form.add_new_broker_option %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const sel = document.getElementById('broker_select');
+    const wrap = document.getElementById('broker-new-wrap');
+    if (!sel || !wrap) return;
+    function toggleBrokerNew() {
+        wrap.classList.toggle('hidden', sel.value !== '');
+    }
+    toggleBrokerNew();
+    sel.addEventListener('change', toggleBrokerNew);
+});
+</script>
+{% endif %}
 {% endblock %}
 

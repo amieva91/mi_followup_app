@@ -3,6 +3,7 @@ Rutas de importación CSV
 """
 import os
 import time
+import traceback
 from flask import render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
@@ -91,18 +92,26 @@ def import_progress():
 @login_required
 def import_csv_process():
     """Procesa uno o múltiples archivos CSV subidos con auto-detección de broker"""
+    from app.services.import_debug_logger import setup_import_debug_logger
+    debug_log = setup_import_debug_logger()
+    debug_log.info(f"Usuario {current_user.id} | Archivos recibidos: {list(request.files.keys())}")
+
     if 'csv_files' not in request.files:
+        debug_log.warning("Abort: csv_files no en request")
         flash('❌ No se seleccionó ningún archivo', 'error')
         return redirect(url_for('portfolio.import_csv'))
 
     files = request.files.getlist('csv_files')
+    debug_log.info(f"Lista de archivos: {[f.filename for f in files]}")
 
     if not files or len(files) == 0 or files[0].filename == '':
+        debug_log.warning("Abort: lista de archivos vacía")
         flash('❌ No se seleccionó ningún archivo', 'error')
         return redirect(url_for('portfolio.import_csv'))
 
     for file in files:
         if not allowed_file(file.filename):
+            debug_log.warning(f"Abort: archivo no válido {file.filename}")
             flash(f'❌ Archivo no válido: {file.filename} (solo se permiten archivos CSV)', 'error')
             return redirect(url_for('portfolio.import_csv'))
 
@@ -118,31 +127,43 @@ def import_csv_process():
         'assets_created': 0,
         'fees_created': 0,
         'deposits_created': 0,
-        'withdrawals_created': 0
+        'withdrawals_created': 0,
+        'deposits_skipped': [],
     }
 
     failed_files = []
     completed_files = []
     total_files = len(files)
+    failed_enrichment_cache = set()  # ISINs cuyo enriquecimiento falló (evita reintentos entre archivos)
 
     for file_idx, file in enumerate(files):
         filepath = None
         try:
             file_number = file_idx + 1
-
             filename = secure_filename(file.filename)
+            debug_log.info(f"--- Archivo {file_number}/{total_files}: {filename} ---")
+
             filepath = os.path.join(UPLOAD_FOLDER, f"temp_{current_user.id}_{filename}")
             file.save(filepath)
+            debug_log.debug(f"Archivo guardado en {filepath}")
 
             parsed_data = detect_and_parse(filepath)
             broker_format = parsed_data.get('format', 'unknown')
+            debug_log.info(f"Formato detectado: {broker_format}")
+            debug_log.debug(f"Claves en parsed_data: {list(parsed_data.keys())}")
+            for k in ['trades', 'dividends', 'deposits', 'withdrawals', 'fees', 'holdings']:
+                cnt = len(parsed_data.get(k, []))
+                if cnt > 0:
+                    debug_log.info(f"  {k}: {cnt} registros")
 
             account = get_or_create_broker_account(current_user.id, broker_format)
+            debug_log.info(f"Cuenta broker: id={account.id}")
 
             importer = CSVImporterV2(
                 user_id=current_user.id,
                 broker_account_id=account.id,
-                enable_enrichment=True
+                enable_enrichment=True,
+                failed_enrichment_cache=failed_enrichment_cache
             )
 
             user_key = f"user_{current_user.id}"
@@ -164,6 +185,7 @@ def import_csv_process():
 
             stats = importer.import_data(parsed_data, progress_callback=progress_callback)
 
+            debug_log.info(f"Stats archivo {filename}: {stats}")
             completed_files.append(filename)
 
             with progress_lock:
@@ -188,6 +210,7 @@ def import_csv_process():
             total_stats['fees_created'] += stats.get('fees_created', 0)
             total_stats['deposits_created'] += stats.get('deposits_created', 0)
             total_stats['withdrawals_created'] += stats.get('withdrawals_created', 0)
+            total_stats['deposits_skipped'].extend(stats.get('deposits_skipped', []))
 
             if 'enrichment_needed' not in total_stats:
                 total_stats['enrichment_needed'] = 0
@@ -205,9 +228,22 @@ def import_csv_process():
             db.session.rollback()
             total_stats['files_failed'] += 1
             failed_files.append((file.filename, str(e)))
+            debug_log.error(f"ERROR en archivo {getattr(file, 'filename', '?')}: {e}")
+            debug_log.error(traceback.format_exc())
 
             if filepath and os.path.exists(filepath):
                 os.remove(filepath)
+
+    debug_log.info(f"{'='*60}")
+    debug_log.info(f"RESUMEN FINAL: processed={total_stats['files_processed']}, failed={total_stats['files_failed']}")
+    debug_log.info(f"  trans={total_stats['transactions_created']}, holdings={total_stats['holdings_created']}, divs={total_stats['dividends_created']}")
+    debug_log.info(f"  deposits={total_stats.get('deposits_created', 0)}, fees={total_stats.get('fees_created', 0)}")
+    if total_stats.get('deposits_skipped'):
+        debug_log.warning(f"Depósitos no importados ({len(total_stats['deposits_skipped'])}):")
+        for entry in total_stats['deposits_skipped']:
+            debug_log.warning(f"  - {entry}")
+    if failed_files:
+        debug_log.warning(f"Archivos fallidos: {failed_files}")
 
     if total_stats['files_processed'] > 0:
         from app.services.metrics.cache import MetricsCacheService
@@ -228,6 +264,7 @@ def import_csv_process():
             'enrich': total_stats.get('enrichment_success', 0),
             'enrich_total': total_stats.get('enrichment_needed', 0),
             'skipped': total_stats.get('transactions_skipped', 0),
+            'dep_skip': len(total_stats.get('deposits_skipped', [])),
         }
 
         user_key = f"user_{current_user.id}"

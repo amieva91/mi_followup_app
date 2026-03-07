@@ -3,6 +3,9 @@ CSV Detector - Detecta el formato de CSVs (IBKR vs DeGiro)
 """
 import csv
 import io
+import logging
+
+_import_debug = logging.getLogger('import_debug')
 
 
 class CSVDetector:
@@ -75,11 +78,12 @@ class CSVDetector:
         """
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
-                # Leer solo las primeras 1000 líneas para detectar
                 content = ''.join([f.readline() for _ in range(1000)])
-                return CSVDetector.detect_format(content)
+            fmt = CSVDetector.detect_format(content)
+            _import_debug.debug(f"detect_format_from_file: primera línea ~{content[:80]}... -> {fmt}")
+            return fmt
         except Exception as e:
-            print(f"Error detectando formato: {e}")
+            _import_debug.error(f"Error detectando formato: {e}")
             return 'UNKNOWN'
     
     @staticmethod
@@ -112,23 +116,31 @@ class CSVDetector:
 def detect_and_parse(file_path: str):
     """
     Función de conveniencia para detectar formato y parsear automáticamente
-    
+
     Args:
         file_path: Ruta al archivo CSV
-        
+
     Returns:
         Datos parseados en formato normalizado
     """
-    format_type = CSVDetector.detect_format_from_file(file_path)
-    
-    if format_type == 'UNKNOWN':
-        raise ValueError("No se pudo detectar el formato del CSV")
-    
-    parser_class = CSVDetector.get_parser_class(format_type)
-    parser = parser_class()
-    
-    parsed_data = parser.parse(file_path)
-    parsed_data['format'] = format_type  # Agregar el formato detectado
-    
-    return parsed_data
+    try:
+        _import_debug.debug(f"csv_detector: detectando formato de {file_path}")
+        format_type = CSVDetector.detect_format_from_file(file_path)
+        _import_debug.info(f"csv_detector: formato detectado = {format_type}")
+
+        if format_type == 'UNKNOWN':
+            _import_debug.error("csv_detector: formato UNKNOWN - no se pudo detectar")
+            raise ValueError("No se pudo detectar el formato del CSV")
+
+        parser_class = CSVDetector.get_parser_class(format_type)
+        parser = parser_class()
+        _import_debug.debug(f"csv_detector: usando parser {parser_class.__name__}")
+
+        parsed_data = parser.parse(file_path)
+        parsed_data['format'] = format_type
+        _import_debug.debug(f"csv_detector: parse OK, claves={list(parsed_data.keys())}")
+        return parsed_data
+    except Exception as e:
+        _import_debug.error(f"csv_detector: excepción en detect_and_parse: {e}")
+        raise
 

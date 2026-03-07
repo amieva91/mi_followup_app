@@ -3,6 +3,9 @@ Revolut X Parser - Parsea CSV de extracto Revolut X (criptomonedas)
 Formato: Symbol,Type,Quantity,Price,Value,Fees,Date
 """
 import csv
+import logging
+
+_idebug = logging.getLogger('import_debug')
 import re
 from datetime import datetime
 from decimal import Decimal
@@ -71,31 +74,37 @@ class RevolutXParser:
 
     def parse(self, file_path: str) -> Dict[str, Any]:
         """Parsea un archivo CSV de Revolut X"""
-        self.trades = []
-        self.dividends = []
-        self.fees = []
+        try:
+            _idebug.debug(f"RevolutXParser.parse: inicio {file_path}")
+            self.trades = []
+            self.dividends = []
+            self.fees = []
 
-        with open(file_path, 'r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            if not reader.fieldnames:
-                return self._empty_result()
+            with open(file_path, 'r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                if not reader.fieldnames:
+                    return self._empty_result()
+                for row in reader:
+                    self._process_row(row)
 
-            for row in reader:
-                self._process_row(row)
+            holdings = self._calculate_holdings()
 
-        holdings = self._calculate_holdings()
-
-        return {
-            'broker': 'REVOLUT_X',
-            'format': 'REVOLUT_X',
-            'account_info': {},
-            'trades': self.trades,
-            'dividends': self.dividends,
-            'holdings': holdings,
-            'deposits': [],
-            'fees': self.fees,
-            'fx_transactions': [],
-        }
+            result = {
+                'broker': 'REVOLUT_X',
+                'format': 'REVOLUT_X',
+                'account_info': {},
+                'trades': self.trades,
+                'dividends': self.dividends,
+                'holdings': holdings,
+                'deposits': [],
+                'fees': self.fees,
+                'fx_transactions': [],
+            }
+            _idebug.info(f"RevolutXParser.parse: OK trades={len(self.trades)} divs={len(self.dividends)} holdings={len(holdings)}")
+            return result
+        except Exception as e:
+            _idebug.error(f"RevolutXParser.parse: ERROR {e}")
+            raise
 
     def _empty_result(self) -> Dict[str, Any]:
         return {

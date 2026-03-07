@@ -7,6 +7,7 @@ from app.models.income import IncomeCategory, Income
 from app.models.broker import Broker, BrokerAccount
 from app.models.asset import Asset, PriceHistory
 from app.models.asset_registry import AssetRegistry
+from app.models.asset_delisting import AssetDelisting, DELISTING_TYPES
 from app.models.mapping_registry import MappingRegistry
 from app.models.portfolio import PortfolioHolding
 from app.models.transaction import Transaction, CashFlow
@@ -25,6 +26,8 @@ __all__ = [
     'Broker', 'BrokerAccount',
     'Asset', 'PriceHistory',
     'AssetRegistry',
+    'AssetDelisting',
+    'DELISTING_TYPES',
     'MappingRegistry',
     'PortfolioHolding',
     'Transaction', 'CashFlow',

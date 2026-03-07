@@ -261,6 +261,7 @@ window.addEventListener('DOMContentLoaded', function() {
         const fees = urlParams.get('fees') || 0;
         const deps = urlParams.get('deps') || 0;
         const withs = urlParams.get('withs') || 0;
+        const depSkip = urlParams.get('dep_skip') || 0;
         const enrich = urlParams.get('enrich') || 0;
         const enrichTotal = urlParams.get('enrich_total') || 0;
         const skipped = urlParams.get('skipped') || 0;
@@ -280,6 +281,7 @@ window.addEventListener('DOMContentLoaded', function() {
         if (divs > 0) details.push(`<strong>${divs}</strong> dividendos registrados`);
         if (fees > 0) details.push(`<strong>${fees}</strong> comisiones`);
         if (deps + withs > 0) details.push(`<strong>${deps + withs}</strong> depósitos/retiros`);
+        if (depSkip > 0) details.push(`<span class="text-amber-700">⚠️ <strong>${depSkip}</strong> depósitos no importados (ver logs/import_debug.log)</span>`);
         if (enrich > 0) details.push(`<strong>${enrich}/${enrichTotal}</strong> assets enriquecidos con OpenFIGI`);
         
         document.getElementById('resultDetails').innerHTML = details.map(d => `<p>• ${d}</p>`).join('');

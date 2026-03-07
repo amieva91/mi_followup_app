@@ -81,7 +81,6 @@ def get_or_create_broker_account(user_id, broker_format):
             user_id=user_id,
             broker_id=broker.id,
             account_name=account_default_name,
-            account_number=None,
             base_currency='EUR',
             is_active=True
         )

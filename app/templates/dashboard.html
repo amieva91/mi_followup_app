@@ -234,9 +234,9 @@
                     <span class="text-gray-400">→</span>
                 </a>
             </div>
-            <p class="text-xl font-bold text-gray-800">{{ "%.2f"|format(summary.crypto_details.valor_total) }} EUR</p>
-            <p class="text-sm {% if summary.crypto_details.rentabilidad >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
-                {% if summary.crypto_details.rentabilidad >= 0 %}+{% endif %}{{ "%.2f"|format(summary.crypto_details.rentabilidad) }} EUR
+            <p class="text-xl font-bold text-gray-800">{{ "%.2f"|format(summary.crypto_details.total_value) }} EUR</p>
+            <p class="text-sm {% if summary.crypto_details.total_pnl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                {% if summary.crypto_details.total_pnl >= 0 %}+{% endif %}{{ "%.2f"|format(summary.crypto_details.total_pnl) }} EUR
             </p>
             <div class="mt-2 pt-2 border-t space-y-1">
                 {% for pos in summary.crypto_details.posiciones[:3] %}
@@ -257,9 +257,9 @@
                     <span class="text-gray-400">→</span>
                 </a>
             </div>
-            <p class="text-xl font-bold text-gray-800">{{ "%.2f"|format(summary.metales_details.valor_total) }} EUR</p>
-            <p class="text-sm {% if summary.metales_details.rentabilidad >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
-                {% if summary.metales_details.rentabilidad >= 0 %}+{% endif %}{{ "%.2f"|format(summary.metales_details.rentabilidad) }} EUR
+            <p class="text-xl font-bold text-gray-800">{{ "%.2f"|format(summary.metales_details.total_value) }} EUR</p>
+            <p class="text-sm {% if summary.metales_details.total_pnl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                {% if summary.metales_details.total_pnl >= 0 %}+{% endif %}{{ "%.2f"|format(summary.metales_details.total_pnl) }} EUR
             </p>
             <div class="mt-2 pt-2 border-t space-y-1">
                 {% for pos in summary.metales_details.posiciones[:3] %}

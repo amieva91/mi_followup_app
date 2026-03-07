@@ -3,6 +3,9 @@ DeGiro Parser - Parse CSV from DeGiro Account Statement
 """
 import csv
 import re
+import logging
+
+_idebug = logging.getLogger('import_debug')
 from datetime import datetime
 from decimal import Decimal
 from typing import Dict, List, Any
@@ -47,52 +50,50 @@ class DeGiroParser:
     def parse(self, file_path: str) -> Dict[str, Any]:
         """
         Parsea un archivo CSV de DeGiro
-        
+
         Args:
             file_path: Ruta al archivo CSV
-            
+
         Returns:
             Dict con datos parseados y normalizados
         """
-        # Leer CSV con `reader` para acceder por índice (dos columnas sin nombre)
-        with open(file_path, 'r', encoding='utf-8') as f:
-            raw_reader = csv.reader(f)
-            header = next(raw_reader)  # Leer header
-            
-            # Procesar cada fila
-            for raw_values in raw_reader:
-                # Crear dict manual con índices correctos
-                row = {}
-                for i, col_name in enumerate(header):
-                    if i < len(raw_values):
-                        if col_name:  # Si la columna tiene nombre
-                            row[col_name] = raw_values[i]
-                        # Columnas sin nombre las guardamos con nombres especiales
-                        elif i == 8:  # Primera columna sin nombre (monto)
-                            row['__amount__'] = raw_values[i]
-                        elif i == 10:  # Segunda columna sin nombre (saldo)
-                            row['__balance__'] = raw_values[i]
-                
-                self._process_row(row)
-        
-        # Calcular holdings desde trades
-        self._calculate_holdings()
-        
-        # Consolidar dividendos con su conversión FX y retención
-        self._consolidate_dividends()
-        
-        # Retornar datos normalizados
-        return {
-            'broker': 'DEGIRO',
-            'account_info': self.account_info,
-            'trades': self.trades,
-            'holdings': list(self.holdings.values()),
-            'dividends': self.dividends,
-            'deposits': self.deposits,
-            'withdrawals': self.withdrawals,
-            'fees': self.fees,
-            'fx_transactions': self.fx_transactions
-        }
+        try:
+            _idebug.debug(f"DeGiroParser.parse: inicio {file_path}")
+            # Leer CSV con `reader` para acceder por índice
+            with open(file_path, 'r', encoding='utf-8') as f:
+                raw_reader = csv.reader(f)
+                header = next(raw_reader)
+                for raw_values in raw_reader:
+                    row = {}
+                    for i, col_name in enumerate(header):
+                        if i < len(raw_values):
+                            if col_name:
+                                row[col_name] = raw_values[i]
+                            elif i == 8:
+                                row['__amount__'] = raw_values[i]
+                            elif i == 10:
+                                row['__balance__'] = raw_values[i]
+                    self._process_row(row)
+
+            self._calculate_holdings()
+            self._consolidate_dividends()
+
+            result = {
+                'broker': 'DEGIRO',
+                'account_info': self.account_info,
+                'trades': self.trades,
+                'holdings': list(self.holdings.values()),
+                'dividends': self.dividends,
+                'deposits': self.deposits,
+                'withdrawals': self.withdrawals,
+                'fees': self.fees,
+                'fx_transactions': self.fx_transactions
+            }
+            _idebug.info(f"DeGiroParser.parse: OK trades={len(self.trades)} divs={len(self.dividends)} deps={len(self.deposits)} fees={len(self.fees)}")
+            return result
+        except Exception as e:
+            _idebug.error(f"DeGiroParser.parse: ERROR {e}")
+            raise
     
     def _process_row(self, row: Dict[str, str]):
         """Procesa una fila del CSV"""

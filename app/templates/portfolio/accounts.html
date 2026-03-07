@@ -29,12 +29,6 @@
                 </div>
             </div>
 
-            {% if account.account_number %}
-            <div class="text-sm text-gray-600 mb-3">
-                <span class="font-medium">Número:</span> {{ account.account_number }}
-            </div>
-            {% endif %}
-
             <div class="text-xs text-gray-400 mb-4">
                 Creada: {{ account.created_at.strftime('%d/%m/%Y') }}
             </div>

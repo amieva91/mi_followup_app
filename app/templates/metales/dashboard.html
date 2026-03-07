@@ -27,19 +27,19 @@
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-amber-600">
             <div class="text-sm text-gray-600 mb-1">💰 Capital invertido</div>
-            <div class="text-2xl font-bold text-amber-600">{{ metrics.capital_invertido|decimal_eu(2) }} EUR</div>
+            <div class="text-2xl font-bold text-amber-600">{{ metrics.total_cost|decimal_eu(2) }} EUR</div>
         </div>
         <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-blue-500">
             <div class="text-sm text-gray-600 mb-1">📈 Valor actual</div>
-            <div class="text-2xl font-bold text-blue-600">{{ metrics.valor_total|decimal_eu(2) }} EUR</div>
+            <div class="text-2xl font-bold text-blue-600">{{ metrics.total_value|decimal_eu(2) }} EUR</div>
         </div>
-        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if metrics.pl_total >= 0 %}border-green-500{% else %}border-red-500{% endif %}">
+        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if metrics.total_pnl >= 0 %}border-green-500{% else %}border-red-500{% endif %}">
             <div class="text-sm text-gray-600 mb-1">📊 P&L Total</div>
-            <div class="text-2xl font-bold {% if metrics.pl_total >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
-                {% if metrics.pl_total >= 0 %}+{% endif %}{{ metrics.pl_total|decimal_eu(2) }} EUR
+            <div class="text-2xl font-bold {% if metrics.total_pnl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                {% if metrics.total_pnl >= 0 %}+{% endif %}{{ metrics.total_pnl|decimal_eu(2) }} EUR
             </div>
-            <div class="text-sm {% if metrics.pl_pct_total >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
-                {% if metrics.pl_pct_total >= 0 %}+{% endif %}{{ metrics.pl_pct_total|decimal_eu(2) }}%
+            <div class="text-sm {% if metrics.total_pnl_pct >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                {% if metrics.total_pnl_pct >= 0 %}+{% endif %}{{ metrics.total_pnl_pct|decimal_eu(2) }}%
             </div>
         </div>
     </div>

@@ -3,6 +3,9 @@ DeGiro Transactions Parser - Parse CSV from DeGiro Transactions Report
 Este es el formato "Transacciones" de DeGiro, más completo que el "Estado de Cuenta"
 """
 import csv
+import logging
+
+_idebug = logging.getLogger('import_debug')
 import re
 from datetime import datetime
 from decimal import Decimal
@@ -41,29 +44,32 @@ class DeGiroTransactionsParser:
         Returns:
             Dict con datos parseados y normalizados
         """
-        with open(file_path, 'r', encoding='utf-8') as f:
-            reader = csv.reader(f)
-            header = next(reader)  # Leer header pero no lo usamos
-            
-            for row in reader:
-                if len(row) < 9:  # Validar que tenga suficientes columnas
-                    continue
-                self._process_row(row)
-        
-        # Calcular holdings desde trades
-        self._calculate_holdings()
-        
-        # Retornar datos normalizados
-        return {
-            'broker': 'DEGIRO',
-            'account_info': self.account_info,
-            'trades': self.trades,
-            'holdings': list(self.holdings.values()),
-            'dividends': [],  # Los dividendos no están en este CSV
-            'deposits': [],
-            'fees': [],
-            'fx_transactions': []
-        }
+        try:
+            _idebug.debug(f"DeGiroTransactionsParser.parse: inicio {file_path}")
+            with open(file_path, 'r', encoding='utf-8') as f:
+                reader = csv.reader(f)
+                header = next(reader)
+                for row in reader:
+                    if len(row) < 9:
+                        continue
+                    self._process_row(row)
+
+            self._calculate_holdings()
+            result = {
+                'broker': 'DEGIRO',
+                'account_info': self.account_info,
+                'trades': self.trades,
+                'holdings': list(self.holdings.values()),
+                'dividends': [],
+                'deposits': [],
+                'fees': [],
+                'fx_transactions': []
+            }
+            _idebug.info(f"DeGiroTransactionsParser.parse: OK trades={len(self.trades)}")
+            return result
+        except Exception as e:
+            _idebug.error(f"DeGiroTransactionsParser.parse: ERROR {e}")
+            raise
     
     def _process_row(self, row: List[str]):
         """

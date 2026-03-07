@@ -206,7 +206,15 @@
                             
                             <!-- Acciones -->
                             <td class="px-4 py-3 text-sm whitespace-nowrap">
-                                <button onclick="editRegistry({{ reg.id }})" 
+                                {% set _dbr = delistings_by_registry|default({}) %}
+                                {% if _dbr.get(reg.id) %}
+                                    {% set _d = _dbr[reg.id] %}
+                                    <span class="px-2 py-1 bg-amber-100 text-amber-800 rounded text-xs mr-2" 
+                                          title="Baja: {{ _d.delisting_date.strftime('%d/%m/%Y') }} @ {{ _d.delisting_price }}">
+                                        📉 {{ _d.delisting_date.strftime('%d/%m/%Y') }}
+                                    </span>
+                                {% endif %}
+                                <button type="button" onclick="editRegistry({{ reg.id }})" 
                                         class="text-blue-600 hover:text-blue-900 mr-3">
                                     ✏️ Editar
                                 </button>
@@ -290,6 +298,7 @@
                             class="w-full px-3 py-2 border border-gray-300 rounded-lg">
                         <option value="Stock">Stock</option>
                         <option value="ETF">ETF</option>
+                        <option value="Crypto">Criptomoneda</option>
                         <option value="Commodity">Commodity</option>
                     </select>
                 </div>
@@ -320,8 +329,66 @@
                         </div>
                     </div>
                 </div>
-                
-                <!-- Yahoo Finance URL -->
+        
+        </form>
+        <!-- Baja de cotización (formulario separado, evita forms anidados) -->
+        <div class="border-t pt-4 mt-4">
+            <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+                <div class="flex items-start gap-3">
+                    <span class="text-2xl">📉</span>
+                    <div class="flex-1">
+                        <h4 class="font-semibold text-gray-800 mb-1">Baja de cotización</h4>
+                        <p class="text-sm text-gray-600 mb-3">
+                            Adquisición en efectivo o quiebra. Se generará automáticamente una venta al precio y fecha indicados.
+                        </p>
+                        <form id="delistingForm" method="POST" action="#" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <div>
+                                    <label class="block text-xs text-gray-600 mb-1">Tipo de baja</label>
+                                    <select name="delisting_type" id="delisting_type" 
+                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                                            onchange="toggleDelistingPriceField()">
+                                        <option value="CASH_ACQUISITION">Adquisición en efectivo</option>
+                                        <option value="BANKRUPTCY">Quiebra</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-gray-600 mb-1">Fecha</label>
+                                    <input type="date" name="delisting_date" id="delisting_date" 
+                                           class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                                </div>
+                                <div id="delisting_price_wrapper">
+                                    <label class="block text-xs text-gray-600 mb-1">Precio por acción</label>
+                                    <input type="text" name="delisting_price" id="delisting_price" placeholder="0" 
+                                           class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-gray-600 mb-1">Moneda</label>
+                                    <input type="text" name="delisting_currency" id="delisting_currency" value="" maxlength="3" placeholder="Moneda del activo" 
+                                           class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label class="block text-xs text-gray-600 mb-1">Notas (opcional)</label>
+                                    <input type="text" name="delisting_notes" id="delisting_notes" 
+                                           class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                                           placeholder="Ej: Adquirida por X a Y EUR/acción">
+                                </div>
+                                <div class="md:col-span-2 flex gap-2">
+                                    <button type="submit" class="px-3 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-sm" onclick="return prepareDelistingSubmit()">
+                                        Guardar baja
+                                    </button>
+                                    <button type="button" id="delistingDeleteBtn" onclick="deleteDelisting()" 
+                                            class="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm hidden">
+                                        Eliminar baja
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Yahoo Finance URL -->
                 <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
                     <div class="flex items-start gap-3">
                         <span class="text-2xl">🔧</span>
@@ -349,12 +416,11 @@
                         class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">
                     Cancelar
                 </button>
-                <button type="submit" 
+                <button type="submit" form="editForm" 
                         class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
                     Guardar Cambios
                 </button>
             </div>
-        </form>
     </div>
 </div>
 
@@ -362,8 +428,10 @@
     // Variable global para almacenar el ID del registro actual
     let currentRegistryId = null;
     
+    const delistingsData = {{ (delistings_js|default({})) | tojson | safe }};
+    
     function editRegistry(id) {
-        // Guardar ID para enriquecimiento
+        // Guardar ID para enriquecimiento y delisting
         currentRegistryId = id;
         
         // Obtener datos de la fila
@@ -403,6 +471,28 @@
                 // Actualizar action del formulario
                 document.getElementById('editForm').action = `/portfolio/asset-registry/${id}/edit`;
                 
+                // Rellenar formulario de baja de cotización
+                const delisting = delistingsData[id];
+                const delistingForm = document.getElementById('delistingForm');
+                delistingForm.action = `/portfolio/asset-registry/${id}/delisting`;
+                if (delisting) {
+                    document.getElementById('delisting_date').value = delisting.date;
+                    document.getElementById('delisting_price').value = delisting.price;
+                    document.getElementById('delisting_currency').value = delisting.currency;
+                    document.getElementById('delisting_type').value = delisting.type;
+                    document.getElementById('delisting_notes').value = delisting.notes;
+                    document.getElementById('delistingDeleteBtn').classList.remove('hidden');
+                    toggleDelistingPriceField();
+                } else {
+                    document.getElementById('delisting_date').value = '';
+                    document.getElementById('delisting_price').value = '';
+                    document.getElementById('delisting_currency').value = (currency && currency !== '-') ? currency : 'EUR';
+                    document.getElementById('delisting_type').value = 'CASH_ACQUISITION';
+                    document.getElementById('delisting_notes').value = '';
+                    document.getElementById('delistingDeleteBtn').classList.add('hidden');
+                    toggleDelistingPriceField();
+                }
+                
                 // Reset enrich status
                 document.getElementById('enrichStatus').classList.add('hidden');
                 document.getElementById('enrichButton').disabled = false;
@@ -411,6 +501,41 @@
                 // Mostrar modal
                 document.getElementById('editModal').classList.remove('hidden');
             });
+    }
+    
+    function toggleDelistingPriceField() {
+        const sel = document.getElementById('delisting_type');
+        const wrapper = document.getElementById('delisting_price_wrapper');
+        if (sel && wrapper) {
+            if (sel.value === 'BANKRUPTCY') {
+                wrapper.style.display = 'none';
+                document.getElementById('delisting_price').value = '0';
+            } else {
+                wrapper.style.display = '';
+            }
+        }
+    }
+    
+    function prepareDelistingSubmit() {
+        if (document.getElementById('delisting_type').value === 'BANKRUPTCY') {
+            document.getElementById('delisting_price').value = '0';
+        }
+        return true;
+    }
+    
+    function deleteDelisting() {
+        if (!currentRegistryId) return;
+        if (!confirm('¿Eliminar el registro de baja de cotización?')) return;
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/portfolio/asset-registry/${currentRegistryId}/delisting/delete`;
+        const csrf = document.createElement('input');
+        csrf.type = 'hidden';
+        csrf.name = 'csrf_token';
+        csrf.value = '{{ csrf_token() }}';
+        form.appendChild(csrf);
+        document.body.appendChild(form);
+        form.submit();
     }
     
     function deleteRegistry(id, isin) {

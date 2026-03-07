@@ -9,6 +9,7 @@ from app import db
 
 # Logger específico para importaciones
 import_logger = logging.getLogger('csv_importer')
+_idebug = logging.getLogger('import_debug')
 from app.models import (
     User, BrokerAccount, Asset, AssetRegistry,
     PortfolioHolding, Transaction, CashFlow
@@ -50,7 +51,7 @@ def parse_datetime(date_value: Union[str, datetime, None]) -> Union[datetime, No
                 return datetime.strptime(date_value, '%Y-%m-%d')
             except ValueError:
                 # Si todo falla, retornar None
-                print(f"⚠️ WARNING: No se pudo parsear fecha: {date_value}")
+                _idebug.warning(f"parse_datetime: no se pudo parsear fecha: {date_value}")
                 return None
     
     return None
@@ -61,13 +62,13 @@ class CSVImporterV2:
     Importer V2 - Usa AssetRegistry como cache global compartida
     """
     
-    def __init__(self, user_id: int, broker_account_id: int, enable_enrichment: bool = False):
+    def __init__(self, user_id: int, broker_account_id: int, enable_enrichment: bool = False, failed_enrichment_cache: set = None):
         self.user_id = user_id
         self.broker_account_id = broker_account_id
         self.broker_account = BrokerAccount.query.get(broker_account_id)
         self.registry_service = AssetRegistryService()
         self.enable_enrichment = enable_enrichment  # ⚡ Deshabilitar por defecto para evitar rate limits
-        print(f"🔍 DEBUG CSVImporterV2: enable_enrichment = {self.enable_enrichment}")
+        _idebug.debug(f"CSVImporterV2 init: enable_enrichment={self.enable_enrichment}")
         
         if not self.broker_account:
             raise ValueError(f"BrokerAccount {broker_account_id} no encontrado")
@@ -87,6 +88,7 @@ class CSVImporterV2:
             'fees_created': 0,
             'deposits_created': 0,
             'withdrawals_created': 0,
+            'deposits_skipped': [],  # Lista de depósitos no importados con motivo
         }
         
         # Snapshot de transacciones existentes (para evitar duplicados)
@@ -94,37 +96,43 @@ class CSVImporterV2:
         
         # Cache local de assets creados en esta importación
         self.asset_cache = {}  # {isin: Asset}
+        # Cache compartido de ISINs cuyo enriquecimiento ya falló (evita reintentos en la misma sesión)
+        self.failed_enrichment_cache = failed_enrichment_cache if failed_enrichment_cache is not None else set()
     
     def import_data(
-        self, 
+        self,
         parsed_data: Dict[str, Any],
         progress_callback: Callable[[int, int, str], None] = None
     ) -> Dict[str, Any]:
         """
         Importa datos con AssetRegistry y progreso en tiempo real
-        
+
         Args:
             parsed_data: Datos parseados del CSV
             progress_callback: Función para reportar progreso(current, total, message)
         """
+        _idebug.info("importer_v2: import_data INICIO")
+        _idebug.debug(f"importer_v2: broker={parsed_data.get('broker')}, format={parsed_data.get('format')}")
+
         # 1. Crear snapshot de transacciones existentes
         self._create_transaction_snapshot()
         
         # 2. Procesar assets y detectar los que necesitan enriquecimiento
         isins_needed = self._process_assets_to_registry(parsed_data)
-        
+        _idebug.info(f"importer_v2: _process_assets_to_registry -> {len(isins_needed)} ISINs necesitan enriquecimiento")
+
         # 3. Enriquecer assets que lo necesiten (con progreso) - SOLO si está habilitado
-        print(f"🔍 DEBUG: isins_needed = {len(isins_needed) if isins_needed else 0}, enable_enrichment = {self.enable_enrichment}")
+        _idebug.debug(f"importer_v2: isins_needed={len(isins_needed) if isins_needed else 0}, enable_enrichment={self.enable_enrichment}")
         if isins_needed and self.enable_enrichment:
             self.stats['enrichment_needed'] = len(isins_needed)
-            print(f"✅ Iniciando enriquecimiento de {len(isins_needed)} assets...")
+            _idebug.info(f"Iniciando enriquecimiento de {len(isins_needed)} assets")
             self._enrich_assets_with_progress(isins_needed, progress_callback)
         elif isins_needed:
             # Si no está habilitado, solo marcar cuántos quedan pendientes
             self.stats['enrichment_needed'] = len(isins_needed)
             self.stats['enrichment_success'] = 0
             self.stats['enrichment_failed'] = 0
-            print(f"⚡ {len(isins_needed)} assets sin enriquecer (enrichment deshabilitado durante import)")
+            _idebug.info(f"{len(isins_needed)} assets sin enriquecer (enrichment deshabilitado)")
         
         # 4. Crear Assets locales desde AssetRegistry
         self._create_local_assets_from_registry(parsed_data)
@@ -141,19 +149,27 @@ class CSVImporterV2:
         # 7. Limpiar holdings cerrados
         self._cleanup_zero_holdings()
         
-        # Debug: Contar transacciones pendientes ANTES del commit
         pending_count = len([obj for obj in db.session.new if isinstance(obj, Transaction)])
-        print(f"   🔍 DEBUG: {pending_count} transacciones pendientes de commit")
+        _idebug.debug(f"Transacciones pendientes de commit: {pending_count}")
         
         db.session.commit()
-        print(f"   ✅ DEBUG: Commit ejecutado correctamente")
-        
-        # Debug: Verificar transacciones después del commit
+        _idebug.info("importer_v2: commit OK")
+
+        # 8. Reconciliar delistings: generar SELL automáticas para activos con baja de cotización
+        try:
+            from app.services.delisting_reconciliation_service import reconcile_delistings
+            result = reconcile_delistings(user_id=self.user_id)
+            if result['created'] > 0:
+                _idebug.info(f"Reconciliación delistings: {result['created']} ventas generadas")
+        except Exception as e:
+            _idebug.warning(f"Reconciliación delistings: {e}")
+
         saved_count = Transaction.query.filter_by(user_id=self.user_id, account_id=self.broker_account_id).count()
-        print(f"   ✅ DEBUG: {saved_count} transacciones total en esta cuenta después del commit")
+        _idebug.debug(f"Transacciones total en cuenta: {saved_count}")
         
+        _idebug.info(f"importer_v2: import_data FIN - stats={self.stats}")
         return self.stats
-    
+
     def _create_transaction_snapshot(self):
         """Crea snapshot de transacciones existentes"""
         existing = Transaction.query.filter_by(
@@ -181,7 +197,8 @@ class CSVImporterV2:
                     float(txn.price) if txn.price else 0
                 )
             self.existing_transactions_snapshot.add(key)
-    
+        _idebug.debug(f"importer_v2: snapshot con {len(self.existing_transactions_snapshot)} transacciones existentes")
+
     def _process_assets_to_registry(self, parsed_data: Dict[str, Any]) -> List[str]:
         """
         Procesa todos los assets del CSV y los registra en AssetRegistry
@@ -260,7 +277,8 @@ class CSVImporterV2:
             isin for isin in isins_in_csv
             if self._registry_needs_enrichment(isin)
         ]
-        
+        _idebug.info(f"importer_v2: assets en CSV={len(assets_dict)}, registry_reused={self.stats['registry_reused']}, registry_created={self.stats['registry_created']}")
+        _idebug.debug(f"importer_v2: isins_needing_enrichment={isins_needing_enrichment[:10]}{'...' if len(isins_needing_enrichment) > 10 else ''}")
         return isins_needing_enrichment
     
     def _registry_needs_enrichment(self, isin: str) -> bool:
@@ -297,43 +315,46 @@ class CSVImporterV2:
         progress_callback: Callable[[int, int, str], None] = None
     ):
         """
-        Enriquece assets con OpenFIGI, reportando progreso
-        Obtiene:
-        - Symbol para assets sin symbol (DeGiro)
-        - MIC para assets sin MIC (IBKR)
+        Enriquece assets con OpenFIGI, reportando progreso.
+        Solo enriquece si el registro NO está ya enriquecido en BD (tiene symbol y mic).
+        Usa failed_enrichment_cache para no reintentar ISINs que ya fallaron en esta sesión.
         """
-        total = len(isins)
-        
-        for idx, isin in enumerate(isins, 1):
+        # Filtrar ISINs ya en caché de fallos (evitar reintentos)
+        isins_to_try = [i for i in isins if i not in self.failed_enrichment_cache]
+        skipped_cached = len(isins) - len(isins_to_try)
+        if skipped_cached > 0:
+            self.stats['enrichment_failed'] += skipped_cached
+            _idebug.info(f"importer_v2: {skipped_cached} ISINs omitidos (ya fallaron en sesión anterior)")
+        total = len(isins_to_try)
+
+        for idx, isin in enumerate(isins_to_try, 1):
             registry = AssetRegistry.query.filter_by(isin=isin).first()
             if not registry:
                 continue
-            
-            # Determinar qué falta
+            # Verificar de nuevo si ya está enriquecido (puede haberse actualizado por otro archivo)
+            if not self._registry_needs_enrichment(isin):
+                _idebug.debug(f"importer_v2: ISIN {isin} ya enriquecido en BD - omitido")
+                continue
+
             missing = []
             if not registry.symbol:
                 missing.append('Symbol')
             if not registry.mic:
                 missing.append('MIC')
-            
             missing_str = ' + '.join(missing) if missing else 'datos'
-            
-            # Reportar progreso
+
             if progress_callback:
-                progress_callback(
-                    idx, 
-                    total, 
-                    f"🔍 {registry.name or isin[:12]}: obteniendo {missing_str}..."
-                )
-            
-            # Enriquecer con OpenFIGI
+                progress_callback(idx, total, f"🔍 {registry.name or isin[:12]}: obteniendo {missing_str}...")
+
             success, message = self.registry_service.enrich_from_openfigi(registry, update_db=False)
-            
+
             if success:
                 self.stats['enrichment_success'] += 1
             else:
                 self.stats['enrichment_failed'] += 1
-        
+                self.failed_enrichment_cache.add(isin)
+                _idebug.warning(f"importer_v2: enriquecimiento fallido ISIN={isin}")
+
         db.session.commit()
     
     def _create_local_assets_from_registry(self, parsed_data: Dict[str, Any]):
@@ -404,7 +425,7 @@ class CSVImporterV2:
     def _import_transactions(self, parsed_data: Dict[str, Any]):
         """Importa transacciones (BUY/SELL)"""
         trades_list = parsed_data.get('trades', [])
-        print(f"   🔍 DEBUG _import_transactions: {len(trades_list)} trades en parsed_data")
+        _idebug.info(f"importer_v2: _import_transactions: {len(trades_list)} trades")
         
         skipped_forex = 0
         skipped_no_asset = 0
@@ -421,6 +442,7 @@ class CSVImporterV2:
             asset = self._find_asset_by_isin(trade_data.get('isin'))
             if not asset:
                 skipped_no_asset += 1
+                _idebug.warning(f"importer_v2: trade sin asset ISIN={trade_data.get('isin')} -> saltado")
                 continue
             
             # Verificar duplicados
@@ -477,8 +499,7 @@ class CSVImporterV2:
             self.stats['transactions_created'] += 1
             created += 1
         
-        # Debug: Reporte final
-        print(f"   📊 DEBUG _import_transactions: Forex={skipped_forex}, NoAsset={skipped_no_asset}, Duplicados={skipped_duplicate}, Creadas={created}")
+        _idebug.info(f"importer_v2: transacciones -> Forex={skipped_forex}, NoAsset={skipped_no_asset}, Duplicados={skipped_duplicate}, Creadas={created}")
     
     def _import_dividends(self, parsed_data: Dict[str, Any]):
         """Importa dividendos con verificación de duplicados"""
@@ -487,6 +508,7 @@ class CSVImporterV2:
         for div_data in parsed_data.get('dividends', []):
             asset = self._find_asset_by_isin(div_data.get('isin'))
             if not asset:
+                _idebug.warning(f"importer_v2: dividendo sin asset ISIN={div_data.get('isin')} -> saltado")
                 continue
             
             # Determinar fecha (con fallback) y convertir a datetime
@@ -495,7 +517,7 @@ class CSVImporterV2:
             
             # VALIDACIÓN CRÍTICA: Saltar si no hay fecha válida
             if not div_date:
-                print(f"   ⚠️  ADVERTENCIA: Dividendo sin fecha para {div_data.get('isin')} - {div_data.get('name')} - Saltado")
+                _idebug.warning(f"importer_v2: Dividendo sin fecha ISIN={div_data.get('isin')} - saltado")
                 continue
             
             # Verificar duplicados usando el snapshot (incluye amount y asset_id)
@@ -536,7 +558,7 @@ class CSVImporterV2:
             self.stats['dividends_created'] += 1
         
         if skipped_duplicate > 0:
-            print(f"   📊 DEBUG _import_dividends: {skipped_duplicate} dividendos duplicados saltados")
+            _idebug.info(f"importer_v2: dividendos duplicados saltados={skipped_duplicate}")
     
     def _import_fees(self, parsed_data: Dict[str, Any]):
         """Importa comisiones/fees con verificación de duplicados"""
@@ -549,7 +571,7 @@ class CSVImporterV2:
             
             # VALIDACIÓN CRÍTICA: Saltar si no hay fecha válida
             if not fee_date:
-                print(f"   ⚠️  ADVERTENCIA: Fee sin fecha ({fee_data.get('description', 'sin descripción')}) - Saltado")
+                _idebug.warning(f"importer_v2: Fee sin fecha ({fee_data.get('description', '')}) - saltado")
                 continue
             
             # Verificar duplicados usando el snapshot (incluye amount)
@@ -586,46 +608,45 @@ class CSVImporterV2:
             self.stats['fees_created'] += 1
         
         if skipped_duplicate > 0:
-            print(f"   📊 DEBUG _import_fees: {skipped_duplicate} comisiones duplicadas saltadas")
+            _idebug.info(f"importer_v2: fees duplicados saltados={skipped_duplicate}")
     
     def _import_cash_movements(self, parsed_data: Dict[str, Any]):
         """Importa depósitos y retiros con verificación de duplicados"""
         skipped_duplicate = 0
-        
+
         for deposit_data in parsed_data.get('deposits', []):
-            # Determinar fecha (con fallback) y convertir a datetime
             deposit_date_raw = deposit_data.get('date') or deposit_data.get('date_time')
             deposit_date = parse_datetime(deposit_date_raw)
-            
-            # VALIDACIÓN CRÍTICA: Saltar si no hay fecha válida
+            deposit_amount = float(deposit_data.get('amount', 0))
+            desc = deposit_data.get('description', 'N/A')[:60]
+            broker_name = self.broker_account.broker.name if self.broker_account and self.broker_account.broker else parsed_data.get('broker', '?')
+
             if not deposit_date:
-                print(f"   ⚠️  ADVERTENCIA: Depósito sin fecha - Saltado: {deposit_data.get('description', 'N/A')}")
+                entry = f"[{broker_name}] Sin fecha: {desc} | {deposit_amount:,.2f} {deposit_data.get('currency', 'EUR')}"
+                self.stats['deposits_skipped'].append(entry)
+                _idebug.warning(f"importer_v2: Depósito sin fecha - saltado: {desc}")
                 continue
-            
-            # Convertir amount a float (puede venir como Decimal del parser)
-            deposit_amount = float(deposit_data['amount'])
-            
-            # VALIDACIÓN: Saltar depósitos con amount = 0 (no tienen impacto económico)
+
             if deposit_amount == 0:
+                # No contar como "no importado" - importe cero no cambia el saldo
                 continue
-            
-            # Verificar duplicados usando el snapshot (incluye amount)
+
             deposit_date_str = deposit_date.isoformat() if deposit_date else ''
             deposit_key = (
                 'DEPOSIT',
-                None,  # asset_id es None para depósitos
+                None,
                 deposit_date_str,
-                deposit_amount,  # amount es clave para detectar duplicados
-                0  # placeholder
+                deposit_amount,
+                0
             )
-            
+
             if deposit_key in self.existing_transactions_snapshot:
                 skipped_duplicate += 1
-                msg = f"   ⏭️  Depósito duplicado saltado: {deposit_date.date()} | {deposit_amount:,.2f} EUR | {deposit_data.get('description', 'N/A')[:50]}"
-                print(msg)
-                import_logger.info(msg)
+                entry = f"[{broker_name}] Duplicado: {deposit_date.date()} | {deposit_amount:,.2f} | {desc}"
+                self.stats['deposits_skipped'].append(entry)
+                _idebug.debug(f"Depósito duplicado: {deposit_date.date()} | {deposit_amount:,.2f} | {desc}")
                 continue
-            
+
             transaction = Transaction(
                 user_id=self.user_id,
                 account_id=self.broker_account_id,
@@ -651,7 +672,7 @@ class CSVImporterV2:
             
             # VALIDACIÓN CRÍTICA: Saltar si no hay fecha válida
             if not withdrawal_date:
-                print(f"   ⚠️  ADVERTENCIA: Retiro sin fecha - Saltado")
+                _idebug.warning("importer_v2: Retiro sin fecha - saltado")
                 continue
             
             # Verificar duplicados usando el snapshot (incluye amount)
@@ -687,19 +708,14 @@ class CSVImporterV2:
             db.session.add(transaction)
             self.stats['withdrawals_created'] += 1
         
-        if skipped_duplicate > 0:
-            print(f"   📊 DEBUG _import_cash_movements: {skipped_duplicate} depósitos/retiros duplicados saltados")
-        
-        # Log detallado de depósitos procesados
         total_deposits_in_csv = len(parsed_data.get('deposits', []))
-        if total_deposits_in_csv > 0:
-            msg = f"   📥 Depósitos en CSV: {total_deposits_in_csv}, Importados: {self.stats.get('deposits_created', 0)}, Saltados (duplicados): {skipped_duplicate}"
-            print(msg)
-            import_logger.info(msg)
+        total_withdrawals = len(parsed_data.get('withdrawals', []))
+        _idebug.info(f"importer_v2: cash_movements -> deposits CSV={total_deposits_in_csv} importados={self.stats.get('deposits_created', 0)} duplicados={skipped_duplicate}")
+        _idebug.info(f"importer_v2: cash_movements -> withdrawals CSV={total_withdrawals} importados={self.stats.get('withdrawals_created', 0)}")
     
     def _recalculate_holdings(self):
         """Recalcula holdings con FIFO robusto"""
-        print(f"\n🔄 Recalculando holdings con FIFO robusto...")
+        _idebug.info("Recalculando holdings con FIFO")
         
         # Hacer flush para que las transacciones recién creadas sean visibles en queries
         # (pero NO commit, solo flush)
@@ -719,7 +735,7 @@ class CSVImporterV2:
             Transaction.transaction_type.in_(['BUY', 'SELL'])
         ).order_by(Transaction.transaction_date).all()
         
-        print(f"   📝 Procesando {len(transactions)} transacciones...")
+        _idebug.debug(f"Procesando {len(transactions)} transacciones para FIFO")
         
         # Agrupar por asset
         positions = {}
@@ -763,7 +779,7 @@ class CSVImporterV2:
                 db.session.add(holding)
                 holdings_created += 1
         
-        print(f"   ✅ {holdings_created} holdings creados (solo posiciones abiertas)")
+        _idebug.info(f"Holdings creados: {holdings_created}")
         self.stats['holdings_created'] = holdings_created
     
     def _cleanup_zero_holdings(self):
@@ -776,5 +792,5 @@ class CSVImporterV2:
         ).delete()
         
         if deleted > 0:
-            print(f"   🗑️  {deleted} holdings con cantidad <= 0 eliminados")
+            _idebug.info(f"Holdings con qty<=0 eliminados: {deleted}")
 

@@ -53,8 +53,19 @@ def update_prices():
     def run_update():
         with app.app_context():
             try:
+                # Primero reconciliar delistings (quiebra/adquisición) para cerrar posiciones
+                # y evitar fallos al buscar precios de activos ya deslistados
+                delisting_result = {}
+                from app.services.delisting_reconciliation_service import reconcile_delistings
+                try:
+                    delisting_result = reconcile_delistings(user_id=user_id)
+                except Exception:
+                    pass  # No bloquear si falla el delisting
                 updater = PriceUpdater(progress_callback=lambda d: update_price_progress(session_key, d))
                 result = updater.update_asset_prices()
+                if delisting_result.get('created', 0) > 0:
+                    result = result or {}
+                    result['delistings_created'] = delisting_result.get('created', 0)
                 with price_progress_lock:
                     price_update_progress_cache[session_key].update({
                         'status': 'completed', 'result': result,

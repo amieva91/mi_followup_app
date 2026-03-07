@@ -7,7 +7,7 @@ from flask_login import login_required, current_user
 
 from app.routes import portfolio_bp
 from app import db, csrf
-from app.models import BrokerAccount, Asset, PortfolioHolding, Transaction, Watchlist
+from app.models import BrokerAccount, Asset, PortfolioHolding, Transaction, Watchlist, AssetRegistry, AssetDelisting, DELISTING_TYPES
 
 @portfolio_bp.route('/asset-registry')
 @login_required
@@ -15,7 +15,6 @@ def asset_registry():
     """
     Gestión completa de AssetRegistry - Tabla global compartida
     """
-    from app.models import AssetRegistry
     from sqlalchemy import desc, asc
     
     # Query base
@@ -76,12 +75,30 @@ def asset_registry():
         'pending': pending,
         'percentage': (enriched / total * 100) if total > 0 else 0
     }
-    
+
+    # Mapeo registry_id -> delisting para mostrar en la tabla
+    reg_ids = [r.id for r in registries] if registries else []
+    delistings_q = AssetDelisting.query.filter(AssetDelisting.asset_registry_id.in_(reg_ids)).all() if reg_ids else []
+    delistings_by_registry = {d.asset_registry_id: d for d in delistings_q}
+    # Datos serializables para JS (fecha como ISO, etc.)
+    delistings_js = {}
+    for rid, d in delistings_by_registry.items():
+        delistings_js[str(rid)] = {
+            'date': d.delisting_date.isoformat(),
+            'price': d.delisting_price,
+            'currency': d.delisting_currency,
+            'type': d.delisting_type,
+            'notes': d.notes or ''
+        }
+
     return render_template('portfolio/asset_registry.html',
                           registries=registries,
                           stats=stats,
                           sort_by=current_sort_by,
-                          sort_order=current_sort_order)
+                          sort_order=current_sort_order,
+                          delistings_by_registry=delistings_by_registry,
+                          delistings_js=delistings_js,
+                          DELISTING_TYPES=DELISTING_TYPES)
 
 
 @portfolio_bp.route('/asset-registry/<int:id>/edit', methods=['POST'])
@@ -143,6 +160,109 @@ def asset_registry_edit(id):
     else:
         flash(f'✅ Registro actualizado: {registry.isin}', 'success')
     
+    return redirect(url_for('portfolio.asset_registry'))
+
+
+@portfolio_bp.route('/asset-registry/<int:id>/delisting', methods=['POST'])
+@login_required
+def asset_registry_delisting(id):
+    """Añadir o actualizar baja de cotización para un AssetRegistry"""
+    from flask_wtf.csrf import validate_csrf
+    try:
+        validate_csrf(request.form.get('csrf_token'))
+    except Exception:
+        flash('Token CSRF inválido', 'error')
+        return redirect(url_for('portfolio.asset_registry'))
+
+    registry = AssetRegistry.query.get_or_404(id)
+    delisting_date = request.form.get('delisting_date', '').strip()
+    delisting_price = request.form.get('delisting_price', '0').strip().replace(',', '.')
+    delisting_currency = request.form.get('delisting_currency', 'EUR').strip().upper()
+    delisting_type = request.form.get('delisting_type', 'CASH_ACQUISITION').strip()
+    notes = request.form.get('delisting_notes', '').strip()
+
+    if not delisting_date:
+        flash('La fecha de baja es obligatoria', 'error')
+        return redirect(url_for('portfolio.asset_registry'))
+
+    try:
+        from datetime import datetime
+        dt = datetime.strptime(delisting_date, '%Y-%m-%d').date()
+        price = float(delisting_price) if delisting_price else 0.0
+    except ValueError:
+        flash('Fecha o precio inválidos', 'error')
+        return redirect(url_for('portfolio.asset_registry'))
+
+    if delisting_type not in DELISTING_TYPES:
+        delisting_type = 'CASH_ACQUISITION'
+
+    existing = AssetDelisting.query.filter_by(asset_registry_id=id).first()
+    if existing:
+        existing.delisting_date = dt
+        existing.delisting_price = price
+        existing.delisting_currency = delisting_currency
+        existing.delisting_type = delisting_type
+        existing.notes = notes or None
+        flash(f'Baja de cotización actualizada: {registry.symbol or registry.isin} - {dt}', 'success')
+    else:
+        d = AssetDelisting(
+            asset_registry_id=id,
+            delisting_date=dt,
+            delisting_price=price,
+            delisting_currency=delisting_currency,
+            delisting_type=delisting_type,
+            notes=notes or None
+        )
+        db.session.add(d)
+        flash(f'Baja de cotización añadida: {registry.symbol or registry.isin} - {dt}', 'success')
+    db.session.commit()
+    return redirect(url_for('portfolio.asset_registry'))
+
+
+@portfolio_bp.route('/asset-registry/<int:id>/delisting/delete', methods=['POST'])
+@login_required
+def asset_registry_delisting_delete(id):
+    """Eliminar baja de cotización"""
+    from flask_wtf.csrf import validate_csrf
+    try:
+        validate_csrf(request.form.get('csrf_token'))
+    except Exception:
+        flash('Token CSRF inválido', 'error')
+        return redirect(url_for('portfolio.asset_registry'))
+
+    d = AssetDelisting.query.filter_by(asset_registry_id=id).first()
+    if d:
+        db.session.delete(d)
+        db.session.commit()
+        flash('Baja de cotización eliminada', 'info')
+    return redirect(url_for('portfolio.asset_registry'))
+
+
+@portfolio_bp.route('/asset-registry/reconcile-delistings', methods=['POST'])
+@login_required
+def asset_registry_reconcile_delistings():
+    """Ejecutar reconciliación de delistings: generar SELL para posiciones en activos delisted"""
+    from flask_wtf.csrf import validate_csrf
+    from app.services.delisting_reconciliation_service import reconcile_delistings
+    try:
+        validate_csrf(request.form.get('csrf_token'))
+    except Exception:
+        flash('Token CSRF inválido', 'error')
+        return redirect(url_for('portfolio.asset_registry'))
+
+    try:
+        result = reconcile_delistings(user_id=current_user.id)
+        msg = f"Reconciliación completada: {result['created']} ventas generadas"
+        if result['skipped'] > 0:
+            msg += f", {result['skipped']} omitidos (ya tenían venta)"
+        if result['errors']:
+            msg += f". Errores: {len(result['errors'])}"
+        flash(msg, 'success' if result['created'] > 0 or result['skipped'] > 0 else 'info')
+        for err in result['errors'][:3]:
+            flash(err, 'error')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error en reconciliación: {str(e)}', 'error')
     return redirect(url_for('portfolio.asset_registry'))
 
 

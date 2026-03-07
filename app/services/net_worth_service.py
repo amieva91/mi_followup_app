@@ -13,8 +13,10 @@ from app.models.asset import Asset
 from app.services.bank_service import BankService
 from app.services.crypto_metrics import compute_crypto_metrics
 from app.services.metales_metrics import compute_metales_metrics
+from app.services.stocks_metrics import compute_stocks_metrics
 from app.services.debt_service import DebtService
 from app.services.currency_service import convert_to_eur
+from app.services.metrics.pnl_lib import create_portfolio_snapshot
 
 
 def get_cash_total(user_id: int, year: int = None, month: int = None) -> float:
@@ -27,36 +29,20 @@ def get_cash_total(user_id: int, year: int = None, month: int = None) -> float:
 
 def get_portfolio_value(user_id: int) -> float:
     """Valor actual del portfolio (Stock + ETF)."""
-    holdings = (
-        PortfolioHolding.query
-        .filter(PortfolioHolding.user_id == user_id)
-        .filter(PortfolioHolding.quantity > 0)
-        .join(PortfolioHolding.asset)
-        .filter(Asset.asset_type.in_(['Stock', 'ETF']))
-        .all()
-    )
-    total = 0.0
-    for h in holdings:
-        price = h.current_price or (h.asset.current_price if h.asset else 0) or 0
-        qty = h.quantity or 0
-        value = qty * price
-        currency = h.asset.currency if h.asset else 'EUR'
-        if currency != 'EUR':
-            value = convert_to_eur(value, currency)
-        total += value
-    return total
+    metrics = compute_stocks_metrics(user_id)
+    return metrics['total_value']
 
 
 def get_crypto_value(user_id: int) -> float:
     """Valor actual de cryptomonedas."""
     metrics = compute_crypto_metrics(user_id)
-    return metrics.get('valor_total', 0.0)
+    return metrics.get('total_value', 0.0)
 
 
 def get_metales_value(user_id: int) -> float:
     """Valor actual de metales preciosos."""
     metrics = compute_metales_metrics(user_id)
-    return metrics.get('valor_total', 0.0)
+    return metrics.get('total_value', 0.0)
 
 
 def get_debt_total(user_id: int) -> float:
@@ -632,84 +618,39 @@ def get_cash_details(user_id: int) -> List[Dict[str, Any]]:
 
 
 def get_portfolio_details(user_id: int, top_n: int = 5) -> Dict[str, Any]:
-    """Detalle del portfolio: top holdings y P&L."""
-    holdings = (
-        PortfolioHolding.query
-        .filter(PortfolioHolding.user_id == user_id)
-        .filter(PortfolioHolding.quantity > 0)
-        .join(PortfolioHolding.asset)
-        .filter(Asset.asset_type.in_(['Stock', 'ETF']))
-        .all()
-    )
-    
-    positions = []
-    total_value = 0
-    total_cost = 0
-    
-    for h in holdings:
-        price = h.current_price or (h.asset.current_price if h.asset else 0) or 0
-        qty = h.quantity or 0
-        cost = h.total_cost or 0
-        value = qty * price
-        currency = h.asset.currency if h.asset else 'EUR'
-        
-        if currency != 'EUR':
-            value = convert_to_eur(value, currency)
-            cost = convert_to_eur(cost, currency)
-        
-        pnl = value - cost
-        pnl_pct = (pnl / cost * 100) if cost > 0 else 0
-        
-        total_value += value
-        total_cost += cost
-        
-        positions.append({
-            'ticker': h.asset.symbol if h.asset else 'N/A',
-            'name': h.asset.name if h.asset else 'N/A',
-            'quantity': qty,
-            'value': round(value, 2),
-            'cost': round(cost, 2),
-            'pnl': round(pnl, 2),
-            'pnl_pct': round(pnl_pct, 1)
-        })
-    
-    # Ordenar por valor y tomar top N
-    positions.sort(key=lambda x: x['value'], reverse=True)
-    
-    total_pnl = total_value - total_cost
-    total_pnl_pct = (total_pnl / total_cost * 100) if total_cost > 0 else 0
-    
+    """Detalle del portfolio: top holdings y P&L. Usa stocks_metrics (pnl_lib)."""
+    metrics = compute_stocks_metrics(user_id, top_n=top_n)
     return {
-        'total_value': round(total_value, 2),
-        'total_cost': round(total_cost, 2),
-        'total_pnl': round(total_pnl, 2),
-        'total_pnl_pct': round(total_pnl_pct, 1),
-        'holdings_count': len(positions),
-        'top_holdings': positions[:top_n]
+        'total_value': metrics['total_value'],
+        'total_cost': metrics['total_cost'],
+        'total_pnl': metrics['total_pnl'],
+        'total_pnl_pct': metrics['total_pnl_pct'],
+        'holdings_count': metrics['holdings_count'],
+        'top_holdings': metrics['top_holdings'],
     }
 
 
 def get_crypto_details(user_id: int) -> Dict[str, Any]:
-    """Detalle de crypto con posiciones."""
+    """Detalle de crypto con posiciones. Claves unificadas: total_value, total_cost, total_pnl, total_pnl_pct."""
     metrics = compute_crypto_metrics(user_id)
     return {
-        'valor_total': metrics.get('valor_total', 0),
-        'capital_invertido': metrics.get('capital_invertido', 0),
-        'rentabilidad': metrics.get('pl_total', 0),
-        'rentabilidad_pct': metrics.get('pl_pct_total', 0),
-        'posiciones': metrics.get('posiciones', [])[:5]
+        'total_value': metrics.get('total_value', 0),
+        'total_cost': metrics.get('total_cost', 0),
+        'total_pnl': metrics.get('total_pnl', 0),
+        'total_pnl_pct': metrics.get('total_pnl_pct', 0),
+        'posiciones': metrics.get('posiciones', [])[:5],
     }
 
 
 def get_metales_details(user_id: int) -> Dict[str, Any]:
-    """Detalle de metales preciosos."""
+    """Detalle de metales preciosos. Claves unificadas: total_value, total_cost, total_pnl, total_pnl_pct."""
     metrics = compute_metales_metrics(user_id)
     return {
-        'valor_total': metrics.get('valor_total', 0),
-        'capital_invertido': metrics.get('capital_invertido', 0),
-        'rentabilidad': metrics.get('pl_total', 0),
-        'rentabilidad_pct': metrics.get('pl_pct_total', 0),
-        'posiciones': metrics.get('posiciones', [])
+        'total_value': metrics.get('total_value', 0),
+        'total_cost': metrics.get('total_cost', 0),
+        'total_pnl': metrics.get('total_pnl', 0),
+        'total_pnl_pct': metrics.get('total_pnl_pct', 0),
+        'posiciones': metrics.get('posiciones', []),
     }
 
 
@@ -861,27 +802,37 @@ def get_upcoming_payments(user_id: int, days: int = 30) -> List[Dict[str, Any]]:
     return sorted(upcoming, key=lambda x: x['days_until'])[:10]
 
 
+def get_portfolio_aggregate(user_id: int):
+    """
+    PortfolioSnapshot agregado: stocks + crypto + metales.
+    Usa pnl_lib para totales unificados.
+    """
+    stocks = compute_stocks_metrics(user_id)
+    crypto = compute_crypto_metrics(user_id)
+    metales = compute_metales_metrics(user_id)
+    categories = {
+        'stocks': stocks['snapshot'],
+        'crypto': crypto['snapshot'],
+        'metales': metales['snapshot'],
+    }
+    return create_portfolio_snapshot(categories)
+
+
 def get_investments_summary(user_id: int) -> Dict[str, Any]:
-    """Rentabilidad consolidada de todas las inversiones."""
-    portfolio = get_portfolio_details(user_id)
-    crypto = get_crypto_details(user_id)
-    metales = get_metales_details(user_id)
-    
-    total_value = portfolio['total_value'] + crypto['valor_total'] + metales['valor_total']
-    total_cost = portfolio['total_cost'] + crypto['capital_invertido'] + metales['capital_invertido']
-    total_pnl = total_value - total_cost
-    total_pnl_pct = (total_pnl / total_cost * 100) if total_cost > 0 else 0
-    
+    """Rentabilidad consolidada de todas las inversiones. Usa PortfolioSnapshot."""
+    agg = get_portfolio_aggregate(user_id)
+    c = agg.categories
     return {
-        'total_value': round(total_value, 2),
-        'total_cost': round(total_cost, 2),
-        'total_pnl': round(total_pnl, 2),
-        'total_pnl_pct': round(total_pnl_pct, 1),
+        'total_value': round(agg.total_value, 2),
+        'total_cost': round(agg.total_cost, 2),
+        'total_pnl': round(agg.total_pnl, 2),
+        'total_pnl_pct': round(agg.total_pnl_pct, 1),
         'by_type': [
-            {'name': 'Portfolio', 'value': portfolio['total_value'], 'pnl': portfolio['total_pnl'], 'pnl_pct': portfolio['total_pnl_pct']},
-            {'name': 'Crypto', 'value': crypto['valor_total'], 'pnl': crypto['rentabilidad'], 'pnl_pct': crypto['rentabilidad_pct']},
-            {'name': 'Metales', 'value': metales['valor_total'], 'pnl': metales['rentabilidad'], 'pnl_pct': metales['rentabilidad_pct']}
-        ]
+            {'name': 'Portfolio', 'value': c['stocks'].total_value, 'pnl': c['stocks'].total_pnl, 'pnl_pct': c['stocks'].total_pnl_pct},
+            {'name': 'Crypto', 'value': c['crypto'].total_value, 'pnl': c['crypto'].total_pnl, 'pnl_pct': c['crypto'].total_pnl_pct},
+            {'name': 'Metales', 'value': c['metales'].total_value, 'pnl': c['metales'].total_pnl, 'pnl_pct': c['metales'].total_pnl_pct},
+        ],
+        'snapshot': agg,
     }
 
 
