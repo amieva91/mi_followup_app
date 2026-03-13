@@ -7,6 +7,8 @@ from dateutil.relativedelta import relativedelta
 from typing import Dict, List, Any, Optional
 import numpy as np
 
+from sqlalchemy.exc import OperationalError
+
 from app import db
 from app.models.portfolio import PortfolioHolding
 from app.models.asset import Asset
@@ -47,28 +49,33 @@ def get_metales_value(user_id: int) -> float:
 
 def get_real_estate_value(user_id: int) -> float:
     """Valor total estimado de inmuebles (última tasación o precio compra)."""
-    from app.models import RealEstateProperty
-    props = RealEstateProperty.query.filter_by(user_id=user_id).all()
-    return sum(p.get_estimated_value() for p in props)
+    try:
+        from app.models import RealEstateProperty
+        props = RealEstateProperty.query.filter_by(user_id=user_id).all()
+        return sum(p.get_estimated_value() for p in props)
+    except OperationalError:
+        return 0.0
 
 
 def _get_real_estate_value_at_date(user_id: int, target_date) -> float:
     """Valor de inmuebles en una fecha: propiedades compradas antes de la fecha, última tasación hasta ese año."""
-    from app.models import RealEstateProperty, PropertyValuation
-    today = target_date.date() if hasattr(target_date, 'date') else target_date
-    props = RealEstateProperty.query.filter(
-        RealEstateProperty.user_id == user_id,
-        RealEstateProperty.purchase_date <= today
-    ).all()
-    total = 0.0
-    for p in props:
-        # Última tasación con año <= target_date.year
-        last_val = PropertyValuation.query.filter(
-            PropertyValuation.property_id == p.id,
-            PropertyValuation.year <= today.year
-        ).order_by(PropertyValuation.year.desc()).first()
-        total += last_val.value if last_val else p.purchase_price
-    return total
+    try:
+        from app.models import RealEstateProperty, PropertyValuation
+        today = target_date.date() if hasattr(target_date, 'date') else target_date
+        props = RealEstateProperty.query.filter(
+            RealEstateProperty.user_id == user_id,
+            RealEstateProperty.purchase_date <= today
+        ).all()
+        total = 0.0
+        for p in props:
+            last_val = PropertyValuation.query.filter(
+                PropertyValuation.property_id == p.id,
+                PropertyValuation.year <= today.year
+            ).order_by(PropertyValuation.year.desc()).first()
+            total += last_val.value if last_val else p.purchase_price
+        return total
+    except OperationalError:
+        return 0.0
 
 
 def get_debt_total(user_id: int) -> float:
@@ -687,23 +694,29 @@ def get_metales_details(user_id: int) -> Dict[str, Any]:
 
 def get_real_estate_details(user_id: int) -> Dict[str, Any]:
     """Detalle de inmuebles."""
-    from app.models import RealEstateProperty
-    props = RealEstateProperty.query.filter_by(user_id=user_id).all()
-    total = sum(p.get_estimated_value() for p in props)
-    return {
-        'total_value': round(total, 2),
-        'properties': [
-            {'id': p.id, 'address': p.address, 'type': p.property_type, 'value': p.get_estimated_value(), 'icon': p.get_icon()}
-            for p in props
-        ],
-    }
+    try:
+        from app.models import RealEstateProperty
+        props = RealEstateProperty.query.filter_by(user_id=user_id).all()
+        total = sum(p.get_estimated_value() for p in props)
+        return {
+            'total_value': round(total, 2),
+            'properties': [
+                {'id': p.id, 'address': p.address, 'type': p.property_type, 'value': p.get_estimated_value(), 'icon': p.get_icon()}
+                for p in props
+            ],
+        }
+    except OperationalError:
+        return {'total_value': 0, 'properties': []}
 
 
 def get_debt_details(user_id: int) -> Dict[str, Any]:
     """Detalle de deudas con próximas cuotas."""
-    from app.models import DebtPlan, Expense
-    
-    plans = DebtPlan.query.filter_by(user_id=user_id, status='ACTIVE').all()
+    try:
+        from app.models import DebtPlan, Expense
+        plans = DebtPlan.query.filter_by(user_id=user_id, status='ACTIVE').all()
+    except OperationalError:
+        return {'total_debt': 0, 'total_monthly': 0, 'plans_count': 0, 'plans': []}
+
     total_debt = 0
     total_monthly = 0
     debt_list = []
@@ -1441,6 +1454,8 @@ def get_dashboard_summary(user_id: int) -> Dict[str, Any]:
     investments_summary = get_investments_summary(user_id)
     recent_transactions = get_recent_transactions(user_id)
     currency_exposure = get_currency_exposure(user_id)
+    from app.services.income_expense_aggregator import get_expense_category_summary_with_adjustment
+    expense_category_summary = get_expense_category_summary_with_adjustment(user_id, months=12)
     year_comparison = get_year_comparison(user_id)
     health_score = get_financial_health_score(user_id)
     
@@ -1497,5 +1512,6 @@ def get_dashboard_summary(user_id: int) -> Dict[str, Any]:
         'recent_transactions': recent_transactions,
         'currency_exposure': currency_exposure,
         'year_comparison': year_comparison,
-        'health_score': health_score
+        'health_score': health_score,
+        'expense_category_summary': expense_category_summary
     }
