@@ -61,6 +61,55 @@ class DebtService:
         return plan
 
     @staticmethod
+    def ensure_all_plans_have_installments(user_id):
+        """
+        Regenera cuotas faltantes para todos los planes con months > 0 y 0 Expenses.
+        Se ejecuta automáticamente al cargar Deudas para reparar datos legacy/importados.
+        Returns: total de cuotas creadas.
+        """
+        total_created = 0
+        for plan in DebtPlan.query.filter_by(user_id=user_id).all():
+            if plan.months <= 0:
+                continue
+            if Expense.query.filter_by(debt_plan_id=plan.id).count() > 0:
+                continue
+            total_created += DebtService.regenerate_missing_installments(plan.id, user_id)
+        return total_created
+
+    @staticmethod
+    def regenerate_missing_installments(plan_id, user_id):
+        """
+        Regenera los Expense (cuotas) para un plan que tiene months > 0 pero 0 Expenses.
+        No modifica planes que ya tengan cuotas. Returns: número de cuotas creadas.
+        """
+        plan = DebtPlan.query.filter_by(id=plan_id, user_id=user_id).first()
+        if not plan or plan.months <= 0:
+            return 0
+        if Expense.query.filter_by(debt_plan_id=plan_id).count() > 0:
+            return 0
+        monthly_payment = round(plan.total_amount / plan.months, 2)
+        current_date = plan.start_date
+        created = 0
+        for i in range(plan.months):
+            amount = monthly_payment if i < plan.months - 1 else round(plan.total_amount - monthly_payment * (plan.months - 1), 2)
+            desc = f"Cuota {i + 1}/{plan.months} - {plan.name}"
+            expense = Expense(
+                user_id=user_id,
+                category_id=plan.category_id,
+                amount=amount,
+                description=desc,
+                date=current_date,
+                notes=plan.notes,
+                is_recurring=False,
+                debt_plan_id=plan.id,
+            )
+            db.session.add(expense)
+            current_date = current_date + relativedelta(months=1)
+            created += 1
+        db.session.commit()
+        return created
+
+    @staticmethod
     def update_debt_plan(plan_id, user_id, name, total_amount, months, start_date, category_id, notes=None):
         """
         Actualiza un plan de deuda y sincroniza las cuotas (Expense) correspondientes.
@@ -469,6 +518,11 @@ class DebtService:
             Expense.debt_plan_id == plan_id,
             Expense.date <= today
         ).count()
+
+    @staticmethod
+    def get_expense_count(plan_id):
+        """Total de Expense (cuotas) vinculadas al plan."""
+        return Expense.query.filter_by(debt_plan_id=plan_id).count()
 
     @staticmethod
     def get_income_last_12_months(user_id):

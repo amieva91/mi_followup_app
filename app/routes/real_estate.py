@@ -17,6 +17,7 @@ real_estate_bp = Blueprint('real_estate', __name__, url_prefix='/real-estate')
 @login_required
 def dashboard():
     """Listado de inmuebles con valor estimado e indicador de hipoteca"""
+    DebtService.ensure_all_plans_have_installments(current_user.id)
     props = RealEstateProperty.query.filter_by(user_id=current_user.id).order_by(
         RealEstateProperty.address
     ).all()
@@ -65,7 +66,7 @@ def new():
 def detail(id):
     """Detalle del inmueble con tasaciones"""
     prop = RealEstateProperty.query.filter_by(id=id, user_id=current_user.id).first_or_404()
-    valuations = prop.valuations.order_by(PropertyValuation.year).all()
+    valuations = PropertyValuation.query.filter_by(property_id=prop.id).order_by(PropertyValuation.year.desc()).all()
     debt_plan = DebtPlan.query.filter_by(property_id=id, status='ACTIVE').first()
     remaining = DebtService.get_remaining_amount(debt_plan.id, current_user.id) if debt_plan else 0
 

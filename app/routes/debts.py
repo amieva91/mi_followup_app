@@ -16,6 +16,7 @@ debts_bp = Blueprint('debts', __name__, url_prefix='/debts')
 @login_required
 def dashboard():
     """Dashboard de deudas: gráfico, resumen, límite"""
+    DebtService.ensure_all_plans_have_installments(current_user.id)
     schedule_data = DebtService.get_monthly_debt_schedule(current_user.id, months_back=6)
     total_debt = DebtService.get_total_debt_remaining(current_user.id)
     plans = DebtService.get_active_plans(current_user.id)
@@ -29,7 +30,7 @@ def dashboard():
         plans=plans,
         inactive_plans=inactive_plans,
         limit_info=limit_info,
-        get_months_paid=DebtService.get_months_paid
+        get_months_paid=DebtService.get_months_paid,
     )
 
 

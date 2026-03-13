@@ -1,0 +1,70 @@
+{% extends "base/layout.html" %}
+
+{% block content %}
+<div class="max-w-[92%] mx-auto">
+    <div class="flex justify-between items-center mb-8">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900">📦 Import/Export</h1>
+            <p class="text-gray-600 mt-1">Copia de seguridad y restauración de todos tus datos</p>
+        </div>
+        <a href="{{ url_for('portfolio.dashboard') }}" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg">
+            ← Volver
+        </a>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="space-y-2 mb-6">
+        {% for category, message in messages %}
+        <div class="rounded-lg p-4 {% if category == 'success' %}bg-green-50 border border-green-200 text-green-800{% else %}bg-red-50 border border-red-200 text-red-800{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    <div class="grid md:grid-cols-2 gap-8">
+        <!-- Exportar -->
+        <div class="bg-white rounded-xl shadow-md p-6 border border-gray-100">
+            <h2 class="text-xl font-bold text-gray-900 mb-2">📤 Exportar (Backup)</h2>
+            <p class="text-gray-600 text-sm mb-4">Descarga un archivo .xlsx con todos tus datos como copia de seguridad.</p>
+            <p class="text-gray-500 text-xs mb-4">Incluye: Transacciones, Ingresos, Gastos, Deudas, Bancos, Inmuebles y Watchlist.</p>
+            <a href="{{ url_for('portfolio.data_export_download') }}" class="inline-flex items-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition">
+                <span>Descargar .xlsx</span>
+            </a>
+        </div>
+
+        <!-- Importar -->
+        <div class="bg-white rounded-xl shadow-md p-6 border border-gray-100">
+            <h2 class="text-xl font-bold text-gray-900 mb-2">📥 Importar (Restaurar)</h2>
+            <p class="text-gray-600 text-sm mb-4">Sube un archivo .xlsx previamente exportado para restaurar tus datos.</p>
+            <p class="text-gray-500 text-xs mb-4">⚠️ La importación <strong>añade</strong> registros sin eliminar los existentes. Evita duplicar datos importando el mismo archivo varias veces.</p>
+            <form method="POST" action="{{ url_for('portfolio.data_import_submit') }}" enctype="multipart/form-data" class="space-y-4">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Archivo .xlsx</label>
+                    <input type="file" name="file" accept=".xlsx" required
+                           class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                </div>
+                <button type="submit" class="inline-flex items-center gap-2 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition">
+                    Importar datos
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="mt-8 bg-gray-50 rounded-xl p-6 border border-gray-200">
+        <h3 class="font-semibold text-gray-900 mb-3">Estructura del archivo de exportación</h3>
+        <ul class="text-sm text-gray-700 space-y-2">
+            <li><strong>Transacciones:</strong> Acciones, ETFs, metales y criptomonedas (con depósitos/retiradas de efectivo)</li>
+            <li><strong>Ingresos:</strong> Categorías e ingresos</li>
+            <li><strong>Gastos:</strong> Categorías y gastos</li>
+            <li><strong>Deudas:</strong> Planes de deuda e hipotecas</li>
+            <li><strong>Bancos:</strong> Entidades y saldos mensuales</li>
+            <li><strong>Inmuebles:</strong> Propiedades y tasaciones anuales</li>
+            <li><strong>Watchlist:</strong> Listas de seguimiento (símbolo, métricas manuales)</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}

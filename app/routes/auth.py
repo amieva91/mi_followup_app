@@ -11,6 +11,7 @@ from app.models import (
     Bank, BankBalance, Watchlist, WatchlistConfig,
     UserDashboardConfig, MetricsCache,
     ReportSettings, ReportTemplate, CompanyReport, AssetAboutSummary,
+    RealEstateProperty, PropertyValuation,
 )
 from app.forms import LoginForm, RegisterForm, RequestResetForm, ResetPasswordForm
 from app.forms.profile_forms import ProfileForm, ChangePasswordForm, DeleteAccountForm
@@ -189,6 +190,9 @@ def _delete_user_data(user_id):
     Income.query.filter_by(user_id=user_id).delete()
     IncomeCategory.query.filter_by(user_id=user_id).delete()
     DebtPlan.query.filter_by(user_id=user_id).delete()
+    for prop in RealEstateProperty.query.filter_by(user_id=user_id).all():
+        PropertyValuation.query.filter_by(property_id=prop.id).delete()
+    RealEstateProperty.query.filter_by(user_id=user_id).delete()
     BankBalance.query.filter_by(user_id=user_id).delete()
     Bank.query.filter_by(user_id=user_id).delete()
     Watchlist.query.filter_by(user_id=user_id).delete()

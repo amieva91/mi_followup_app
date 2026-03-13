@@ -13,5 +13,6 @@ from app.routes.portfolio import holdings
 from app.routes.portfolio import dashboard
 from app.routes.portfolio import transactions
 from app.routes.portfolio import import_routes
+from app.routes.portfolio import data_export_import
 from app.routes.portfolio import assets
 from app.routes.portfolio import watchlist
