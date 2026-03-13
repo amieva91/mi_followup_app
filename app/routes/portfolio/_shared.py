@@ -1,14 +1,42 @@
 """
 Helpers y cachés compartidos entre módulos de portfolio
 """
+import json
+import os
 from threading import Lock
 
 from app import db
 from app.models import BrokerAccount, Broker
 
 # Cache global para progreso de importación (thread-safe)
+# NOTA: Con Gunicorn multi-worker, la memoria no se comparte. Usar get/set_import_progress_file().
 import_progress_cache = {}
 progress_lock = Lock()
+
+
+def _import_progress_file_path(user_id):
+    """Ruta del archivo de progreso (compartido entre workers de Gunicorn)."""
+    from flask import current_app
+    d = os.path.join(current_app.instance_path, 'import_progress')
+    os.makedirs(d, exist_ok=True)
+    return os.path.join(d, f'progress_{user_id}.json')
+
+
+def get_import_progress(user_id):
+    """Lee el progreso de importación desde archivo (visible por todos los workers)."""
+    try:
+        path = _import_progress_file_path(user_id)
+        with open(path) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+def set_import_progress(user_id, data):
+    """Escribe el progreso de importación a archivo (visible por todos los workers)."""
+    path = _import_progress_file_path(user_id)
+    with open(path, 'w') as f:
+        json.dump(data, f, default=str)
 
 # Cache global para progreso de actualización de precios (thread-safe)
 price_update_progress_cache = {}

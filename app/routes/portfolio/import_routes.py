@@ -10,8 +10,8 @@ from werkzeug.utils import secure_filename
 
 from app.routes import portfolio_bp
 from app.routes.portfolio._shared import (
-    import_progress_cache,
-    progress_lock,
+    get_import_progress,
+    set_import_progress,
     allowed_file,
     get_or_create_broker_account,
     UPLOAD_FOLDER,
@@ -31,11 +31,9 @@ def import_csv():
 @portfolio_bp.route('/import/progress')
 @login_required
 def import_progress():
-    """Endpoint para consultar progreso de importación en tiempo real"""
-    user_key = f"user_{current_user.id}"
-
-    with progress_lock:
-        progress = import_progress_cache.get(user_key, {})
+    """Endpoint para consultar progreso de importación en tiempo real.
+    Usa archivo compartido para que funcione con varios workers de Gunicorn."""
+    progress = get_import_progress(current_user.id)
 
     if not progress:
         return jsonify({
@@ -166,39 +164,49 @@ def import_csv_process():
                 failed_enrichment_cache=failed_enrichment_cache
             )
 
-            user_key = f"user_{current_user.id}"
+            # Estado inicial para que el polling muestre progreso desde el primer archivo
+            remaining = [secure_filename(files[i].filename) for i in range(file_idx + 1, len(files))]
+            set_import_progress(current_user.id, {
+                'current': 0,
+                'total': 1,
+                'message': f'Procesando {filename}...',
+                'percentage': 0,
+                'current_file': filename,
+                'file_number': file_number,
+                'total_files': total_files,
+                'completed_files': completed_files.copy(),
+                'pending_files': remaining.copy()
+            })
 
             def progress_callback(current, total, message):
                 remaining = [secure_filename(files[i].filename) for i in range(file_idx + 1, len(files))]
-                with progress_lock:
-                    import_progress_cache[user_key] = {
-                        'current': current,
-                        'total': total,
-                        'message': message,
-                        'percentage': int((current / total) * 100) if total > 0 else 0,
-                        'current_file': filename,
-                        'file_number': file_number,
-                        'total_files': total_files,
-                        'completed_files': completed_files.copy(),
-                        'pending_files': remaining.copy()
-                    }
+                set_import_progress(current_user.id, {
+                    'current': current,
+                    'total': total,
+                    'message': message,
+                    'percentage': int((current / total) * 100) if total > 0 else 0,
+                    'current_file': filename,
+                    'file_number': file_number,
+                    'total_files': total_files,
+                    'completed_files': completed_files.copy(),
+                    'pending_files': remaining.copy()
+                })
 
             stats = importer.import_data(parsed_data, progress_callback=progress_callback)
 
             debug_log.info(f"Stats archivo {filename}: {stats}")
             completed_files.append(filename)
 
-            with progress_lock:
-                remaining = [secure_filename(files[i].filename) for i in range(file_idx + 1, len(files))]
-                import_progress_cache[user_key] = {
-                    'phase': 'file_completed',
-                    'current_file': filename,
-                    'file_number': file_number,
-                    'total_files': total_files,
-                    'completed_files': completed_files.copy(),
-                    'pending_files': remaining,
-                    'message': f'✅ {filename} importado correctamente'
-                }
+            remaining = [secure_filename(files[i].filename) for i in range(file_idx + 1, len(files))]
+            set_import_progress(current_user.id, {
+                'phase': 'file_completed',
+                'current_file': filename,
+                'file_number': file_number,
+                'total_files': total_files,
+                'completed_files': completed_files.copy(),
+                'pending_files': remaining,
+                'message': f'✅ {filename} importado correctamente'
+            })
 
             time.sleep(0.3)
 
@@ -267,12 +275,10 @@ def import_csv_process():
             'dep_skip': len(total_stats.get('deposits_skipped', [])),
         }
 
-        user_key = f"user_{current_user.id}"
-        with progress_lock:
-            import_progress_cache[user_key] = {
-                'phase': 'completed',
-                'stats': total_stats
-            }
+        set_import_progress(current_user.id, {
+            'phase': 'completed',
+            'stats': total_stats
+        })
 
         redirect_url = url_for('portfolio.import_csv') + '?' + urlencode(query_params)
 
