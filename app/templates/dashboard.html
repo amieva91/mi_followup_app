@@ -719,7 +719,7 @@
                         </div>
                         <div class="w-full bg-gray-200 rounded-full h-4">
                             <div class="{% if summary.health_score.summary.months_runway >= 6 %}bg-green-500{% elif summary.health_score.summary.months_runway >= 3 %}bg-yellow-500{% else %}bg-red-500{% endif %} h-4 rounded-full transition-all" 
-                                 style="width: {{ [summary.health_score.components.emergency_fund.current_amount / summary.health_score.components.emergency_fund.target_amount * 100, 100] | min }}%"></div>
+                                 style="width: {% if summary.health_score.components.emergency_fund.target_amount and summary.health_score.components.emergency_fund.target_amount > 0 %}{{ [100 * summary.health_score.components.emergency_fund.current_amount / summary.health_score.components.emergency_fund.target_amount, 100] | min }}{% else %}0{% endif %}%"></div>
                         </div>
                     </div>
                 </div>
