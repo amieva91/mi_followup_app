@@ -4,7 +4,7 @@ BG is a country code (Bulgaria), not ISO 4217. Correct code is BGN.
 Updates assets and transactions with currency='BG' to 'BGN'.
 
 Revision ID: b7c8d9e0f1a2
-Revises: d7e8f9a0b1c2
+Revises: f8a9b0c1d2e3
 Create Date: 2026-03-07
 
 """
@@ -12,7 +12,7 @@ from alembic import op
 
 
 revision = 'b7c8d9e0f1a2'
-down_revision = 'd7e8f9a0b1c2'
+down_revision = 'f8a9b0c1d2e3'
 branch_labels = None
 depends_on = None
 
