@@ -16,20 +16,24 @@ from app.services.portfolio_holding_service import recalculate_holdings
 def get_delisted_isins() -> Set[str]:
     """
     ISINs con baja de cotización ya efectiva (fecha <= hoy).
+    Si falla la consulta, devuelve set vacío.
     """
-    today = date.today()
-    rows = (
-        db.session.query(AssetRegistry.isin)
-        .join(AssetDelisting, AssetDelisting.asset_registry_id == AssetRegistry.id)
-        .filter(
-            AssetDelisting.delisting_date <= today,
-            AssetDelisting.delisting_type.in_(['CASH_ACQUISITION', 'BANKRUPTCY'])
+    try:
+        today = date.today()
+        rows = (
+            db.session.query(AssetRegistry.isin)
+            .join(AssetDelisting, AssetDelisting.asset_registry_id == AssetRegistry.id)
+            .filter(
+                AssetDelisting.delisting_date <= today,
+                AssetDelisting.delisting_type.in_(['CASH_ACQUISITION', 'BANKRUPTCY'])
+            )
+            .filter(AssetRegistry.isin.isnot(None))
+            .distinct()
+            .all()
         )
-        .filter(AssetRegistry.isin.isnot(None))
-        .distinct()
-        .all()
-    )
-    return {r[0] for r in rows if r[0]}
+        return {r[0] for r in rows if r[0]}
+    except Exception:
+        return set()
 
 
 def get_delisted_asset_ids() -> Set[int]:
@@ -37,20 +41,24 @@ def get_delisted_asset_ids() -> Set[int]:
     IDs de Asset con baja de cotización ya efectiva (fecha <= hoy).
     Usar para excluir estos activos del portfolio y de la actualización de precios.
     Une Asset con AssetRegistry por ISIN y con AssetDelisting.
+    Si falla la consulta (p. ej. tabla no existe en producción), devuelve set vacío para no romper la vista.
     """
-    today = date.today()
-    rows = (
-        db.session.query(Asset.id)
-        .join(AssetRegistry, Asset.isin == AssetRegistry.isin)
-        .join(AssetDelisting, AssetDelisting.asset_registry_id == AssetRegistry.id)
-        .filter(
-            AssetDelisting.delisting_date <= today,
-            AssetDelisting.delisting_type.in_(['CASH_ACQUISITION', 'BANKRUPTCY'])
+    try:
+        today = date.today()
+        rows = (
+            db.session.query(Asset.id)
+            .join(AssetRegistry, Asset.isin == AssetRegistry.isin)
+            .join(AssetDelisting, AssetDelisting.asset_registry_id == AssetRegistry.id)
+            .filter(
+                AssetDelisting.delisting_date <= today,
+                AssetDelisting.delisting_type.in_(['CASH_ACQUISITION', 'BANKRUPTCY'])
+            )
+            .distinct()
+            .all()
         )
-        .distinct()
-        .all()
-    )
-    return {r[0] for r in rows}
+        return {r[0] for r in rows}
+    except Exception:
+        return set()
 
 
 def reconcile_delistings(user_id: int = None) -> Dict[str, Any]:
