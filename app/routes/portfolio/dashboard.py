@@ -295,16 +295,20 @@ def dashboard():
 @portfolio_bp.route('/cache/invalidate', methods=['POST'])
 @login_required
 def invalidate_cache():
-    """Invalida manualmente el cache de métricas del usuario"""
+    """
+    Recalcula todos los holdings desde transacciones (FIFO) e invalida el cache de métricas.
+    Así el dashboard usa costes y posiciones coherentes con Asset.currency y las transacciones.
+    """
     from app.services.metrics.cache import MetricsCacheService
+    from app.services.portfolio_holding_service import recalculate_all_holdings_for_user
 
+    n_holdings = recalculate_all_holdings_for_user(current_user.id)
     was_invalidated = MetricsCacheService.invalidate(current_user.id)
 
-    if was_invalidated:
-        flash('✅ Cache invalidado. Las métricas se recalcularán en la próxima visita.', 'success')
-    else:
-        flash('ℹ️ No había cache para invalidar. Las métricas ya se recalcularán.', 'info')
-
+    flash(
+        f'✅ Holdings recalculados ({n_holdings} posiciones) y cache invalidado. Recarga la página.',
+        'success'
+    )
     return redirect(url_for('portfolio.dashboard'))
 
 

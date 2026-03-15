@@ -1,7 +1,23 @@
 """Servicio para recalcular holdings (posiciones) desde transacciones"""
 from app import db
-from app.models import Transaction, PortfolioHolding, Asset
+from app.models import Transaction, PortfolioHolding, Asset, BrokerAccount
 from app.services.fifo_calculator import FIFOCalculator
+
+
+def recalculate_all_holdings_for_user(user_id: int) -> int:
+    """
+    Recalcula los holdings de todas las cuentas activas del usuario desde transacciones (FIFO).
+    Útil cuando se ha corregido currency de activos o hay desfase entre BD y lógica.
+    Hace commit al final.
+    Returns:
+        Número total de holdings creados
+    """
+    accounts = BrokerAccount.query.filter_by(user_id=user_id, is_active=True).all()
+    total = 0
+    for acc in accounts:
+        total += recalculate_holdings(user_id, acc.id)
+    db.session.commit()
+    return total
 
 
 def recalculate_holdings(user_id: int, account_id: int) -> int:

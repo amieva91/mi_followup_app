@@ -66,6 +66,7 @@ fix_*.py
 !migrations/versions/fix_*.py
 show_*.py
 sync_*.py
+!docs/scripts/sync_assets_registry.py
 
 # Dev/debug scripts en app/services
 app/services/debug_*.py

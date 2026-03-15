@@ -18,6 +18,19 @@ _exchange_rates_cache = {
 }
 _cache_lock = Lock()
 
+
+def clear_rates_cache():
+    """
+    Vacía el cache de tasas de cambio (in-memory).
+    La siguiente llamada a get_exchange_rates() volverá a llamar a la API.
+    Útil para pruebas: mismo proceso debe llamar esto y luego recalcular métricas.
+    """
+    with _cache_lock:
+        _exchange_rates_cache['rates'] = None
+        _exchange_rates_cache['last_update'] = None
+    logger.info("Cache de tasas de cambio vaciado.")
+
+
 # Alias de monedas incorrectos -> códigos ISO 4217
 # BG es código país (Bulgaria), la moneda correcta es BGN (Lev búlgaro)
 CURRENCY_ALIASES = {
