@@ -9,14 +9,23 @@ from app.routes import portfolio_bp
 from app.routes.portfolio._shared import (
     price_update_progress_cache,
     price_progress_lock,
+    get_price_update_progress,
+    set_price_update_progress,
 )
 
 
 def update_price_progress(session_key, data):
-    """Callback para actualizar el progreso"""
+    """Callback para actualizar el progreso (memoria + archivo para multi-worker)."""
     with price_progress_lock:
         if session_key in price_update_progress_cache:
             price_update_progress_cache[session_key].update(data)
+    # Archivo compartido entre workers de Gunicorn para que el polling vea el progreso
+    try:
+        user_id = int(session_key.replace('price_update_', '') or '0')
+        if user_id:
+            set_price_update_progress(user_id, data, merge=True)
+    except (ValueError, TypeError):
+        pass
 
 
 @portfolio_bp.route('/prices/update', methods=['POST'])
@@ -35,18 +44,24 @@ def update_prices():
     user_id = current_user.id
     session_key = f'price_update_{user_id}'
 
+    # Comprobar en archivo (compartido entre workers) y en memoria
+    file_state = get_price_update_progress(user_id)
+    if file_state.get('status') == 'running':
+        return jsonify({'error': 'Ya hay una actualización en progreso'}), 400
     with price_progress_lock:
         if session_key in price_update_progress_cache:
             ex = price_update_progress_cache[session_key]
             if ex.get('status') == 'running':
                 return jsonify({'error': 'Ya hay una actualización en progreso'}), 400
 
+    initial_state = {
+        'status': 'running', 'current': 0, 'total': 0,
+        'current_asset': 'Iniciando...', 'success': 0, 'failed': 0, 'skipped': 0,
+        'errors': [], 'start_time': time.time()
+    }
     with price_progress_lock:
-        price_update_progress_cache[session_key] = {
-            'status': 'running', 'current': 0, 'total': 0,
-            'current_asset': 'Iniciando...', 'success': 0, 'failed': 0, 'skipped': 0,
-            'errors': [], 'start_time': time.time()
-        }
+        price_update_progress_cache[session_key] = dict(initial_state)
+    set_price_update_progress(user_id, initial_state)
 
     app = current_app._get_current_object()
 
@@ -66,24 +81,28 @@ def update_prices():
                 if delisting_result.get('created', 0) > 0:
                     result = result or {}
                     result['delistings_created'] = delisting_result.get('created', 0)
+                final_state = {
+                    'status': 'completed', 'result': result,
+                    'success': result.get('success', 0), 'failed': result.get('failed', 0),
+                    'skipped': result.get('skipped', 0), 'total': result.get('total', 0),
+                    'failed_assets': result.get('failed_assets', []),
+                    'skipped_assets': result.get('skipped_assets', []),
+                    'end_time': time.time()
+                }
                 with price_progress_lock:
-                    price_update_progress_cache[session_key].update({
-                        'status': 'completed', 'result': result,
-                        'success': result.get('success', 0), 'failed': result.get('failed', 0),
-                        'skipped': result.get('skipped', 0), 'total': result.get('total', 0),
-                        'failed_assets': result.get('failed_assets', []),
-                        'skipped_assets': result.get('skipped_assets', []),
-                        'end_time': time.time()
-                    })
+                    price_update_progress_cache[session_key].update(final_state)
+                set_price_update_progress(user_id, final_state, merge=True)
                 from app.services.metrics.cache import MetricsCacheService
                 MetricsCacheService.invalidate(user_id)
             except Exception as e:
                 import traceback
+                error_state = {
+                    'status': 'error', 'error': str(e),
+                    'traceback': traceback.format_exc(), 'end_time': time.time()
+                }
                 with price_progress_lock:
-                    price_update_progress_cache[session_key].update({
-                        'status': 'error', 'error': str(e),
-                        'traceback': traceback.format_exc(), 'end_time': time.time()
-                    })
+                    price_update_progress_cache[session_key].update(error_state)
+                set_price_update_progress(user_id, error_state, merge=True)
 
     threading.Thread(target=run_update, daemon=True).start()
     return jsonify({'status': 'started', 'session_key': session_key})
@@ -92,8 +111,12 @@ def update_prices():
 @portfolio_bp.route('/prices/update/progress', methods=['GET'])
 @login_required
 def price_update_progress():
-    """Consulta progreso de actualización de precios"""
-    session_key = f'price_update_{current_user.id}'
+    """Consulta progreso de actualización de precios (archivo compartido entre workers)."""
+    user_id = current_user.id
+    p = get_price_update_progress(user_id)
+    if p:
+        return jsonify(p)
+    session_key = f'price_update_{user_id}'
     with price_progress_lock:
         p = price_update_progress_cache.get(session_key, {'status': 'not_started', 'current': 0, 'total': 0})
     return jsonify(p)

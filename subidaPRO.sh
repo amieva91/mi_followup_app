@@ -51,7 +51,7 @@ echo "📚 Comprobando dependencias..."
 pip install --no-cache-dir -r requirements.txt --quiet
 echo "   ✓ Dependencias OK"
 
-# Migraciones
+# Migraciones (para reset completo de BD en producción: ./scripts/reset_db_production.sh)
 echo "🗄️  Aplicando migraciones..."
 export FLASK_APP=run.py
 export FLASK_ENV=production

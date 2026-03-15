@@ -39,8 +39,43 @@ def set_import_progress(user_id, data):
         json.dump(data, f, default=str)
 
 # Cache global para progreso de actualización de precios (thread-safe)
+# NOTA: Con Gunicorn multi-worker la memoria no se comparte. En producción
+# se usa get/set_price_update_progress (archivo) para que todos los workers vean el progreso.
 price_update_progress_cache = {}
 price_progress_lock = Lock()
+
+
+def _price_update_progress_file_path(user_id):
+    """Ruta del archivo de progreso de actualización de precios (compartido entre workers)."""
+    from flask import current_app
+    d = os.path.join(current_app.instance_path, 'import_progress')
+    os.makedirs(d, exist_ok=True)
+    return os.path.join(d, f'price_progress_{user_id}.json')
+
+
+def get_price_update_progress(user_id):
+    """Lee el progreso de actualización de precios desde archivo (visible por todos los workers)."""
+    try:
+        path = _price_update_progress_file_path(user_id)
+        with open(path) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+def set_price_update_progress(user_id, data, merge=False):
+    """Escribe el progreso de actualización de precios a archivo (visible por todos los workers)."""
+    path = _price_update_progress_file_path(user_id)
+    if merge:
+        try:
+            with open(path) as f:
+                existing = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            existing = {}
+        existing.update(data)
+        data = existing
+    with open(path, 'w') as f:
+        json.dump(data, f, default=str)
 
 # Configuración de uploads
 UPLOAD_FOLDER = 'uploads'
