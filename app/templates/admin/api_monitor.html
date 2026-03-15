@@ -1,0 +1,182 @@
+{% extends "base/layout.html" %}
+{% block title %}Monitor API - Admin{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto px-4 py-8">
+    <div class="flex items-center justify-between mb-6">
+        <h1 class="text-2xl font-bold text-gray-800">Monitor de llamadas a APIs</h1>
+        <a href="{{ url_for('admin.index') }}" class="text-blue-600 hover:underline">← Volver al panel</a>
+    </div>
+    <p class="text-sm text-gray-500 mb-4">Retención máxima: 6 meses. Los registros más antiguos se eliminan automáticamente.</p>
+
+    <div class="mb-6 flex gap-2 items-center flex-wrap">
+        <span class="text-gray-600">Métricas (últimos):</span>
+        <a href="{{ url_for('admin.api_monitor', days=7, date_from=date_from, date_to=date_to, status=status, api_name=api_name, user_id=user_id) }}{% if endpoint %}&endpoint={{ endpoint | urlencode }}{% endif %}" class="px-3 py-1 rounded {% if days == 7 %}bg-blue-100{% else %}bg-gray-100 hover:bg-gray-200{% endif %}">7 días</a>
+        <a href="{{ url_for('admin.api_monitor', days=30, date_from=date_from, date_to=date_to, status=status, api_name=api_name, user_id=user_id) }}{% if endpoint %}&endpoint={{ endpoint | urlencode }}{% endif %}" class="px-3 py-1 rounded {% if days == 30 %}bg-blue-100{% else %}bg-gray-100 hover:bg-gray-200{% endif %}">30 días</a>
+        <a href="{{ url_for('admin.api_monitor', days=90, date_from=date_from, date_to=date_to, status=status, api_name=api_name, user_id=user_id) }}{% if endpoint %}&endpoint={{ endpoint | urlencode }}{% endif %}" class="px-3 py-1 rounded {% if days == 90 %}bg-blue-100{% else %}bg-gray-100 hover:bg-gray-200{% endif %}">90 días</a>
+    </div>
+
+    <form method="get" action="{{ url_for('admin.api_monitor') }}" class="bg-white rounded-lg border p-4 mb-6 flex flex-wrap gap-4 items-end">
+        <input type="hidden" name="days" value="{{ days }}">
+        <div>
+            <label for="date_from" class="block text-xs text-gray-500">Desde</label>
+            <input type="date" id="date_from" name="date_from" value="{{ date_from or '' }}" class="border rounded px-2 py-1">
+        </div>
+        <div>
+            <label for="date_to" class="block text-xs text-gray-500">Hasta</label>
+            <input type="date" id="date_to" name="date_to" value="{{ date_to or '' }}" class="border rounded px-2 py-1">
+        </div>
+        <div>
+            <label for="status" class="block text-xs text-gray-500">Estado</label>
+            <select id="status" name="status" class="border rounded px-2 py-1">
+                <option value="">Todos</option>
+                <option value="success" {% if status == 'success' %}selected{% endif %}>Éxito (200)</option>
+                <option value="error" {% if status == 'error' %}selected{% endif %}>Error</option>
+            </select>
+        </div>
+        <div>
+            <label for="api_name" class="block text-xs text-gray-500">API</label>
+            <select id="api_name" name="api_name" class="border rounded px-2 py-1">
+                <option value="">Todas</option>
+                {% for name in api_names %}
+                <option value="{{ name }}" {% if api_name == name %}selected{% endif %}>{{ name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label for="endpoint" class="block text-xs text-gray-500">Endpoint (contiene)</label>
+            <input type="text" id="endpoint" name="endpoint" value="{{ endpoint or '' }}" placeholder="ej. yahoo.com" class="border rounded px-2 py-1 w-48">
+        </div>
+        <div>
+            <label for="user_id" class="block text-xs text-gray-500">Usuario</label>
+            <select id="user_id" name="user_id" class="border rounded px-2 py-1">
+                <option value="">Todos</option>
+                <option value="0" {% if user_id == 0 %}selected{% endif %}>Sistema (sin usuario)</option>
+                {% for u in users_for_filter %}
+                <option value="{{ u.id }}" {% if user_id == u.id %}selected{% endif %}>{{ u.id }} ({{ u.username }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Filtrar</button>
+        <a href="{{ url_for('admin.api_monitor', days=days) }}" class="px-4 py-2 border rounded hover:bg-gray-100">Limpiar</a>
+    </form>
+
+    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+        <div class="bg-white p-4 rounded-lg shadow border">
+            <div class="text-sm text-gray-500">Total llamadas</div>
+            <div class="text-2xl font-bold">{{ metrics.total_calls }}</div>
+        </div>
+        <div class="bg-white p-4 rounded-lg shadow border">
+            <div class="text-sm text-gray-500">Media por día</div>
+            <div class="text-2xl font-bold">{{ metrics.avg_per_day }}</div>
+        </div>
+        <div class="bg-white p-4 rounded-lg shadow border">
+            <div class="text-sm text-gray-500">Media por mes</div>
+            <div class="text-2xl font-bold">{{ metrics.avg_per_month }}</div>
+        </div>
+        <div class="bg-white p-4 rounded-lg shadow border">
+            <div class="text-sm text-gray-500">Días considerados</div>
+            <div class="text-2xl font-bold">{{ metrics.days_considered }}</div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow overflow-hidden mb-8">
+        <h2 class="px-4 py-2 bg-gray-50 font-semibold">Llamadas por día (últimos {{ days }} días)</h2>
+        <div class="p-4">
+            <div class="h-64">
+                <canvas id="apiCallsChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow overflow-hidden mb-8">
+        <h2 class="px-4 py-2 bg-gray-50 font-semibold">Por API</h2>
+        <table class="min-w-full">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">API</th>
+                    <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Llamadas</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+                {% for name, count in metrics.by_api.items() %}
+                <tr>
+                    <td class="px-4 py-2">{{ name }}</td>
+                    <td class="px-4 py-2 text-right">{{ count }}</td>
+                </tr>
+                {% endfor %}
+                {% if not metrics.by_api %}
+                <tr><td colspan="2" class="px-4 py-4 text-gray-500">Sin datos</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <h2 class="px-4 py-2 bg-gray-50 font-semibold">Llamadas (máx. 500)</h2>
+        <div class="overflow-x-auto">
+            <table class="min-w-full">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">API</th>
+                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Endpoint / Operación</th>
+                        <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Valor reportado</th>
+                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Usuario</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    {% for log in recent %}
+                    <tr class="text-sm">
+                        <td class="px-4 py-2 whitespace-nowrap">{{ log.called_at.strftime('%d/%m %H:%M') if log.called_at else '-' }}</td>
+                        <td class="px-4 py-2">{{ log.api_name }}</td>
+                        <td class="px-4 py-2 max-w-xs truncate" title="{{ log.endpoint_or_operation or '' }}">{{ (log.endpoint_or_operation or '-')[:60] }}</td>
+                        <td class="px-4 py-2 text-right">{{ log.response_status or '-' }}</td>
+                        <td class="px-4 py-2 max-w-xs truncate">{{ (log.value_reported | tojson)[:80] if log.value_reported else '-' }}</td>
+                        <td class="px-4 py-2">{% if log.user_id %}{{ log.user_id }} ({{ user_names.get(log.user_id, '?') }}){% else %}- (sistema){% endif %}</td>
+                    </tr>
+                    {% endfor %}
+                    {% if not recent %}
+                    <tr><td colspan="6" class="px-4 py-4 text-gray-500">Sin registros</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function() {
+    const chartData = {{ chart_data | tojson }};
+    const ctx = document.getElementById('apiCallsChart');
+    if (!ctx || !chartData.labels || !chartData.data) return;
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: chartData.labels,
+            datasets: [{
+                label: 'Llamadas',
+                data: chartData.data,
+                backgroundColor: 'rgba(59, 130, 246, 0.6)',
+                borderColor: 'rgb(59, 130, 246)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { stepSize: 1 }
+                }
+            }
+        }
+    });
+})();
+</script>
+{% endblock %}

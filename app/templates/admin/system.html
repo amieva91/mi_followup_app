@@ -1,0 +1,40 @@
+{% extends "base/layout.html" %}
+{% block title %}Sistema - Admin{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-8">
+    <div class="flex items-center justify-between mb-6">
+        <h1 class="text-2xl font-bold text-gray-800">Resumen del sistema</h1>
+        <a href="{{ url_for('admin.index') }}" class="text-blue-600 hover:underline">← Volver al panel</a>
+    </div>
+
+    <div class="grid gap-4 sm:grid-cols-3">
+        <div class="bg-white p-4 rounded-lg shadow border">
+            <div class="text-sm text-gray-500">Usuarios</div>
+            <div class="text-2xl font-bold">{{ user_count }}</div>
+        </div>
+        <div class="bg-white p-4 rounded-lg shadow border">
+            <div class="text-sm text-gray-500">Transacciones (portfolio)</div>
+            <div class="text-2xl font-bold">{{ tx_count }}</div>
+        </div>
+        <div class="bg-white p-4 rounded-lg shadow border">
+            <div class="text-sm text-gray-500">Categorías de gastos</div>
+            <div class="text-2xl font-bold">{{ exp_cat_count }}</div>
+        </div>
+    </div>
+
+    <section class="mt-8 bg-white rounded-lg shadow border overflow-hidden">
+        <h2 class="text-lg font-semibold text-gray-800 px-4 py-3 border-b bg-gray-50">Logs de la aplicación</h2>
+        {% if log_path %}
+        <p class="text-sm text-gray-500 px-4 pt-2">Archivo: <code class="bg-gray-100 px-1 rounded">{{ log_path }}</code></p>
+        {% endif %}
+        {% if log_error %}
+        <p class="px-4 py-3 text-amber-700 bg-amber-50">{{ log_error }}</p>
+        {% elif log_lines is not none %}
+        <div class="p-4 overflow-auto max-h-[32rem] bg-gray-900 text-gray-100 font-mono text-sm whitespace-pre">{{ log_lines | join('\n') }}</div>
+        {% else %}
+        <p class="px-4 py-3 text-gray-500">No hay contenido de log disponible.</p>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

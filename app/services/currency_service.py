@@ -156,9 +156,18 @@ def _fetch_rates_from_ecb():
     # GBX = 1/100 de GBP
     if 'GBX' not in rates_to_eur and 'GBP' in rates_to_eur:
         rates_to_eur['GBX'] = rates_to_eur['GBP'] / 100
-    
-    # logger.debug(f"📊 Tasas obtenidas: {len(rates_to_eur)} monedas")  # Comentado para evitar saturar logs
-    
+
+    try:
+        from app.services.api_log_service import log_api_call
+        log_api_call(
+            api_name='exchangerate',
+            endpoint_or_operation=url,
+            response_status=response.status_code,
+            value_reported={'currencies': len(rates_to_eur)},
+        )
+    except Exception:
+        pass
+
     return rates_to_eur
 
 

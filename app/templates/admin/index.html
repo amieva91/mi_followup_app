@@ -1,0 +1,36 @@
+{% extends "base/layout.html" %}
+{% block title %}Administración{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 py-8">
+    <h1 class="text-2xl font-bold text-gray-800 mb-6">Panel de administración</h1>
+
+    <div class="grid gap-4 sm:grid-cols-2">
+        <a href="{{ url_for('admin.users_list') }}" class="block p-4 bg-white rounded-lg shadow hover:shadow-md border border-gray-200">
+            <span class="text-2xl">👥</span>
+            <h2 class="font-semibold text-gray-800 mt-2">Usuarios</h2>
+            <p class="text-sm text-gray-600">Listar, activar/desactivar, dar admin, editar módulos, reset password, eliminar usuario y datos.</p>
+        </a>
+        <a href="{{ url_for('admin.api_monitor') }}" class="block p-4 bg-white rounded-lg shadow hover:shadow-md border border-gray-200">
+            <span class="text-2xl">📡</span>
+            <h2 class="font-semibold text-gray-800 mt-2">Monitor API</h2>
+            <p class="text-sm text-gray-600">Llamadas a APIs externas (Yahoo, exchangerate). Métricas por día y por mes.</p>
+        </a>
+        <a href="{{ url_for('admin.catalogs') }}" class="block p-4 bg-white rounded-lg shadow hover:shadow-md border border-gray-200">
+            <span class="text-2xl">📚</span>
+            <h2 class="font-semibold text-gray-800 mt-2">Catálogos</h2>
+            <p class="text-sm text-gray-600">Registro de activos, bajas (delisting), mapeos.</p>
+        </a>
+        <a href="{{ url_for('admin.cache') }}" class="block p-4 bg-white rounded-lg shadow hover:shadow-md border border-gray-200">
+            <span class="text-2xl">🗑️</span>
+            <h2 class="font-semibold text-gray-800 mt-2">Cache</h2>
+            <p class="text-sm text-gray-600">Invalidar cache de métricas y dashboard (por usuario o global).</p>
+        </a>
+        <a href="{{ url_for('admin.system') }}" class="block p-4 bg-white rounded-lg shadow hover:shadow-md border border-gray-200">
+            <span class="text-2xl">⚙️</span>
+            <h2 class="font-semibold text-gray-800 mt-2">Sistema</h2>
+            <p class="text-sm text-gray-600">Resumen: usuarios, transacciones, estado.</p>
+        </a>
+    </div>
+</div>
+{% endblock %}

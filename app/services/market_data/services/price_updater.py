@@ -38,19 +38,20 @@ class PriceUpdater:
     Servicio para actualizar precios y métricas de activos desde Yahoo Finance.
     """
     
-    def __init__(self, progress_callback=None):
+    def __init__(self, progress_callback=None, user_id=None):
         """
         Inicializar el servicio de actualización de precios.
         
         Args:
             progress_callback: Función opcional para reportar progreso.
-                              Recibe un dict con: current, total, current_asset, success, failed, errors
+            user_id: Opcional; si se pasa, se usa para registrar llamadas a API en el panel admin.
         """
         self.errors = []
         self.warnings = []
         self.session = None
         self.crumb = None
         self.progress_callback = progress_callback
+        self.user_id = user_id
     
     def _authenticate_yahoo(self) -> bool:
         """
@@ -397,6 +398,18 @@ class PriceUpdater:
             
             # Actualizar timestamp
             asset.last_price_update = datetime.utcnow()
+
+            try:
+                from app.services.api_log_service import log_api_call
+                log_api_call(
+                    api_name='yahoo_chart',
+                    endpoint_or_operation=url,
+                    response_status=200,
+                    value_reported={'ticker': asset.yahoo_ticker, 'price': asset.current_price},
+                    user_id=getattr(self, 'user_id', None),
+                )
+            except Exception:
+                pass
             
             # Si tenemos autenticación, obtener datos avanzados de quoteSummary
             if self.session and self.crumb:
@@ -411,6 +424,17 @@ class PriceUpdater:
                     quote_response = self.session.get(quote_url, params=params, timeout=REQUEST_TIMEOUT)
                     
                     if quote_response.status_code == 200:
+                        try:
+                            from app.services.api_log_service import log_api_call
+                            log_api_call(
+                                api_name='yahoo_quote',
+                                endpoint_or_operation=quote_url,
+                                response_status=200,
+                                value_reported={'ticker': asset.yahoo_ticker},
+                                user_id=getattr(self, 'user_id', None),
+                            )
+                        except Exception:
+                            pass
                         quote_data = quote_response.json()
                         
                         if 'quoteSummary' in quote_data and quote_data['quoteSummary'].get('result'):

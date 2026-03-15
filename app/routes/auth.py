@@ -12,9 +12,10 @@ from app.models import (
     UserDashboardConfig, MetricsCache,
     ReportSettings, ReportTemplate, CompanyReport, AssetAboutSummary,
     RealEstateProperty, PropertyValuation,
+    UserLoginLog,
 )
 from app.forms import LoginForm, RegisterForm, RequestResetForm, ResetPasswordForm
-from app.forms.profile_forms import ProfileForm, ChangePasswordForm, DeleteAccountForm
+from app.forms.profile_forms import ProfileForm, ChangePasswordForm, DeleteAccountForm, FirstLoginPasswordForm
 from app.utils.email import send_reset_email
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
@@ -66,18 +67,54 @@ def login():
             
             login_user(user, remember=form.remember_me.data)
             user.update_last_login()
-            
+            try:
+                log_entry = UserLoginLog(
+                    user_id=user.id,
+                    ip_address=request.remote_addr,
+                )
+                db.session.add(log_entry)
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+
+            # Primer inicio: obligar a cambiar contraseña
+            if getattr(user, 'must_change_password', False):
+                return redirect(url_for('auth.must_change_password'))
+
+            # Cuenta administrador: solo panel de administración
+            if getattr(user, 'username', None) == 'administrador':
+                return redirect(url_for('admin.index'))
+
             # Redirigir a la página que intentaba acceder o al dashboard
             next_page = request.args.get('next')
             if next_page:
                 return redirect(next_page)
-            
+
             flash(f'¡Bienvenido de vuelta, {user.username}!', 'success')
             return redirect(url_for('main.dashboard'))
         else:
             flash('Email o contraseña incorrectos. Por favor intenta de nuevo.', 'error')
     
     return render_template('auth/login.html', form=form)
+
+
+@auth_bp.route('/must-change-password', methods=['GET', 'POST'])
+@login_required
+def must_change_password():
+    """Obligatorio en primer inicio de sesión: establecer nueva contraseña."""
+    user = db.session.get(User, current_user.id)
+    if not getattr(user, 'must_change_password', False):
+        return redirect(url_for('main.dashboard'))
+
+    form = FirstLoginPasswordForm()
+    if form.validate_on_submit():
+        user.set_password(form.password.data)
+        user.must_change_password = False
+        db.session.commit()
+        flash('Contraseña actualizada. Ya puedes usar la aplicación.', 'success')
+        return redirect(url_for('main.dashboard'))
+
+    return render_template('auth/must_change_password.html', form=form)
 
 
 @auth_bp.route('/logout')

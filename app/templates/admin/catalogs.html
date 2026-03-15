@@ -1,0 +1,32 @@
+{% extends "base/layout.html" %}
+{% block title %}Catálogos - Admin{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 py-8">
+    <div class="flex items-center justify-between mb-6">
+        <h1 class="text-2xl font-bold text-gray-800">Catálogos globales</h1>
+        <a href="{{ url_for('admin.index') }}" class="text-blue-600 hover:underline">← Volver al panel</a>
+    </div>
+
+    <div class="grid gap-4 sm:grid-cols-3">
+        <a href="{{ url_for('portfolio.asset_registry') }}" class="block p-4 bg-white rounded-lg shadow border hover:shadow-md">
+            <span class="text-2xl">📋</span>
+            <h2 class="font-semibold text-gray-800 mt-2">Registro de activos</h2>
+            <p class="text-sm text-gray-600">{{ registry_count }} entradas</p>
+            <p class="text-xs text-gray-500 mt-1">ISIN, symbol, Yahoo suffix, currency</p>
+        </a>
+        <div class="block p-4 bg-white rounded-lg shadow border">
+            <span class="text-2xl">📉</span>
+            <h2 class="font-semibold text-gray-800 mt-2">Bajas (Delisting)</h2>
+            <p class="text-sm text-gray-600">{{ delisting_count }} entradas</p>
+            <p class="text-xs text-gray-500 mt-1">Gestionar desde Registro de activos por ISIN</p>
+        </div>
+        <a href="{{ url_for('portfolio.mappings') }}" class="block p-4 bg-white rounded-lg shadow border hover:shadow-md">
+            <span class="text-2xl">🔗</span>
+            <h2 class="font-semibold text-gray-800 mt-2">Mapeos</h2>
+            <p class="text-sm text-gray-600">{{ mapping_count }} entradas</p>
+            <p class="text-xs text-gray-500 mt-1">Símbolos broker → activos</p>
+        </a>
+    </div>
+</div>
+{% endblock %}

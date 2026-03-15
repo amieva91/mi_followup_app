@@ -1,0 +1,21 @@
+{% extends "base/layout.html" %}
+{% block title %}Eliminar usuario - {{ user.username }}{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto px-4 py-8">
+    <h1 class="text-xl font-bold text-red-700 mb-2">Eliminar usuario y todos sus datos</h1>
+    <p class="text-gray-700 mb-4">Se eliminará permanentemente <strong>{{ user.username }}</strong> ({{ user.email }}) y todos sus datos: gastos, ingresos, transacciones, cartera, bancos, inmuebles, deudas, etc.</p>
+    <p class="text-red-600 font-medium mb-4">Esta acción no se puede deshacer.</p>
+    <form method="post" action="{{ url_for('admin.user_delete', user_id=user.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label class="flex items-center gap-2 mb-4">
+            <input type="checkbox" name="confirm" value="yes" required>
+            <span>Confirmo que quiero eliminar este usuario y todos sus datos</span>
+        </label>
+        <div class="flex gap-2">
+            <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">Eliminar definitivamente</button>
+            <a href="{{ url_for('admin.users_list') }}" class="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50">Cancelar</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

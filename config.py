@@ -40,11 +40,15 @@ class Config:
     
     # Application
     APP_NAME = os.environ.get('APP_NAME', 'FollowUp')
+    # Usuario administrador fijo: contraseña inicial (cambiar en primer login)
+    ADMIN_INITIAL_PASSWORD = os.environ.get('ADMIN_INITIAL_PASSWORD', 'CambiarPassword1!')
     ITEMS_PER_PAGE = int(os.environ.get('ITEMS_PER_PAGE', 20))
     
     # Upload folders
     UPLOAD_FOLDER = basedir / 'uploads'
     OUTPUT_FOLDER = basedir / 'output'
+    # Log file (para vista de logs en panel admin)
+    LOG_FILE = os.environ.get('LOG_FILE') or str(basedir / 'logs' / 'followup.log')
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
     
     # Allowed extensions

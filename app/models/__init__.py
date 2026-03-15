@@ -20,6 +20,8 @@ from app.models.debt_plan import DebtPlan
 from app.models.real_estate import RealEstateProperty, PropertyValuation, PROPERTY_TYPES, PROPERTY_ICONS, get_property_icon
 from app.models.bank import Bank, BankBalance
 from app.models.dashboard_config import UserDashboardConfig, DEFAULT_WIDGETS
+from app.models.api_call_log import ApiCallLog
+from app.models.user_login_log import UserLoginLog
 
 __all__ = [
     'User', 'MODULES', 'AVATARS', 
@@ -45,6 +47,8 @@ __all__ = [
     'DebtPlan',
     'RealEstateProperty', 'PropertyValuation', 'PROPERTY_TYPES', 'PROPERTY_ICONS', 'get_property_icon',
     'Bank', 'BankBalance',
-    'UserDashboardConfig', 'DEFAULT_WIDGETS'
+    'UserDashboardConfig', 'DEFAULT_WIDGETS',
+    'ApiCallLog',
+    'UserLoginLog',
 ]
 

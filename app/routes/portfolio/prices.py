@@ -76,7 +76,7 @@ def update_prices():
                     delisting_result = reconcile_delistings(user_id=user_id)
                 except Exception:
                     pass  # No bloquear si falla el delisting
-                updater = PriceUpdater(progress_callback=lambda d: update_price_progress(session_key, d))
+                updater = PriceUpdater(progress_callback=lambda d: update_price_progress(session_key, d), user_id=user_id)
                 result = updater.update_asset_prices(user_id=user_id)
                 if delisting_result.get('created', 0) > 0:
                     result = result or {}

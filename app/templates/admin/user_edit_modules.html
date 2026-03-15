@@ -1,0 +1,22 @@
+{% extends "base/layout.html" %}
+{% block title %}Módulos - {{ user.username }}{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto px-4 py-8">
+    <h1 class="text-xl font-bold text-gray-800 mb-4">Módulos visibles: {{ user.username }}</h1>
+    <p class="text-sm text-gray-600 mb-4">Marca los módulos que este usuario puede ver en el menú. Si ninguno está marcado, se consideran todos activos.</p>
+    <form method="post" action="{{ url_for('admin.user_edit_modules', user_id=user.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        {% for key, label in modules.items() %}
+        <label class="flex items-center gap-2 py-1">
+            <input type="checkbox" name="modules" value="{{ key }}" {% if user.enabled_modules is none or key in user.enabled_modules %}checked{% endif %}>
+            <span>{{ label }}</span>
+        </label>
+        {% endfor %}
+        <div class="flex gap-2 mt-4">
+            <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Guardar</button>
+            <a href="{{ url_for('admin.users_list') }}" class="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50">Cancelar</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

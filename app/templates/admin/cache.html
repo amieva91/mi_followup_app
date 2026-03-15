@@ -1,0 +1,39 @@
+{% extends "base/layout.html" %}
+{% block title %}Cache - Admin{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto px-4 py-8">
+    <div class="flex items-center justify-between mb-6">
+        <h1 class="text-2xl font-bold text-gray-800">Invalidar cache</h1>
+        <a href="{{ url_for('admin.index') }}" class="text-blue-600 hover:underline">← Volver al panel</a>
+    </div>
+
+    <p class="text-gray-600 mb-4">Invalida el cache de métricas y el cache del resumen del dashboard. El próximo acceso del usuario recalculará los datos.</p>
+
+    <div class="bg-white rounded-lg shadow border p-4">
+        <h2 class="font-semibold mb-3">Invalidar por usuario</h2>
+        <form method="post" action="{{ url_for('admin.cache') }}" class="flex gap-2 items-end">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="flex-1">
+                <label for="user_id_select" class="block text-sm text-gray-600">Usuario</label>
+                <select name="user_id" id="user_id_select" class="mt-1 block w-full border border-gray-300 rounded px-3 py-2" required>
+                    <option value="">-- Selecciona un usuario --</option>
+                    {% for u in users %}
+                    <option value="{{ u.id }}">{{ u.username }} ({{ u.email }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Invalidar</button>
+        </form>
+    </div>
+
+    <div class="bg-white rounded-lg shadow border p-4 mt-4">
+        <h2 class="font-semibold mb-3 text-red-700">Invalidar todo el cache</h2>
+        <p class="text-sm text-gray-600 mb-3">Borra el cache de métricas y dashboard de todos los usuarios.</p>
+        <form method="post" action="{{ url_for('admin.cache') }}" onsubmit="return confirm('¿Invalidar cache de todos los usuarios?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">Invalidar todo</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

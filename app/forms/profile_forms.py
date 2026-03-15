@@ -91,6 +91,28 @@ class ChangePasswordForm(FlaskForm):
             raise ValidationError('La contraseña actual no es correcta.')
 
 
+class FirstLoginPasswordForm(FlaskForm):
+    """Solo nueva contraseña y confirmación (primer inicio de sesión, sin pedir actual)."""
+
+    password = PasswordField(
+        'Nueva contraseña',
+        validators=[
+            DataRequired(message='La contraseña es requerida'),
+            Length(min=6, message='Al menos 6 caracteres'),
+        ],
+        render_kw={'placeholder': '••••••••', 'class': 'form-input'},
+    )
+    confirm_password = PasswordField(
+        'Confirmar nueva contraseña',
+        validators=[
+            DataRequired(message='Confirma tu contraseña'),
+            EqualTo('password', message='Las contraseñas deben coincidir'),
+        ],
+        render_kw={'placeholder': '••••••••', 'class': 'form-input'},
+    )
+    submit = SubmitField('Establecer contraseña')
+
+
 class DeleteAccountForm(FlaskForm):
     """Formulario para borrar la cuenta (requiere confirmación con contraseña)"""
 

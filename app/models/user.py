@@ -53,6 +53,7 @@ class User(UserMixin, db.Model):
     # Permisos y estado
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
+    must_change_password = db.Column(db.Boolean, default=False, nullable=False)  # True = primer inicio, obliga a cambiar
     
     # Configuración financiera
     debt_limit_percent = db.Column(db.Float, default=35.0, nullable=True)

@@ -31,21 +31,20 @@ def create_app(config_name='default'):
     log_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'logs')
     os.makedirs(log_dir, exist_ok=True)
     
-    # Configurar handler para archivo (solo en producción)
-    if config_name == 'production':
-        try:
-            file_handler = RotatingFileHandler(
-                os.path.join(log_dir, 'followup.log'),
-                maxBytes=10240000,  # 10MB
-                backupCount=10
-            )
-            file_handler.setFormatter(logging.Formatter(
-                '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-            ))
-            file_handler.setLevel(logging.INFO)
-            app.logger.addHandler(file_handler)
-        except (PermissionError, OSError):
-            pass  # Fallback a solo consola si no hay permisos
+    # Configurar handler para archivo (desarrollo y producción) para que Admin → Sistema pueda mostrar logs
+    try:
+        file_handler = RotatingFileHandler(
+            os.path.join(log_dir, 'followup.log'),
+            maxBytes=10240000,  # 10MB
+            backupCount=10
+        )
+        file_handler.setFormatter(logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        ))
+        file_handler.setLevel(logging.INFO)
+        app.logger.addHandler(file_handler)
+    except (PermissionError, OSError):
+        pass  # Fallback a solo consola si no hay permisos
     
     # Configurar logging básico (consola)
     logging.basicConfig(
@@ -105,6 +104,7 @@ def create_app(config_name='default'):
     from app.routes.crypto import crypto_bp
     from app.routes.metales import metales_bp
     from app.routes.real_estate import real_estate_bp
+    from app.routes.admin_routes import admin_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(auth_bp)
@@ -116,6 +116,58 @@ def create_app(config_name='default'):
     app.register_blueprint(crypto_bp)
     app.register_blueprint(metales_bp)
     app.register_blueprint(real_estate_bp)
+    app.register_blueprint(admin_bp)
+
+    # Log de cada petición al archivo (visible en Admin → Sistema → Logs de la aplicación)
+    @app.after_request
+    def log_request(response):
+        from flask import request
+        from flask_login import current_user
+        user = current_user.username if current_user.is_authenticated else '-'
+        app.logger.info(
+            "%s %s %s → %s",
+            request.method,
+            request.path,
+            user,
+            response.status_code,
+        )
+        return response
+
+    # Obligar cambio de contraseña en primer inicio
+    @app.before_request
+    def require_change_password_if_needed():
+        from flask import request, redirect, url_for
+        from flask_login import current_user
+        from app.models import User
+        if not current_user.is_authenticated:
+            return
+        user = User.query.get(current_user.id)
+        if not user or not getattr(user, 'must_change_password', False):
+            return
+        if request.endpoint in ('auth.must_change_password', 'auth.logout'):
+            return
+        if request.blueprint == 'static':
+            return
+        return redirect(url_for('auth.must_change_password'))
+
+    # Cuenta administrador: solo puede ver rutas de /admin, catálogos (asset-registry, mappings) y logout
+    @app.before_request
+    def administrador_only_admin_routes():
+        from flask import request, redirect, url_for
+        from flask_login import current_user
+        if not current_user.is_authenticated:
+            return
+        if getattr(current_user, 'username', None) != 'administrador':
+            return
+        if request.blueprint == 'admin':
+            return
+        if request.endpoint in ('auth.logout', 'auth.must_change_password'):
+            return
+        if request.blueprint == 'static':
+            return
+        if request.path.startswith('/portfolio/asset-registry') or request.path.startswith('/portfolio/mappings'):
+            return
+        return redirect(url_for('admin.index'))
 
     # Para rutas API: devolver JSON en 404/500 (evita "is not valid JSON" en frontend)
     @app.errorhandler(404)
