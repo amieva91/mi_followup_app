@@ -13,6 +13,7 @@ from app.models.portfolio import PortfolioHolding
 from app.models.transaction import Transaction, CashFlow
 from app.models.metrics import PortfolioMetrics
 from app.models.metrics_cache import MetricsCache
+from app.models.dashboard_summary_cache import DashboardSummaryCache
 from app.models.watchlist import Watchlist, WatchlistConfig
 from app.models.company_report import ReportSettings, ReportTemplate, CompanyReport, AssetAboutSummary
 from app.models.debt_plan import DebtPlan
@@ -34,6 +35,7 @@ __all__ = [
     'Transaction', 'CashFlow',
     'PortfolioMetrics',
     'MetricsCache',
+    'DashboardSummaryCache',
     'Watchlist',
     'WatchlistConfig',
     'ReportSettings',

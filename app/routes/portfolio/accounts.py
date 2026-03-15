@@ -130,7 +130,9 @@ def account_delete(id):
     db.session.commit()
 
     from app.services.metrics.cache import MetricsCacheService
+    from app.services.dashboard_summary_cache import DashboardSummaryCacheService
     MetricsCacheService.invalidate(current_user.id)
+    DashboardSummaryCacheService.invalidate(current_user.id)
 
     flash(f'🗑️ Cuenta "{account_name}" eliminada permanentemente.', 'success')
     return redirect(url_for('portfolio.accounts_list'))

@@ -624,7 +624,9 @@ def import_user_data(user_id: int, file_content: bytes) -> Tuple[bool, str, Dict
             for acct_id in BrokerAccount.query.filter_by(user_id=user_id).with_entities(BrokerAccount.id).all():
                 recalculate_holdings(user_id, acct_id[0])
             from app.services.metrics.cache import MetricsCacheService
+            from app.services.dashboard_summary_cache import DashboardSummaryCacheService
             MetricsCacheService.invalidate(user_id)
+            DashboardSummaryCacheService.invalidate(user_id)
 
         db.session.commit()
         wb.close()

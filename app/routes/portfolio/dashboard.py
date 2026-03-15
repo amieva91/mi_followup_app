@@ -300,10 +300,12 @@ def invalidate_cache():
     Así el dashboard usa costes y posiciones coherentes con Asset.currency y las transacciones.
     """
     from app.services.metrics.cache import MetricsCacheService
+    from app.services.dashboard_summary_cache import DashboardSummaryCacheService
     from app.services.portfolio_holding_service import recalculate_all_holdings_for_user
 
     n_holdings = recalculate_all_holdings_for_user(current_user.id)
-    was_invalidated = MetricsCacheService.invalidate(current_user.id)
+    MetricsCacheService.invalidate(current_user.id)
+    DashboardSummaryCacheService.invalidate(current_user.id)
 
     flash(
         f'✅ Holdings recalculados ({n_holdings} posiciones) y cache invalidado. Recarga la página.',

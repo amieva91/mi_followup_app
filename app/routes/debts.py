@@ -76,6 +76,8 @@ def new():
                 property_id=property_id
             )
             if plan:
+                from app.services.dashboard_summary_cache import DashboardSummaryCacheService
+                DashboardSummaryCacheService.invalidate(current_user.id)
                 flash(
                     f'✅ Plan de deuda creado: {plan.name} - '
                     f'€{plan.monthly_payment:.2f}/mes durante {plan.months} meses',
@@ -100,6 +102,8 @@ def update_limit():
         if 5 <= val <= 100:
             current_user.debt_limit_percent = val
             db.session.commit()
+            from app.services.dashboard_summary_cache import DashboardSummaryCacheService
+            DashboardSummaryCacheService.invalidate(current_user.id)
             flash(f'Límite de endeudamiento actualizado a {val}%', 'success')
         else:
             flash('El porcentaje debe estar entre 5 y 100', 'error')
@@ -140,6 +144,8 @@ def edit(id):
                 notes=form.notes.data
             )
             if ok:
+                from app.services.dashboard_summary_cache import DashboardSummaryCacheService
+                DashboardSummaryCacheService.invalidate(current_user.id)
                 flash('Plan de deuda actualizado. Las cuotas en Gastos se han sincronizado.', 'success')
             else:
                 flash('Error al actualizar el plan', 'error')
@@ -187,6 +193,8 @@ def cancel(id):
                 except (ValueError, TypeError):
                     pass
     count = DebtService.cancel_plan(id, current_user.id, delete_future_only=delete_future_only, cutoff_date=cutoff_date)
+    from app.services.dashboard_summary_cache import DashboardSummaryCacheService
+    DashboardSummaryCacheService.invalidate(current_user.id)
     if delete_future_only:
         flash(f'Plan cancelado. Se eliminaron {count} cuotas futuras.', 'info')
     else:
@@ -229,6 +237,8 @@ def restructure(id):
                 id, current_user.id, new_months=form.new_months.data
             )
         if ok:
+            from app.services.dashboard_summary_cache import DashboardSummaryCacheService
+            DashboardSummaryCacheService.invalidate(current_user.id)
             flash(f'Plan reestructurado: nueva cuota de €{new_payment:.2f} en {new_months} meses', 'success')
         else:
             flash('Error al reestructurar el plan', 'error')
@@ -253,5 +263,7 @@ def restructure(id):
 def pay_off(id):
     """Marcar plan como pagado (elimina cuotas futuras)"""
     count = DebtService.mark_as_paid_off(id, current_user.id)
+    from app.services.dashboard_summary_cache import DashboardSummaryCacheService
+    DashboardSummaryCacheService.invalidate(current_user.id)
     flash(f'Plan marcado como pagado. Se eliminaron {count} cuotas futuras.', 'success')
     return redirect(url_for('debts.dashboard'))

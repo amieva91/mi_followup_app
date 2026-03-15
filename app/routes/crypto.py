@@ -91,7 +91,9 @@ def transaction_new():
 
         recalculate_holdings(current_user.id, account_id)
         db.session.commit()
+        from app.services.dashboard_summary_cache import DashboardSummaryCacheService
         MetricsCacheService.invalidate(current_user.id)
+        DashboardSummaryCacheService.invalidate(current_user.id)
 
         flash(f"✅ {form.transaction_type.data} registrado: {qty} {symbol}", 'success')
         return redirect(url_for('crypto.dashboard'))

@@ -23,8 +23,11 @@ def index():
 @login_required
 def dashboard():
     """Dashboard principal con resumen de patrimonio"""
-    # Obtener resumen completo del patrimonio
-    summary = get_dashboard_summary(current_user.id)
+    from app.services.dashboard_summary_cache import DashboardSummaryCacheService
+    summary = DashboardSummaryCacheService.get(current_user.id)
+    if summary is None:
+        summary = get_dashboard_summary(current_user.id)
+        DashboardSummaryCacheService.set(current_user.id, summary)
     
     # Obtener configuración de widgets del usuario
     widget_config = UserDashboardConfig.get_user_config(current_user.id)

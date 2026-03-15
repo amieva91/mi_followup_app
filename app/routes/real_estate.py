@@ -55,6 +55,8 @@ def new():
         )
         db.session.add(prop)
         db.session.commit()
+        from app.services.dashboard_summary_cache import DashboardSummaryCacheService
+        DashboardSummaryCacheService.invalidate(current_user.id)
         flash(f'Inmueble registrado: {prop.get_icon()} {prop.address}', 'success')
         return redirect(url_for('real_estate.dashboard'))
 
@@ -94,6 +96,8 @@ def edit(id):
         prop.purchase_date = form.purchase_date.data
         prop.notes = form.notes.data.strip() if form.notes.data else None
         db.session.commit()
+        from app.services.dashboard_summary_cache import DashboardSummaryCacheService
+        DashboardSummaryCacheService.invalidate(current_user.id)
         flash('Inmueble actualizado.', 'success')
         return redirect(url_for('real_estate.detail', id=id))
 
@@ -122,6 +126,8 @@ def delete(id):
 
     db.session.delete(prop)
     db.session.commit()
+    from app.services.dashboard_summary_cache import DashboardSummaryCacheService
+    DashboardSummaryCacheService.invalidate(current_user.id)
     return redirect(url_for('real_estate.dashboard'))
 
 
@@ -154,6 +160,8 @@ def add_valuation(id):
             db.session.add(val)
             flash(f'Tasación {form.year.data} añadida.', 'success')
         db.session.commit()
+        from app.services.dashboard_summary_cache import DashboardSummaryCacheService
+        DashboardSummaryCacheService.invalidate(current_user.id)
     else:
         for _, errors in form.errors.items():
             for e in errors:
@@ -171,5 +179,7 @@ def delete_valuation(prop_id, val_id):
     val = PropertyValuation.query.filter_by(id=val_id, property_id=prop_id).first_or_404()
     db.session.delete(val)
     db.session.commit()
+    from app.services.dashboard_summary_cache import DashboardSummaryCacheService
+    DashboardSummaryCacheService.invalidate(current_user.id)
     flash('Tasación eliminada.', 'info')
     return redirect(url_for('real_estate.detail', id=prop_id))

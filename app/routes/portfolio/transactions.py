@@ -232,9 +232,11 @@ def transaction_edit(id):
         
         db.session.commit()
         
-        # Invalidar cache de métricas (transacción editada)
+        # Invalidar cache de métricas y dashboard principal
         from app.services.metrics.cache import MetricsCacheService
+        from app.services.dashboard_summary_cache import DashboardSummaryCacheService
         MetricsCacheService.invalidate(current_user.id)
+        DashboardSummaryCacheService.invalidate(current_user.id)
         
         flash('✅ Transacción actualizada correctamente. Holdings recalculados.', 'success')
         return redirect(url_for('portfolio.transactions_list'))
@@ -293,9 +295,11 @@ def transaction_delete(id):
     importer._recalculate_holdings()
     db.session.commit()
     
-    # Invalidar cache de métricas
+    # Invalidar cache de métricas y dashboard principal
     from app.services.metrics.cache import MetricsCacheService
+    from app.services.dashboard_summary_cache import DashboardSummaryCacheService
     MetricsCacheService.invalidate(current_user.id)
+    DashboardSummaryCacheService.invalidate(current_user.id)
     
     flash(f'✅ Transacción de {asset_symbol} eliminada correctamente. Holdings recalculados.', 'success')
     return redirect(url_for('portfolio.transactions_list'))
@@ -467,9 +471,11 @@ def transaction_new():
         
         db.session.commit()
         
-        # Invalidar cache de métricas (nueva transacción)
+        # Invalidar cache de métricas y dashboard principal
         from app.services.metrics.cache import MetricsCacheService
+        from app.services.dashboard_summary_cache import DashboardSummaryCacheService
         MetricsCacheService.invalidate(current_user.id)
+        DashboardSummaryCacheService.invalidate(current_user.id)
         
         action_text = 'compra' if form.transaction_type.data == 'BUY' else 'venta'
         flash(f'✅ {form.transaction_type.data} de {form.symbol.data} registrada correctamente', 'success')

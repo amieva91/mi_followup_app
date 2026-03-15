@@ -534,9 +534,10 @@ def get_full_net_worth_history(user_id: int) -> Dict[str, Any]:
     # Calcular meses desde el inicio
     total_months = (today.year - oldest_date.year) * 12 + (today.month - oldest_date.month) + 1
     years_available = total_months / 12
-    
-    # Obtener histórico completo
-    history = get_net_worth_history(user_id, total_months)
+    # Limitar a 60 meses (5 años) para el gráfico: evita N×FIFO muy costoso
+    max_history_months = 60
+    months_to_compute = min(total_months, max_history_months)
+    history = get_net_worth_history(user_id, months_to_compute)
     
     return {
         'history': history,
@@ -890,7 +891,6 @@ def get_investments_summary(user_id: int) -> Dict[str, Any]:
             {'name': 'Crypto', 'value': c['crypto'].total_value, 'pnl': c['crypto'].total_pnl, 'pnl_pct': c['crypto'].total_pnl_pct},
             {'name': 'Metales', 'value': c['metales'].total_value, 'pnl': c['metales'].total_pnl, 'pnl_pct': c['metales'].total_pnl_pct},
         ],
-        'snapshot': agg,
     }
 
 

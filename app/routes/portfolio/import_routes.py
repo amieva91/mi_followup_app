@@ -255,7 +255,9 @@ def import_csv_process():
 
     if total_stats['files_processed'] > 0:
         from app.services.metrics.cache import MetricsCacheService
+        from app.services.dashboard_summary_cache import DashboardSummaryCacheService
         MetricsCacheService.invalidate(current_user.id)
+        DashboardSummaryCacheService.invalidate(current_user.id)
 
     from urllib.parse import urlencode
 

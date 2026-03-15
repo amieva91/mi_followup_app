@@ -93,7 +93,9 @@ def update_prices():
                     price_update_progress_cache[session_key].update(final_state)
                 set_price_update_progress(user_id, final_state, merge=True)
                 from app.services.metrics.cache import MetricsCacheService
+                from app.services.dashboard_summary_cache import DashboardSummaryCacheService
                 MetricsCacheService.invalidate(user_id)
+                DashboardSummaryCacheService.invalidate(user_id)
             except Exception as e:
                 import traceback
                 error_state = {
