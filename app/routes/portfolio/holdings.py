@@ -9,13 +9,15 @@ from sqlalchemy.orm import joinedload
 from app.routes import portfolio_bp
 from app.models import BrokerAccount, Asset, PortfolioHolding
 from app.services.currency_service import convert_to_eur
+from app.services.delisting_reconciliation_service import get_delisted_asset_ids
 
 
 @portfolio_bp.route('/holdings')
 @login_required
 def holdings_list():
     """Lista de posiciones actuales con precios en tiempo real"""
-    all_holdings = (
+    delisted_asset_ids = get_delisted_asset_ids()
+    all_holdings_raw = (
         PortfolioHolding.query.options(
             joinedload(PortfolioHolding.account).joinedload(BrokerAccount.broker),
             joinedload(PortfolioHolding.asset)
@@ -28,6 +30,7 @@ def holdings_list():
         )
         .all()
     )
+    all_holdings = [h for h in all_holdings_raw if h.asset_id not in delisted_asset_ids]
 
     grouped = defaultdict(lambda: {
         'asset': None, 'total_quantity': 0, 'total_cost': 0, 'accounts': [],
@@ -78,6 +81,8 @@ def holdings_list():
 
     for h in holdings_unified:
         h['weight_pct'] = (h['current_value_eur'] / total_value * 100) if total_value > 0 and 'current_value_eur' in h else 0
+        asset = h.get('asset')
+        h['needs_yahoo_fix'] = not (asset and asset.yahoo_ticker) if asset else True
 
     holdings_unified.sort(key=lambda x: (x['asset'].symbol or '') if x['asset'] else '')
     total_cost = sum(h.get('cost_eur', 0) for h in holdings_unified)

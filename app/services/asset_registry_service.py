@@ -1,11 +1,15 @@
 """
 Servicio de AssetRegistry - Gestión de cache global de assets
 """
+import requests
 from typing import Dict, List, Optional, Tuple
 from app import db
 from app.models import Asset, AssetRegistry
 from app.services.market_data import AssetEnricher
 from app.services.market_data.mappers import ExchangeMapper, YahooSuffixMapper
+
+# Timeout para verificación contra Yahoo
+VERIFY_YAHOO_TIMEOUT = 10
 
 
 class AssetRegistryService:
@@ -272,6 +276,57 @@ class AssetRegistryService:
         
         except Exception as e:
             return False, f"❌ Error: {str(e)[:50]}"
+
+    def verify_yahoo_ticker(self, registry: AssetRegistry) -> Tuple[bool, str]:
+        """
+        Comprueba si el ticker de Yahoo del registro devuelve precio.
+        Usa la Chart API de Yahoo (misma que PriceUpdater).
+        Returns:
+            (success, message)
+        """
+        ticker = (registry.symbol or '') + (registry.yahoo_suffix or '')
+        if not ticker:
+            return False, "Sin ticker"
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+        try:
+            r = requests.get(url, headers=headers, timeout=VERIFY_YAHOO_TIMEOUT)
+            r.raise_for_status()
+            data = r.json()
+            if data.get('chart', {}).get('error'):
+                return False, data['chart']['error'].get('description', 'Error en Yahoo')
+            if not data.get('chart', {}).get('result'):
+                return False, "Sin datos en Yahoo"
+            meta = data['chart']['result'][0].get('meta', {})
+            if 'regularMarketPrice' not in meta:
+                return False, "Sin precio"
+            return True, "OK"
+        except requests.exceptions.RequestException as e:
+            return False, str(e)[:80]
+        except Exception as e:
+            return False, str(e)[:80]
+
+    def fix_asset_with_yahoo_url(
+        self,
+        registry: AssetRegistry,
+        yahoo_url: str,
+        asset: Optional[Asset] = None,
+    ) -> Tuple[bool, str, bool]:
+        """
+        Enriquece desde URL de Yahoo, sincroniza asset si se pasa, y verifica contra Yahoo.
+        Returns:
+            (success, message, verified)
+        """
+        ok, msg = self.enrich_from_yahoo_url(registry, yahoo_url, update_db=True)
+        if not ok:
+            return False, msg, False
+        if asset:
+            self.sync_asset_from_registry(asset, registry)
+            db.session.commit()
+        verified, verify_msg = self.verify_yahoo_ticker(registry)
+        return True, msg, verified
     
     def sync_asset_from_registry(self, asset: Asset, registry: AssetRegistry):
         """

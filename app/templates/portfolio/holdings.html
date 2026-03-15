@@ -95,9 +95,12 @@
                     {% for holding in holdings %}
                     <tr class="hover:bg-gray-50 transition">
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="flex items-center">
+                            <div class="flex items-center gap-1">
                                 <div>
-                                    <div class="text-sm font-bold text-gray-900">
+                                    <div class="text-sm font-bold text-gray-900 flex items-center gap-1">
+                                        {% if holding.get('needs_yahoo_fix') %}
+                                        <button type="button" class="fix-yahoo-btn text-amber-600 hover:text-amber-700 font-bold cursor-pointer" title="Corregir ticker con URL de Yahoo" data-asset-id="{{ holding['asset'].id }}" data-asset-name="{{ (holding['asset'].name or holding['asset'].symbol or '')|e }}" data-asset-currency="{{ holding['asset'].currency or 'EUR' }}">!</button>
+                                        {% endif %}
                                         <a href="{{ url_for('portfolio.asset_detail', id=holding['asset'].id) }}" class="hover:text-blue-600">
                                             {{ holding['asset'].name if holding['asset'].name else holding['asset'].symbol }}
                                         </a>

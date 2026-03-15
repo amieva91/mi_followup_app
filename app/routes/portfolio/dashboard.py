@@ -9,6 +9,7 @@ from app.routes import portfolio_bp
 from app.models import BrokerAccount, Asset, PortfolioHolding, Transaction
 from app.services.currency_service import convert_to_eur
 from app.services.metrics import BasicMetrics
+from app.services.delisting_reconciliation_service import get_delisted_asset_ids
 
 @portfolio_bp.route('/')
 @login_required
@@ -24,10 +25,15 @@ def dashboard():
     last_sync = Transaction.query.filter_by(user_id=current_user.id)\
         .order_by(Transaction.created_at.desc()).first()
     
-    # Obtener todos los holdings individuales
-    all_holdings = PortfolioHolding.query.filter_by(
+    # Obtener todos los holdings individuales (excluir activos con baja de cotización ya efectiva)
+    delisted_asset_ids = get_delisted_asset_ids()
+    all_holdings_raw = PortfolioHolding.query.filter_by(
         user_id=current_user.id
     ).filter(PortfolioHolding.quantity > 0).all()
+    all_holdings = [
+        h for h in all_holdings_raw
+        if h.asset_id not in delisted_asset_ids
+    ]
     
     # Agrupar por asset_id (unificar)
     grouped = defaultdict(lambda: {
@@ -134,12 +140,14 @@ def dashboard():
     # Calcular porcentaje
     total_pl_pct = (total_pl / total_cost * 100) if total_cost > 0 else 0
     
-    # Calcular peso % de cada holding
+    # Calcular peso % de cada holding y flag para corrección Yahoo
     for h in holdings_unified:
         if 'current_value_eur' in h and total_value > 0:
             h['weight_pct'] = (h['current_value_eur'] / total_value) * 100
         else:
             h['weight_pct'] = 0
+        asset = h.get('asset')
+        h['needs_yahoo_fix'] = not (asset and getattr(asset, 'yahoo_ticker', None)) if asset else True
     
     # Calcular distribuciones: países, sectores, assets, industrias, brokers, tipos
     country_distribution = defaultdict(float)

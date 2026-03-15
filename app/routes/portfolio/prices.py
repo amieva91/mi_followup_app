@@ -62,7 +62,7 @@ def update_prices():
                 except Exception:
                     pass  # No bloquear si falla el delisting
                 updater = PriceUpdater(progress_callback=lambda d: update_price_progress(session_key, d))
-                result = updater.update_asset_prices()
+                result = updater.update_asset_prices(user_id=user_id)
                 if delisting_result.get('created', 0) > 0:
                     result = result or {}
                     result['delistings_created'] = delisting_result.get('created', 0)
@@ -71,6 +71,8 @@ def update_prices():
                         'status': 'completed', 'result': result,
                         'success': result.get('success', 0), 'failed': result.get('failed', 0),
                         'skipped': result.get('skipped', 0), 'total': result.get('total', 0),
+                        'failed_assets': result.get('failed_assets', []),
+                        'skipped_assets': result.get('skipped_assets', []),
                         'end_time': time.time()
                     })
                 from app.services.metrics.cache import MetricsCacheService

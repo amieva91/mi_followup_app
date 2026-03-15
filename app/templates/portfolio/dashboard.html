@@ -280,7 +280,7 @@
                     {% endfor %}
                     
                     {% if older_years|length > 0 %}
-                    <div x-show="showAll" x-collapse class="space-y-3">
+                    <div x-show="showAll" x-transition class="space-y-3">
                         {% for yr in older_years %}
                         <div class="flex items-center justify-between p-3 rounded-lg {% if yr.return_pct >= 0 %}bg-green-50 border border-green-200{% else %}bg-red-50 border border-red-200{% endif %}">
                             <div class="flex items-center gap-3">
@@ -518,9 +518,12 @@
                     <tr class="hover:bg-gray-50">
                         <!-- Activo -->
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="flex items-center">
+                            <div class="flex items-center gap-1">
                                 <div>
-                                    <div class="text-sm font-bold text-gray-900">
+                                    <div class="text-sm font-bold text-gray-900 flex items-center gap-1">
+                                        {% if holding.get('needs_yahoo_fix') %}
+                                        <button type="button" class="fix-yahoo-btn text-amber-600 hover:text-amber-700 font-bold cursor-pointer" title="Corregir ticker con URL de Yahoo" data-asset-id="{{ holding['asset'].id }}" data-asset-name="{{ (holding['asset'].name or holding['asset'].symbol or '')|e }}" data-asset-currency="{{ holding['asset'].currency or 'EUR' }}">!</button>
+                                        {% endif %}
                                         <a href="{{ url_for('portfolio.asset_detail', id=holding['asset'].id) }}" class="hover:text-blue-600">
                                             {{ holding['asset'].name if holding['asset'].name else holding['asset'].symbol }}
                                         </a>
@@ -661,6 +664,12 @@
                         <span>⚠️ Omitidos:</span>
                         <span id="skippedCount" class="font-medium text-orange-600">0</span>
                     </div>
+                </div>
+                <div id="fixErrorsSection" class="hidden mt-3 pt-3 border-t border-gray-200">
+                    <button type="button" id="fixErrorsBtn" class="px-3 py-2 bg-amber-100 text-amber-800 text-sm font-medium rounded-md hover:bg-amber-200">
+                        ¿ Arreglar errores ?
+                    </button>
+                    <p id="fixErrorsHint" class="text-xs text-gray-500 mt-1">Introduce la URL de Yahoo para cada activo en fallo (opcional).</p>
                 </div>
             </div>
             
@@ -843,21 +852,24 @@ function onUpdateComplete(data) {
     if (data.status === 'completed') {
         modalTitle.textContent = '✅ Actualización completada';
         results.classList.remove('hidden');
-        // Usar los valores aplanados del backend o los del result si existen
         const result = data.result || {};
         const success = data.success !== undefined ? data.success : (result.success || 0);
         const failed = data.failed !== undefined ? data.failed : (result.failed || 0);
         const skipped = data.skipped !== undefined ? data.skipped : (result.skipped || 0);
-        
-        console.log('Setting values:', { success, failed, skipped });
-        
+        const failedAssets = data.failed_assets || result.failed_assets || [];
+        const skippedAssets = data.skipped_assets || result.skipped_assets || [];
+        const fixableList = failedAssets.concat(skippedAssets);
+
         if (successCount) successCount.textContent = success;
         if (failedCount) failedCount.textContent = failed;
-        if (skippedCount) {
-            skippedCount.textContent = skipped;
-            console.log('skippedCount element found and value set to:', skipped);
-        } else {
-            console.error('skippedCount element NOT FOUND!');
+        if (skippedCount) skippedCount.textContent = skipped;
+
+        const fixSection = document.getElementById('fixErrorsSection');
+        if (fixSection && fixableList.length > 0) {
+            fixSection.classList.remove('hidden');
+            fixSection.dataset.fixableList = JSON.stringify(fixableList);
+        } else if (fixSection) {
+            fixSection.classList.add('hidden');
         }
     } else {
         modalTitle.textContent = '❌ Error en actualización';
@@ -880,9 +892,42 @@ function showError(message) {
 function closeModal() {
     const modal = document.getElementById('priceUpdateModal');
     modal.classList.add('hidden');
-    // Recargar la página para mostrar los precios actualizados
     window.location.reload();
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+    const fixBtn = document.getElementById('fixErrorsBtn');
+    if (!fixBtn) return;
+    fixBtn.addEventListener('click', function() {
+        const fixSection = document.getElementById('fixErrorsSection');
+        if (!fixSection || !fixSection.dataset.fixableList) return;
+        let list = JSON.parse(fixSection.dataset.fixableList);
+        if (list.length === 0) return;
+        if (typeof window.openFixYahooModal !== 'function') return;
+        function openNext() {
+            if (list.length === 0) {
+                fixSection.classList.add('hidden');
+                if (typeof window.closeFixYahooModal === 'function') window.closeFixYahooModal();
+                return;
+            }
+            const item = list[0];
+            window.openFixYahooModal(item.asset_id, item.symbol || item.name || ('#' + item.asset_id), {
+                onSuccess: function() {
+                    list = list.slice(1);
+                    fixSection.dataset.fixableList = JSON.stringify(list);
+                    openNext();
+                },
+                onSkip: function() {
+                    list = list.slice(1);
+                    fixSection.dataset.fixableList = JSON.stringify(list);
+                    openNext();
+                },
+                onClose: function() {}
+            }, { currency: item.currency || 'EUR' });
+        }
+        openNext();
+    });
+});
 </script>
 
 <!-- Chart.js Library -->

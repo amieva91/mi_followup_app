@@ -108,31 +108,39 @@ class PriceUpdater:
             logger.error(f"   ❌ Error en autenticación: {e}")
             return False
     
-    def update_asset_prices(self, asset_ids: Optional[List[int]] = None) -> Dict:
+    def update_asset_prices(self, asset_ids: Optional[List[int]] = None, user_id: Optional[int] = None) -> Dict:
         """
         Actualiza precios de uno o varios activos.
-        
+
         Args:
-            asset_ids: Lista de IDs de activos. Si None, actualiza todos los activos con holdings > 0.
-        
+            asset_ids: Lista de IDs de activos. Si None, actualiza activos con holdings > 0.
+            user_id: Si se indica, solo se consideran posiciones de ese usuario (evita escanear activos de otros usuarios).
         Returns:
             Dict con estadísticas de la actualización
         """
         self.errors = []
         self.warnings = []
-        
-        # Obtener activos a actualizar
+        self.failed_assets = []   # [{ asset_id, symbol, name, isin, error }, ...]
+        self.skipped_assets = []  # [{ asset_id, symbol, name, isin, error }, ...]
+
+        # Obtener activos a actualizar (excluir activos con baja de cotización ya efectiva)
+        from app.services.delisting_reconciliation_service import get_delisted_asset_ids
+        delisted_asset_ids = get_delisted_asset_ids()
+
         if asset_ids:
             assets = Asset.query.filter(Asset.id.in_(asset_ids)).all()
         else:
-            # Actualizar solo activos con posiciones actuales
+            # Actualizar solo activos con posiciones actuales (del usuario si se indica user_id)
             from app.models.portfolio import PortfolioHolding
-            asset_ids_with_holdings = db.session.query(PortfolioHolding.asset_id).filter(
-                PortfolioHolding.quantity > 0
-            ).distinct().all()
+            q = db.session.query(PortfolioHolding.asset_id).filter(PortfolioHolding.quantity > 0)
+            if user_id is not None:
+                q = q.filter(PortfolioHolding.user_id == user_id)
+            asset_ids_with_holdings = q.distinct().all()
             asset_ids_with_holdings = [a[0] for a in asset_ids_with_holdings]
             assets = Asset.query.filter(Asset.id.in_(asset_ids_with_holdings)).all()
-        
+
+        assets = [a for a in assets if a.id not in delisted_asset_ids]
+
         if not assets:
             logger.info("⚠️ No hay activos para actualizar")
             return {
@@ -141,7 +149,9 @@ class PriceUpdater:
                 'failed': 0,
                 'skipped': 0,
                 'errors': [],
-                'warnings': []
+                'warnings': [],
+                'failed_assets': [],
+                'skipped_assets': [],
             }
         
         total = len(assets)
@@ -194,8 +204,17 @@ class PriceUpdater:
                 # Verificar que tenga ticker válido
                 if not asset.yahoo_ticker:
                     skipped += 1
-                    logger.warning(f"   ⚠️ OMITIDO: Sin ticker de Yahoo Finance")
-                    self.warnings.append(f"❌ {asset.symbol or asset.name}: Sin ticker de Yahoo Finance")
+                    err_msg = "Sin ticker de Yahoo Finance"
+                    logger.warning(f"   ⚠️ OMITIDO: {err_msg}")
+                    self.warnings.append(f"❌ {asset.symbol or asset.name}: {err_msg}")
+                    self.skipped_assets.append({
+                        'asset_id': asset.id,
+                        'symbol': asset.symbol or '',
+                        'name': asset.name or '',
+                        'isin': asset.isin or '',
+                        'error': err_msg,
+                        'currency': asset.currency or 'EUR',
+                    })
                     continue
                 
                 logger.info(f"   🔍 Consultando Yahoo Finance: {asset.yahoo_ticker}")
@@ -215,6 +234,15 @@ class PriceUpdater:
                 else:
                     failed += 1
                     logger.error(f"   ❌ FALLÓ (en {elapsed:.2f}s)")
+                    last_error = self.errors[-1] if self.errors else "Error desconocido"
+                    self.failed_assets.append({
+                        'asset_id': asset.id,
+                        'symbol': asset.symbol or '',
+                        'name': asset.name or '',
+                        'isin': asset.isin or '',
+                        'error': last_error.replace('❌ ', '').strip(),
+                        'currency': asset.currency or 'EUR',
+                    })
                 
                 # Reportar progreso (si hay callback)
                 if self.progress_callback:
@@ -239,6 +267,14 @@ class PriceUpdater:
                 error_msg = str(e)
                 logger.error(f"   ❌ ERROR: {error_msg}")
                 self.errors.append(f"❌ {asset.symbol or asset.name}: {error_msg}")
+                self.failed_assets.append({
+                    'asset_id': asset.id,
+                    'symbol': asset.symbol or '',
+                    'name': asset.name or '',
+                    'isin': asset.isin or '',
+                    'error': error_msg[:120],
+                    'currency': asset.currency or 'EUR',
+                })
                 
                 # Reportar error en progreso
                 if self.progress_callback:
@@ -277,7 +313,9 @@ class PriceUpdater:
             'failed': failed,
             'skipped': skipped,
             'errors': self.errors,
-            'warnings': self.warnings
+            'warnings': self.warnings,
+            'failed_assets': self.failed_assets,
+            'skipped_assets': self.skipped_assets,
         }
     
     def _update_single_asset(self, asset: Asset) -> bool:

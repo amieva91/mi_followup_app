@@ -425,6 +425,174 @@ def asset_fix_yahoo(id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@portfolio_bp.route('/asset/<int:id>/fix-with-yahoo-url', methods=['POST'])
+@login_required
+def asset_fix_with_yahoo_url(id):
+    """
+    Corregir asset con URL de Yahoo: enriquecer registro, sincronizar asset y verificar contra Yahoo.
+    Usado por el flujo "Arreglar errores" del modal de actualización y por el "!" en tablas.
+    Acepta JSON o form: yahoo_url
+    """
+    from app.services.asset_registry_service import AssetRegistryService
+    from app.models import AssetRegistry
+
+    asset = Asset.query.get_or_404(id)
+    if request.is_json:
+        data = request.get_json() or {}
+        yahoo_url = (data.get('yahoo_url') or '').strip()
+    else:
+        yahoo_url = (request.form.get('yahoo_url') or '').strip()
+
+    if not yahoo_url:
+        return jsonify({'success': False, 'error': 'URL no proporcionada'}), 400
+
+    if not asset.isin:
+        return jsonify({'success': False, 'error': 'Asset sin ISIN'}), 400
+
+    registry = AssetRegistry.query.filter_by(isin=asset.isin).first()
+    if not registry:
+        return jsonify({'success': False, 'error': 'Registro no encontrado'}), 404
+
+    try:
+        service = AssetRegistryService()
+        success, message, verified = service.fix_asset_with_yahoo_url(registry, yahoo_url, asset=asset)
+        if not success:
+            return jsonify({'success': False, 'error': message}), 400
+        return jsonify({
+            'success': True,
+            'message': message,
+            'verified': verified,
+            'symbol': asset.symbol,
+            'yahoo_suffix': asset.yahoo_suffix,
+            'yahoo_ticker': asset.yahoo_ticker,
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@portfolio_bp.route('/asset/<int:id>/update-price', methods=['POST'])
+@login_required
+def asset_update_price(id):
+    """
+    Actualiza el precio de un solo asset (tras corregir ticker con Yahoo).
+    Usado por el modal de fix Yahoo cuando la comprobación es exitosa.
+    """
+    from app.services.market_data.services import PriceUpdater
+    from flask_wtf.csrf import validate_csrf
+
+    try:
+        validate_csrf(request.form.get('csrf_token'))
+    except Exception:
+        return jsonify({'success': False, 'error': 'Token CSRF inválido'}), 400
+
+    asset = Asset.query.get_or_404(id)
+    try:
+        updater = PriceUpdater()
+        result = updater.update_asset_prices(asset_ids=[id])
+        success_count = result.get('success', 0)
+        db.session.refresh(asset)
+        return jsonify({
+            'success': success_count > 0,
+            'updated': success_count,
+            'current_price': float(asset.current_price) if asset.current_price is not None else None,
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@portfolio_bp.route('/asset/<int:id>/delisting', methods=['POST'])
+@login_required
+def asset_delisting_by_asset_id(id):
+    """
+    Registrar baja de cotización por asset_id (desde el modal de corrección de errores).
+    Crea/actualiza el delisting en el registry del asset, ejecuta reconciliación y genera la venta.
+    Acepta JSON o form: delisting_date (YYYY-MM-DD), delisting_price, delisting_currency, delisting_type, delisting_notes.
+    Siempre devuelve JSON para que el modal no reciba HTML en errores.
+    """
+    from flask_wtf.csrf import validate_csrf
+    from app.services.delisting_reconciliation_service import reconcile_delistings
+    from datetime import datetime as dt_parse
+
+    try:
+        validate_csrf(request.form.get('csrf_token') or (request.get_json(silent=True) or {}).get('csrf_token'))
+    except Exception:
+        return jsonify({'success': False, 'error': 'Token CSRF inválido'}), 400
+
+    try:
+        asset = Asset.query.get(id)
+        if not asset:
+            return jsonify({'success': False, 'error': 'Activo no encontrado'}), 404
+        if not asset.isin:
+            return jsonify({'success': False, 'error': 'El activo no tiene ISIN'}), 400
+
+        registry = AssetRegistry.query.filter_by(isin=asset.isin).first()
+        if not registry:
+            return jsonify({'success': False, 'error': 'No se encontró registro en asset-registry para este ISIN'}), 404
+
+        if request.is_json:
+            data = request.get_json(silent=True) or {}
+            delisting_date = (data.get('delisting_date') or '').strip()
+            delisting_price = str(data.get('delisting_price', 0)).strip().replace(',', '.')
+            delisting_currency = (data.get('delisting_currency') or asset.currency or 'EUR').strip().upper()[:3]
+            delisting_type = (data.get('delisting_type') or 'CASH_ACQUISITION').strip()
+            notes = (data.get('delisting_notes') or '').strip()
+        else:
+            delisting_date = (request.form.get('delisting_date') or '').strip()
+            delisting_price = (request.form.get('delisting_price') or '0').strip().replace(',', '.')
+            delisting_currency = (request.form.get('delisting_currency') or asset.currency or 'EUR').strip().upper()[:3]
+            delisting_type = (request.form.get('delisting_type') or 'CASH_ACQUISITION').strip()
+            notes = (request.form.get('delisting_notes') or '').strip()
+
+        if not delisting_date:
+            return jsonify({'success': False, 'error': 'La fecha de baja es obligatoria'}), 400
+
+        try:
+            dt = dt_parse.strptime(delisting_date, '%Y-%m-%d').date()
+            price = float(delisting_price) if delisting_price else 0.0
+        except ValueError:
+            return jsonify({'success': False, 'error': 'Fecha o precio inválidos (use fecha AAAA-MM-DD)'}), 400
+
+        if delisting_type not in DELISTING_TYPES:
+            delisting_type = 'CASH_ACQUISITION'
+
+        existing = AssetDelisting.query.filter_by(asset_registry_id=registry.id).first()
+        if existing:
+            existing.delisting_date = dt
+            existing.delisting_price = price
+            existing.delisting_currency = delisting_currency
+            existing.delisting_type = delisting_type
+            existing.notes = notes or None
+        else:
+            d = AssetDelisting(
+                asset_registry_id=registry.id,
+                delisting_date=dt,
+                delisting_price=price,
+                delisting_currency=delisting_currency,
+                delisting_type=delisting_type,
+                notes=notes or None
+            )
+            db.session.add(d)
+        db.session.commit()
+
+        try:
+            result = reconcile_delistings(user_id=current_user.id)
+            return jsonify({
+                'success': True,
+                'delisting_saved': True,
+                'sells_created': result.get('created', 0),
+            })
+        except Exception as e:
+            return jsonify({
+                'success': True,
+                'delisting_saved': True,
+                'sells_created': 0,
+                'warning': 'Baja guardada pero error al generar venta: ' + str(e),
+            }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': 'Error al guardar: ' + str(e)}), 500
+
+
 @portfolio_bp.route('/api/assets/search', methods=['GET'])
 @login_required
 def api_search_assets():

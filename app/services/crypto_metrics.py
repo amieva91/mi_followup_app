@@ -43,6 +43,8 @@ def _position_to_dict(ps) -> Dict[str, Any]:
         'pl_pct': ps.pnl_pct,
         'reward_quantity': ps.extra.get('reward_quantity', 0),
         'reward_value': ps.extra.get('reward_value', 0),
+        'asset_id': ps.extra.get('asset_id'),
+        'needs_yahoo_fix': ps.extra.get('needs_yahoo_fix', False),
     }
     return d
 
@@ -116,7 +118,12 @@ def compute_crypto_metrics(user_id: int) -> Dict[str, Any]:
             average_buy_price=avg_price,
             total_cost=total_cost,
             current_price=price,
-            extra={'reward_quantity': reward_qty, 'reward_value': reward_value},
+            extra={
+                'reward_quantity': reward_qty,
+                'reward_value': reward_value,
+                'asset_id': asset.id,
+                'needs_yahoo_fix': not (asset.yahoo_ticker),
+            },
         )
         positions.append(pos)
         if is_stable:

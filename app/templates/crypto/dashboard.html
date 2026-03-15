@@ -89,6 +89,9 @@
                 {% for p in metrics.posiciones %}
                 <tr class="hover:bg-gray-50">
                     <td class="px-6 py-4">
+                        {% if p.get('needs_yahoo_fix') and p.get('asset_id') %}
+                        <button type="button" class="fix-yahoo-btn text-amber-600 hover:text-amber-700 font-bold cursor-pointer mr-1" title="Corregir ticker con URL de Yahoo" data-asset-id="{{ p.asset_id }}" data-asset-name="{{ p.symbol|e }}">!</button>
+                        {% endif %}
                         <span class="font-medium text-gray-900">{{ p.symbol }}</span>
                     </td>
                     <td class="px-6 py-4 text-right text-sm text-gray-700">{{ p.quantity|decimal_eu(4) }}</td>

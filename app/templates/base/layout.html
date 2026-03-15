@@ -296,6 +296,11 @@
     </footer>
     {% endif %}
     
+    {% block fix_yahoo_modal %}
+    {% if request.endpoint and 'portfolio' in request.endpoint or request.endpoint and 'crypto' in request.endpoint %}
+    {% include 'portfolio/_fix_yahoo_modal.html' %}
+    {% endif %}
+    {% endblock %}
     {% block extra_js %}{% endblock %}
 </body>
 </html>
