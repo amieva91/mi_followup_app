@@ -63,6 +63,7 @@ docs/_build/
 test_*.py
 check_*.py
 fix_*.py
+!migrations/versions/fix_*.py
 show_*.py
 sync_*.py
 
