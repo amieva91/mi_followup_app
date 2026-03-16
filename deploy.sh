@@ -46,6 +46,7 @@ sudo -u $APP_USER tee $APP_DIR/.env > /dev/null << ENVFILE
 FLASK_ENV=production
 SECRET_KEY=$SECRET_KEY
 DATABASE_URL=sqlite:///$APP_DIR/instance/followup.db
+DASHBOARD_CACHE_MINUTES=10080
 ENVFILE
 
 echo "=== Creando directorios necesarios ==="

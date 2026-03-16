@@ -49,6 +49,8 @@ class Config:
     OUTPUT_FOLDER = basedir / 'output'
     # Log file (para vista de logs en panel admin)
     LOG_FILE = os.environ.get('LOG_FILE') or str(basedir / 'logs' / 'followup.log')
+    # Cache del resumen del dashboard (minutos). Se invalida antes si hay cambios en datos.
+    DASHBOARD_CACHE_MINUTES = int(os.environ.get('DASHBOARD_CACHE_MINUTES', 15))
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
     
     # Allowed extensions

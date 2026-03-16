@@ -1,8 +1,9 @@
 """
 Cache del resumen del dashboard principal (patrimonio, histórico, widgets).
-TTL corto (15 min) para que los datos no se queden obsoletos.
+TTL configurable (DASHBOARD_CACHE_MINUTES). Se invalida antes si hay cambios en datos.
 """
 from datetime import datetime, timedelta
+from flask import current_app
 from app import db
 
 
@@ -21,4 +22,5 @@ class DashboardSummaryCache(db.Model):
 
     @staticmethod
     def get_default_expiry():
-        return datetime.utcnow() + timedelta(minutes=15)
+        minutes = current_app.config.get('DASHBOARD_CACHE_MINUTES', 15)
+        return datetime.utcnow() + timedelta(minutes=minutes)
