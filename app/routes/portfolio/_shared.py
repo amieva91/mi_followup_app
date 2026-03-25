@@ -35,8 +35,12 @@ def get_import_progress(user_id):
 def set_import_progress(user_id, data):
     """Escribe el progreso de importación a archivo (visible por todos los workers)."""
     path = _import_progress_file_path(user_id)
-    with open(path, 'w') as f:
+    tmp = path + '.tmp'
+    with open(tmp, 'w') as f:
         json.dump(data, f, default=str)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, path)
 
 # Cache global para progreso de actualización de precios (thread-safe)
 # NOTA: Con Gunicorn multi-worker la memoria no se comparte. En producción

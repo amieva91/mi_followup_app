@@ -134,6 +134,20 @@ def import_csv_process():
     total_files = len(files)
     failed_enrichment_cache = set()  # ISINs cuyo enriquecimiento falló (evita reintentos entre archivos)
 
+    # En cuanto el cuerpo POST está completo (esta vista ya corre): el polling puede leer esto.
+    # Evita pantalla 0% mientras el primer archivo se guarda y se parsea (muy largo en prod).
+    set_import_progress(current_user.id, {
+        'current': 0,
+        'total': 1,
+        'message': 'Preparando importación…',
+        'percentage': 0,
+        'current_file': None,
+        'file_number': 0,
+        'total_files': total_files,
+        'completed_files': [],
+        'pending_files': [secure_filename(f.filename) for f in files],
+    })
+
     for file_idx, file in enumerate(files):
         filepath = None
         try:
@@ -144,6 +158,19 @@ def import_csv_process():
             filepath = os.path.join(UPLOAD_FOLDER, f"temp_{current_user.id}_{filename}")
             file.save(filepath)
             debug_log.debug(f"Archivo guardado en {filepath}")
+
+            remaining = [secure_filename(files[i].filename) for i in range(file_idx + 1, len(files))]
+            set_import_progress(current_user.id, {
+                'current': 0,
+                'total': 1,
+                'message': f'Analizando {filename}…',
+                'percentage': 0,
+                'current_file': filename,
+                'file_number': file_number,
+                'total_files': total_files,
+                'completed_files': completed_files.copy(),
+                'pending_files': remaining.copy(),
+            })
 
             parsed_data = detect_and_parse(filepath)
             broker_format = parsed_data.get('format', 'unknown')

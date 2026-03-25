@@ -247,6 +247,8 @@
 
 <script>
 let progressInterval = null;
+/** true entre submit y fin del fetch POST (subida lenta: /import/progress puede seguir en idle) */
+let csvImportRequestActive = false;
 
 // Mostrar resultados si hay query params
 window.addEventListener('DOMContentLoaded', function() {
@@ -358,9 +360,9 @@ document.getElementById('csvForm').addEventListener('submit', async function(e) 
     document.getElementById('importForm').classList.add('hidden');
     document.getElementById('progressContainer').classList.remove('hidden');
     
-    // Iniciar polling de progreso
+    csvImportRequestActive = true;
     startProgressPolling();
-    
+
     try {
         // Enviar formulario con AJAX
         const response = await fetch('{{ url_for("portfolio.import_csv_process") }}', {
@@ -373,9 +375,9 @@ document.getElementById('csvForm').addEventListener('submit', async function(e) 
         
         console.log('Respuesta del servidor:', response.status, response.statusText);
         
-        // Detener polling
+        csvImportRequestActive = false;
         stopProgressPolling();
-        
+
         // Esperar brevemente para que el último estado se muestre
         await new Promise(resolve => setTimeout(resolve, 1500));
         
@@ -393,6 +395,7 @@ document.getElementById('csvForm').addEventListener('submit', async function(e) 
         }
         
     } catch (error) {
+        csvImportRequestActive = false;
         stopProgressPolling();
         console.error('Error durante importación:', error);
         alert('❌ Error al importar archivos. Por favor, intenta de nuevo.');
@@ -417,6 +420,12 @@ function startProgressPolling() {
                 updateFileInfo(data);
                 // Mantener la barra de progreso en 100% para este archivo
                 updateProgressBar(100, 100, data.message, 100);
+            } else if (data.status === 'idle' && csvImportRequestActive) {
+                // Subida multipart aún no ha terminado en el servidor, o el worker aún no escribió el JSON
+                document.getElementById('progressMessage').textContent =
+                    'Subiendo archivos o esperando al servidor… (en producción puede tardar más que en local)';
+                document.getElementById('progressDetails').textContent =
+                    'La barra avanzará cuando empiece el análisis del CSV y el enriquecimiento.';
             }
         } catch (error) {
             console.error('Error consultando progreso:', error);
