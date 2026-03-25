@@ -4,8 +4,11 @@ Serialización global de acceso a SQLite entre procesos (Flask + cron).
 Solo flock en before_flush llega tarde: las SELECT abren transacción antes del flush
 y el job de precios puede dejar la conexión ocupada durante la llamada HTTP a Yahoo.
 
-Aquí: un único flock (instance/followup.db.advisory.flock) durante toda la petición HTTP
-y durante todo el comando CLI que toca la BD.
+Aquí: flock advisory sobre instance/followup.db.advisory.flock.
+- Peticiones GET/HEAD/OPTIONS usan LOCK_SH: varias lecturas en paralelo entre workers.
+- POST/PUT/PATCH/DELETE usan LOCK_EX: una mutación a la vez respecto al resto.
+- El cron price-poll-one NO debe envolver la llamada HTTP a Yahoo con el lock global
+  (bloqueaba todo el sitio cada minuto); SQLite WAL + busy_timeout gestionan el commit.
 """
 from __future__ import annotations
 
@@ -66,7 +69,7 @@ def exclusive_db_lock(app):
 
 
 def register_sqlite_cross_process_lock(app, db=None) -> None:
-    """before_request: flock EX; teardown_request: liberar. Solo SQLite en disco."""
+    """before_request: flock SH (lecturas) o EX (escrituras); teardown: liberar."""
     global _registered
 
     if not _use_sqlite_file(app) or app.config.get('TESTING'):
@@ -95,7 +98,10 @@ def register_sqlite_cross_process_lock(app, db=None) -> None:
         if request.endpoint in _SKIP_FLOCK_ENDPOINTS:
             return
         fp = open(path, 'a+')
-        fcntl.flock(fp.fileno(), fcntl.LOCK_EX)
+        if request.method in ('GET', 'HEAD', 'OPTIONS'):
+            fcntl.flock(fp.fileno(), fcntl.LOCK_SH)
+        else:
+            fcntl.flock(fp.fileno(), fcntl.LOCK_EX)
         g._sqlite_site_lock_fp = fp
 
     @app.teardown_request

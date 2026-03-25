@@ -233,13 +233,11 @@ def create_app(config_name='default'):
     @app.cli.command('price-poll-one')
     def price_poll_one():
         """Actualiza 1 activo por rotación (Chart API solo). Ejecutar cada minuto vía cron."""
-        from flask import current_app
-
-        from app.sqlite_cross_process_lock import exclusive_db_lock
         from app.services.price_polling_service import run_poll_one
 
-        with exclusive_db_lock(current_app):
-            asset_id = run_poll_one()
+        # Sin exclusive_db_lock global: envolver run_poll_one bloqueaba todo el sitio web
+        # durante la petición HTTP a Yahoo (flock EX compartido con Gunicorn).
+        asset_id = run_poll_one()
         if asset_id:
             print(f"OK: actualizado asset_id={asset_id}")
         else:
