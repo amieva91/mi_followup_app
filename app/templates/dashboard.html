@@ -75,26 +75,44 @@
     
     <!-- Header Patrimonio -->
     <div class="bg-gradient-to-br from-indigo-600 via-indigo-700 to-violet-700 rounded-[20px] shadow-xl p-8 mb-8 text-white overflow-hidden relative">
-        <div class="flex flex-wrap items-center justify-between gap-4">
+        <div class="flex flex-wrap items-start justify-between gap-6">
             <div>
                 <p class="text-indigo-200 text-sm font-medium uppercase tracking-wide">Patrimonio Neto Total</p>
-                <h1 class="text-4xl md:text-5xl font-bold mt-1">{{ "%.2f"|format(summary.net_worth) }} EUR</h1>
+                <h1 id="net-worth-value" class="text-4xl md:text-5xl font-bold mt-1">{{ "%.2f"|format(summary.net_worth) }} EUR</h1>
                 <div class="flex items-center gap-4 mt-2 text-sm">
                     {% if summary.changes.month >= 0 %}
-                    <span class="bg-green-500/30 px-2 py-1 rounded">+{{ "%.2f"|format(summary.changes.month) }} EUR mes</span>
+                    <span id="month-change" class="bg-green-500/30 px-2 py-1 rounded">+{{ "%.2f"|format(summary.changes.month) }} EUR mes</span>
                     {% else %}
-                    <span class="bg-red-500/30 px-2 py-1 rounded">{{ "%.2f"|format(summary.changes.month) }} EUR mes</span>
+                    <span id="month-change" class="bg-red-500/30 px-2 py-1 rounded">{{ "%.2f"|format(summary.changes.month) }} EUR mes</span>
                     {% endif %}
-                    <span class="bg-white/20 px-2 py-1 rounded">{{ summary.changes.ytd_pct }}% YTD</span>
+                    <span id="ytd-change" class="bg-white/20 px-2 py-1 rounded">{{ summary.changes.ytd_pct }}% YTD</span>
+                </div>
+                <div class="mt-1 text-xs text-indigo-200">
+                    <span id="dashboard-staleness">Actualizado hace 0 min</span>
                 </div>
             </div>
+            {% if summary.get('top_movers') %}
+            <div class="bg-white/10 backdrop-blur rounded-xl p-4 min-w-[200px] max-w-[280px]" id="top-movers-block">
+                <h4 class="text-xs font-semibold text-indigo-200 uppercase tracking-wide mb-2">Top Movers (día)</h4>
+                <div id="top-movers-list" class="space-y-1.5">
+                    {% for m in summary.top_movers[:5] %}
+                    <div class="flex items-center justify-between text-sm price-cell" data-asset-id="{{ m.asset_id }}">
+                        <span class="font-medium truncate">{{ m.symbol }}</span>
+                        <span class="{% if m.day_change_percent >= 0 %}text-emerald-300{% else %}text-red-300{% endif %} font-semibold shrink-0 ml-2">
+                            {{ "%+.1f"|format(m.day_change_percent) }}%
+                        </span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
         </div>
     </div>
 
     <!-- Cuadrícula uniforme -->
     <div id="sortable-widgets" class="mb-6">
         <!-- Evolución Patrimonio (wide) -->
-        <div class="dashboard-card dashboard-card--wide p-6" data-card-id="evolution_chart" x-data="{ expanded: false }">
+        <div id="dashboard-evolution-wrap" class="dashboard-card dashboard-card--wide p-6" data-card-id="evolution_chart" x-data="{ expanded: false }">
             <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
                 <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
                 <h3 class="text-sm font-bold text-gray-800">Evolución del Patrimonio</h3>
@@ -183,38 +201,42 @@
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <a href="{{ url_for('banks.dashboard') }}" class="p-4 rounded-xl bg-emerald-50 border-l-4 border-emerald-500 hover:bg-emerald-100 transition">
                     <p class="text-xs text-gray-600 mb-1">Cash & Bancos</p>
-                    <p class="text-lg font-bold text-gray-900">{{ "%.2f"|format(summary.breakdown.cash) }} €</p>
+                    <p class="text-lg font-bold text-gray-900"><span id="assets-cash-total">{{ "%.2f"|format(summary.breakdown.cash) }} €</span></p>
+                    <div id="assets-cash-banks">
                     {% for bank in summary.cash_details[:2] %}
                     <p class="text-xs text-gray-500 mt-1">{{ bank.icon }} {{ bank.name }}: {{ "%.2f"|format(bank.amount) }} €</p>
                     {% endfor %}
+                    </div>
                 </a>
                 <a href="{{ url_for('portfolio.dashboard') }}" class="p-4 rounded-xl bg-blue-50 border-l-4 border-blue-500 hover:bg-blue-100 transition">
                     <p class="text-xs text-gray-600 mb-1">Portfolio</p>
-                    <p class="text-lg font-bold text-gray-900">{{ "%.2f"|format(summary.portfolio_details.total_value) }} €</p>
-                    <p class="text-xs {% if summary.portfolio_details.total_pnl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                    <p class="text-lg font-bold text-gray-900"><span id="assets-portfolio-total">{{ "%.2f"|format(summary.portfolio_details.total_value) }} €</span></p>
+                    <p id="assets-portfolio-pnl" class="text-xs {% if summary.portfolio_details.total_pnl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
                         {% if summary.portfolio_details.total_pnl >= 0 %}+{% endif %}{{ "%.2f"|format(summary.portfolio_details.total_pnl) }} € ({{ summary.portfolio_details.total_pnl_pct }}%)
                     </p>
                 </a>
                 <a href="{{ url_for('crypto.dashboard') }}" class="p-4 rounded-xl bg-amber-50 border-l-4 border-amber-500 hover:bg-amber-100 transition">
                     <p class="text-xs text-gray-600 mb-1">Crypto</p>
-                    <p class="text-lg font-bold text-gray-900">{{ "%.2f"|format(summary.crypto_details.total_value) }} €</p>
-                    <p class="text-xs {% if summary.crypto_details.total_pnl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                    <p class="text-lg font-bold text-gray-900"><span id="assets-crypto-total">{{ "%.2f"|format(summary.crypto_details.total_value) }} €</span></p>
+                    <p id="assets-crypto-pnl" class="text-xs {% if summary.crypto_details.total_pnl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
                         {% if summary.crypto_details.total_pnl >= 0 %}+{% endif %}{{ "%.2f"|format(summary.crypto_details.total_pnl) }} €
                     </p>
                 </a>
                 <a href="{{ url_for('metales.dashboard') }}" class="p-4 rounded-xl bg-yellow-50 border-l-4 border-yellow-500 hover:bg-yellow-100 transition">
                     <p class="text-xs text-gray-600 mb-1">Metales</p>
-                    <p class="text-lg font-bold text-gray-900">{{ "%.2f"|format(summary.metales_details.total_value) }} €</p>
-                    <p class="text-xs {% if summary.metales_details.total_pnl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                    <p class="text-lg font-bold text-gray-900"><span id="assets-metales-total">{{ "%.2f"|format(summary.metales_details.total_value) }} €</span></p>
+                    <p id="assets-metales-pnl" class="text-xs {% if summary.metales_details.total_pnl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
                         {% if summary.metales_details.total_pnl >= 0 %}+{% endif %}{{ "%.2f"|format(summary.metales_details.total_pnl) }} €
                     </p>
                 </a>
                 <a href="{{ url_for('real_estate.dashboard') }}" class="p-4 rounded-xl bg-teal-50 border-l-4 border-teal-500 hover:bg-teal-100 transition">
                     <p class="text-xs text-gray-600 mb-1">Inmuebles</p>
-                    <p class="text-lg font-bold text-gray-900">{{ "%.2f"|format(summary.real_estate_details.total_value) }} €</p>
-                    {% for prop in summary.real_estate_details.properties[:2] %}
-                    <p class="text-xs text-gray-500 mt-1">{{ prop.icon }} {{ prop.address[:20] }}{% if prop.address|length > 20 %}...{% endif %}</p>
-                    {% endfor %}
+                    <p class="text-lg font-bold text-gray-900"><span id="assets-realestate-total">{{ "%.2f"|format(summary.real_estate_details.total_value) }} €</span></p>
+                    <div id="assets-realestate-props">
+                        {% for prop in summary.real_estate_details.properties[:2] %}
+                        <p class="text-xs text-gray-500 mt-1">{{ prop.icon }} {{ prop.address[:20] }}{% if prop.address|length > 20 %}...{% endif %}</p>
+                        {% endfor %}
+                    </div>
                 </a>
             </div>
         </div>
@@ -579,13 +601,41 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
-// Datos globales del histórico
-const fullHistory = {{ summary.history | tojson }};
+// Huella del snapshot al cargar (misma lógica que poll: version o _cached_at)
+{% if summary.meta is defined and summary.meta.version is defined and summary.meta.version is not none %}
+let lastSeenDashboardFingerprint = {{ summary.meta.version | tojson }};
+{% elif summary._cached_at is defined and summary._cached_at %}
+let lastSeenDashboardFingerprint = {{ summary._cached_at | tojson }};
+{% else %}
+let lastSeenDashboardFingerprint = null;
+{% endif %}
+let lastPollSince = {{ (summary.meta._now_cached_at if summary.meta is defined and summary.meta._now_cached_at is defined and summary.meta._now_cached_at else summary._cached_at if summary._cached_at is defined and summary._cached_at else 'null') | tojson }};
+
+function flashPriceCells(assetIds) {
+    if (!Array.isArray(assetIds) || assetIds.length === 0) return;
+    const ids = new Set(assetIds.map(String));
+    document.querySelectorAll('.price-cell[data-asset-id]').forEach(el => {
+        if (ids.has(String(el.getAttribute('data-asset-id')))) {
+            el.classList.remove('price-updated');
+            void el.offsetWidth; // reflow
+            el.classList.add('price-updated');
+            setTimeout(() => el.classList.remove('price-updated'), 600);
+        }
+    });
+}
+
+// Estado JS derivado del resumen inicial
+let fullHistory = {{ summary.history | tojson }};
 const historyMeta = {{ summary.history_meta | tojson }};
 let evolutionChart = null;
 let evolutionModalChart = null;
 let incomeExpenseModalChart = null;
+let distributionChart = null;
+let incomeExpenseMainChart = null;
+let projectionMainChart = null;
 let currentChartPeriod = 12;
+let lastPolledEvolutionLastNw = (fullHistory.length && fullHistory[fullHistory.length - 1].net_worth != null)
+    ? Number(fullHistory[fullHistory.length - 1].net_worth) : null;
 
 function openEvolutionModal() {
     const ctx = document.getElementById('evolutionChartModal');
@@ -624,7 +674,7 @@ function updateEvolutionModal() {
     evolutionModalChart.update();
 }
 
-const ieChartData = {{ summary.income_expense_monthly | tojson }};
+let ieChartData = {{ summary.income_expense_monthly | tojson }};
 function openIncomeExpenseModal() {
     const ctx = document.getElementById('incomeExpenseChartModal');
     if (!ctx || incomeExpenseModalChart) return;
@@ -877,7 +927,7 @@ document.addEventListener('DOMContentLoaded', function() {
             { label: 'Inmuebles', value: {{ summary.breakdown.real_estate|default(0) }}, pct: {{ summary.breakdown.breakdown_pct.real_estate|default(0) }}, color: '#0d9488' }
         ];
         const distFiltered = distCategories.filter(c => c.value > 0);
-        new Chart(distCtx, {
+        distributionChart = new Chart(distCtx, {
             type: 'doughnut',
             data: {
                 labels: distFiltered.map(c => c.label),
@@ -906,7 +956,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const ieCtx = document.getElementById('incomeExpenseChart');
     if (ieCtx) {
         const ieData = {{ summary.income_expense_monthly | tojson }};
-        new Chart(ieCtx, {
+        incomeExpenseMainChart = new Chart(ieCtx, {
             type: 'bar',
             data: {
                 labels: ieData.map(d => d.month_label),
@@ -941,7 +991,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (projCtx) {
         const projData = {{ summary.projections.projection_chart | tojson }};
         const currentValue = {{ summary.projections.current }};
-        new Chart(projCtx, {
+        projectionMainChart = new Chart(projCtx, {
             type: 'line',
             data: {
                 labels: projData.map(d => d.year + 'a'),
@@ -989,5 +1039,282 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+// --- Actualización ligera desde /dashboard/state (sin recargar toda la página) ---
+
+function updateDashboardStaleness(cachedAtIso) {
+    const stalenessEl = document.getElementById('dashboard-staleness');
+    if (!stalenessEl || !cachedAtIso) return;
+    const cachedAt = new Date(cachedAtIso);
+    const now = new Date();
+    const diffMin = Math.max(0, Math.round((now - cachedAt) / 60000));
+    stalenessEl.textContent = diffMin === 0
+        ? 'Actualizado hace menos de 1 min'
+        : `Actualizado hace ${diffMin} min`;
+}
+
+function applyDashboardUpdate(summary) {
+    if (!summary) return;
+
+    // Actualizar cabecera principal (net worth, cambios)
+    const netWorthEl = document.getElementById('net-worth-value');
+    const monthChangeEl = document.getElementById('month-change');
+    const ytdEl = document.getElementById('ytd-change');
+    if (netWorthEl && summary.net_worth !== undefined) {
+        const newText = `${summary.net_worth.toFixed(2)} EUR`;
+        const changed = netWorthEl.textContent !== newText;
+        netWorthEl.textContent = newText;
+        if (changed) {
+            netWorthEl.classList.add('animate-pulse');
+            setTimeout(() => netWorthEl.classList.remove('animate-pulse'), 800);
+        }
+    }
+    if (monthChangeEl && summary.changes) {
+        const m = summary.changes.month || 0;
+        const positive = m >= 0;
+        monthChangeEl.textContent = `${positive ? '+' : ''}${m.toFixed(2)} EUR mes`;
+        monthChangeEl.classList.toggle('bg-green-500/30', positive);
+        monthChangeEl.classList.toggle('bg-red-500/30', !positive);
+    }
+    if (ytdEl && summary.changes) {
+        const y = summary.changes.ytd_pct || 0;
+        ytdEl.textContent = `${y.toFixed(1)}% YTD`;
+    }
+
+    // Actualizar etiqueta de "Actualizado hace X min"
+    if (summary.meta && (summary.meta._now_cached_at || summary.meta._cached_at)) {
+        updateDashboardStaleness(summary.meta._now_cached_at || summary.meta._cached_at);
+    }
+
+    // Actualizar histórico y gráfico principal (+ modal si abierto)
+    if (Array.isArray(summary.history) && summary.history.length) {
+        const prevLast = lastPolledEvolutionLastNw;
+        fullHistory = summary.history;
+        const newLastNw = Number(fullHistory[fullHistory.length - 1].net_worth);
+        if (evolutionChart) {
+            let filteredHistory = fullHistory;
+            if (currentChartPeriod > 0) {
+                filteredHistory = fullHistory.slice(-currentChartPeriod);
+            }
+            evolutionChart.data.labels = filteredHistory.map(h => h.month_label);
+            evolutionChart.data.datasets[0].data = filteredHistory.map(h => h.net_worth);
+            evolutionChart.data.datasets[1].data = filteredHistory.map(h => h.cash);
+            evolutionChart.data.datasets[2].data = filteredHistory.map(h => h.broker_total);
+            evolutionChart.data.datasets[3].data = filteredHistory.map(h => h.crypto);
+            evolutionChart.data.datasets[4].data = filteredHistory.map(h => h.metales);
+            evolutionChart.data.datasets[5].data = filteredHistory.map(h => h.real_estate || 0);
+            evolutionChart.update('active');
+        }
+        updateEvolutionModal();
+        if (typeof prevLast === 'number' && !Number.isNaN(newLastNw) && Math.abs(newLastNw - prevLast) > 0.01) {
+            const wrap = document.getElementById('dashboard-evolution-wrap');
+            if (wrap) {
+                wrap.classList.add('ring-2', 'ring-indigo-400/60', 'rounded-2xl', 'transition-shadow', 'duration-500');
+                setTimeout(() => wrap.classList.remove('ring-2', 'ring-indigo-400/60', 'rounded-2xl', 'transition-shadow', 'duration-500'), 1200);
+            }
+        }
+        lastPolledEvolutionLastNw = newLastNw;
+    }
+
+    // Donut distribución (NOW)
+    if (summary.breakdown && distributionChart) {
+        const b = summary.breakdown;
+        const pct = b.breakdown_pct || {};
+        const distCategories = [
+            { label: 'Cash', value: Number(b.cash) || 0, pct: pct.cash, color: '#10b981' },
+            { label: 'Portfolio', value: Number(b.portfolio) || 0, pct: pct.portfolio, color: '#3b82f6' },
+            { label: 'Crypto', value: Number(b.crypto) || 0, pct: pct.crypto, color: '#f59e0b' },
+            { label: 'Metales', value: Number(b.metales) || 0, pct: pct.metales, color: '#eab308' },
+            { label: 'Inmuebles', value: Number(b.real_estate) || 0, pct: pct.real_estate, color: '#0d9488' }
+        ];
+        const distFiltered = distCategories.filter(c => c.value > 0);
+        const distLegend = document.getElementById('distributionLegend');
+        if (distFiltered.length > 0) {
+            distributionChart.data.labels = distFiltered.map(c => c.label);
+            distributionChart.data.datasets[0].data = distFiltered.map(c => c.value);
+            distributionChart.data.datasets[0].backgroundColor = distFiltered.map(c => c.color);
+            distributionChart.update('active');
+            if (distLegend) {
+                distLegend.innerHTML = distFiltered.map(c =>
+                    `<div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full" style="background-color:${c.color}"></span>${c.label} ${c.pct != null ? c.pct : 0}%</div>`
+                ).join('');
+            }
+        }
+    }
+
+    // Resumen de Activos (Cash, Portfolio, Crypto, Metales, Inmuebles)
+    if (summary.breakdown) {
+        const cashEl = document.getElementById('assets-cash-total');
+        if (cashEl && typeof summary.breakdown.cash === 'number') {
+            cashEl.textContent = `${summary.breakdown.cash.toFixed(2)} €`;
+        }
+    }
+    if (Array.isArray(summary.cash_details)) {
+        const box = document.getElementById('assets-cash-banks');
+        if (box) {
+            box.innerHTML = (summary.cash_details || []).slice(0, 2).map(b =>
+                `<p class="text-xs text-gray-500 mt-1">${b.icon || '🏦'} ${b.name || ''}: ${(Number(b.amount) || 0).toFixed(2)} €</p>`
+            ).join('');
+        }
+    }
+    if (summary.portfolio_details) {
+        const portEl = document.getElementById('assets-portfolio-total');
+        if (portEl && typeof summary.portfolio_details.total_value === 'number') {
+            portEl.textContent = `${summary.portfolio_details.total_value.toFixed(2)} €`;
+        }
+    }
+    if (summary.crypto_details) {
+        const cryptoEl = document.getElementById('assets-crypto-total');
+        if (cryptoEl && typeof summary.crypto_details.total_value === 'number') {
+            cryptoEl.textContent = `${summary.crypto_details.total_value.toFixed(2)} €`;
+        }
+    }
+    if (summary.metales_details) {
+        const metalEl = document.getElementById('assets-metales-total');
+        if (metalEl && typeof summary.metales_details.total_value === 'number') {
+            metalEl.textContent = `${summary.metales_details.total_value.toFixed(2)} €`;
+        }
+    }
+    if (summary.portfolio_details) {
+        const pnlEl = document.getElementById('assets-portfolio-pnl');
+        if (pnlEl && typeof summary.portfolio_details.total_pnl === 'number' && typeof summary.portfolio_details.total_pnl_pct === 'number') {
+            const pnl = summary.portfolio_details.total_pnl;
+            const pct = summary.portfolio_details.total_pnl_pct;
+            pnlEl.textContent = `${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} € (${pct.toFixed(1)}%)`;
+            pnlEl.classList.remove('text-green-600', 'text-red-600');
+            pnlEl.classList.add(pnl >= 0 ? 'text-green-600' : 'text-red-600');
+        }
+    }
+    if (summary.real_estate_details) {
+        const reEl = document.getElementById('assets-realestate-total');
+        if (reEl && typeof summary.real_estate_details.total_value === 'number') {
+            reEl.textContent = `${summary.real_estate_details.total_value.toFixed(2)} €`;
+        }
+    }
+    if (summary.crypto_details) {
+        const pnlEl = document.getElementById('assets-crypto-pnl');
+        if (pnlEl && typeof summary.crypto_details.total_pnl === 'number') {
+            const pnl = summary.crypto_details.total_pnl;
+            pnlEl.textContent = `${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} €`;
+            pnlEl.classList.remove('text-green-600', 'text-red-600');
+            pnlEl.classList.add(pnl >= 0 ? 'text-green-600' : 'text-red-600');
+        }
+    }
+    if (summary.metales_details) {
+        const pnlEl = document.getElementById('assets-metales-pnl');
+        if (pnlEl && typeof summary.metales_details.total_pnl === 'number') {
+            const pnl = summary.metales_details.total_pnl;
+            pnlEl.textContent = `${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} €`;
+            pnlEl.classList.remove('text-green-600', 'text-red-600');
+            pnlEl.classList.add(pnl >= 0 ? 'text-green-600' : 'text-red-600');
+        }
+    }
+    if (summary.real_estate_details && Array.isArray(summary.real_estate_details.properties)) {
+        const propsEl = document.getElementById('assets-realestate-props');
+        if (propsEl) {
+            const props = summary.real_estate_details.properties.slice(0, 2);
+            propsEl.innerHTML = props.map(p =>
+                `<p class="text-xs text-gray-500 mt-1">${p.icon || ''} ${p.address ? (p.address.substring(0, 20) + (p.address.length > 20 ? '...' : '')) : ''}</p>`
+            ).join('');
+        }
+    }
+
+    // Top Movers
+    if (Array.isArray(summary.top_movers)) {
+        const inner = document.getElementById('top-movers-list');
+        if (inner) {
+            inner.innerHTML = summary.top_movers.slice(0, 5).map(m =>
+                `<div class="flex items-center justify-between text-sm price-cell" data-asset-id="${m.asset_id}">
+                    <span class="font-medium truncate">${m.symbol || ''}</span>
+                    <span class="${(m.day_change_percent || 0) >= 0 ? 'text-emerald-300' : 'text-red-300'} font-semibold shrink-0 ml-2">
+                        ${(m.day_change_percent != null ? (m.day_change_percent >= 0 ? '+' : '') + m.day_change_percent.toFixed(1) : '-')}%
+                    </span>
+                </div>`
+            ).join('');
+        }
+    }
+
+    // Ingresos vs gastos (widget principal)
+    if (Array.isArray(summary.income_expense_monthly)) {
+        ieChartData = summary.income_expense_monthly;
+        if (incomeExpenseMainChart) {
+            incomeExpenseMainChart.data.labels = ieChartData.map(d => d.month_label);
+            incomeExpenseMainChart.data.datasets[0].data = ieChartData.map(d => d.income);
+            incomeExpenseMainChart.data.datasets[1].data = ieChartData.map(d => d.expense);
+            incomeExpenseMainChart.update('active');
+        }
+        if (incomeExpenseModalChart) {
+            incomeExpenseModalChart.data.labels = ieChartData.map(d => d.month_label);
+            incomeExpenseModalChart.data.datasets[0].data = ieChartData.map(d => d.income);
+            incomeExpenseModalChart.data.datasets[1].data = ieChartData.map(d => d.expense);
+            incomeExpenseModalChart.update('active');
+        }
+    }
+
+    // Proyección 10 años
+    if (summary.projections && projectionMainChart) {
+        const proj = summary.projections;
+        const projData = proj.projection_chart || [];
+        const currentValue = proj.current != null ? proj.current : summary.net_worth;
+        projectionMainChart.data.labels = projData.map(d => d.year + 'a');
+        projectionMainChart.data.datasets[0].data = projData.map(d => d.value);
+        projectionMainChart.data.datasets[0].pointRadius = projData.map(d => d.label ? 4 : 0);
+        projectionMainChart.data.datasets[1].data = projData.map(() => currentValue);
+        projectionMainChart.update('active');
+    }
+}
+
+async function pollDashboardState() {
+    try {
+        let url = '{{ url_for("main.dashboard_state") }}';
+        if (lastPollSince) url += (url.includes('?') ? '&' : '?') + 'since=' + encodeURIComponent(lastPollSince);
+        const resp = await fetch(url, { credentials: 'same-origin' });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (!data.has_cache) {
+            // Cache invalidado o caducado: los datos en pantalla pueden estar obsoletos hasta F5
+            return;
+        }
+        const meta = data.meta || {};
+        const sum = data.summary || {};
+        const smeta = sum.meta || {};
+        const cachedAt = meta._cached_at || sum._cached_at || smeta._cached_at;
+        const nowCachedAt = meta._now_cached_at || smeta._now_cached_at || sum._now_cached_at || cachedAt;
+        if (nowCachedAt) lastPollSince = nowCachedAt;
+
+        const serverFp = (meta.version != null && meta.version !== '')
+            ? String(meta.version)
+            : String(cachedAt || '');
+
+        if (lastSeenDashboardFingerprint === null || lastSeenDashboardFingerprint === undefined) {
+            lastSeenDashboardFingerprint = serverFp;
+        } else if (serverFp && serverFp !== String(lastSeenDashboardFingerprint)) {
+            lastSeenDashboardFingerprint = serverFp;
+            try {
+                applyDashboardUpdate({ ...data.summary, meta: Object.assign({}, smeta, meta) });
+            } catch (err) {
+                console.error('[dashboard] applyDashboardUpdate', err);
+            }
+        }
+        if (nowCachedAt) updateDashboardStaleness(nowCachedAt);
+        if (Array.isArray(data.updated_asset_ids) && data.updated_asset_ids.length > 0) {
+            flashPriceCells(data.updated_asset_ids);
+        }
+    } catch (e) {
+        /* red; reintento en siguiente ciclo */
+    }
+}
+
+// Polling cada 30s mientras la pestaña está abierta
+setInterval(pollDashboardState, 30000);
+
+// Pintar staleness inicial (si viene en summary)
+try {
+    const initialCachedAt = {{ (summary._cached_at if summary._cached_at is defined and summary._cached_at is not none else (summary.meta._cached_at if summary.meta is defined and summary.meta._cached_at is not none else 'null')) | tojson }};
+    const initialNowCachedAt = {{ (summary.meta._now_cached_at if summary.meta is defined and summary.meta._now_cached_at is defined and summary.meta._now_cached_at is not none else 'null') | tojson }};
+    if (initialNowCachedAt) updateDashboardStaleness(initialNowCachedAt);
+    else if (initialCachedAt) updateDashboardStaleness(initialCachedAt);
+} catch (e) { /* ignore */ }
+
 </script>
 {% endblock %}

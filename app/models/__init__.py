@@ -14,6 +14,8 @@ from app.models.transaction import Transaction, CashFlow
 from app.models.metrics import PortfolioMetrics
 from app.models.metrics_cache import MetricsCache
 from app.models.dashboard_summary_cache import DashboardSummaryCache
+from app.models.portfolio_evolution_cache import PortfolioEvolutionCache
+from app.models.portfolio_benchmarks_cache import PortfolioBenchmarksCache
 from app.models.watchlist import Watchlist, WatchlistConfig
 from app.models.company_report import ReportSettings, ReportTemplate, CompanyReport, AssetAboutSummary
 from app.models.debt_plan import DebtPlan
@@ -22,6 +24,7 @@ from app.models.bank import Bank, BankBalance
 from app.models.dashboard_config import UserDashboardConfig, DEFAULT_WIDGETS
 from app.models.api_call_log import ApiCallLog
 from app.models.user_login_log import UserLoginLog
+from app.models.price_polling_state import PricePollingState
 
 __all__ = [
     'User', 'MODULES', 'AVATARS', 
@@ -38,6 +41,8 @@ __all__ = [
     'PortfolioMetrics',
     'MetricsCache',
     'DashboardSummaryCache',
+    'PortfolioEvolutionCache',
+    'PortfolioBenchmarksCache',
     'Watchlist',
     'WatchlistConfig',
     'ReportSettings',
@@ -50,5 +55,6 @@ __all__ = [
     'UserDashboardConfig', 'DEFAULT_WIDGETS',
     'ApiCallLog',
     'UserLoginLog',
+    'PricePollingState',
 ]
 

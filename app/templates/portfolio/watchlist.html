@@ -369,7 +369,7 @@
                         </td>
                         
                         <!-- Precio actual -->
-                        <td class="px-4 py-3 whitespace-nowrap text-right">
+                        <td class="px-4 py-3 whitespace-nowrap text-right price-cell" data-asset-id="{{ asset.id }}" data-field="price">
                             {% if asset.current_price %}
                                 <span class="text-sm font-medium text-gray-900">{{ asset.current_price|decimal_eu(2) }} {{ asset.currency }}</span>
                             {% else %}
@@ -1601,5 +1601,11 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
+{% endblock %}
+
+{% block extra_js %}
+<script>window.__priceUpdatesUrl = {{ url_for('main.api_price_updates') | tojson }};</script>
+<script>window.__priceUpdatesView = "watchlist";</script>
+<script src="{{ url_for('static', filename='js/price_flash_poll.js') }}" defer></script>
 {% endblock %}
 

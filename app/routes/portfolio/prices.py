@@ -94,8 +94,13 @@ def update_prices():
                 set_price_update_progress(user_id, final_state, merge=True)
                 from app.services.metrics.cache import MetricsCacheService
                 from app.services.dashboard_summary_cache import DashboardSummaryCacheService
+                from app.services.portfolio_evolution_cache import PortfolioEvolutionCacheService
+                from app.services.portfolio_benchmarks_cache import PortfolioBenchmarksCacheService
                 MetricsCacheService.invalidate(user_id)
                 DashboardSummaryCacheService.invalidate(user_id)
+                # Precios: performance/index-comparison dependen del último punto (NOW)
+                PortfolioEvolutionCacheService.touch_for_prices_update(user_id)
+                PortfolioBenchmarksCacheService.touch_for_prices_update(user_id)
             except Exception as e:
                 import traceback
                 error_state = {

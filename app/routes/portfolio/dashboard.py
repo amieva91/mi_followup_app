@@ -260,11 +260,6 @@ def dashboard():
     annualized_dividends = DividendMetrics.get_annualized_dividends_ytd(current_user.id)
     yearly_dividends = DividendMetrics.get_yearly_dividends_from_start(current_user.id)
     
-    # Calcular comparación con benchmarks (rentabilidades anualizadas)
-    from app.services.metrics.benchmark_comparison import BenchmarkComparisonService
-    benchmark_comparison = BenchmarkComparisonService(current_user.id)
-    benchmark_annualized = benchmark_comparison.get_annualized_returns_summary()
-    
     return render_template(
         'portfolio/dashboard.html',
         accounts=accounts,
@@ -288,7 +283,6 @@ def dashboard():
         monthly_dividends=monthly_dividends,
         annualized_dividends=annualized_dividends,
         yearly_dividends=yearly_dividends,
-        benchmark_annualized=benchmark_annualized
     )
 
 

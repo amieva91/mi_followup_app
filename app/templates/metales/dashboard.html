@@ -70,10 +70,10 @@
                     </td>
                     <td class="px-6 py-4 text-right text-sm text-gray-700">{{ p.quantity|decimal_eu(2) }}</td>
                     <td class="px-6 py-4 text-right text-sm text-gray-700">{{ (p.average_buy_price * 31.1035)|decimal_eu(2) }}</td>
-                    <td class="px-6 py-4 text-right text-sm text-gray-700">{{ (p.price * 31.1035)|decimal_eu(2) if p.price else '—' }}</td>
+                    <td class="px-6 py-4 text-right text-sm text-gray-700 price-cell" data-asset-id="{{ p.asset_id or '' }}" data-field="price">{{ (p.price * 31.1035)|decimal_eu(2) if p.price else '—' }}</td>
                     <td class="px-6 py-4 text-right text-sm text-gray-700">{{ p.cost|decimal_eu(2) }} €</td>
-                    <td class="px-6 py-4 text-right text-sm text-gray-700">{{ p.value|decimal_eu(2) }} €</td>
-                    <td class="px-6 py-4 text-right text-sm {% if p.pl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                    <td class="px-6 py-4 text-right text-sm text-gray-700 price-cell" data-asset-id="{{ p.asset_id or '' }}" data-field="value">{{ p.value|decimal_eu(2) }} €</td>
+                    <td class="px-6 py-4 text-right text-sm price-cell {% if p.pl >= 0 %}text-green-600{% else %}text-red-600{% endif %}" data-asset-id="{{ p.asset_id or '' }}" data-field="pl">
                         {% if p.pl >= 0 %}+{% endif %}{{ p.pl|decimal_eu(2) }} €
                         <span class="text-xs">({% if p.pl_pct >= 0 %}+{% endif %}{{ p.pl_pct|decimal_eu(1) }}%)</span>
                     </td>
@@ -188,4 +188,10 @@ function closePriceModal() {
     window.location.reload();
 }
 </script>
+{% endblock %}
+
+{% block extra_js %}
+<script>window.__priceUpdatesUrl = {{ url_for('main.api_price_updates') | tojson }};</script>
+<script>window.__priceUpdatesView = "metales";</script>
+<script src="{{ url_for('static', filename='js/price_flash_poll.js') }}" defer></script>
 {% endblock %}

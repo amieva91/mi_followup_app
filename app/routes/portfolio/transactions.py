@@ -232,11 +232,19 @@ def transaction_edit(id):
         
         db.session.commit()
         
-        # Invalidar cache de métricas y dashboard principal
+        # Invalidar cache de métricas y dashboard principal (criterio unificado por fecha)
         from app.services.metrics.cache import MetricsCacheService
         from app.services.dashboard_summary_cache import DashboardSummaryCacheService
+        from app.services.portfolio_evolution_cache import PortfolioEvolutionCacheService
+        from app.services.portfolio_benchmarks_cache import PortfolioBenchmarksCacheService
         MetricsCacheService.invalidate(current_user.id)
-        DashboardSummaryCacheService.invalidate(current_user.id)
+        txn_date = transaction.transaction_date.date() if isinstance(transaction.transaction_date, datetime) else transaction.transaction_date
+        # Dashboard principal: tocar por fechas (hoy => recompute NOW; pasado => invalidate completo)
+        DashboardSummaryCacheService.touch_for_dates(current_user.id, dates=[txn_date])
+
+        # Portfolio: toca caches separados (HIST/NOW) para performance e index-comparison
+        PortfolioEvolutionCacheService.touch_for_dates(current_user.id, dates=[txn_date])
+        PortfolioBenchmarksCacheService.touch_for_dates(current_user.id, dates=[txn_date])
         
         flash('✅ Transacción actualizada correctamente. Holdings recalculados.', 'success')
         return redirect(url_for('portfolio.transactions_list'))
@@ -281,8 +289,9 @@ def transaction_delete(id):
         user_id=current_user.id
     ).first_or_404()
     
-    # Guardar cuenta para recalcular holdings después
+    # Guardar cuenta para recalcular holdings después + fecha para cachés HIST/NOW
     account_id = transaction.account_id
+    txn_date = transaction.transaction_date.date() if isinstance(transaction.transaction_date, datetime) else transaction.transaction_date
     asset_symbol = transaction.asset.symbol if transaction.asset else transaction.transaction_type
     
     # Eliminar transacción
@@ -298,8 +307,14 @@ def transaction_delete(id):
     # Invalidar cache de métricas y dashboard principal
     from app.services.metrics.cache import MetricsCacheService
     from app.services.dashboard_summary_cache import DashboardSummaryCacheService
+    from app.services.portfolio_evolution_cache import PortfolioEvolutionCacheService
+    from app.services.portfolio_benchmarks_cache import PortfolioBenchmarksCacheService
     MetricsCacheService.invalidate(current_user.id)
-    DashboardSummaryCacheService.invalidate(current_user.id)
+    # Dashboard principal: tocar por fechas (hoy => recompute NOW; pasado => invalidate completo)
+    DashboardSummaryCacheService.touch_for_dates(current_user.id, dates=[txn_date])
+
+    PortfolioEvolutionCacheService.touch_for_dates(current_user.id, dates=[txn_date])
+    PortfolioBenchmarksCacheService.touch_for_dates(current_user.id, dates=[txn_date])
     
     flash(f'✅ Transacción de {asset_symbol} eliminada correctamente. Holdings recalculados.', 'success')
     return redirect(url_for('portfolio.transactions_list'))
@@ -410,12 +425,15 @@ def transaction_new():
         
         # Ahora procesar la transacción actual
         cost_basis_of_sale = None
+        commission = form.commission.data or 0.0
+        fees = form.fees.data or 0.0
+        tax = form.tax.data or 0.0
         if form.transaction_type.data == 'BUY':
             fifo.add_buy(
                 quantity=form.quantity.data,
                 price=form.price.data,
                 date=form.transaction_date.data,
-                total_cost=abs(amount) + form.commission.data + form.fees.data + form.tax.data
+                total_cost=abs(amount) + commission + fees + tax
             )
         elif form.transaction_type.data == 'SELL':
             # add_sell retorna el coste de las acciones vendidas (base de coste)
@@ -460,7 +478,7 @@ def transaction_new():
         # Calcular P&L realizado si es SELL
         if form.transaction_type.data == 'SELL' and cost_basis_of_sale is not None:
             # Revenue = (precio_venta * cantidad) - comisiones - fees - tax
-            revenue = abs(amount) - form.commission.data - form.fees.data - form.tax.data
+            revenue = abs(amount) - commission - fees - tax
             # P&L = revenue - coste de compra
             realized_pl = revenue - float(cost_basis_of_sale)
             transaction.realized_pl = realized_pl
@@ -474,8 +492,15 @@ def transaction_new():
         # Invalidar cache de métricas y dashboard principal
         from app.services.metrics.cache import MetricsCacheService
         from app.services.dashboard_summary_cache import DashboardSummaryCacheService
+        from app.services.portfolio_evolution_cache import PortfolioEvolutionCacheService
+        from app.services.portfolio_benchmarks_cache import PortfolioBenchmarksCacheService
         MetricsCacheService.invalidate(current_user.id)
-        DashboardSummaryCacheService.invalidate(current_user.id)
+        d = form.transaction_date.data
+        # Dashboard principal: tocar por fechas (hoy => recompute NOW; pasado => invalidate completo)
+        DashboardSummaryCacheService.touch_for_dates(current_user.id, dates=[d])
+
+        PortfolioEvolutionCacheService.touch_for_dates(current_user.id, dates=[d])
+        PortfolioBenchmarksCacheService.touch_for_dates(current_user.id, dates=[d])
         
         action_text = 'compra' if form.transaction_type.data == 'BUY' else 'venta'
         flash(f'✅ {form.transaction_type.data} de {form.symbol.data} registrada correctamente', 'success')

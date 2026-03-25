@@ -373,12 +373,59 @@ function createPLChart(ctx, data) {
 }
 
 /**
+ * Actualizar indicador de staleness (Actualizado hace X min)
+ */
+function updateStaleness(elementId, cachedAtIso) {
+    const el = document.getElementById(elementId);
+    if (!el || !cachedAtIso) return;
+    const cachedAt = new Date(cachedAtIso);
+    const now = new Date();
+    const diffMin = Math.max(0, Math.round((now - cachedAt) / 60000));
+    el.textContent = diffMin === 0 ? 'Actualizado hace menos de 1 min' : `Actualizado hace ${diffMin} min`;
+}
+
+/** Timer para refrescar texto "Actualizado hace X min" cada minuto */
+function startStalenessTimer() {
+    if (stalenessInterval) return;
+    stalenessInterval = setInterval(() => {
+        if (lastEvolutionCachedAt && document.getElementById('performanceStaleness')) {
+            updateStaleness('performanceStaleness', lastEvolutionCachedAt);
+        }
+        if (lastBenchmarksCachedAt && document.getElementById('benchmarkStaleness')) {
+            updateStaleness('benchmarkStaleness', lastBenchmarksCachedAt);
+        }
+    }, 60000);
+}
+
+/**
+ * Actualizar indicador de tipo de sincronización (HIST+NOW | NOW | cached)
+ */
+function updateSyncType(elementId, syncType) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    // "cached" = datos servidos desde caché sin recalcular en esta petición
+    const labels = { 'HIST+NOW': 'HIST+NOW', 'NOW': 'NOW', 'cached': 'cached' };
+    el.textContent = labels[syncType] || syncType || '—';
+}
+
+/**
  * Cargar datos y renderizar gráficos
  */
-async function loadCharts(frequency = 'weekly') {
+let lastEvolutionVersion = null;
+let lastBenchmarksVersion = null;
+let evolutionPollTimer = null;
+let benchmarksPollTimer = null;
+let lastEvolutionCachedAt = null;
+let lastBenchmarksCachedAt = null;
+let stalenessInterval = null;
+
+async function loadCharts(frequency = 'weekly', opts = {}) {
     try {
-        // Mostrar loading
-        document.getElementById('loadingIndicator').classList.remove('hidden');
+        const isPoll = !!opts.poll;
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        if (!isPoll && loadingIndicator) {
+            loadingIndicator.classList.remove('hidden');
+        }
         
         // Fetch data
         const response = await fetch(`/portfolio/api/evolution?frequency=${frequency}`);
@@ -388,8 +435,16 @@ async function loadCharts(frequency = 'weekly') {
             throw new Error(data.error);
         }
         
+        const metaVersion = data?.meta?.version;
+        if (isPoll && metaVersion != null && metaVersion === lastEvolutionVersion) {
+            return; // Nada cambió en NOW; evita repintar cada 30s
+        }
+        if (metaVersion != null) lastEvolutionVersion = metaVersion;
+        
         // Ocultar loading
-        document.getElementById('loadingIndicator').classList.add('hidden');
+        if (!isPoll && loadingIndicator) {
+            loadingIndicator.classList.add('hidden');
+        }
         
         // Mostrar gráficos
         document.getElementById('chartsContainer').classList.remove('hidden');
@@ -426,10 +481,21 @@ async function loadCharts(frequency = 'weekly') {
         
         const ctx5 = document.getElementById('plChart').getContext('2d');
         window.plChart = createPLChart(ctx5, data);
+
+        // Indicadores HIST/NOW y staleness (performance)
+        if (data.meta) {
+            updateSyncType('performanceSyncType', data.meta.sync_type);
+            if (data.meta._now_cached_at) {
+                lastEvolutionCachedAt = data.meta._now_cached_at;
+                updateStaleness('performanceStaleness', data.meta._now_cached_at);
+            }
+        }
+        startStalenessTimer();
         
     } catch (error) {
         console.error('Error loading charts:', error);
-        document.getElementById('loadingIndicator').classList.add('hidden');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        if (loadingIndicator) loadingIndicator.classList.add('hidden');
         document.getElementById('errorMessage').classList.remove('hidden');
         document.getElementById('errorMessage').textContent = 
             'Error al cargar los gráficos: ' + error.message;
@@ -675,52 +741,49 @@ function renderBenchmarkTable(annualData) {
     tableBody.appendChild(totalRow);
 }
 
-/**
- * Cargar y mostrar datos de comparación con benchmarks
- */
-async function loadBenchmarkData() {
-    try {
-        const response = await fetch('/portfolio/api/benchmarks');
-        const data = await response.json();
-        
-        if (data.error) {
-            throw new Error(data.error);
-        }
-        
-        // Debug: verificar datos recibidos
-        console.log('📊 Datos de benchmarks recibidos:', {
-            has_annual_returns: !!data.annual_returns,
-            annual_count: data.annual_returns?.annual?.length || 0,
-            first_year_benchmarks: data.annual_returns?.annual?.[0]?.benchmarks ? Object.keys(data.annual_returns.annual[0].benchmarks) : []
-        });
-        
-        // Crear gráfico
-        const ctx = document.getElementById('benchmarkChart').getContext('2d');
-        if (window.benchmarkChart && typeof window.benchmarkChart.destroy === 'function') {
-            window.benchmarkChart.destroy();
-        }
-        window.benchmarkChart = createBenchmarkChart(ctx, data);
-        
-        // Renderizar tabla
-        renderBenchmarkTable(data.annual_returns);
-        
-    } catch (error) {
-        console.error('Error loading benchmark data:', error);
-        const errorDiv = document.getElementById('benchmarkError');
-        if (errorDiv) {
-            errorDiv.classList.remove('hidden');
-            errorDiv.textContent = 'Error al cargar datos de benchmarks: ' + error.message;
-        }
-    }
-}
-
 // Inicializar al cargar la página (condicional: performance tiene evolution, index-comparison solo benchmarks)
 document.addEventListener('DOMContentLoaded', function() {
     if (document.getElementById('portfolioValueChart')) {
         loadCharts('monthly');
+        if (!evolutionPollTimer) {
+            evolutionPollTimer = setInterval(() => loadCharts('monthly', { poll: true }), 30000);
+        }
     }
     if (document.getElementById('benchmarkChart')) {
-        loadBenchmarkData();
+        // loadBenchmarkData no está parametrizado; lo envolvemos para polling
+        const pollFn = async () => {
+            try {
+                const response = await fetch('/portfolio/api/benchmarks');
+                const data = await response.json();
+                const metaVersion = data?.meta?.version;
+                if (metaVersion != null && metaVersion === lastBenchmarksVersion) return;
+                if (metaVersion != null) lastBenchmarksVersion = metaVersion;
+
+                const ctx = document.getElementById('benchmarkChart').getContext('2d');
+                if (window.benchmarkChart && typeof window.benchmarkChart.destroy === 'function') {
+                    window.benchmarkChart.destroy();
+                }
+                window.benchmarkChart = createBenchmarkChart(ctx, data);
+                renderBenchmarkTable(data.annual_returns);
+
+                // Indicadores HIST/NOW y staleness (index-comparison)
+                if (data.meta) {
+                    updateSyncType('benchmarkSyncType', data.meta.sync_type);
+                    if (data.meta._now_cached_at) {
+                        lastBenchmarksCachedAt = data.meta._now_cached_at;
+                        updateStaleness('benchmarkStaleness', data.meta._now_cached_at);
+                    }
+                }
+                startStalenessTimer();
+            } catch (error) {
+                console.error('Error loading benchmark poll data:', error);
+            }
+        };
+
+        pollFn();
+        if (!benchmarksPollTimer) {
+            benchmarksPollTimer = setInterval(pollFn, 30000);
+        }
     }
 });
 

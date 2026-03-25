@@ -55,8 +55,6 @@ def new():
         )
         db.session.add(bank)
         db.session.commit()
-        from app.services.dashboard_summary_cache import DashboardSummaryCacheService
-        DashboardSummaryCacheService.invalidate(current_user.id)
         flash(f'Banco "{bank.name}" añadido', 'success')
         return redirect(url_for('banks.dashboard'))
     return render_template('banks/bank_form.html', form=form, title='Nuevo banco')
@@ -73,8 +71,6 @@ def edit(id):
         bank.icon = form.icon.data or '🏦'
         bank.color = form.color.data or 'blue'
         db.session.commit()
-        from app.services.dashboard_summary_cache import DashboardSummaryCacheService
-        DashboardSummaryCacheService.invalidate(current_user.id)
         flash(f'Banco "{bank.name}" actualizado', 'success')
         return redirect(url_for('banks.dashboard'))
     return render_template('banks/bank_form.html', form=form, title='Editar banco', bank=bank)
@@ -88,8 +84,6 @@ def delete(id):
     name = bank.name
     db.session.delete(bank)
     db.session.commit()
-    from app.services.dashboard_summary_cache import DashboardSummaryCacheService
-    DashboardSummaryCacheService.invalidate(current_user.id)
     flash(f'Banco "{name}" eliminado', 'info')
     return redirect(url_for('banks.dashboard'))
 
@@ -114,7 +108,11 @@ def save_balances():
                 pass
 
     BankService.save_balances(current_user.id, year, month, balances)
-    from app.services.dashboard_summary_cache import DashboardSummaryCacheService
-    DashboardSummaryCacheService.invalidate(current_user.id)
+    # Dashboard: no recalcular caché aquí. Mes pasado altera HIST → invalidar (rápido, sin reconstruir).
+    # Mes actual / futuro: el NOW se actualiza en /dashboard/state (polling ~30s y al abrir dashboard).
+    today = date.today()
+    if (year, month) < (today.year, today.month):
+        from app.services.dashboard_summary_cache import DashboardSummaryCacheService
+        DashboardSummaryCacheService.invalidate(current_user.id)
     flash('Saldos guardados', 'success')
     return redirect(url_for('banks.dashboard', year=year, month=month))

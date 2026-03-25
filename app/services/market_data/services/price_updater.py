@@ -569,6 +569,55 @@ class PriceUpdater:
         else:
             return f"{market_cap:.0f}"
     
+    def update_single_asset_price_only(self, asset: Asset) -> bool:
+        """
+        Actualiza solo precio básico (Chart API). Sin autenticación, sin quoteSummary.
+        Usado por el job de polling en segundo plano.
+        Actualiza: current_price, previous_close, day_change_percent, last_price_update.
+        Returns True si OK.
+        """
+        try:
+            if not asset.yahoo_ticker:
+                return False
+            url = f"https://query1.finance.yahoo.com/v8/finance/chart/{asset.yahoo_ticker}"
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+            response = requests.get(url, headers=headers, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            if data.get('chart', {}).get('error'):
+                return False
+            if not data.get('chart', {}).get('result'):
+                return False
+            result = data['chart']['result'][0]
+            meta = result.get('meta', {})
+            if 'regularMarketPrice' not in meta:
+                return False
+            asset.current_price = self._safe_get_float(meta, 'regularMarketPrice')
+            asset.previous_close = self._safe_get_float(meta, 'chartPreviousClose') or \
+                                   self._safe_get_float(meta, 'previousClose')
+            if asset.current_price and asset.previous_close and asset.previous_close > 0:
+                change = asset.current_price - asset.previous_close
+                asset.day_change_percent = (change / asset.previous_close) * 100
+            else:
+                asset.day_change_percent = None
+            asset.last_price_update = datetime.utcnow()
+            try:
+                from app.services.api_log_service import log_api_call
+                log_api_call(
+                    api_name='yahoo_chart',
+                    endpoint_or_operation=url,
+                    response_status=200,
+                    value_reported={'ticker': asset.yahoo_ticker, 'price': asset.current_price},
+                    user_id=getattr(self, 'user_id', None),
+                )
+            except Exception:
+                pass
+            return True
+        except Exception:
+            return False
+
     def get_asset_price(self, asset: Asset) -> Tuple[Optional[float], Optional[str]]:
         """
         Obtiene el precio actual de un activo sin guardar en BD.

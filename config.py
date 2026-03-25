@@ -4,6 +4,7 @@ Configuración de la aplicación FollowUp
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+from sqlalchemy.pool import NullPool
 
 # Cargar variables de entorno
 basedir = Path(__file__).parent
@@ -25,10 +26,22 @@ class Config:
     else:
         SQLALCHEMY_DATABASE_URI = _env_db or f'sqlite:///{_db_path}'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    SQLALCHEMY_ENGINE_OPTIONS = {
-        'pool_pre_ping': True,
-        'pool_recycle': 300,
-    }
+    # SQLite: el pool por defecto deja conexiones abiertas y prolonga "database is locked"
+    # frente al cron u otros procesos. NullPool cierra la conexión al devolverla al pool.
+    # WAL + busy_timeout en app/__init__.py; timeout aquí = espera si hay lock momentáneo.
+    if SQLALCHEMY_DATABASE_URI and 'sqlite' in SQLALCHEMY_DATABASE_URI:
+        SQLALCHEMY_ENGINE_OPTIONS = {
+            'poolclass': NullPool,
+            'connect_args': {
+                'timeout': 60,
+                'check_same_thread': False,
+            },
+        }
+    else:
+        SQLALCHEMY_ENGINE_OPTIONS = {
+            'pool_pre_ping': True,
+            'pool_recycle': 300,
+        }
     
     # Mail
     MAIL_SERVER = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')

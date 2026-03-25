@@ -40,10 +40,10 @@ def _position_to_dict(ps, holding=None, asset=None) -> Dict[str, Any]:
         'pl': ps.pnl,
         'pl_pct': ps.pnl_pct,
     }
-    if holding is not None:
-        d['holding'] = holding
+    # CRÍTICO: Este dict se usa también en cachés JSON (dashboard_summary_cache),
+    # así que NO puede contener objetos SQLAlchemy (holding/asset).
     if asset is not None:
-        d['asset'] = asset
+        d['asset_id'] = asset.id
     return d
 
 

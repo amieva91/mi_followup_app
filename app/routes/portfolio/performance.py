@@ -29,10 +29,10 @@ def dividendos():
 @portfolio_bp.route("/index-comparison")
 @login_required
 def index_comparison():
-    from app.services.metrics.benchmark_comparison import BenchmarkComparisonService
-    b = BenchmarkComparisonService(current_user.id)
+    from app.services.portfolio_benchmarks_cache import PortfolioBenchmarksCacheService
+    benchmark_annualized = PortfolioBenchmarksCacheService.get_annualized_summary(current_user.id)
     return render_template("portfolio/index_comparison.html",
-        benchmark_annualized=b.get_annualized_returns_summary())
+        benchmark_annualized=benchmark_annualized)
 
 
 @portfolio_bp.route("/diversificacion")

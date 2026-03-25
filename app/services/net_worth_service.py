@@ -656,6 +656,40 @@ def get_cash_details(user_id: int) -> List[Dict[str, Any]]:
     return sorted(details, key=lambda x: x['amount'], reverse=True)
 
 
+def get_top_movers_for_user(user_id: int, limit: int = 5) -> List[Dict[str, Any]]:
+    """
+    Top movers del día: acciones, ETF, cripto y metales (Commodity) del portfolio con mayor |% cambio día|.
+    Solo entran si hay day_change_percent (precio actual no basta: sin cierre previo no se sabe el movimiento del día).
+    """
+    holdings = (
+        db.session.query(Asset)
+        .join(PortfolioHolding, PortfolioHolding.asset_id == Asset.id)
+        .filter(PortfolioHolding.user_id == user_id)
+        .filter(PortfolioHolding.quantity > 0)
+        .filter(Asset.asset_type.in_(['Stock', 'ETF', 'Crypto', 'Commodity']))
+        .filter(Asset.day_change_percent.isnot(None))
+        .distinct()
+        .all()
+    )
+    if not holdings:
+        return []
+    sorted_assets = sorted(
+        holdings,
+        key=lambda a: abs(a.day_change_percent or 0),
+        reverse=True,
+    )
+    return [
+        {
+            'asset_id': a.id,
+            'symbol': a.symbol or '',
+            'name': a.name or a.symbol or '',
+            'day_change_percent': round(a.day_change_percent, 2),
+            'current_price': round(a.current_price, 2) if a.current_price else None,
+        }
+        for a in sorted_assets[:limit]
+    ]
+
+
 def get_portfolio_details(user_id: int, top_n: int = 5) -> Dict[str, Any]:
     """Detalle del portfolio: top holdings y P&L. Usa stocks_metrics (pnl_lib)."""
     metrics = compute_stocks_metrics(user_id, top_n=top_n)
@@ -1426,17 +1460,81 @@ def _calculate_score_history(user_id):
     return history
 
 
+def _build_dashboard_history(user_id: int) -> Dict[str, Any]:
+    """
+    Construye la parte de histórico del dashboard (serie completa + metadatos).
+    No incluye aún el desglose actual ni widgets.
+    """
+    history_data = get_full_net_worth_history(user_id)
+    history = history_data["history"]
+
+    return {
+        "history": history,
+        "history_meta": {
+            "total_months": history_data["total_months"],
+            "start_date": history_data.get("start_date"),
+            "start_label": history_data.get("start_label"),
+            "years_available": history_data.get("years_available", 1),
+        },
+    }
+
+
+def _build_dashboard_current_from_history(breakdown: Dict[str, Any], history: list[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Construye las métricas que dependen del último punto del histórico
+    y del patrimonio actual (cambios mensuales, YTD, etc.).
+    """
+    # Calcular cambio vs mes anterior
+    if len(history) >= 2:
+        current = history[-1]["net_worth"]
+        previous = history[-2]["net_worth"]
+        month_change = current - previous
+        month_change_pct = (month_change / previous * 100) if previous > 0 else 0
+    else:
+        month_change = 0
+        month_change_pct = 0
+
+    # Calcular cambio vs inicio del año
+    current_year = date.today().year
+    year_start = next(
+        (h for h in history if h["year"] == current_year and h["month"] == 1),
+        None,
+    )
+    if year_start:
+        ytd_change = breakdown["net_worth"] - year_start["net_worth"]
+        ytd_change_pct = (
+            (ytd_change / year_start["net_worth"] * 100)
+            if year_start["net_worth"] > 0
+            else 0
+        )
+    else:
+        ytd_change = 0
+        ytd_change_pct = 0
+
+    return {
+        "net_worth": breakdown["net_worth"],
+        "changes": {
+            "month": round(month_change, 2),
+            "month_pct": round(month_change_pct, 1),
+            "ytd": round(ytd_change, 2),
+            "ytd_pct": round(ytd_change_pct, 1),
+        },
+        # Punto actual explícito (último punto del histórico)
+        "current_point": history[-1] if history else None,
+    }
+
+
 def get_dashboard_summary(user_id: int) -> Dict[str, Any]:
     """
     Resumen completo para el dashboard principal.
     Combina patrimonio, desglose, proyecciones y métricas de ahorro.
     """
     breakdown = get_net_worth_breakdown(user_id)
-    history_data = get_full_net_worth_history(user_id)
-    history = history_data['history']
+    history_block = _build_dashboard_history(user_id)
+    history = history_block["history"]
     projections = get_net_worth_projection(user_id)
     savings = get_savings_rate(user_id, months=12)
-    
+
     # Detalles por categoría
     cash_details = get_cash_details(user_id)
     portfolio_details = get_portfolio_details(user_id)
@@ -1444,74 +1542,57 @@ def get_dashboard_summary(user_id: int) -> Dict[str, Any]:
     metales_details = get_metales_details(user_id)
     real_estate_details = get_real_estate_details(user_id)
     debt_details = get_debt_details(user_id)
-    
+
     # Datos para gráficos adicionales
     income_expense_monthly = get_income_expense_by_month(user_id, months=12)
-    
+
     # Nuevos widgets
     top_expenses = get_top_expenses_month(user_id)
     upcoming_payments = get_upcoming_payments(user_id)
     investments_summary = get_investments_summary(user_id)
     recent_transactions = get_recent_transactions(user_id)
     currency_exposure = get_currency_exposure(user_id)
-    from app.services.income_expense_aggregator import get_expense_category_summary_with_adjustment
-    expense_category_summary = get_expense_category_summary_with_adjustment(user_id, months=12)
+    from app.services.income_expense_aggregator import (
+        get_expense_category_summary_with_adjustment,
+    )
+
+    expense_category_summary = get_expense_category_summary_with_adjustment(
+        user_id, months=12
+    )
     year_comparison = get_year_comparison(user_id)
     health_score = get_financial_health_score(user_id)
-    
-    # Calcular cambio vs mes anterior
-    if len(history) >= 2:
-        current = history[-1]['net_worth']
-        previous = history[-2]['net_worth']
-        month_change = current - previous
-        month_change_pct = (month_change / previous * 100) if previous > 0 else 0
-    else:
-        month_change = 0
-        month_change_pct = 0
-    
-    # Calcular cambio vs inicio del año
-    current_year = date.today().year
-    year_start = next((h for h in history if h['year'] == current_year and h['month'] == 1), None)
-    if year_start:
-        ytd_change = breakdown['net_worth'] - year_start['net_worth']
-        ytd_change_pct = (ytd_change / year_start['net_worth'] * 100) if year_start['net_worth'] > 0 else 0
-    else:
-        ytd_change = 0
-        ytd_change_pct = 0
-    
+
+    current_block = _build_dashboard_current_from_history(breakdown, history)
+    top_movers = get_top_movers_for_user(user_id, limit=5)
+
+    # Mantener la estructura existente para compatibilidad con templates
     return {
-        'net_worth': breakdown['net_worth'],
-        'breakdown': breakdown,
-        'history': history,
-        'history_meta': {
-            'total_months': history_data['total_months'],
-            'start_date': history_data.get('start_date'),
-            'start_label': history_data.get('start_label'),
-            'years_available': history_data.get('years_available', 1)
-        },
-        'projections': projections,
-        'savings': savings,
-        'changes': {
-            'month': round(month_change, 2),
-            'month_pct': round(month_change_pct, 1),
-            'ytd': round(ytd_change, 2),
-            'ytd_pct': round(ytd_change_pct, 1)
-        },
+        "net_worth": current_block["net_worth"],
+        "breakdown": breakdown,
+        "history": history_block["history"],
+        "history_meta": history_block["history_meta"],
+        "projections": projections,
+        "savings": savings,
+        "changes": current_block["changes"],
         # Detalles por categoría
-        'cash_details': cash_details,
-        'portfolio_details': portfolio_details,
-        'crypto_details': crypto_details,
-        'metales_details': metales_details,
-        'real_estate_details': real_estate_details,
-        'debt_details': debt_details,
-        'income_expense_monthly': income_expense_monthly,
+        "cash_details": cash_details,
+        "portfolio_details": portfolio_details,
+        "crypto_details": crypto_details,
+        "metales_details": metales_details,
+        "real_estate_details": real_estate_details,
+        "debt_details": debt_details,
+        "income_expense_monthly": income_expense_monthly,
         # Nuevos widgets
-        'top_expenses': top_expenses,
-        'upcoming_payments': upcoming_payments,
-        'investments_summary': investments_summary,
-        'recent_transactions': recent_transactions,
-        'currency_exposure': currency_exposure,
-        'year_comparison': year_comparison,
-        'health_score': health_score,
-        'expense_category_summary': expense_category_summary
+        "top_expenses": top_expenses,
+        "upcoming_payments": upcoming_payments,
+        "investments_summary": investments_summary,
+        "recent_transactions": recent_transactions,
+        "currency_exposure": currency_exposure,
+        "year_comparison": year_comparison,
+        "health_score": health_score,
+        "expense_category_summary": expense_category_summary,
+        # Campos nuevos para futuras optimizaciones de cache
+        "history_block": history_block,
+        "current_block": current_block,
+        "top_movers": top_movers,
     }

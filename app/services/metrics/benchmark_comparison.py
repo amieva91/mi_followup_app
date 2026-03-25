@@ -100,12 +100,13 @@ class BenchmarkComparisonService:
             closes = quotes['close']
             
             # Filtrar None y crear lista de (fecha, precio)
+            # Usar str ISO para que sea JSON-serializable (p. ej. en portfolio_benchmarks_cache)
             data_points = []
             for i, (ts, price) in enumerate(zip(timestamps, closes)):
                 if price is not None:
                     date_obj = datetime.fromtimestamp(ts).date()
                     data_points.append({
-                        'date': date_obj,
+                        'date': date_obj.strftime('%Y-%m-%d'),
                         'price': float(price)
                     })
             
@@ -240,21 +241,26 @@ class BenchmarkComparisonService:
         """
         Agrupa datos diarios por mes, tomando el precio del último día de cada mes
         Retorna dict: {fecha_mes: precio}
+        Acepta date o str ISO en point['date'] (str cuando viene de caché).
         """
+        def _to_date(v: Any) -> date:
+            if isinstance(v, date):
+                return v
+            if isinstance(v, str):
+                return datetime.strptime(v, "%Y-%m-%d").date()
+            raise TypeError(f"Expected date or str, got {type(v)}")
+
         monthly_prices = {}
-        
-        # Agrupar por año-mes
         by_month = defaultdict(list)
         for point in data_points:
-            date_obj = point['date']
+            date_obj = _to_date(point['date'])
             month_key = date_obj.replace(day=1)
-            by_month[month_key].append(point)
+            by_month[month_key].append((date_obj, point))
         
-        # Para cada mes, tomar el último día
         for month_key in sorted(by_month.keys()):
-            month_points = sorted(by_month[month_key], key=lambda x: x['date'])
-            last_point = month_points[-1]
-            monthly_prices[last_point['date']] = last_point['price']
+            month_points = sorted(by_month[month_key], key=lambda x: x[0])
+            last_date, last_point = month_points[-1]
+            monthly_prices[last_date] = last_point['price']
         
         return monthly_prices
     

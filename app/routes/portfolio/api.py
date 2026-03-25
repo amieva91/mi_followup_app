@@ -11,15 +11,14 @@ from app.routes import portfolio_bp
 @login_required
 def api_evolution():
     """API de evolución del portfolio para Chart.js"""
-    from app.services.metrics.portfolio_evolution import PortfolioEvolutionService
+    from app.services.portfolio_evolution_cache import PortfolioEvolutionCacheService
 
     frequency = request.args.get('frequency', 'weekly')
     if frequency not in ['daily', 'weekly', 'monthly']:
         frequency = 'weekly'
 
     try:
-        evolution_service = PortfolioEvolutionService(current_user.id)
-        data = evolution_service.get_evolution_data(frequency=frequency)
+        data = PortfolioEvolutionCacheService.get_state(current_user.id, frequency=frequency)
         return jsonify(data)
     except Exception as e:
         import traceback
@@ -32,11 +31,10 @@ def api_evolution():
 @login_required
 def api_benchmarks():
     """API de comparación con benchmarks"""
-    from app.services.metrics.benchmark_comparison import BenchmarkComparisonService
+    from app.services.portfolio_benchmarks_cache import PortfolioBenchmarksCacheService
 
     try:
-        service = BenchmarkComparisonService(current_user.id)
-        data = service.get_comparison_data()
+        data = PortfolioBenchmarksCacheService.get_comparison_state(current_user.id)
         return jsonify(data)
     except Exception as e:
         import traceback

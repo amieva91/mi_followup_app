@@ -137,14 +137,14 @@
                             <span class="text-xs text-gray-400">-</span>
                             {% endif %}
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-right">
+                        <td class="px-6 py-4 whitespace-nowrap text-right price-cell" data-asset-id="{{ holding['asset'].id }}" data-field="price">
                             {% if holding['asset'].current_price %}
                             <div class="text-sm text-gray-900">{{ holding['asset'].current_price|decimal_eu(2) }} {{ holding['asset'].currency }}</div>
                             {% else %}
                             <span class="text-xs text-gray-400">Sin precio</span>
                             {% endif %}
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-right">
+                        <td class="px-6 py-4 whitespace-nowrap text-right price-cell" data-asset-id="{{ holding['asset'].id }}" data-field="value">
                             {% if 'current_value_eur' in holding %}
                             <div class="text-sm font-medium text-gray-900">
                                 {{ holding['current_value_eur']|decimal_eu(2) }} EUR
@@ -158,7 +158,7 @@
                             <span class="text-xs text-gray-400">-</span>
                             {% endif %}
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-right">
+                        <td class="px-6 py-4 whitespace-nowrap text-right price-cell" data-asset-id="{{ holding['asset'].id }}" data-field="pl">
                             {% if 'pl_eur' in holding and holding['pl_eur'] != 0 %}
                             <span class="text-sm font-medium {% if holding['pl_eur'] >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
                                 {% if holding['pl_eur'] >= 0 %}+{% endif %}{{ holding['pl_eur']|decimal_eu(2) }} EUR
@@ -346,5 +346,11 @@
     }
     </script>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>window.__priceUpdatesUrl = {{ url_for('main.api_price_updates') | tojson }};</script>
+<script>window.__priceUpdatesView = "holdings";</script>
+<script src="{{ url_for('static', filename='js/price_flash_poll.js') }}" defer></script>
 {% endblock %}
 
