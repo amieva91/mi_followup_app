@@ -17,6 +17,15 @@ logger = logging.getLogger(__name__)
 
 _registered = False
 
+# Endpoints que solo leen estado en disco (JSON) o hacen lecturas ligeras y deben poder
+# ejecutarse en paralelo al resto. Sin esto, un POST largo (p. ej. import CSV) mantiene
+# flock(LOCK_EX) durante toda la petición y los GET de progreso quedan bloqueados: la UI
+# se queda en 0% hasta el final (solo pasa en Linux/producción con fcntl).
+_SKIP_FLOCK_ENDPOINTS = frozenset({
+    'portfolio.import_progress',
+    'portfolio.price_update_progress',
+})
+
 
 def _lock_path(app) -> str:
     return os.path.join(app.instance_path, 'followup.db.advisory.flock')
@@ -82,6 +91,8 @@ def register_sqlite_cross_process_lock(app, db=None) -> None:
         if request.endpoint == 'static':
             return
         if request.path.startswith('/static/'):
+            return
+        if request.endpoint in _SKIP_FLOCK_ENDPOINTS:
             return
         fp = open(path, 'a+')
         fcntl.flock(fp.fileno(), fcntl.LOCK_EX)
