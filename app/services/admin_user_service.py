@@ -25,7 +25,11 @@ from app.models import (
     AssetAboutSummary,
     MetricsCache,
     DashboardSummaryCache,
+    PortfolioEvolutionCache,
+    PortfolioBenchmarksCache,
     PortfolioMetrics,
+    UserDashboardConfig,
+    UserLoginLog,
 )
 from app.models.api_call_log import ApiCallLog
 
@@ -79,14 +83,20 @@ def delete_user_and_data(user_id: int) -> tuple[bool, str]:
         # 12. Caches
         MetricsCache.query.filter_by(user_id=user_id).delete()
         DashboardSummaryCache.query.filter_by(user_id=user_id).delete()
+        PortfolioEvolutionCache.query.filter_by(user_id=user_id).delete()
+        PortfolioBenchmarksCache.query.filter_by(user_id=user_id).delete()
         # 13. Métricas portfolio
         PortfolioMetrics.query.filter_by(user_id=user_id).delete()
         # 14. Logs de API (opcional, pueden quedar con user_id null si se prefiere)
         ApiCallLog.query.filter_by(user_id=user_id).delete()
-        # 15. Categorías (después de gastos/ingresos)
+        # 15. Logins registrados (user_id NOT NULL; SQLAlchemy no puede poner NULL al borrar User)
+        UserLoginLog.query.filter_by(user_id=user_id).delete()
+        # 16. Config widgets dashboard
+        UserDashboardConfig.query.filter_by(user_id=user_id).delete()
+        # 17. Categorías (después de gastos/ingresos)
         ExpenseCategory.query.filter_by(user_id=user_id).delete()
         IncomeCategory.query.filter_by(user_id=user_id).delete()
-        # 16. Usuario
+        # 18. Usuario
         db.session.delete(user)
         db.session.commit()
         return True, f"Usuario {user.username} y todos sus datos eliminados correctamente"
