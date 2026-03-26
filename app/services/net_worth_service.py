@@ -534,10 +534,10 @@ def get_full_net_worth_history(user_id: int) -> Dict[str, Any]:
     # Calcular meses desde el inicio
     total_months = (today.year - oldest_date.year) * 12 + (today.month - oldest_date.month) + 1
     years_available = total_months / 12
-    # Limitar a 60 meses (5 años) para el gráfico: evita N×FIFO muy costoso
-    max_history_months = 60
-    months_to_compute = min(total_months, max_history_months)
-    history = get_net_worth_history(user_id, months_to_compute)
+    # Para el filtro "Todo" del dashboard necesitamos el histórico completo.
+    # Si el cálculo se vuelve lento con historiales muy largos, optimizar get_net_worth_history
+    # o mover el cálculo completo a una caché dedicada; pero no recortar aquí.
+    history = get_net_worth_history(user_id, total_months)
     
     return {
         'history': history,
