@@ -45,7 +45,10 @@ if [[ ! -x "$FLASK_BIN" ]]; then
   exit 1
 fi
 
-BASE_CMD="cd \"${PROJECT_ROOT}\" && FLASK_APP=run.py FLASK_ENV=${FLASK_ENV_CRON} \"${FLASK_BIN}\" cache-rebuild-worker-once >> \"${LOG_FILE}\" 2>&1"
+LOCK_FILE="${PROJECT_ROOT}/instance/cache_rebuild_worker.cron.flock"
+# Cron-level lock (non-blocking) para evitar acumulación de procesos cuando un FULL tarda > 30s.
+# Si hay un worker corriendo, el tick sale sin hacer nada.
+BASE_CMD="cd \"${PROJECT_ROOT}\" && mkdir -p \"${PROJECT_ROOT}/instance\" && flock -n \"${LOCK_FILE}\" -c 'FLASK_APP=run.py FLASK_ENV=${FLASK_ENV_CRON} \"${FLASK_BIN}\" cache-rebuild-worker-once' >> \"${LOG_FILE}\" 2>&1"
 CRON_LINE_A="* * * * * ${BASE_CMD} ${CRON_TAG_A}"
 CRON_LINE_B="* * * * * sleep 30; ${BASE_CMD} ${CRON_TAG_B}"
 
