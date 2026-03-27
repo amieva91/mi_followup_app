@@ -108,11 +108,15 @@ def save_balances():
                 pass
 
     BankService.save_balances(current_user.id, year, month, balances)
-    # Dashboard: no recalcular caché aquí. Mes pasado altera HIST → invalidar (rápido, sin reconstruir).
-    # Mes actual / futuro: el NOW se actualiza en /dashboard/state (polling ~30s y al abrir dashboard).
+    # Nuevo flujo: encolar trabajo para worker (cron). Se mantiene el criterio actual:
+    # - mes pasado => FULL
+    # - mes actual/futuro => NOW
+    from app.services.cache_rebuild_state_service import CacheRebuildStateService
+
     today = date.today()
     if (year, month) < (today.year, today.month):
-        from app.services.dashboard_summary_cache import DashboardSummaryCacheService
-        DashboardSummaryCacheService.invalidate(current_user.id)
+        CacheRebuildStateService.mark_full_history(current_user.id)
+    else:
+        CacheRebuildStateService.mark_now(current_user.id)
     flash('Saldos guardados', 'success')
     return redirect(url_for('banks.dashboard', year=year, month=month))

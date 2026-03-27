@@ -232,19 +232,10 @@ def transaction_edit(id):
         
         db.session.commit()
         
-        # Invalidar cache de métricas y dashboard principal (criterio unificado por fecha)
-        from app.services.metrics.cache import MetricsCacheService
-        from app.services.dashboard_summary_cache import DashboardSummaryCacheService
-        from app.services.portfolio_evolution_cache import PortfolioEvolutionCacheService
-        from app.services.portfolio_benchmarks_cache import PortfolioBenchmarksCacheService
-        MetricsCacheService.invalidate(current_user.id)
+        # Encolar rebuild para worker (criterio unificado por fecha)
+        from app.services.cache_rebuild_state_service import CacheRebuildStateService
         txn_date = transaction.transaction_date.date() if isinstance(transaction.transaction_date, datetime) else transaction.transaction_date
-        # Dashboard principal: tocar por fechas (hoy => recompute NOW; pasado => invalidate completo)
-        DashboardSummaryCacheService.touch_for_dates(current_user.id, dates=[txn_date])
-
-        # Portfolio: toca caches separados (HIST/NOW) para performance e index-comparison
-        PortfolioEvolutionCacheService.touch_for_dates(current_user.id, dates=[txn_date])
-        PortfolioBenchmarksCacheService.touch_for_dates(current_user.id, dates=[txn_date])
+        CacheRebuildStateService.mark_for_dates(current_user.id, dates=[txn_date])
         
         flash('✅ Transacción actualizada correctamente. Holdings recalculados.', 'success')
         return redirect(url_for('portfolio.transactions_list'))
@@ -304,17 +295,9 @@ def transaction_delete(id):
     importer._recalculate_holdings()
     db.session.commit()
     
-    # Invalidar cache de métricas y dashboard principal
-    from app.services.metrics.cache import MetricsCacheService
-    from app.services.dashboard_summary_cache import DashboardSummaryCacheService
-    from app.services.portfolio_evolution_cache import PortfolioEvolutionCacheService
-    from app.services.portfolio_benchmarks_cache import PortfolioBenchmarksCacheService
-    MetricsCacheService.invalidate(current_user.id)
-    # Dashboard principal: tocar por fechas (hoy => recompute NOW; pasado => invalidate completo)
-    DashboardSummaryCacheService.touch_for_dates(current_user.id, dates=[txn_date])
-
-    PortfolioEvolutionCacheService.touch_for_dates(current_user.id, dates=[txn_date])
-    PortfolioBenchmarksCacheService.touch_for_dates(current_user.id, dates=[txn_date])
+    # Encolar rebuild para worker (criterio unificado por fecha)
+    from app.services.cache_rebuild_state_service import CacheRebuildStateService
+    CacheRebuildStateService.mark_for_dates(current_user.id, dates=[txn_date])
     
     flash(f'✅ Transacción de {asset_symbol} eliminada correctamente. Holdings recalculados.', 'success')
     return redirect(url_for('portfolio.transactions_list'))
@@ -489,18 +472,10 @@ def transaction_new():
         
         db.session.commit()
         
-        # Invalidar cache de métricas y dashboard principal
-        from app.services.metrics.cache import MetricsCacheService
-        from app.services.dashboard_summary_cache import DashboardSummaryCacheService
-        from app.services.portfolio_evolution_cache import PortfolioEvolutionCacheService
-        from app.services.portfolio_benchmarks_cache import PortfolioBenchmarksCacheService
-        MetricsCacheService.invalidate(current_user.id)
+        # Encolar rebuild para worker (criterio unificado por fecha)
+        from app.services.cache_rebuild_state_service import CacheRebuildStateService
         d = form.transaction_date.data
-        # Dashboard principal: tocar por fechas (hoy => recompute NOW; pasado => invalidate completo)
-        DashboardSummaryCacheService.touch_for_dates(current_user.id, dates=[d])
-
-        PortfolioEvolutionCacheService.touch_for_dates(current_user.id, dates=[d])
-        PortfolioBenchmarksCacheService.touch_for_dates(current_user.id, dates=[d])
+        CacheRebuildStateService.mark_for_dates(current_user.id, dates=[d])
         
         action_text = 'compra' if form.transaction_type.data == 'BUY' else 'venta'
         flash(f'✅ {form.transaction_type.data} de {form.symbol.data} registrada correctamente', 'success')

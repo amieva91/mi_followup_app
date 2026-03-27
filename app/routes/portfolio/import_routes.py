@@ -281,10 +281,11 @@ def import_csv_process():
         debug_log.warning(f"Archivos fallidos: {failed_files}")
 
     if total_stats['files_processed'] > 0:
-        from app.services.metrics.cache import MetricsCacheService
-        from app.services.dashboard_summary_cache import DashboardSummaryCacheService
-        MetricsCacheService.invalidate(current_user.id)
-        DashboardSummaryCacheService.invalidate(current_user.id)
+        # Nuevo flujo: encolar rebuild FULL (worker en cron).
+        # FULL domina NOW y reemplaza los invalidates/recompute en la request.
+        from app.services.cache_rebuild_state_service import CacheRebuildStateService
+
+        CacheRebuildStateService.mark_full_history(current_user.id)
 
     from urllib.parse import urlencode
 

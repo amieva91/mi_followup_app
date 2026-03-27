@@ -243,6 +243,79 @@ def create_app(config_name='default'):
         else:
             print("OK: sin activos o sin actualización")
 
+    @app.cli.command('cache-rebuild-worker-once')
+    def cache_rebuild_worker_once():
+        """
+        Procesa como máximo 1 usuario pendiente por ejecución (FULL domina NOW).
+        Diseñado para cron cada ~30s con lock global para evitar solapes.
+        """
+        import os
+        from datetime import datetime
+
+        from flask import current_app
+
+        from app.services.cache_rebuild_state_service import CacheRebuildStateService
+        from app.services.dashboard_summary_cache import DashboardSummaryCacheService
+        from app.services.metrics.cache import MetricsCacheService
+        from app.services.net_worth_service import get_dashboard_summary
+        from app.services.portfolio_benchmarks_cache import PortfolioBenchmarksCacheService
+        from app.services.portfolio_evolution_cache import PortfolioEvolutionCacheService
+
+        try:
+            import fcntl
+        except ImportError:
+            click.echo('SKIP: fcntl no disponible para lock del worker.')
+            return
+
+        os.makedirs(current_app.instance_path, exist_ok=True)
+        lock_path = os.path.join(current_app.instance_path, 'cache_rebuild_worker.lock')
+        fp = open(lock_path, 'a+')
+        try:
+            fcntl.flock(fp.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            click.echo('SKIP: worker ya en ejecución.')
+            fp.close()
+            return
+
+        try:
+            row = CacheRebuildStateService.pick_next_pending()
+            if not row:
+                click.echo('OK: sin rebuild pendiente.')
+                return
+
+            user_id = row.user_id
+            action = 'full' if row.pending_full_history else 'now'
+            started = datetime.utcnow()
+
+            if action == 'full':
+                # FULL: invalidar métricas y reconstruir snapshots completos.
+                MetricsCacheService.invalidate(user_id)
+                DashboardSummaryCacheService.set(user_id, get_dashboard_summary(user_id))
+                # Fuerza snapshot mensual completo para performance/index comparison.
+                PortfolioEvolutionCacheService.get_state(user_id, frequency='monthly')
+                PortfolioBenchmarksCacheService.get_comparison_state(user_id)
+            else:
+                # NOW: conservar histórico, recalcular tramo actual.
+                MetricsCacheService.invalidate(user_id)
+                updated = DashboardSummaryCacheService.recompute_current_from_cache(user_id)
+                if updated is None:
+                    DashboardSummaryCacheService.set(user_id, get_dashboard_summary(user_id))
+                PortfolioEvolutionCacheService.get_state(user_id, frequency='monthly')
+                PortfolioBenchmarksCacheService.get_comparison_state(user_id)
+
+            CacheRebuildStateService.clear_after_success(user_id, action=action)
+            elapsed_ms = int((datetime.utcnow() - started).total_seconds() * 1000)
+            click.echo(f'OK: rebuild {action} user_id={user_id} ({elapsed_ms} ms)')
+        finally:
+            try:
+                fcntl.flock(fp.fileno(), fcntl.LOCK_UN)
+            except Exception:
+                pass
+            try:
+                fp.close()
+            except Exception:
+                pass
+
     @app.cli.command('price-flash-test')
     @click.option('--user-id', type=int, default=None)
     @click.option('--index', type=int, default=0, help='Posición en Top Movers: 0=primero, 1=segundo, …')
