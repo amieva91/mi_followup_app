@@ -2,7 +2,7 @@
 FIFO Calculator - Cálculo robusto de holdings usando FIFO real con lotes
 """
 from decimal import Decimal
-from datetime import datetime
+from datetime import date as date_type, datetime
 from typing import List, Dict, Any
 from collections import deque
 
@@ -29,8 +29,17 @@ class FIFOCalculator:
         self.first_purchase_date = None
         self.last_transaction_date = None
     
+    def _normalize_dt(self, dt) -> datetime:
+        """Normaliza date/datetime a datetime (00:00 si es date)."""
+        if isinstance(dt, datetime):
+            return dt
+        if isinstance(dt, date_type):
+            return datetime(dt.year, dt.month, dt.day)
+        raise TypeError(f"Fecha inválida: {type(dt)}")
+
     def add_buy(self, quantity: float, price: float, date: datetime, total_cost: float):
         """Añade una compra como un nuevo lote, liquidando primero cualquier posición corta"""
+        date = self._normalize_dt(date)
         qty_decimal = Decimal(str(quantity))
         cost_decimal = Decimal(str(total_cost))
         
@@ -54,10 +63,12 @@ class FIFOCalculator:
             lot = FIFOLot(float(qty_decimal), price, date, float(cost_decimal))
             self.lots.append(lot)
         
-        if self.first_purchase_date is None or date < self.first_purchase_date:
-            self.first_purchase_date = date
+        # Guardar first/last como date (no datetime) para comparaciones consistentes
+        d = date.date()
+        if self.first_purchase_date is None or d < self.first_purchase_date:
+            self.first_purchase_date = d
         
-        self.last_transaction_date = date
+        self.last_transaction_date = d
     
     def add_sell(self, quantity: float, date: datetime) -> Decimal:
         """
@@ -65,6 +76,7 @@ class FIFOCalculator:
         Si no hay suficientes lotes, registra el oversell como posición corta.
         Retorna el coste de las acciones vendidas (para P&L).
         """
+        date = self._normalize_dt(date)
         remaining_to_sell = Decimal(str(quantity))
         total_cost_sold = Decimal('0')
         
@@ -88,11 +100,14 @@ class FIFOCalculator:
                 total_cost_sold += cost_sold_from_lot
                 remaining_to_sell = Decimal('0')
         
-        self.last_transaction_date = date
+        self.last_transaction_date = date.date()
         
         # Si aún queda cantidad por vender, registrar como posición corta
         if remaining_to_sell > 0:
-            print(f"⚠️  Advertencia ({self.symbol}): Se intentó vender {remaining_to_sell} más de lo disponible en fecha {date} - Registrado como posición corta temporal")
+            print(
+                f"⚠️  Advertencia ({self.symbol}): Se intentó vender {remaining_to_sell} más de lo disponible en fecha {date} "
+                "- Registrado como posición corta temporal"
+            )
             self.short_position += remaining_to_sell
         
         return total_cost_sold
