@@ -45,7 +45,9 @@ if [[ ! -x "$FLASK_BIN" ]]; then
 fi
 
 # Cron no carga .flaskenv: FLASK_APP y FLASK_ENV van en la línea.
-CRON_LINE="* * * * * cd \"${PROJECT_ROOT}\" && FLASK_APP=run.py FLASK_ENV=${FLASK_ENV_CRON} \"${FLASK_BIN}\" price-poll-one >> \"${LOG_FILE}\" 2>&1 ${CRON_TAG}"
+# flock -n: si el tick anterior sigue corriendo (Yahoo + recomputes lentos), no se encolan más procesos.
+LOCK_FILE="${PROJECT_ROOT}/instance/price_poll_cron.flock"
+CRON_LINE="* * * * * cd \"${PROJECT_ROOT}\" && mkdir -p \"${PROJECT_ROOT}/instance\" && flock -n \"${LOCK_FILE}\" -c 'FLASK_APP=run.py FLASK_ENV=${FLASK_ENV_CRON} \"${FLASK_BIN}\" price-poll-one' >> \"${LOG_FILE}\" 2>&1 ${CRON_TAG}"
 
 cron_daemon_running() {
   if command -v systemctl >/dev/null 2>&1; then
