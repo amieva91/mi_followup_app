@@ -33,8 +33,8 @@ echo "=== Despliegue: ${INSTANCE} (${ZONE}) → ${APP_DIR} ==="
 
 if [ "$RESTART" -eq 1 ]; then
   gcloud compute ssh "$INSTANCE" --zone="$ZONE" \
-    --command="sudo -u followup git -C ${APP_DIR} pull origin main && sudo -u followup bash -lc 'cd ${APP_DIR} && ./scripts/install_price_poll_cron.sh && ./scripts/install_cache_rebuild_cron.sh' && sudo systemctl restart followup && sleep 1 && sudo systemctl is-active followup && echo 'Listo: código actualizado, crons instalados y followup reiniciado.'"
+    --command="sudo -u followup git -C ${APP_DIR} pull origin main && sudo -u followup bash -lc 'cd ${APP_DIR} && ./scripts/install_price_poll_cron.sh && ./scripts/install_cache_rebuild_cron.sh' && sudo ${APP_DIR}/scripts/install_logrotate_followup.sh && sudo systemctl restart followup && sleep 1 && sudo systemctl is-active followup && echo 'Listo: código actualizado, crons, logrotate y followup reiniciado.'"
 else
   gcloud compute ssh "$INSTANCE" --zone="$ZONE" \
-    --command="sudo -u followup git -C ${APP_DIR} pull origin main && sudo -u followup bash -lc 'cd ${APP_DIR} && ./scripts/install_price_poll_cron.sh && ./scripts/install_cache_rebuild_cron.sh' && echo 'Listo: git pull + instalación de crons (sin restart).'"
+    --command="sudo -u followup git -C ${APP_DIR} pull origin main && sudo -u followup bash -lc 'cd ${APP_DIR} && ./scripts/install_price_poll_cron.sh && ./scripts/install_cache_rebuild_cron.sh' && sudo ${APP_DIR}/scripts/install_logrotate_followup.sh && echo 'Listo: git pull + crons + logrotate (sin restart).'"
 fi
