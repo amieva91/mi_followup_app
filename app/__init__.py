@@ -233,15 +233,19 @@ def create_app(config_name='default'):
     @app.cli.command('price-poll-one')
     def price_poll_one():
         """Actualiza 1 activo por rotación (Chart API solo). Ejecutar cada minuto vía cron."""
+        import time
+
         from app.services.price_polling_service import run_poll_one
 
+        t0 = time.perf_counter()
         # Sin exclusive_db_lock global: envolver run_poll_one bloqueaba todo el sitio web
         # durante la petición HTTP a Yahoo (flock EX compartido con Gunicorn).
         asset_id = run_poll_one()
+        elapsed = time.perf_counter() - t0
         if asset_id:
-            print(f"OK: actualizado asset_id={asset_id}")
+            print(f"OK: actualizado asset_id={asset_id} [cron price-poll-one {elapsed:.2f}s]")
         else:
-            print("OK: sin activos o sin actualización")
+            print(f"OK: sin activos o sin actualización [cron price-poll-one {elapsed:.2f}s]")
 
     @app.cli.command('cache-rebuild-worker-once')
     def cache_rebuild_worker_once():
@@ -261,10 +265,17 @@ def create_app(config_name='default'):
         from app.services.portfolio_benchmarks_cache import PortfolioBenchmarksCacheService
         from app.services.portfolio_evolution_cache import PortfolioEvolutionCacheService
 
+        import time
+
+        t0 = time.perf_counter()
+
+        def _elapsed_s() -> float:
+            return time.perf_counter() - t0
+
         try:
             import fcntl
         except ImportError:
-            click.echo('SKIP: fcntl no disponible para lock del worker.')
+            click.echo(f'SKIP: fcntl no disponible para lock del worker. [cron cache-rebuild {_elapsed_s():.2f}s]')
             return
 
         os.makedirs(current_app.instance_path, exist_ok=True)
@@ -273,14 +284,14 @@ def create_app(config_name='default'):
         try:
             fcntl.flock(fp.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError:
-            click.echo('SKIP: worker ya en ejecución.')
+            click.echo(f'SKIP: worker ya en ejecución. [cron cache-rebuild {_elapsed_s():.2f}s]')
             fp.close()
             return
 
         try:
             row = CacheRebuildStateService.pick_next_pending()
             if not row:
-                click.echo('OK: sin rebuild pendiente.')
+                click.echo(f'OK: sin rebuild pendiente. [cron cache-rebuild {_elapsed_s():.2f}s]')
                 return
 
             user_id = row.user_id
@@ -305,7 +316,10 @@ def create_app(config_name='default'):
 
             CacheRebuildStateService.clear_after_success(user_id, action=action)
             elapsed_ms = int((datetime.utcnow() - started).total_seconds() * 1000)
-            click.echo(f'OK: rebuild {action} user_id={user_id} ({elapsed_ms} ms)')
+            total_s = _elapsed_s()
+            click.echo(
+                f'OK: rebuild {action} user_id={user_id} (trabajo {elapsed_ms} ms, total cron {total_s:.2f}s)'
+            )
         finally:
             try:
                 fcntl.flock(fp.fileno(), fcntl.LOCK_UN)
