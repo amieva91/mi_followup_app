@@ -21,12 +21,36 @@
 
             <div class="mb-4">
                 {{ form.icon.label(class="block text-gray-700 font-semibold mb-2") }}
-                {{ form.icon(class="w-full px-4 py-2 border rounded-lg", placeholder="🏦") }}
+                <div class="flex items-center gap-3">
+                    <div class="text-2xl leading-none" id="icon-preview" aria-hidden="true">🏦</div>
+                    {{ form.icon(class="w-full px-4 py-2 border rounded-lg", placeholder="🏦", list="bank-icon-suggestions", autocomplete="off") }}
+                </div>
+                <datalist id="bank-icon-suggestions">
+                    <option value="🏦">🏦 Banco</option>
+                    <option value="🦁">🦁 León (ej. ING)</option>
+                    <option value="🦊">🦊</option>
+                    <option value="🐼">🐼</option>
+                    <option value="🦉">🦉</option>
+                    <option value="🐙">🐙</option>
+                    <option value="🐳">🐳</option>
+                    <option value="🧠">🧠</option>
+                    <option value="💳">💳 Tarjeta</option>
+                    <option value="💰">💰 Ahorro</option>
+                    <option value="🪙">🪙</option>
+                    <option value="📈">📈 Inversión</option>
+                    <option value="🌍">🌍 Internacional</option>
+                    <option value="🏠">🏠 Hipoteca</option>
+                </datalist>
+                <p class="text-xs text-gray-500 mt-2">Tip: puedes pegar cualquier emoji (p. ej. 🦁 para bancos tipo ING).</p>
             </div>
 
             <div class="mb-6">
                 {{ form.color.label(class="block text-gray-700 font-semibold mb-2") }}
-                {{ form.color(class="w-full px-4 py-2 border rounded-lg") }}
+                <div class="flex items-center gap-3">
+                    <div class="w-4 h-4 rounded-full ring-2 ring-gray-200" id="color-preview" aria-hidden="true"></div>
+                    {{ form.color(class="w-full px-4 py-2 border rounded-lg", id="bank-color-select") }}
+                </div>
+                <p class="text-xs text-gray-500 mt-2">Incluye la paleta nueva (Tomate, Flamingo, Mandarina, etc.).</p>
             </div>
 
             <div class="flex gap-3">
@@ -40,4 +64,46 @@
         </form>
     </div>
 </div>
+
+<script>
+(function () {
+  const iconInput = document.querySelector('input[name="{{ form.icon.name }}"]');
+  const iconPreview = document.getElementById('icon-preview');
+  const colorSelect = document.getElementById('bank-color-select');
+  const colorPreview = document.getElementById('color-preview');
+
+  function setIconPreview() {
+    if (!iconInput || !iconPreview) return;
+    const v = (iconInput.value || '').trim();
+    iconPreview.textContent = v || '🏦';
+  }
+
+  function setColorPreview() {
+    if (!colorSelect || !colorPreview) return;
+    const v = colorSelect.value;
+    if (v && v.startsWith('#')) {
+      colorPreview.style.backgroundColor = v;
+      colorPreview.className = 'w-4 h-4 rounded-full ring-2 ring-gray-200';
+      return;
+    }
+    const map = {
+      blue: '#3B82F6',
+      indigo: '#4F46E5',
+      green: '#22C55E',
+      gray: '#6B7280',
+    };
+    colorPreview.style.backgroundColor = map[v] || '#3B82F6';
+    colorPreview.className = 'w-4 h-4 rounded-full ring-2 ring-gray-200';
+  }
+
+  if (iconInput) {
+    iconInput.addEventListener('input', setIconPreview);
+    setIconPreview();
+  }
+  if (colorSelect) {
+    colorSelect.addEventListener('change', setColorPreview);
+    setColorPreview();
+  }
+})();
+</script>
 {% endblock %}

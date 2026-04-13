@@ -87,6 +87,18 @@
                 {% for bank in banks %}
                 <tr class="hover:bg-gray-50">
                     <td class="px-6 py-4">
+                        {# Dot de color: soporta valores legacy (blue/indigo/green/gray) y HEX (#RRGGBB) #}
+                        {% set c = (bank.color or 'blue') %}
+                        {% if c.startswith('#') %}
+                            <span class="inline-block w-3 h-3 rounded-full mr-2 align-middle ring-2 ring-gray-200" style="background-color: {{ c }};"></span>
+                        {% else %}
+                            <span class="inline-block w-3 h-3 rounded-full mr-2 align-middle ring-2 ring-gray-200
+                              {% if c == 'green' %}bg-green-500
+                              {% elif c == 'indigo' %}bg-indigo-500
+                              {% elif c == 'gray' %}bg-gray-500
+                              {% else %}bg-blue-500{% endif %}">
+                            </span>
+                        {% endif %}
                         <span class="text-xl">{{ bank.icon }}</span>
                         <span class="font-medium text-gray-900 ml-2">{{ bank.name }}</span>
                     </td>

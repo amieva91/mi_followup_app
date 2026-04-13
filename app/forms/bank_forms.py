@@ -25,10 +25,23 @@ class BankForm(FlaskForm):
     color = SelectField(
         'Color',
         choices=[
-            ('blue', 'Azul'),
-            ('indigo', 'Índigo'),
-            ('green', 'Verde'),
-            ('gray', 'Gris'),
+            # Legacy (tailwind-like names) — mantener por compatibilidad.
+            ('blue', 'Azul (clásico)'),
+            ('indigo', 'Índigo (clásico)'),
+            ('green', 'Verde (clásico)'),
+            ('gray', 'Gris (clásico)'),
+            # Paleta ampliada (HEX). Basada en nombres/hex de la UI.
+            ('#DC2127', 'Tomate — #DC2127'),
+            ('#FF887C', 'Flamingo — #FF887C'),
+            ('#FFB878', 'Mandarina — #FFB878'),
+            ('#FBD75B', 'Plátano — #FBD75B'),
+            ('#7AE7BF', 'Salvia — #7AE7BF'),
+            ('#51B749', 'Albahaca — #51B749'),
+            ('#46D6DB', 'Pavo real — #46D6DB'),
+            ('#5484ED', 'Arándano — #5484ED'),
+            ('#A4BDFC', 'Lavanda — #A4BDFC'),
+            ('#DBADFF', 'Uva — #DBADFF'),
+            ('#616161', 'Grafito — #616161'),
         ],
         default='blue',
         render_kw={'class': 'form-input'}
