@@ -45,3 +45,23 @@
 
 - Top Movers y flash de precios en dashboard siguen funcionando.
 - `flask price-poll-one` no lanza excepción con cola vacía (sin activos y sin benchmarks imposible: siempre hay 5 benchmarks).
+
+---
+
+## Resultados de validación (2026-04-13)
+
+Entorno **desarrollo** (`instance/followup.db`, Flask `development`) salvo donde se indica **producción**.
+
+| Caso | Resultado | Notas |
+|------|-----------|--------|
+| **1. Migración** | OK | `flask db current` → `j5f6g7h8k9l0 (head)` en dev y en **producción**. Tablas `benchmark_global_quote`, `benchmark_global_daily`, `benchmark_global_state` presentes en SQLite dev. |
+| **2. Cola solo benchmarks** | Parcial | En esta BD hay cartera: cola **52 activos + 5 benchmarks = 57** slots. No se vació la BD; el camino benchmark se valida en prod (ver abajo) y con `_poll_benchmark_slot` al restaurar quotes. |
+| **3. Cola mixta** | Parcial | 7× `price-poll-one` seguidos → solo `asset_id` (esperable: hace falta ~57 min para una vuelta completa). **Producción:** log muestra alternancia `asset` y `benchmark` (`OK: actualizado benchmark S&P 500`). |
+| **4. Dashboard índices** | OK | `get_market_indices_snapshot(1)`: **5/5 con % día** con quotes cargados. Tras **vaciar** `benchmark_global_quote` (solo dev): **5/5 con %** vía fallback `benchmark_global_daily` + penúltimo/último cierre. Quotes **restaurados** con5× `_poll_benchmark_slot`. |
+| **5. Precio acción / benchmarks** | OK (código + meta) | `PortfolioBenchmarksCacheService.touch_for_prices_update(1)`: fila cache **misma id=1**, `meta.dirty_now=True`. Código: `touch_for_prices_update` en benchmarks, no `invalidate` en `_invalidate_caches_for_asset`. |
+| **6. Producción** | OK | `flask db current` = head. `price_poll_cron.log`: **25** líneas con `benchmark`; ejemplo reciente actualización S&P 500. `benchmark_global_daily_cron.log`: ejecución OK (versión global). |
+| **Refactor global HIST** | OK | 5 filas `benchmark_global_daily`, `daily_data_version=1` en dev. Segunda ejecución `benchmark-global-daily-once` → **sin cambios** (~0.1s). |
+| **Fase 2 (fusión quotes)** | No medido en UI | Comportamiento cubierto por código en `get_comparison_state`; validación fina con poll del cliente y trazas opcional. |
+| **Regresión** | OK | `get_comparison_state(1)` sin excepción; `meta.version` y `sync_type` presentes. `py_compile` del fix de indentación ya en `main`. |
+
+**Incidencia previa:** `IndentationError` en `_meta_defaults` en prod → corregido en commit `e80a8d1`; tras despliegue, index-comparison y `/dashboard/state` operativos.
