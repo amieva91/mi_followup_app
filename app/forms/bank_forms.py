@@ -9,14 +9,14 @@ from wtforms.validators import DataRequired, Length
 class BankForm(FlaskForm):
     """Formulario para crear/editar banco"""
     ICON_CHOICES = [
-        ('🏦', 'Banco'),
-        ('🦁', 'León (ej. ING)'),
-        ('💳', 'Tarjeta'),
-        ('💰', 'Ahorro'),
-        ('🪙', 'Monedas'),
-        ('📈', 'Inversión'),
-        ('🌍', 'Internacional'),
-        ('🏠', 'Hipoteca'),
+        ('🏦', '🏦 Banco'),
+        ('🦁', '🦁 León (ej. ING)'),
+        ('💳', '💳 Tarjeta'),
+        ('💰', '💰 Ahorro'),
+        ('🪙', '🪙 Monedas'),
+        ('📈', '📈 Inversión'),
+        ('🌍', '🌍 Internacional'),
+        ('🏠', '🏠 Hipoteca'),
     ]
 
     # Paleta (12) solicitada por el usuario:
