@@ -533,22 +533,23 @@ function createBenchmarkChart(ctx, data) {
         }
     ];
     
-    // Añadir benchmarks
-    for (const [name, color] of Object.entries(benchmarkColors)) {
-        if (data.datasets[name] && data.datasets[name].length > 0) {
-            datasets.push({
-                label: name,
-                data: data.datasets[name],
-                borderColor: color,
-                backgroundColor: 'transparent',
-                borderWidth: 2,
-                fill: false,
-                tension: 0.4,
-                pointRadius: 0,
-                pointHoverRadius: 6,
-                borderDash: [0]
-            });
-        }
+    // Añadir benchmarks (orden estable, igual que backend)
+    for (const name of FOLLOWUP_BENCHMARK_ORDER) {
+        const color = benchmarkColors[name];
+        const series = data.datasets[name];
+        if (!color || !series || !series.length) continue;
+        datasets.push({
+            label: name,
+            data: series,
+            borderColor: color,
+            backgroundColor: 'transparent',
+            borderWidth: 2,
+            fill: false,
+            tension: 0.4,
+            pointRadius: 0,
+            pointHoverRadius: 6,
+            borderDash: [0]
+        });
     }
     
     return new Chart(ctx, {
