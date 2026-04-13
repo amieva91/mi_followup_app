@@ -21,7 +21,7 @@ def transactions_list():
     # Aplicar filtros
     filtered = False
     
-    # Filtro por símbolo o ISIN
+    # Filtro por ISIN / símbolo / nombre
     symbol = request.args.get('symbol', '').strip()
     if symbol:
         filtered = True
@@ -29,7 +29,8 @@ def transactions_list():
         query = query.join(Asset, Transaction.asset_id == Asset.id).filter(
             db.or_(
                 Asset.symbol.ilike(f'%{symbol}%'),
-                Asset.isin.ilike(f'%{symbol}%')
+                Asset.isin.ilike(f'%{symbol}%'),
+                Asset.name.ilike(f'%{symbol}%'),
             )
         )
     
