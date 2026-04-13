@@ -15,6 +15,7 @@ class BankForm(FlaskForm):
         ('💰', '💰 Ahorro'),
         ('₿', '₿ Bitcoin'),
         ('🪙', '🪙 Monedas'),
+        ('🍔', '🍔 Comida'),
         ('📈', '📈 Inversión'),
         ('🌍', '🌍 Internacional'),
         ('🏠', '🏠 Hipoteca'),
