@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Inventario de crons del proyecto: scripts/README_CRONS.md
+#
 # Cron: mantenimiento global de series diarias de benchmarks (Yahoo si hay día nuevo).
 # Cada 15 minutos con flock para no solapar.
 #

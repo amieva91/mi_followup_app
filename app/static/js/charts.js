@@ -14,6 +14,9 @@ function formatEuropeanNumber(value, decimals = 2) {
 /** Debe coincidir con `BENCHMARKS` / `BENCHMARK_DISPLAY_ORDER` en el backend */
 const FOLLOWUP_BENCHMARK_ORDER = ['S&P 500', 'NASDAQ 100', 'MSCI World', 'EuroStoxx 50', 'Hang Seng'];
 
+/** Polling de `/portfolio/api/benchmarks` en index-comparison (solo navegador; no es cron servidor). */
+const BENCHMARK_CHART_POLL_INTERVAL_MS = 6 * 60 * 60 * 1000;
+
 // Configuración común de Chart.js
 const commonChartOptions = {
     responsive: true,
@@ -401,7 +404,7 @@ function startStalenessTimer() {
 }
 
 /**
- * Actualizar indicador de tipo de sincronización (HIST+NOW | NOW | cached)
+ * Actualizar indicador de tipo de sincronización en /portfolio/performance (HIST+NOW | NOW | cached)
  */
 function updateSyncType(elementId, syncType) {
     const el = document.getElementById(elementId);
@@ -771,13 +774,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 window.benchmarkChart = createBenchmarkChart(ctx, data);
                 renderBenchmarkTable(data.annual_returns);
 
-                // Indicadores HIST/NOW y staleness (index-comparison)
-                if (data.meta) {
-                    updateSyncType('benchmarkSyncType', data.meta.sync_type);
-                    if (data.meta._now_cached_at) {
-                        lastBenchmarksCachedAt = data.meta._now_cached_at;
-                        updateStaleness('benchmarkStaleness', data.meta._now_cached_at);
-                    }
+                if (data.meta && data.meta._now_cached_at) {
+                    lastBenchmarksCachedAt = data.meta._now_cached_at;
+                    updateStaleness('benchmarkStaleness', data.meta._now_cached_at);
                 }
                 startStalenessTimer();
             } catch (error) {
@@ -787,7 +786,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         pollFn();
         if (!benchmarksPollTimer) {
-            benchmarksPollTimer = setInterval(pollFn, 30000);
+            benchmarksPollTimer = setInterval(pollFn, BENCHMARK_CHART_POLL_INTERVAL_MS);
         }
     }
 });

@@ -38,7 +38,7 @@
 
 ## Fase 2 (Index comparison / `get_comparison_state`)
 
-- Con caché de benchmarks **sin** `dirty_now`, si `benchmark_global_quote.updated_at` supera `meta.benchmark_quotes_applied_at`, se fusiona la cotización global en `benchmark_data_daily` y se ejecuta `_recompute_now` (sin Yahoo) cuando el precio difiere; el gráfico y `meta.version` deben actualizarse en el poll del cliente.
+- Con caché de benchmarks **sin** `dirty_now`, si `benchmark_global_quote.updated_at` supera `meta.benchmark_quotes_applied_at`, se fusiona la cotización global en `benchmark_data_daily` y se ejecuta `_recompute_now` (sin Yahoo) cuando el precio difiere; el gráfico y `meta.version` se refrescan al abrir la página o en el poll del navegador (cada 6 h; ver `BENCHMARK_CHART_POLL_INTERVAL_MS` en `charts.js`).
 - Si la fusión no cambia números (ya alineados con Yahoo), solo se actualiza `benchmark_quotes_applied_at` sin subir versión.
 
 ## Regresión breve
@@ -61,7 +61,7 @@ Entorno **desarrollo** (`instance/followup.db`, Flask `development`) salvo donde
 | **5. Precio acción / benchmarks** | OK (código + meta) | `PortfolioBenchmarksCacheService.touch_for_prices_update(1)`: fila cache **misma id=1**, `meta.dirty_now=True`. Código: `touch_for_prices_update` en benchmarks, no `invalidate` en `_invalidate_caches_for_asset`. |
 | **6. Producción** | OK | `flask db current` = head. `price_poll_cron.log`: **25** líneas con `benchmark`; ejemplo reciente actualización S&P 500. `benchmark_global_daily_cron.log`: ejecución OK (versión global). |
 | **Refactor global HIST** | OK | 5 filas `benchmark_global_daily`, `daily_data_version=1` en dev. Segunda ejecución `benchmark-global-daily-once` → **sin cambios** (~0.1s). |
-| **Fase 2 (fusión quotes)** | No medido en UI | Comportamiento cubierto por código en `get_comparison_state`; validación fina con poll del cliente y trazas opcional. |
-| **Regresión** | OK | `get_comparison_state(1)` sin excepción; `meta.version` y `sync_type` presentes. `py_compile` del fix de indentación ya en `main`. |
+| **Fase 2 (fusión quotes)** | No medido en UI | Comportamiento cubierto por código en `get_comparison_state`; validación fina con F5 o poll del cliente (6 h) y trazas opcional. |
+| **Regresión** | OK | `get_comparison_state(1)` sin excepción; `meta.version` presente. `py_compile` del fix de indentación ya en `main`. |
 
 **Incidencia previa:** `IndentationError` en `_meta_defaults` en prod → corregido en commit `e80a8d1`; tras despliegue, index-comparison y `/dashboard/state` operativos.

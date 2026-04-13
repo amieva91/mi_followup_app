@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Inventario de crons del proyecto: scripts/README_CRONS.md
+#
 # Instala o actualiza entradas cron para el worker de rebuild de cachés.
 # Ejecuta cada 30s usando dos líneas:
 # - en el segundo 0 de cada minuto
