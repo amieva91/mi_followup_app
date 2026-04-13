@@ -39,7 +39,7 @@ def _meta_defaults(meta: dict[str, Any]) -> dict[str, Any]:
     meta.setdefault("version", 0)
     meta.setdefault("_now_cached_at", None)
     meta.setdefault("sync_type", None)  # "HIST+NOW" | "NOW" | null
-       meta.setdefault("benchmark_quotes_applied_at", None)
+    meta.setdefault("benchmark_quotes_applied_at", None)
     meta.setdefault("benchmark_global_daily_version", -1)
     return meta
 
