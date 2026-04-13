@@ -252,6 +252,27 @@ def create_app(config_name='default'):
         else:
             print(f"OK: sin cola o sin actualización [cron price-poll-one {elapsed:.2f}s]")
 
+    @app.cli.command('benchmark-global-daily-once')
+    def benchmark_global_daily_once():
+        """
+        Mantiene series diarias globales de benchmarks (Yahoo si hace falta nuevo día).
+        Ejecutar vía cron (p. ej. cada 15 min) con flock en la línea cron.
+        """
+        import time
+
+        from app.services.benchmark_global_service import BenchmarkGlobalService
+
+        t0 = time.perf_counter()
+        ok = BenchmarkGlobalService.refresh_daily_if_stale()
+        elapsed = time.perf_counter() - t0
+        if ok:
+            print(
+                f"OK: benchmark global daily actualizado (versión {BenchmarkGlobalService.get_daily_data_version()}) "
+                f"[{elapsed:.2f}s]"
+            )
+        else:
+            print(f"OK: benchmark global daily sin cambios [{elapsed:.2f}s]")
+
     @app.cli.command('cache-rebuild-worker-once')
     def cache_rebuild_worker_once():
         """

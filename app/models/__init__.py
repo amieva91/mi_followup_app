@@ -27,6 +27,7 @@ from app.models.user_login_log import UserLoginLog
 from app.models.price_polling_state import PricePollingState
 from app.models.cache_rebuild_state import CacheRebuildState
 from app.models.benchmark_global_quote import BenchmarkGlobalQuote
+from app.models.benchmark_global_daily import BenchmarkGlobalDaily, BenchmarkGlobalState
 
 __all__ = [
     'User', 'MODULES', 'AVATARS', 
@@ -60,5 +61,7 @@ __all__ = [
     'PricePollingState',
     'CacheRebuildState',
     'BenchmarkGlobalQuote',
+    'BenchmarkGlobalDaily',
+    'BenchmarkGlobalState',
 ]
 

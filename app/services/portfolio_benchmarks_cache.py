@@ -3,15 +3,15 @@ Cache HIST/NOW para:
 - /portfolio/index-comparison (benchmarks vs portfolio)
 
 Estrategia:
-- HIST: comparación completa (requiere Yahoo) cuando cambia el pasado o cambia el día
-- NOW: recálculo sobre el portfolio actual SIN volver a pedir Yahoo en cada poll
-  (se reutiliza benchmark_data_daily almacenado en el cache)
+- HIST índices: tabla global `benchmark_global_daily` mantenida por `benchmark-global-daily-once` (Yahoo compartido).
+- Por usuario: `portfolio_benchmarks_cache` guarda comparación, recorte diario y meta; al subir `daily_data_version` global se recompute sin Yahoo por índice.
+- NOW intradía índices: `benchmark_global_quote` + price-poll-one y fusión en `get_comparison_state`.
 """
 
 from __future__ import annotations
 
 import copy
-from datetime import date, datetime, time, timezone, timedelta
+from datetime import date, datetime, time, timezone
 from typing import Any
 
 from sqlalchemy import func
@@ -20,6 +20,7 @@ from app import db
 from app.models.portfolio_benchmarks_cache import PortfolioBenchmarksCache
 from app.services.metrics.benchmark_comparison import BenchmarkComparisonService, BENCHMARKS
 from app.services.metrics.modified_dietz import ModifiedDietzCalculator
+from app.services.benchmark_global_service import BenchmarkGlobalService
 
 
 def _utc_iso_z(dt: datetime) -> str:
@@ -38,7 +39,8 @@ def _meta_defaults(meta: dict[str, Any]) -> dict[str, Any]:
     meta.setdefault("version", 0)
     meta.setdefault("_now_cached_at", None)
     meta.setdefault("sync_type", None)  # "HIST+NOW" | "NOW" | null
-    meta.setdefault("benchmark_quotes_applied_at", None)
+       meta.setdefault("benchmark_quotes_applied_at", None)
+    meta.setdefault("benchmark_global_daily_version", -1)
     return meta
 
 
@@ -186,12 +188,15 @@ class PortfolioBenchmarksCacheService:
 
         end_date = datetime.now().date()
 
-        # 1) Descargar benchmarks diarios (Yahoo) - HIST
-        benchmark_data_daily: dict[str, Any] = {}
-        for name, ticker in BENCHMARKS.items():
-            data = service.get_benchmark_historical_data(ticker, start_date, end_date=end_date)
-            if data:
-                benchmark_data_daily[name] = data
+        # 1) Series diarias globales (Yahoo solo en mantenimiento global / refresh aquí si hace falta)
+        BenchmarkGlobalService.refresh_daily_if_stale()
+        benchmark_data_daily = BenchmarkGlobalService.get_sliced_daily_for_user(user_id)
+        if len(benchmark_data_daily) < len(BENCHMARKS):
+            BenchmarkGlobalService.refresh_daily_if_stale(force=True)
+            benchmark_data_daily = BenchmarkGlobalService.get_sliced_daily_for_user(user_id)
+        benchmark_data_daily, _ = PortfolioBenchmarksCacheService._merge_global_quotes_into_daily(
+            copy.deepcopy(benchmark_data_daily)
+        )
 
         # 2) Recalcular comparación (portfolio+benchmarks)
         start_datetime = datetime.combine(start_date, time.min)
@@ -260,7 +265,11 @@ class PortfolioBenchmarksCacheService:
             "version": int(now.timestamp() * 1000),
             "_now_cached_at": _utc_iso_z(now),
             "sync_type": "HIST+NOW",
+            "benchmark_global_daily_version": BenchmarkGlobalService.get_daily_data_version(),
         }
+        mq = _max_benchmark_global_quote_updated_at()
+        if mq:
+            meta["benchmark_quotes_applied_at"] = _utc_iso_z(_dt_as_utc(mq))
         return {
             "comparison_data": comparison_data,
             "annualized_summary": annualized_summary,
@@ -393,6 +402,7 @@ class PortfolioBenchmarksCacheService:
         meta["needs_full_rebuild"] = False
         meta["hist_end_date"] = today_str
         meta["sync_type"] = "NOW"
+        meta["benchmark_global_daily_version"] = BenchmarkGlobalService.get_daily_data_version()
         PortfolioBenchmarksCacheService._bump_version(meta, now)
 
         return {
@@ -439,14 +449,42 @@ class PortfolioBenchmarksCacheService:
             result["meta"] = rebuilt.get("meta") or {}
             return result
 
+        gver = BenchmarkGlobalService.get_daily_data_version()
+        if int(meta.get("benchmark_global_daily_version", -1)) < gver:
+            BenchmarkGlobalService.refresh_daily_if_stale()
+            sliced = BenchmarkGlobalService.get_sliced_daily_for_user(user_id)
+            if sliced:
+                merged_daily, _ = PortfolioBenchmarksCacheService._merge_global_quotes_into_daily(
+                    copy.deepcopy(sliced)
+                )
+                updated = PortfolioBenchmarksCacheService._recompute_now(
+                    user_id, {**cached, "benchmark_data_daily": merged_daily}
+                )
+                um = _meta_defaults(updated.get("meta") or {})
+                um["benchmark_global_daily_version"] = gver
+                mq = _max_benchmark_global_quote_updated_at()
+                if mq:
+                    um["benchmark_quotes_applied_at"] = _utc_iso_z(_dt_as_utc(mq))
+                updated["meta"] = um
+                cache.cached_data = _to_json_safe(updated)
+                cache.expires_at = PortfolioBenchmarksCache.get_default_expiry()
+                cache.created_at = datetime.utcnow()
+                db.session.commit()
+                result = copy.deepcopy(updated.get("comparison_data") or {})
+                result["meta"] = updated.get("meta") or {}
+                return result
+
         if meta.get("dirty_now"):
-            daily_base = copy.deepcopy(cached.get("benchmark_data_daily") or {})
+            daily_base = copy.deepcopy(BenchmarkGlobalService.get_sliced_daily_for_user(user_id))
+            if not daily_base:
+                daily_base = copy.deepcopy(cached.get("benchmark_data_daily") or {})
             merged_daily, _ = PortfolioBenchmarksCacheService._merge_global_quotes_into_daily(daily_base)
             updated = PortfolioBenchmarksCacheService._recompute_now(
                 user_id, {**cached, "benchmark_data_daily": merged_daily}
             )
             mq = _max_benchmark_global_quote_updated_at()
             um = _meta_defaults(updated.get("meta") or {})
+            um["benchmark_global_daily_version"] = BenchmarkGlobalService.get_daily_data_version()
             if mq:
                 um["benchmark_quotes_applied_at"] = _utc_iso_z(_dt_as_utc(mq))
             updated["meta"] = um
@@ -461,13 +499,12 @@ class PortfolioBenchmarksCacheService:
         max_qu = _max_benchmark_global_quote_updated_at()
         max_qu_utc = _dt_as_utc(max_qu)
         applied_utc = _parse_benchmark_quotes_applied_at(meta.get("benchmark_quotes_applied_at"))
-        if (
-            max_qu_utc
-            and cached.get("benchmark_data_daily")
-            and (applied_utc is None or max_qu_utc > applied_utc)
-        ):
+        daily_for_quotes = cached.get("benchmark_data_daily") or BenchmarkGlobalService.get_sliced_daily_for_user(
+            user_id
+        )
+        if max_qu_utc and daily_for_quotes and (applied_utc is None or max_qu_utc > applied_utc):
             merged_daily, changed = PortfolioBenchmarksCacheService._merge_global_quotes_into_daily(
-                copy.deepcopy(cached["benchmark_data_daily"])
+                copy.deepcopy(daily_for_quotes)
             )
             new_applied = _utc_iso_z(max_qu_utc)
             if changed:
@@ -475,6 +512,7 @@ class PortfolioBenchmarksCacheService:
                     user_id, {**cached, "benchmark_data_daily": merged_daily}
                 )
                 um = _meta_defaults(updated.get("meta") or {})
+                um["benchmark_global_daily_version"] = BenchmarkGlobalService.get_daily_data_version()
                 um["benchmark_quotes_applied_at"] = new_applied
                 updated["meta"] = um
                 cache.cached_data = _to_json_safe(updated)
@@ -521,9 +559,10 @@ class PortfolioBenchmarksCacheService:
 def get_market_indices_snapshot(user_id: int) -> list[dict[str, Any]]:
     """
     % día y último precio: prioriza `benchmark_global_quote` (job price-poll-one, sin HTTP aquí).
-    Si aún no hay fila para un índice, usa penúltimo/último cierre diario en `portfolio_benchmarks_cache`.
+    Si aún no hay fila para un índice, usa caché por usuario y luego `benchmark_global_daily`.
     """
     from app.models.benchmark_global_quote import BenchmarkGlobalQuote
+    from app.models.benchmark_global_daily import BenchmarkGlobalDaily
 
     global_by_name = {r.benchmark_name: r for r in BenchmarkGlobalQuote.query.all()}
 
@@ -557,14 +596,23 @@ def get_market_indices_snapshot(user_id: int) -> list[dict[str, Any]]:
 
         series = daily.get(name) or {}
         points = list(series.get("data_points") or [])
-        prices: list[float] = []
-        for p in points:
-            v = p.get("price")
-            if v is not None:
-                try:
-                    prices.append(float(v))
-                except (TypeError, ValueError):
-                    pass
+
+        def _extract_prices(pts: list) -> list[float]:
+            outv: list[float] = []
+            for p in pts:
+                v = p.get("price")
+                if v is not None:
+                    try:
+                        outv.append(float(v))
+                    except (TypeError, ValueError):
+                        pass
+            return outv
+
+        prices = _extract_prices(points)
+        if len(prices) < 2:
+            gd = BenchmarkGlobalDaily.query.filter_by(benchmark_name=name).first()
+            if gd and gd.data_points:
+                prices = _extract_prices(list(gd.data_points))
         if len(prices) >= 2:
             prev_p, last_p = prices[-2], prices[-1]
             pct = round(((last_p - prev_p) / prev_p) * 100, 2) if prev_p else None
