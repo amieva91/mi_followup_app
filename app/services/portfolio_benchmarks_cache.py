@@ -14,7 +14,7 @@ import copy
 from datetime import date, datetime, time, timezone, timedelta
 from typing import Any
 
-from flask import current_app
+from sqlalchemy import func
 
 from app import db
 from app.models.portfolio_benchmarks_cache import PortfolioBenchmarksCache
@@ -38,7 +38,35 @@ def _meta_defaults(meta: dict[str, Any]) -> dict[str, Any]:
     meta.setdefault("version", 0)
     meta.setdefault("_now_cached_at", None)
     meta.setdefault("sync_type", None)  # "HIST+NOW" | "NOW" | null
+    meta.setdefault("benchmark_quotes_applied_at", None)
     return meta
+
+
+def _dt_as_utc(dt: datetime | None) -> datetime | None:
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def _parse_benchmark_quotes_applied_at(raw: Any) -> datetime | None:
+    if raw is None or raw == "":
+        return None
+    if isinstance(raw, datetime):
+        return _dt_as_utc(raw)
+    s = str(raw).strip().replace("Z", "+00:00")
+    try:
+        dt = datetime.fromisoformat(s)
+    except ValueError:
+        return None
+    return _dt_as_utc(dt)
+
+
+def _max_benchmark_global_quote_updated_at() -> datetime | None:
+    from app.models.benchmark_global_quote import BenchmarkGlobalQuote
+
+    return db.session.query(func.max(BenchmarkGlobalQuote.updated_at)).scalar()
 
 
 def _to_json_safe(obj: Any) -> Any:
@@ -242,6 +270,49 @@ class PortfolioBenchmarksCacheService:
         }
 
     @staticmethod
+    def _merge_global_quotes_into_daily(
+        benchmark_data_daily: dict[str, Any],
+    ) -> tuple[dict[str, Any], bool]:
+        """
+        Incorpora precios intradía de `benchmark_global_quote` en el último punto
+        (o añade barra del día) sin llamadas HTTP.
+        """
+        from app.models.benchmark_global_quote import BenchmarkGlobalQuote
+
+        out = copy.deepcopy(benchmark_data_daily)
+        changed = False
+        today_str = datetime.now().date().strftime("%Y-%m-%d")
+        for name in BENCHMARKS.keys():
+            row = BenchmarkGlobalQuote.query.filter_by(benchmark_name=name).first()
+            if not row or row.regular_market_price is None:
+                continue
+            series = out.get(name)
+            if not series:
+                continue
+            points = list(series.get("data_points") or [])
+            if not points:
+                continue
+            price = float(row.regular_market_price)
+            last = points[-1]
+            last_date = last.get("date")
+            if isinstance(last_date, str) and last_date > today_str:
+                continue
+            if last_date == today_str:
+                try:
+                    old_f = float(last.get("price")) if last.get("price") is not None else None
+                except (TypeError, ValueError):
+                    old_f = None
+                if old_f is None or abs(old_f - price) > 1e-9:
+                    last["price"] = price
+                    changed = True
+            else:
+                points.append({"date": today_str, "price": price})
+                series["data_points"] = points
+                out[name] = series
+                changed = True
+        return out, changed
+
+    @staticmethod
     def _recompute_now(user_id: int, cached: dict[str, Any]) -> dict[str, Any]:
         service = BenchmarkComparisonService(user_id)
         today = datetime.now().date()
@@ -369,13 +440,62 @@ class PortfolioBenchmarksCacheService:
             return result
 
         if meta.get("dirty_now"):
-            updated = PortfolioBenchmarksCacheService._recompute_now(user_id, cached)
+            daily_base = copy.deepcopy(cached.get("benchmark_data_daily") or {})
+            merged_daily, _ = PortfolioBenchmarksCacheService._merge_global_quotes_into_daily(daily_base)
+            updated = PortfolioBenchmarksCacheService._recompute_now(
+                user_id, {**cached, "benchmark_data_daily": merged_daily}
+            )
+            mq = _max_benchmark_global_quote_updated_at()
+            um = _meta_defaults(updated.get("meta") or {})
+            if mq:
+                um["benchmark_quotes_applied_at"] = _utc_iso_z(_dt_as_utc(mq))
+            updated["meta"] = um
             cache.cached_data = _to_json_safe(updated)
             cache.expires_at = PortfolioBenchmarksCache.get_default_expiry()
             cache.created_at = datetime.utcnow()
             db.session.commit()
             result = copy.deepcopy(updated.get("comparison_data") or {})
             result["meta"] = updated.get("meta") or {}
+            return result
+
+        max_qu = _max_benchmark_global_quote_updated_at()
+        max_qu_utc = _dt_as_utc(max_qu)
+        applied_utc = _parse_benchmark_quotes_applied_at(meta.get("benchmark_quotes_applied_at"))
+        if (
+            max_qu_utc
+            and cached.get("benchmark_data_daily")
+            and (applied_utc is None or max_qu_utc > applied_utc)
+        ):
+            merged_daily, changed = PortfolioBenchmarksCacheService._merge_global_quotes_into_daily(
+                copy.deepcopy(cached["benchmark_data_daily"])
+            )
+            new_applied = _utc_iso_z(max_qu_utc)
+            if changed:
+                updated = PortfolioBenchmarksCacheService._recompute_now(
+                    user_id, {**cached, "benchmark_data_daily": merged_daily}
+                )
+                um = _meta_defaults(updated.get("meta") or {})
+                um["benchmark_quotes_applied_at"] = new_applied
+                updated["meta"] = um
+                cache.cached_data = _to_json_safe(updated)
+                cache.expires_at = PortfolioBenchmarksCache.get_default_expiry()
+                cache.created_at = datetime.utcnow()
+                db.session.commit()
+                result = copy.deepcopy(updated.get("comparison_data") or {})
+                result["meta"] = updated.get("meta") or {}
+                return result
+            meta = dict(meta)
+            meta["benchmark_quotes_applied_at"] = new_applied
+            cached_mut = dict(cached)
+            cached_mut["meta"] = meta
+            cache.cached_data = _to_json_safe(cached_mut)
+            cache.expires_at = PortfolioBenchmarksCache.get_default_expiry()
+            db.session.commit()
+            result = copy.deepcopy(cached_mut.get("comparison_data") or {})
+            if not meta.get("sync_type"):
+                meta = dict(meta)
+                meta["sync_type"] = "cached"
+            result["meta"] = meta
             return result
 
         result = copy.deepcopy(cached.get("comparison_data") or {})

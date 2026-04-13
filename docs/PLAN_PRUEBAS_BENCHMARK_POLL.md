@@ -29,6 +29,11 @@
    - Tras `git pull`, ejecutar `flask db upgrade` como usuario de la app antes o junto al reinicio de Gunicorn.
    - Revisar `logs/price_poll_cron.log` para líneas `benchmark`.
 
+## Fase 2 (Index comparison / `get_comparison_state`)
+
+- Con caché de benchmarks **sin** `dirty_now`, si `benchmark_global_quote.updated_at` supera `meta.benchmark_quotes_applied_at`, se fusiona la cotización global en `benchmark_data_daily` y se ejecuta `_recompute_now` (sin Yahoo) cuando el precio difiere; el gráfico y `meta.version` deben actualizarse en el poll del cliente.
+- Si la fusión no cambia números (ya alineados con Yahoo), solo se actualiza `benchmark_quotes_applied_at` sin subir versión.
+
 ## Regresión breve
 
 - Top Movers y flash de precios en dashboard siguen funcionando.
