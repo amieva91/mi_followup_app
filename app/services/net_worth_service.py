@@ -1564,6 +1564,9 @@ def get_dashboard_summary(user_id: int) -> Dict[str, Any]:
 
     current_block = _build_dashboard_current_from_history(breakdown, history)
     top_movers = get_top_movers_for_user(user_id, limit=5)
+    from app.services.portfolio_benchmarks_cache import get_market_indices_snapshot
+
+    market_indices = get_market_indices_snapshot(user_id)
 
     # Mantener la estructura existente para compatibilidad con templates
     return {
@@ -1595,4 +1598,5 @@ def get_dashboard_summary(user_id: int) -> Dict[str, Any]:
         "history_block": history_block,
         "current_block": current_block,
         "top_movers": top_movers,
+        "market_indices": market_indices,
     }

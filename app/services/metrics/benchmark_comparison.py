@@ -24,8 +24,12 @@ BENCHMARKS = {
     'S&P 500': '^GSPC',
     'NASDAQ 100': '^NDX',  # Cambiado de ^IXIC (NASDAQ Composite) a ^NDX (NASDAQ 100) - índice más común como benchmark
     'MSCI World': 'URTH',
-    'EuroStoxx 50': '^STOXX50E'
+    'EuroStoxx 50': '^STOXX50E',
+    'Hang Seng': '^HSI',
 }
+
+# Orden estable para tablas y dashboard (coincide con el orden de inserción en BENCHMARKS)
+BENCHMARK_DISPLAY_ORDER: tuple[str, ...] = tuple(BENCHMARKS.keys())
 
 
 class BenchmarkComparisonService:

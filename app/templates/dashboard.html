@@ -91,6 +91,7 @@
                     <span id="dashboard-staleness">Actualizado hace 0 min</span>
                 </div>
             </div>
+            <div class="flex flex-wrap items-stretch justify-end gap-4 shrink-0">
             {% if summary.get('top_movers') %}
             <div class="bg-white/10 backdrop-blur rounded-xl p-4 min-w-[200px] max-w-[280px]" id="top-movers-block">
                 <h4 class="text-xs font-semibold text-indigo-200 uppercase tracking-wide mb-2">Top Movers (día)</h4>
@@ -106,6 +107,26 @@
                 </div>
             </div>
             {% endif %}
+            {% if summary.get('market_indices') %}
+            <div class="bg-white/10 backdrop-blur rounded-xl p-4 min-w-[200px] max-w-[280px]" id="market-indices-block">
+                <h4 class="text-xs font-semibold text-indigo-200 uppercase tracking-wide mb-2">Índices (día)</h4>
+                <div id="market-indices-list" class="space-y-1.5">
+                    {% for ix in summary.market_indices %}
+                    <div class="flex items-center justify-between text-sm">
+                        <span class="font-medium truncate mr-2">{{ ix.name }}</span>
+                        {% if ix.day_change_percent is not none %}
+                        <span class="{% if ix.day_change_percent >= 0 %}text-emerald-300{% else %}text-red-300{% endif %} font-semibold shrink-0">
+                            {{ "%+.1f"|format(ix.day_change_percent) }}%
+                        </span>
+                        {% else %}
+                        <span class="text-indigo-200/70 font-semibold shrink-0">—</span>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            </div>
         </div>
     </div>
 
@@ -1231,6 +1252,18 @@ function applyDashboardUpdate(summary) {
                     </span>
                 </div>`
             ).join('');
+        }
+    }
+
+    if (Array.isArray(summary.market_indices)) {
+        const ixInner = document.getElementById('market-indices-list');
+        if (ixInner) {
+            ixInner.innerHTML = summary.market_indices.map(ix => {
+                const pct = ix.day_change_percent;
+                const cls = pct == null ? 'text-indigo-200/70' : ((pct || 0) >= 0 ? 'text-emerald-300' : 'text-red-300');
+                const txt = pct == null ? '—' : `${(pct >= 0 ? '+' : '') + Number(pct).toFixed(1)}%`;
+                return `<div class="flex items-center justify-between text-sm"><span class="font-medium truncate mr-2">${ix.name || ''}</span><span class="${cls} font-semibold shrink-0">${txt}</span></div>`;
+            }).join('');
         }
     }
 

@@ -397,3 +397,58 @@ class PortfolioBenchmarksCacheService:
             return cache.cached_data.get("annualized_summary") or {}
         return {}
 
+
+def get_market_indices_snapshot(user_id: int) -> list[dict[str, Any]]:
+    """
+    Variación día a día aproximada (último cierre vs cierre previo en la serie diaria)
+    para cada benchmark, leyendo solo `portfolio_benchmarks_cache` (sin HTTP).
+    Si no hay cache o faltan puntos, `day_change_percent` será None.
+    """
+    cache = PortfolioBenchmarksCacheService._get_cache_row(user_id)
+    daily: dict[str, Any] = {}
+    if cache and cache.cached_data:
+        daily = (cache.cached_data or {}).get("benchmark_data_daily") or {}
+
+    out: list[dict[str, Any]] = []
+    for name, ticker in BENCHMARKS.items():
+        series = daily.get(name) or {}
+        points = list(series.get("data_points") or [])
+        prices: list[float] = []
+        for p in points:
+            v = p.get("price")
+            if v is not None:
+                try:
+                    prices.append(float(v))
+                except (TypeError, ValueError):
+                    pass
+        if len(prices) >= 2:
+            prev_p, last_p = prices[-2], prices[-1]
+            pct = round(((last_p - prev_p) / prev_p) * 100, 2) if prev_p else None
+            out.append(
+                {
+                    "name": name,
+                    "ticker": ticker,
+                    "day_change_percent": pct,
+                    "last_close": round(last_p, 2),
+                }
+            )
+        elif len(prices) == 1:
+            out.append(
+                {
+                    "name": name,
+                    "ticker": ticker,
+                    "day_change_percent": None,
+                    "last_close": round(prices[0], 2),
+                }
+            )
+        else:
+            out.append(
+                {
+                    "name": name,
+                    "ticker": ticker,
+                    "day_change_percent": None,
+                    "last_close": None,
+                }
+            )
+    return out
+

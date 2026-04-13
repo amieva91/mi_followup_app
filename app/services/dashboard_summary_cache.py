@@ -42,6 +42,23 @@ def _now_signature(data: dict) -> str:
         md = data.get("metales_details") or {}
         rd = data.get("real_estate_details") or {}
         dd = data.get("debt_details") or {}
+        mi = data.get("market_indices") or []
+        mi_sig: list[tuple] = []
+        for x in mi:
+            if not isinstance(x, dict):
+                continue
+            dcp = x.get("day_change_percent")
+            lc = x.get("last_close")
+            try:
+                dcp_r = round(float(dcp), 2) if dcp is not None else None
+            except (TypeError, ValueError):
+                dcp_r = None
+            try:
+                lc_r = round(float(lc), 4) if lc is not None else None
+            except (TypeError, ValueError):
+                lc_r = None
+            mi_sig.append((str(x.get("name") or ""), dcp_r, lc_r))
+
         payload = {
             "net_worth": round(float(data.get("net_worth") or 0), 2),
             "changes": data.get("changes") or {},
@@ -58,6 +75,7 @@ def _now_signature(data: dict) -> str:
             "metales_total": round(float(md.get("total_value") or 0), 2),
             "real_estate_total": round(float(rd.get("total_value") or 0), 2),
             "debt_total": round(float(dd.get("total_debt") or 0), 2),
+            "market_indices": mi_sig,
         }
         return json.dumps(payload, sort_keys=True, separators=(",", ":"))
     except Exception:
@@ -256,6 +274,9 @@ class DashboardSummaryCacheService:
         data["year_comparison"] = nws.get_year_comparison(user_id)
         data["health_score"] = nws.get_financial_health_score(user_id)
         data["top_movers"] = nws.get_top_movers_for_user(user_id, limit=5)
+        from app.services.portfolio_benchmarks_cache import get_market_indices_snapshot
+
+        data["market_indices"] = get_market_indices_snapshot(user_id)
 
         # Solo actualizar el ÚLTIMO punto del histórico (mes actual / “ahora”) con el breakdown
         # recién calculado; el resto de meses permanece congelado (HIST).

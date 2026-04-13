@@ -11,6 +11,9 @@ function formatEuropeanNumber(value, decimals = 2) {
     });
 }
 
+/** Debe coincidir con `BENCHMARKS` / `BENCHMARK_DISPLAY_ORDER` en el backend */
+const FOLLOWUP_BENCHMARK_ORDER = ['S&P 500', 'NASDAQ 100', 'MSCI World', 'EuroStoxx 50', 'Hang Seng'];
+
 // Configuración común de Chart.js
 const commonChartOptions = {
     responsive: true,
@@ -511,7 +514,8 @@ function createBenchmarkChart(ctx, data) {
         'S&P 500': 'rgb(34, 197, 94)',      // Verde
         'NASDAQ 100': 'rgb(59, 130, 246)',  // Azul
         'MSCI World': 'rgb(168, 85, 247)',  // Púrpura
-        'EuroStoxx 50': 'rgb(245, 158, 11)' // Amarillo/Naranja
+        'EuroStoxx 50': 'rgb(245, 158, 11)', // Amarillo/Naranja
+        'Hang Seng': 'rgb(244, 114, 182)'   // Rosa (HK)
     };
     
     // Datasets: Portfolio primero (más destacado)
@@ -647,7 +651,7 @@ function renderBenchmarkTable(annualData) {
         row.appendChild(portfolioCell);
         
         // Benchmarks y diferencias
-        for (const benchmarkName of ['S&P 500', 'NASDAQ 100', 'MSCI World', 'EuroStoxx 50']) {
+        for (const benchmarkName of FOLLOWUP_BENCHMARK_ORDER) {
             const benchmarkCell = document.createElement('td');
             benchmarkCell.className = 'px-4 py-3';
             
@@ -707,7 +711,7 @@ function renderBenchmarkTable(annualData) {
     totalPortfolioCell.textContent = formatEuropeanNumber(annualData.total.portfolio, 2) + '%';
     totalRow.appendChild(totalPortfolioCell);
     
-    for (const benchmarkName of ['S&P 500', 'NASDAQ 100', 'MSCI World', 'EuroStoxx 50']) {
+    for (const benchmarkName of FOLLOWUP_BENCHMARK_ORDER) {
         const totalCell = document.createElement('td');
         totalCell.className = 'px-4 py-3';
         
