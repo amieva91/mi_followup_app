@@ -25,19 +25,13 @@ def transactions_list():
     symbol = request.args.get('symbol', '').strip()
     if symbol:
         filtered = True
-        # Buscar assets que coincidan con el símbolo o ISIN
-        assets = Asset.query.filter(
+        # Evitar 2 consultas (assets->ids->IN). Filtrar con JOIN directo.
+        query = query.join(Asset, Transaction.asset_id == Asset.id).filter(
             db.or_(
                 Asset.symbol.ilike(f'%{symbol}%'),
                 Asset.isin.ilike(f'%{symbol}%')
             )
-        ).all()
-        asset_ids = [a.id for a in assets]
-        if asset_ids:
-            query = query.filter(Transaction.asset_id.in_(asset_ids))
-        else:
-            # No hay assets que coincidan, retornar lista vacía
-            query = query.filter(Transaction.asset_id == -1)
+        )
     
     # Filtro por tipo de transacción
     txn_type = request.args.get('type', '').strip()
@@ -161,12 +155,23 @@ def transactions_list():
         user_id=current_user.id,
         is_active=True
     ).order_by(BrokerAccount.broker_id, BrokerAccount.account_name).all()
-    
-    return render_template('portfolio/transactions.html', 
-                          transactions=transactions,
-                          accounts=accounts,
-                          filtered=filtered,
-                          pagination=pagination)
+
+    # Si es búsqueda AJAX, devolver solo el fragmento (tabla + paginación) para reducir payload.
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+    if is_ajax:
+        return render_template(
+            'portfolio/_transactions_results.html',
+            transactions=transactions,
+            pagination=pagination,
+        )
+
+    return render_template(
+        'portfolio/transactions.html',
+        transactions=transactions,
+        accounts=accounts,
+        filtered=filtered,
+        pagination=pagination,
+    )
 
 
 

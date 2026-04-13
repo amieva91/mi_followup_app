@@ -224,9 +224,8 @@
                         const tempDiv = document.createElement('div');
                         tempDiv.innerHTML = html;
                         
-                        // Extraer solo la tabla y el contador
+                        // Extraer solo la tabla y paginación (fragmento)
                         const newTableContainer = tempDiv.querySelector('.bg-white.rounded-xl.shadow-sm.overflow-hidden');
-                        const newTransactionsCount = tempDiv.querySelector('.bg-blue-50.text-blue-700');
                         const newPagination = tempDiv.querySelector('.mt-6.flex.items-center.justify-between');
                         
                         if (newTableContainer && tableContainer) {
@@ -234,8 +233,10 @@
                             tableContainer.innerHTML = newTableContainer.innerHTML;
                         }
                         
-                        if (newTransactionsCount && transactionsCount) {
-                            transactionsCount.textContent = newTransactionsCount.textContent;
+                        // El fragmento AJAX no incluye el badge de contador; estimar por filas de la tabla actual.
+                        if (transactionsCount && newTableContainer) {
+                            const rows = newTableContainer.querySelectorAll('tbody tr').length;
+                            transactionsCount.textContent = `${rows} transacción/es`;
                         }
                         
                         // Actualizar paginación si existe
