@@ -71,3 +71,23 @@ class BankService:
                 )
                 db.session.add(balance)
         db.session.commit()
+
+        # Si se edita un mes anterior al actual, el histórico del dashboard queda 'congelado'
+        # en cache. Marcamos full rebuild para que se regenere summary.history (cash incluido).
+        today = date.today()
+        if (int(year), int(month)) != (today.year, today.month):
+            try:
+                from app.models.dashboard_summary_cache import DashboardSummaryCache
+
+                cache = DashboardSummaryCache.query.filter_by(user_id=user_id).first()
+                if cache and cache.cached_data:
+                    data = dict(cache.cached_data)
+                    meta = dict(data.get('meta') or {})
+                    meta['needs_full_rebuild'] = True
+                    meta['needs_full_rebuild_reason'] = 'bank_balances_hist_changed'
+                    data['meta'] = meta
+                    cache.cached_data = data
+                    db.session.commit()
+            except Exception:
+                # No bloquear guardado de bancos por fallos de cache
+                db.session.rollback()

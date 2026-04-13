@@ -68,7 +68,7 @@ Group=$APP_USER
 WorkingDirectory=$APP_DIR
 Environment="PATH=$APP_DIR/venv/bin"
 Environment="FLASK_ENV=production"
-ExecStart=$APP_DIR/venv/bin/gunicorn --workers 2 --bind 127.0.0.1:5000 --timeout 120 run:app
+ExecStart=$APP_DIR/venv/bin/gunicorn --workers 4 --bind 127.0.0.1:5000 --timeout 1200 run:app
 Restart=always
 
 [Install]
@@ -88,7 +88,7 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_read_timeout 120;
+        proxy_read_timeout 1200;
     }
 }
 NGINX

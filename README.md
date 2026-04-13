@@ -240,16 +240,17 @@ Sistema completo de gestión financiera personal.
 - **Directorio**: `/home/ssoo/www`
 - **Usuario**: `ssoo`
 - **Base de datos**: SQLite (local)
-- **Puerto**: 5000
+- **Puerto**: 5001 (recomendado, para no pisar prod/servicios)
 
 ### Producción
-- **Servidor**: `ubuntu@140.238.120.92` (followup)
-- **Directorio**: `/home/ubuntu/www`
+- **Servidor**: VM GCP `followup` (zona `us-central1-c`)
+- **Directorio**: `/var/www/followup`
 - **Dominio**: https://followup.fit/
 - **Base de datos**: SQLite
 - **Puerto**: 5000
 - **Servicio**: `followup.service` (systemd)
-- **Usuario**: `ubuntu:www-data`
+- **Usuario**: `followup:followup`
+- **Gunicorn workers**: 4 (ver `/etc/systemd/system/followup.service`)
 
 ## 📦 Stack Tecnológico
 
@@ -307,8 +308,10 @@ flask db upgrade
 
 ### 5. Ejecutar (desarrollo)
 ```bash
-python run.py
+PORT=5001 python run.py
 ```
+
+**Nota importante:** en este proyecto **NO** se recomienda `flask run` para desarrollo porque el reloader/debug puede interferir con `threaded=True` y el progreso en tiempo real. El entrypoint soportado es `python run.py` (con `PORT` configurable).
 
 ## 📚 Documentación
 
