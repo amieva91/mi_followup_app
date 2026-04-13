@@ -10,7 +10,7 @@ class BankForm(FlaskForm):
     """Formulario para crear/editar banco"""
     ICON_CHOICES = [
         ('🏦', '🏦 Banco'),
-        ('🦁', '🦁 León (ej. ING)'),
+        ('🦁', '🦁 León'),
         ('💳', '💳 Tarjeta'),
         ('💰', '💰 Ahorro'),
         ('🪙', '🪙 Monedas'),
