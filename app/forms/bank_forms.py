@@ -8,6 +8,35 @@ from wtforms.validators import DataRequired, Length
 
 class BankForm(FlaskForm):
     """Formulario para crear/editar banco"""
+    ICON_CHOICES = [
+        ('🏦', 'Banco'),
+        ('🦁', 'León (ej. ING)'),
+        ('💳', 'Tarjeta'),
+        ('💰', 'Ahorro'),
+        ('🪙', 'Monedas'),
+        ('📈', 'Inversión'),
+        ('🌍', 'Internacional'),
+        ('🏠', 'Hipoteca'),
+    ]
+
+    # Paleta (12) solicitada por el usuario:
+    # - value: clave estable (se guarda en DB)
+    # - label: Tonalidad (texto para el usuario)
+    COLOR_CHOICES = [
+        ('tomate', 'Rojo intenso'),
+        ('flamingo', 'Rosa/Coral'),
+        ('mandarina', 'Naranja claro'),
+        ('calabaza', 'Naranja fuerte'),
+        ('platano', 'Amarillo'),
+        ('salvia', 'Verde menta'),
+        ('albahaca', 'Verde oscuro'),
+        ('pavo_real', 'Turquesa'),
+        ('arandano', 'Azul medio'),
+        ('lavanda', 'Morado claro'),
+        ('uva', 'Violeta'),
+        ('grafito', 'Gris oscuro'),
+    ]
+
     name = StringField(
         'Nombre del banco',
         validators=[
@@ -16,34 +45,16 @@ class BankForm(FlaskForm):
         ],
         render_kw={'placeholder': 'Ej: BBVA, ING, N26...', 'class': 'form-input'}
     )
-    icon = StringField(
+    icon = SelectField(
         'Icono (emoji)',
-        validators=[Length(max=10)],
+        choices=ICON_CHOICES,
         default='🏦',
         render_kw={'placeholder': '🏦', 'class': 'form-input'}
     )
     color = SelectField(
         'Color',
-        choices=[
-            # Legacy (tailwind-like names) — mantener por compatibilidad.
-            ('blue', 'Azul (clásico)'),
-            ('indigo', 'Índigo (clásico)'),
-            ('green', 'Verde (clásico)'),
-            ('gray', 'Gris (clásico)'),
-            # Paleta ampliada (HEX). Basada en nombres/hex de la UI.
-            ('#DC2127', 'Tomate — #DC2127'),
-            ('#FF887C', 'Flamingo — #FF887C'),
-            ('#FFB878', 'Mandarina — #FFB878'),
-            ('#FBD75B', 'Plátano — #FBD75B'),
-            ('#7AE7BF', 'Salvia — #7AE7BF'),
-            ('#51B749', 'Albahaca — #51B749'),
-            ('#46D6DB', 'Pavo real — #46D6DB'),
-            ('#5484ED', 'Arándano — #5484ED'),
-            ('#A4BDFC', 'Lavanda — #A4BDFC'),
-            ('#DBADFF', 'Uva — #DBADFF'),
-            ('#616161', 'Grafito — #616161'),
-        ],
-        default='blue',
+        choices=COLOR_CHOICES,
+        default='arandano',
         render_kw={'class': 'form-input'}
     )
     submit = SubmitField('Guardar')
