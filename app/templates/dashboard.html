@@ -92,21 +92,6 @@
                 </div>
             </div>
             <div class="flex flex-wrap items-stretch justify-end gap-4 shrink-0">
-            {% if summary.get('top_movers') %}
-            <div class="bg-white/10 backdrop-blur rounded-xl p-4 min-w-[200px] max-w-[280px]" id="top-movers-block">
-                <h4 class="text-xs font-semibold text-indigo-200 uppercase tracking-wide mb-2">Top Movers (día)</h4>
-                <div id="top-movers-list" class="space-y-1.5">
-                    {% for m in summary.top_movers[:5] %}
-                    <div class="flex items-center justify-between text-sm price-cell" data-asset-id="{{ m.asset_id }}">
-                        <span class="font-medium truncate">{{ m.symbol }}</span>
-                        <span class="{% if m.day_change_percent >= 0 %}text-emerald-300{% else %}text-red-300{% endif %} font-semibold shrink-0 ml-2">
-                            {{ "%+.1f"|format(m.day_change_percent) }}%
-                        </span>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-            {% endif %}
             {% if summary.get('market_indices') %}
             <div class="bg-white/10 backdrop-blur rounded-xl p-4 min-w-[200px] max-w-[280px]" id="market-indices-block">
                 <h4 class="text-xs font-semibold text-indigo-200 uppercase tracking-wide mb-2">Índices (día)</h4>
@@ -121,6 +106,21 @@
                         {% else %}
                         <span class="text-indigo-200/70 font-semibold shrink-0">—</span>
                         {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            {% if summary.get('top_movers') %}
+            <div class="bg-white/10 backdrop-blur rounded-xl p-4 min-w-[200px] max-w-[280px]" id="top-movers-block">
+                <h4 class="text-xs font-semibold text-indigo-200 uppercase tracking-wide mb-2">Top Movers (día)</h4>
+                <div id="top-movers-list" class="space-y-1.5">
+                    {% for m in summary.top_movers[:5] %}
+                    <div class="flex items-center justify-between text-sm price-cell" data-asset-id="{{ m.asset_id }}">
+                        <span class="font-medium truncate">{{ m.symbol }}</span>
+                        <span class="{% if m.day_change_percent >= 0 %}text-emerald-300{% else %}text-red-300{% endif %} font-semibold shrink-0 ml-2">
+                            {{ "%+.1f"|format(m.day_change_percent) }}%
+                        </span>
                     </div>
                     {% endfor %}
                 </div>
