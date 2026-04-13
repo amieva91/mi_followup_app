@@ -240,12 +240,17 @@ def create_app(config_name='default'):
         t0 = time.perf_counter()
         # Sin exclusive_db_lock global: envolver run_poll_one bloqueaba todo el sitio web
         # durante la petición HTTP a Yahoo (flock EX compartido con Gunicorn).
-        asset_id = run_poll_one()
+        result = run_poll_one()
         elapsed = time.perf_counter() - t0
-        if asset_id:
-            print(f"OK: actualizado asset_id={asset_id} [cron price-poll-one {elapsed:.2f}s]")
+        if result and result.get("kind") == "asset":
+            print(f"OK: actualizado asset_id={result.get('asset_id')} [cron price-poll-one {elapsed:.2f}s]")
+        elif result and result.get("kind") == "benchmark":
+            print(
+                f"OK: actualizado benchmark {result.get('name')} ({result.get('ticker')}) "
+                f"[cron price-poll-one {elapsed:.2f}s]"
+            )
         else:
-            print(f"OK: sin activos o sin actualización [cron price-poll-one {elapsed:.2f}s]")
+            print(f"OK: sin cola o sin actualización [cron price-poll-one {elapsed:.2f}s]")
 
     @app.cli.command('cache-rebuild-worker-once')
     def cache_rebuild_worker_once():

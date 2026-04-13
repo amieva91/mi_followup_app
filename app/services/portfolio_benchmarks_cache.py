@@ -400,10 +400,13 @@ class PortfolioBenchmarksCacheService:
 
 def get_market_indices_snapshot(user_id: int) -> list[dict[str, Any]]:
     """
-    Variación día a día aproximada (último cierre vs cierre previo en la serie diaria)
-    para cada benchmark, leyendo solo `portfolio_benchmarks_cache` (sin HTTP).
-    Si no hay cache o faltan puntos, `day_change_percent` será None.
+    % día y último precio: prioriza `benchmark_global_quote` (job price-poll-one, sin HTTP aquí).
+    Si aún no hay fila para un índice, usa penúltimo/último cierre diario en `portfolio_benchmarks_cache`.
     """
+    from app.models.benchmark_global_quote import BenchmarkGlobalQuote
+
+    global_by_name = {r.benchmark_name: r for r in BenchmarkGlobalQuote.query.all()}
+
     cache = PortfolioBenchmarksCacheService._get_cache_row(user_id)
     daily: dict[str, Any] = {}
     if cache and cache.cached_data:
@@ -411,6 +414,27 @@ def get_market_indices_snapshot(user_id: int) -> list[dict[str, Any]]:
 
     out: list[dict[str, Any]] = []
     for name, ticker in BENCHMARKS.items():
+        g = global_by_name.get(name)
+        if g is not None and g.regular_market_price is not None:
+            last = float(g.regular_market_price)
+            dcp = g.day_change_percent
+            if dcp is not None:
+                pct = round(float(dcp), 2)
+            elif g.previous_close is not None and float(g.previous_close) > 0:
+                prev = float(g.previous_close)
+                pct = round(((last - prev) / prev) * 100, 2)
+            else:
+                pct = None
+            out.append(
+                {
+                    "name": name,
+                    "ticker": ticker,
+                    "day_change_percent": pct,
+                    "last_close": round(last, 2),
+                }
+            )
+            continue
+
         series = daily.get(name) or {}
         points = list(series.get("data_points") or [])
         prices: list[float] = []

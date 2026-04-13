@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Instala o actualiza la entrada de cron para `flask price-poll-one` (1 activo/minuto).
+# Instala o actualiza la entrada de cron para `flask price-poll-one` (1 slot/minuto: activo o índice benchmark).
 # Idempotente: volver a ejecutar sustituye la línea anterior marcada.
 #
 # Uso:

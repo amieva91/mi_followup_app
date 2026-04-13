@@ -618,6 +618,57 @@ class PriceUpdater:
         except Exception:
             return False
 
+    @staticmethod
+    def fetch_yahoo_chart_quote(ticker: str) -> Optional[Dict[str, Optional[float]]]:
+        """
+        Cotización ligera vía Chart API (mismo endpoint que update_single_asset_price_only).
+        Para benchmarks en la cola de price-poll-one; no persiste en Asset.
+        """
+        if not ticker or not str(ticker).strip():
+            return None
+        t = str(ticker).strip()
+        try:
+            url = f"https://query1.finance.yahoo.com/v8/finance/chart/{t}"
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            }
+            response = requests.get(url, headers=headers, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            if data.get("chart", {}).get("error"):
+                return None
+            if not data.get("chart", {}).get("result"):
+                return None
+            result = data["chart"]["result"][0]
+            meta = result.get("meta", {})
+            if "regularMarketPrice" not in meta:
+                return None
+            pu = PriceUpdater()
+            price = pu._safe_get_float(meta, "regularMarketPrice")
+            prev = pu._safe_get_float(meta, "chartPreviousClose") or pu._safe_get_float(meta, "previousClose")
+            day_pct: Optional[float] = None
+            if price is not None and prev is not None and prev > 0:
+                day_pct = round(((price - prev) / prev) * 100, 4)
+            try:
+                from app.services.api_log_service import log_api_call
+
+                log_api_call(
+                    api_name="yahoo_chart",
+                    endpoint_or_operation=url,
+                    response_status=200,
+                    value_reported={"ticker": t, "price": price, "benchmark_quote": True},
+                    user_id=None,
+                )
+            except Exception:
+                pass
+            return {
+                "regular_market_price": price,
+                "previous_close": prev,
+                "day_change_percent": day_pct,
+            }
+        except Exception:
+            return None
+
     def get_asset_price(self, asset: Asset) -> Tuple[Optional[float], Optional[str]]:
         """
         Obtiene el precio actual de un activo sin guardar en BD.
