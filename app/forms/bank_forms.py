@@ -13,6 +13,7 @@ class BankForm(FlaskForm):
         ('🦁', '🦁 León'),
         ('💳', '💳 Tarjeta'),
         ('💰', '💰 Ahorro'),
+        ('₿', '₿ Bitcoin'),
         ('🪙', '🪙 Monedas'),
         ('📈', '📈 Inversión'),
         ('🌍', '🌍 Internacional'),
