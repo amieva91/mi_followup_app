@@ -11,7 +11,9 @@ Estrategia:
 from __future__ import annotations
 
 import copy
+import logging
 from datetime import date, datetime, time, timezone
+from time import perf_counter
 from typing import Any
 
 from sqlalchemy import func
@@ -21,6 +23,8 @@ from app.models.portfolio_benchmarks_cache import PortfolioBenchmarksCache
 from app.services.metrics.benchmark_comparison import BenchmarkComparisonService, BENCHMARKS
 from app.services.metrics.modified_dietz import ModifiedDietzCalculator
 from app.services.benchmark_global_service import BenchmarkGlobalService
+
+logger = logging.getLogger(__name__)
 
 
 def _utc_iso_z(dt: datetime) -> str:
@@ -548,8 +552,31 @@ class PortfolioBenchmarksCacheService:
     def get_annualized_summary(user_id: int) -> dict[str, Any]:
         """
         Para renderizar la tarjeta superior en /portfolio/index-comparison.
+
+        Camino rápido: caché válida (TTL vía _get_cache_row), sin needs_full_rebuild
+        ni dirty_now, y con annualized_summary ya rellenado → no llama a
+        get_comparison_state (evita TTFB largo en el GET del HTML).
+
+        Camino lento: get_comparison_state y lectura de annualized_summary
+        desde la fila actualizada. Se registra duración para diagnóstico en prod.
         """
-        state = PortfolioBenchmarksCacheService.get_comparison_state(user_id)
+        cache = PortfolioBenchmarksCacheService._get_cache_row(user_id)
+        if cache and cache.cached_data:
+            meta = _meta_defaults((cache.cached_data or {}).get("meta") or {})
+            if not meta.get("needs_full_rebuild") and not meta.get("dirty_now"):
+                ann = cache.cached_data.get("annualized_summary") or {}
+                if ann.get("portfolio_annualized") is not None:
+                    return ann
+
+        t0 = perf_counter()
+        PortfolioBenchmarksCacheService.get_comparison_state(user_id)
+        elapsed = perf_counter() - t0
+        logger.info(
+            "get_annualized_summary slow path user_id=%s elapsed_s=%.2f",
+            user_id,
+            elapsed,
+        )
+
         cache = PortfolioBenchmarksCacheService._get_cache_row(user_id)
         if cache and cache.cached_data:
             return cache.cached_data.get("annualized_summary") or {}
