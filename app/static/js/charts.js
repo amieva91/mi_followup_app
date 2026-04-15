@@ -381,13 +381,15 @@ function createPLChart(ctx, data) {
 /**
  * Actualizar indicador de staleness (Actualizado hace X min)
  */
-function updateStaleness(elementId, cachedAtIso) {
+function updateStaleness(elementId, cachedAtIso, labelPrefix) {
     const el = document.getElementById(elementId);
     if (!el || !cachedAtIso) return;
+    const prefix = labelPrefix || 'Actualizado hace';
     const cachedAt = new Date(cachedAtIso);
     const now = new Date();
     const diffMin = Math.max(0, Math.round((now - cachedAt) / 60000));
-    el.textContent = diffMin === 0 ? 'Actualizado hace menos de 1 min' : `Actualizado hace ${diffMin} min`;
+    const body = diffMin === 0 ? 'menos de 1 min' : `${diffMin} min`;
+    el.textContent = `${prefix} ${body}`;
 }
 
 /** Timer para refrescar texto "Actualizado hace X min" cada minuto */
@@ -398,7 +400,7 @@ function startStalenessTimer() {
             updateStaleness('performanceStaleness', lastEvolutionCachedAt);
         }
         if (lastBenchmarksCachedAt && document.getElementById('benchmarkStaleness')) {
-            updateStaleness('benchmarkStaleness', lastBenchmarksCachedAt);
+            updateStaleness('benchmarkStaleness', lastBenchmarksCachedAt, 'Snapshot servidor: hace');
         }
     }, 60000);
 }
@@ -563,6 +565,8 @@ function createBenchmarkChart(ctx, data) {
         },
         options: {
             ...commonChartOptions,
+            // Tras el spread: primer pintado rápido con muchas series/puntos
+            animation: false,
             plugins: {
                 ...commonChartOptions.plugins,
                 legend: {
@@ -629,12 +633,6 @@ function renderBenchmarkTable(annualData) {
         return;
     }
     
-    console.log('🔍 Renderizando tabla con datos:', {
-        annual_count: annualData.annual?.length || 0,
-        has_total: !!annualData.total,
-        first_year_benchmarks: annualData.annual?.[0]?.benchmarks ? Object.keys(annualData.annual[0].benchmarks) : []
-    });
-    
     tableBody.innerHTML = '';
     
     // Añadir filas anuales
@@ -658,16 +656,6 @@ function renderBenchmarkTable(annualData) {
         for (const benchmarkName of FOLLOWUP_BENCHMARK_ORDER) {
             const benchmarkCell = document.createElement('td');
             benchmarkCell.className = 'px-4 py-3';
-            
-            // Debug para NASDAQ 100
-            if (benchmarkName === 'NASDAQ 100' && yearData.year === 2018) {
-                console.log(`🔍 Verificando ${benchmarkName} para año ${yearData.year}:`, {
-                    has_benchmarks: !!yearData.benchmarks,
-                    benchmark_keys: yearData.benchmarks ? Object.keys(yearData.benchmarks) : [],
-                    nasdaq_in_benchmarks: yearData.benchmarks && benchmarkName in yearData.benchmarks,
-                    nasdaq_value: yearData.benchmarks?.[benchmarkName]
-                });
-            }
             
             if (benchmarkName in yearData.benchmarks) {
                 const benchReturn = yearData.benchmarks[benchmarkName];
@@ -777,7 +765,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (data.meta && data.meta._now_cached_at) {
                 lastBenchmarksCachedAt = data.meta._now_cached_at;
-                updateStaleness('benchmarkStaleness', data.meta._now_cached_at);
+                updateStaleness('benchmarkStaleness', data.meta._now_cached_at, 'Snapshot servidor: hace');
+            }
+            const shown = document.getElementById('benchmarkPageShown');
+            if (shown) {
+                shown.textContent =
+                    'Vista cargada: ' +
+                    new Date().toLocaleString('es-ES', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                    });
             }
             startStalenessTimer();
         } catch (error) {

@@ -129,6 +129,29 @@ class PortfolioBenchmarksCacheService:
         return out
 
     @staticmethod
+    def get_index_comparison_page_bundle(user_id: int) -> dict[str, Any]:
+        """
+        Una sola lectura de `portfolio_benchmarks_cache` para el GET de index-comparison.
+        Evita 3× _get_cache_row y deepcopy del JSON grande (solo lectura → tojson en plantilla).
+        """
+        cache = PortfolioBenchmarksCacheService._get_cache_row(user_id)
+        if not cache or not cache.cached_data:
+            return {
+                "meta": {},
+                "annualized_summary": {},
+                "chart_payload": None,
+            }
+        cached = cache.cached_data or {}
+        meta = _meta_defaults((cached.get("meta") or {}))
+        comp_raw = cached.get("comparison_data") or {}
+        chart_payload = {**comp_raw, "meta": meta}
+        return {
+            "meta": meta,
+            "annualized_summary": (cached.get("annualized_summary") or {}),
+            "chart_payload": chart_payload,
+        }
+
+    @staticmethod
     def touch_for_dates(user_id: int, dates: list[date]) -> None:
         today = datetime.now().date()
         any_past = any(d < today for d in dates if isinstance(d, date))
