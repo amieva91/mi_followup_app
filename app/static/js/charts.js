@@ -15,7 +15,7 @@ function formatEuropeanNumber(value, decimals = 2) {
 const FOLLOWUP_BENCHMARK_ORDER = ['S&P 500', 'NASDAQ 100', 'MSCI World', 'EuroStoxx 50', 'Hang Seng'];
 
 /** Polling de `/portfolio/api/benchmarks` en index-comparison (solo navegador; no es cron servidor). */
-const BENCHMARK_CHART_POLL_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const BENCHMARK_CHART_POLL_INTERVAL_MS = 30000;
 
 // Configuración común de Chart.js
 const commonChartOptions = {

@@ -31,7 +31,17 @@ def dividendos():
 def index_comparison():
     from app.services.metrics.benchmark_comparison import BENCHMARK_DISPLAY_ORDER
     from app.services.portfolio_benchmarks_cache import PortfolioBenchmarksCacheService
-    benchmark_annualized = PortfolioBenchmarksCacheService.get_annualized_summary(current_user.id)
+    # Render rápido: no bloquear el HTML con recomputes. Si el caché está sucio,
+    # encolar rebuild para que el polling del cliente recoja la actualización.
+    from app.services.cache_rebuild_state_service import CacheRebuildStateService
+
+    meta = PortfolioBenchmarksCacheService.get_cached_meta(current_user.id) or {}
+    if meta.get("needs_full_rebuild"):
+        CacheRebuildStateService.mark_full_history(current_user.id)
+    elif meta.get("dirty_now"):
+        CacheRebuildStateService.mark_now(current_user.id)
+
+    benchmark_annualized = PortfolioBenchmarksCacheService.get_cached_annualized_summary(current_user.id)
     return render_template("portfolio/index_comparison.html",
         benchmark_annualized=benchmark_annualized,
         benchmark_order=BENCHMARK_DISPLAY_ORDER)

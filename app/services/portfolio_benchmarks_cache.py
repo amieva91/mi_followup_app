@@ -99,6 +99,36 @@ class PortfolioBenchmarksCacheService:
         return cache
 
     @staticmethod
+    def get_cached_meta(user_id: int) -> dict[str, Any] | None:
+        """Lee meta del caché (si existe y TTL válido) sin disparar recomputes."""
+        cache = PortfolioBenchmarksCacheService._get_cache_row(user_id)
+        if not cache or not cache.cached_data:
+            return None
+        return _meta_defaults((cache.cached_data or {}).get("meta") or {})
+
+    @staticmethod
+    def get_cached_annualized_summary(user_id: int) -> dict[str, Any]:
+        """Devuelve `annualized_summary` del caché si existe (sin recompute)."""
+        cache = PortfolioBenchmarksCacheService._get_cache_row(user_id)
+        if cache and cache.cached_data:
+            return (cache.cached_data or {}).get("annualized_summary") or {}
+        return {}
+
+    @staticmethod
+    def get_cached_comparison_data(user_id: int) -> dict[str, Any] | None:
+        """
+        Devuelve `comparison_data` del caché si existe (sin recompute),
+        incluyendo `meta` (normalizada) en el payload.
+        """
+        cache = PortfolioBenchmarksCacheService._get_cache_row(user_id)
+        if not cache or not cache.cached_data:
+            return None
+        cached = cache.cached_data or {}
+        out = copy.deepcopy(cached.get("comparison_data") or {})
+        out["meta"] = _meta_defaults((cached.get("meta") or {}))
+        return out
+
+    @staticmethod
     def touch_for_dates(user_id: int, dates: list[date]) -> None:
         today = datetime.now().date()
         any_past = any(d < today for d in dates if isinstance(d, date))

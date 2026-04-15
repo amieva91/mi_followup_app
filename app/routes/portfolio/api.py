@@ -32,8 +32,21 @@ def api_evolution():
 def api_benchmarks():
     """API de comparación con benchmarks"""
     from app.services.portfolio_benchmarks_cache import PortfolioBenchmarksCacheService
+    from app.services.cache_rebuild_state_service import CacheRebuildStateService
 
     try:
+        # Responder rápido: servir caché si existe y encolar rebuild si está sucio.
+        meta = PortfolioBenchmarksCacheService.get_cached_meta(current_user.id) or {}
+        if meta.get("needs_full_rebuild"):
+            CacheRebuildStateService.mark_full_history(current_user.id)
+        elif meta.get("dirty_now"):
+            CacheRebuildStateService.mark_now(current_user.id)
+
+        cached = PortfolioBenchmarksCacheService.get_cached_comparison_data(current_user.id)
+        if cached is not None:
+            return jsonify(cached)
+
+        # Primer acceso sin caché: fallback a comportamiento anterior (puede tardar)
         data = PortfolioBenchmarksCacheService.get_comparison_state(current_user.id)
         return jsonify(data)
     except Exception as e:
