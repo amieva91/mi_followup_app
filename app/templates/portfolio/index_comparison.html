@@ -3,6 +3,9 @@
 {% block title %}Index Comparison - Portfolio - FollowUp{% endblock %}
 
 {% block content %}
+{# Index comparison: datos del gráfico/tabla vienen del caché embebido (portfolio_benchmarks_cache).
+   - "Snapshot servidor" = antigüedad de meta._now_cached_at (última escritura de ese snapshot en BD por worker/recompute).
+   - "Vista cargada" = momento en el navegador al ejecutar charts.js; no implica recomputo en esta petición. #}
 <div class="max-w-[92%] mx-auto">
     <!-- Header -->
     <div class="flex justify-between items-center mb-8">
@@ -126,8 +129,8 @@
 </div>
 
 <script>
-  // Datos cacheados para renderizar sin fetch mientras estás en esta pestaña.
-  // Si no existen (primer acceso), charts.js puede mostrar error/placeholder.
+  // Caché servido en este HTML (lectura de portfolio_benchmarks_cache; sin fetch en pestaña).
+  // Vacío si TTL caducó o aún no hay fila: charts.js muestra aviso de refrescar.
   window.__INDEX_COMPARISON_CACHED__ = {{ (benchmark_cached or {}) | tojson }};
 </script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
