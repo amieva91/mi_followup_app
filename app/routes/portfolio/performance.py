@@ -42,8 +42,10 @@ def index_comparison():
         CacheRebuildStateService.mark_now(current_user.id)
 
     benchmark_annualized = PortfolioBenchmarksCacheService.get_cached_annualized_summary(current_user.id)
+    benchmark_cached = PortfolioBenchmarksCacheService.get_cached_comparison_data(current_user.id)
     return render_template("portfolio/index_comparison.html",
         benchmark_annualized=benchmark_annualized,
+        benchmark_cached=benchmark_cached,
         benchmark_order=BENCHMARK_DISPLAY_ORDER)
 
 

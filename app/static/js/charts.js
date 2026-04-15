@@ -758,35 +758,35 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     if (document.getElementById('benchmarkChart')) {
-        // loadBenchmarkData no está parametrizado; lo envolvemos para polling
-        const pollFn = async () => {
-            try {
-                const response = await fetch('/portfolio/api/benchmarks');
-                const data = await response.json();
-                const metaVersion = data?.meta?.version;
-                if (metaVersion != null && metaVersion === lastBenchmarksVersion) return;
-                if (metaVersion != null) lastBenchmarksVersion = metaVersion;
-
-                const ctx = document.getElementById('benchmarkChart').getContext('2d');
-                if (window.benchmarkChart && typeof window.benchmarkChart.destroy === 'function') {
-                    window.benchmarkChart.destroy();
-                }
-                window.benchmarkChart = createBenchmarkChart(ctx, data);
-                renderBenchmarkTable(data.annual_returns);
-
-                if (data.meta && data.meta._now_cached_at) {
-                    lastBenchmarksCachedAt = data.meta._now_cached_at;
-                    updateStaleness('benchmarkStaleness', data.meta._now_cached_at);
-                }
-                startStalenessTimer();
-            } catch (error) {
-                console.error('Error loading benchmark poll data:', error);
+        // Index comparison: NO polling/fetch mientras el usuario está en esta pestaña.
+        // Renderizamos con datos cacheados embebidos en el HTML.
+        try {
+            const data = (window.__INDEX_COMPARISON_CACHED__ || null);
+            if (!data || !data.labels || !data.datasets) {
+                throw new Error('No hay datos cacheados de comparación (INDEX_COMPARISON_CACHED vacío).');
             }
-        };
+            const metaVersion = data?.meta?.version;
+            if (metaVersion != null) lastBenchmarksVersion = metaVersion;
 
-        pollFn();
-        if (!benchmarksPollTimer) {
-            benchmarksPollTimer = setInterval(pollFn, BENCHMARK_CHART_POLL_INTERVAL_MS);
+            const ctx = document.getElementById('benchmarkChart').getContext('2d');
+            if (window.benchmarkChart && typeof window.benchmarkChart.destroy === 'function') {
+                window.benchmarkChart.destroy();
+            }
+            window.benchmarkChart = createBenchmarkChart(ctx, data);
+            renderBenchmarkTable(data.annual_returns);
+
+            if (data.meta && data.meta._now_cached_at) {
+                lastBenchmarksCachedAt = data.meta._now_cached_at;
+                updateStaleness('benchmarkStaleness', data.meta._now_cached_at);
+            }
+            startStalenessTimer();
+        } catch (error) {
+            console.error('Error rendering index-comparison from cached data:', error);
+            const errEl = document.getElementById('benchmarkError');
+            if (errEl) {
+                errEl.classList.remove('hidden');
+                errEl.textContent = 'No hay datos cacheados disponibles todavía. Refresca la página en unos segundos.';
+            }
         }
     }
 });
