@@ -2,6 +2,11 @@
 
 Todos los scripts viven en `scripts/`, son idempotentes (re-ejecutar sustituye la línea marcada) y aceptan `--dev` (FLASK_ENV=development), `--dry-run` y `--remove` donde se documenta en cada uno.
 
+Configuracion recomendada en local:
+- Desarrollo interactivo de la app/web: `FLASK_ENV=development`.
+- Crons locales para reproducir comportamiento de produccion: `FLASK_ENV=production`.
+- Si quieres que los jobs locales se comporten como en el servidor, instala los crons sin `--dev`.
+
 | Script | Frecuencia | Comando Flask | Log |
 |--------|------------|----------------|-----|
 | `install_price_poll_cron.sh` | Cada minuto (`* * * * *`) | `price-poll-one` | `logs/price_poll_cron.log` |
@@ -19,4 +24,7 @@ Todos los scripts viven en `scripts/`, son idempotentes (re-ejecutar sustituye l
 ./scripts/install_cache_rebuild_cron.sh
 ```
 
-Para desarrollo local: añadir `--dev` a cada uno. Comprobar con `crontab -l`.
+Para desarrollo local:
+- Si quieres crons "modo desarrollo", anade `--dev` a cada script.
+- Si quieres crons "como produccion", ejecutalos sin `--dev`.
+- Comprobar el resultado con `crontab -l`.
