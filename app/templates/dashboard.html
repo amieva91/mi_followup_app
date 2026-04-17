@@ -100,19 +100,19 @@
         <div class="flex flex-wrap items-start justify-between gap-6">
             <div>
                 <p class="text-indigo-200 text-sm font-medium uppercase tracking-wide">Patrimonio Neto Total</p>
-                <h1 id="net-worth-value" class="text-4xl md:text-5xl font-bold mt-1">{{ "%.2f"|format(summary.net_worth) }} EUR</h1>
+                <h1 id="net-worth-value" class="text-4xl md:text-5xl font-bold mt-1">{{ "%.2f"|format(summary.net_worth) }} €</h1>
                 <div class="flex items-center gap-4 mt-2 text-sm">
                     {% if summary.changes.month >= 0 %}
-                    <span id="month-change" class="bg-green-500/30 px-2 py-1 rounded">+{{ "%.2f"|format(summary.changes.month) }} EUR Month</span>
+                    <span id="month-change" class="bg-green-500/30 px-2 py-1 rounded">+{{ "%.2f"|format(summary.changes.month) }} € Month</span>
                     {% else %}
-                    <span id="month-change" class="bg-red-500/30 px-2 py-1 rounded">{{ "%.2f"|format(summary.changes.month) }} EUR Month</span>
+                    <span id="month-change" class="bg-red-500/30 px-2 py-1 rounded">{{ "%.2f"|format(summary.changes.month) }} € Month</span>
                     {% endif %}
                     <span id="ytd-change" class="bg-white/20 px-2 py-1 rounded">{{ summary.changes.ytd_pct }}% YTD</span>
                     {% set day_pct = summary.changes.get('day_pct') if summary.changes else none %}
                     {% set day_eur = summary.changes.get('day_eur') if summary.changes else none %}
                     <span id="day-change" class="bg-white/20 px-2 py-1 rounded {% if day_pct is none %}hidden{% endif %}" title="Variación del día (precio actual vs. cierre previo): cuenta de acciones en broker + cripto + metales. No incluye efectivo en bancos ni inmuebles.">
                         {% if day_pct is not none and day_eur is not none %}
-                            {% if day_eur >= 0 %}+{% endif %}{{ day_eur|decimal_eu(2) }} EUR · {% if day_pct >= 0 %}+{% endif %}{{ day_pct|decimal_eu(2) }}% Day
+                            {% if day_eur >= 0 %}+{% endif %}{{ day_eur|decimal_eu(2) }} € · {% if day_pct >= 0 %}+{% endif %}{{ day_pct|decimal_eu(2) }}% Day
                         {% elif day_pct is not none %}
                             {% if day_pct >= 0 %}+{% endif %}{{ day_pct|decimal_eu(2) }}% Day
                         {% endif %}
@@ -1214,7 +1214,7 @@ function applyDashboardUpdate(summary) {
     const ytdEl = document.getElementById('ytd-change');
     const dayEl = document.getElementById('day-change');
     if (netWorthEl && summary.net_worth !== undefined) {
-        const newText = `${summary.net_worth.toFixed(2)} EUR`;
+        const newText = `${summary.net_worth.toFixed(2)} €`;
         const changed = netWorthEl.textContent !== newText;
         netWorthEl.textContent = newText;
         if (changed) {
@@ -1225,7 +1225,7 @@ function applyDashboardUpdate(summary) {
     if (monthChangeEl && summary.changes) {
         const m = summary.changes.month || 0;
         const positive = m >= 0;
-        monthChangeEl.textContent = `${positive ? '+' : ''}${m.toFixed(2)} EUR Month`;
+        monthChangeEl.textContent = `${positive ? '+' : ''}${m.toFixed(2)} € Month`;
         monthChangeEl.classList.toggle('bg-green-500/30', positive);
         monthChangeEl.classList.toggle('bg-red-500/30', !positive);
     }
@@ -1240,7 +1240,7 @@ function applyDashboardUpdate(summary) {
             dayEl.classList.remove('hidden');
             dayEl.title = DAY_CHANGE_TOOLTIP;
             if (typeof e === 'number') {
-                dayEl.textContent = `${e >= 0 ? '+' : ''}${e.toFixed(2)} EUR · ${d >= 0 ? '+' : ''}${d.toFixed(2)}% Day`;
+                dayEl.textContent = `${e >= 0 ? '+' : ''}${e.toFixed(2)} € · ${d >= 0 ? '+' : ''}${d.toFixed(2)}% Day`;
             } else {
                 dayEl.textContent = `${d >= 0 ? '+' : ''}${d.toFixed(2)}% Day`;
             }
