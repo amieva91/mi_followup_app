@@ -110,7 +110,7 @@
                     <span id="ytd-change" class="bg-white/20 px-2 py-1 rounded">{{ summary.changes.ytd_pct }}% YTD</span>
                     {% set day_pct = summary.changes.get('day_pct') if summary.changes else none %}
                     {% set day_eur = summary.changes.get('day_eur') if summary.changes else none %}
-                    <span id="day-change" class="bg-white/20 px-2 py-1 rounded {% if day_pct is none %}hidden{% endif %}">
+                    <span id="day-change" class="bg-white/20 px-2 py-1 rounded {% if day_pct is none %}hidden{% endif %}" title="Variación del día (precio actual vs. cierre previo): cuenta de acciones en broker + cripto + metales. No incluye efectivo en bancos ni inmuebles.">
                         {% if day_pct is not none and day_eur is not none %}
                             {% if day_eur >= 0 %}+{% endif %}{{ day_eur|decimal_eu(2) }} EUR · {% if day_pct >= 0 %}+{% endif %}{{ day_pct|decimal_eu(2) }}% Day
                         {% elif day_pct is not none %}
@@ -1203,6 +1203,8 @@ function updateDashboardStaleness(cachedAtIso) {
         : `Actualizado hace ${diffMin} min`;
 }
 
+const DAY_CHANGE_TOOLTIP = 'Variación del día (precio actual vs. cierre previo): cuenta de acciones en broker + cripto + metales. No incluye efectivo en bancos ni inmuebles.';
+
 function applyDashboardUpdate(summary) {
     if (!summary) return;
 
@@ -1236,6 +1238,7 @@ function applyDashboardUpdate(summary) {
         const e = summary.changes.day_eur;
         if (typeof d === 'number') {
             dayEl.classList.remove('hidden');
+            dayEl.title = DAY_CHANGE_TOOLTIP;
             if (typeof e === 'number') {
                 dayEl.textContent = `${e >= 0 ? '+' : ''}${e.toFixed(2)} EUR · ${d >= 0 ? '+' : ''}${d.toFixed(2)}% Day`;
             } else {
@@ -1245,6 +1248,7 @@ function applyDashboardUpdate(summary) {
             dayEl.classList.toggle('text-red-100', d < 0);
         } else {
             dayEl.classList.add('hidden');
+            dayEl.removeAttribute('title');
         }
     }
 

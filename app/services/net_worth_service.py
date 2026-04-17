@@ -500,43 +500,21 @@ def _has_active_holdings(user_id: int, asset_types: List[str]) -> bool:
     )
 
 
-def _prev_close_ok_for_types(user_id: int, asset_types: List[str]) -> bool:
-    """
-    True si, para holdings actuales de esos tipos, existe previous_close en sus assets.
-    """
-    q = (
-        Asset.query.join(PortfolioHolding, PortfolioHolding.asset_id == Asset.id)
-        .filter(
-            PortfolioHolding.user_id == user_id,
-            PortfolioHolding.quantity > 0,
-            Asset.asset_type.in_(asset_types),
-        )
-    )
-    return q.filter(Asset.previous_close.is_(None)).first() is None
-
-
 def get_investments_day_change(user_id: int) -> Optional[Tuple[float, float]]:
     """
-    Variación diaria agregada de inversiones (misma base que el % DAY):
-      broker total real (apalancamiento) + crypto + metales, en EUR.
-    Devuelve (day_pct, day_eur_delta) o None si no aplica.
+    Variación diaria agregada (misma base para % y EUR):
+      - Cuenta de acciones en broker: total_value (cash + posiciones a mercado, con apalancamiento).
+      - Cripto y metales: valor de holdings.
+    Para cada activo, el “cierre previo” usa previous_close si existe; si no, se usa el mismo
+    precio que en la pata “ahora” y ese activo no aporta al cambio del día (no se descarta
+    toda la categoría por un solo símbolo sin cierre).
 
-    day_eur_delta = valor a precio actual − valor a cierre previo (misma selección de buckets).
+    day_eur = (suma valor ahora) − (suma valor a cierre previo) en esos tres bloques.
     """
     include_stocks = _user_has_module(user_id, "stock") and _has_active_holdings(user_id, ["Stock", "ETF", "ADR"])
     include_crypto = _user_has_module(user_id, "crypto") and _has_active_holdings(user_id, ["Crypto"])
     include_metales = _user_has_module(user_id, "metales") and _has_active_holdings(user_id, ["Commodity"])
 
-    if not (include_stocks or include_crypto or include_metales):
-        return None
-
-    # Si falta previous_close en una categoría, se excluye esa categoría del cálculo.
-    if include_stocks and not _prev_close_ok_for_types(user_id, ["Stock", "ETF", "ADR"]):
-        include_stocks = False
-    if include_crypto and not _prev_close_ok_for_types(user_id, ["Crypto"]):
-        include_crypto = False
-    if include_metales and not _prev_close_ok_for_types(user_id, ["Commodity"]):
-        include_metales = False
     if not (include_stocks or include_crypto or include_metales):
         return None
 
