@@ -500,20 +500,133 @@ def _has_active_holdings(user_id: int, asset_types: List[str]) -> bool:
     )
 
 
+def _float_or(value, default: float = 0.0) -> float:
+    try:
+        if value is None:
+            return default
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _price_for_previous_close(asset: Asset, current_px: float) -> float:
+    """previous_close del activo si existe; si no, current (sin contribución al cambio del día)."""
+    pc = getattr(asset, "previous_close", None)
+    if pc is None:
+        return current_px
+    v = _float_or(pc, current_px)
+    return current_px if v <= 0 else v
+
+
+def _broker_equity_now_prev_from_holdings(user_id: int, when: datetime) -> Tuple[float, float]:
+    """
+    Equity del broker hoy: mismo cash_balance (FIFO/transacciones) que el resto del patrimonio,
+    pero valor de posiciones desde PortfolioHolding y precios actual / cierre previo.
+    Evita deltas diarios irreales cuando FIFO y holdings visibles no coinciden.
+    """
+    snap = _get_broker_value_at_date(
+        user_id, when, use_current_prices=True, price_source="current"
+    )
+    cash = _float_or(snap.get("cash_balance"), 0.0)
+
+    holdings_now = 0.0
+    holdings_prev = 0.0
+    rows = (
+        PortfolioHolding.query.filter_by(user_id=user_id)
+        .filter(PortfolioHolding.quantity > 0)
+        .join(Asset)
+        .filter(Asset.asset_type.in_(["Stock", "ETF", "ADR"]))
+        .all()
+    )
+    for h in rows:
+        asset = h.asset
+        if not asset:
+            continue
+        qty = _float_or(h.quantity, 0.0)
+        if qty <= 0:
+            continue
+        cur_px = h.current_price if h.current_price is not None else asset.current_price
+        cur_px = _float_or(cur_px, 0.0)
+        prev_px = _price_for_previous_close(asset, cur_px)
+        currency = asset.currency or "EUR"
+        holdings_now += convert_to_eur(qty * cur_px, currency)
+        holdings_prev += convert_to_eur(qty * prev_px, currency)
+
+    return cash + holdings_now, cash + holdings_prev
+
+
+def _crypto_bucket_now_prev_from_holdings(user_id: int) -> Tuple[float, float]:
+    now_v = 0.0
+    prev_v = 0.0
+    rows = (
+        PortfolioHolding.query.filter_by(user_id=user_id)
+        .filter(PortfolioHolding.quantity > 0)
+        .join(Asset)
+        .filter(Asset.asset_type == "Crypto")
+        .all()
+    )
+    for h in rows:
+        asset = h.asset
+        if not asset:
+            continue
+        qty = _float_or(h.quantity, 0.0)
+        if qty <= 0:
+            continue
+        cur_px = _float_or(h.current_price or asset.current_price, 0.0)
+        prev_px = _price_for_previous_close(asset, cur_px)
+        currency = asset.currency or "EUR"
+        now_v += convert_to_eur(qty * cur_px, currency)
+        prev_v += convert_to_eur(qty * prev_px, currency)
+    return now_v, prev_v
+
+
+def _metales_bucket_now_prev_from_holdings(user_id: int) -> Tuple[float, float]:
+    """Cantidades en gramos; precios Yahoo en USD/oz troy (igual que metales_metrics)."""
+    oz_troy_to_g = 31.1035
+    now_v = 0.0
+    prev_v = 0.0
+    rows = (
+        PortfolioHolding.query.filter_by(user_id=user_id)
+        .filter(PortfolioHolding.quantity > 0)
+        .join(Asset)
+        .filter(Asset.asset_type == "Commodity")
+        .all()
+    )
+    for h in rows:
+        asset = h.asset
+        if not asset:
+            continue
+        qty_g = _float_or(h.quantity, 0.0)
+        if qty_g <= 0:
+            continue
+        px_usd_now = _float_or(h.current_price or asset.current_price, 0.0)
+        px_usd_prev = _price_for_previous_close(asset, px_usd_now)
+        oz = qty_g / oz_troy_to_g
+        now_v += convert_to_eur(oz * px_usd_now, "USD")
+        prev_v += convert_to_eur(oz * px_usd_prev, "USD")
+    return now_v, prev_v
+
+
 def get_investments_day_change(user_id: int) -> Optional[Tuple[float, float]]:
     """
     Variación diaria agregada (misma base para % y EUR):
-      - Cuenta de acciones en broker: total_value (cash + posiciones a mercado, con apalancamiento).
-      - Cripto y metales: valor de holdings.
-    Para cada activo, el “cierre previo” usa previous_close si existe; si no, se usa el mismo
-    precio que en la pata “ahora” y ese activo no aporta al cambio del día (no se descarta
-    toda la categoría por un solo símbolo sin cierre).
+      - Cuenta de acciones: cash del broker (FIFO, apalancamiento) + valor en EUR de
+        Stock/ETF/ADR según PortfolioHolding (precio actual vs previous_close).
+      - Cripto y metales: mismas reglas sobre PortfolioHolding (alineado con lo que ves en módulos).
+
+    Si falta previous_close en un activo, se usa el precio actual en ambas patas (0 de cambio ese día).
 
     day_eur = (suma valor ahora) − (suma valor a cierre previo) en esos tres bloques.
     """
-    include_stocks = _user_has_module(user_id, "stock") and _has_active_holdings(user_id, ["Stock", "ETF", "ADR"])
-    include_crypto = _user_has_module(user_id, "crypto") and _has_active_holdings(user_id, ["Crypto"])
-    include_metales = _user_has_module(user_id, "metales") and _has_active_holdings(user_id, ["Commodity"])
+    include_stocks = _user_has_module(user_id, "stock") and _has_active_holdings(
+        user_id, ["Stock", "ETF", "ADR"]
+    )
+    include_crypto = _user_has_module(user_id, "crypto") and _has_active_holdings(
+        user_id, ["Crypto"]
+    )
+    include_metales = _user_has_module(user_id, "metales") and _has_active_holdings(
+        user_id, ["Commodity"]
+    )
 
     if not (include_stocks or include_crypto or include_metales):
         return None
@@ -524,22 +637,19 @@ def get_investments_day_change(user_id: int) -> Optional[Tuple[float, float]]:
     invest_prev = 0.0
 
     if include_stocks:
-        broker_now = _get_broker_value_at_date(user_id, now, use_current_prices=True, price_source="current")["total_value"]
-        broker_prev = _get_broker_value_at_date(user_id, now, use_current_prices=True, price_source="previous_close")["total_value"]
-        invest_now += float(broker_now)
-        invest_prev += float(broker_prev)
+        broker_now, broker_prev = _broker_equity_now_prev_from_holdings(user_id, now)
+        invest_now += broker_now
+        invest_prev += broker_prev
 
     if include_crypto:
-        crypto_now = _get_holdings_value_at_date(user_id, now, ["Crypto"], use_current_prices=True, price_source="current")
-        crypto_prev = _get_holdings_value_at_date(user_id, now, ["Crypto"], use_current_prices=True, price_source="previous_close")
-        invest_now += float(crypto_now)
-        invest_prev += float(crypto_prev)
+        crypto_now, crypto_prev = _crypto_bucket_now_prev_from_holdings(user_id)
+        invest_now += crypto_now
+        invest_prev += crypto_prev
 
     if include_metales:
-        metales_now = _get_holdings_value_at_date(user_id, now, ["Commodity"], use_current_prices=True, price_source="current")
-        metales_prev = _get_holdings_value_at_date(user_id, now, ["Commodity"], use_current_prices=True, price_source="previous_close")
-        invest_now += float(metales_now)
-        invest_prev += float(metales_prev)
+        metales_now, metales_prev = _metales_bucket_now_prev_from_holdings(user_id)
+        invest_now += metales_now
+        invest_prev += metales_prev
 
     if invest_prev <= 0:
         return None
