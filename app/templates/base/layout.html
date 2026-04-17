@@ -75,8 +75,10 @@
                             <a href="{{ url_for('main.dashboard') }}" class="hover:text-blue-200 transition">
                                 🏠 Dashboard
                             </a>
-
                             {% if current_user|user_has_module('finance') %}
+                            <a href="{{ url_for('spending_plan.index') }}" class="hover:text-blue-200 transition">
+                                📅 Planificación
+                            </a>
                             <!-- Dropdown Gastos -->
                             <div class="relative inline-block" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false" @click.away="open = false">
                                 <button type="button" @click="open = !open" class="hover:text-blue-200 transition flex items-center space-x-1 py-2">

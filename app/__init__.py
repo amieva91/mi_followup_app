@@ -142,6 +142,7 @@ def create_app(config_name='default'):
     from app.routes.metales import metales_bp
     from app.routes.real_estate import real_estate_bp
     from app.routes.admin_routes import admin_bp
+    from app.routes.spending_plan import spending_plan_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(auth_bp)
@@ -153,6 +154,7 @@ def create_app(config_name='default'):
     app.register_blueprint(crypto_bp)
     app.register_blueprint(metales_bp)
     app.register_blueprint(real_estate_bp)
+    app.register_blueprint(spending_plan_bp)
     app.register_blueprint(admin_bp)
 
     # Log de cada petición al archivo (visible en Admin → Sistema → Logs de la aplicación)
