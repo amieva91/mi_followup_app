@@ -12,6 +12,7 @@ from sqlalchemy.exc import OperationalError
 from app import db
 from app.models.portfolio import PortfolioHolding
 from app.models.asset import Asset
+from app.models.user import User
 from app.services.bank_service import BankService
 from app.services.crypto_metrics import compute_crypto_metrics
 from app.services.metales_metrics import compute_metales_metrics
@@ -262,7 +263,12 @@ def get_net_worth_history(user_id: int, months: int = 12) -> List[Dict[str, Any]
     return history
 
 
-def _get_broker_value_at_date(user_id: int, target_date, use_current_prices: bool = False) -> Dict[str, float]:
+def _get_broker_value_at_date(
+    user_id: int,
+    target_date,
+    use_current_prices: bool = False,
+    price_source: str = "current",
+) -> Dict[str, float]:
     """
     Calcula el valor real del broker (solo acciones: Stock, ETF, ADR) en una fecha.
     Considera el apalancamiento (cash_balance puede ser negativo).
@@ -352,8 +358,11 @@ def _get_broker_value_at_date(user_id: int, target_date, use_current_prices: boo
         if current_quantity <= 0:
             continue
         
-        if use_current_prices and is_today and asset.current_price:
-            price = asset.current_price
+        if use_current_prices and is_today:
+            if price_source == "previous_close" and asset.previous_close:
+                price = asset.previous_close
+            else:
+                price = asset.current_price or position['average_buy_price']
         else:
             price = position['average_buy_price']
         
@@ -371,7 +380,13 @@ def _get_broker_value_at_date(user_id: int, target_date, use_current_prices: boo
     }
 
 
-def _get_holdings_value_at_date(user_id: int, target_date, asset_types: List[str], use_current_prices: bool = False) -> float:
+def _get_holdings_value_at_date(
+    user_id: int,
+    target_date,
+    asset_types: List[str],
+    use_current_prices: bool = False,
+    price_source: str = "current",
+) -> float:
     """
     Calcula el valor directo de holdings de ciertos tipos de asset.
     NO considera apalancamiento - valor directo de las posiciones.
@@ -432,8 +447,11 @@ def _get_holdings_value_at_date(user_id: int, target_date, asset_types: List[str
         if current_quantity <= 0:
             continue
         
-        if use_current_prices and is_today and asset.current_price:
-            price = asset.current_price
+        if use_current_prices and is_today:
+            if price_source == "previous_close" and asset.previous_close:
+                price = asset.previous_close
+            else:
+                price = asset.current_price
             if asset.asset_type == 'Commodity':
                 oz_from_g = current_quantity / OZ_TROY_TO_G
                 value_local = oz_from_g * price
@@ -452,6 +470,102 @@ def _get_holdings_value_at_date(user_id: int, target_date, asset_types: List[str
         total_value += value_eur
     
     return total_value
+
+
+def _user_has_module(user_id: int, key: str) -> bool:
+    """
+    Back-end equivalente al filtro user_has_module.
+    Si enabled_modules es None, consideramos todos activos.
+    """
+    u = User.query.get(user_id)
+    if not u:
+        return True
+    return u.has_module(key)
+
+
+def _has_active_holdings(user_id: int, asset_types: List[str]) -> bool:
+    """
+    True si hay holdings abiertos (quantity > 0) para alguno de los asset_types.
+    """
+    return (
+        db.session.query(PortfolioHolding.id)
+        .join(Asset, PortfolioHolding.asset_id == Asset.id)
+        .filter(
+            PortfolioHolding.user_id == user_id,
+            PortfolioHolding.quantity > 0,
+            Asset.asset_type.in_(asset_types),
+        )
+        .first()
+        is not None
+    )
+
+
+def _investments_prev_close_ok(user_id: int) -> bool:
+    """
+    Verifica que, para holdings actuales de inversión (Stock/ETF/ADR, Crypto, Commodity),
+    exista previous_close en sus assets. Si falta, no calculamos DAY%.
+    """
+    q = (
+        Asset.query.join(PortfolioHolding, PortfolioHolding.asset_id == Asset.id)
+        .filter(
+            PortfolioHolding.user_id == user_id,
+            PortfolioHolding.quantity > 0,
+            Asset.asset_type.in_(["Stock", "ETF", "ADR", "Crypto", "Commodity"]),
+        )
+    )
+    missing = q.filter(Asset.previous_close.is_(None)).first()
+    return missing is None
+
+
+def get_investments_day_change_pct(user_id: int) -> Optional[float]:
+    """
+    DAY % para inversiones reales del usuario:
+      broker total real (con apalancamiento) + crypto + metales
+    Excluye cash y real estate.
+
+    Solo aparece si:
+      - el módulo correspondiente está habilitado
+      - y hay holdings activos en al menos uno (stock/crypto/metales)
+      - y hay previous_close disponible para los holdings implicados
+    """
+    include_stocks = _user_has_module(user_id, "stock") and _has_active_holdings(user_id, ["Stock", "ETF", "ADR"])
+    include_crypto = _user_has_module(user_id, "crypto") and _has_active_holdings(user_id, ["Crypto"])
+    include_metales = _user_has_module(user_id, "metales") and _has_active_holdings(user_id, ["Commodity"])
+
+    if not (include_stocks or include_crypto or include_metales):
+        return None
+
+    if not _investments_prev_close_ok(user_id):
+        return None
+
+    now = datetime.now()
+
+    invest_now = 0.0
+    invest_prev = 0.0
+
+    if include_stocks:
+        broker_now = _get_broker_value_at_date(user_id, now, use_current_prices=True, price_source="current")["total_value"]
+        broker_prev = _get_broker_value_at_date(user_id, now, use_current_prices=True, price_source="previous_close")["total_value"]
+        invest_now += float(broker_now)
+        invest_prev += float(broker_prev)
+
+    if include_crypto:
+        crypto_now = _get_holdings_value_at_date(user_id, now, ["Crypto"], use_current_prices=True, price_source="current")
+        crypto_prev = _get_holdings_value_at_date(user_id, now, ["Crypto"], use_current_prices=True, price_source="previous_close")
+        invest_now += float(crypto_now)
+        invest_prev += float(crypto_prev)
+
+    if include_metales:
+        metales_now = _get_holdings_value_at_date(user_id, now, ["Commodity"], use_current_prices=True, price_source="current")
+        metales_prev = _get_holdings_value_at_date(user_id, now, ["Commodity"], use_current_prices=True, price_source="previous_close")
+        invest_now += float(metales_now)
+        invest_prev += float(metales_prev)
+
+    if invest_prev <= 0:
+        return None
+
+    day_pct = (invest_now - invest_prev) / invest_prev * 100.0
+    return round(day_pct, 2)
 
 
 def _get_holdings_breakdown_at_date(user_id: int, target_date, use_current_prices: bool = False) -> Dict[str, float]:
@@ -1636,6 +1750,11 @@ def get_dashboard_summary(user_id: int) -> Dict[str, Any]:
     health_score = get_financial_health_score(user_id)
 
     current_block = _build_dashboard_current_from_history(breakdown, history)
+    # DAY % inversiones (broker real + crypto + metales). Puede ser None.
+    try:
+        current_block["changes"]["day_pct"] = get_investments_day_change_pct(user_id)
+    except Exception:
+        current_block["changes"]["day_pct"] = None
     top_movers = get_top_movers_for_user(user_id, limit=5)
     from app.services.portfolio_benchmarks_cache import get_market_indices_snapshot
 

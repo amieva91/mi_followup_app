@@ -279,6 +279,14 @@ class DashboardSummaryCacheService:
         data["market_indices"] = get_market_indices_snapshot(user_id)
         data["commodities"] = nws.get_commodities_snapshot(user_id)
 
+        # DAY % inversiones (NOW)
+        try:
+            if isinstance(data.get("changes"), dict):
+                data["changes"]["day_pct"] = nws.get_investments_day_change_pct(user_id)
+        except Exception:
+            if isinstance(data.get("changes"), dict):
+                data["changes"]["day_pct"] = None
+
         # Solo actualizar el ÚLTIMO punto del histórico (mes actual / “ahora”) con el breakdown
         # recién calculado; el resto de meses permanece congelado (HIST).
         last = copy.deepcopy(history[-1])
