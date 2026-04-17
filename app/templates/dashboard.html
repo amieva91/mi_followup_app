@@ -86,9 +86,10 @@
                     <span id="month-change" class="bg-red-500/30 px-2 py-1 rounded">{{ "%.2f"|format(summary.changes.month) }} EUR mes</span>
                     {% endif %}
                     <span id="ytd-change" class="bg-white/20 px-2 py-1 rounded">{{ summary.changes.ytd_pct }}% YTD</span>
-                    {% if summary.changes.day_pct is not none %}
+                    {% set day_pct = summary.changes.get('day_pct') if summary.changes else none %}
+                    {% if day_pct is not none %}
                     <span id="day-change" class="bg-white/20 px-2 py-1 rounded">
-                        {% if summary.changes.day_pct >= 0 %}+{% endif %}{{ summary.changes.day_pct|decimal_eu(2) }}% DAY
+                        {% if day_pct >= 0 %}+{% endif %}{{ day_pct|decimal_eu(2) }}% DAY
                     </span>
                     {% endif %}
                 </div>
