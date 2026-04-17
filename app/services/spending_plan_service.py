@@ -3,15 +3,20 @@ Proyección de planificación de gastos: ingreso medio, gastos fijos por categor
 """
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import date
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple
 
 from dateutil.relativedelta import relativedelta
 
 from app import db
 from app.models import ExpenseCategory
-from app.models.spending_plan import SpendingPlanFixedCategory, SpendingPlanSettings
+from app.models.spending_plan import (
+    SpendingPlanFixedCategory,
+    SpendingPlanGoal,
+    SpendingPlanSettings,
+)
 from app.services.bank_service import BankService
 from app.services.income_expense_aggregator import (
     get_expense_category_summary_with_adjustment,
@@ -114,22 +119,90 @@ class MonthProjection:
     month_index: int
     income: float
     fixed_expenses: float
+    goals_monthly: float
     surplus: float
     ending_cash: float
     max_debt_payment: float
     dsr_margin: float
 
 
+def _months_to_spread(today: date, target: Optional[date], horizon_months: int) -> int:
+    """Meses para repartir el coste del objetivo (mínimo 1)."""
+    if target is None:
+        return max(1, int(horizon_months))
+    if target <= today:
+        return 1
+    m = (target.year - today.year) * 12 + (target.month - today.month)
+    return max(1, m)
+
+
+def goal_monthly_amount(goal: SpendingPlanGoal, today: date, horizon_months: int) -> Tuple[float, float]:
+    """
+    (cuota mensual que sale del efectivo, cuota que consume cupo DSR).
+    Hipoteca: si extra_json trae monthly_payment, se usa; si no, amount_total/meses.
+    """
+    months = _months_to_spread(today, goal.target_date, horizon_months)
+    if goal.goal_type == "mortgage" and goal.extra_json:
+        try:
+            data = json.loads(goal.extra_json)
+            mp = data.get("monthly_payment")
+            if mp is not None and float(mp) > 0:
+                v = round(float(mp), 2)
+                return v, v
+        except (json.JSONDecodeError, TypeError, ValueError):
+            pass
+    base = round(goal.amount_total / months, 2) if months > 0 else float(goal.amount_total or 0)
+    if goal.goal_type == "mortgage":
+        return base, base
+    return base, 0.0
+
+
+def sum_goal_monthlies(
+    user_id: int, horizon_months: int
+) -> Tuple[float, float, List[dict]]:
+    """
+    Suma de cuotas mensuales (efectivo total, subconjunto DSR/hipoteca) y detalle por objetivo.
+    """
+    goals = (
+        SpendingPlanGoal.query.filter_by(user_id=user_id)
+        .order_by(SpendingPlanGoal.priority.asc(), SpendingPlanGoal.id.asc())
+        .all()
+    )
+    today = date.today()
+    cash_tot = 0.0
+    dsr_tot = 0.0
+    lines: List[dict] = []
+    for g in goals:
+        c, d = goal_monthly_amount(g, today, horizon_months)
+        cash_tot += c
+        dsr_tot += d
+        lines.append(
+            {
+                "id": g.id,
+                "title": g.title,
+                "priority": g.priority,
+                "goal_type": g.goal_type,
+                "amount_total": g.amount_total,
+                "target_date": g.target_date.isoformat() if g.target_date else None,
+                "monthly_cash": c,
+                "monthly_dsr": d,
+            }
+        )
+    return round(cash_tot, 2), round(dsr_tot, 2), lines
+
+
 def build_monthly_projection(
     income_avg: float,
     fixed_monthly: float,
+    goals_cash_monthly: float,
+    mortgage_dsr_monthly: float,
     starting_cash: float,
     max_dsr_percent: float,
     horizon_months: int = 12,
 ) -> List[MonthProjection]:
     """
-    Proyección mes a mes: saldo acumulado y margen bajo DSR (sin cuotas hipotecarias aún).
-    max_debt_payment = income * (max_dsr/100); dsr_margin = eso menos cuotas futuras (0 por ahora).
+    goals_cash_monthly: compromiso mensual de todos los objetivos (incluye cuota hipoteca en efectivo).
+    mortgage_dsr_monthly: parte que consume el cupo DSR (típico: cuota préstamo).
     """
     out: List[MonthProjection] = []
     max_pay = round(income_avg * (max_dsr_percent / 100.0), 2) if income_avg > 0 else 0.0
@@ -139,16 +212,16 @@ def build_monthly_projection(
     for i in range(horizon_months):
         d = today + relativedelta(months=i)
         label = d.strftime("%b %Y")
-        surplus = round(income_avg - fixed_monthly, 2)
+        surplus = round(income_avg - fixed_monthly - goals_cash_monthly, 2)
         cash = round(cash + surplus, 2)
-        # Sin cuotas de objetivos aún: todo el cupo disponible
-        margin = round(max_pay - 0.0, 2)
+        margin = round(max_pay - mortgage_dsr_monthly, 2)
         out.append(
             MonthProjection(
                 month_label=label,
                 month_index=i + 1,
                 income=income_avg,
                 fixed_expenses=fixed_monthly,
+                goals_monthly=goals_cash_monthly,
                 surplus=surplus,
                 ending_cash=cash,
                 max_debt_payment=max_pay,
@@ -165,9 +238,12 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
     income_avg = get_avg_monthly_income(user_id, 12)
     fixed_total, fixed_lines = compute_fixed_expenses_monthly(user_id, fixed_ids)
     cash0 = get_current_bank_cash(user_id)
+    goals_cash, goals_dsr, goal_lines = sum_goal_monthlies(user_id, settings.horizon_months)
     months = build_monthly_projection(
         income_avg,
         fixed_total,
+        goals_cash,
+        goals_dsr,
         cash0,
         settings.max_dsr_percent,
         settings.horizon_months,
@@ -185,9 +261,54 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
         "fixed_total": fixed_total,
         "fixed_lines": fixed_lines,
         "starting_cash": cash0,
+        "goals_total_monthly": goals_cash,
+        "goals_dsr_monthly": goals_dsr,
+        "goal_lines": goal_lines,
         "months": months,
         "category_options": cat_options,
     }
+
+
+def add_goal(
+    user_id: int,
+    title: str,
+    amount_total: float,
+    priority: int,
+    target_date: Optional[date],
+    goal_type: str = "generic",
+) -> SpendingPlanGoal:
+    title = (title or "").strip()
+    if not title:
+        raise ValueError("El nombre del objetivo es obligatorio.")
+    amt = float(amount_total)
+    if amt <= 0:
+        raise ValueError("El importe debe ser mayor que cero.")
+    pr = int(priority)
+    if pr < 1 or pr > 5:
+        raise ValueError("La prioridad debe estar entre 1 y 5 (1 = más alta).")
+    gt = (goal_type or "generic").strip().lower()
+    if gt not in ("generic", "mortgage"):
+        gt = "generic"
+    g = SpendingPlanGoal(
+        user_id=user_id,
+        title=title[:200],
+        goal_type=gt,
+        priority=pr,
+        amount_total=amt,
+        target_date=target_date,
+    )
+    db.session.add(g)
+    db.session.commit()
+    return g
+
+
+def delete_goal(user_id: int, goal_id: int) -> bool:
+    g = SpendingPlanGoal.query.filter_by(id=goal_id, user_id=user_id).first()
+    if not g:
+        return False
+    db.session.delete(g)
+    db.session.commit()
+    return True
 
 
 def update_settings(user_id: int, max_dsr_percent: float, horizon_months: int = 12) -> SpendingPlanSettings:

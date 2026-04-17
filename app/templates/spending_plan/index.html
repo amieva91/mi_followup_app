@@ -5,12 +5,12 @@
     <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
             <h1 class="text-2xl font-bold text-gray-900">Planificación de gastos</h1>
-            <p class="text-sm text-gray-500 mt-1">Proyección a {{ settings.horizon_months }} meses con ingreso medio y gastos fijos por categoría.</p>
+            <p class="text-sm text-gray-500 mt-1">Proyección a {{ settings.horizon_months }} meses con ingreso medio, gastos fijos y objetivos planificados.</p>
         </div>
         <a href="{{ url_for('main.dashboard') }}" class="text-indigo-600 hover:underline text-sm">← Dashboard</a>
     </div>
 
-    <form method="post" class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-8">
+    <form method="post" action="{{ url_for('spending_plan.index') }}" class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-8">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
@@ -49,7 +49,91 @@
         </div>
     </form>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
+    <!-- Objetivos -->
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-8">
+        <h2 class="text-lg font-bold text-gray-900 mb-4">Objetivos planificados</h2>
+        <p class="text-sm text-gray-600 mb-4">
+            Prioridad <strong>1</strong> = se atiende antes. La cuota mensual se reparte entre hoy y la fecha objetivo (si no hay fecha, se usa el horizonte de meses de arriba).
+            Tipo <strong>Hipoteca</strong>: la cuota cuenta también para el margen DSR (cuando indiques cuota en la simulación avanzada, se usará <code class="text-xs bg-gray-100 px-1 rounded">extra_json</code>).
+        </p>
+
+        <form method="post" action="{{ url_for('spending_plan.add_goal') }}" class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end mb-6 pb-6 border-b border-gray-100">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <div class="md:col-span-4">
+                <label class="block text-xs font-medium text-gray-600 mb-1">Nombre</label>
+                <input type="text" name="title" required maxlength="200" placeholder="Ej. Ordenador, reforma…"
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
+            </div>
+            <div class="md:col-span-2">
+                <label class="block text-xs font-medium text-gray-600 mb-1">Importe total (€)</label>
+                <input type="number" name="amount_total" required min="0.01" step="0.01"
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
+            </div>
+            <div class="md:col-span-2">
+                <label class="block text-xs font-medium text-gray-600 mb-1">Prioridad (1–5)</label>
+                <input type="number" name="priority" min="1" max="5" value="3"
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
+            </div>
+            <div class="md:col-span-2">
+                <label class="block text-xs font-medium text-gray-600 mb-1">Objetivo (fecha)</label>
+                <input type="date" name="target_date"
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
+            </div>
+            <div class="md:col-span-2">
+                <label class="block text-xs font-medium text-gray-600 mb-1">Tipo</label>
+                <select name="goal_type" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900">
+                    <option value="generic">Genérico (ahorro / compra)</option>
+                    <option value="mortgage">Hipoteca / cuota préstamo</option>
+                </select>
+            </div>
+            <div class="md:col-span-12 md:text-right">
+                <button type="submit" class="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 text-sm font-medium">
+                    Añadir objetivo
+                </button>
+            </div>
+        </form>
+
+        {% if goal_lines %}
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead>
+                    <tr class="text-left text-gray-600 border-b border-gray-200">
+                        <th class="py-2 pr-4">Prior.</th>
+                        <th class="py-2 pr-4">Nombre</th>
+                        <th class="py-2 pr-4">Tipo</th>
+                        <th class="py-2 pr-4 text-right">Total</th>
+                        <th class="py-2 pr-4 text-right">€/mes (efectivo)</th>
+                        <th class="py-2 pr-4 text-right">€/mes (DSR)</th>
+                        <th class="py-2"></th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {% for g in goal_lines %}
+                    <tr>
+                        <td class="py-2 pr-4 font-medium">{{ g.priority }}</td>
+                        <td class="py-2 pr-4">{{ g.title }}</td>
+                        <td class="py-2 pr-4 text-gray-600">{{ g.goal_type }}</td>
+                        <td class="py-2 pr-4 text-right tabular-nums">{{ "%.2f"|format(g.amount_total) }}</td>
+                        <td class="py-2 pr-4 text-right tabular-nums">{{ "%.2f"|format(g.monthly_cash) }}</td>
+                        <td class="py-2 pr-4 text-right tabular-nums text-indigo-800">{{ "%.2f"|format(g.monthly_dsr) }}</td>
+                        <td class="py-2 text-right">
+                            <form method="post" action="{{ url_for('spending_plan.delete_goal', goal_id=g.id) }}" class="inline"
+                                  onsubmit="return confirm('¿Eliminar este objetivo?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                <button type="submit" class="text-red-600 hover:underline text-xs">Eliminar</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-sm text-gray-500">No hay objetivos. Añade uno para ver su impacto en la proyección.</p>
+        {% endif %}
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-8">
         <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
             <p class="text-xs font-medium text-indigo-800 uppercase">Ingreso mensual medio</p>
             <p class="text-2xl font-bold text-indigo-900">{{ "%.2f"|format(income_avg) }} €</p>
@@ -57,6 +141,11 @@
         <div class="bg-rose-50 border border-rose-100 rounded-xl p-4">
             <p class="text-xs font-medium text-rose-800 uppercase">Gastos fijos (suma medias)</p>
             <p class="text-2xl font-bold text-rose-900">{{ "%.2f"|format(fixed_total) }} €</p>
+        </div>
+        <div class="bg-amber-50 border border-amber-100 rounded-xl p-4">
+            <p class="text-xs font-medium text-amber-900 uppercase">Objetivos / mes</p>
+            <p class="text-2xl font-bold text-amber-950">{{ "%.2f"|format(goals_total_monthly) }} €</p>
+            <p class="text-xs text-amber-800 mt-1">DSR: {{ "%.2f"|format(goals_dsr_monthly) }} €/mes</p>
         </div>
         <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
             <p class="text-xs font-medium text-emerald-800 uppercase">Efectivo bancos (mes actual)</p>
@@ -81,12 +170,13 @@
             <thead class="bg-gray-50 text-left text-gray-600">
                 <tr>
                     <th class="px-4 py-3">Mes</th>
-                    <th class="px-4 py-3 text-right">Ingreso (media)</th>
-                    <th class="px-4 py-3 text-right">Gastos fijos</th>
+                    <th class="px-4 py-3 text-right">Ingreso</th>
+                    <th class="px-4 py-3 text-right">Fijos</th>
+                    <th class="px-4 py-3 text-right">Objetivos</th>
                     <th class="px-4 py-3 text-right">Superávit</th>
-                    <th class="px-4 py-3 text-right">Saldo acumulado</th>
-                    <th class="px-4 py-3 text-right">Cuota máx. (DSR)</th>
-                    <th class="px-4 py-3 text-right">Margen DSR *</th>
+                    <th class="px-4 py-3 text-right">Saldo acum.</th>
+                    <th class="px-4 py-3 text-right">Cuota máx.</th>
+                    <th class="px-4 py-3 text-right">Margen DSR</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
@@ -95,6 +185,7 @@
                     <td class="px-4 py-2 font-medium text-gray-900">{{ m.month_label }}</td>
                     <td class="px-4 py-2 text-right tabular-nums">{{ "%.2f"|format(m.income) }}</td>
                     <td class="px-4 py-2 text-right tabular-nums">{{ "%.2f"|format(m.fixed_expenses) }}</td>
+                    <td class="px-4 py-2 text-right tabular-nums text-amber-800">{{ "%.2f"|format(m.goals_monthly) }}</td>
                     <td class="px-4 py-2 text-right tabular-nums {% if m.surplus >= 0 %}text-emerald-700{% else %}text-red-600{% endif %}">{{ "%.2f"|format(m.surplus) }}</td>
                     <td class="px-4 py-2 text-right tabular-nums font-medium">{{ "%.2f"|format(m.ending_cash) }}</td>
                     <td class="px-4 py-2 text-right tabular-nums text-gray-700">{{ "%.2f"|format(m.max_debt_payment) }}</td>
@@ -104,6 +195,9 @@
             </tbody>
         </table>
     </div>
-    <p class="text-xs text-gray-500 mt-2">* Margen DSR: cupo de cuota según tu DSR máximo menos cuotas de objetivos (próximamente hipoteca, etc.). Ahora sin cuotas adicionales = cupo completo.</p>
+    <p class="text-xs text-gray-500 mt-2">
+        Superávit = ingreso − gastos fijos − suma de €/mes de objetivos. Margen DSR = cuota máxima permitida − cuotas tipo hipoteca (DSR).
+        Objetivos <strong>genéricos</strong> no restan del margen DSR; sí del efectivo disponible.
+    </p>
 </div>
 {% endblock %}
