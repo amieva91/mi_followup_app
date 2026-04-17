@@ -280,9 +280,13 @@ class DashboardSummaryCacheService:
         data["commodities"] = nws.get_commodities_snapshot(user_id)
 
         # DAY % inversiones (NOW)
+        # Importante: más abajo se reemplaza data["changes"] con current_block["changes"],
+        # así que guardamos el valor para reinyectarlo después.
+        day_pct = None
         try:
+            day_pct = nws.get_investments_day_change_pct(user_id)
             if isinstance(data.get("changes"), dict):
-                data["changes"]["day_pct"] = nws.get_investments_day_change_pct(user_id)
+                data["changes"]["day_pct"] = day_pct
         except Exception:
             if isinstance(data.get("changes"), dict):
                 data["changes"]["day_pct"] = None
@@ -323,6 +327,12 @@ class DashboardSummaryCacheService:
         data["net_worth"] = current_block["net_worth"]
         data["changes"] = current_block["changes"]
         data["current_block"] = current_block
+
+        # Reinyectar day_pct si se calculó (evita que se pierda por el overwrite de "changes")
+        if isinstance(data.get("changes"), dict):
+            data["changes"]["day_pct"] = day_pct
+        if isinstance(current_block.get("changes"), dict):
+            current_block["changes"]["day_pct"] = day_pct
 
         # Actualizar metadatos y TTL:
         # - version/_now_cached_at: SOLO si cambió NOW (firma distinta).
