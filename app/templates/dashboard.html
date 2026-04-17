@@ -9,17 +9,46 @@
         --card-radius: 20px;
         --card-shadow: 0 4px 20px rgba(0,0,0,0.06);
         --card-shadow-hover: 0 12px 40px rgba(0,0,0,0.1);
+        --dashboard-gap: 1.25rem;
     }
-    #sortable-widgets {
-        display: grid;
-        grid-template-columns: repeat(1, 1fr);
-        gap: 1.25rem;
+    /* Layout por carriles:
+       - Izquierda: tarjetas WIDE
+       - Derecha: tarjetas normales
+       Así evitamos huecos cuando wide y normales se mezclan verticalmente. */
+    .dashboard-lanes {
+        display: flex;
+        flex-direction: column;
+        gap: var(--dashboard-gap);
+        margin-bottom: 1.5rem;
     }
     @media (min-width: 768px) {
-        #sortable-widgets { grid-template-columns: repeat(2, 1fr); }
+        .dashboard-lanes { flex-direction: row; align-items: flex-start; }
     }
-    @media (min-width: 1280px) {
-        #sortable-widgets { grid-template-columns: repeat(3, 1fr); }
+    .dashboard-lane {
+        display: flex;
+        flex-direction: column;
+        gap: var(--dashboard-gap);
+        min-width: 0;
+        flex: 1 1 0%;
+    }
+    /* Hacer más “amigable” el drop horizontal: más zona vacía al final */
+    .dashboard-lane--normal,
+    .dashboard-lane--tail {
+        min-height: 140px;
+        padding-bottom: 240px; /* zona de drop debajo de la última tarjeta */
+    }
+    @media (min-width: 768px) {
+        .dashboard-lane--wide-col { flex: 2 1 0%; }
+        .dashboard-lane--normal { flex: 1 1 0%; }
+    }
+    .dashboard-lane--wide-col { display: flex; flex-direction: column; gap: var(--dashboard-gap); min-width: 0; }
+    /* “Tail” bajo las wide: simples dentro de la columna wide sin convertirse en wide */
+    .dashboard-lane--tail .dashboard-card { align-self: flex-start; }
+    @media (min-width: 768px) {
+        .dashboard-lane--tail .dashboard-card { width: calc(50% - (var(--dashboard-gap) / 2)); }
+    }
+    @media (max-width: 767.98px) {
+        .dashboard-lane--tail .dashboard-card { width: 100%; }
     }
     .dashboard-card {
         background: linear-gradient(145deg, #ffffff 0%, #fafbfc 100%);
@@ -29,18 +58,11 @@
         overflow-y: auto;
         overflow-x: hidden;
         transition: transform 0.2s ease, box-shadow 0.2s ease;
-        min-height: 260px;
+        min-height: 0;
     }
     .dashboard-card:hover {
         box-shadow: var(--card-shadow-hover);
         transform: translateY(-2px);
-    }
-    .dashboard-card.dashboard-card--wide { grid-column: 1 / -1; }
-    @media (min-width: 768px) {
-        .dashboard-card.dashboard-card--wide { grid-column: span 2; }
-    }
-    @media (min-width: 1280px) {
-        .dashboard-card.dashboard-card--wide { grid-column: span 2; }
     }
     .card-drag-handle {
         cursor: grab; opacity: 0.4; padding: 4px 8px; border-radius: 8px;
@@ -158,8 +180,10 @@
         </div>
     </div>
 
-    <!-- Cuadrícula uniforme -->
-    <div id="sortable-widgets" class="mb-6">
+    <!-- Dashboard (2 carriles): WIDE izquierda, normales derecha -->
+    <div class="dashboard-lanes">
+      <div class="dashboard-lane--wide-col">
+      <div id="sortable-widgets-wide" class="dashboard-lane">
         <!-- Evolución Patrimonio (wide) -->
         <div id="dashboard-evolution-wrap" class="dashboard-card dashboard-card--wide p-6" data-card-id="evolution_chart" x-data="{ expanded: false }">
             <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
@@ -227,18 +251,6 @@
                 </div>
             </div>
             </template>
-        </div>
-
-        <!-- Distribución Activos -->
-        <div class="dashboard-card p-5" data-card-id="distribution">
-            <div class="flex items-center justify-between mb-2">
-                <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
-                <h3 class="text-sm font-bold text-gray-800">Distribución de Activos</h3>
-            </div>
-            <div class="h-[320px] flex-1 min-h-0"><canvas id="distributionChart"></canvas></div>
-            <div id="distributionLegend" class="mt-2 grid grid-cols-2 gap-2 text-xs">
-                {# Leyenda generada por JS (solo categorías con valor > 0) #}
-            </div>
         </div>
 
         <!-- Resumen de Activos unificado: Cash, Portfolio, Crypto, Metales, Inmuebles -->
@@ -315,34 +327,14 @@
             </template>
         </div>
 
-        <!-- Proyecciones -->
-        <div class="dashboard-card p-5" data-card-id="projection">
-            <div class="flex items-center justify-between mb-2">
-                <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
-                <h3 class="text-sm font-bold text-gray-800">Previsión Patrimonio</h3>
-            </div>
-            <p class="text-sm text-gray-500 mb-4">Ahorro mensual: <span class="font-semibold text-green-600">+{{ "%.2f"|format(summary.projections.avg_monthly_savings) }} EUR</span></p>
-            <div class="grid grid-cols-3 gap-3 mb-4">
-                {% for key, proj in summary.projections.projections.items() %}
-                <div class="border-l-4 border-indigo-400 pl-3">
-                    <p class="text-xs text-gray-500">{{ proj.years }} {% if proj.years == 1 %}año{% else %}años{% endif %}</p>
-                    <p class="text-lg font-bold text-gray-800">{{ "%.0f"|format(proj.projected_value) }}€</p>
-                    <p class="text-xs {% if proj.growth >= 0 %}text-green-600{% else %}text-red-600{% endif %}">{{ proj.growth_pct }}%</p>
-                </div>
-                {% endfor %}
-            </div>
-            <div class="h-48 mt-2 flex-1 min-h-0">
-                <canvas id="projectionChart"></canvas>
-            </div>
-        </div>
-
-        <!-- Deudas + Últimos Movimientos + Próximos Pagos (unificado) -->
-        <div class="dashboard-card dashboard-card--wide p-6 border-l-4 border-red-400" data-card-id="debt_movements">
+        <!-- Deudas + Próximos Pagos (solo si hay algo que mostrar) -->
+        {% if (summary.debt_details and summary.debt_details.plans_count and summary.debt_details.plans_count > 0) or (summary.upcoming_payments and summary.upcoming_payments|length > 0) %}
+        <div class="dashboard-card dashboard-card--wide p-6 border-l-4 border-red-400" data-card-id="debt_payments">
             <div class="flex items-center justify-between mb-4">
                 <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
-                <h3 class="text-sm font-bold text-gray-800">Deudas · Próximos Pagos · Últimos Movimientos</h3>
+                <h3 class="text-sm font-bold text-gray-800">Deudas · Próximos Pagos</h3>
             </div>
-            <div class="grid md:grid-cols-3 gap-6">
+            <div class="grid md:grid-cols-2 gap-6">
                 <!-- Deudas -->
                 <div>
                     <a href="{{ url_for('debts.dashboard') }}" class="flex items-center justify-between mb-3 group">
@@ -393,91 +385,9 @@
                     <p class="text-gray-500 text-sm">No hay pagos próximos</p>
                     {% endif %}
                 </div>
-                <!-- Últimos Movimientos -->
-                <div>
-                    <h3 class="text-sm font-bold text-gray-800 mb-3">🔄 Últimos Movimientos</h3>
-                    <div class="space-y-3">
-                        {% for tx in summary.recent_transactions %}
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center gap-2">
-                                <span>{{ tx.icon }}</span>
-                                <div>
-                                    <p class="text-sm text-gray-700 truncate max-w-32">{{ tx.description }}</p>
-                                    <p class="text-xs text-gray-400">{{ tx.date_str }}</p>
-                                </div>
-                            </div>
-                            <span class="font-medium {% if tx.type == 'income' %}text-green-600{% else %}text-red-600{% endif %}">
-                                {% if tx.type == 'income' %}+{% else %}-{% endif %}{{ "%.2f"|format(tx.amount) }}€
-                            </span>
-                        </div>
-                        {% endfor %}
-                    </div>
-                </div>
             </div>
         </div>
-
-        <!-- Tasa de Ahorro -->
-        <div class="dashboard-card p-5" data-card-id="savings_rate">
-            <div class="flex items-center justify-between mb-2">
-                <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
-                <h3 class="text-sm font-bold text-gray-800">Tasa de Ahorro (12 meses)</h3>
-            </div>
-            <div class="flex items-center gap-6">
-                <div class="relative w-28 h-28">
-                    <svg class="w-28 h-28 transform -rotate-90" viewBox="0 0 36 36">
-                        <path class="text-gray-200" stroke="currentColor" stroke-width="3" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
-                        <path class="{% if summary.savings.savings_rate >= 20 %}text-green-500{% elif summary.savings.savings_rate >= 10 %}text-yellow-500{% else %}text-red-500{% endif %}" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="{{ summary.savings.savings_rate }}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
-                    </svg>
-                    <span class="absolute inset-0 flex items-center justify-center text-2xl font-bold">{{ summary.savings.savings_rate }}%</span>
-                </div>
-                <div class="flex-1 space-y-2">
-                    <div class="flex justify-between">
-                        <span class="text-gray-500">Ingresos totales</span>
-                        <span class="font-medium text-green-600">+{{ "%.2f"|format(summary.savings.total_income) }} EUR</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-gray-500">Gastos totales</span>
-                        <span class="font-medium text-red-600">-{{ "%.2f"|format(summary.savings.total_expense) }} EUR</span>
-                    </div>
-                    <div class="flex justify-between pt-2 border-t">
-                        <span class="text-gray-700 font-medium">Ahorro total</span>
-                        <span class="font-bold {% if summary.savings.total_savings >= 0 %}text-blue-600{% else %}text-red-600{% endif %}">{{ "%.2f"|format(summary.savings.total_savings) }} EUR</span>
-                    </div>
-                    <div class="flex justify-between text-sm">
-                        <span class="text-gray-400">Media mensual</span>
-                        <span class="text-gray-600">{{ "%.2f"|format(summary.savings.avg_monthly_savings) }} EUR/mes</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Gastos medios por categoría (últimos 12 meses) -->
-        <div class="dashboard-card p-5" data-card-id="expense_by_category">
-            <div class="flex items-center justify-between mb-2">
-                <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
-                <a href="{{ url_for('expenses.list') }}" class="flex items-center justify-between flex-1 group">
-                <h3 class="text-sm font-bold text-gray-800">📋 Gastos medios por categoría</h3>
-                <span class="text-gray-400 group-hover:text-indigo-500">→</span>
-                </a>
-            </div>
-            <p class="text-xs text-gray-500 mb-4">Últimos 12 meses</p>
-            {% set expense_cats = (summary.expense_category_summary | default([]) | selectattr('average', 'defined') | selectattr('average', 'gt', 0) | list | sort(attribute='average', reverse=True))[:10] %}
-            {% if expense_cats %}
-            <div class="space-y-3">
-                {% for cat in expense_cats %}
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                        <span>{{ cat.icon|default('💰') }}</span>
-                        <span class="text-sm text-gray-700">{{ cat.name }}</span>
-                    </div>
-                    <span class="font-medium text-gray-800">{{ "%.0f"|format(cat.average) }} €/mes</span>
-                </div>
-                {% endfor %}
-            </div>
-            {% else %}
-            <p class="text-gray-500 text-sm">No hay datos de gastos</p>
-            {% endif %}
-        </div>
+        {% endif %}
 
         <!-- Salud Financiera 1: Score + Métricas componentes -->
         <div class="dashboard-card dashboard-card--wide p-6 bg-gradient-to-br from-slate-50/80 to-indigo-50/50 border-indigo-100/50" data-card-id="health_score">
@@ -529,46 +439,133 @@
             </div>
         </div>
 
-        <!-- Salud Financiera 2: Distribución de Activos + Exposición por Divisa -->
-        <div class="dashboard-card p-6 bg-white border border-gray-100" data-card-id="health_distribution">
-            <div class="flex items-center justify-between mb-4">
+        {# Eliminada tarjeta duplicada de "📊 Distribución de Activos" (barras).
+           El donut principal ya cubre esta info. #}
+      </div>
+      <!-- Tail: tarjetas simples bajo la última WIDE (relleno vertical sin convertirlas en wide) -->
+      <div id="sortable-widgets-tail" class="dashboard-lane dashboard-lane--tail"></div>
+      </div>
+
+      <div id="sortable-widgets-normal" class="dashboard-lane dashboard-lane--normal">
+        <!-- Distribución Activos -->
+        <div class="dashboard-card p-5" data-card-id="distribution">
+            <div class="flex items-center justify-between mb-2">
                 <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
-                <h3 class="text-lg font-bold text-gray-800">📊 Distribución de Activos</h3>
+                <h3 class="text-sm font-bold text-gray-800">Distribución de Activos</h3>
             </div>
-            <div class="space-y-3">
-                {% set breakdown = summary.health_score.components.diversification.breakdown %}
-                {% if breakdown.cash|default(0) > 0 %}
-                <div>
-                    <div class="flex justify-between text-sm mb-1"><span>Cash</span><span>{{ breakdown.cash }}%</span></div>
-                    <div class="w-full bg-gray-200 rounded-full h-3"><div class="bg-emerald-500 h-3 rounded-full" style="width: {{ breakdown.cash }}%"></div></div>
-                </div>
-                {% endif %}
-                {% if breakdown.portfolio|default(0) > 0 %}
-                <div>
-                    <div class="flex justify-between text-sm mb-1"><span>Portfolio</span><span>{{ breakdown.portfolio }}%</span></div>
-                    <div class="w-full bg-gray-200 rounded-full h-3"><div class="bg-blue-500 h-3 rounded-full" style="width: {{ breakdown.portfolio }}%"></div></div>
-                </div>
-                {% endif %}
-                {% if breakdown.crypto|default(0) > 0 %}
-                <div>
-                    <div class="flex justify-between text-sm mb-1"><span>Crypto</span><span>{{ breakdown.crypto }}%</span></div>
-                    <div class="w-full bg-gray-200 rounded-full h-3"><div class="bg-amber-500 h-3 rounded-full" style="width: {{ breakdown.crypto }}%"></div></div>
-                </div>
-                {% endif %}
-                {% if breakdown.metales|default(0) > 0 %}
-                <div>
-                    <div class="flex justify-between text-sm mb-1"><span>Metales</span><span>{{ breakdown.metales }}%</span></div>
-                    <div class="w-full bg-gray-200 rounded-full h-3"><div class="bg-yellow-500 h-3 rounded-full" style="width: {{ breakdown.metales }}%"></div></div>
-                </div>
-                {% endif %}
-                {% if breakdown.real_estate|default(0) > 0 %}
-                <div>
-                    <div class="flex justify-between text-sm mb-1"><span>Inmuebles</span><span>{{ breakdown.real_estate }}%</span></div>
-                    <div class="w-full bg-gray-200 rounded-full h-3"><div class="bg-teal-500 h-3 rounded-full" style="width: {{ breakdown.real_estate }}%"></div></div>
-                </div>
-                {% endif %}
+            <div class="h-[320px] flex-1 min-h-0"><canvas id="distributionChart"></canvas></div>
+            <div id="distributionLegend" class="mt-2 grid grid-cols-2 gap-2 text-xs">
+                {# Leyenda generada por JS (solo categorías con valor > 0) #}
             </div>
         </div>
+
+        <!-- Proyecciones -->
+        <div class="dashboard-card p-5" data-card-id="projection">
+            <div class="flex items-center justify-between mb-2">
+                <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
+                <h3 class="text-sm font-bold text-gray-800">Previsión Patrimonio</h3>
+            </div>
+            <p class="text-sm text-gray-500 mb-4">Ahorro mensual: <span class="font-semibold text-green-600">+{{ "%.2f"|format(summary.projections.avg_monthly_savings) }} EUR</span></p>
+            <div class="grid grid-cols-3 gap-3 mb-4">
+                {% for key, proj in summary.projections.projections.items() %}
+                <div class="border-l-4 border-indigo-400 pl-3">
+                    <p class="text-xs text-gray-500">{{ proj.years }} {% if proj.years == 1 %}año{% else %}años{% endif %}</p>
+                    <p class="text-lg font-bold text-gray-800">{{ "%.0f"|format(proj.projected_value) }}€</p>
+                    <p class="text-xs {% if proj.growth >= 0 %}text-green-600{% else %}text-red-600{% endif %}">{{ proj.growth_pct }}%</p>
+                </div>
+                {% endfor %}
+            </div>
+            <div class="h-48 mt-2 flex-1 min-h-0">
+                <canvas id="projectionChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Últimos Movimientos -->
+        {% if summary.recent_transactions and summary.recent_transactions|length > 0 %}
+        <div class="dashboard-card p-6 border-l-4 border-indigo-300" data-card-id="recent_movements">
+            <div class="flex items-center justify-between mb-4">
+                <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
+                <h3 class="text-sm font-bold text-gray-800">🔄 Últimos Movimientos</h3>
+            </div>
+            <div class="space-y-3">
+                {% for tx in summary.recent_transactions %}
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span>{{ tx.icon }}</span>
+                        <div>
+                            <p class="text-sm text-gray-700 truncate max-w-32">{{ tx.description }}</p>
+                            <p class="text-xs text-gray-400">{{ tx.date_str }}</p>
+                        </div>
+                    </div>
+                    <span class="font-medium {% if tx.type == 'income' %}text-green-600{% else %}text-red-600{% endif %}">
+                        {% if tx.type == 'income' %}+{% else %}-{% endif %}{{ "%.2f"|format(tx.amount) }}€
+                    </span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Tasa de Ahorro -->
+        <div class="dashboard-card p-5" data-card-id="savings_rate">
+            <div class="flex items-center justify-between mb-2">
+                <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
+                <h3 class="text-sm font-bold text-gray-800">Tasa de Ahorro (12 meses)</h3>
+            </div>
+            <div class="flex items-center gap-6">
+                <div class="relative w-28 h-28">
+                    <svg class="w-28 h-28 transform -rotate-90" viewBox="0 0 36 36">
+                        <path class="text-gray-200" stroke="currentColor" stroke-width="3" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                        <path class="{% if summary.savings.savings_rate >= 20 %}text-green-500{% elif summary.savings.savings_rate >= 10 %}text-yellow-500{% else %}text-red-500{% endif %}" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="{{ summary.savings.savings_rate }}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                    </svg>
+                    <span class="absolute inset-0 flex items-center justify-center text-2xl font-bold">{{ summary.savings.savings_rate }}%</span>
+                </div>
+                <div class="flex-1 space-y-2">
+                    <div class="flex justify-between">
+                        <span class="text-gray-500">Ingresos totales</span>
+                        <span class="font-medium text-green-600">+{{ "%.2f"|format(summary.savings.total_income) }} EUR</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-500">Gastos totales</span>
+                        <span class="font-medium text-red-600">-{{ "%.2f"|format(summary.savings.total_expense) }} EUR</span>
+                    </div>
+                    <div class="flex justify-between pt-2 border-t">
+                        <span class="text-gray-700 font-medium">Ahorro total</span>
+                        <span class="font-bold {% if summary.savings.total_savings >= 0 %}text-blue-600{% else %}text-red-600{% endif %}">{{ "%.2f"|format(summary.savings.total_savings) }} EUR</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-400">Media mensual</span>
+                        <span class="text-gray-600">{{ "%.2f"|format(summary.savings.avg_monthly_savings) }} EUR/mes</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gastos medios por categoría (últimos 12 meses) -->
+        {% set expense_cats = (summary.expense_category_summary | default([]) | selectattr('average', 'defined') | selectattr('average', 'gt', 0) | list | sort(attribute='average', reverse=True))[:10] %}
+        {% if expense_cats %}
+        <div class="dashboard-card p-5" data-card-id="expense_by_category">
+            <div class="flex items-center justify-between mb-2">
+                <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
+                <a href="{{ url_for('expenses.list') }}" class="flex items-center justify-between flex-1 group">
+                <h3 class="text-sm font-bold text-gray-800">📋 Gastos medios por categoría</h3>
+                <span class="text-gray-400 group-hover:text-indigo-500">→</span>
+                </a>
+            </div>
+            <p class="text-xs text-gray-500 mb-4">Últimos 12 meses</p>
+            <div class="space-y-3">
+                {% for cat in expense_cats %}
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span>{{ cat.icon|default('💰') }}</span>
+                        <span class="text-sm text-gray-700">{{ cat.name }}</span>
+                    </div>
+                    <span class="font-medium text-gray-800">{{ "%.0f"|format(cat.average) }} €/mes</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
 
         <!-- Salud Financiera 3: Recomendaciones (lista vertical) -->
         {% if summary.health_score.tips %}
@@ -577,7 +574,8 @@
                 <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
                 <h3 class="text-lg font-bold text-gray-800">💡 Recomendaciones Personalizadas</h3>
             </div>
-            <div class="space-y-3">
+            {% set tips_count = summary.health_score.tips|length %}
+            <div class="space-y-3 {% if tips_count > 4 %}max-h-[18rem] overflow-y-auto pr-1{% endif %}">
                 {% for tip in summary.health_score.tips %}
                 <div class="flex items-start gap-3 p-3 rounded-lg {% if tip.priority == 'high' %}bg-red-50 border-l-4 border-red-400{% elif tip.priority == 'medium' %}bg-yellow-50 border-l-4 border-yellow-400{% else %}bg-blue-50 border-l-4 border-blue-400{% endif %}">
                     <span class="text-xl">{{ tip.icon }}</span>
@@ -592,7 +590,7 @@
         </div>
         {% endif %}
 
-        <!-- Salud Financiera 4: Fondo de Emergencia -->
+        <!-- Salud Financiera 4: Fondo de Emergencia (siempre simple) -->
         <div class="dashboard-card p-6 bg-white border border-gray-100" data-card-id="health_emergency">
             <div class="flex items-center justify-between mb-4">
                 <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
@@ -625,7 +623,10 @@
                      style="width: {% if summary.health_score.components.emergency_fund.target_amount and summary.health_score.components.emergency_fund.target_amount > 0 %}{{ [100 * summary.health_score.components.emergency_fund.current_amount / summary.health_score.components.emergency_fund.target_amount, 100] | min }}{% else %}0{% endif %}%"></div>
             </div>
         </div>
-    </div><!-- Fin sortable-widgets -->
+
+      </div>
+    </div>
+    </div><!-- Fin dashboard-lanes -->
 
     <!-- Acciones rápidas -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
@@ -784,13 +785,20 @@ function dashboardConfig() {
         showConfig: false,
         chartPeriod: 12,
         widgets: { {% for widget in default_widgets %}'{{ widget.id }}': {% if widget.id.startswith('health_detail_') %}true{% else %}{{ 'true' if (widget_config.get(widget.id) or {'enabled': True}).get('enabled', True) else 'false' }}{% endif %},{% endfor %} },
+        _didAutoBalance: false,
         
         loadWidgetOrder() {
-            const container = document.getElementById('sortable-widgets');
-            const saved = localStorage.getItem('dashboard_card_order');
-            if (!container || !saved) return;
-            try {
-                const order = JSON.parse(saved);
+            const wide = document.getElementById('sortable-widgets-wide');
+            const tail = document.getElementById('sortable-widgets-tail');
+            const normal = document.getElementById('sortable-widgets-normal');
+            if (!wide || !tail || !normal) return;
+
+            const savedWide = localStorage.getItem('dashboard_card_order_wide');
+            const savedTail = localStorage.getItem('dashboard_card_order_tail');
+            const savedNormal = localStorage.getItem('dashboard_card_order_normal');
+            const savedLegacy = localStorage.getItem('dashboard_card_order');
+
+            const applyOrder = (container, order) => {
                 const cards = container.querySelectorAll('[data-card-id]');
                 const byId = {};
                 cards.forEach(c => { byId[c.dataset.cardId] = c; });
@@ -798,19 +806,66 @@ function dashboardConfig() {
                     const el = byId[id];
                     if (el) container.appendChild(el);
                 });
+            };
+
+            const splitLegacy = (order) => {
+                const wideIds = new Set(Array.from(wide.querySelectorAll('[data-card-id]')).map(c => c.dataset.cardId));
+                const w = [], n = [];
+                order.forEach(id => (wideIds.has(id) ? w : n).push(id));
+                return { w, n };
+            };
+
+            try {
+                if (savedWide && savedNormal) {
+                    applyOrder(wide, JSON.parse(savedWide));
+                    if (savedTail) applyOrder(tail, JSON.parse(savedTail));
+                    applyOrder(normal, JSON.parse(savedNormal));
+                } else if (savedLegacy) {
+                    const legacy = JSON.parse(savedLegacy);
+                    const { w, n } = splitLegacy(legacy);
+                    applyOrder(wide, w);
+                    applyOrder(normal, n);
+                }
             } catch (e) { /* ignore */ }
         },
         initSortable() {
             this.loadWidgetOrder();
-            const container = document.getElementById('sortable-widgets');
-            if (container && typeof Sortable !== 'undefined') {
-                new Sortable(container, {
-                    animation: 150,
-                    handle: '.card-drag-handle',
-                    ghostClass: 'sortable-ghost',
-                    chosenClass: 'sortable-chosen',
-                    onEnd: (evt) => this.saveWidgetOrder()
-                });
+            const wide = document.getElementById('sortable-widgets-wide');
+            const tail = document.getElementById('sortable-widgets-tail');
+            const normal = document.getElementById('sortable-widgets-normal');
+            if (!wide || !tail || !normal) return;
+
+            if (typeof Sortable === 'undefined') return;
+
+            const common = {
+                animation: 150,
+                handle: '.card-drag-handle',
+                ghostClass: 'sortable-ghost',
+                chosenClass: 'sortable-chosen',
+                emptyInsertThreshold: 120,
+                invertSwap: true,
+                swapThreshold: 0.65,
+                onEnd: () => this.saveWidgetOrder()
+            };
+
+            // Restricción: el carril wide es exclusivo. Las simples pueden moverse entre "normal" y "tail".
+            new Sortable(wide, { ...common, group: { name: 'lane-wide', pull: false, put: false } });
+            new Sortable(normal, { ...common, group: { name: 'lane-simple', pull: true, put: ['lane-simple'] } });
+            new Sortable(tail, { ...common, group: { name: 'lane-simple', pull: true, put: ['lane-simple'] } });
+
+            // Auto-balance solo “primera vez”: si no hay orden guardado, rellenar tail para igualar alturas.
+            const hasAnySaved =
+                !!localStorage.getItem('dashboard_card_order_wide') ||
+                !!localStorage.getItem('dashboard_card_order_tail') ||
+                !!localStorage.getItem('dashboard_card_order_normal') ||
+                !!localStorage.getItem('dashboard_card_order');
+
+            if (!hasAnySaved) {
+                const rebalance = () => this.autoBalanceTail();
+                // esperar a que charts / fuentes ajusten alturas
+                setTimeout(rebalance, 300);
+                window.addEventListener('load', () => setTimeout(rebalance, 50), { once: true });
+                setTimeout(rebalance, 1200);
             }
         },
         
@@ -826,11 +881,54 @@ function dashboardConfig() {
         },
         
         saveWidgetOrder() {
-            const container = document.getElementById('sortable-widgets');
-            if (!container) return;
-            const cards = container.querySelectorAll('[data-card-id]');
-            const order = Array.from(cards).map(c => c.dataset.cardId).filter(Boolean);
-            localStorage.setItem('dashboard_card_order', JSON.stringify(order));
+            const wide = document.getElementById('sortable-widgets-wide');
+            const tail = document.getElementById('sortable-widgets-tail');
+            const normal = document.getElementById('sortable-widgets-normal');
+            if (!wide || !tail || !normal) return;
+
+            const w = Array.from(wide.querySelectorAll('[data-card-id]')).map(c => c.dataset.cardId).filter(Boolean);
+            const t = Array.from(tail.querySelectorAll('[data-card-id]')).map(c => c.dataset.cardId).filter(Boolean);
+            const n = Array.from(normal.querySelectorAll('[data-card-id]')).map(c => c.dataset.cardId).filter(Boolean);
+
+            localStorage.setItem('dashboard_card_order_wide', JSON.stringify(w));
+            localStorage.setItem('dashboard_card_order_tail', JSON.stringify(t));
+            localStorage.setItem('dashboard_card_order_normal', JSON.stringify(n));
+        },
+
+        autoBalanceTail() {
+            if (this._didAutoBalance) return;
+            const wide = document.getElementById('sortable-widgets-wide');
+            const tail = document.getElementById('sortable-widgets-tail');
+            const normal = document.getElementById('sortable-widgets-normal');
+            if (!wide || !tail || !normal) return;
+
+            // Solo balancear si todavía no hay nada en tail
+            if (tail.querySelector('[data-card-id]')) return;
+
+            // Medimos alturas actuales
+            const wideHeight = wide.getBoundingClientRect().height;
+            const normalHeight = normal.getBoundingClientRect().height;
+
+            // Si normales no excede claramente, no tocar
+            if (normalHeight <= wideHeight + 220) return;
+
+            // Movemos desde el final de "normal" al "tail" hasta equilibrar (máx 3 para no sorprender).
+            const candidates = Array.from(normal.querySelectorAll(':scope > [data-card-id]'));
+            let moved = 0;
+            while (candidates.length && moved < 3) {
+                const el = candidates.pop();
+                if (!el) break;
+
+                tail.appendChild(el);
+                moved += 1;
+
+                const newWideTotal = wide.getBoundingClientRect().height + tail.getBoundingClientRect().height;
+                const newNormal = normal.getBoundingClientRect().height;
+                if (newNormal <= newWideTotal + 120) break;
+            }
+
+            if (moved > 0) this.saveWidgetOrder();
+            this._didAutoBalance = true;
         },
         
         updateEvolutionChart() {
