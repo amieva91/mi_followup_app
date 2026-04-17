@@ -7,7 +7,10 @@
             <h1 class="text-2xl font-bold text-gray-900">Planificación de gastos</h1>
             <p class="text-sm text-gray-500 mt-1">Proyección a {{ settings.horizon_months }} meses con ingreso medio, gastos fijos y objetivos planificados.</p>
         </div>
-        <a href="{{ url_for('main.dashboard') }}" class="text-indigo-600 hover:underline text-sm">← Dashboard</a>
+        <div class="flex flex-wrap gap-3 text-sm">
+            <a href="{{ url_for('spending_plan.mortgage_simulator') }}" class="text-indigo-600 hover:underline">Simulador vivienda</a>
+            <a href="{{ url_for('main.dashboard') }}" class="text-gray-600 hover:underline">← Dashboard</a>
+        </div>
     </div>
 
     <form method="post" action="{{ url_for('spending_plan.index') }}" class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-8">

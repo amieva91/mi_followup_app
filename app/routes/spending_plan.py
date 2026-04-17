@@ -8,6 +8,7 @@ from flask_login import login_required, current_user
 
 from app import db
 from app.services import spending_plan_service as sps
+from app.services import mortgage_simulation_service as mss
 
 spending_plan_bp = Blueprint("spending_plan", __name__, url_prefix="/planificacion")
 
@@ -60,7 +61,10 @@ def add_goal():
         priority = int(request.form.get("priority") or 3)
         td = _parse_target_date(request.form.get("target_date") or "")
         gtype = (request.form.get("goal_type") or "generic").strip().lower()
-        sps.add_goal(current_user.id, title, amount, priority, td, gtype)
+        extra = (request.form.get("extra_json") or "").strip() or None
+        sps.add_goal(
+            current_user.id, title, amount, priority, td, gtype, extra_json=extra
+        )
         flash("Objetivo añadido.", "success")
     except ValueError as e:
         flash(str(e), "error")
@@ -68,6 +72,96 @@ def add_goal():
         db.session.rollback()
         flash(f"No se pudo añadir: {e}", "error")
     return redirect(url_for("spending_plan.index"))
+
+
+def _default_mortgage_form():
+    return {
+        "purchase_price": "280000",
+        "savings": "45000",
+        "years": "25",
+        "first_home": True,
+        "ltv_mode": "80",
+        "use_euribor": False,
+        "spread_percent": "0.75",
+        "annual_interest_percent": "3.50",
+        "notary": str(mss.DEFAULT_NOTARY),
+        "registry": str(mss.DEFAULT_REGISTRY),
+        "gestoria": str(mss.DEFAULT_GESTORIA),
+        "tasacion": str(mss.DEFAULT_TASACION),
+    }
+
+
+@spending_plan_bp.route("/vivienda", methods=["GET", "POST"])
+@login_required
+def mortgage_simulator():
+    result = None
+    euribor_hint = mss.fetch_euribor_implied_percent()
+    sim_form = _default_mortgage_form()
+
+    if request.method == "POST" and request.form.get("action") == "simulate":
+        if not request.form.get("csrf_token"):
+            flash("Sesión expirada.", "error")
+            return redirect(url_for("spending_plan.mortgage_simulator"))
+        sim_form = {
+            "purchase_price": (request.form.get("purchase_price") or "").strip(),
+            "savings": (request.form.get("savings") or "").strip(),
+            "years": (request.form.get("years") or "").strip(),
+            "first_home": request.form.get("first_home") == "1",
+            "ltv_mode": (request.form.get("ltv_mode") or "80").strip(),
+            "use_euribor": request.form.get("use_euribor") == "1",
+            "spread_percent": (request.form.get("spread_percent") or "").strip(),
+            "annual_interest_percent": (
+                request.form.get("annual_interest_percent") or ""
+            ).strip(),
+            "notary": (request.form.get("notary") or "").strip(),
+            "registry": (request.form.get("registry") or "").strip(),
+            "gestoria": (request.form.get("gestoria") or "").strip(),
+            "tasacion": (request.form.get("tasacion") or "").strip(),
+        }
+        try:
+            pp = float(sim_form["purchase_price"] or 0)
+            sav = float(sim_form["savings"] or 0)
+            yrs = int(sim_form["years"] or 25)
+            first = sim_form["first_home"]
+            ltv = sim_form["ltv_mode"]
+            use_eur = sim_form["use_euribor"]
+            spread = float(sim_form["spread_percent"] or 0.75)
+            annual = float(sim_form["annual_interest_percent"] or 3.5)
+            notary = float(sim_form["notary"] or mss.DEFAULT_NOTARY)
+            registry = float(sim_form["registry"] or mss.DEFAULT_REGISTRY)
+            gestoria = float(sim_form["gestoria"] or mss.DEFAULT_GESTORIA)
+            tasacion = float(sim_form["tasacion"] or mss.DEFAULT_TASACION)
+            result = mss.run_simulation(
+                purchase_price=pp,
+                savings=sav,
+                years=yrs,
+                first_home=first,
+                ltv_mode=ltv,
+                notary=notary,
+                registry=registry,
+                gestoria=gestoria,
+                tasacion=tasacion,
+                annual_interest_percent=annual,
+                use_euribor_plus_spread=use_eur,
+                spread_percent=spread,
+            )
+        except ValueError as e:
+            flash(str(e), "error")
+        except Exception as e:
+            flash(f"Simulación no disponible: {e}", "error")
+
+    return render_template(
+        "spending_plan/mortgage.html",
+        result=result,
+        euribor_hint=euribor_hint,
+        sim_form=sim_form,
+        defaults={
+            "notary": mss.DEFAULT_NOTARY,
+            "registry": mss.DEFAULT_REGISTRY,
+            "gestoria": mss.DEFAULT_GESTORIA,
+            "tasacion": mss.DEFAULT_TASACION,
+        },
+    )
 
 
 @spending_plan_bp.route("/objetivo/<int:goal_id>/eliminar", methods=["POST"])

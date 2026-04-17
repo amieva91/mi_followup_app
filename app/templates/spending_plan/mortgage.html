@@ -1,0 +1,160 @@
+{% extends "base/layout.html" %}
+{% block title %}Simulador vivienda{% endblock %}
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 py-8">
+    <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Simulador compra vivienda</h1>
+            <p class="text-sm text-gray-500 mt-1">Gastos orientativos, ITP 6% / 8%, LTV 80% o 90% sobre tasación, cuota a tipo fijo (amortización francesa).</p>
+        </div>
+        <div class="flex gap-3 text-sm">
+            <a href="{{ url_for('spending_plan.index') }}" class="text-indigo-600 hover:underline">← Planificación</a>
+            <a href="{{ url_for('main.dashboard') }}" class="text-gray-600 hover:underline">Dashboard</a>
+        </div>
+    </div>
+
+    {% if euribor_hint is not none %}
+    <p class="text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 mb-6">
+        Euribor referencia (futuro <code class="text-xs bg-white px-1 rounded">EBH28.CME</code>, convención 100−precio): <strong>~{{ "%.2f"|format(euribor_hint) }}%</strong>
+    </p>
+    {% endif %}
+
+    <form method="post" class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-8 space-y-6">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <input type="hidden" name="action" value="simulate"/>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Precio de compra (€)</label>
+                <input type="number" name="purchase_price" min="0" step="1000" required
+                       value="{{ sim_form.purchase_price }}"
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900"/>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Ahorros a aportar (€)</label>
+                <input type="number" name="savings" min="0" step="1000" required
+                       value="{{ sim_form.savings }}"
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900"/>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Años de préstamo</label>
+                <input type="number" name="years" min="1" max="40" required
+                       value="{{ sim_form.years }}"
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900"/>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">LTV sobre tasación</label>
+                <select name="ltv_mode" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900">
+                    <option value="80" {% if sim_form.ltv_mode == '80' %}selected{% endif %}>80%</option>
+                    <option value="90" {% if sim_form.ltv_mode == '90' %}selected{% endif %}>90%</option>
+                </select>
+            </div>
+        </div>
+
+        <label class="inline-flex items-center gap-2 text-sm text-gray-800">
+            <input type="checkbox" name="first_home" value="1" class="rounded border-gray-300"
+                   {% if sim_form.first_home %}checked{% endif %}/>
+            Primera vivienda (ITP 6%; si no, 8%)
+        </label>
+
+        <div class="border-t border-gray-100 pt-4">
+            <p class="text-sm font-medium text-gray-800 mb-3">Tipo de interés nominal anual</p>
+            <label class="inline-flex items-center gap-2 text-sm text-gray-800 mb-3">
+                <input type="checkbox" name="use_euribor" value="1" class="rounded border-gray-300"
+                       {% if sim_form.use_euribor %}checked{% endif %}/>
+                Usar Euribor (futuro) + diferencial
+            </label>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Diferencial sobre Euribor (%)</label>
+                    <input type="number" name="spread_percent" step="0.05" min="0" max="5"
+                           value="{{ sim_form.spread_percent }}"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Tipo fijo manual (% anual)</label>
+                    <input type="number" name="annual_interest_percent" step="0.05" min="0" max="15"
+                           value="{{ sim_form.annual_interest_percent }}"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
+                </div>
+            </div>
+            <p class="text-xs text-gray-500 mt-2">Si marcas Euribor + diferencial, se ignora el tipo manual para la cuota.</p>
+        </div>
+
+        <div class="border-t border-gray-100 pt-4">
+            <p class="text-sm font-medium text-gray-800 mb-2">Gastos de compra (editables)</p>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                <div>
+                    <label class="block text-xs text-gray-600 mb-1">Notaría</label>
+                    <input type="number" name="notary" min="0" step="10" value="{{ sim_form.notary }}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5"/>
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-600 mb-1">Registro</label>
+                    <input type="number" name="registry" min="0" step="10" value="{{ sim_form.registry }}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5"/>
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-600 mb-1">Gestoría</label>
+                    <input type="number" name="gestoria" min="0" step="10" value="{{ sim_form.gestoria }}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5"/>
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-600 mb-1">Tasación</label>
+                    <input type="number" name="tasacion" min="0" step="10" value="{{ sim_form.tasacion }}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5"/>
+                </div>
+            </div>
+        </div>
+
+        <button type="submit" class="px-6 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">
+            Calcular
+        </button>
+    </form>
+
+    {% if result %}
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-8">
+        <h2 class="text-lg font-bold text-gray-900 mb-4">Resultado</h2>
+        <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 text-sm">
+            <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Coste total (compra + ITP + gastos)</dt><dd class="font-medium tabular-nums">{{ "%.2f"|format(result.total_cost) }} €</dd></div>
+            <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Préstamo necesario</dt><dd class="font-medium tabular-nums">{{ "%.2f"|format(result.loan_amount) }} €</dd></div>
+            <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Tasación mínima orientativa (préstamo / LTV)</dt><dd class="font-medium tabular-nums text-indigo-800">{{ "%.2f"|format(result.min_appraisal) }} €</dd></div>
+            <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Tipo nominal anual aplicado</dt><dd class="font-medium tabular-nums">{{ "%.4f"|format(result.annual_interest_percent) }} %</dd></div>
+            <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Cuota mensual (francesa)</dt><dd class="font-bold text-lg tabular-nums text-emerald-800">{{ "%.2f"|format(result.monthly_payment) }} €</dd></div>
+            <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Total intereses (aprox.)</dt><dd class="font-medium tabular-nums">{{ "%.2f"|format(result.total_interest) }} €</dd></div>
+        </dl>
+        <ul class="mt-4 space-y-1 text-xs text-gray-600 list-disc list-inside">
+            {% for line in result.info_lines %}
+            <li>{{ line }}</li>
+            {% endfor %}
+        </ul>
+
+        <div class="mt-8 pt-6 border-t border-gray-100">
+            <h3 class="text-sm font-semibold text-gray-900 mb-3">Añadir a planificación como objetivo hipoteca</h3>
+            <p class="text-xs text-gray-500 mb-3">Se guarda el importe del préstamo y la cuota en <code class="bg-gray-100 px-1 rounded">extra_json</code> para DSR y proyección.</p>
+            <form method="post" action="{{ url_for('spending_plan.add_goal') }}" class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <input type="hidden" name="goal_type" value="mortgage"/>
+                <input type="hidden" name="amount_total" value="{{ "%.2f"|format(result.loan_amount) }}"/>
+                <input type="hidden" name="extra_json" value="{{ result.to_extra_json()|e }}"/>
+                <div class="md:col-span-5">
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Nombre del objetivo</label>
+                    <input type="text" name="title" required maxlength="200" value="Hipoteca vivienda"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Prioridad (1–5)</label>
+                    <input type="number" name="priority" min="1" max="5" value="2"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
+                </div>
+                <div class="md:col-span-3">
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Fecha objetivo (opcional)</label>
+                    <input type="date" name="target_date" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
+                </div>
+                <div class="md:col-span-2">
+                    <button type="submit" class="w-full px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 text-sm font-medium">
+                        Añadir objetivo
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -276,6 +276,7 @@ def add_goal(
     priority: int,
     target_date: Optional[date],
     goal_type: str = "generic",
+    extra_json: Optional[str] = None,
 ) -> SpendingPlanGoal:
     title = (title or "").strip()
     if not title:
@@ -289,6 +290,17 @@ def add_goal(
     gt = (goal_type or "generic").strip().lower()
     if gt not in ("generic", "mortgage"):
         gt = "generic"
+    extra = None
+    if extra_json is not None:
+        raw = str(extra_json).strip()
+        if raw:
+            if len(raw) > 32000:
+                raise ValueError("Datos extra demasiado largos.")
+            try:
+                json.loads(raw)
+            except json.JSONDecodeError:
+                raise ValueError("extra_json no es JSON válido.")
+            extra = raw
     g = SpendingPlanGoal(
         user_id=user_id,
         title=title[:200],
@@ -296,6 +308,7 @@ def add_goal(
         priority=pr,
         amount_total=amt,
         target_date=target_date,
+        extra_json=extra,
     )
     db.session.add(g)
     db.session.commit()
