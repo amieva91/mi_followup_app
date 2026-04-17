@@ -500,21 +500,19 @@ def _has_active_holdings(user_id: int, asset_types: List[str]) -> bool:
     )
 
 
-def _investments_prev_close_ok(user_id: int) -> bool:
+def _prev_close_ok_for_types(user_id: int, asset_types: List[str]) -> bool:
     """
-    Verifica que, para holdings actuales de inversión (Stock/ETF/ADR, Crypto, Commodity),
-    exista previous_close en sus assets. Si falta, no calculamos DAY%.
+    True si, para holdings actuales de esos tipos, existe previous_close en sus assets.
     """
     q = (
         Asset.query.join(PortfolioHolding, PortfolioHolding.asset_id == Asset.id)
         .filter(
             PortfolioHolding.user_id == user_id,
             PortfolioHolding.quantity > 0,
-            Asset.asset_type.in_(["Stock", "ETF", "ADR", "Crypto", "Commodity"]),
+            Asset.asset_type.in_(asset_types),
         )
     )
-    missing = q.filter(Asset.previous_close.is_(None)).first()
-    return missing is None
+    return q.filter(Asset.previous_close.is_(None)).first() is None
 
 
 def get_investments_day_change_pct(user_id: int) -> Optional[float]:
@@ -535,7 +533,14 @@ def get_investments_day_change_pct(user_id: int) -> Optional[float]:
     if not (include_stocks or include_crypto or include_metales):
         return None
 
-    if not _investments_prev_close_ok(user_id):
+    # Si falta previous_close en una categoría, se excluye esa categoría del cálculo.
+    if include_stocks and not _prev_close_ok_for_types(user_id, ["Stock", "ETF", "ADR"]):
+        include_stocks = False
+    if include_crypto and not _prev_close_ok_for_types(user_id, ["Crypto"]):
+        include_crypto = False
+    if include_metales and not _prev_close_ok_for_types(user_id, ["Commodity"]):
+        include_metales = False
+    if not (include_stocks or include_crypto or include_metales):
         return None
 
     now = datetime.now()
