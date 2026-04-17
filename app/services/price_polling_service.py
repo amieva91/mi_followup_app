@@ -83,6 +83,12 @@ def get_assets_to_poll() -> List[Asset]:
     watchlist_ids = {r[0] for r in watchlist_ids}
 
     all_ids = holding_ids | watchlist_ids
+
+    # Dashboard commodities: incluir aunque no estén en holdings/watchlist
+    # (GC=F, SI=F, BZ=F). Si no existen todavía, se crearán al cargar el dashboard.
+    dash_syms = {"GC=F", "SI=F", "BZ=F"}
+    dash_ids = db.session.query(Asset.id).filter(Asset.symbol.in_(dash_syms)).all()
+    all_ids |= {r[0] for r in dash_ids}
     if not all_ids:
         return []
 

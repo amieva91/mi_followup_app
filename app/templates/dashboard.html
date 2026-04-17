@@ -126,6 +126,28 @@
                 </div>
             </div>
             {% endif %}
+            {% if summary.get('commodities') %}
+            <div class="bg-white/10 backdrop-blur rounded-xl p-4 min-w-[220px] max-w-[320px]" id="commodities-block">
+                <h4 class="text-xs font-semibold text-indigo-200 uppercase tracking-wide mb-2">Commodities</h4>
+                <div id="commodities-list" class="space-y-1.5">
+                    {% for c in summary.commodities %}
+                    <div class="flex items-center justify-between text-sm price-cell" data-asset-id="{{ c.asset_id }}">
+                        <span class="font-medium truncate mr-2">{{ c.name }}</span>
+                        <span class="shrink-0 text-indigo-50/90 tabular-nums">
+                            {{ "$%.2f"|format(c.price or 0) }}
+                        </span>
+                        {% if c.day_change_percent is not none %}
+                        <span class="{% if c.day_change_percent >= 0 %}text-emerald-300{% else %}text-red-300{% endif %} font-semibold shrink-0 ml-2 tabular-nums">
+                            {{ "%+.1f"|format(c.day_change_percent) }}%
+                        </span>
+                        {% else %}
+                        <span class="text-indigo-200/70 font-semibold shrink-0 ml-2">—</span>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
             </div>
         </div>
     </div>
@@ -1263,6 +1285,24 @@ function applyDashboardUpdate(summary) {
                 const cls = pct == null ? 'text-indigo-200/70' : ((pct || 0) >= 0 ? 'text-emerald-300' : 'text-red-300');
                 const txt = pct == null ? '—' : `${(pct >= 0 ? '+' : '') + Number(pct).toFixed(1)}%`;
                 return `<div class="flex items-center justify-between text-sm"><span class="font-medium truncate mr-2">${ix.name || ''}</span><span class="${cls} font-semibold shrink-0">${txt}</span></div>`;
+            }).join('');
+        }
+    }
+
+    // Commodities (precio + % día)
+    if (Array.isArray(summary.commodities)) {
+        const cInner = document.getElementById('commodities-list');
+        if (cInner) {
+            cInner.innerHTML = summary.commodities.map(c => {
+                const pct = c.day_change_percent;
+                const pctCls = pct == null ? 'text-indigo-200/70' : ((pct || 0) >= 0 ? 'text-emerald-300' : 'text-red-300');
+                const pctTxt = pct == null ? '—' : `${(pct >= 0 ? '+' : '') + Number(pct).toFixed(1)}%`;
+                const price = (c.price != null) ? Number(c.price).toFixed(2) : '0.00';
+                return `<div class="flex items-center justify-between text-sm price-cell" data-asset-id="${c.asset_id}">
+                    <span class="font-medium truncate mr-2">${c.name || ''}</span>
+                    <span class="shrink-0 text-indigo-50/90 tabular-nums">$${price}</span>
+                    <span class="${pctCls} font-semibold shrink-0 ml-2 tabular-nums">${pctTxt}</span>
+                </div>`;
             }).join('');
         }
     }

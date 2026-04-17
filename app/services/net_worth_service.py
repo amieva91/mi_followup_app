@@ -18,6 +18,7 @@ from app.services.metales_metrics import compute_metales_metrics
 from app.services.stocks_metrics import compute_stocks_metrics
 from app.services.debt_service import DebtService
 from app.services.currency_service import convert_to_eur
+from app.services.currency_service import get_exchange_rates
 from app.services.metrics.pnl_lib import create_portfolio_snapshot
 
 
@@ -81,6 +82,78 @@ def _get_real_estate_value_at_date(user_id: int, target_date) -> float:
 def get_debt_total(user_id: int) -> float:
     """Deuda total pendiente."""
     return DebtService.get_total_debt_remaining(user_id) or 0.0
+
+
+def _convert_amount(amount: float, from_currency: str, to_currency: str) -> float:
+    """
+    Convierte entre monedas usando tasas a EUR.
+    get_exchange_rates() retorna tasas a EUR: 1 unidad de currency = rate[currency] EUR.
+    """
+    if amount is None:
+        return 0.0
+    fc = (from_currency or "EUR").upper()
+    tc = (to_currency or "EUR").upper()
+    if fc == tc:
+        return float(amount)
+    # 1) from -> EUR
+    eur = convert_to_eur(amount, fc)
+    if tc == "EUR":
+        return float(eur)
+    # 2) EUR -> to
+    rates = get_exchange_rates()
+    rate_to = rates.get(tc) or 1.0
+    return float(eur) / float(rate_to) if rate_to else float(eur)
+
+
+def get_commodities_snapshot(user_id: int) -> List[Dict[str, Any]]:
+    """
+    Snapshot ligero para widget 'Commodities' en dashboard.
+    Devuelve 3 filas: Oro, Plata, Oil Brent, con precio en USD y % cambio día.
+    """
+    # tickers Yahoo (Chart API). En nuestro modelo es Asset.symbol (yahoo_suffix vacío).
+    wanted = [
+        {"symbol": "GC=F", "name": "Oro", "currency": "USD"},
+        {"symbol": "SI=F", "name": "Plata", "currency": "USD"},
+        {"symbol": "BZ=F", "name": "Oil Brent", "currency": "USD"},
+    ]
+
+    rows: List[Dict[str, Any]] = []
+    for spec in wanted:
+        sym = spec["symbol"]
+        a = Asset.query.filter_by(symbol=sym).first()
+        if not a:
+            a = Asset(
+                symbol=sym,
+                name=spec["name"],
+                asset_type="Commodity",
+                currency=spec["currency"],
+                yahoo_suffix="",
+            )
+            db.session.add(a)
+            db.session.flush()
+
+        # Precio en USD para mostrar
+        price = a.current_price or 0.0
+        price_usd = _convert_amount(price, a.currency, "USD") if price else 0.0
+
+        rows.append(
+            {
+                "asset_id": a.id,
+                "symbol": a.symbol,
+                "name": spec["name"],
+                "price": price_usd,
+                "currency": "USD",
+                "day_change_percent": a.day_change_percent,
+            }
+        )
+
+    # no commit aquí: el dashboard puede llamarse en contextos read-only; el flush ya asignó id
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+    return rows
 
 
 def get_net_worth_breakdown(user_id: int) -> Dict[str, Any]:
@@ -1567,6 +1640,7 @@ def get_dashboard_summary(user_id: int) -> Dict[str, Any]:
     from app.services.portfolio_benchmarks_cache import get_market_indices_snapshot
 
     market_indices = get_market_indices_snapshot(user_id)
+    commodities = get_commodities_snapshot(user_id)
 
     # Mantener la estructura existente para compatibilidad con templates
     return {
@@ -1599,4 +1673,5 @@ def get_dashboard_summary(user_id: int) -> Dict[str, Any]:
         "current_block": current_block,
         "top_movers": top_movers,
         "market_indices": market_indices,
+        "commodities": commodities,
     }

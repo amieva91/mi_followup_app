@@ -277,6 +277,7 @@ class DashboardSummaryCacheService:
         from app.services.portfolio_benchmarks_cache import get_market_indices_snapshot
 
         data["market_indices"] = get_market_indices_snapshot(user_id)
+        data["commodities"] = nws.get_commodities_snapshot(user_id)
 
         # Solo actualizar el ÚLTIMO punto del histórico (mes actual / “ahora”) con el breakdown
         # recién calculado; el resto de meses permanece congelado (HIST).
