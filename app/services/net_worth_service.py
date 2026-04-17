@@ -4,7 +4,7 @@ Calcula el patrimonio total, desglose por tipo de activo, evolución histórica 
 """
 from datetime import date, datetime
 from dateutil.relativedelta import relativedelta
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 import numpy as np
 
 from sqlalchemy.exc import OperationalError
@@ -515,16 +515,13 @@ def _prev_close_ok_for_types(user_id: int, asset_types: List[str]) -> bool:
     return q.filter(Asset.previous_close.is_(None)).first() is None
 
 
-def get_investments_day_change_pct(user_id: int) -> Optional[float]:
+def get_investments_day_change(user_id: int) -> Optional[Tuple[float, float]]:
     """
-    DAY % para inversiones reales del usuario:
-      broker total real (con apalancamiento) + crypto + metales
-    Excluye cash y real estate.
+    Variación diaria agregada de inversiones (misma base que el % DAY):
+      broker total real (apalancamiento) + crypto + metales, en EUR.
+    Devuelve (day_pct, day_eur_delta) o None si no aplica.
 
-    Solo aparece si:
-      - el módulo correspondiente está habilitado
-      - y hay holdings activos en al menos uno (stock/crypto/metales)
-      - y hay previous_close disponible para los holdings implicados
+    day_eur_delta = valor a precio actual − valor a cierre previo (misma selección de buckets).
     """
     include_stocks = _user_has_module(user_id, "stock") and _has_active_holdings(user_id, ["Stock", "ETF", "ADR"])
     include_crypto = _user_has_module(user_id, "crypto") and _has_active_holdings(user_id, ["Crypto"])
@@ -569,8 +566,15 @@ def get_investments_day_change_pct(user_id: int) -> Optional[float]:
     if invest_prev <= 0:
         return None
 
-    day_pct = (invest_now - invest_prev) / invest_prev * 100.0
-    return round(day_pct, 2)
+    day_eur = round(invest_now - invest_prev, 2)
+    day_pct = round((invest_now - invest_prev) / invest_prev * 100.0, 2)
+    return (day_pct, day_eur)
+
+
+def get_investments_day_change_pct(user_id: int) -> Optional[float]:
+    """Compatibilidad: solo el porcentaje DAY (misma definición que get_investments_day_change)."""
+    pair = get_investments_day_change(user_id)
+    return pair[0] if pair else None
 
 
 def _get_holdings_breakdown_at_date(user_id: int, target_date, use_current_prices: bool = False) -> Dict[str, float]:
@@ -1755,11 +1759,17 @@ def get_dashboard_summary(user_id: int) -> Dict[str, Any]:
     health_score = get_financial_health_score(user_id)
 
     current_block = _build_dashboard_current_from_history(breakdown, history)
-    # DAY % inversiones (broker real + crypto + metales). Puede ser None.
+    # DAY % y EUR (broker real + crypto + metales). Pueden ser None.
     try:
-        current_block["changes"]["day_pct"] = get_investments_day_change_pct(user_id)
+        day_inv = get_investments_day_change(user_id)
+        if day_inv:
+            current_block["changes"]["day_pct"], current_block["changes"]["day_eur"] = day_inv
+        else:
+            current_block["changes"]["day_pct"] = None
+            current_block["changes"]["day_eur"] = None
     except Exception:
         current_block["changes"]["day_pct"] = None
+        current_block["changes"]["day_eur"] = None
     top_movers = get_top_movers_for_user(user_id, limit=5)
     from app.services.portfolio_benchmarks_cache import get_market_indices_snapshot
 

@@ -103,15 +103,18 @@
                 <h1 id="net-worth-value" class="text-4xl md:text-5xl font-bold mt-1">{{ "%.2f"|format(summary.net_worth) }} EUR</h1>
                 <div class="flex items-center gap-4 mt-2 text-sm">
                     {% if summary.changes.month >= 0 %}
-                    <span id="month-change" class="bg-green-500/30 px-2 py-1 rounded">+{{ "%.2f"|format(summary.changes.month) }} EUR mes</span>
+                    <span id="month-change" class="bg-green-500/30 px-2 py-1 rounded">+{{ "%.2f"|format(summary.changes.month) }} EUR Month</span>
                     {% else %}
-                    <span id="month-change" class="bg-red-500/30 px-2 py-1 rounded">{{ "%.2f"|format(summary.changes.month) }} EUR mes</span>
+                    <span id="month-change" class="bg-red-500/30 px-2 py-1 rounded">{{ "%.2f"|format(summary.changes.month) }} EUR Month</span>
                     {% endif %}
                     <span id="ytd-change" class="bg-white/20 px-2 py-1 rounded">{{ summary.changes.ytd_pct }}% YTD</span>
                     {% set day_pct = summary.changes.get('day_pct') if summary.changes else none %}
+                    {% set day_eur = summary.changes.get('day_eur') if summary.changes else none %}
                     <span id="day-change" class="bg-white/20 px-2 py-1 rounded {% if day_pct is none %}hidden{% endif %}">
-                        {% if day_pct is not none %}
-                            {% if day_pct >= 0 %}+{% endif %}{{ day_pct|decimal_eu(2) }}% DAY
+                        {% if day_pct is not none and day_eur is not none %}
+                            {% if day_eur >= 0 %}+{% endif %}{{ day_eur|decimal_eu(2) }} EUR · {% if day_pct >= 0 %}+{% endif %}{{ day_pct|decimal_eu(2) }}% Day
+                        {% elif day_pct is not none %}
+                            {% if day_pct >= 0 %}+{% endif %}{{ day_pct|decimal_eu(2) }}% Day
                         {% endif %}
                     </span>
                 </div>
@@ -1220,7 +1223,7 @@ function applyDashboardUpdate(summary) {
     if (monthChangeEl && summary.changes) {
         const m = summary.changes.month || 0;
         const positive = m >= 0;
-        monthChangeEl.textContent = `${positive ? '+' : ''}${m.toFixed(2)} EUR mes`;
+        monthChangeEl.textContent = `${positive ? '+' : ''}${m.toFixed(2)} EUR Month`;
         monthChangeEl.classList.toggle('bg-green-500/30', positive);
         monthChangeEl.classList.toggle('bg-red-500/30', !positive);
     }
@@ -1230,9 +1233,14 @@ function applyDashboardUpdate(summary) {
     }
     if (dayEl && summary.changes) {
         const d = summary.changes.day_pct;
+        const e = summary.changes.day_eur;
         if (typeof d === 'number') {
             dayEl.classList.remove('hidden');
-            dayEl.textContent = `${d >= 0 ? '+' : ''}${d.toFixed(2)}% DAY`;
+            if (typeof e === 'number') {
+                dayEl.textContent = `${e >= 0 ? '+' : ''}${e.toFixed(2)} EUR · ${d >= 0 ? '+' : ''}${d.toFixed(2)}% Day`;
+            } else {
+                dayEl.textContent = `${d >= 0 ? '+' : ''}${d.toFixed(2)}% Day`;
+            }
             dayEl.classList.toggle('text-emerald-100', d >= 0);
             dayEl.classList.toggle('text-red-100', d < 0);
         } else {

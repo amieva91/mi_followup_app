@@ -279,17 +279,22 @@ class DashboardSummaryCacheService:
         data["market_indices"] = get_market_indices_snapshot(user_id)
         data["commodities"] = nws.get_commodities_snapshot(user_id)
 
-        # DAY % inversiones (NOW)
+        # DAY % y EUR inversiones (NOW)
         # Importante: más abajo se reemplaza data["changes"] con current_block["changes"],
-        # así que guardamos el valor para reinyectarlo después.
+        # así que guardamos los valores para reinyectarlos después.
         day_pct = None
+        day_eur = None
         try:
-            day_pct = nws.get_investments_day_change_pct(user_id)
+            day_inv = nws.get_investments_day_change(user_id)
+            if day_inv:
+                day_pct, day_eur = day_inv
             if isinstance(data.get("changes"), dict):
                 data["changes"]["day_pct"] = day_pct
+                data["changes"]["day_eur"] = day_eur
         except Exception:
             if isinstance(data.get("changes"), dict):
                 data["changes"]["day_pct"] = None
+                data["changes"]["day_eur"] = None
 
         # Solo actualizar el ÚLTIMO punto del histórico (mes actual / “ahora”) con el breakdown
         # recién calculado; el resto de meses permanece congelado (HIST).
@@ -328,11 +333,13 @@ class DashboardSummaryCacheService:
         data["changes"] = current_block["changes"]
         data["current_block"] = current_block
 
-        # Reinyectar day_pct si se calculó (evita que se pierda por el overwrite de "changes")
+        # Reinyectar day_pct / day_eur (evita que se pierdan por el overwrite de "changes")
         if isinstance(data.get("changes"), dict):
             data["changes"]["day_pct"] = day_pct
+            data["changes"]["day_eur"] = day_eur
         if isinstance(current_block.get("changes"), dict):
             current_block["changes"]["day_pct"] = day_pct
+            current_block["changes"]["day_eur"] = day_eur
 
         # Actualizar metadatos y TTL:
         # - version/_now_cached_at: SOLO si cambió NOW (firma distinta).
