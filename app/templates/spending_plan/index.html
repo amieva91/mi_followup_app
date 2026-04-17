@@ -1,11 +1,109 @@
 {% extends "base/layout.html" %}
 {% block title %}Planificación de gastos{% endblock %}
 {% block content %}
-<div class="max-w-4xl mx-auto px-4 py-8">
-    <h1 class="text-2xl font-bold text-gray-900 mb-2">Planificación de gastos</h1>
-    <p class="text-gray-600 mb-6">
-        Herramienta en construcción: objetivos de gasto, proyección 12 meses, margen frente al DSR máximo y simulación de vivienda (hipoteca, gastos de compra, LTV).
-    </p>
-    <a href="{{ url_for('main.dashboard') }}" class="text-indigo-600 hover:underline">← Volver al dashboard</a>
+<div class="max-w-6xl mx-auto px-4 py-8">
+    <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Planificación de gastos</h1>
+            <p class="text-sm text-gray-500 mt-1">Proyección a {{ settings.horizon_months }} meses con ingreso medio y gastos fijos por categoría.</p>
+        </div>
+        <a href="{{ url_for('main.dashboard') }}" class="text-indigo-600 hover:underline text-sm">← Dashboard</a>
+    </div>
+
+    <form method="post" class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-8">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Endeudamiento máximo (DSR) %</label>
+                <input type="number" name="max_dsr_percent" step="0.5" min="5" max="60"
+                       value="{{ settings.max_dsr_percent }}"
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900"/>
+                <p class="text-xs text-gray-500 mt-1">Cupo máximo de cuotas / ingreso neto mensual (referencia).</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Horizonte (meses)</label>
+                <input type="number" name="horizon_months" min="1" max="36"
+                       value="{{ settings.horizon_months }}"
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900"/>
+            </div>
+            <div class="flex items-end">
+                <button type="submit" class="w-full md:w-auto px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">
+                    Guardar configuración
+                </button>
+            </div>
+        </div>
+
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Categorías de gasto fijas (media últimos 12 meses)</label>
+            <p class="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mb-2">
+                No selecciones a la vez una categoría padre y sus hijas: la media del padre ya incluye a las hijas.
+            </p>
+            <select name="fixed_category_ids" multiple size="12"
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900 font-mono text-sm">
+                {% for opt in category_options %}
+                <option value="{{ opt.id }}" {% if opt.id in fixed_category_ids %}selected{% endif %}>{{ opt.label }}</option>
+                {% endfor %}
+            </select>
+            <p class="text-xs text-gray-500 mt-1">Ctrl/Cmd + clic para varias categorías.</p>
+        </div>
+    </form>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
+        <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
+            <p class="text-xs font-medium text-indigo-800 uppercase">Ingreso mensual medio</p>
+            <p class="text-2xl font-bold text-indigo-900">{{ "%.2f"|format(income_avg) }} €</p>
+        </div>
+        <div class="bg-rose-50 border border-rose-100 rounded-xl p-4">
+            <p class="text-xs font-medium text-rose-800 uppercase">Gastos fijos (suma medias)</p>
+            <p class="text-2xl font-bold text-rose-900">{{ "%.2f"|format(fixed_total) }} €</p>
+        </div>
+        <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
+            <p class="text-xs font-medium text-emerald-800 uppercase">Efectivo bancos (mes actual)</p>
+            <p class="text-2xl font-bold text-emerald-900">{{ "%.2f"|format(starting_cash) }} €</p>
+        </div>
+    </div>
+
+    {% if fixed_lines %}
+    <div class="mb-6">
+        <h2 class="text-sm font-semibold text-gray-700 mb-2">Desglose gastos fijos</h2>
+        <ul class="text-sm text-gray-600 space-y-1">
+            {% for line in fixed_lines %}
+            <li class="flex justify-between max-w-md"><span>{{ line.name }}</span><span class="tabular-nums">{{ "%.2f"|format(line.average_monthly) }} €/mes</span></li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <h2 class="text-lg font-bold text-gray-900 mb-3">Proyección mensual</h2>
+    <div class="overflow-x-auto rounded-xl border border-gray-200">
+        <table class="min-w-full text-sm">
+            <thead class="bg-gray-50 text-left text-gray-600">
+                <tr>
+                    <th class="px-4 py-3">Mes</th>
+                    <th class="px-4 py-3 text-right">Ingreso (media)</th>
+                    <th class="px-4 py-3 text-right">Gastos fijos</th>
+                    <th class="px-4 py-3 text-right">Superávit</th>
+                    <th class="px-4 py-3 text-right">Saldo acumulado</th>
+                    <th class="px-4 py-3 text-right">Cuota máx. (DSR)</th>
+                    <th class="px-4 py-3 text-right">Margen DSR *</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for m in months %}
+                <tr class="hover:bg-gray-50/80">
+                    <td class="px-4 py-2 font-medium text-gray-900">{{ m.month_label }}</td>
+                    <td class="px-4 py-2 text-right tabular-nums">{{ "%.2f"|format(m.income) }}</td>
+                    <td class="px-4 py-2 text-right tabular-nums">{{ "%.2f"|format(m.fixed_expenses) }}</td>
+                    <td class="px-4 py-2 text-right tabular-nums {% if m.surplus >= 0 %}text-emerald-700{% else %}text-red-600{% endif %}">{{ "%.2f"|format(m.surplus) }}</td>
+                    <td class="px-4 py-2 text-right tabular-nums font-medium">{{ "%.2f"|format(m.ending_cash) }}</td>
+                    <td class="px-4 py-2 text-right tabular-nums text-gray-700">{{ "%.2f"|format(m.max_debt_payment) }}</td>
+                    <td class="px-4 py-2 text-right tabular-nums text-indigo-700">{{ "%.2f"|format(m.dsr_margin) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <p class="text-xs text-gray-500 mt-2">* Margen DSR: cupo de cuota según tu DSR máximo menos cuotas de objetivos (próximamente hipoteca, etc.). Ahora sin cuotas adicionales = cupo completo.</p>
 </div>
 {% endblock %}

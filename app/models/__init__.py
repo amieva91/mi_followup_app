@@ -28,6 +28,7 @@ from app.models.price_polling_state import PricePollingState
 from app.models.cache_rebuild_state import CacheRebuildState
 from app.models.benchmark_global_quote import BenchmarkGlobalQuote
 from app.models.benchmark_global_daily import BenchmarkGlobalDaily, BenchmarkGlobalState
+from app.models.spending_plan import SpendingPlanSettings, SpendingPlanFixedCategory, SpendingPlanGoal
 
 __all__ = [
     'User', 'MODULES', 'AVATARS', 
@@ -63,5 +64,8 @@ __all__ = [
     'BenchmarkGlobalQuote',
     'BenchmarkGlobalDaily',
     'BenchmarkGlobalState',
+    'SpendingPlanSettings',
+    'SpendingPlanFixedCategory',
+    'SpendingPlanGoal',
 ]
 
