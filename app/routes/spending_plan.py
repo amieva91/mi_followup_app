@@ -77,17 +77,15 @@ def add_goal():
 def _default_mortgage_form():
     return {
         "purchase_price": "280000",
-        "savings": "45000",
-        "years": "25",
+        "savings": "80000",
+        "years": "30",
         "first_home": True,
-        "ltv_mode": "80",
-        "use_euribor": False,
-        "spread_percent": "0.75",
         "annual_interest_percent": "3.50",
         "notary": str(mss.DEFAULT_NOTARY),
         "registry": str(mss.DEFAULT_REGISTRY),
         "gestoria": str(mss.DEFAULT_GESTORIA),
         "tasacion": str(mss.DEFAULT_TASACION),
+        "valor_tasacion_inmueble": "",
     }
 
 
@@ -95,7 +93,6 @@ def _default_mortgage_form():
 @login_required
 def mortgage_simulator():
     result = None
-    euribor_hint = mss.fetch_euribor_implied_percent()
     sim_form = _default_mortgage_form()
 
     if request.method == "POST" and request.form.get("action") == "simulate":
@@ -107,9 +104,6 @@ def mortgage_simulator():
             "savings": (request.form.get("savings") or "").strip(),
             "years": (request.form.get("years") or "").strip(),
             "first_home": request.form.get("first_home") == "1",
-            "ltv_mode": (request.form.get("ltv_mode") or "80").strip(),
-            "use_euribor": request.form.get("use_euribor") == "1",
-            "spread_percent": (request.form.get("spread_percent") or "").strip(),
             "annual_interest_percent": (
                 request.form.get("annual_interest_percent") or ""
             ).strip(),
@@ -117,33 +111,33 @@ def mortgage_simulator():
             "registry": (request.form.get("registry") or "").strip(),
             "gestoria": (request.form.get("gestoria") or "").strip(),
             "tasacion": (request.form.get("tasacion") or "").strip(),
+            "valor_tasacion_inmueble": (
+                request.form.get("valor_tasacion_inmueble") or ""
+            ).strip(),
         }
         try:
             pp = float(sim_form["purchase_price"] or 0)
             sav = float(sim_form["savings"] or 0)
-            yrs = int(sim_form["years"] or 25)
+            yrs = int(sim_form["years"] or 30)
             first = sim_form["first_home"]
-            ltv = sim_form["ltv_mode"]
-            use_eur = sim_form["use_euribor"]
-            spread = float(sim_form["spread_percent"] or 0.75)
             annual = float(sim_form["annual_interest_percent"] or 3.5)
             notary = float(sim_form["notary"] or mss.DEFAULT_NOTARY)
             registry = float(sim_form["registry"] or mss.DEFAULT_REGISTRY)
             gestoria = float(sim_form["gestoria"] or mss.DEFAULT_GESTORIA)
             tasacion = float(sim_form["tasacion"] or mss.DEFAULT_TASACION)
+            vts = (request.form.get("valor_tasacion_inmueble") or "").strip()
+            valor_tas = float(vts) if vts else None
             result = mss.run_simulation(
                 purchase_price=pp,
-                savings=sav,
+                savings_cash=sav,
                 years=yrs,
                 first_home=first,
-                ltv_mode=ltv,
                 notary=notary,
                 registry=registry,
                 gestoria=gestoria,
-                tasacion=tasacion,
+                tasacion_fee=tasacion,
+                valor_tasacion_inmueble=valor_tas,
                 annual_interest_percent=annual,
-                use_euribor_plus_spread=use_eur,
-                spread_percent=spread,
             )
         except ValueError as e:
             flash(str(e), "error")
@@ -153,8 +147,8 @@ def mortgage_simulator():
     return render_template(
         "spending_plan/mortgage.html",
         result=result,
-        euribor_hint=euribor_hint,
         sim_form=sim_form,
+        loan_cap_percent=int(mss.LOAN_CAP_ON_APPRAISAL * 100),
         defaults={
             "notary": mss.DEFAULT_NOTARY,
             "registry": mss.DEFAULT_REGISTRY,

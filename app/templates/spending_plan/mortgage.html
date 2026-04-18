@@ -1,11 +1,12 @@
 {% extends "base/layout.html" %}
 {% block title %}Simulador vivienda{% endblock %}
 {% block content %}
-<div class="max-w-4xl mx-auto px-4 py-8">
+<div class="max-w-4xl mx-auto px-4 py-8" id="mortgage-sim-page"
+     data-loan-cap="{{ loan_cap_percent }}">
     <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
             <h1 class="text-2xl font-bold text-gray-900">Simulador compra vivienda</h1>
-            <p class="text-sm text-gray-500 mt-1">Gastos orientativos, ITP 6% / 8%, LTV 80% o 90% sobre tasación, cuota a tipo fijo (amortización francesa).</p>
+            <p class="text-sm text-gray-500 mt-1">ITP 6% / 8%, gastos editables, préstamo máximo {{ loan_cap_percent }}% del valor de tasación, cuota a tipo fijo (francesa).</p>
         </div>
         <div class="flex gap-3 text-sm">
             <a href="{{ url_for('spending_plan.index') }}" class="text-indigo-600 hover:underline">← Planificación</a>
@@ -13,72 +14,63 @@
         </div>
     </div>
 
-    {% if euribor_hint is not none %}
-    <p class="text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 mb-6">
-        Euribor referencia (futuro <code class="text-xs bg-white px-1 rounded">EBH28.CME</code>, convención 100−precio): <strong>~{{ "%.2f"|format(euribor_hint) }}%</strong>
-    </p>
-    {% endif %}
-
-    <form method="post" class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-8 space-y-6">
+    <form method="post" class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-8 space-y-6" id="mortgage-sim-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <input type="hidden" name="action" value="simulate"/>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Precio de compra (€)</label>
-                <input type="number" name="purchase_price" min="0" step="1000" required
+                <input type="number" name="purchase_price" id="mp-purchase" min="0" step="1000" required
                        value="{{ sim_form.purchase_price }}"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900"/>
             </div>
             <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Valor de tasación del inmueble (€)</label>
+                <input type="number" name="valor_tasacion_inmueble" id="mp-valor-tas" min="0" step="1000"
+                       value="{{ sim_form.valor_tasacion_inmueble }}"
+                       placeholder="Vacío = precio de compra"
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900"/>
+                <p class="text-xs text-gray-500 mt-1">Para el límite del {{ loan_cap_percent }}% del préstamo. Si lo dejas vacío, se usa el precio de compra.</p>
+            </div>
+            <div class="md:col-span-2">
                 <label class="block text-sm font-medium text-gray-700 mb-1">Ahorros a aportar (€)</label>
-                <input type="number" name="savings" min="0" step="1000" required
+                <input type="number" name="savings" id="mp-savings" min="0" step="100" required
                        value="{{ sim_form.savings }}"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900"/>
+                <p class="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mt-2" id="mp-savings-hint">
+                    Indica primero el precio de compra para ver el mínimo orientativo y el tope (no superior al precio).
+                </p>
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Años de préstamo</label>
-                <input type="number" name="years" min="1" max="40" required
+                <input type="number" name="years" id="mp-years" min="1" max="40" required
                        value="{{ sim_form.years }}"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900"/>
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">LTV sobre tasación</label>
-                <select name="ltv_mode" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900">
-                    <option value="80" {% if sim_form.ltv_mode == '80' %}selected{% endif %}>80%</option>
-                    <option value="90" {% if sim_form.ltv_mode == '90' %}selected{% endif %}>90%</option>
-                </select>
+                <label class="block text-sm font-medium text-gray-700 mb-1">LTV sobre valor de tasación</label>
+                <input type="text" id="mp-ltv-display" readonly
+                       class="w-full border border-dashed border-gray-300 rounded-lg px-3 py-2 text-gray-700 bg-gray-50"
+                       value="— (se calcula al pulsar Calcular)"/>
+                <p class="text-xs text-gray-500 mt-1">Préstamo concedido / valor tasación (referencia).</p>
             </div>
         </div>
 
         <label class="inline-flex items-center gap-2 text-sm text-gray-800">
-            <input type="checkbox" name="first_home" value="1" class="rounded border-gray-300"
+            <input type="checkbox" name="first_home" id="mp-first" value="1" class="rounded border-gray-300"
                    {% if sim_form.first_home %}checked{% endif %}/>
             Primera vivienda (ITP 6%; si no, 8%)
         </label>
 
         <div class="border-t border-gray-100 pt-4">
-            <p class="text-sm font-medium text-gray-800 mb-3">Tipo de interés nominal anual</p>
-            <label class="inline-flex items-center gap-2 text-sm text-gray-800 mb-3">
-                <input type="checkbox" name="use_euribor" value="1" class="rounded border-gray-300"
-                       {% if sim_form.use_euribor %}checked{% endif %}/>
-                Usar Euribor (futuro) + diferencial
-            </label>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Diferencial sobre Euribor (%)</label>
-                    <input type="number" name="spread_percent" step="0.05" min="0" max="5"
-                           value="{{ sim_form.spread_percent }}"
-                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Tipo fijo manual (% anual)</label>
-                    <input type="number" name="annual_interest_percent" step="0.05" min="0" max="15"
-                           value="{{ sim_form.annual_interest_percent }}"
-                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
-                </div>
+            <p class="text-sm font-medium text-gray-800 mb-3">Tipo de interés nominal anual (fijo)</p>
+            <div class="max-w-xs">
+                <label class="block text-xs font-medium text-gray-600 mb-1">Tipo fijo (% anual)</label>
+                <input type="number" name="annual_interest_percent" id="mp-rate" step="0.05" min="0" max="15"
+                       value="{{ sim_form.annual_interest_percent }}"
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
             </div>
-            <p class="text-xs text-gray-500 mt-2">Si marcas Euribor + diferencial, se ignora el tipo manual para la cuota.</p>
         </div>
 
         <div class="border-t border-gray-100 pt-4">
@@ -86,21 +78,22 @@
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                 <div>
                     <label class="block text-xs text-gray-600 mb-1">Notaría</label>
-                    <input type="number" name="notary" min="0" step="10" value="{{ sim_form.notary }}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5"/>
+                    <input type="number" name="notary" id="mp-notary" min="0" step="10" value="{{ sim_form.notary }}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 mp-cost"/>
                 </div>
                 <div>
                     <label class="block text-xs text-gray-600 mb-1">Registro</label>
-                    <input type="number" name="registry" min="0" step="10" value="{{ sim_form.registry }}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5"/>
+                    <input type="number" name="registry" id="mp-registry" min="0" step="10" value="{{ sim_form.registry }}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 mp-cost"/>
                 </div>
                 <div>
-                    <label class="block text-xs text-gray-600 mb-1">Gestoría</label>
-                    <input type="number" name="gestoria" min="0" step="10" value="{{ sim_form.gestoria }}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5"/>
+                    <label class="block text-xs text-gray-600 mb-1">Gestión</label>
+                    <input type="number" name="gestoria" id="mp-gestoria" min="0" step="10" value="{{ sim_form.gestoria }}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 mp-cost"/>
                 </div>
                 <div>
-                    <label class="block text-xs text-gray-600 mb-1">Tasación</label>
-                    <input type="number" name="tasacion" min="0" step="10" value="{{ sim_form.tasacion }}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5"/>
+                    <label class="block text-xs text-gray-600 mb-1">Tasación (importe gasto)</label>
+                    <input type="number" name="tasacion" id="mp-tasacion" min="0" step="10" value="{{ sim_form.tasacion }}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 mp-cost"/>
                 </div>
             </div>
+            <p class="text-xs text-gray-500 mt-2">En el cálculo se suma el importe de tasación (gasto) a los ahorros en efectivo para la aportación total.</p>
         </div>
 
         <button type="submit" class="px-6 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">
@@ -113,12 +106,18 @@
         <h2 class="text-lg font-bold text-gray-900 mb-4">Resultado</h2>
         <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 text-sm">
             <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Coste total (compra + ITP + gastos)</dt><dd class="font-medium tabular-nums">{{ "%.2f"|format(result.total_cost) }} €</dd></div>
-            <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Préstamo necesario</dt><dd class="font-medium tabular-nums">{{ "%.2f"|format(result.loan_amount) }} €</dd></div>
-            <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Tasación mínima orientativa (préstamo / LTV)</dt><dd class="font-medium tabular-nums text-indigo-800">{{ "%.2f"|format(result.min_appraisal) }} €</dd></div>
-            <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Tipo nominal anual aplicado</dt><dd class="font-medium tabular-nums">{{ "%.4f"|format(result.annual_interest_percent) }} %</dd></div>
+            <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Ahorros indicados (efectivo)</dt><dd class="font-medium tabular-nums">{{ "%.2f"|format(result.savings_cash) }} €</dd></div>
+            <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Entrada efectiva (ahorros + gasto tasación)</dt><dd class="font-semibold tabular-nums text-indigo-900">{{ "%.2f"|format(result.effective_entry_total) }} €</dd></div>
+            <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Préstamo</dt><dd class="font-medium tabular-nums">{{ "%.2f"|format(result.loan_amount) }} €</dd></div>
+            <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Máx. préstamo ({{ loan_cap_percent }}% × valor tasación)</dt><dd class="font-medium tabular-nums">{{ "%.2f"|format(result.max_loan_by_policy) }} €</dd></div>
+            <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">LTV sobre valor tasación</dt><dd class="font-medium tabular-nums text-indigo-800">{{ "%.2f"|format(result.ltv_percent) }} %</dd></div>
+            <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Tipo nominal anual</dt><dd class="font-medium tabular-nums">{{ "%.4f"|format(result.annual_interest_percent) }} %</dd></div>
             <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Cuota mensual (francesa)</dt><dd class="font-bold text-lg tabular-nums text-emerald-800">{{ "%.2f"|format(result.monthly_payment) }} €</dd></div>
             <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Total intereses (aprox.)</dt><dd class="font-medium tabular-nums">{{ "%.2f"|format(result.total_interest) }} €</dd></div>
         </dl>
+        <p class="text-xs text-gray-600 mt-4 p-3 bg-slate-50 rounded-lg border border-slate-100">
+            La <strong>entrada aportada</strong> ({{ "%.2f"|format(result.effective_entry_total) }} €) es la que se descuenta del efectivo en planificación si añades el objetivo hipoteca, además de la cuota mensual en DSR.
+        </p>
         <ul class="mt-4 space-y-1 text-xs text-gray-600 list-disc list-inside">
             {% for line in result.info_lines %}
             <li>{{ line }}</li>
@@ -127,7 +126,7 @@
 
         <div class="mt-8 pt-6 border-t border-gray-100">
             <h3 class="text-sm font-semibold text-gray-900 mb-3">Añadir a planificación como objetivo hipoteca</h3>
-            <p class="text-xs text-gray-500 mb-3">Se guarda el importe del préstamo y la cuota en <code class="bg-gray-100 px-1 rounded">extra_json</code> para DSR y proyección.</p>
+            <p class="text-xs text-gray-500 mb-3">Se guardan préstamo, cuota, LTV e <strong>entrada efectiva</strong> en <code class="bg-gray-100 px-1 rounded">extra_json</code> (DSR y saldo inicial).</p>
             <form method="post" action="{{ url_for('spending_plan.add_goal') }}" class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                 <input type="hidden" name="goal_type" value="mortgage"/>
@@ -157,4 +156,67 @@
     </div>
     {% endif %}
 </div>
+<script>
+(function () {
+  var root = document.getElementById('mortgage-sim-page');
+  if (!root) return;
+  var CAP = parseFloat(root.getAttribute('data-loan-cap') || '80') / 100;
+
+  function num(el, fallback) {
+    if (!el || el.value === '' || el.value === null) return fallback;
+    var v = parseFloat(String(el.value).replace(',', '.'));
+    return isNaN(v) ? fallback : v;
+  }
+
+  function compute() {
+    var pp = num(document.getElementById('mp-purchase'), 0);
+    var first = document.getElementById('mp-first') && document.getElementById('mp-first').checked;
+    var itp = first ? 0.06 : 0.08;
+    var n = num(document.getElementById('mp-notary'), 0);
+    var r = num(document.getElementById('mp-registry'), 0);
+    var g = num(document.getElementById('mp-gestoria'), 0);
+    var t = num(document.getElementById('mp-tasacion'), 0);
+    var vtField = document.getElementById('mp-valor-tas');
+    var vtRaw = num(vtField, 0);
+    var vt = vtRaw > 0 ? vtRaw : pp;
+    var tc = pp + pp * itp + n + r + g + t;
+    var maxLoan = Math.round(vt * CAP * 100) / 100;
+    var minCash = Math.max(0, Math.round((Math.max(0, tc - maxLoan) - t) * 100) / 100);
+    var sav = num(document.getElementById('mp-savings'), NaN);
+    var eff = Math.round((sav + t) * 100) / 100;
+    var loan = Math.max(0, Math.round((tc - eff) * 100) / 100);
+    var ltv = vt > 0 ? Math.round((loan / vt) * 10000) / 100 : 0;
+
+    var hint = document.getElementById('mp-savings-hint');
+    var savInput = document.getElementById('mp-savings');
+    var ltvDisp = document.getElementById('mp-ltv-display');
+
+    if (pp > 0 && hint) {
+      hint.textContent = 'Mínimo orientativo en esta casilla: ' + minCash.toFixed(2) + ' € (préstamo máx. ' + (CAP * 100) + '% × valor tasación). Tope: ' + pp.toFixed(2) + ' € (precio compra). La simulación suma además el gasto de tasación (' + t.toFixed(2) + ' €) a tu aportación.';
+    }
+    if (savInput && pp > 0) {
+      savInput.min = String(minCash);
+      savInput.max = String(pp);
+    }
+    if (ltvDisp) {
+      if (pp <= 0) {
+        ltvDisp.value = '—';
+      } else if (!isNaN(sav)) {
+        ltvDisp.value = loan.toFixed(2) + ' € préstamo → LTV ' + ltv.toFixed(2) + ' %';
+      } else {
+        ltvDisp.value = '— (indica ahorros)';
+      }
+    }
+  }
+
+  ['mp-purchase', 'mp-valor-tas', 'mp-savings', 'mp-notary', 'mp-registry', 'mp-gestoria', 'mp-tasacion', 'mp-first'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('input', compute);
+      el.addEventListener('change', compute);
+    }
+  });
+  compute();
+})();
+</script>
 {% endblock %}

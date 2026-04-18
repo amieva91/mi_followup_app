@@ -26,7 +26,7 @@
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Horizonte (meses)</label>
-                <input type="number" name="horizon_months" min="1" max="36"
+                <input type="number" name="horizon_months" min="1" max="60"
                        value="{{ settings.horizon_months }}"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900"/>
             </div>
@@ -40,15 +40,19 @@
         <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">Categorías de gasto fijas (media últimos 12 meses)</label>
             <p class="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mb-2">
-                No selecciones a la vez una categoría padre y sus hijas: la media del padre ya incluye a las hijas.
+                No marques a la vez una categoría padre y sus hijas: la media del padre ya incluye a las hijas.
             </p>
-            <select name="fixed_category_ids" multiple size="12"
-                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900 font-mono text-sm">
+            <div class="max-h-64 overflow-y-auto border border-gray-300 rounded-lg p-3 space-y-2 bg-gray-50/50">
                 {% for opt in category_options %}
-                <option value="{{ opt.id }}" {% if opt.id in fixed_category_ids %}selected{% endif %}>{{ opt.label }}</option>
+                <label class="flex items-start gap-3 cursor-pointer text-sm text-gray-800 hover:bg-white/80 rounded px-1 py-0.5">
+                    <input type="checkbox" name="fixed_category_ids" value="{{ opt.id }}"
+                           class="mt-1 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                           {% if opt.id in fixed_category_ids %}checked{% endif %}/>
+                    <span class="font-mono leading-snug">{{ opt.label }}</span>
+                </label>
                 {% endfor %}
-            </select>
-            <p class="text-xs text-gray-500 mt-1">Ctrl/Cmd + clic para varias categorías.</p>
+            </div>
+            <p class="text-xs text-gray-500 mt-1">Un clic marca o desmarca cada categoría.</p>
         </div>
     </form>
 
@@ -57,8 +61,11 @@
         <h2 class="text-lg font-bold text-gray-900 mb-4">Objetivos planificados</h2>
         <p class="text-sm text-gray-600 mb-4">
             Prioridad <strong>1</strong> = se atiende antes. La cuota mensual se reparte entre hoy y la fecha objetivo (si no hay fecha, se usa el horizonte de meses de arriba).
-            Tipo <strong>Hipoteca</strong>: la cuota cuenta también para el margen DSR (cuando indiques cuota en la simulación avanzada, se usará <code class="text-xs bg-gray-100 px-1 rounded">extra_json</code>).
         </p>
+        <ul class="text-sm text-gray-600 mb-4 list-disc list-inside space-y-1">
+            <li><strong>Genérico</strong>: resta del efectivo mensual (cuota ahorrada); <strong>no</strong> consume el margen DSR.</li>
+            <li><strong>Hipoteca / cuota préstamo</strong>: la cuota mensual resta efectivo <em>y</em> el cupo DSR (cuota deuda / ingreso). Si vienes del simulador de vivienda, la cuota y la entrada se leen del objetivo.</li>
+        </ul>
 
         <form method="post" action="{{ url_for('spending_plan.add_goal') }}" class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end mb-6 pb-6 border-b border-gray-100">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
@@ -115,7 +122,7 @@
                     <tr>
                         <td class="py-2 pr-4 font-medium">{{ g.priority }}</td>
                         <td class="py-2 pr-4">{{ g.title }}</td>
-                        <td class="py-2 pr-4 text-gray-600">{{ g.goal_type }}</td>
+                        <td class="py-2 pr-4 text-gray-600">{% if g.goal_type == 'mortgage' %}Hipoteca{% else %}Genérico{% endif %}</td>
                         <td class="py-2 pr-4 text-right tabular-nums">{{ "%.2f"|format(g.amount_total) }}</td>
                         <td class="py-2 pr-4 text-right tabular-nums">{{ "%.2f"|format(g.monthly_cash) }}</td>
                         <td class="py-2 pr-4 text-right tabular-nums text-indigo-800">{{ "%.2f"|format(g.monthly_dsr) }}</td>
@@ -151,8 +158,14 @@
             <p class="text-xs text-amber-800 mt-1">DSR: {{ "%.2f"|format(goals_dsr_monthly) }} €/mes</p>
         </div>
         <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
-            <p class="text-xs font-medium text-emerald-800 uppercase">Efectivo bancos (mes actual)</p>
+            <p class="text-xs font-medium text-emerald-800 uppercase">Efectivo para proyección (mes actual)</p>
             <p class="text-2xl font-bold text-emerald-900">{{ "%.2f"|format(starting_cash) }} €</p>
+            {% if mortgage_entry_outlays_total and mortgage_entry_outlays_total > 0 %}
+            <p class="text-xs text-emerald-900 mt-2">
+                Saldo bancos: {{ "%.2f"|format(bank_cash_gross) }} €
+                − {{ "%.2f"|format(mortgage_entry_outlays_total) }} € (entradas hipoteca en objetivos)
+            </p>
+            {% endif %}
         </div>
     </div>
 

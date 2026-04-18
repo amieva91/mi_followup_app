@@ -117,6 +117,23 @@ def get_current_bank_cash(user_id: int) -> float:
     return float(BankService.get_total_cash_by_month(user_id, today.year, today.month) or 0)
 
 
+def _sum_mortgage_initial_outlays(user_id: int) -> float:
+    """Suma de `initial_outlay` en objetivos tipo hipoteca (entrada + tasación de simulador)."""
+    total = 0.0
+    goals = SpendingPlanGoal.query.filter_by(user_id=user_id, goal_type="mortgage").all()
+    for g in goals:
+        if not g.extra_json:
+            continue
+        try:
+            data = json.loads(g.extra_json)
+            v = data.get("initial_outlay")
+            if v is not None:
+                total += float(v)
+        except (json.JSONDecodeError, TypeError, ValueError):
+            continue
+    return round(total, 2)
+
+
 @dataclass
 class MonthProjection:
     month_label: str
@@ -241,7 +258,9 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
     fixed_ids = get_fixed_category_ids(user_id)
     income_avg = get_avg_monthly_income(user_id, 12)
     fixed_total, fixed_lines = compute_fixed_expenses_monthly(user_id, fixed_ids)
-    cash0 = get_current_bank_cash(user_id)
+    bank_cash_gross = get_current_bank_cash(user_id)
+    mortgage_entry_outlays = _sum_mortgage_initial_outlays(user_id)
+    cash0 = max(0.0, round(bank_cash_gross - mortgage_entry_outlays, 2))
     goals_cash, goals_dsr, goal_lines = sum_goal_monthlies(user_id, settings.horizon_months)
     months = build_monthly_projection(
         income_avg,
@@ -265,6 +284,8 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
         "fixed_total": fixed_total,
         "fixed_lines": fixed_lines,
         "starting_cash": cash0,
+        "bank_cash_gross": bank_cash_gross,
+        "mortgage_entry_outlays_total": mortgage_entry_outlays,
         "goals_total_monthly": goals_cash,
         "goals_dsr_monthly": goals_dsr,
         "goal_lines": goal_lines,
@@ -331,6 +352,6 @@ def delete_goal(user_id: int, goal_id: int) -> bool:
 def update_settings(user_id: int, max_dsr_percent: float, horizon_months: int = 12) -> SpendingPlanSettings:
     s = _get_or_create_settings(user_id)
     s.max_dsr_percent = max(1.0, min(80.0, float(max_dsr_percent)))
-    s.horizon_months = max(1, min(36, int(horizon_months)))
+    s.horizon_months = max(1, min(60, int(horizon_months)))
     db.session.commit()
     return s
