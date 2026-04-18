@@ -1,6 +1,7 @@
 """
 Modelos para gestión de gastos
 """
+from calendar import monthrange
 from datetime import datetime, timedelta, date
 from dateutil.relativedelta import relativedelta
 from app import db
@@ -218,10 +219,7 @@ class Expense(db.Model):
         for i in range(months - 1, -1, -1):
             d = today - relativedelta(months=i)
             start = d.replace(day=1)
-            if d.month == 12:
-                end = d.replace(day=31)
-            else:
-                end = (d.replace(day=28) + relativedelta(months=1)) - relativedelta(days=1)
+            end = date(d.year, d.month, monthrange(d.year, d.month)[1])
             base_filter = db.and_(
                 Expense.user_id == user_id,
                 Expense.date >= start,

@@ -1,6 +1,7 @@
 """
 Modelos para gestión de ingresos variables
 """
+from calendar import monthrange
 from datetime import datetime, date
 from dateutil.relativedelta import relativedelta
 from app import db
@@ -157,10 +158,7 @@ class Income(db.Model):
         for i in range(months - 1, -1, -1):
             d = today - relativedelta(months=i)
             start = d.replace(day=1)
-            if d.month == 12:
-                end = d.replace(day=31)
-            else:
-                end = (d.replace(day=28) + relativedelta(months=1)) - relativedelta(days=1)
+            end = date(d.year, d.month, monthrange(d.year, d.month)[1])
             total = Income.get_total_by_period(user_id, start, end)
             month_label = start.strftime('%b %Y')
             result.append({'month_label': month_label, 'total': float(total or 0)})
