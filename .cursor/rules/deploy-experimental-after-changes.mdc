@@ -1,0 +1,16 @@
+---
+description: Tras cambios en la rama experimental, subir a origin y desplegar en la VM sin que el usuario lo pida.
+alwaysApply: true
+---
+
+# Despliegue rama experimental (FollowUp)
+
+Cuando completes cambios de código en este repo en la rama **`ui/dashboard-layout-experiments`** (o el trabajo explícito sea para probar en [followup.fit](https://followup.fit/)):
+
+1. Haz **commit** con mensaje claro.
+2. **`git push origin ui/dashboard-layout-experiments`**
+3. Ejecuta **`./scripts/deploy-experimental-branch.sh`** desde la raíz del repo (gcloud + VM `/var/www/followup`, reinicio `followup.service`).
+
+No esperes a que el usuario pida el despliegue si el objetivo es que pueda probar en remoto; solo omítelo si indica explícitamente no desplegar o trabajar solo en local.
+
+Para volver producción habitual con **`main`**, el usuario usa `./subidaPRO.sh` o el script de deploy de producción que corresponda (no sustituir por el experimental salvo que lo pida).
