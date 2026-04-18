@@ -7,6 +7,7 @@ from app import db
 from app.models import IncomeCategory, Income
 from app.forms import IncomeCategoryForm, IncomeForm
 from app.utils.recurrence import create_recurrence_instances
+from app.utils.recurrence_edit_scope import RECURRENCE_EDIT_SCOPES, parse_pivot_date
 from app.services.category_helpers import (
     AJUSTES_CATEGORY_NAME,
     STOCK_MARKET_CATEGORY_NAME,
@@ -22,6 +23,40 @@ from app.services.summary_metrics_service import get_income_summary_metrics
 from app.services.dashboard_summary_cache import DashboardSummaryCacheService
 
 incomes_bp = Blueprint('incomes', __name__, url_prefix='/incomes')
+
+
+def _income_needs_recurrence_scope_choice(income):
+    return bool(income.is_recurring and income.recurrence_group_id)
+
+
+def _pivot_belongs_to_income_series(user_id, group_id, pivot):
+    return (
+        Income.query.filter(
+            Income.user_id == user_id,
+            Income.recurrence_group_id == group_id,
+            Income.date == pivot,
+        ).first()
+        is not None
+    )
+
+
+def _apply_income_series_field_updates(series_incomes, form, new_end_date):
+    deleted_count = 0
+    for series_income in series_incomes[:]:
+        if new_end_date and series_income.date > new_end_date:
+            db.session.delete(series_income)
+            series_incomes.remove(series_income)
+            deleted_count += 1
+        else:
+            series_income.category_id = form.category_id.data
+            series_income.amount = form.amount.data
+            series_income.description = form.description.data
+            series_income.notes = form.notes.data
+            series_income.recurrence_frequency = (
+                form.recurrence_frequency.data if form.is_recurring.data else None
+            )
+            series_income.recurrence_end_date = new_end_date
+    return deleted_count
 
 
 def _touch_dashboard_for_income_dates(user_id, dates):
@@ -325,33 +360,61 @@ def new():
 @incomes_bp.route('/<int:id>/edit', methods=['GET', 'POST'])
 @login_required
 def edit(id):
-    """Editar ingreso (si es recurrente, edita toda la serie)"""
+    """Editar ingreso; series recurrentes: elegir ámbito (serie / futuras / solo esta entrada)."""
     income = Income.query.get_or_404(id)
-    
+
     if income.user_id != current_user.id:
         flash('No tienes permiso para editar este ingreso', 'error')
         return redirect(url_for('incomes.list'))
-    
+
+    needs_scope = _income_needs_recurrence_scope_choice(income)
+    recurrence_edit_scope = None
+    pivot_date_str = None
+
+    if needs_scope and request.method == 'GET':
+        scope_from_url = request.args.get('scope')
+        if scope_from_url not in RECURRENCE_EDIT_SCOPES:
+            return render_template(
+                'incomes/choose_recurrence_edit_scope.html',
+                income=income,
+            )
+        recurrence_edit_scope = scope_from_url
+        pivot_date_str = income.date.isoformat()
+
     form = IncomeForm(obj=income)
-    
-    # Cargar categorías
+
+    if request.method == 'POST' and needs_scope:
+        recurrence_edit_scope = request.form.get('edit_scope')
+        pivot_date_str = request.form.get('pivot_date')
+
     categories = IncomeCategory.query.filter_by(
         user_id=current_user.id
     ).order_by(IncomeCategory.name).all()
-    
+
     form.category_id.choices = [(c.id, f"{c.icon} {c.full_name}") for c in categories]
-    
-    # Verificar si es parte de una serie recurrente
+
     is_part_of_series = income.is_recurring and income.recurrence_group_id
-    
+
     if form.validate_on_submit():
         old_date = income.date
-        # Detectar si cambió de puntual a recurrente
         was_not_recurring = not income.is_recurring
         will_be_recurring = form.is_recurring.data
-        
+
+        if needs_scope:
+            if recurrence_edit_scope not in RECURRENCE_EDIT_SCOPES:
+                flash('Ámbito de edición no válido.', 'error')
+                return redirect(url_for('incomes.edit', id=id))
+            pivot = parse_pivot_date(pivot_date_str)
+            if not pivot or not _pivot_belongs_to_income_series(
+                current_user.id, income.recurrence_group_id, pivot
+            ):
+                flash('No se pudo validar la referencia de la serie.', 'error')
+                return redirect(url_for('incomes.list'))
+
         if was_not_recurring and will_be_recurring:
-            # Cambió de puntual a recurrente: generar nuevas instancias
+            if needs_scope:
+                flash('Operación no permitida.', 'error')
+                return redirect(url_for('incomes.list'))
             temp_income = Income(
                 user_id=current_user.id,
                 category_id=form.category_id.data,
@@ -361,88 +424,178 @@ def edit(id):
                 notes=form.notes.data,
                 is_recurring=True,
                 recurrence_frequency=form.recurrence_frequency.data,
-                recurrence_end_date=form.recurrence_end_date.data
+                recurrence_end_date=form.recurrence_end_date.data,
             )
-            
+
             income_instances = create_recurrence_instances(Income, temp_income, current_user.id)
             db.session.delete(income)
-            
+
             for new_income in income_instances:
                 db.session.add(new_income)
-            
+
             db.session.commit()
             _touch_dashboard_for_income_dates(
                 current_user.id,
                 [old_date] + [i.date for i in income_instances if i.date],
             )
-            flash(f'✅ Ingreso convertido a recurrente: {len(income_instances)} entradas generadas', 'success')
-        
-        elif is_part_of_series:
-            # Es parte de una serie: actualizar TODA la serie
-            series_incomes = Income.query.filter_by(
-                user_id=current_user.id,
-                recurrence_group_id=income.recurrence_group_id
-            ).all()
+            flash(
+                f'✅ Ingreso convertido a recurrente: {len(income_instances)} entradas generadas',
+                'success',
+            )
+
+        elif needs_scope and recurrence_edit_scope == 'entry':
+            income.category_id = form.category_id.data
+            income.amount = form.amount.data
+            income.description = form.description.data
+            income.date = form.date.data
+            income.notes = form.notes.data
+            db.session.commit()
+            _touch_dashboard_for_income_dates(
+                current_user.id,
+                [d for d in (old_date, income.date) if d],
+            )
+            flash('✅ Entrada actualizada (resto de la serie sin cambios)', 'success')
+
+        elif needs_scope and recurrence_edit_scope == 'future':
+            series_incomes = (
+                Income.query.filter(
+                    Income.user_id == current_user.id,
+                    Income.recurrence_group_id == income.recurrence_group_id,
+                    Income.date >= pivot,
+                )
+                .order_by(Income.date)
+                .all()
+            )
             series_dates_for_cache = [i.date for i in series_incomes if i.date]
-            
-            # Si la fecha de fin cambió a una anterior, eliminar entradas posteriores
             new_end_date = form.recurrence_end_date.data if form.is_recurring.data else None
-            deleted_count = 0
-            
-            for series_income in series_incomes[:]:  # Copia para iterar mientras modificamos
-                # Si hay nueva fecha de fin y esta entrada es posterior, eliminarla
-                if new_end_date and series_income.date > new_end_date:
-                    db.session.delete(series_income)
-                    series_incomes.remove(series_income)
-                    deleted_count += 1
-                else:
-                    # Actualizar la entrada
-                    series_income.category_id = form.category_id.data
-                    series_income.amount = form.amount.data
-                    series_income.description = form.description.data
-                    series_income.notes = form.notes.data
-                    series_income.recurrence_frequency = form.recurrence_frequency.data if form.is_recurring.data else None
-                    series_income.recurrence_end_date = new_end_date
-                    # NO actualizar la fecha, cada entrada mantiene su fecha
-            
+            deleted_count = _apply_income_series_field_updates(
+                series_incomes, form, new_end_date
+            )
             db.session.commit()
             _touch_dashboard_for_income_dates(current_user.id, series_dates_for_cache)
-            
             if deleted_count > 0:
-                flash(f'✅ Serie actualizada: {len(series_incomes)} ingresos actualizados, {deleted_count} eliminados', 'success')
+                flash(
+                    f'✅ Entradas futuras actualizadas: {len(series_incomes)} ingresos, '
+                    f'{deleted_count} eliminados por fecha de fin',
+                    'success',
+                )
+            else:
+                flash(
+                    f'✅ Entradas desde esta fecha actualizadas ({len(series_incomes)} ingresos)',
+                    'success',
+                )
+
+        elif needs_scope and recurrence_edit_scope == 'series':
+            series_incomes = Income.query.filter_by(
+                user_id=current_user.id,
+                recurrence_group_id=income.recurrence_group_id,
+            ).all()
+            series_dates_for_cache = [i.date for i in series_incomes if i.date]
+            new_end_date = form.recurrence_end_date.data if form.is_recurring.data else None
+            deleted_count = _apply_income_series_field_updates(
+                series_incomes, form, new_end_date
+            )
+            db.session.commit()
+            _touch_dashboard_for_income_dates(current_user.id, series_dates_for_cache)
+            if deleted_count > 0:
+                flash(
+                    f'✅ Serie actualizada: {len(series_incomes)} ingresos, '
+                    f'{deleted_count} eliminados por fecha de fin',
+                    'success',
+                )
             else:
                 flash(f'✅ Serie completa actualizada ({len(series_incomes)} ingresos)', 'success')
-        
+
         else:
-            # Actualización normal (ingreso puntual)
             income.category_id = form.category_id.data
             income.amount = form.amount.data
             income.description = form.description.data
             income.date = form.date.data
             income.notes = form.notes.data
             income.is_recurring = form.is_recurring.data
-            income.recurrence_frequency = form.recurrence_frequency.data if form.is_recurring.data else None
-            income.recurrence_end_date = form.recurrence_end_date.data if form.is_recurring.data else None
-            
+            income.recurrence_frequency = (
+                form.recurrence_frequency.data if form.is_recurring.data else None
+            )
+            income.recurrence_end_date = (
+                form.recurrence_end_date.data if form.is_recurring.data else None
+            )
+
             db.session.commit()
             _touch_dashboard_for_income_dates(
                 current_user.id,
                 [d for d in (old_date, income.date) if d],
             )
-            flash(f'Ingreso actualizado', 'success')
-        
+            flash('Ingreso actualizado', 'success')
+
         return redirect(url_for('incomes.list'))
-    
-    # Agregar información en el título si es parte de una serie
-    title = 'Editar Serie de Ingresos' if is_part_of_series else 'Editar Ingreso'
-    
+
+    if recurrence_edit_scope == 'series':
+        title = 'Editar serie completa (ingresos)'
+    elif recurrence_edit_scope == 'future':
+        title = 'Editar entradas futuras (ingresos)'
+    elif recurrence_edit_scope == 'entry':
+        title = 'Editar solo esta entrada (ingreso)'
+    elif is_part_of_series:
+        title = 'Editar Serie de Ingresos'
+    else:
+        title = 'Editar Ingreso'
+
+    lock_recurrence_fields = recurrence_edit_scope == 'entry'
+
     return render_template(
         'incomes/form.html',
         form=form,
         title=title,
         income=income,
-        is_part_of_series=is_part_of_series
+        is_part_of_series=bool(is_part_of_series and not needs_scope),
+        recurrence_edit_scope=recurrence_edit_scope,
+        pivot_date_str=pivot_date_str,
+        lock_recurrence_fields=lock_recurrence_fields,
     )
+
+
+@incomes_bp.route('/<int:id>/terminate-recurrence', methods=['POST'])
+@login_required
+def terminate_recurrence(id):
+    """Elimina ingresos futuros de la serie y fija fecha de fin en las restantes."""
+    income = Income.query.get_or_404(id)
+
+    if income.user_id != current_user.id:
+        flash('No tienes permiso', 'error')
+        return redirect(url_for('incomes.list'))
+
+    if not income.recurrence_group_id:
+        flash('Esta acción solo aplica a series recurrentes.', 'error')
+        return redirect(url_for('incomes.list'))
+
+    gid = income.recurrence_group_id
+    pivot = income.date
+
+    future_rows = Income.query.filter(
+        Income.user_id == current_user.id,
+        Income.recurrence_group_id == gid,
+        Income.date > pivot,
+    ).all()
+
+    dates_touch = [i.date for i in future_rows if i.date]
+    for row in future_rows:
+        db.session.delete(row)
+
+    remaining = Income.query.filter_by(
+        user_id=current_user.id,
+        recurrence_group_id=gid,
+    ).all()
+    for r in remaining:
+        r.recurrence_end_date = pivot
+
+    db.session.commit()
+    dates_touch.extend([r.date for r in remaining if r.date])
+    _touch_dashboard_for_income_dates(current_user.id, dates_touch)
+    flash(
+        'Contrato terminado: se eliminaron las cuotas futuras de esta serie.',
+        'success',
+    )
+    return redirect(url_for('incomes.list'))
 
 
 @incomes_bp.route('/<int:id>/delete', methods=['POST'])

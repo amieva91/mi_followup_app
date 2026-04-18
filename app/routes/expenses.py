@@ -9,6 +9,7 @@ from app import db
 from app.models import ExpenseCategory, Expense
 from app.forms import ExpenseCategoryForm, ExpenseForm
 from app.utils.recurrence import create_recurrence_instances
+from app.utils.recurrence_edit_scope import RECURRENCE_EDIT_SCOPES, parse_pivot_date
 from app.services.category_helpers import (
     AJUSTES_CATEGORY_NAME,
     STOCK_MARKET_CATEGORY_NAME,
@@ -24,6 +25,46 @@ from app.services.summary_metrics_service import get_expense_summary_metrics
 from app.services.dashboard_summary_cache import DashboardSummaryCacheService
 
 expenses_bp = Blueprint('expenses', __name__, url_prefix='/expenses')
+
+
+def _expense_needs_recurrence_scope_choice(expense):
+    """Serie recurrente editable por ámbito (no cuotas de plan de deuda)."""
+    return bool(
+        expense.is_recurring
+        and expense.recurrence_group_id
+        and not expense.debt_plan_id
+    )
+
+
+def _pivot_belongs_to_expense_series(user_id, group_id, pivot):
+    return (
+        Expense.query.filter(
+            Expense.user_id == user_id,
+            Expense.recurrence_group_id == group_id,
+            Expense.date == pivot,
+        ).first()
+        is not None
+    )
+
+
+def _apply_expense_series_field_updates(series_expenses, form, new_end_date):
+    """Actualiza o elimina filas según nueva fecha fin. Modifica series_expenses in-place."""
+    deleted_count = 0
+    for series_expense in series_expenses[:]:
+        if new_end_date and series_expense.date > new_end_date:
+            db.session.delete(series_expense)
+            series_expenses.remove(series_expense)
+            deleted_count += 1
+        else:
+            series_expense.category_id = form.category_id.data
+            series_expense.amount = form.amount.data
+            series_expense.description = form.description.data
+            series_expense.notes = form.notes.data
+            series_expense.recurrence_frequency = (
+                form.recurrence_frequency.data if form.is_recurring.data else None
+            )
+            series_expense.recurrence_end_date = new_end_date
+    return deleted_count
 
 
 def _touch_dashboard_for_expense_dates(user_id, dates):
@@ -349,33 +390,62 @@ def new():
 @expenses_bp.route('/<int:id>/edit', methods=['GET', 'POST'])
 @login_required
 def edit(id):
-    """Editar gasto (si es recurrente, edita toda la serie)"""
+    """Editar gasto; series recurrentes: elegir ámbito (serie / futuras / solo esta entrada)."""
     expense = Expense.query.get_or_404(id)
-    
+
     if expense.user_id != current_user.id:
         flash('No tienes permiso para editar este gasto', 'error')
         return redirect(url_for('expenses.list'))
-    
+
+    needs_scope = _expense_needs_recurrence_scope_choice(expense)
+    recurrence_edit_scope = None
+    pivot_date_str = None
+
+    if needs_scope and request.method == 'GET':
+        scope_from_url = request.args.get('scope')
+        if scope_from_url not in RECURRENCE_EDIT_SCOPES:
+            return render_template(
+                'expenses/choose_recurrence_edit_scope.html',
+                expense=expense,
+            )
+        recurrence_edit_scope = scope_from_url
+        pivot_date_str = expense.date.isoformat()
+
     form = ExpenseForm(obj=expense)
-    
+
+    if request.method == 'POST' and needs_scope:
+        recurrence_edit_scope = request.form.get('edit_scope')
+        pivot_date_str = request.form.get('pivot_date')
+
     # Cargar categorías
     categories = ExpenseCategory.query.filter_by(
         user_id=current_user.id
     ).order_by(ExpenseCategory.name).all()
-    
+
     form.category_id.choices = [(c.id, f"{c.icon} {c.full_name}") for c in categories]
-    
-    # Verificar si es parte de una serie recurrente
+
     is_part_of_series = expense.is_recurring and expense.recurrence_group_id
-    
+
     if form.validate_on_submit():
         old_date = expense.date
-        # Detectar si cambió de puntual a recurrente
         was_not_recurring = not expense.is_recurring
         will_be_recurring = form.is_recurring.data
-        
+
+        if needs_scope:
+            if recurrence_edit_scope not in RECURRENCE_EDIT_SCOPES:
+                flash('Ámbito de edición no válido.', 'error')
+                return redirect(url_for('expenses.edit', id=id))
+            pivot = parse_pivot_date(pivot_date_str)
+            if not pivot or not _pivot_belongs_to_expense_series(
+                current_user.id, expense.recurrence_group_id, pivot
+            ):
+                flash('No se pudo validar la referencia de la serie.', 'error')
+                return redirect(url_for('expenses.list'))
+
         if was_not_recurring and will_be_recurring:
-            # Cambió de puntual a recurrente: generar nuevas instancias
+            if needs_scope:
+                flash('Operación no permitida.', 'error')
+                return redirect(url_for('expenses.list'))
             temp_expense = Expense(
                 user_id=current_user.id,
                 category_id=form.category_id.data,
@@ -385,88 +455,178 @@ def edit(id):
                 notes=form.notes.data,
                 is_recurring=True,
                 recurrence_frequency=form.recurrence_frequency.data,
-                recurrence_end_date=form.recurrence_end_date.data
+                recurrence_end_date=form.recurrence_end_date.data,
             )
-            
+
             expense_instances = create_recurrence_instances(Expense, temp_expense, current_user.id)
             db.session.delete(expense)
-            
+
             for new_expense in expense_instances:
                 db.session.add(new_expense)
-            
+
             db.session.commit()
             _touch_dashboard_for_expense_dates(
                 current_user.id,
                 [old_date] + [e.date for e in expense_instances if e.date],
             )
-            flash(f'✅ Gasto convertido a recurrente: {len(expense_instances)} entradas generadas', 'success')
-        
-        elif is_part_of_series:
-            # Es parte de una serie: actualizar TODA la serie
-            series_expenses = Expense.query.filter_by(
-                user_id=current_user.id,
-                recurrence_group_id=expense.recurrence_group_id
-            ).all()
+            flash(
+                f'✅ Gasto convertido a recurrente: {len(expense_instances)} entradas generadas',
+                'success',
+            )
+
+        elif needs_scope and recurrence_edit_scope == 'entry':
+            expense.category_id = form.category_id.data
+            expense.amount = form.amount.data
+            expense.description = form.description.data
+            expense.date = form.date.data
+            expense.notes = form.notes.data
+            db.session.commit()
+            _touch_dashboard_for_expense_dates(
+                current_user.id,
+                [d for d in (old_date, expense.date) if d],
+            )
+            flash('✅ Entrada actualizada (resto de la serie sin cambios)', 'success')
+
+        elif needs_scope and recurrence_edit_scope == 'future':
+            series_expenses = (
+                Expense.query.filter(
+                    Expense.user_id == current_user.id,
+                    Expense.recurrence_group_id == expense.recurrence_group_id,
+                    Expense.date >= pivot,
+                )
+                .order_by(Expense.date)
+                .all()
+            )
             series_dates_for_cache = [e.date for e in series_expenses if e.date]
-            
-            # Si la fecha de fin cambió a una anterior, eliminar entradas posteriores
             new_end_date = form.recurrence_end_date.data if form.is_recurring.data else None
-            deleted_count = 0
-            
-            for series_expense in series_expenses[:]:  # Copia para iterar mientras modificamos
-                # Si hay nueva fecha de fin y esta entrada es posterior, eliminarla
-                if new_end_date and series_expense.date > new_end_date:
-                    db.session.delete(series_expense)
-                    series_expenses.remove(series_expense)
-                    deleted_count += 1
-                else:
-                    # Actualizar la entrada
-                    series_expense.category_id = form.category_id.data
-                    series_expense.amount = form.amount.data
-                    series_expense.description = form.description.data
-                    series_expense.notes = form.notes.data
-                    series_expense.recurrence_frequency = form.recurrence_frequency.data if form.is_recurring.data else None
-                    series_expense.recurrence_end_date = new_end_date
-                    # NO actualizar la fecha, cada entrada mantiene su fecha
-            
+            deleted_count = _apply_expense_series_field_updates(
+                series_expenses, form, new_end_date
+            )
             db.session.commit()
             _touch_dashboard_for_expense_dates(current_user.id, series_dates_for_cache)
-            
             if deleted_count > 0:
-                flash(f'✅ Serie actualizada: {len(series_expenses)} gastos actualizados, {deleted_count} eliminados', 'success')
+                flash(
+                    f'✅ Entradas futuras actualizadas: {len(series_expenses)} gastos, '
+                    f'{deleted_count} eliminados por fecha de fin',
+                    'success',
+                )
+            else:
+                flash(
+                    f'✅ Entradas desde esta fecha actualizadas ({len(series_expenses)} gastos)',
+                    'success',
+                )
+
+        elif needs_scope and recurrence_edit_scope == 'series':
+            series_expenses = Expense.query.filter_by(
+                user_id=current_user.id,
+                recurrence_group_id=expense.recurrence_group_id,
+            ).all()
+            series_dates_for_cache = [e.date for e in series_expenses if e.date]
+            new_end_date = form.recurrence_end_date.data if form.is_recurring.data else None
+            deleted_count = _apply_expense_series_field_updates(
+                series_expenses, form, new_end_date
+            )
+            db.session.commit()
+            _touch_dashboard_for_expense_dates(current_user.id, series_dates_for_cache)
+            if deleted_count > 0:
+                flash(
+                    f'✅ Serie actualizada: {len(series_expenses)} gastos, '
+                    f'{deleted_count} eliminados por fecha de fin',
+                    'success',
+                )
             else:
                 flash(f'✅ Serie completa actualizada ({len(series_expenses)} gastos)', 'success')
-        
+
         else:
-            # Actualización normal (gasto puntual)
             expense.category_id = form.category_id.data
             expense.amount = form.amount.data
             expense.description = form.description.data
             expense.date = form.date.data
             expense.notes = form.notes.data
             expense.is_recurring = form.is_recurring.data
-            expense.recurrence_frequency = form.recurrence_frequency.data if form.is_recurring.data else None
-            expense.recurrence_end_date = form.recurrence_end_date.data if form.is_recurring.data else None
-            
+            expense.recurrence_frequency = (
+                form.recurrence_frequency.data if form.is_recurring.data else None
+            )
+            expense.recurrence_end_date = (
+                form.recurrence_end_date.data if form.is_recurring.data else None
+            )
+
             db.session.commit()
             _touch_dashboard_for_expense_dates(
                 current_user.id,
                 [d for d in (old_date, expense.date) if d],
             )
-            flash(f'Gasto actualizado', 'success')
-        
+            flash('Gasto actualizado', 'success')
+
         return redirect(url_for('expenses.list'))
-    
-    # Agregar información en el título si es parte de una serie
-    title = 'Editar Serie de Gastos' if is_part_of_series else 'Editar Gasto'
-    
+
+    if recurrence_edit_scope == 'series':
+        title = 'Editar serie completa (gastos)'
+    elif recurrence_edit_scope == 'future':
+        title = 'Editar entradas futuras (gastos)'
+    elif recurrence_edit_scope == 'entry':
+        title = 'Editar solo esta entrada (gasto)'
+    elif is_part_of_series:
+        title = 'Editar Serie de Gastos'
+    else:
+        title = 'Editar Gasto'
+
+    lock_recurrence_fields = recurrence_edit_scope == 'entry'
+
     return render_template(
         'expenses/form.html',
         form=form,
         title=title,
         expense=expense,
-        is_part_of_series=is_part_of_series
+        is_part_of_series=bool(is_part_of_series and not needs_scope),
+        recurrence_edit_scope=recurrence_edit_scope,
+        pivot_date_str=pivot_date_str,
+        lock_recurrence_fields=lock_recurrence_fields,
     )
+
+
+@expenses_bp.route('/<int:id>/terminate-recurrence', methods=['POST'])
+@login_required
+def terminate_recurrence(id):
+    """Elimina entradas futuras de la serie y fija fecha de fin en las restantes."""
+    expense = Expense.query.get_or_404(id)
+
+    if expense.user_id != current_user.id:
+        flash('No tienes permiso', 'error')
+        return redirect(url_for('expenses.list'))
+
+    if not expense.recurrence_group_id or expense.debt_plan_id:
+        flash('Esta acción solo aplica a series recurrentes sin plan de deuda.', 'error')
+        return redirect(url_for('expenses.list'))
+
+    gid = expense.recurrence_group_id
+    pivot = expense.date
+
+    future_rows = Expense.query.filter(
+        Expense.user_id == current_user.id,
+        Expense.recurrence_group_id == gid,
+        Expense.date > pivot,
+    ).all()
+
+    dates_touch = [e.date for e in future_rows if e.date]
+    for row in future_rows:
+        db.session.delete(row)
+
+    remaining = Expense.query.filter_by(
+        user_id=current_user.id,
+        recurrence_group_id=gid,
+    ).all()
+    for r in remaining:
+        r.recurrence_end_date = pivot
+
+    db.session.commit()
+    dates_touch.extend([r.date for r in remaining if r.date])
+    _touch_dashboard_for_expense_dates(current_user.id, dates_touch)
+    flash(
+        'Contrato terminado: se eliminaron las cuotas futuras de esta serie.',
+        'success',
+    )
+    return redirect(url_for('expenses.list'))
 
 
 @expenses_bp.route('/<int:id>/delete', methods=['POST'])

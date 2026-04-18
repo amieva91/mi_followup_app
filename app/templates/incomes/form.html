@@ -7,21 +7,31 @@
     <!-- Header -->
     <h1 class="text-3xl font-bold text-gray-800 mb-6">{{ title }}</h1>
 
-    <!-- Advertencia para series -->
-    {% if is_part_of_series %}
+    {% if recurrence_edit_scope == 'series' %}
+        <div class="bg-amber-50 border-l-4 border-amber-500 p-4 mb-6">
+            <h3 class="text-sm font-medium text-amber-900">Serie completa</h3>
+            <p class="text-sm text-amber-800 mt-1">
+                Los cambios se aplican a <strong>todas</strong> las entradas con los mismos valores.
+            </p>
+        </div>
+    {% elif recurrence_edit_scope == 'future' %}
+        <div class="bg-amber-50 border-l-4 border-amber-500 p-4 mb-6">
+            <h3 class="text-sm font-medium text-amber-900">Solo entradas futuras</h3>
+            <p class="text-sm text-amber-800 mt-1">
+                Esta cuota y las posteriores; las anteriores no cambian.
+            </p>
+        </div>
+    {% elif recurrence_edit_scope == 'entry' %}
+        <div class="bg-green-50 border-l-4 border-green-500 p-4 mb-6">
+            <h3 class="text-sm font-medium text-green-900">Solo esta entrada</h3>
+            <p class="text-sm text-green-800 mt-1">
+                Solo este mes; la serie no se edita aquí.
+            </p>
+        </div>
+    {% elif is_part_of_series %}
         <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
-            <div class="flex">
-                <div class="flex-shrink-0">
-                    <span class="text-2xl">⚠️</span>
-                </div>
-                <div class="ml-3">
-                    <h3 class="text-sm font-medium text-yellow-800">Estás editando una serie recurrente</h3>
-                    <p class="text-sm text-yellow-700 mt-1">
-                        Los cambios que realices se aplicarán a <strong>TODAS las entradas de esta serie</strong>.
-                        Las fechas individuales se mantendrán, pero el resto de campos (monto, descripción, etc.) se actualizarán en todas las entradas.
-                    </p>
-                </div>
-            </div>
+            <h3 class="text-sm font-medium text-yellow-800">Serie recurrente</h3>
+            <p class="text-sm text-yellow-700 mt-1">Edición según tipo de serie.</p>
         </div>
     {% endif %}
 
@@ -29,6 +39,10 @@
     <div class="bg-white rounded-lg shadow-md p-6">
         <form method="POST" action="" id="income-form" novalidate>
             {{ form.hidden_tag() }}
+            {% if recurrence_edit_scope and pivot_date_str %}
+            <input type="hidden" name="edit_scope" value="{{ recurrence_edit_scope }}"/>
+            <input type="hidden" name="pivot_date" value="{{ pivot_date_str }}"/>
+            {% endif %}
 
             <!-- Categoría -->
             <div class="mb-4">
@@ -95,16 +109,22 @@
                 {{ form.notes(class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500") }}
             </div>
 
-            <!-- Checkbox Recurrente -->
+            {% if lock_recurrence_fields %}
+            <input type="hidden" name="is_recurring" value="y"/>
+            <div class="mb-4 bg-gray-50 p-4 rounded-lg text-sm text-gray-600">
+                Esta entrada sigue siendo parte de una serie recurrente.
+            </div>
+            {% else %}
             <div class="mb-4 bg-green-50 p-4 rounded-lg">
                 <label class="flex items-center space-x-3 cursor-pointer">
                     {{ form.is_recurring(class="w-5 h-5", id="is_recurring") }}
                     <span class="text-gray-700 font-semibold">Este ingreso es recurrente (se repite periódicamente)</span>
                 </label>
             </div>
+            {% endif %}
 
             <!-- Campos de Recurrencia (se muestran solo si is_recurring está marcado) -->
-            <div id="recurrence-fields" class="mb-6 border-l-4 border-green-500 pl-4" style="display: {{ 'block' if form.is_recurring.data else 'none' }};">
+            <div id="recurrence-fields" class="mb-6 border-l-4 border-green-500 pl-4" style="display: {{ 'none' if lock_recurrence_fields else ('block' if form.is_recurring.data else 'none') }};">
                 <h3 class="font-bold text-gray-700 mb-3">⚙️ Configuración de Recurrencia</h3>
                 
                 <!-- Frecuencia y Fecha Fin -->
