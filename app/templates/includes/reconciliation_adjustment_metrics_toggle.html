@@ -42,10 +42,10 @@
         <div @click.away="integrateOpen = false" class="bg-white rounded-lg shadow-xl max-w-md w-full p-5">
             <h3 class="text-lg font-bold text-gray-900 mb-2">Integrar ajuste en categoría</h3>
             <p class="text-sm text-gray-600 mb-4">
-                Se creará un {{ 'gasto' if integration_side == 'expense' else 'ingreso' }} por
-                <strong>€{{ '%.2f'|format(ajuste_amount) }}</strong>
-                con la descripción «Integrado desde reconciliación bancaria».
-                La fecha será la del último movimiento sin deuda en esa categoría este mes, o el último día del mes si no hay ninguno.
+                Importe a absorber: <strong>€{{ '%.2f'|format(ajuste_amount) }}</strong>.
+                Si en esa categoría ya hay una cuota de <strong>serie recurrente</strong> este mes (o una sola línea sin deuda),
+                el importe se <strong>suma</strong> a ese movimiento. Si hay varias líneas sueltas sin serie, se crea un
+                {{ 'gasto' if integration_side == 'expense' else 'ingreso' }} nuevo con la descripción «Integrado desde reconciliación bancaria».
             </p>
             <form method="post" action="{{ url_for('main.reconciliation_integrate_adjustment') }}" class="space-y-3">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>

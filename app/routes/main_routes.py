@@ -282,7 +282,7 @@ def reconciliation_integrate_adjustment():
         return redirect(next_url)
 
     if side == 'expense':
-        obj, err = integrate_reconciliation_adjustment_as_expense(
+        obj, err, merged, applied = integrate_reconciliation_adjustment_as_expense(
             current_user.id, year, month, category_id
         )
         if err:
@@ -290,7 +290,7 @@ def reconciliation_integrate_adjustment():
             return redirect(next_url)
         DashboardSummaryCacheService.touch_for_dates(current_user.id, dates=[obj.date])
     elif side == 'income':
-        obj, err = integrate_reconciliation_adjustment_as_income(
+        obj, err, merged, applied = integrate_reconciliation_adjustment_as_income(
             current_user.id, year, month, category_id
         )
         if err:
@@ -303,10 +303,17 @@ def reconciliation_integrate_adjustment():
 
     DashboardSummaryCacheService.invalidate(current_user.id)
     label = 'gasto' if side == 'expense' else 'ingreso'
-    flash(
-        f'Ajuste integrado: nuevo {label} de €{obj.amount:.2f} en la categoría elegida.',
-        'success',
-    )
+    if merged:
+        flash(
+            f'Ajuste integrado: €{applied:.2f} sumados al {label} existente de esta categoría '
+            f'en el mes (serie recurrente o única línea). Nuevo total €{obj.amount:.2f}.',
+            'success',
+        )
+    else:
+        flash(
+            f'Ajuste integrado: nuevo {label} de €{applied:.2f} en la categoría elegida.',
+            'success',
+        )
     return redirect(next_url)
 
 

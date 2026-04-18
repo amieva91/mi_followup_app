@@ -15,8 +15,16 @@ Objetivo: validar el botón **Integrar** en filas de ajuste (Gastos / Ingresos) 
 
 1. Ir a **Gastos**, localizar mes con fila ⚖️ Ajustes (importe > 0).
 2. Pulsar **Integrar**, elegir categoría, **Confirmar**.
-3. **Esperado**: mensaje de éxito; desaparece la fila de ajuste de ese mes (o importe 0); aparece un gasto con descripción «Integrado desde reconciliación bancaria» e importe igual al ajuste.
-4. Comprobar **fecha**: si ya había en ese mes un gasto **sin plan de deuda** en esa categoría, la fecha del nuevo gasto coincide con el más reciente de esos; si no, **último día del mes**.
+3. **Esperado**: mensaje de éxito; desaparece el ajuste sintético de ese mes.
+4. **Sin línea previa** en esa categoría/mes (sin deuda): nuevo gasto con descripción «Integrado desde reconciliación bancaria» e importe = ajuste; fecha = último día del mes o la del último movimiento sin deuda si ya había alguno.
+5. **Con cuota de serie recurrente** en esa categoría/mes (sin deuda): **no** debe crearse línea duplicada; el importe del ajuste se **suma** al gasto existente (mensaje de éxito indica suma y nuevo total).
+6. **Varias líneas sueltas** (ninguna con `recurrence_group_id`) en esa categoría/mes: se **crea** una línea nueva (no se fusiona para no atribuir mal).
+
+### G1b — Fusión en serie recurrente
+
+1. Tener en un mes una cuota de suscripción (serie) en categoría X y ajuste positivo en ese mes.
+2. Integrar en categoría X.
+3. **Esperado**: un solo movimiento más alto; descripción de la cuota **no** tiene por qué ser «Integrado…» (solo sube el importe).
 
 ### G2 — Categoría solo con cuotas de deuda
 
@@ -32,7 +40,7 @@ Objetivo: validar el botón **Integrar** en filas de ajuste (Gastos / Ingresos) 
 
 1. Ir a **Ingresos** con mes que muestre ajuste de ingreso no registrado.
 2. **Integrar** → categoría → confirmar.
-3. **Esperado**: nuevo ingreso con misma descripción fija e importe mostrado en el modal; fila de ajuste de ese mes desaparece.
+3. **Esperado**: misma lógica que gastos (suma a ingreso recurrente o única línea; si no aplica, línea nueva con descripción fija); fila de ajuste desaparece.
 
 ### I2 — Doble integración / repetir
 

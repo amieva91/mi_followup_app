@@ -264,34 +264,98 @@ def _resolve_integration_income_date(user_id, year, month, category_id):
     return date(year, month, last_day)
 
 
+def _expenses_no_debt_in_category_month(user_id, year, month, category_id):
+    """Gastos del mes/categoría sin plan de deuda."""
+    start, end = _month_range(year, month)
+    return (
+        Expense.query.filter(
+            Expense.user_id == user_id,
+            Expense.category_id == category_id,
+            Expense.date >= start,
+            Expense.date <= end,
+            Expense.debt_plan_id.is_(None),
+        )
+        .order_by(Expense.date.desc(), Expense.id.desc())
+        .all()
+    )
+
+
+def _pick_expense_merge_target(rows):
+    """
+    Prioriza una fila de serie recurrente en el mes; si no hay, una única fila.
+    Varias filas sin recurrencia => None (crear movimiento aparte).
+    """
+    if not rows:
+        return None
+    recurring = [r for r in rows if r.recurrence_group_id]
+    if recurring:
+        return max(recurring, key=lambda r: (r.date, r.id))
+    if len(rows) == 1:
+        return rows[0]
+    return None
+
+
+def _incomes_in_category_month(user_id, year, month, category_id):
+    start, end = _month_range(year, month)
+    return (
+        Income.query.filter(
+            Income.user_id == user_id,
+            Income.category_id == category_id,
+            Income.date >= start,
+            Income.date <= end,
+        )
+        .order_by(Income.date.desc(), Income.id.desc())
+        .all()
+    )
+
+
+def _pick_income_merge_target(rows):
+    if not rows:
+        return None
+    recurring = [r for r in rows if r.recurrence_group_id]
+    if recurring:
+        return max(recurring, key=lambda r: (r.date, r.id))
+    if len(rows) == 1:
+        return rows[0]
+    return None
+
+
 def integrate_reconciliation_adjustment_as_expense(user_id, year, month, category_id):
     """
-    Crea un gasto (sin plan de deuda) con importe = ajuste positivo, para anular el ajuste
-    sintético de gasto de ese mes.
+    Integra el ajuste positivo de gasto: suma a un gasto existente del mes (prioriza serie
+    recurrente) o crea una línea nueva si no aplica fusión.
 
     Returns:
-        tuple: (Expense | None, str | None) — (objeto, None) si OK; (None, mensaje) si error.
+        tuple: (Expense | None, str | None, bool, float)
+        — (objeto, None, merged, importe_aplicado) si OK; (None, mensaje, False, 0.0) si error.
     """
     if not year or not month or month < 1 or month > 12:
-        return None, "Mes o año inválidos."
+        return None, "Mes o año inválidos.", False, 0.0
 
     adj = get_adjustment_for_month(user_id, year, month)
     if adj is None:
-        return None, "No se puede integrar: faltan saldos bancarios en este mes o en el anterior."
+        return None, "No se puede integrar: faltan saldos bancarios en este mes o en el anterior.", False, 0.0
 
     if adj <= 0:
-        return None, "No hay ajuste de gasto pendiente en este mes (el ajuste no es positivo)."
+        return None, "No hay ajuste de gasto pendiente en este mes (el ajuste no es positivo).", False, 0.0
 
     cat = ExpenseCategory.query.filter_by(id=category_id, user_id=user_id).first()
     if not cat:
-        return None, "Categoría no válida."
+        return None, "Categoría no válida.", False, 0.0
 
     if cat.name in _integration_reserved_category_names():
-        return None, "No se puede integrar en la categoría Ajustes ni en Stock Market."
+        return None, "No se puede integrar en la categoría Ajustes ni en Stock Market.", False, 0.0
 
     amount = round(float(adj), 2)
     if amount <= 0:
-        return None, "Importe de ajuste no válido."
+        return None, "Importe de ajuste no válido.", False, 0.0
+
+    rows = _expenses_no_debt_in_category_month(user_id, year, month, category_id)
+    target = _pick_expense_merge_target(rows)
+    if target is not None:
+        target.amount = round(float(target.amount) + amount, 2)
+        db.session.commit()
+        return target, None, True, amount
 
     d = _resolve_integration_expense_date(user_id, year, month, category_id)
     expense = Expense(
@@ -309,36 +373,44 @@ def integrate_reconciliation_adjustment_as_expense(user_id, year, month, categor
     )
     db.session.add(expense)
     db.session.commit()
-    return expense, None
+    return expense, None, False, amount
 
 
 def integrate_reconciliation_adjustment_as_income(user_id, year, month, category_id):
     """
-    Crea un ingreso con importe = |ajuste| cuando el ajuste es negativo (ingreso no registrado).
+    Integra el ajuste negativo (ingreso no registrado): suma a un ingreso del mes si aplica
+    la misma regla de fusión que en gastos, o crea línea nueva.
 
     Returns:
-        tuple: (Income | None, str | None)
+        tuple: (Income | None, str | None, bool, float)
     """
     if not year or not month or month < 1 or month > 12:
-        return None, "Mes o año inválidos."
+        return None, "Mes o año inválidos.", False, 0.0
 
     adj = get_adjustment_for_month(user_id, year, month)
     if adj is None:
-        return None, "No se puede integrar: faltan saldos bancarios en este mes o en el anterior."
+        return None, "No se puede integrar: faltan saldos bancarios en este mes o en el anterior.", False, 0.0
 
     if adj >= 0:
-        return None, "No hay ajuste de ingreso pendiente en este mes (el ajuste no es negativo)."
+        return None, "No hay ajuste de ingreso pendiente en este mes (el ajuste no es negativo).", False, 0.0
 
     cat = IncomeCategory.query.filter_by(id=category_id, user_id=user_id).first()
     if not cat:
-        return None, "Categoría no válida."
+        return None, "Categoría no válida.", False, 0.0
 
     if cat.name in _integration_reserved_category_names():
-        return None, "No se puede integrar en la categoría Ajustes ni en Stock Market."
+        return None, "No se puede integrar en la categoría Ajustes ni en Stock Market.", False, 0.0
 
     amount = round(float(abs(adj)), 2)
     if amount <= 0:
-        return None, "Importe de ajuste no válido."
+        return None, "Importe de ajuste no válido.", False, 0.0
+
+    rows = _incomes_in_category_month(user_id, year, month, category_id)
+    target = _pick_income_merge_target(rows)
+    if target is not None:
+        target.amount = round(float(target.amount) + amount, 2)
+        db.session.commit()
+        return target, None, True, amount
 
     d = _resolve_integration_income_date(user_id, year, month, category_id)
     income = Income(
@@ -355,4 +427,4 @@ def integrate_reconciliation_adjustment_as_income(user_id, year, month, category
     )
     db.session.add(income)
     db.session.commit()
-    return income, None
+    return income, None, False, amount
