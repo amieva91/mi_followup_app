@@ -13,6 +13,77 @@
         </div>
     </div>
 
+    {% if interest_context %}
+    <div class="mb-8 rounded-xl border border-slate-200 bg-slate-50/80 p-5 text-sm text-slate-800">
+        <div class="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+            <h2 class="text-base font-semibold text-slate-900">Contexto de tipos (referencia)</h2>
+            <span class="text-xs text-slate-500 tabular-nums">Última actualización: {{ interest_context.fetched_at.strftime('%d/%m/%Y %H:%M') }} UTC</span>
+        </div>
+        <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+            <div class="flex justify-between gap-4 border-b border-slate-200/80 pb-2 sm:border-0 sm:pb-0">
+                <dt class="text-slate-600">Euribor 12M (BCE, oficial)</dt>
+                <dd class="font-medium tabular-nums text-right">
+                    {% if interest_context.bce_euribor_12m_percent is not none %}
+                    {{ "%.3f"|format(interest_context.bce_euribor_12m_percent|float) }}&nbsp;% <span class="text-slate-500 font-normal">({{ interest_context.bce_time_period or '—' }})</span>
+                    {% else %}
+                    <span class="text-amber-700">No disponible</span>
+                    {% endif %}
+                </dd>
+            </div>
+            <div class="flex justify-between gap-4 border-b border-slate-200/80 pb-2 sm:border-0 sm:pb-0">
+                <dt class="text-slate-600">Futuro ESR=F (implícito ≈ 100&nbsp;−&nbsp;precio)</dt>
+                <dd class="font-medium tabular-nums text-right">
+                    {% if interest_context.yahoo_implied_percent is not none %}
+                    {{ "%.3f"|format(interest_context.yahoo_implied_percent|float) }}&nbsp;%
+                    {% if interest_context.yahoo_esr_f_price is not none %}
+                    <span class="text-slate-500 font-normal">(precio {{ "%.3f"|format(interest_context.yahoo_esr_f_price|float) }})</span>
+                    {% endif %}
+                    {% else %}
+                    <span class="text-amber-700">No disponible</span>
+                    {% endif %}
+                </dd>
+            </div>
+            {% if interest_context.spread_implied_minus_bce is not none %}
+            <div class="flex justify-between gap-4 border-b border-slate-200/80 pb-2 sm:border-0 sm:pb-0 sm:col-span-2">
+                <dt class="text-slate-600">Diferencia (implícito mercado corto − Euribor 12M BCE)</dt>
+                <dd class="font-medium tabular-nums text-right">{{ "%.3f"|format(interest_context.spread_implied_minus_bce|float) }} pp</dd>
+            </div>
+            {% endif %}
+            <div class="sm:col-span-2 flex justify-between gap-4">
+                <dt class="text-slate-600">Tendencia Euribor 12M vs. captura anterior</dt>
+                <dd class="font-medium text-right">
+                    {% if interest_context.trend_label == 'alcista' %}
+                    <span class="text-rose-700">Sube</span> (respecto a la última lectura guardada)
+                    {% elif interest_context.trend_label == 'bajista' %}
+                    <span class="text-emerald-700">Baja</span> (respecto a la última lectura guardada)
+                    {% elif interest_context.trend_label == 'estable' %}
+                    <span class="text-slate-700">Estable</span>
+                    {% else %}
+                    <span class="text-slate-500">Sin comparación previa</span>
+                    {% endif %}
+                </dd>
+            </div>
+        </dl>
+        {% if interest_context.bce_fetch_error or interest_context.yahoo_fetch_error %}
+        <p class="mt-3 text-xs text-amber-900 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+            Parte de los datos no se pudo obtener en esta captura.
+            {% if interest_context.bce_fetch_error %}<span class="block">BCE: {{ interest_context.bce_fetch_error }}</span>{% endif %}
+            {% if interest_context.yahoo_fetch_error %}<span class="block">Yahoo: {{ interest_context.yahoo_fetch_error }}</span>{% endif %}
+        </p>
+        {% endif %}
+        <p class="mt-3 text-xs text-slate-600 leading-relaxed">
+            Datos orientativos: el BCE publica el Euribor con desfase mensual; ESR=F es un futuro sobre el tipo €STR, no el Euribor al contado.
+            La tendencia compara la última fila guardada por el proceso automático con la inmediatamente anterior.
+        </p>
+    </div>
+    {% else %}
+    <div class="mb-8 rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-4 text-sm text-slate-600">
+        Aún no hay una captura de contexto de tipos en base de datos. Ejecuta el job diario
+        (<code class="text-xs bg-white px-1 rounded border border-slate-200">scripts/refresh_interest_rate_context_snapshot.py</code>)
+        o espera al cron en servidor.
+    </div>
+    {% endif %}
+
     <form method="post" class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-8 space-y-6" id="mortgage-sim-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <input type="hidden" name="action" value="simulate"/>

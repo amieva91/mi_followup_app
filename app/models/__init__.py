@@ -30,6 +30,7 @@ from app.models.benchmark_global_quote import BenchmarkGlobalQuote
 from app.models.benchmark_global_daily import BenchmarkGlobalDaily, BenchmarkGlobalState
 from app.models.spending_plan import SpendingPlanSettings, SpendingPlanFixedCategory, SpendingPlanGoal
 from app.models.reconciliation_adjustment_metric_pref import ReconciliationAdjustmentMetricPreference
+from app.models.interest_rate_context import InterestRateContextSnapshot
 
 __all__ = [
     'User', 'MODULES', 'AVATARS', 
@@ -69,5 +70,6 @@ __all__ = [
     'SpendingPlanFixedCategory',
     'SpendingPlanGoal',
     'ReconciliationAdjustmentMetricPreference',
+    'InterestRateContextSnapshot',
 ]
 

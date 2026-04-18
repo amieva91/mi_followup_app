@@ -9,6 +9,7 @@ from flask_login import login_required, current_user
 from app import db
 from app.services import spending_plan_service as sps
 from app.services import mortgage_simulation_service as mss
+from app.services import interest_rate_context_service as irctx
 
 spending_plan_bp = Blueprint("spending_plan", __name__, url_prefix="/planificacion")
 
@@ -142,6 +143,7 @@ def mortgage_simulator():
         result=result,
         sim_form=sim_form,
         ltv_ratio_max=int(mss.LTV_RATIO_MAX_PERCENT),
+        interest_context=irctx.get_latest_snapshot(),
         defaults={
             "notary": mss.DEFAULT_NOTARY,
             "registry": mss.DEFAULT_REGISTRY,
