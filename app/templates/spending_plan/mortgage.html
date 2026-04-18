@@ -6,7 +6,7 @@
     <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
             <h1 class="text-2xl font-bold text-gray-900">Simulador compra vivienda</h1>
-            <p class="text-sm text-gray-500 mt-1">Préstamo máximo = valor tasación estimado (90% precio + 90% ITP). Mínimo de ahorros = coste total (compra + ITP + gastos) − ese préstamo − gasto tasación en efectivo. LTV en %. Cuota a tipo fijo (francesa).</p>
+            <p class="text-sm text-gray-500 mt-1">Préstamo máximo = valor tasación estimado (90% precio + 90% ITP). Mínimo de ahorros = precio de compra − ese préstamo + gastos e impuestos (ITP + notaría + registro + gestión); el gasto de tasación se suma aparte a la aportación. LTV en %. Cuota a tipo fijo (francesa).</p>
         </div>
         <div class="flex gap-3 text-sm">
             <a href="{{ url_for('spending_plan.index') }}" class="text-indigo-600 hover:underline">← Planificación</a>
@@ -161,8 +161,7 @@
     return isNaN(v) ? fallback : v;
   }
 
-  function valorTasacion(pp, itpRate) {
-    var itpAmt = pp * itpRate;
+  function valorTasacion(pp, itpAmt) {
     return Math.round((0.9 * pp + 0.9 * itpAmt) * 100) / 100;
   }
 
@@ -185,10 +184,12 @@
     var r = num(document.getElementById('mp-registry'), 0);
     var g = num(document.getElementById('mp-gestoria'), 0);
     var t = num(document.getElementById('mp-tasacion'), 0);
-    var vt = valorTasacion(pp, itpRate);
-    var tc = pp + pp * itpRate + n + r + g + t;
+    var itpAmt = Math.round(pp * itpRate * 100) / 100;
+    var vt = valorTasacion(pp, itpAmt);
+    var tc = pp + itpAmt + n + r + g + t;
     var maxLoan = Math.round(vt * 100) / 100;
-    var minCash = Math.max(0, Math.round((Math.max(0, tc - maxLoan) - t) * 100) / 100);
+    var gastosImpuestos = Math.round((itpAmt + n + r + g) * 100) / 100;
+    var minCash = Math.max(0, Math.round((pp - maxLoan + gastosImpuestos) * 100) / 100);
     var sav = num(document.getElementById('mp-savings'), NaN);
     var eff = Math.round((sav + t) * 100) / 100;
     var loan = Math.max(0, Math.round((tc - eff) * 100) / 100);
@@ -201,7 +202,7 @@
     var ltvDisp = document.getElementById('mp-ltv-display');
 
     if (pp > 0 && hint) {
-      hint.textContent = 'Mínimo en esta casilla: ' + minCash.toFixed(2) + ' € = coste total (' + tc.toFixed(2) + ' €) − préstamo máximo (' + maxLoan.toFixed(2) + ' €) − gasto tasación (' + t.toFixed(2) + ' €). Tope: ' + pp.toFixed(2) + ' € (precio).';
+      hint.textContent = 'Mínimo en esta casilla: ' + minCash.toFixed(2) + ' € = Precio de compra (' + pp.toFixed(0) + ' €) − préstamo máximo (' + maxLoan.toFixed(2) + ' €) + gastos e impuestos (' + gastosImpuestos.toFixed(2) + ' €). Tope: ' + pp.toFixed(2) + ' € (precio). La tasación (' + t.toFixed(2) + ' €) se suma a lo indicado en esta casilla al simular.';
     }
     if (savInput && pp > 0) {
       savInput.min = String(minCash);

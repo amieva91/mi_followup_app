@@ -129,8 +129,10 @@ def min_savings_cash_hint(
     tasacion_fee: float,
 ) -> float:
     """
-    Mínimo en «ahorros a aportar» (efectivo): (coste total compra) − préstamo máximo − gasto tasación,
-    donde préstamo máximo = valor tasación (90% precio + 90% ITP).
+    Mínimo en «ahorros a aportar» (efectivo), equivalente a:
+    precio de compra − préstamo máximo + (ITP + notaría + registro + gestión),
+    con préstamo máximo = valor tasación (90% precio + 90% ITP).
+    (Misma cifra que coste total − préstamo − gasto tasación en efectivo.)
     """
     vt = max(0.0, float(valor_tasacion))
     tc = max(0.0, float(total_cost))
@@ -220,7 +222,7 @@ def run_simulation(
     if sav + 1e-6 < min_cash:
         raise ValueError(
             f"Ahorros insuficientes: el mínimo orientativo es {min_cash:.2f} € "
-            f"(coste total − préstamo máximo = valor tasación {max_loan:.2f} € − gasto tasación)."
+            f"(precio − préstamo máximo {max_loan:.2f} € + ITP y gastos de formalización)."
         )
 
     if loan_needed > max_loan + 0.02:
