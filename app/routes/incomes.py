@@ -14,8 +14,14 @@ from app.services.income_expense_aggregator import (
     get_synthetic_income_entries_by_month,
 )
 from app.services.summary_metrics_service import get_income_summary_metrics
+from app.services.dashboard_summary_cache import DashboardSummaryCacheService
 
 incomes_bp = Blueprint('incomes', __name__, url_prefix='/incomes')
+
+
+def _touch_dashboard_for_income_dates(user_id, dates):
+    if dates:
+        DashboardSummaryCacheService.touch_for_dates(user_id, dates=dates)
 
 
 # ==================== CATEGORÍAS ====================
@@ -285,6 +291,10 @@ def new():
             db.session.add(income)
         
         db.session.commit()
+        _touch_dashboard_for_income_dates(
+            current_user.id,
+            [i.date for i in income_instances if i.date],
+        )
         
         # Mensaje según cantidad de instancias generadas
         if len(income_instances) > 1:
@@ -320,6 +330,7 @@ def edit(id):
     is_part_of_series = income.is_recurring and income.recurrence_group_id
     
     if form.validate_on_submit():
+        old_date = income.date
         # Detectar si cambió de puntual a recurrente
         was_not_recurring = not income.is_recurring
         will_be_recurring = form.is_recurring.data
@@ -345,6 +356,10 @@ def edit(id):
                 db.session.add(new_income)
             
             db.session.commit()
+            _touch_dashboard_for_income_dates(
+                current_user.id,
+                [old_date] + [i.date for i in income_instances if i.date],
+            )
             flash(f'✅ Ingreso convertido a recurrente: {len(income_instances)} entradas generadas', 'success')
         
         elif is_part_of_series:
@@ -353,6 +368,7 @@ def edit(id):
                 user_id=current_user.id,
                 recurrence_group_id=income.recurrence_group_id
             ).all()
+            series_dates_for_cache = [i.date for i in series_incomes if i.date]
             
             # Si la fecha de fin cambió a una anterior, eliminar entradas posteriores
             new_end_date = form.recurrence_end_date.data if form.is_recurring.data else None
@@ -375,6 +391,7 @@ def edit(id):
                     # NO actualizar la fecha, cada entrada mantiene su fecha
             
             db.session.commit()
+            _touch_dashboard_for_income_dates(current_user.id, series_dates_for_cache)
             
             if deleted_count > 0:
                 flash(f'✅ Serie actualizada: {len(series_incomes)} ingresos actualizados, {deleted_count} eliminados', 'success')
@@ -393,6 +410,10 @@ def edit(id):
             income.recurrence_end_date = form.recurrence_end_date.data if form.is_recurring.data else None
             
             db.session.commit()
+            _touch_dashboard_for_income_dates(
+                current_user.id,
+                [d for d in (old_date, income.date) if d],
+            )
             flash(f'Ingreso actualizado', 'success')
         
         return redirect(url_for('incomes.list'))
@@ -424,17 +445,28 @@ def delete(id):
     
     if income.is_recurring and income.recurrence_group_id and delete_series:
         # Eliminar toda la serie
+        series_dates = [
+            i.date
+            for i in Income.query.filter_by(
+                user_id=current_user.id,
+                recurrence_group_id=income.recurrence_group_id,
+            ).all()
+            if i.date
+        ]
         count = Income.query.filter_by(
             user_id=current_user.id,
             recurrence_group_id=income.recurrence_group_id
         ).delete()
         
         db.session.commit()
+        _touch_dashboard_for_income_dates(current_user.id, series_dates)
         flash(f'✅ Serie completa eliminada ({count} ingresos)', 'info')
     else:
         # Eliminar solo esta entrada
+        del_date = income.date
         db.session.delete(income)
         db.session.commit()
+        _touch_dashboard_for_income_dates(current_user.id, [del_date] if del_date else [])
         flash('Ingreso eliminado', 'info')
     
     return redirect(url_for('incomes.list'))

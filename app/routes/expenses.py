@@ -16,8 +16,15 @@ from app.services.income_expense_aggregator import (
     get_synthetic_expense_entries_by_month,
 )
 from app.services.summary_metrics_service import get_expense_summary_metrics
+from app.services.dashboard_summary_cache import DashboardSummaryCacheService
 
 expenses_bp = Blueprint('expenses', __name__, url_prefix='/expenses')
+
+
+def _touch_dashboard_for_expense_dates(user_id, dates):
+    """Sincroniza caché del dashboard (barras, histórico) tras cambiar gastos."""
+    if dates:
+        DashboardSummaryCacheService.touch_for_dates(user_id, dates=dates)
 
 
 # ==================== CATEGORÍAS ====================
@@ -308,6 +315,10 @@ def new():
             db.session.add(expense)
         
         db.session.commit()
+        _touch_dashboard_for_expense_dates(
+            current_user.id,
+            [e.date for e in expense_instances if e.date],
+        )
         
         # Mensaje según cantidad de instancias generadas
         if len(expense_instances) > 1:
@@ -343,6 +354,7 @@ def edit(id):
     is_part_of_series = expense.is_recurring and expense.recurrence_group_id
     
     if form.validate_on_submit():
+        old_date = expense.date
         # Detectar si cambió de puntual a recurrente
         was_not_recurring = not expense.is_recurring
         will_be_recurring = form.is_recurring.data
@@ -368,6 +380,10 @@ def edit(id):
                 db.session.add(new_expense)
             
             db.session.commit()
+            _touch_dashboard_for_expense_dates(
+                current_user.id,
+                [old_date] + [e.date for e in expense_instances if e.date],
+            )
             flash(f'✅ Gasto convertido a recurrente: {len(expense_instances)} entradas generadas', 'success')
         
         elif is_part_of_series:
@@ -376,6 +392,7 @@ def edit(id):
                 user_id=current_user.id,
                 recurrence_group_id=expense.recurrence_group_id
             ).all()
+            series_dates_for_cache = [e.date for e in series_expenses if e.date]
             
             # Si la fecha de fin cambió a una anterior, eliminar entradas posteriores
             new_end_date = form.recurrence_end_date.data if form.is_recurring.data else None
@@ -398,6 +415,7 @@ def edit(id):
                     # NO actualizar la fecha, cada entrada mantiene su fecha
             
             db.session.commit()
+            _touch_dashboard_for_expense_dates(current_user.id, series_dates_for_cache)
             
             if deleted_count > 0:
                 flash(f'✅ Serie actualizada: {len(series_expenses)} gastos actualizados, {deleted_count} eliminados', 'success')
@@ -416,6 +434,10 @@ def edit(id):
             expense.recurrence_end_date = form.recurrence_end_date.data if form.is_recurring.data else None
             
             db.session.commit()
+            _touch_dashboard_for_expense_dates(
+                current_user.id,
+                [d for d in (old_date, expense.date) if d],
+            )
             flash(f'Gasto actualizado', 'success')
         
         return redirect(url_for('expenses.list'))
@@ -447,17 +469,28 @@ def delete(id):
     
     if expense.is_recurring and expense.recurrence_group_id and delete_series:
         # Eliminar toda la serie
+        series_dates = [
+            e.date
+            for e in Expense.query.filter_by(
+                user_id=current_user.id,
+                recurrence_group_id=expense.recurrence_group_id,
+            ).all()
+            if e.date
+        ]
         count = Expense.query.filter_by(
             user_id=current_user.id,
             recurrence_group_id=expense.recurrence_group_id
         ).delete()
         
         db.session.commit()
+        _touch_dashboard_for_expense_dates(current_user.id, series_dates)
         flash(f'✅ Serie completa eliminada ({count} gastos)', 'info')
     else:
         # Eliminar solo esta entrada
+        del_date = expense.date
         db.session.delete(expense)
         db.session.commit()
+        _touch_dashboard_for_expense_dates(current_user.id, [del_date] if del_date else [])
         flash('Gasto eliminado', 'info')
     
     return redirect(url_for('expenses.list'))
