@@ -206,7 +206,7 @@
                                 +€{{ '%.2f'|format(income.amount) }}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-center text-sm">
-                                <div class="flex justify-center space-x-2" x-data="{ showDeleteModal: false, showEditScopeModal: false, incomeId: {{ income.id }}, isRecurring: {{ 'true' if income.is_recurring and income.recurrence_group_id else 'false' }} }">
+                                <div class="flex justify-center space-x-2" x-data="{ showDeleteModal: false, showEditScopeModal: false, showTerminateModal: false, incomeId: {{ income.id }}, isRecurring: {{ 'true' if income.is_recurring and income.recurrence_group_id else 'false' }} }">
                                     {% if income.is_recurring and income.recurrence_group_id %}
                                     <button type="button"
                                             @click="showEditScopeModal = true"
@@ -224,11 +224,39 @@
                                     </a>
                                     {% endif %}
                                     {% if income.is_recurring and income.recurrence_group_id %}
-                                    <form method="POST" action="{{ url_for('incomes.terminate_recurrence', id=income.id) }}" class="inline"
-                                          onsubmit="return confirm('¿Terminar contrato? Se eliminarán las cuotas con fecha posterior a {{ income.date.strftime('%d/%m/%Y') }}.');">
-                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                        <button type="submit" class="text-amber-600 hover:text-amber-800 p-0 border-0 bg-transparent cursor-pointer" title="Terminar contrato (eliminar cuotas futuras)">🛑</button>
-                                    </form>
+                                    <button type="button"
+                                            @click="showTerminateModal = true"
+                                            class="text-amber-600 hover:text-amber-800 p-0 border-0 bg-transparent cursor-pointer"
+                                            title="Terminar contrato (eliminar cuotas futuras)">🛑</button>
+                                    <div x-show="showTerminateModal"
+                                         x-cloak
+                                         class="fixed inset-0 z-[56] flex items-center justify-center bg-black/50 p-4"
+                                         style="display: none;">
+                                        <div @click.away="showTerminateModal = false"
+                                             class="bg-white rounded-xl shadow-xl border border-gray-200 max-w-md w-full p-6">
+                                            <h3 class="text-lg font-semibold text-gray-900 mb-2">Terminar contrato</h3>
+                                            <p class="text-sm text-gray-600 mb-6">
+                                                ¿Terminar contrato? Se eliminarán las cuotas con fecha posterior a
+                                                <strong>{{ income.date.strftime('%d/%m/%Y') }}</strong>.
+                                            </p>
+                                            <div class="flex flex-wrap justify-end gap-3">
+                                                <button type="button"
+                                                        @click="showTerminateModal = false"
+                                                        class="px-4 py-2.5 rounded-full text-sm font-medium bg-slate-700 text-white hover:bg-slate-800 transition">
+                                                    Cancelar
+                                                </button>
+                                                <form method="POST"
+                                                      action="{{ url_for('incomes.terminate_recurrence', id=income.id) }}"
+                                                      class="inline">
+                                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                    <button type="submit"
+                                                            class="px-5 py-2.5 rounded-full text-sm font-medium bg-indigo-100 text-indigo-900 hover:bg-indigo-200 border border-indigo-200 transition">
+                                                        Aceptar
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
                                     {% endif %}
                                     <button @click="showDeleteModal = true" class="text-red-600 hover:text-red-800" title="Eliminar">
                                         🗑️
