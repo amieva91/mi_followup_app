@@ -6,7 +6,6 @@
     <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
             <h1 class="text-2xl font-bold text-gray-900">Simulador compra vivienda</h1>
-            <p class="text-sm text-gray-500 mt-1">Límite hipoteca = valor tasación estimado (90% precio + 90% ITP). Mínimo de ahorros = precio − ese límite + gastos e impuestos (ITP + notaría + registro + gestión); la tasación se suma aparte. LTV (% de hipoteca) = préstamo / (precio + ITP). Cuota a tipo fijo (francesa).</p>
         </div>
         <div class="flex gap-3 text-sm">
             <a href="{{ url_for('spending_plan.index') }}" class="text-indigo-600 hover:underline">← Planificación</a>
@@ -31,7 +30,7 @@
                        value="{{ sim_form.savings }}"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900"/>
                 <p class="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mt-2" id="mp-savings-hint">
-                    Indica primero el precio de compra para ver el mínimo orientativo y el tope (no superior al precio).
+                    Indica el precio de compra para ver el mínimo de esta casilla.
                 </p>
             </div>
             <div>
@@ -176,7 +175,8 @@
     if (!isNaN(mx) && v > mx) savInput.value = String(mx);
   }
 
-  function compute() {
+  function compute(opts) {
+    var autoBumpSavings = !opts || opts.autoBump !== false;
     var pp = num(document.getElementById('mp-purchase'), 0);
     var first = document.getElementById('mp-first') && document.getElementById('mp-first').checked;
     var itpRate = first ? 0.06 : 0.08;
@@ -190,6 +190,33 @@
     var maxLoan = Math.round(vt * 100) / 100;
     var gastosImpuestos = Math.round((itpAmt + n + r + g) * 100) / 100;
     var minCash = Math.max(0, Math.round((pp - maxLoan + gastosImpuestos) * 100) / 100);
+
+    var hint = document.getElementById('mp-savings-hint');
+    var savInput = document.getElementById('mp-savings');
+    var ltvDisp = document.getElementById('mp-ltv-display');
+
+    if (pp > 0 && hint) {
+      hint.textContent = 'Mínimo en esta casilla: ' + minCash.toFixed(2) + ' € = Precio de compra (' + pp.toFixed(0) + ' €) − Límite hipoteca (' + maxLoan.toFixed(2) + ' €) + gastos e impuestos (' + gastosImpuestos.toFixed(2) + ' €). ';
+    } else if (hint) {
+      hint.textContent = 'Indica el precio de compra para ver el mínimo de esta casilla.';
+    }
+
+    if (savInput && pp > 0) {
+      savInput.min = String(minCash);
+      savInput.max = String(pp);
+      if (autoBumpSavings) {
+        var curRaw = savInput.value;
+        var cur = parseFloat(String(curRaw).replace(',', '.'));
+        if (curRaw !== '' && !isNaN(cur)) {
+          if (cur < minCash) {
+            savInput.value = String(minCash);
+          } else if (cur > pp) {
+            savInput.value = String(pp);
+          }
+        }
+      }
+    }
+
     var sav = num(document.getElementById('mp-savings'), NaN);
     var eff = Math.round((sav + t) * 100) / 100;
     var loan = Math.max(0, Math.round((tc - eff) * 100) / 100);
@@ -198,17 +225,6 @@
     var ltv = Math.min(rawLtv, LTVMAX);
     var ltvRounded = Math.round(ltv * 100) / 100;
 
-    var hint = document.getElementById('mp-savings-hint');
-    var savInput = document.getElementById('mp-savings');
-    var ltvDisp = document.getElementById('mp-ltv-display');
-
-    if (pp > 0 && hint) {
-      hint.textContent = 'Mínimo en esta casilla: ' + minCash.toFixed(2) + ' € = Precio de compra (' + pp.toFixed(0) + ' €) − Límite hipoteca (' + maxLoan.toFixed(2) + ' €) + gastos e impuestos (' + gastosImpuestos.toFixed(2) + ' €). Tope: ' + pp.toFixed(2) + ' € (precio). La tasación (' + t.toFixed(2) + ' €) se suma a lo indicado en esta casilla al simular.';
-    }
-    if (savInput && pp > 0) {
-      savInput.min = String(minCash);
-      savInput.max = String(pp);
-    }
     if (ltvDisp) {
       if (pp <= 0) {
         ltvDisp.value = '—';
@@ -222,25 +238,29 @@
 
   var savEl = document.getElementById('mp-savings');
   if (savEl) {
-    savEl.addEventListener('blur', clampSavings);
-    savEl.addEventListener('change', clampSavings);
+    savEl.addEventListener('input', function () { compute({ autoBump: false }); });
+    savEl.addEventListener('blur', function () {
+      compute({ autoBump: false });
+      clampSavings();
+    });
   }
 
   var form = document.getElementById('mortgage-sim-form');
   if (form) {
     form.addEventListener('submit', function () {
+      compute({ autoBump: false });
       clampSavings();
     });
   }
 
-  ['mp-purchase', 'mp-savings', 'mp-notary', 'mp-registry', 'mp-gestoria', 'mp-tasacion', 'mp-first'].forEach(function (id) {
+  ['mp-purchase', 'mp-notary', 'mp-registry', 'mp-gestoria', 'mp-tasacion', 'mp-first'].forEach(function (id) {
     var el = document.getElementById(id);
     if (el) {
-      el.addEventListener('input', compute);
-      el.addEventListener('change', compute);
+      el.addEventListener('input', function () { compute({ autoBump: true }); });
+      el.addEventListener('change', function () { compute({ autoBump: true }); });
     }
   });
-  compute();
+  compute({ autoBump: true });
 })();
 </script>
 {% endblock %}
