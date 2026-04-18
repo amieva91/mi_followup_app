@@ -2,6 +2,7 @@
 Servicio de reconciliación entre saldos bancarios e ingresos/gastos.
 Calcula el ajuste dinámico por mes cuando hay dos meses consecutivos con datos de bancos.
 """
+from calendar import monthrange
 from datetime import date
 from dateutil.relativedelta import relativedelta
 from app import db
@@ -20,12 +21,10 @@ def _get_prev_month(year, month):
 
 
 def _month_range(year, month):
-    """Devuelve (start_date, end_date) para el mes dado."""
+    """Devuelve (start_date, end_date) para el mes dado (último día real del mes)."""
     start = date(year, month, 1)
-    if month == 12:
-        end = date(year, 12, 31)
-    else:
-        end = (date(year, month, 28) + relativedelta(months=1)) - relativedelta(days=1)
+    last_day = monthrange(year, month)[1]
+    end = date(year, month, last_day)
     return start, end
 
 

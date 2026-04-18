@@ -91,7 +91,14 @@ class DashboardSummaryCacheService:
                 db.session.delete(cache)
                 db.session.commit()
             return None
-        data = cache.cached_data.copy()
+        cached = cache.cached_data or {}
+        meta_pre = dict(cached.get("meta") or {})
+        # Tras editar saldos de meses pasados se marca needs_full_rebuild; servir ese HIST
+        # congelado hace que el efectivo del gráfico no coincida con BankBalance ni con el
+        # ajuste de reconciliación (que sí lee la BD en vivo). Forzar miss hasta rebuild.
+        if meta_pre.get("needs_full_rebuild"):
+            return None
+        data = cached.copy()
         data['_from_cache'] = True
         # Siempre exponer timestamp UTC explícito
         data['_cached_at'] = _utc_iso_z(cache.created_at)
