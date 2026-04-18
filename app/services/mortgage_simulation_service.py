@@ -154,10 +154,18 @@ def min_savings_cash_hint(
     return max(0.0, round(min_total_equity - fee, 2))
 
 
+def _implied_percent_from_future_price(price: float) -> float:
+    """Futuro Euribor CME: convención habitual tipo implícito ≈ 100 − precio del futuro (%)."""
+    return max(0.0, round(100.0 - float(price), 4))
+
+
 def fetch_euribor_implied_percent() -> Optional[float]:
     """
-    Último cierre del futuro EBH28.CME (Yahoo Chart v8).
-    Convención habitual: tipo implícito ≈ 100 − precio (en %).
+    Referencia **Euribor implícito** (no es un tipo fijo de hipoteca): último precio del
+    futuro EBH28.CME vía Yahoo Chart v8. No hay caché ni cron: solo devuelve dato si
+    alguien llama a esta función en el momento de la petición HTTP.
+
+    Yahoo a veces devuelve `indicators.quote` vacío; en ese caso se usa `meta` del chart.
     """
     try:
         url = f"{CHART_API_BASE}/{EURIBOR_YAHOO_TICKER}"
@@ -176,12 +184,17 @@ def fetch_euribor_implied_percent() -> Optional[float]:
         res = (data.get("chart") or {}).get("result") or []
         if not res:
             return None
-        quotes = (res[0].get("indicators") or {}).get("quote") or [{}]
+        block = res[0]
+        meta = block.get("meta") or {}
+        for key in ("regularMarketPrice", "chartPreviousClose"):
+            px = meta.get(key)
+            if px is not None and isinstance(px, (int, float)) and float(px) > 0:
+                return _implied_percent_from_future_price(float(px))
+        quotes = (block.get("indicators") or {}).get("quote") or [{}]
         closes = (quotes[0] or {}).get("close") or []
         for v in reversed(closes):
             if v is not None and isinstance(v, (int, float)) and v > 0:
-                implied = max(0.0, round(100.0 - float(v), 4))
-                return implied
+                return _implied_percent_from_future_price(float(v))
     except Exception as e:
         logger.warning("Euribor Yahoo fetch failed: %s", e)
     return None
