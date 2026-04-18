@@ -1,7 +1,7 @@
 """
 Rutas principales de la aplicación
 """
-from flask import render_template, redirect, url_for, request, jsonify
+from flask import render_template, redirect, url_for, request, jsonify, flash
 from flask_login import login_required, current_user
 from datetime import datetime, date
 from sqlalchemy import func, extract
@@ -212,6 +212,44 @@ def dashboard_state():
         'summary': cache,
         'updated_asset_ids': updated_asset_ids,
     }), 200
+
+@main_bp.route('/reconciliation/adjustment-metrics', methods=['POST'])
+@login_required
+def reconciliation_adjustment_metrics():
+    """
+    Incluir o excluir el ajuste de reconciliación de un mes en métricas / gráficos / resúmenes.
+    El cálculo del ajuste no cambia; solo el agregado vía income_expense_aggregator.
+    """
+    from app.services.dashboard_summary_cache import DashboardSummaryCacheService
+    from app.services.reconciliation_service import set_adjustment_included_in_metrics
+
+    year = request.form.get('year', type=int)
+    month = request.form.get('month', type=int)
+    include = request.form.get('include_in_metrics') == '1'
+    next_url = request.form.get('next') or url_for('expenses.list')
+
+    if not next_url.startswith('/'):
+        next_url = url_for('expenses.list')
+
+    if not year or not month or month < 1 or month > 12:
+        flash('Mes o año inválidos.', 'error')
+        return redirect(next_url)
+
+    set_adjustment_included_in_metrics(current_user.id, year, month, include)
+    DashboardSummaryCacheService.invalidate(current_user.id)
+
+    if include:
+        flash(
+            'Este ajuste volverá a contarse en medias, totales y gráficos de ingresos/gastos.',
+            'success',
+        )
+    else:
+        flash(
+            'Ajuste excluido de estadísticas. El importe sigue mostrándose en la lista (solo informativo).',
+            'info',
+        )
+    return redirect(next_url)
+
 
 @main_bp.route('/dashboard/config', methods=['POST'])
 @login_required

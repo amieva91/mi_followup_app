@@ -187,7 +187,10 @@
                             </td>
                             <td class="px-6 py-3 text-sm text-gray-500 italic">Gasto no registrado (reconciliación bancaria)</td>
                             <td class="px-6 py-3 whitespace-nowrap text-right text-sm font-semibold text-red-600">-€{{ '%.2f'|format(syn.ajuste) }}</td>
-                            <td class="px-6 py-3 text-center text-gray-400">—</td>
+                            <td class="px-6 py-3 text-center align-middle">
+                                {% set year = current_year %}{% set month = current_month %}{% set include_adjustment_in_metrics = syn['include_adjustment_in_metrics']|default(True) %}{% set next = request.full_path %}
+                                {% include 'includes/reconciliation_adjustment_metrics_toggle.html' %}
+                            </td>
                         </tr>
                             {% endif %}
                         {% endif %}
@@ -348,7 +351,10 @@
                             </td>
                             <td class="px-6 py-3 text-sm text-gray-500 italic">Gasto no registrado (reconciliación bancaria)</td>
                             <td class="px-6 py-3 whitespace-nowrap text-right text-sm font-semibold text-red-600">-€{{ '%.2f'|format(orphan.ajuste) }}</td>
-                            <td class="px-6 py-3 text-center text-gray-400">—</td>
+                            <td class="px-6 py-3 text-center align-middle">
+                                {% set year = orphan.year %}{% set month = orphan.month %}{% set include_adjustment_in_metrics = orphan['include_adjustment_in_metrics']|default(True) %}{% set next = request.full_path %}
+                                {% include 'includes/reconciliation_adjustment_metrics_toggle.html' %}
+                            </td>
                         </tr>
                         {% endif %}
                     {% endfor %}

@@ -236,7 +236,10 @@ def list():
                     'month': month,
                     'month_label': data['month_label'],
                     'ajuste': data['ajuste'],
-                    'stock_market': data['stock_market']
+                    'stock_market': data['stock_market'],
+                    'include_adjustment_in_metrics': data.get(
+                        'include_adjustment_in_metrics', True
+                    ),
                 })
 
     return render_template(

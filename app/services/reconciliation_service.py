@@ -147,3 +147,70 @@ def _has_any_balance_for_month(user_id, year, month):
         user_id=user_id, year=year, month=month
     ).count()
     return count > 0
+
+
+def is_adjustment_included_in_metrics(user_id, year, month):
+    """
+    Si el ajuste de reconciliación de ese mes cuenta en totales / gráficos / métricas.
+    Sin fila en BD ⇒ True (comportamiento histórico).
+    """
+    from app.models.reconciliation_adjustment_metric_pref import (
+        ReconciliationAdjustmentMetricPreference,
+    )
+
+    row = ReconciliationAdjustmentMetricPreference.query.filter_by(
+        user_id=user_id, year=year, month=month
+    ).first()
+    if row is None:
+        return True
+    return bool(row.include_in_metrics)
+
+
+def adjustment_amount_for_income_metrics(user_id, year, month):
+    """Parte del ajuste que suma como ingreso en métricas (0 si excluido o ajuste ≥ 0)."""
+    adj = get_adjustment_for_month(user_id, year, month)
+    if adj is None or adj >= 0:
+        return 0.0
+    if not is_adjustment_included_in_metrics(user_id, year, month):
+        return 0.0
+    return float(abs(adj))
+
+
+def adjustment_amount_for_expense_metrics(user_id, year, month):
+    """Parte del ajuste que suma como gasto en métricas (0 si excluido o ajuste ≤ 0)."""
+    adj = get_adjustment_for_month(user_id, year, month)
+    if adj is None or adj <= 0:
+        return 0.0
+    if not is_adjustment_included_in_metrics(user_id, year, month):
+        return 0.0
+    return float(adj)
+
+
+def set_adjustment_included_in_metrics(user_id, year, month, include: bool):
+    """
+    Persiste si el ajuste cuenta en métricas. include=True elimina la fila (vuelve al default).
+    """
+    from app.models.reconciliation_adjustment_metric_pref import (
+        ReconciliationAdjustmentMetricPreference,
+    )
+
+    row = ReconciliationAdjustmentMetricPreference.query.filter_by(
+        user_id=user_id, year=year, month=month
+    ).first()
+    if include:
+        if row:
+            db.session.delete(row)
+        db.session.commit()
+        return
+    if row:
+        row.include_in_metrics = False
+    else:
+        db.session.add(
+            ReconciliationAdjustmentMetricPreference(
+                user_id=user_id,
+                year=year,
+                month=month,
+                include_in_metrics=False,
+            )
+        )
+    db.session.commit()

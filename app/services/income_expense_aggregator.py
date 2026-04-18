@@ -10,7 +10,12 @@ from dateutil.relativedelta import relativedelta
 
 from app import db
 from app.models import Income, Expense
-from app.services.reconciliation_service import get_adjustment_for_month
+from app.services.reconciliation_service import (
+    adjustment_amount_for_expense_metrics,
+    adjustment_amount_for_income_metrics,
+    get_adjustment_for_month,
+    is_adjustment_included_in_metrics,
+)
 from app.services.category_helpers import (
     get_or_create_ajustes_income_category,
     get_or_create_ajustes_expense_category,
@@ -71,9 +76,7 @@ def get_income_category_summary_with_adjustment(user_id, months=12):
     broker_withdrawals_total = 0.0
     for i in range(months - 1, -1, -1):
         d = today - relativedelta(months=i)
-        adj = get_adjustment_for_month(user_id, d.year, d.month)
-        if adj is not None and adj < 0:
-            ajustes_total += abs(adj)
+        ajustes_total += adjustment_amount_for_income_metrics(user_id, d.year, d.month)
         broker_withdrawals_total += get_broker_withdrawals_by_month(user_id, d.year, d.month)
 
     if ajustes_total > 0:
@@ -127,9 +130,7 @@ def get_expense_category_summary_with_adjustment(user_id, months=12):
     broker_deposits_total = 0.0
     for i in range(months - 1, -1, -1):
         d = today - relativedelta(months=i)
-        adj = get_adjustment_for_month(user_id, d.year, d.month)
-        if adj is not None and adj > 0:
-            ajustes_total += adj
+        ajustes_total += adjustment_amount_for_expense_metrics(user_id, d.year, d.month)
         broker_deposits_total += get_broker_deposits_total_by_month(user_id, d.year, d.month)
 
     if ajustes_total > 0:
@@ -174,8 +175,7 @@ def get_income_monthly_totals_with_adjustment(user_id, months=12):
     for i, item in enumerate(base):
         d = today - relativedelta(months=months - 1 - i)
         year, month = d.year, d.month
-        adj = get_adjustment_for_month(user_id, year, month)
-        extra = abs(adj) if adj is not None and adj < 0 else 0
+        extra = adjustment_amount_for_income_metrics(user_id, year, month)
         broker = get_broker_withdrawals_by_month(user_id, year, month)
         result.append({
             'month_label': item['month_label'],
@@ -193,8 +193,7 @@ def get_expense_monthly_totals_with_adjustment(user_id, months=12):
     for i, item in enumerate(base):
         d = today - relativedelta(months=months - 1 - i)
         year, month = d.year, d.month
-        adj = get_adjustment_for_month(user_id, year, month)
-        extra = adj if adj is not None and adj > 0 else 0
+        extra = adjustment_amount_for_expense_metrics(user_id, year, month)
         broker = get_broker_deposits_total_by_month(user_id, year, month)
         result.append({
             'month_label': item['month_label'],
@@ -244,12 +243,18 @@ def get_synthetic_income_entries_by_month(user_id, months=None):
         
         if ajuste_amount > 0 or stock_market_amount > 0:
             month_label = d.strftime('%b %Y')
+            inc_metrics = (
+                is_adjustment_included_in_metrics(user_id, year, month)
+                if ajuste_amount > 0
+                else True
+            )
             result[(year, month)] = {
                 'ajuste': round(ajuste_amount, 2),
                 'stock_market': round(stock_market_amount, 2),
                 'month_label': month_label,
                 'year': year,
-                'month': month
+                'month': month,
+                'include_adjustment_in_metrics': inc_metrics,
             }
     
     return result
@@ -296,12 +301,18 @@ def get_synthetic_expense_entries_by_month(user_id, months=None):
         
         if ajuste_amount > 0 or stock_market_amount > 0:
             month_label = d.strftime('%b %Y')
+            inc_metrics = (
+                is_adjustment_included_in_metrics(user_id, year, month)
+                if ajuste_amount > 0
+                else True
+            )
             result[(year, month)] = {
                 'ajuste': round(ajuste_amount, 2),
                 'stock_market': round(stock_market_amount, 2),
                 'month_label': month_label,
                 'year': year,
-                'month': month
+                'month': month,
+                'include_adjustment_in_metrics': inc_metrics,
             }
     
     return result

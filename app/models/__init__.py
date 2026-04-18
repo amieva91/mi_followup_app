@@ -29,6 +29,7 @@ from app.models.cache_rebuild_state import CacheRebuildState
 from app.models.benchmark_global_quote import BenchmarkGlobalQuote
 from app.models.benchmark_global_daily import BenchmarkGlobalDaily, BenchmarkGlobalState
 from app.models.spending_plan import SpendingPlanSettings, SpendingPlanFixedCategory, SpendingPlanGoal
+from app.models.reconciliation_adjustment_metric_pref import ReconciliationAdjustmentMetricPreference
 
 __all__ = [
     'User', 'MODULES', 'AVATARS', 
@@ -67,5 +68,6 @@ __all__ = [
     'SpendingPlanSettings',
     'SpendingPlanFixedCategory',
     'SpendingPlanGoal',
+    'ReconciliationAdjustmentMetricPreference',
 ]
 

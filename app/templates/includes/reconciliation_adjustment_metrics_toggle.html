@@ -1,0 +1,24 @@
+{# Parámetros: year, month, include_adjustment_in_metrics (bool), next (path con query opcional) #}
+<div class="flex flex-col items-center gap-1 min-w-[8rem]">
+    {% if not include_adjustment_in_metrics %}
+    <span class="text-[10px] uppercase tracking-wide text-amber-700 font-semibold text-center leading-tight">Fuera de métricas</span>
+    {% endif %}
+    <div class="flex gap-1 flex-wrap justify-center">
+        <form method="post" action="{{ url_for('main.reconciliation_adjustment_metrics') }}" class="inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <input type="hidden" name="year" value="{{ year }}"/>
+            <input type="hidden" name="month" value="{{ month }}"/>
+            <input type="hidden" name="include_in_metrics" value="1"/>
+            <input type="hidden" name="next" value="{{ next }}"/>
+            <button type="submit" class="text-xs px-2 py-0.5 rounded bg-emerald-100 text-emerald-900 hover:bg-emerald-200 border border-emerald-200" title="Incluir en medias, totales y gráficos">Incluir</button>
+        </form>
+        <form method="post" action="{{ url_for('main.reconciliation_adjustment_metrics') }}" class="inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <input type="hidden" name="year" value="{{ year }}"/>
+            <input type="hidden" name="month" value="{{ month }}"/>
+            <input type="hidden" name="include_in_metrics" value="0"/>
+            <input type="hidden" name="next" value="{{ next }}"/>
+            <button type="submit" class="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-800 hover:bg-slate-200 border border-slate-200" title="No contar en estadísticas (el importe sigue visible)">Excluir</button>
+        </form>
+    </div>
+</div>
