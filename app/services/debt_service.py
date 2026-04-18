@@ -6,7 +6,12 @@ from dateutil.relativedelta import relativedelta
 from collections import defaultdict
 from app import db
 from app.models import DebtPlan, Expense, ExpenseCategory, Income
-from sqlalchemy import extract, func, or_
+from sqlalchemy import func, or_
+
+from app.services.income_expense_aggregator import (
+    get_income_monthly_totals_with_adjustment,
+    period_months_from_monthly_totals,
+)
 
 
 class DebtService:
@@ -527,28 +532,15 @@ class DebtService:
     @staticmethod
     def get_income_last_12_months(user_id):
         """
-        Total de ingresos de los últimos 12 meses.
-        Returns: (total, months_with_data, is_full_year)
+        Total en ventana 12 meses (ingresos + ajustes negativos + broker) y period_months
+        para la media (misma lógica que resumen de ingresos).
+        Returns: (total, period_months, is_full_year)
         """
-        today = date.today()
-        start = today - relativedelta(months=12)
-        total = Income.get_total_by_period(user_id, start, today)
-
-        # Contar meses distintos con datos (compatible SQLite y PostgreSQL)
-        try:
-            subq = db.session.query(
-                extract('year', Income.date),
-                extract('month', Income.date)
-            ).filter(
-                Income.user_id == user_id,
-                Income.date >= start,
-                Income.date <= today
-            ).distinct()
-            months_with_data = subq.count()
-        except Exception:
-            months_with_data = 12 if total else 0
-
-        return float(total or 0), months_with_data, months_with_data >= 12
+        monthly = get_income_monthly_totals_with_adjustment(user_id, months=12)
+        total = sum(float(m["total"]) for m in monthly)
+        period_months = period_months_from_monthly_totals(monthly)
+        is_full_year = period_months >= 12
+        return float(total or 0), period_months, is_full_year
 
     @staticmethod
     def get_debt_limit_info(user, debt_limit_percent=None):
@@ -560,9 +552,13 @@ class DebtService:
                      current_monthly_debt, margin, is_full_year
         """
         limit_pct = debt_limit_percent if debt_limit_percent is not None else (user.debt_limit_percent or 35.0)
-        total_income, months_with_data, is_full_year = DebtService.get_income_last_12_months(user.id)
+        total_income, period_months, is_full_year = DebtService.get_income_last_12_months(user.id)
 
-        avg_monthly_income = total_income / 12 if total_income else 0
+        avg_monthly_income = (
+            round(total_income / period_months, 2)
+            if total_income and period_months > 0
+            else 0.0
+        )
         max_monthly_debt = round(avg_monthly_income * (limit_pct / 100), 2)
         max_yearly_debt = round(max_monthly_debt * 12, 2)
 

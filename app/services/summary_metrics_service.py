@@ -2,24 +2,26 @@
 Métricas de resumen para cuadros de indicadores (Ingresos y Gastos).
 Fase 6 del plan Bancos + Ajustes.
 """
-from datetime import date
-from dateutil.relativedelta import relativedelta
 from app.services.income_expense_aggregator import (
     get_income_monthly_totals_with_adjustment,
     get_expense_monthly_totals_with_adjustment,
+    period_months_from_monthly_totals,
 )
 
 
 def get_income_summary_metrics(user_id, months=12):
     """
     Indicadores de resumen para ingresos.
-    Returns: dict con media_mensual, total_periodo, mes_max (label, amount), meses_con_datos, tendencia
+    meses_con_datos: meses consecutivos del período (X en X/12), mismo divisor que medias por categoría.
     """
     monthly = get_income_monthly_totals_with_adjustment(user_id, months=months)
     totals = [m['total'] for m in monthly]
     total_periodo = sum(totals)
-    meses_con_datos = sum(1 for t in totals if t > 0)
-    media_mensual = round(total_periodo / meses_con_datos, 2) if meses_con_datos > 0 else 0.0
+    period_months = period_months_from_monthly_totals(monthly)
+    meses_con_datos = period_months
+    media_mensual = (
+        round(total_periodo / period_months, 2) if period_months > 0 else 0.0
+    )
 
     mes_max = {'label': '—', 'amount': 0.0}
     if totals:
@@ -48,13 +50,16 @@ def get_income_summary_metrics(user_id, months=12):
 def get_expense_summary_metrics(user_id, months=12):
     """
     Indicadores de resumen para gastos.
-    Returns: dict con media_mensual, total_periodo, mes_max (label, amount), meses_con_datos, tendencia
+    meses_con_datos: meses consecutivos del período (X en X/12).
     """
     monthly = get_expense_monthly_totals_with_adjustment(user_id, months=months)
     totals = [m['total'] for m in monthly]
     total_periodo = sum(totals)
-    meses_con_datos = sum(1 for t in totals if t > 0)
-    media_mensual = round(total_periodo / meses_con_datos, 2) if meses_con_datos > 0 else 0.0
+    period_months = period_months_from_monthly_totals(monthly)
+    meses_con_datos = period_months
+    media_mensual = (
+        round(total_periodo / period_months, 2) if period_months > 0 else 0.0
+    )
 
     mes_max = {'label': '—', 'amount': 0.0}
     if totals:

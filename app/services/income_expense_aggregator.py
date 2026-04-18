@@ -4,10 +4,12 @@ y los importes de broker (WITHDRAWAL→Stock Market income, DEPOSIT→Stock Mark
 Inyecta el ajuste calculado por ReconciliationService en totales y resúmenes por categoría.
 """
 from datetime import date
+from typing import Any, Dict, List
+
 from dateutil.relativedelta import relativedelta
-from sqlalchemy import extract
+
 from app import db
-from app.models import Income, Expense, IncomeCategory, ExpenseCategory
+from app.models import Income, Expense
 from app.services.reconciliation_service import get_adjustment_for_month
 from app.services.category_helpers import (
     get_or_create_ajustes_income_category,
@@ -21,113 +23,48 @@ from app.services.broker_sync_service import (
 )
 
 
-def _income_months_with_data(user_id, category_id, category_name, months, today):
-    """Meses con datos > 0 para una categoría de ingresos."""
-    start_date = today - relativedelta(months=months)
-    end_date = today
-
-    if category_name == 'Ajustes':
-        count = 0
-        for i in range(months - 1, -1, -1):
-            d = today - relativedelta(months=i)
-            adj = get_adjustment_for_month(user_id, d.year, d.month)
-            if adj is not None and adj < 0:
-                count += 1
-        return count
-
-    if category_name == 'Stock Market':
-        count = 0
-        for i in range(months - 1, -1, -1):
-            d = today - relativedelta(months=i)
-            if get_broker_withdrawals_by_month(user_id, d.year, d.month) > 0:
-                count += 1
-        return count
-
-    # Categorías normales: consulta DB
-    pairs = db.session.query(
-        extract('year', Income.date),
-        extract('month', Income.date)
-    ).filter(
-        Income.user_id == user_id,
-        Income.category_id == category_id,
-        Income.date >= start_date,
-        Income.date <= end_date
-    ).distinct().all()
-    return len(pairs)
+def period_months_from_monthly_totals(monthly: List[Dict[str, Any]]) -> int:
+    """
+    Meses consecutivos del período (máx. len(monthly), típ. 12): desde el primer mes
+    con total global > 0 hasta el último mes de la serie. Los meses intermedios en cero
+    cuentan. Si no hay actividad, 0.
+    """
+    if not monthly:
+        return 0
+    totals = [float(m.get("total") or 0) for m in monthly]
+    i_first = None
+    for i, t in enumerate(totals):
+        if t > 0:
+            i_first = i
+            break
+    if i_first is None:
+        return 0
+    return len(monthly) - i_first
 
 
-def _expense_months_with_data(user_id, category_id, category_name, months, today):
-    """Meses con datos > 0 para una categoría de gastos."""
-    from datetime import date
-    start_date = today - relativedelta(months=months)
-    end_date = today
-
-    if category_name == 'Ajustes':
-        count = 0
-        for i in range(months - 1, -1, -1):
-            d = today - relativedelta(months=i)
-            adj = get_adjustment_for_month(user_id, d.year, d.month)
-            if adj is not None and adj > 0:
-                count += 1
-        return count
-
-    if category_name == 'Stock Market':
-        count = 0
-        for i in range(months - 1, -1, -1):
-            d = today - relativedelta(months=i)
-            if get_broker_deposits_total_by_month(user_id, d.year, d.month) > 0:
-                count += 1
-        return count
-
-    # Categorías normales
-    pairs = db.session.query(
-        extract('year', Expense.date),
-        extract('month', Expense.date)
-    ).filter(
-        Expense.user_id == user_id,
-        Expense.category_id == category_id,
-        Expense.date >= start_date,
-        Expense.date <= end_date,
-        db.or_(
-            Expense.debt_plan_id.is_(None),
-            Expense.date <= today
-        )
-    ).distinct().all()
-    return len(pairs)
-
-
-def _add_expense_average_fields(summary, user_id, months, today):
-    """Añade average y months_with_data a items de expense (padres e hijos)."""
+def _add_expense_average_fields(summary, period_months: int):
+    """Añade average y period_months (divisor global) a padres e hijos."""
     for parent in summary:
-        total = parent.get('total', 0)
-        if total > 0:
-            months_with_data = _expense_months_with_data(
-                user_id, parent.get('id'), parent.get('name'), months, today
+        total = float(parent.get("total", 0) or 0)
+        parent["period_months"] = period_months
+        parent["average"] = (
+            round(total / period_months, 2) if period_months > 0 and total else 0.0
+        )
+        for child in parent.get("children", []):
+            ct = float(child.get("total", 0) or 0)
+            child["period_months"] = period_months
+            child["average"] = (
+                round(ct / period_months, 2) if period_months > 0 and ct else 0.0
             )
-            parent['months_with_data'] = months_with_data
-            parent['average'] = round(total / months_with_data, 2) if months_with_data > 0 else 0.0
-        else:
-            parent['months_with_data'] = 0
-            parent['average'] = 0.0
-        for child in parent.get('children', []):
-            ct = child.get('total', 0)
-            if ct > 0:
-                md = _expense_months_with_data(
-                    user_id, child.get('id'), None, months, today
-                )
-                if md == 0:
-                    md = 1  # Evitar división por cero
-                child['months_with_data'] = md
-                child['average'] = round(ct / md, 2)
-            else:
-                child['months_with_data'] = 0
-                child['average'] = 0.0
 
 
 def get_income_category_summary_with_adjustment(user_id, months=12):
     """Resumen por categoría de ingresos incluyendo ajuste y retiradas broker (Stock Market)."""
-    summary = Income.get_category_summary(user_id, months=12)
     today = date.today()
+    monthly_series = get_income_monthly_totals_with_adjustment(user_id, months=months)
+    period_months = period_months_from_monthly_totals(monthly_series)
+
+    summary = Income.get_category_summary(user_id, months=months)
 
     # Sumar ajustes negativos (ingresos no registrados) por mes
     ajustes_total = 0.0
@@ -167,20 +104,23 @@ def get_income_category_summary_with_adjustment(user_id, months=12):
                 'total': round(broker_withdrawals_total, 2)
             })
 
-    # Fase 5: añadir average y months_with_data para formato media+(total)
     for item in summary:
-        total = item.get('total', 0)
-        months_with_data = _income_months_with_data(user_id, item.get('id'), item.get('category'), months, today)
-        item['months_with_data'] = months_with_data
-        item['average'] = round(total / months_with_data, 2) if months_with_data > 0 else 0.0
+        total = float(item.get("total", 0) or 0)
+        item["period_months"] = period_months
+        item["average"] = (
+            round(total / period_months, 2) if period_months > 0 and total else 0.0
+        )
 
     return summary
 
 
 def get_expense_category_summary_with_adjustment(user_id, months=12):
     """Resumen por categoría de gastos incluyendo ajuste y depósitos broker (Stock Market)."""
-    summary = Expense.get_category_summary(user_id, months=12)
     today = date.today()
+    monthly_series = get_expense_monthly_totals_with_adjustment(user_id, months=months)
+    period_months = period_months_from_monthly_totals(monthly_series)
+
+    summary = Expense.get_category_summary(user_id, months=months)
 
     # Sumar ajustes positivos (gastos no registrados) por mes
     ajustes_total = 0.0
@@ -220,8 +160,7 @@ def get_expense_category_summary_with_adjustment(user_id, months=12):
                 'children': []
             })
 
-    # Fase 5: añadir average y months_with_data (padres e hijos)
-    _add_expense_average_fields(summary, user_id, months, today)
+    _add_expense_average_fields(summary, period_months)
 
     return summary
 

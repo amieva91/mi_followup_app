@@ -21,6 +21,7 @@ from app.services.bank_service import BankService
 from app.services.income_expense_aggregator import (
     get_expense_category_summary_with_adjustment,
     get_income_monthly_totals_with_adjustment,
+    period_months_from_monthly_totals,
 )
 
 
@@ -35,11 +36,14 @@ def _get_or_create_settings(user_id: int) -> SpendingPlanSettings:
 
 
 def get_avg_monthly_income(user_id: int, months: int = 12) -> float:
-    """Media mensual de ingresos (últimos N meses), con ajustes y broker."""
+    """Media mensual alineada con el resumen de ingresos (mismo período y divisor)."""
     rows = get_income_monthly_totals_with_adjustment(user_id, months=months)
     if not rows:
         return 0.0
-    return round(sum(float(r["total"]) for r in rows) / len(rows), 2)
+    pm = period_months_from_monthly_totals(rows)
+    if pm <= 0:
+        return 0.0
+    return round(sum(float(r["total"]) for r in rows) / pm, 2)
 
 
 def _flatten_expense_averages(summary: List[dict]) -> Dict[int, float]:
