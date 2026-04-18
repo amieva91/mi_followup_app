@@ -358,6 +358,154 @@ def create_app(config_name='default'):
             except Exception:
                 pass
 
+    @app.cli.command('reconciliation-debug')
+    @click.option('--email', required=True, help='Email del usuario (ej. amieva91@gmail.com)')
+    @click.option('--year', type=int, required=True)
+    @click.option('--month', 'months', type=int, multiple=True, required=True, help='Mes(es), repetible: --month 2 --month 3')
+    @click.option('--rows', is_flag=True, help='Listar filas de ingresos/gastos del mes')
+    def reconciliation_debug(email, year, months, rows):
+        """
+        Desglose de reconciliación bancaria (cash + ingresos/gastos + broker) por mes.
+        Ejecutar en el servidor donde esté la BD real:
+        flask reconciliation-debug --email user@example.com --year 2026 --month 2 --month 3 --rows
+        """
+        from datetime import date as date_cls
+        from sqlalchemy import extract
+
+        from app.models import User, Income, Expense, IncomeCategory, ExpenseCategory, Transaction
+        from app.services.bank_service import BankService
+        from app.services.broker_sync_service import (
+            get_broker_deposits_total_by_month,
+            get_broker_withdrawals_by_month,
+        )
+        from app.services.reconciliation_service import (
+            _get_prev_month,
+            _month_range,
+            _reconciliation_excluded_expense_category_ids,
+            _reconciliation_excluded_income_category_ids,
+            get_adjustment_for_month,
+            get_expense_total_for_month,
+            get_income_total_for_month,
+        )
+        from app.services.broker_sync_service import _broker_account_ids
+        from app.services.currency_service import convert_to_eur
+
+        user = User.query.filter_by(email=email.strip()).first()
+        if not user:
+            click.echo(f'No existe usuario con email {email!r}.', err=True)
+            return
+        uid = user.id
+        click.echo(f'Usuario id={uid} email={user.email!r}\n')
+
+        for month in months:
+            if month < 1 or month > 12:
+                click.echo(f'Mes inválido: {month}', err=True)
+                continue
+            py, pm = _get_prev_month(year, month)
+            cash_prev = BankService.get_total_cash_by_month(uid, py, pm)
+            cash_cur = BankService.get_total_cash_by_month(uid, year, month)
+            start, end = _month_range(year, month)
+            today = date_cls.today()
+            inc_raw = float(Income.get_total_by_period(uid, start, end) or 0)
+            exp_raw_q = db.session.query(db.func.sum(Expense.amount)).filter(
+                Expense.user_id == uid,
+                Expense.date >= start,
+                Expense.date <= end,
+                db.or_(
+                    Expense.debt_plan_id.is_(None),
+                    Expense.date <= today,
+                ),
+            )
+            exp_raw = float(exp_raw_q.scalar() or 0)
+            ex_i = _reconciliation_excluded_income_category_ids(uid)
+            ex_e = _reconciliation_excluded_expense_category_ids(uid)
+            inc_adj = get_income_total_for_month(uid, year, month)
+            exp_adj = get_expense_total_for_month(uid, year, month)
+            br_w = get_broker_withdrawals_by_month(uid, year, month)
+            br_d = get_broker_deposits_total_by_month(uid, year, month)
+            adj = get_adjustment_for_month(uid, year, month)
+            real = cash_prev + inc_adj - cash_cur
+
+            click.echo(f'=== {year}-{month:02d} (prev month cash {py}-{pm:02d}) ===')
+            click.echo(f'  cash_prev (BankBalance):     {cash_prev:,.2f}')
+            click.echo(f'  cash_current:                {cash_cur:,.2f}')
+            click.echo(f'  incomes tabla (sin excl.):   {inc_raw:,.2f}  | categorías excl. ids: {ex_i}')
+            click.echo(f'  + broker WITHDRAWAL:         {br_w:,.2f}')
+            click.echo(f'  = ingresos (reconciliación): {inc_adj:,.2f}')
+            click.echo(f'  gastos tabla (sin excl.):    {exp_raw:,.2f}  | categorías excl. ids: {ex_e}')
+            click.echo(f'  + broker DEPOSIT:            {br_d:,.2f}')
+            click.echo(f'  = gastos (reconciliación):   {exp_adj:,.2f}')
+            click.echo(f'  gasto implícito (caja):      {real:,.2f}  (= prev + ing − cash)')
+            click.echo(f'  ajuste (real − gastos reg.): {adj}')
+            d_inc = inc_raw - (inc_adj - br_w)
+            d_exp = exp_raw - (exp_adj - br_d)
+            if abs(d_inc) > 0.005 or abs(d_exp) > 0.005:
+                click.echo(
+                    f'  → Diferencia por excl. Stock Market/Ajustes: '
+                    f'ingresos tabla {d_inc:,.2f} €, gastos tabla {d_exp:,.2f} €'
+                )
+            click.echo('')
+
+            if rows:
+                incomes = (
+                    Income.query.filter(
+                        Income.user_id == uid,
+                        Income.date >= start,
+                        Income.date <= end,
+                    )
+                    .order_by(Income.date, Income.id)
+                    .all()
+                )
+                click.echo(f'  Filas incomes ({len(incomes)}):')
+                for r in incomes:
+                    cat = db.session.get(IncomeCategory, r.category_id)
+                    cname = cat.name if cat else '?'
+                    desc = (r.description or '')[:60]
+                    click.echo(
+                        f'    {r.date} | {cname!r} | {r.amount:,.2f} | {desc!r}'
+                    )
+                exps = (
+                    Expense.query.filter(
+                        Expense.user_id == uid,
+                        Expense.date >= start,
+                        Expense.date <= end,
+                        db.or_(
+                            Expense.debt_plan_id.is_(None),
+                            Expense.date <= today,
+                        ),
+                    )
+                    .order_by(Expense.date, Expense.id)
+                    .all()
+                )
+                click.echo(f'  Filas expenses ({len(exps)}):')
+                for r in exps:
+                    cat = db.session.get(ExpenseCategory, r.category_id)
+                    cname = cat.name if cat else '?'
+                    desc = (r.description or '')[:60]
+                    click.echo(
+                        f'    {r.date} | {cname!r} | {r.amount:,.2f} | {desc!r}'
+                    )
+                acc_ids = [x[0] for x in _broker_account_ids(uid)]
+                if acc_ids:
+                    w_tx = (
+                        Transaction.query.filter(
+                            Transaction.user_id == uid,
+                            Transaction.account_id.in_(acc_ids),
+                            Transaction.transaction_type == 'WITHDRAWAL',
+                            extract('year', Transaction.transaction_date) == year,
+                            extract('month', Transaction.transaction_date) == month,
+                        )
+                        .order_by(Transaction.transaction_date, Transaction.id)
+                        .all()
+                    )
+                    click.echo(f'  WITHDRAWAL broker ({len(w_tx)}):')
+                    for t in w_tx:
+                        eur = convert_to_eur(abs(t.amount), t.currency)
+                        click.echo(
+                            f'    {t.transaction_date} | {eur:,.2f} EUR | id={t.id} amt={t.amount} {t.currency}'
+                        )
+                click.echo('')
+
     @app.cli.command('price-flash-test')
     @click.option('--user-id', type=int, default=None)
     @click.option('--index', type=int, default=0, help='Posición en Top Movers: 0=primero, 1=segundo, …')

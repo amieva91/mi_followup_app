@@ -6,8 +6,12 @@ from calendar import monthrange
 from datetime import date
 from dateutil.relativedelta import relativedelta
 from app import db
-from app.models import Income, Expense
+from app.models import Income, Expense, IncomeCategory, ExpenseCategory
 from app.services.bank_service import BankService
+from app.services.category_helpers import (
+    AJUSTES_CATEGORY_NAME,
+    STOCK_MARKET_CATEGORY_NAME,
+)
 from app.services.broker_sync_service import (
     get_broker_withdrawals_by_month,
     get_broker_deposits_total_by_month,
@@ -28,10 +32,51 @@ def _month_range(year, month):
     return start, end
 
 
+def _reconciliation_excluded_income_category_ids(user_id):
+    """
+    Categorías cuyos importes en `incomes` no deben sumarse aquí: ya van por broker
+    (Stock Market = WITHDRAWAL) o son sintéticos (Ajustes). Evita doble conteo.
+    """
+    rows = (
+        db.session.query(IncomeCategory.id)
+        .filter(
+            IncomeCategory.user_id == user_id,
+            IncomeCategory.name.in_(
+                (STOCK_MARKET_CATEGORY_NAME, AJUSTES_CATEGORY_NAME)
+            ),
+        )
+        .all()
+    )
+    return [r[0] for r in rows]
+
+
+def _reconciliation_excluded_expense_category_ids(user_id):
+    """Igual que ingresos: Stock Market (DEPOSIT) y Ajustes no duplican broker ni línea sintética."""
+    rows = (
+        db.session.query(ExpenseCategory.id)
+        .filter(
+            ExpenseCategory.user_id == user_id,
+            ExpenseCategory.name.in_(
+                (STOCK_MARKET_CATEGORY_NAME, AJUSTES_CATEGORY_NAME)
+            ),
+        )
+        .all()
+    )
+    return [r[0] for r in rows]
+
+
 def get_income_total_for_month(user_id, year, month):
     """Total de ingresos del mes: manuales + retiradas broker (WITHDRAWAL)."""
     start, end = _month_range(year, month)
-    manual = float(Income.get_total_by_period(user_id, start, end) or 0)
+    excl = _reconciliation_excluded_income_category_ids(user_id)
+    q = db.session.query(db.func.sum(Income.amount)).filter(
+        Income.user_id == user_id,
+        Income.date >= start,
+        Income.date <= end,
+    )
+    if excl:
+        q = q.filter(~Income.category_id.in_(excl))
+    manual = float(q.scalar() or 0)
     broker = get_broker_withdrawals_by_month(user_id, year, month)
     return manual + broker
 
@@ -40,7 +85,8 @@ def get_expense_total_for_month(user_id, year, month):
     """Total de gastos del mes: manuales + depósitos broker (DEPOSIT), excl. cuotas futuras deuda."""
     start, end = _month_range(year, month)
     today = date.today()
-    manual = db.session.query(db.func.sum(Expense.amount)).filter(
+    excl = _reconciliation_excluded_expense_category_ids(user_id)
+    q = db.session.query(db.func.sum(Expense.amount)).filter(
         Expense.user_id == user_id,
         Expense.date >= start,
         Expense.date <= end,
@@ -48,7 +94,10 @@ def get_expense_total_for_month(user_id, year, month):
             Expense.debt_plan_id.is_(None),
             Expense.date <= today
         )
-    ).scalar()
+    )
+    if excl:
+        q = q.filter(~Expense.category_id.in_(excl))
+    manual = q.scalar()
     broker = get_broker_deposits_total_by_month(user_id, year, month)
     return float(manual or 0) + broker
 
