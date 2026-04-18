@@ -374,10 +374,12 @@ def edit(id):
     if needs_scope and request.method == 'GET':
         scope_from_url = request.args.get('scope')
         if scope_from_url not in RECURRENCE_EDIT_SCOPES:
-            return render_template(
-                'incomes/choose_recurrence_edit_scope.html',
-                income=income,
+            flash(
+                'Elige el ámbito de edición con el botón ✏️ en la lista: serie completa, '
+                'solo futuras o solo esta entrada.',
+                'info',
             )
+            return redirect(url_for('incomes.list'))
         recurrence_edit_scope = scope_from_url
         pivot_date_str = income.date.isoformat()
 

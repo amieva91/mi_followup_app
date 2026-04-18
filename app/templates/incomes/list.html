@@ -206,11 +206,23 @@
                                 +€{{ '%.2f'|format(income.amount) }}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-center text-sm">
-                                <div class="flex justify-center space-x-2" x-data="{ showDeleteModal: false, incomeId: {{ income.id }}, isRecurring: {{ 'true' if income.is_recurring and income.recurrence_group_id else 'false' }} }">
-                                    <a href="{{ url_for('incomes.edit', id=income.id) }}" 
+                                <div class="flex justify-center space-x-2" x-data="{ showDeleteModal: false, showEditScopeModal: false, incomeId: {{ income.id }}, isRecurring: {{ 'true' if income.is_recurring and income.recurrence_group_id else 'false' }} }">
+                                    {% if income.is_recurring and income.recurrence_group_id %}
+                                    <button type="button"
+                                            @click="showEditScopeModal = true"
+                                            class="text-blue-600 hover:text-blue-800 p-0 border-0 bg-transparent cursor-pointer"
+                                            title="Editar">
+                                        ✏️
+                                    </button>
+                                    {% set kind = 'income' %}
+                                    {% set item_id = income.id %}
+                                    {% include 'includes/recurrence_edit_scope_modal.html' %}
+                                    {% else %}
+                                    <a href="{{ url_for('incomes.edit', id=income.id) }}"
                                        class="text-blue-600 hover:text-blue-800" title="Editar">
                                         ✏️
                                     </a>
+                                    {% endif %}
                                     {% if income.is_recurring and income.recurrence_group_id %}
                                     <form method="POST" action="{{ url_for('incomes.terminate_recurrence', id=income.id) }}" class="inline"
                                           onsubmit="return confirm('¿Terminar contrato? Se eliminarán las cuotas con fecha posterior a {{ income.date.strftime('%d/%m/%Y') }}.');">
