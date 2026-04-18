@@ -77,7 +77,7 @@ def add_goal():
 def _default_mortgage_form():
     return {
         "purchase_price": "280000",
-        "savings": "80000",
+        "savings": "86000",
         "years": "30",
         "first_home": True,
         "annual_interest_percent": "3.50",
@@ -85,7 +85,6 @@ def _default_mortgage_form():
         "registry": str(mss.DEFAULT_REGISTRY),
         "gestoria": str(mss.DEFAULT_GESTORIA),
         "tasacion": str(mss.DEFAULT_TASACION),
-        "valor_tasacion_inmueble": "",
     }
 
 
@@ -111,9 +110,6 @@ def mortgage_simulator():
             "registry": (request.form.get("registry") or "").strip(),
             "gestoria": (request.form.get("gestoria") or "").strip(),
             "tasacion": (request.form.get("tasacion") or "").strip(),
-            "valor_tasacion_inmueble": (
-                request.form.get("valor_tasacion_inmueble") or ""
-            ).strip(),
         }
         try:
             pp = float(sim_form["purchase_price"] or 0)
@@ -125,8 +121,6 @@ def mortgage_simulator():
             registry = float(sim_form["registry"] or mss.DEFAULT_REGISTRY)
             gestoria = float(sim_form["gestoria"] or mss.DEFAULT_GESTORIA)
             tasacion = float(sim_form["tasacion"] or mss.DEFAULT_TASACION)
-            vts = (request.form.get("valor_tasacion_inmueble") or "").strip()
-            valor_tas = float(vts) if vts else None
             result = mss.run_simulation(
                 purchase_price=pp,
                 savings_cash=sav,
@@ -136,7 +130,6 @@ def mortgage_simulator():
                 registry=registry,
                 gestoria=gestoria,
                 tasacion_fee=tasacion,
-                valor_tasacion_inmueble=valor_tas,
                 annual_interest_percent=annual,
             )
         except ValueError as e:
@@ -149,6 +142,7 @@ def mortgage_simulator():
         result=result,
         sim_form=sim_form,
         loan_cap_percent=int(mss.LOAN_CAP_ON_APPRAISAL * 100),
+        ltv_ratio_max=int(mss.LTV_RATIO_MAX_PERCENT),
         defaults={
             "notary": mss.DEFAULT_NOTARY,
             "registry": mss.DEFAULT_REGISTRY,

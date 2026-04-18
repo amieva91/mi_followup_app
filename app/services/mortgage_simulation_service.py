@@ -25,7 +25,21 @@ DEFAULT_GESTORIA = 250.0
 DEFAULT_TASACION = 290.0
 
 LOAN_CAP_ON_APPRAISAL = 0.80
+"""Préstamo máximo sobre valor de tasación (política habitual)."""
+LTV_RATIO_MAX_PERCENT = 90.0
+"""LTV préstamo/valor tasación: no supera este % en la simulación."""
+
 EURIBOR_YAHOO_TICKER = "EBH28.CME"
+
+
+def computed_valor_tasacion(purchase_price: float, itp_amount: float) -> float:
+    """
+    Valor de tasación estimado (sin campo manual): 90% del precio de compra
+    más 90% del ITP (impuesto seleccionado).
+    """
+    pp = max(0.0, float(purchase_price))
+    itp = max(0.0, float(itp_amount))
+    return round(0.90 * pp + 0.90 * itp, 2)
 
 
 @dataclass
@@ -171,14 +185,12 @@ def run_simulation(
     registry: float = DEFAULT_REGISTRY,
     gestoria: float = DEFAULT_GESTORIA,
     tasacion_fee: float = DEFAULT_TASACION,
-    valor_tasacion_inmueble: Optional[float] = None,
     annual_interest_percent: float = 3.5,
 ) -> MortgageSimulationResult:
     """
-    Préstamo máximo regulado: LOAN_CAP_ON_APPRAISAL × valor de tasación del inmueble.
-    Si valor_tasacion_inmueble es None o 0, se usa el precio de compra.
-    Efectivo aportado en simulación = ahorros (casilla) + importe gasto tasación.
-    Solo tipo fijo nominal anual.
+    Valor de tasación estimado: 90% precio + 90% ITP (automático).
+    Préstamo máximo: LOAN_CAP_ON_APPRAISAL × valor tasación. LTV préstamo/tasación ≤ 90%.
+    Efectivo aportado = ahorros (casilla) + gasto tasación.
     """
     pp = max(0.0, float(purchase_price))
     sav = max(0.0, float(savings_cash))
@@ -194,11 +206,9 @@ def run_simulation(
         pp, first_home, notary, registry, gestoria, tasacion_fee
     )
 
-    vt_raw = valor_tasacion_inmueble
-    if vt_raw is None or float(vt_raw) <= 0:
-        valor_tas = pp
-    else:
-        valor_tas = max(0.0, float(vt_raw))
+    valor_tas = computed_valor_tasacion(pp, itp_amt)
+    if valor_tas <= 0:
+        raise ValueError("No se pudo estimar el valor de tasación (revisa el precio).")
 
     max_loan = round(valor_tas * LOAN_CAP_ON_APPRAISAL, 2)
     effective_entry = round(sav + tasacion_fee, 2)
@@ -220,11 +230,18 @@ def run_simulation(
         raise ValueError(
             f"El préstamo necesario ({loan_needed:.2f} €) supera el "
             f"{LOAN_CAP_ON_APPRAISAL:.0%} del valor de tasación ({max_loan:.2f} €). "
-            "Aumenta los ahorros o revisa el valor de tasación."
+            "Aumenta los ahorros."
         )
 
     loan = max(0.0, loan_needed)
-    ltv_pct = round((loan / valor_tas) * 100.0, 2) if valor_tas > 0 else 0.0
+
+    raw_ltv = (loan / valor_tas) * 100.0 if valor_tas > 0 else 0.0
+    if raw_ltv > LTV_RATIO_MAX_PERCENT + 0.05:
+        raise ValueError(
+            f"El LTV resultante ({raw_ltv:.2f}%) supera el {LTV_RATIO_MAX_PERCENT:.0f}% permitido. "
+            "Aumenta los ahorros."
+        )
+    ltv_pct = round(min(raw_ltv, LTV_RATIO_MAX_PERCENT), 2)
 
     monthly = french_monthly_payment(loan, rate, yrs)
     n = yrs * 12
@@ -238,9 +255,12 @@ def run_simulation(
 
     info: List[str] = [
         f"Coste total estimado (compra + ITP + gastos, incl. tasación): {_eur(total_cost)}",
-        f"Valor tasación (límite préstamo {LOAN_CAP_ON_APPRAISAL:.0%}): {_eur(valor_tas)} → máx. {_eur(max_loan)}",
+        (
+            f"Valor tasación estimado (90% precio + 90% ITP): {_eur(valor_tas)} → "
+            f"máx. préstamo {LOAN_CAP_ON_APPRAISAL:.0%} = {_eur(max_loan)}"
+        ),
         f"Aportación efectiva (ahorros + gasto tasación): {_eur(effective_entry)}",
-        f"Préstamo: {_eur(loan)} (LTV sobre valor tasación: {ltv_pct:.2f}%)",
+        f"Préstamo: {_eur(loan)} · LTV sobre valor tasación: {ltv_pct:.2f}% (máx. {LTV_RATIO_MAX_PERCENT:.0f}%)",
     ]
 
     return MortgageSimulationResult(
