@@ -7,7 +7,12 @@ from app import db
 from app.models import IncomeCategory, Income
 from app.forms import IncomeCategoryForm, IncomeForm
 from app.utils.recurrence import create_recurrence_instances
-from app.services.category_helpers import filter_editable_categories, is_ajustes_category
+from app.services.category_helpers import (
+    AJUSTES_CATEGORY_NAME,
+    STOCK_MARKET_CATEGORY_NAME,
+    filter_editable_categories,
+    is_ajustes_category,
+)
 from app.services.income_expense_aggregator import (
     get_income_category_summary_with_adjustment,
     get_income_monthly_totals_with_adjustment,
@@ -206,6 +211,12 @@ def list():
         user_id=current_user.id
     ).order_by(IncomeCategory.name).all()
 
+    integration_income_categories = [
+        c
+        for c in categories
+        if c.name not in (AJUSTES_CATEGORY_NAME, STOCK_MARKET_CATEGORY_NAME)
+    ]
+
     # Resumen por categoría (12 meses) incluyendo ajuste de reconciliación
     category_summary = get_income_category_summary_with_adjustment(current_user.id, months=12)
     # Totales mensuales (12 meses) para gráfico de barras incluyendo ajuste
@@ -246,6 +257,7 @@ def list():
         'incomes/list.html',
         incomes=incomes,
         categories=categories,
+        integration_income_categories=integration_income_categories,
         selected_category=category_id,
         category_summary=category_summary,
         monthly_totals=monthly_totals,

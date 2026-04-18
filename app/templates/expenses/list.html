@@ -189,6 +189,7 @@
                             <td class="px-6 py-3 whitespace-nowrap text-right text-sm font-semibold text-red-600">-€{{ '%.2f'|format(syn.ajuste) }}</td>
                             <td class="px-6 py-3 text-center align-middle">
                                 {% set year = current_year %}{% set month = current_month %}{% set include_adjustment_in_metrics = syn['include_adjustment_in_metrics']|default(True) %}{% set next = request.full_path %}
+                                {% set integration_side = 'expense' %}{% set integration_categories = integration_expense_categories %}{% set ajuste_amount = syn.ajuste %}
                                 {% include 'includes/reconciliation_adjustment_metrics_toggle.html' %}
                             </td>
                         </tr>
@@ -353,6 +354,7 @@
                             <td class="px-6 py-3 whitespace-nowrap text-right text-sm font-semibold text-red-600">-€{{ '%.2f'|format(orphan.ajuste) }}</td>
                             <td class="px-6 py-3 text-center align-middle">
                                 {% set year = orphan.year %}{% set month = orphan.month %}{% set include_adjustment_in_metrics = orphan['include_adjustment_in_metrics']|default(True) %}{% set next = request.full_path %}
+                                {% set integration_side = 'expense' %}{% set integration_categories = integration_expense_categories %}{% set ajuste_amount = orphan.ajuste %}
                                 {% include 'includes/reconciliation_adjustment_metrics_toggle.html' %}
                             </td>
                         </tr>

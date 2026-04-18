@@ -17,6 +17,9 @@ from app.services.broker_sync_service import (
     get_broker_deposits_total_by_month,
 )
 
+# Descripción fija para movimientos creados al integrar el ajuste en una categoría.
+RECONCILIATION_INTEGRATION_DESCRIPTION = "Integrado desde reconciliación bancaria"
+
 
 def _get_prev_month(year, month):
     """Devuelve (year, month) del mes anterior."""
@@ -214,3 +217,142 @@ def set_adjustment_included_in_metrics(user_id, year, month, include: bool):
             )
         )
     db.session.commit()
+
+
+def _integration_reserved_category_names():
+    return (AJUSTES_CATEGORY_NAME, STOCK_MARKET_CATEGORY_NAME)
+
+
+def _resolve_integration_expense_date(user_id, year, month, category_id):
+    """
+    Último día del mes si no hay gastos sin plan en esa categoría; si los hay, reutiliza
+    la fecha del movimiento más reciente (misma categoría, mismo mes, debt_plan_id nulo).
+    """
+    start, end = _month_range(year, month)
+    row = (
+        Expense.query.filter(
+            Expense.user_id == user_id,
+            Expense.category_id == category_id,
+            Expense.date >= start,
+            Expense.date <= end,
+            Expense.debt_plan_id.is_(None),
+        )
+        .order_by(Expense.date.desc(), Expense.id.desc())
+        .first()
+    )
+    if row:
+        return row.date
+    last_day = monthrange(year, month)[1]
+    return date(year, month, last_day)
+
+
+def _resolve_integration_income_date(user_id, year, month, category_id):
+    start, end = _month_range(year, month)
+    row = (
+        Income.query.filter(
+            Income.user_id == user_id,
+            Income.category_id == category_id,
+            Income.date >= start,
+            Income.date <= end,
+        )
+        .order_by(Income.date.desc(), Income.id.desc())
+        .first()
+    )
+    if row:
+        return row.date
+    last_day = monthrange(year, month)[1]
+    return date(year, month, last_day)
+
+
+def integrate_reconciliation_adjustment_as_expense(user_id, year, month, category_id):
+    """
+    Crea un gasto (sin plan de deuda) con importe = ajuste positivo, para anular el ajuste
+    sintético de gasto de ese mes.
+
+    Returns:
+        tuple: (Expense | None, str | None) — (objeto, None) si OK; (None, mensaje) si error.
+    """
+    if not year or not month or month < 1 or month > 12:
+        return None, "Mes o año inválidos."
+
+    adj = get_adjustment_for_month(user_id, year, month)
+    if adj is None:
+        return None, "No se puede integrar: faltan saldos bancarios en este mes o en el anterior."
+
+    if adj <= 0:
+        return None, "No hay ajuste de gasto pendiente en este mes (el ajuste no es positivo)."
+
+    cat = ExpenseCategory.query.filter_by(id=category_id, user_id=user_id).first()
+    if not cat:
+        return None, "Categoría no válida."
+
+    if cat.name in _integration_reserved_category_names():
+        return None, "No se puede integrar en la categoría Ajustes ni en Stock Market."
+
+    amount = round(float(adj), 2)
+    if amount <= 0:
+        return None, "Importe de ajuste no válido."
+
+    d = _resolve_integration_expense_date(user_id, year, month, category_id)
+    expense = Expense(
+        user_id=user_id,
+        category_id=category_id,
+        amount=amount,
+        description=RECONCILIATION_INTEGRATION_DESCRIPTION,
+        date=d,
+        notes=None,
+        debt_plan_id=None,
+        is_recurring=False,
+        recurrence_frequency=None,
+        recurrence_end_date=None,
+        recurrence_group_id=None,
+    )
+    db.session.add(expense)
+    db.session.commit()
+    return expense, None
+
+
+def integrate_reconciliation_adjustment_as_income(user_id, year, month, category_id):
+    """
+    Crea un ingreso con importe = |ajuste| cuando el ajuste es negativo (ingreso no registrado).
+
+    Returns:
+        tuple: (Income | None, str | None)
+    """
+    if not year or not month or month < 1 or month > 12:
+        return None, "Mes o año inválidos."
+
+    adj = get_adjustment_for_month(user_id, year, month)
+    if adj is None:
+        return None, "No se puede integrar: faltan saldos bancarios en este mes o en el anterior."
+
+    if adj >= 0:
+        return None, "No hay ajuste de ingreso pendiente en este mes (el ajuste no es negativo)."
+
+    cat = IncomeCategory.query.filter_by(id=category_id, user_id=user_id).first()
+    if not cat:
+        return None, "Categoría no válida."
+
+    if cat.name in _integration_reserved_category_names():
+        return None, "No se puede integrar en la categoría Ajustes ni en Stock Market."
+
+    amount = round(float(abs(adj)), 2)
+    if amount <= 0:
+        return None, "Importe de ajuste no válido."
+
+    d = _resolve_integration_income_date(user_id, year, month, category_id)
+    income = Income(
+        user_id=user_id,
+        category_id=category_id,
+        amount=amount,
+        description=RECONCILIATION_INTEGRATION_DESCRIPTION,
+        date=d,
+        notes=None,
+        is_recurring=False,
+        recurrence_frequency=None,
+        recurrence_end_date=None,
+        recurrence_group_id=None,
+    )
+    db.session.add(income)
+    db.session.commit()
+    return income, None

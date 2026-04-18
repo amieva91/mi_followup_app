@@ -251,6 +251,65 @@ def reconciliation_adjustment_metrics():
     return redirect(next_url)
 
 
+@main_bp.route('/reconciliation/integrate-adjustment', methods=['POST'])
+@login_required
+def reconciliation_integrate_adjustment():
+    """
+    Crea un gasto o ingreso real que absorbe el ajuste de reconciliación del mes,
+    de modo que el ajuste sintético pasa a cero.
+    """
+    from app.services.dashboard_summary_cache import DashboardSummaryCacheService
+    from app.services.reconciliation_service import (
+        integrate_reconciliation_adjustment_as_expense,
+        integrate_reconciliation_adjustment_as_income,
+    )
+
+    year = request.form.get('year', type=int)
+    month = request.form.get('month', type=int)
+    category_id = request.form.get('category_id', type=int)
+    side = (request.form.get('side') or '').strip().lower()
+    next_url = request.form.get('next') or url_for('expenses.list')
+
+    if not next_url.startswith('/'):
+        next_url = url_for('expenses.list')
+
+    if not year or not month or month < 1 or month > 12:
+        flash('Mes o año inválidos.', 'error')
+        return redirect(next_url)
+
+    if not category_id:
+        flash('Selecciona una categoría.', 'error')
+        return redirect(next_url)
+
+    if side == 'expense':
+        obj, err = integrate_reconciliation_adjustment_as_expense(
+            current_user.id, year, month, category_id
+        )
+        if err:
+            flash(err, 'error')
+            return redirect(next_url)
+        DashboardSummaryCacheService.touch_for_dates(current_user.id, dates=[obj.date])
+    elif side == 'income':
+        obj, err = integrate_reconciliation_adjustment_as_income(
+            current_user.id, year, month, category_id
+        )
+        if err:
+            flash(err, 'error')
+            return redirect(next_url)
+        DashboardSummaryCacheService.touch_for_dates(current_user.id, dates=[obj.date])
+    else:
+        flash('Tipo de movimiento no válido.', 'error')
+        return redirect(next_url)
+
+    DashboardSummaryCacheService.invalidate(current_user.id)
+    label = 'gasto' if side == 'expense' else 'ingreso'
+    flash(
+        f'Ajuste integrado: nuevo {label} de €{obj.amount:.2f} en la categoría elegida.',
+        'success',
+    )
+    return redirect(next_url)
+
+
 @main_bp.route('/dashboard/config', methods=['POST'])
 @login_required
 def save_dashboard_config():
