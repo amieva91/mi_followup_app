@@ -1,6 +1,6 @@
 """
-Simulación compra vivienda: gastos de compra por defecto, ITP, límite préstamo 80% valor tasación,
-cuota francesa a tipo fijo. Referencia Euribor (opcional, no usada en la cuota).
+Simulación compra vivienda: gastos de compra por defecto, ITP, préstamo máximo = valor tasación
+(90% precio + 90% ITP), cuota francesa a tipo fijo.
 """
 from __future__ import annotations
 
@@ -24,10 +24,8 @@ DEFAULT_REGISTRY = 450.0
 DEFAULT_GESTORIA = 250.0
 DEFAULT_TASACION = 290.0
 
-LOAN_CAP_ON_APPRAISAL = 0.80
-"""Préstamo máximo sobre valor de tasación (política habitual)."""
-LTV_RATIO_MAX_PERCENT = 90.0
-"""LTV préstamo/valor tasación: no supera este % en la simulación."""
+LTV_RATIO_MAX_PERCENT = 100.0
+"""LTV préstamo/valor tasación (préstamo máximo = valor tasación → hasta 100%)."""
 
 EURIBOR_YAHOO_TICKER = "EBH28.CME"
 
@@ -129,16 +127,15 @@ def min_savings_cash_hint(
     total_cost: float,
     valor_tasacion: float,
     tasacion_fee: float,
-    loan_cap: float = LOAN_CAP_ON_APPRAISAL,
 ) -> float:
     """
-    Mínimo a indicar en «ahorros a aportar» (efectivo), asumiendo que a la simulación
-    se suma aparte el gasto de tasación. Mínimo total aportado = total_cost − 80%·valor_tasación.
+    Mínimo en «ahorros a aportar» (efectivo): (coste total compra) − préstamo máximo − gasto tasación,
+    donde préstamo máximo = valor tasación (90% precio + 90% ITP).
     """
     vt = max(0.0, float(valor_tasacion))
     tc = max(0.0, float(total_cost))
     fee = max(0.0, float(tasacion_fee))
-    max_loan = round(vt * loan_cap, 2)
+    max_loan = round(vt, 2)
     min_total_equity = max(0.0, tc - max_loan)
     return max(0.0, round(min_total_equity - fee, 2))
 
@@ -189,7 +186,7 @@ def run_simulation(
 ) -> MortgageSimulationResult:
     """
     Valor de tasación estimado: 90% precio + 90% ITP (automático).
-    Préstamo máximo: LOAN_CAP_ON_APPRAISAL × valor tasación. LTV préstamo/tasación ≤ 90%.
+    Préstamo máximo para el cálculo = ese valor de tasación (no un 80% adicional).
     Efectivo aportado = ahorros (casilla) + gasto tasación.
     """
     pp = max(0.0, float(purchase_price))
@@ -210,7 +207,7 @@ def run_simulation(
     if valor_tas <= 0:
         raise ValueError("No se pudo estimar el valor de tasación (revisa el precio).")
 
-    max_loan = round(valor_tas * LOAN_CAP_ON_APPRAISAL, 2)
+    max_loan = round(valor_tas, 2)
     effective_entry = round(sav + tasacion_fee, 2)
     loan_needed = round(total_cost - effective_entry, 2)
 
@@ -223,14 +220,13 @@ def run_simulation(
     if sav + 1e-6 < min_cash:
         raise ValueError(
             f"Ahorros insuficientes: el mínimo orientativo es {min_cash:.2f} € "
-            f"(límite préstamo {LOAN_CAP_ON_APPRAISAL:.0%} sobre valor de tasación)."
+            f"(coste total − préstamo máximo = valor tasación {max_loan:.2f} € − gasto tasación)."
         )
 
     if loan_needed > max_loan + 0.02:
         raise ValueError(
-            f"El préstamo necesario ({loan_needed:.2f} €) supera el "
-            f"{LOAN_CAP_ON_APPRAISAL:.0%} del valor de tasación ({max_loan:.2f} €). "
-            "Aumenta los ahorros."
+            f"El préstamo necesario ({loan_needed:.2f} €) supera el máximo "
+            f"({max_loan:.2f} € = valor tasación estimado). Aumenta los ahorros."
         )
 
     loan = max(0.0, loan_needed)
@@ -256,11 +252,10 @@ def run_simulation(
     info: List[str] = [
         f"Coste total estimado (compra + ITP + gastos, incl. tasación): {_eur(total_cost)}",
         (
-            f"Valor tasación estimado (90% precio + 90% ITP): {_eur(valor_tas)} → "
-            f"máx. préstamo {LOAN_CAP_ON_APPRAISAL:.0%} = {_eur(max_loan)}"
+            f"Valor tasación / préstamo máximo (90% precio + 90% ITP): {_eur(valor_tas)}"
         ),
         f"Aportación efectiva (ahorros + gasto tasación): {_eur(effective_entry)}",
-        f"Préstamo: {_eur(loan)} · LTV sobre valor tasación: {ltv_pct:.2f}% (máx. {LTV_RATIO_MAX_PERCENT:.0f}%)",
+        f"Préstamo: {_eur(loan)} · LTV sobre valor tasación: {ltv_pct:.2f}%",
     ]
 
     return MortgageSimulationResult(

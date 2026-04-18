@@ -77,7 +77,7 @@ def add_goal():
 def _default_mortgage_form():
     return {
         "purchase_price": "280000",
-        "savings": "86000",
+        "savings": "32000",
         "years": "30",
         "first_home": True,
         "annual_interest_percent": "3.50",
@@ -141,7 +141,6 @@ def mortgage_simulator():
         "spending_plan/mortgage.html",
         result=result,
         sim_form=sim_form,
-        loan_cap_percent=int(mss.LOAN_CAP_ON_APPRAISAL * 100),
         ltv_ratio_max=int(mss.LTV_RATIO_MAX_PERCENT),
         defaults={
             "notary": mss.DEFAULT_NOTARY,

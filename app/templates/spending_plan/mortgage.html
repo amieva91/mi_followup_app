@@ -2,12 +2,11 @@
 {% block title %}Simulador vivienda{% endblock %}
 {% block content %}
 <div class="max-w-4xl mx-auto px-4 py-8" id="mortgage-sim-page"
-     data-loan-cap="{{ loan_cap_percent }}"
      data-ltv-max="{{ ltv_ratio_max }}">
     <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
             <h1 class="text-2xl font-bold text-gray-900">Simulador compra vivienda</h1>
-            <p class="text-sm text-gray-500 mt-1">Valor de tasación estimado automáticamente (90% precio + 90% ITP). Préstamo máximo {{ loan_cap_percent }}% sobre ese valor; LTV mostrado como % (máx. {{ ltv_ratio_max }}%). Cuota a tipo fijo (francesa).</p>
+            <p class="text-sm text-gray-500 mt-1">Préstamo máximo = valor tasación estimado (90% precio + 90% ITP). Mínimo de ahorros = coste total (compra + ITP + gastos) − ese préstamo − gasto tasación en efectivo. LTV en %. Cuota a tipo fijo (francesa).</p>
         </div>
         <div class="flex gap-3 text-sm">
             <a href="{{ url_for('spending_plan.index') }}" class="text-indigo-600 hover:underline">← Planificación</a>
@@ -25,11 +24,6 @@
                 <input type="number" name="purchase_price" id="mp-purchase" min="0" step="1000" required
                        value="{{ sim_form.purchase_price }}"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900"/>
-            </div>
-            <div class="md:col-span-2">
-                <p class="text-sm text-gray-700 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3" id="mp-vt-hint">
-                    Valor tasación estimado: — € (90% precio + 90% ITP)
-                </p>
             </div>
             <div class="md:col-span-2">
                 <label class="block text-sm font-medium text-gray-700 mb-1">Ahorros a aportar (€)</label>
@@ -108,7 +102,7 @@
             <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Ahorros indicados (efectivo)</dt><dd class="font-medium tabular-nums">{{ "%.2f"|format(result.savings_cash) }} €</dd></div>
             <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Entrada efectiva (ahorros + gasto tasación)</dt><dd class="font-semibold tabular-nums text-indigo-900">{{ "%.2f"|format(result.effective_entry_total) }} €</dd></div>
             <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Préstamo</dt><dd class="font-medium tabular-nums">{{ "%.2f"|format(result.loan_amount) }} €</dd></div>
-            <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Máx. préstamo ({{ loan_cap_percent }}% × valor tasación)</dt><dd class="font-medium tabular-nums">{{ "%.2f"|format(result.max_loan_by_policy) }} €</dd></div>
+            <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Préstamo máximo (= valor tasación)</dt><dd class="font-medium tabular-nums">{{ "%.2f"|format(result.max_loan_by_policy) }} €</dd></div>
             <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">LTV (préstamo / valor tasación)</dt><dd class="font-medium tabular-nums text-indigo-800">{{ "%.2f"|format(result.ltv_percent) }}%</dd></div>
             <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Tipo nominal anual</dt><dd class="font-medium tabular-nums">{{ "%.4f"|format(result.annual_interest_percent) }} %</dd></div>
             <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Cuota mensual (francesa)</dt><dd class="font-bold text-lg tabular-nums text-emerald-800">{{ "%.2f"|format(result.monthly_payment) }} €</dd></div>
@@ -159,8 +153,7 @@
 (function () {
   var root = document.getElementById('mortgage-sim-page');
   if (!root) return;
-  var CAP = parseFloat(root.getAttribute('data-loan-cap') || '80') / 100;
-  var LTVMAX = parseFloat(root.getAttribute('data-ltv-max') || '90');
+  var LTVMAX = parseFloat(root.getAttribute('data-ltv-max') || '100');
 
   function num(el, fallback) {
     if (!el || el.value === '' || el.value === null) return fallback;
@@ -194,7 +187,7 @@
     var t = num(document.getElementById('mp-tasacion'), 0);
     var vt = valorTasacion(pp, itpRate);
     var tc = pp + pp * itpRate + n + r + g + t;
-    var maxLoan = Math.round(vt * CAP * 100) / 100;
+    var maxLoan = Math.round(vt * 100) / 100;
     var minCash = Math.max(0, Math.round((Math.max(0, tc - maxLoan) - t) * 100) / 100);
     var sav = num(document.getElementById('mp-savings'), NaN);
     var eff = Math.round((sav + t) * 100) / 100;
@@ -204,18 +197,11 @@
     var ltvRounded = Math.round(ltv * 100) / 100;
 
     var hint = document.getElementById('mp-savings-hint');
-    var vtHint = document.getElementById('mp-vt-hint');
     var savInput = document.getElementById('mp-savings');
     var ltvDisp = document.getElementById('mp-ltv-display');
 
-    if (vtHint && pp > 0) {
-      vtHint.textContent = 'Valor tasación estimado: ' + vt.toFixed(2) + ' € (90% precio + 90% ITP)';
-    } else if (vtHint) {
-      vtHint.textContent = 'Valor tasación estimado: — € (90% precio + 90% ITP)';
-    }
-
     if (pp > 0 && hint) {
-      hint.textContent = 'Mínimo en esta casilla: ' + minCash.toFixed(2) + ' € (préstamo máx. ' + (CAP * 100) + '% sobre valor tasación). Tope: ' + pp.toFixed(2) + ' €. Se suma el gasto tasación (' + t.toFixed(2) + ' €) a la aportación.';
+      hint.textContent = 'Mínimo en esta casilla: ' + minCash.toFixed(2) + ' € = coste total (' + tc.toFixed(2) + ' €) − préstamo máximo (' + maxLoan.toFixed(2) + ' €) − gasto tasación (' + t.toFixed(2) + ' €). Tope: ' + pp.toFixed(2) + ' € (precio).';
     }
     if (savInput && pp > 0) {
       savInput.min = String(minCash);
