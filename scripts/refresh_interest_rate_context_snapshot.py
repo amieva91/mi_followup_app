@@ -2,8 +2,12 @@
 """
 Rellena una fila en `interest_rate_context_snapshots` (BCE Euribor 12M + Yahoo ESR=F).
 
-Ejemplo cron (UTC servidor), una vez al día a las 07:00:
-  0 7 * * * cd /var/www/followup && ./venv/bin/python scripts/refresh_interest_rate_context_snapshot.py >> /var/log/followup_interest_context.log 2>&1
+Ejemplo cron (UTC servidor), una vez al día a las 07:00. La BD es propiedad del
+usuario del servicio (p. ej. followup); el job debe correr como ese usuario:
+  0 7 * * * sudo -u followup bash -lc 'cd /var/www/followup && source venv/bin/activate && export FLASK_APP=run.py && python scripts/refresh_interest_rate_context_snapshot.py' >> /var/log/followup_interest_context.log 2>&1
+
+Prueba manual en la VM:
+  sudo -u followup bash -lc 'cd /var/www/followup && source venv/bin/activate && export FLASK_APP=run.py && python scripts/refresh_interest_rate_context_snapshot.py'
 
 Requiere migración aplicada: interest_rate_context_snapshots.
 """

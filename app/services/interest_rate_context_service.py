@@ -1,6 +1,7 @@
 """
 Actualización diaria de contexto de tipos: Euribor 12M (API BCE) y futuro ESR=F (Yahoo).
-Ejecutar 1×/día, p. ej.: `0 7 * * * cd /var/www/followup && ./venv/bin/python scripts/refresh_interest_rate_context_snapshot.py`
+Ejecutar 1×/día como usuario del servicio (p. ej. followup), ver cabecera de
+`scripts/refresh_interest_rate_context_snapshot.py`.
 """
 from __future__ import annotations
 
