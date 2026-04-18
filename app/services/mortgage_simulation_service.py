@@ -24,10 +24,22 @@ DEFAULT_REGISTRY = 450.0
 DEFAULT_GESTORIA = 250.0
 DEFAULT_TASACION = 290.0
 
-LTV_RATIO_MAX_PERCENT = 100.0
-"""LTV préstamo/valor tasación (préstamo máximo = valor tasación → hasta 100%)."""
+LTV_RATIO_MAX_PERCENT = 90.0
+"""LTV (% hipoteca) = préstamo / (precio + ITP) × 100; con límite hipoteca alcanzado ≈ 90%."""
 
 EURIBOR_YAHOO_TICKER = "EBH28.CME"
+
+
+def ltv_hipoteca_percent(
+    loan: float, purchase_price: float, itp_amount: float
+) -> float:
+    """LTV (% de hipoteca): préstamo / (precio de compra + ITP) × 100."""
+    pp = max(0.0, float(purchase_price))
+    itp = max(0.0, float(itp_amount))
+    denom = pp + itp
+    if denom <= 0:
+        return 0.0
+    return round(min(100.0, (max(0.0, float(loan)) / denom) * 100.0), 2)
 
 
 def computed_valor_tasacion(purchase_price: float, itp_amount: float) -> float:
@@ -222,24 +234,24 @@ def run_simulation(
     if sav + 1e-6 < min_cash:
         raise ValueError(
             f"Ahorros insuficientes: el mínimo orientativo es {min_cash:.2f} € "
-            f"(precio − préstamo máximo {max_loan:.2f} € + ITP y gastos de formalización)."
+            f"(precio − límite hipoteca {max_loan:.2f} € + ITP y gastos de formalización)."
         )
 
     if loan_needed > max_loan + 0.02:
         raise ValueError(
-            f"El préstamo necesario ({loan_needed:.2f} €) supera el máximo "
-            f"({max_loan:.2f} € = valor tasación estimado). Aumenta los ahorros."
+            f"El préstamo necesario ({loan_needed:.2f} €) supera el límite hipoteca "
+            f"({max_loan:.2f} €). Aumenta los ahorros."
         )
 
     loan = max(0.0, loan_needed)
 
-    raw_ltv = (loan / valor_tas) * 100.0 if valor_tas > 0 else 0.0
-    if raw_ltv > LTV_RATIO_MAX_PERCENT + 0.05:
+    raw_ltv = ltv_hipoteca_percent(loan, pp, itp_amt)
+    if raw_ltv > LTV_RATIO_MAX_PERCENT + 0.5:
         raise ValueError(
             f"El LTV resultante ({raw_ltv:.2f}%) supera el {LTV_RATIO_MAX_PERCENT:.0f}% permitido. "
             "Aumenta los ahorros."
         )
-    ltv_pct = round(min(raw_ltv, LTV_RATIO_MAX_PERCENT), 2)
+    ltv_pct = raw_ltv
 
     monthly = french_monthly_payment(loan, rate, yrs)
     n = yrs * 12
@@ -254,10 +266,10 @@ def run_simulation(
     info: List[str] = [
         f"Coste total estimado (compra + ITP + gastos, incl. tasación): {_eur(total_cost)}",
         (
-            f"Valor tasación / préstamo máximo (90% precio + 90% ITP): {_eur(valor_tas)}"
+            f"Límite hipoteca (90% precio + 90% ITP): {_eur(valor_tas)}"
         ),
         f"Aportación efectiva (ahorros + gasto tasación): {_eur(effective_entry)}",
-        f"Préstamo: {_eur(loan)} · LTV sobre valor tasación: {ltv_pct:.2f}%",
+        f"Préstamo: {_eur(loan)} · LTV (% hipoteca, sobre precio+ITP): {ltv_pct:.2f}%",
     ]
 
     return MortgageSimulationResult(
