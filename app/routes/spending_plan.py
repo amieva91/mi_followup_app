@@ -93,7 +93,12 @@ def _default_mortgage_form():
 @login_required
 def mortgage_simulator():
     result = None
+    interest_context = irctx.get_latest_snapshot()
     sim_form = _default_mortgage_form()
+    if interest_context and interest_context.bce_euribor_12m_percent is not None:
+        sim_form["annual_interest_percent"] = (
+            f"{float(interest_context.bce_euribor_12m_percent):.2f}"
+        )
 
     if request.method == "POST" and request.form.get("action") == "simulate":
         if not request.form.get("csrf_token"):
@@ -143,7 +148,7 @@ def mortgage_simulator():
         result=result,
         sim_form=sim_form,
         ltv_ratio_max=int(mss.LTV_RATIO_MAX_PERCENT),
-        interest_context=irctx.get_latest_snapshot(),
+        interest_context=interest_context,
         defaults={
             "notary": mss.DEFAULT_NOTARY,
             "registry": mss.DEFAULT_REGISTRY,
