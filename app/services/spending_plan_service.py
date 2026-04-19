@@ -358,6 +358,11 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
         if gl["goal_type"] == "generic"
     ]
 
+    schedule_month_labels: List[str] = []
+    for i in range(PLAN_WINDOW_MONTHS):
+        d = date.today() + relativedelta(months=i)
+        schedule_month_labels.append(d.strftime("%b %Y"))
+
     return {
         "settings": settings,
         "fixed_category_ids": fixed_ids,
@@ -375,6 +380,7 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
         "category_options": cat_options,
         "plan_schedule": sch,
         "plan_window_months": PLAN_WINDOW_MONTHS,
+        "schedule_month_labels": schedule_month_labels,
     }
 
 

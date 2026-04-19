@@ -77,10 +77,36 @@ function spendingPlanGoals(cfg) {
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Endeudamiento máximo (DSR) %</label>
-                <input type="number" name="max_dsr_percent" step="0.5" min="5" max="60"
+                <input id="max-dsr-percent-input" type="number" name="max_dsr_percent" step="0.5" min="5" max="60"
                        value="{{ settings.max_dsr_percent }}"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900"/>
                 <p class="text-xs text-gray-500 mt-1">Cupo máximo de cuotas / ingreso neto mensual (referencia).</p>
+                <p class="text-xs text-indigo-800 mt-1 tabular-nums" id="dsr-euro-hint">
+                    Referencia: <strong><span id="dsr-euro-value">—</span> €/mes</strong>
+                    <span class="text-gray-500 font-normal">(ingreso medio {{ "%.2f"|format(income_avg) }} € × %)</span>
+                </p>
+                <script>
+                (function () {
+                    var inp = document.getElementById('max-dsr-percent-input');
+                    var out = document.getElementById('dsr-euro-value');
+                    var income = {{ income_avg|tojson }};
+                    function sync() {
+                        if (!inp || !out) return;
+                        var pct = parseFloat(String(inp.value).replace(',', '.'), 10);
+                        if (!isFinite(pct) || income <= 0) {
+                            out.textContent = '—';
+                            return;
+                        }
+                        var v = Math.round(income * (pct / 100) * 100) / 100;
+                        out.textContent = v.toFixed(2);
+                    }
+                    if (inp) {
+                        inp.addEventListener('input', sync);
+                        inp.addEventListener('change', sync);
+                        sync();
+                    }
+                })();
+                </script>
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Horizonte (meses)</label>
@@ -220,6 +246,34 @@ function spendingPlanGoals(cfg) {
         </div>
         {% else %}
         <p class="text-sm text-gray-500">No hay objetivos. Añade uno para ver su impacto en la proyección.</p>
+        {% endif %}
+
+        {% if plan_schedule and plan_schedule.ok and plan_schedule.goal_details and schedule_month_labels %}
+        <div class="mt-6 pt-6 border-t border-gray-100">
+            <h3 class="text-sm font-semibold text-gray-800 mb-1">Cuándo paga cada objetivo (5 años)</h3>
+            <p class="text-xs text-gray-500 mb-3">Meses con cargo según el planificador; el primer mes coincide con la columna «Mes» de la proyección.</p>
+            <div class="space-y-4">
+                {% for gd in plan_schedule.goal_details %}
+                {% set max_pay_m = (gd.payments_by_month or [0])|max %}
+                <div class="rounded-lg border border-gray-100 bg-gray-50/50 p-3">
+                    <p class="text-sm font-medium text-gray-900">{{ gd.title }}
+                        <span class="text-gray-500 font-normal">({% if gd.goal_type == 'mortgage' %}Hipoteca{% else %}Genérico{% endif %}, prior. {{ gd.priority }})</span>
+                    </p>
+                    {% if max_pay_m > 0.001 %}
+                    <ul class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-700">
+                        {% for p in gd.payments_by_month %}
+                            {% if loop.index0 < schedule_month_labels|length and p > 0.001 %}
+                                <li class="tabular-nums">{{ schedule_month_labels[loop.index0] }}: {{ "%.2f"|format(p) }} €</li>
+                            {% endif %}
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="mt-2 text-xs text-gray-500">Sin pagos con importe en esta ventana.</p>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
         {% endif %}
     </div>
 

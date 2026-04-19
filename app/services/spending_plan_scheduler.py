@@ -152,6 +152,50 @@ def _dsr_violation(
     return None
 
 
+def _mortgage_vectors_for_goal(
+    today: date, g: Any, W: int
+) -> Tuple[List[float], List[float], Optional[str]]:
+    """
+    Cuotas hipoteca + entrada en el mes de compra para un único objetivo hipoteca.
+    """
+    mortgage_pay = _zero(W)
+    initial_pay = _zero(W)
+    note: Optional[str] = None
+    extra = _parse_extra_dict(getattr(g, "extra_json", None))
+    mp = _mortgage_monthly(extra)
+    ini = _mortgage_initial(extra)
+    tgt = getattr(g, "target_date", None)
+    if tgt is None:
+        purchase_m = 0
+    else:
+        purchase_m = _month_offset_from_today(today, tgt, W - 1)
+
+    raw_start = extra.get("loan_payment_start")
+    loan_start_m = purchase_m
+    if raw_start:
+        try:
+            if isinstance(raw_start, str) and raw_start.strip():
+                from datetime import datetime as dt_mod
+
+                d = dt_mod.strptime(raw_start.strip()[:10], "%Y-%m-%d").date()
+                loan_start_m = _month_offset_from_today(today, d, W - 1)
+        except (ValueError, TypeError):
+            loan_start_m = purchase_m
+    loan_start_m = max(purchase_m, loan_start_m)
+
+    initial_pay[purchase_m] += ini
+    loan_months_cap = min(W - loan_start_m, _loan_years(extra) * 12)
+    for k in range(loan_months_cap):
+        if loan_start_m + k < W:
+            mortgage_pay[loan_start_m + k] += mp
+
+    if ini > 0 and purchase_m > 0:
+        note = (
+            f"«{g.title}»: entrada {ini:.0f} € en mes {purchase_m + 1} (desde hoy)."
+        )
+    return mortgage_pay, initial_pay, note
+
+
 def build_mortgage_arrays(
     today: date,
     goals: Sequence[Any],
@@ -169,38 +213,12 @@ def build_mortgage_arrays(
     for g in goals:
         if getattr(g, "goal_type", "") != "mortgage":
             continue
-        extra = _parse_extra_dict(getattr(g, "extra_json", None))
-        mp = _mortgage_monthly(extra)
-        ini = _mortgage_initial(extra)
-        tgt = getattr(g, "target_date", None)
-        if tgt is None:
-            purchase_m = 0
-        else:
-            purchase_m = _month_offset_from_today(today, tgt, W - 1)
-
-        raw_start = extra.get("loan_payment_start")
-        loan_start_m = purchase_m
-        if raw_start:
-            try:
-                if isinstance(raw_start, str) and raw_start.strip():
-                    from datetime import datetime as dt_mod
-
-                    d = dt_mod.strptime(raw_start.strip()[:10], "%Y-%m-%d").date()
-                    loan_start_m = _month_offset_from_today(today, d, W - 1)
-            except (ValueError, TypeError):
-                loan_start_m = purchase_m
-        loan_start_m = max(purchase_m, loan_start_m)
-
-        initial_pay[purchase_m] += ini
-        loan_months_cap = min(W - loan_start_m, _loan_years(extra) * 12)
-        for k in range(loan_months_cap):
-            if loan_start_m + k < W:
-                mortgage_pay[loan_start_m + k] += mp
-
-        if ini > 0 and purchase_m > 0:
-            notes.append(
-                f"«{g.title}»: entrada {ini:.0f} € en mes {purchase_m + 1} (desde hoy)."
-            )
+        mp, ini, n = _mortgage_vectors_for_goal(today, g, W)
+        for i in range(W):
+            mortgage_pay[i] += mp[i]
+            initial_pay[i] += ini[i]
+        if n:
+            notes.append(n)
     return mortgage_pay, initial_pay, notes
 
 
@@ -339,6 +357,31 @@ def compute_plan_schedule(
             initial_outlay_by_month=initial,
         )
 
+    mortgage_details: List[GoalScheduleDetail] = []
+    for g in goals:
+        if getattr(g, "goal_type", "") != "mortgage":
+            continue
+        mp, ini, _ = _mortgage_vectors_for_goal(today, g, W)
+        combined = [round(mp[i] + ini[i], 2) for i in range(W)]
+        amt = float(getattr(g, "amount_total", 0) or 0)
+        pr = getattr(g, "priority", None)
+        try:
+            prio = int(pr) if pr is not None else 3
+        except (TypeError, ValueError):
+            prio = 3
+        mortgage_details.append(
+            GoalScheduleDetail(
+                goal_id=getattr(g, "id", None),
+                title=str(getattr(g, "title", "") or ""),
+                goal_type="mortgage",
+                priority=prio,
+                amount_total=amt,
+                pay_mode="mortgage",
+                payments_by_month=combined,
+                adjusted_message=None,
+            )
+        )
+
     generics = [g for g in goals if getattr(g, "goal_type", "generic") == "generic"]
     generics.sort(key=lambda x: (x.priority, x.id))
 
@@ -393,7 +436,10 @@ def compute_plan_schedule(
         )
 
     out.generic_payments_monthly = base
-    out.goal_details = details
+    out.goal_details = sorted(
+        mortgage_details + details,
+        key=lambda d: (d.priority, d.goal_id or 0),
+    )
 
     cap = income_avg * (max_dsr_percent / 100.0) if income_avg > 0 else 0.0
     dsr_ok: List[bool] = []
