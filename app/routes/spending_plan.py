@@ -4,7 +4,7 @@ Planificación de gastos / presupuestos (rama experimentos).
 import json
 from datetime import datetime
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, make_response
 from flask_login import login_required, current_user
 
 from app import db
@@ -63,7 +63,10 @@ def index():
 
     data = sps.get_spending_plan_page_data(current_user.id)
     data["open_edit_goal_id"] = request.args.get("edit_goal", type=int)
-    return render_template("spending_plan/index.html", **data)
+    resp = make_response(render_template("spending_plan/index.html", **data))
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, private"
+    resp.headers["Pragma"] = "no-cache"
+    return resp
 
 
 @spending_plan_bp.route("/objetivo", methods=["POST"])

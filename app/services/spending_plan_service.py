@@ -264,6 +264,13 @@ def build_monthly_projection(
 def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
     """Datos para la plantilla /planificacion."""
     settings = _get_or_create_settings(user_id)
+    try:
+        db.session.refresh(settings)
+    except Exception:
+        pass
+    max_dsr_pct = float(settings.max_dsr_percent or 35.0)
+    max_dsr_pct = max(1.0, min(80.0, max_dsr_pct))
+
     fixed_ids = get_fixed_category_ids(user_id)
     income_avg = get_avg_monthly_income(user_id, 12)
     fixed_total, fixed_lines = compute_fixed_expenses_monthly(user_id, fixed_ids)
@@ -284,16 +291,15 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
         income_avg=income_avg,
         fixed_monthly=fixed_total,
         starting_cash=bank_cash_gross,
-        max_dsr_percent=settings.max_dsr_percent,
+        max_dsr_percent=max_dsr_pct,
         goals=goals_db,
     )
     h = min(settings.horizon_months, PLAN_WINDOW_MONTHS)
     months: List[MonthProjection] = []
-    max_pay = (
-        round(income_avg * (settings.max_dsr_percent / 100.0), 2)
-        if income_avg > 0
-        else 0.0
+    dsr_cap_monthly = (
+        round(income_avg * (max_dsr_pct / 100.0), 2) if income_avg > 0 else 0.0
     )
+    max_pay = dsr_cap_monthly
     if sch.ok and len(sch.surplus_monthly) >= h:
         for i in range(h):
             d = date.today() + relativedelta(months=i)
@@ -324,7 +330,7 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
             goals_cash,
             goals_dsr,
             cash0,
-            settings.max_dsr_percent,
+            max_dsr_pct,
             h,
         )
 
@@ -359,6 +365,8 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
         "mortgage_entry_outlays_total": mortgage_entry_outlays,
         "goals_total_monthly": goals_cash,
         "goals_dsr_monthly": goals_dsr,
+        "dsr_cap_monthly": dsr_cap_monthly,
+        "max_dsr_percent_effective": max_dsr_pct,
         "goal_lines": goal_lines,
         "generic_goals_modal": generic_goals_modal,
         "months": months,

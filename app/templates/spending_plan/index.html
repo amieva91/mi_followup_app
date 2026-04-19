@@ -235,7 +235,8 @@ function spendingPlanGoals(cfg) {
         <div class="bg-amber-50 border border-amber-100 rounded-xl p-4">
             <p class="text-xs font-medium text-amber-900 uppercase">Objetivos / mes</p>
             <p class="text-2xl font-bold text-amber-950">{{ "%.2f"|format(goals_total_monthly) }} €</p>
-            <p class="text-xs text-amber-800 mt-1">DSR: {{ "%.2f"|format(goals_dsr_monthly) }} €/mes</p>
+            <p class="text-xs text-amber-800 mt-1">Cuota hipoteca (cupo DSR): {{ "%.2f"|format(goals_dsr_monthly) }} €/mes</p>
+            <p class="text-xs text-amber-900 mt-1 font-medium">Cupo máx. DSR ({{ "%.1f"|format(max_dsr_percent_effective) }}% ingreso): {{ "%.2f"|format(dsr_cap_monthly) }} €/mes</p>
         </div>
         <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
             <p class="text-xs font-medium text-emerald-800 uppercase">Efectivo para proyección (mes actual)</p>
