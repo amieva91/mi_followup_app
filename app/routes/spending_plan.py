@@ -1,6 +1,7 @@
 """
 Planificación de gastos / presupuestos (rama experimentos).
 """
+import json
 from datetime import datetime
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash
@@ -63,8 +64,34 @@ def add_goal():
         td = _parse_target_date(request.form.get("target_date") or "")
         gtype = (request.form.get("goal_type") or "generic").strip().lower()
         extra = (request.form.get("extra_json") or "").strip() or None
+        if gtype == "mortgage" and extra:
+            try:
+                d = json.loads(extra)
+                if isinstance(d, dict):
+                    lp = (request.form.get("loan_payment_start") or "").strip()
+                    if lp:
+                        d["loan_payment_start"] = lp[:10]
+                    extra = json.dumps(d, ensure_ascii=False)
+            except (json.JSONDecodeError, TypeError):
+                pass
+        pay_mode = (request.form.get("pay_mode") or "").strip() or None
+        raw_inst = request.form.get("installment_months")
+        installment_months = None
+        if raw_inst is not None and str(raw_inst).strip() != "":
+            try:
+                installment_months = int(raw_inst)
+            except ValueError:
+                installment_months = None
         sps.add_goal(
-            current_user.id, title, amount, priority, td, gtype, extra_json=extra
+            current_user.id,
+            title,
+            amount,
+            priority,
+            td,
+            gtype,
+            extra_json=extra,
+            pay_mode=pay_mode,
+            installment_months=installment_months,
         )
         flash("Objetivo añadido.", "success")
     except ValueError as e:

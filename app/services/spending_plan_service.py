@@ -17,6 +17,11 @@ from app.models.spending_plan import (
     SpendingPlanGoal,
     SpendingPlanSettings,
 )
+from app.services.spending_plan_scheduler import (
+    PLAN_WINDOW_MONTHS,
+    build_candidate_goal,
+    compute_plan_schedule,
+)
 from app.services.bank_service import BankService
 from app.services.income_expense_aggregator import (
     get_expense_category_summary_with_adjustment,
@@ -261,16 +266,63 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
     bank_cash_gross = get_current_bank_cash(user_id)
     mortgage_entry_outlays = _sum_mortgage_initial_outlays(user_id)
     cash0 = max(0.0, round(bank_cash_gross - mortgage_entry_outlays, 2))
-    goals_cash, goals_dsr, goal_lines = sum_goal_monthlies(user_id, settings.horizon_months)
-    months = build_monthly_projection(
-        income_avg,
-        fixed_total,
-        goals_cash,
-        goals_dsr,
-        cash0,
-        settings.max_dsr_percent,
-        settings.horizon_months,
+    goals_cash, goals_dsr, goal_lines = sum_goal_monthlies(
+        user_id, min(settings.horizon_months, PLAN_WINDOW_MONTHS)
     )
+
+    goals_db = (
+        SpendingPlanGoal.query.filter_by(user_id=user_id)
+        .order_by(SpendingPlanGoal.priority.asc(), SpendingPlanGoal.id.asc())
+        .all()
+    )
+    sch = compute_plan_schedule(
+        today=date.today(),
+        income_avg=income_avg,
+        fixed_monthly=fixed_total,
+        starting_cash=bank_cash_gross,
+        max_dsr_percent=settings.max_dsr_percent,
+        goals=goals_db,
+    )
+    h = min(settings.horizon_months, PLAN_WINDOW_MONTHS)
+    months: List[MonthProjection] = []
+    max_pay = (
+        round(income_avg * (settings.max_dsr_percent / 100.0), 2)
+        if income_avg > 0
+        else 0.0
+    )
+    if sch.ok and len(sch.surplus_monthly) >= h:
+        for i in range(h):
+            d = date.today() + relativedelta(months=i)
+            label = d.strftime("%b %Y")
+            g_m = (
+                sch.mortgage_payments_monthly[i]
+                + sch.generic_payments_monthly[i]
+                + sch.initial_outlay_by_month[i]
+            )
+            margin = round(max_pay - sch.mortgage_payments_monthly[i], 2)
+            months.append(
+                MonthProjection(
+                    month_label=label,
+                    month_index=i + 1,
+                    income=income_avg,
+                    fixed_expenses=fixed_total,
+                    goals_monthly=round(g_m, 2),
+                    surplus=sch.surplus_monthly[i],
+                    ending_cash=sch.cash_balance_monthly[i],
+                    max_debt_payment=max_pay,
+                    dsr_margin=margin,
+                )
+            )
+    else:
+        months = build_monthly_projection(
+            income_avg,
+            fixed_total,
+            goals_cash,
+            goals_dsr,
+            cash0,
+            settings.max_dsr_percent,
+            h,
+        )
 
     categories = ExpenseCategory.query.filter_by(user_id=user_id).order_by(
         ExpenseCategory.name
@@ -291,6 +343,8 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
         "goal_lines": goal_lines,
         "months": months,
         "category_options": cat_options,
+        "plan_schedule": sch,
+        "plan_window_months": PLAN_WINDOW_MONTHS,
     }
 
 
@@ -302,6 +356,8 @@ def add_goal(
     target_date: Optional[date],
     goal_type: str = "generic",
     extra_json: Optional[str] = None,
+    pay_mode: Optional[str] = None,
+    installment_months: Optional[int] = None,
 ) -> SpendingPlanGoal:
     title = (title or "").strip()
     if not title:
@@ -315,8 +371,21 @@ def add_goal(
     gt = (goal_type or "generic").strip().lower()
     if gt not in ("generic", "mortgage"):
         gt = "generic"
-    extra = None
-    if extra_json is not None:
+    extra: Optional[str] = None
+    if gt == "generic":
+        pm = (pay_mode or "installments").strip().lower()
+        if pm not in ("lump", "installments"):
+            pm = "installments"
+        im: Optional[int] = None
+        if installment_months is not None and str(installment_months).strip() != "":
+            try:
+                im = max(1, int(installment_months))
+            except (TypeError, ValueError):
+                im = None
+        extra = json.dumps(
+            {"pay_mode": pm, "installment_months": im}, ensure_ascii=False
+        )
+    elif extra_json is not None:
         raw = str(extra_json).strip()
         if raw:
             if len(raw) > 32000:
@@ -326,6 +395,36 @@ def add_goal(
             except json.JSONDecodeError:
                 raise ValueError("extra_json no es JSON válido.")
             extra = raw
+
+    settings = _get_or_create_settings(user_id)
+    fixed_ids = get_fixed_category_ids(user_id)
+    income_avg = get_avg_monthly_income(user_id, 12)
+    fixed_total, _ = compute_fixed_expenses_monthly(user_id, fixed_ids)
+    bank_gross = get_current_bank_cash(user_id)
+    existing = SpendingPlanGoal.query.filter_by(user_id=user_id).all()
+    cand = build_candidate_goal(
+        title=title,
+        goal_type=gt,
+        priority=pr,
+        amount_total=amt,
+        target_date=target_date,
+        extra_json=extra,
+    )
+    merged = existing + [cand]
+    sch = compute_plan_schedule(
+        today=date.today(),
+        income_avg=income_avg,
+        fixed_monthly=fixed_total,
+        starting_cash=bank_gross,
+        max_dsr_percent=settings.max_dsr_percent,
+        goals=merged,
+    )
+    if not sch.ok:
+        raise ValueError(
+            sch.error_message
+            or "No se puede registrar el objetivo: plan no viable en el horizonte de 5 años."
+        )
+
     g = SpendingPlanGoal(
         user_id=user_id,
         title=title[:200],

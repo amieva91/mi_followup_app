@@ -2,10 +2,16 @@
 {% block title %}Planificación de gastos{% endblock %}
 {% block content %}
 <div class="max-w-6xl mx-auto px-4 py-8">
+    {% if plan_schedule and not plan_schedule.ok %}
+    <div class="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
+        <p class="font-semibold">Plan no viable con la configuración actual</p>
+        <p class="mt-1">{{ plan_schedule.error_message }}</p>
+    </div>
+    {% endif %}
     <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
             <h1 class="text-2xl font-bold text-gray-900">Planificación de gastos</h1>
-            <p class="text-sm text-gray-500 mt-1">Proyección a {{ settings.horizon_months }} meses con ingreso medio, gastos fijos y objetivos planificados.</p>
+            <p class="text-sm text-gray-500 mt-1">Motor de planificación a <strong>{{ plan_window_months }}</strong> meses (5 años) con prioridades, DSR y saldo no negativo. Tabla: hasta {{ settings.horizon_months }} meses.</p>
         </div>
         <div class="flex flex-wrap gap-3 text-sm">
             <a href="{{ url_for('spending_plan.mortgage_simulator') }}" class="text-indigo-600 hover:underline">Simulador vivienda</a>
@@ -29,6 +35,7 @@
                 <input type="number" name="horizon_months" min="1" max="60"
                        value="{{ settings.horizon_months }}"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900"/>
+                <p class="text-xs text-gray-500 mt-1">Máx. 60 (el algoritmo siempre usa 5 años).</p>
             </div>
             <div class="flex items-end">
                 <button type="submit" class="w-full md:w-auto px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">
@@ -58,20 +65,23 @@
 
     <!-- Objetivos -->
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-8">
-        <h2 class="text-lg font-bold text-gray-900 mb-4">Objetivos planificados</h2>
-        <p class="text-sm text-gray-600 mb-4">
-            Prioridad <strong>1</strong> = se atiende antes. La cuota mensual se reparte entre hoy y la fecha objetivo (si no hay fecha, se usa el horizonte de meses de arriba).
+        <div class="flex flex-wrap items-start justify-between gap-4 mb-4">
+            <h2 class="text-lg font-bold text-gray-900">Objetivos planificados</h2>
+            <a href="{{ url_for('spending_plan.mortgage_simulator') }}" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700">
+                Simulador compra vivienda (hipoteca)
+            </a>
+        </div>
+        <p class="text-sm text-gray-600 mb-3">
+            Prioridad <strong>1</strong> = más alta. Los objetivos <strong>genéricos</strong> (ahorro, compras, cuotas de préstamo no hipotecarios) se reparten en pago único o cuotas sin dejar el saldo acumulado en negativo, respetando el DSR en hipotecas y una ventana de <strong>cinco años</strong>.
+            La <strong>compra de vivienda con hipoteca</strong> solo se registra desde el simulador, donde podrás indicar la primera cuota y la fecha de compra.
         </p>
-        <ul class="text-sm text-gray-600 mb-4 list-disc list-inside space-y-1">
-            <li><strong>Genérico</strong>: resta del efectivo mensual (cuota ahorrada); <strong>no</strong> consume el margen DSR.</li>
-            <li><strong>Hipoteca / cuota préstamo</strong>: la cuota mensual resta efectivo <em>y</em> el cupo DSR (cuota deuda / ingreso). Si vienes del simulador de vivienda, la cuota y la entrada se leen del objetivo.</li>
-        </ul>
 
         <form method="post" action="{{ url_for('spending_plan.add_goal') }}" class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end mb-6 pb-6 border-b border-gray-100">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-            <div class="md:col-span-4">
+            <input type="hidden" name="goal_type" value="generic"/>
+            <div class="md:col-span-3">
                 <label class="block text-xs font-medium text-gray-600 mb-1">Nombre</label>
-                <input type="text" name="title" required maxlength="200" placeholder="Ej. Ordenador, reforma…"
+                <input type="text" name="title" required maxlength="200" placeholder="Ej. Coche, reforma, préstamo…"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
             </div>
             <div class="md:col-span-2">
@@ -79,29 +89,46 @@
                 <input type="number" name="amount_total" required min="0.01" step="0.01"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
             </div>
-            <div class="md:col-span-2">
+            <div class="md:col-span-1">
                 <label class="block text-xs font-medium text-gray-600 mb-1">Prioridad (1–5)</label>
                 <input type="number" name="priority" min="1" max="5" value="3"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
             </div>
             <div class="md:col-span-2">
-                <label class="block text-xs font-medium text-gray-600 mb-1">Objetivo (fecha)</label>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Fecha límite deseada</label>
                 <input type="date" name="target_date"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
             </div>
             <div class="md:col-span-2">
-                <label class="block text-xs font-medium text-gray-600 mb-1">Tipo</label>
-                <select name="goal_type" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900">
-                    <option value="generic">Genérico (ahorro / compra)</option>
-                    <option value="mortgage">Hipoteca / cuota préstamo</option>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Forma de pago</label>
+                <select name="pay_mode" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900">
+                    <option value="installments">En cuotas (reparto automático)</option>
+                    <option value="lump">Pago único</option>
                 </select>
+            </div>
+            <div class="md:col-span-2">
+                <label class="block text-xs font-medium text-gray-600 mb-1">N.º cuotas (opc.)</label>
+                <input type="number" name="installment_months" min="1" max="60" placeholder="Auto"
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
+                <p class="text-xs text-gray-500 mt-0.5">Solo si eliges cuotas; si vacío, el planificador elige el mínimo posible.</p>
             </div>
             <div class="md:col-span-12 md:text-right">
                 <button type="submit" class="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 text-sm font-medium">
-                    Añadir objetivo
+                    Añadir objetivo genérico
                 </button>
             </div>
         </form>
+
+        {% if plan_schedule and plan_schedule.warnings %}
+        <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+            <p class="font-medium text-amber-900 mb-1">Avisos del planificador</p>
+            <ul class="list-disc list-inside space-y-0.5 text-amber-900/90">
+                {% for w in plan_schedule.warnings %}
+                <li>{{ w }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
 
         {% if goal_lines %}
         <div class="overflow-x-auto">
@@ -212,8 +239,8 @@
         </table>
     </div>
     <p class="text-xs text-gray-500 mt-2">
-        Superávit = ingreso − gastos fijos − suma de €/mes de objetivos. Margen DSR = cuota máxima permitida − cuotas tipo hipoteca (DSR).
-        Objetivos <strong>genéricos</strong> no restan del margen DSR; sí del efectivo disponible.
+        Columna Objetivos: cuotas hipoteca + entradas en el mes + cuotas genéricas planificadas. Superávit = ingreso − fijos − esos cargos. El saldo acumulado usa el efectivo en bancos (sin descontar entradas a futuro) y no puede quedar negativo en el modelo.
+        Margen DSR = cuota máxima permitida − cuotas hipoteca del mes.
     </p>
 </div>
 {% endblock %}

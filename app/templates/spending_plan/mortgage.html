@@ -231,13 +231,13 @@
 
         <div class="mt-8 pt-6 border-t border-gray-100">
             <h3 class="text-sm font-semibold text-gray-900 mb-3">Añadir a planificación como objetivo hipoteca</h3>
-            <p class="text-xs text-gray-500 mb-3">Al añadir el objetivo se guardan préstamo, cuota, LTV y <strong>entrada efectiva</strong> para usarlas en planificación (carga mensual tipo DSR y saldo inicial de efectivo).</p>
+            <p class="text-xs text-gray-500 mb-3">Solo desde aquí se registra una hipoteca de vivienda. Se valida contra el plan (5 años, DSR, saldo no negativo y entrada con efectivo disponible). La cuota del préstamo puede proyectarse más allá de 5 años; el planificador solo comprueba los primeros 60 meses.</p>
             <form method="post" action="{{ url_for('spending_plan.add_goal') }}" class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                 <input type="hidden" name="goal_type" value="mortgage"/>
                 <input type="hidden" name="amount_total" value="{{ "%.2f"|format(result.loan_amount) }}"/>
                 <input type="hidden" name="extra_json" value="{{ result.to_extra_json()|e }}"/>
-                <div class="md:col-span-5">
+                <div class="md:col-span-4">
                     <label class="block text-xs font-medium text-gray-600 mb-1">Nombre del objetivo</label>
                     <input type="text" name="title" required maxlength="200" value="Hipoteca vivienda"
                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
@@ -248,12 +248,17 @@
                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
                 </div>
                 <div class="md:col-span-3">
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Fecha objetivo (opcional)</label>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Fecha de compra / entrada (mes del desembolso)</label>
                     <input type="date" name="target_date" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
                 </div>
-                <div class="md:col-span-2">
-                    <button type="submit" class="w-full px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 text-sm font-medium">
-                        Añadir objetivo
+                <div class="md:col-span-3">
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Primera cuota hipoteca</label>
+                    <input type="date" name="loan_payment_start" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
+                    <p class="text-xs text-gray-500 mt-1">No anterior a la fecha de compra.</p>
+                </div>
+                <div class="md:col-span-12 md:text-right">
+                    <button type="submit" class="w-full md:w-auto px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 text-sm font-medium">
+                        Añadir objetivo hipoteca
                     </button>
                 </div>
             </form>
