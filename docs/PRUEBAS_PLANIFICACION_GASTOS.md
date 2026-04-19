@@ -16,7 +16,7 @@ Usar en [followup.fit](https://followup.fit/) (rama experimental) o entorno loca
 - [x] A3
 - [x] A4
 - [x] A5
-- [ ] A6
+- [x] A6
 - [ ] A7
 - [ ] B1
 - [ ] B2
