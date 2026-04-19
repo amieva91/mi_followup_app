@@ -99,52 +99,47 @@
             </div>
         </div>
 
-        {% set tip_ref_casilla = "Número de la casilla «Tipo fijo (% anual)» de este formulario. Es la referencia que usamos como proxy de Euribor a 12 meses para aplicar las fórmulas de negociación (heurística orientativa)." %}
-        {% set tip_f_std = "Fórmula orientativa: referencia Euribor (casilla) menos 0,10 puntos porcentuales. Ilustra un tipo bonificado típico con vinculación; no es una oferta de un banco." %}
-        {% set tip_f_base = "Fórmula orientativa: referencia Euribor (casilla) más 1,05 puntos porcentuales. Ilustra un tipo sin productos vinculados." %}
-        {% set tip_f_band = "Banda heurística: entre referencia Euribor menos 0,70% y referencia menos 0,50% (perfil de negociación fuerte)." %}
-        {% set tip_f_tope = "Tope práctico: referencia Euribor más 0,20%. Por encima, valorar con cautela un tipo bonificado." %}
-        {% set tip_tab_col1 = "En cada fila, referencia = valor de tu casilla tipo fijo más un margen de −0,2 / −0,1 / 0 / +0,1 / +0,2 puntos porcentuales (escenarios alrededor del valor central)." %}
-        {% set tip_tab_col2 = "Oferta estándar bonificada = referencia de esa fila menos 0,10%." %}
-        {% set tip_tab_col3 = "Objetivo negociación (top) = entre referencia de fila menos 0,70% y referencia menos 0,50%." %}
+        {% set tip_ref_usada %}Referencia usada: {{ "%.2f"|format(negotiation_ref_e) }} % (valor actual de «Tipo fijo (% anual)»; pasa el cursor para ver de dónde sale).{% endset %}
+        {% set tip_f_std = "Fórmula referida: referencia Euribor (casilla) − 0,10%" %}
+        {% set tip_f_base = "Fórmula referida: referencia Euribor (casilla) + 1,05%" %}
+        {% set tip_f_band = "Banda referida: entre referencia − 0,70% y referencia − 0,50% (misma referencia que la casilla)" %}
+        {% set tip_f_regla = "Regla práctica: no aceptar tipo fijo bonificado > referencia Euribor (casilla) + 0,20%" %}
+        {% set tip_tab_escenarios = "Cinco escenarios: dos por debajo del valor de la casilla, el valor central y dos por encima (saltos de 0,1 puntos porcentuales)." %}
+        {% set tip_tab_col1 = "En cada fila, referencia = valor de la casilla tipo fijo ± 0,2 / 0,1 / 0 / +0,1 / +0,2 puntos porcentuales." %}
+        {% set tip_tab_col2 = "Oferta estándar bonificada = referencia de esa fila − 0,10%." %}
+        {% set tip_tab_col3 = "Objetivo negociación (top) = entre referencia de fila − 0,70% y referencia − 0,50%." %}
 
         <div class="mt-6 rounded-xl border border-indigo-100 bg-indigo-50/40 p-5 text-sm text-slate-800">
             <h2 class="text-base font-semibold text-indigo-950 mb-2">Negociación tipo fijo (orientativo)</h2>
-            <p class="text-slate-700 mb-4 leading-relaxed">
+            <p class="text-slate-700 mb-3 leading-relaxed">
                 Los bancos suelen fijar el coste del tipo fijo con referencias del <strong>Euribor a 12 meses</strong>.
             </p>
-            <p class="text-xs text-slate-600 mb-3 cursor-help border-l-2 border-indigo-200 pl-2" title="{{ tip_ref_casilla }}">
+            <p class="text-xs text-slate-600 mb-3 cursor-help border-l-2 border-indigo-200 pl-2" title="{{ tip_ref_usada }}">
                 <span class="font-medium text-slate-700">Referencia usada:</span>
                 <strong class="tabular-nums">{{ "%.2f"|format(negotiation_ref_e) }}&nbsp;%</strong>
-                (valor actual de «Tipo fijo (% anual)»; pasa el cursor para ver de dónde sale).
             </p>
             <dl class="space-y-2 mb-4">
-                <div class="flex flex-wrap justify-between gap-2 border-b border-indigo-100/80 pb-2">
-                    <dt class="text-slate-600 cursor-help" title="{{ tip_f_std }}">Oferta estándar (con vinculación: nómina, seguros…)</dt>
-                    <dd class="font-medium tabular-nums text-indigo-950 cursor-help" title="{{ tip_f_std }}">{{ "%.2f"|format(negotiation_hints.oferta_estandar_bonificada) }}&nbsp;%</dd>
+                <div class="flex flex-wrap justify-between gap-2 border-b border-indigo-100/80 pb-2 cursor-help" title="{{ tip_f_std }}">
+                    <dt class="text-slate-600">Oferta estándar (con vinculación: nómina, seguros…)</dt>
+                    <dd class="font-medium tabular-nums text-indigo-950">{{ "%.2f"|format(negotiation_hints.oferta_estandar_bonificada) }}&nbsp;%</dd>
                 </div>
-                <p class="text-xs text-slate-500 -mt-1 mb-2 cursor-help" title="{{ tip_f_std }}">Fórmula referida: <span class="font-mono">referencia Euribor (casilla) − 0,10%</span></p>
-                <div class="flex flex-wrap justify-between gap-2 border-b border-indigo-100/80 pb-2">
-                    <dt class="text-slate-600 cursor-help" title="{{ tip_f_base }}">Oferta base sin productos vinculados</dt>
-                    <dd class="font-medium tabular-nums text-indigo-950 cursor-help" title="{{ tip_f_base }}">{{ "%.2f"|format(negotiation_hints.oferta_base_sin_bonificar) }}&nbsp;%</dd>
+                <div class="flex flex-wrap justify-between gap-2 border-b border-indigo-100/80 pb-2 cursor-help" title="{{ tip_f_base }}">
+                    <dt class="text-slate-600">Oferta base sin productos vinculados</dt>
+                    <dd class="font-medium tabular-nums text-indigo-950">{{ "%.2f"|format(negotiation_hints.oferta_base_sin_bonificar) }}&nbsp;%</dd>
                 </div>
-                <p class="text-xs text-slate-500 -mt-1 mb-2 cursor-help" title="{{ tip_f_base }}">Fórmula referida: <span class="font-mono">referencia Euribor (casilla) + 1,05%</span></p>
-                <div class="flex flex-wrap justify-between gap-2 border-b border-indigo-100/80 pb-2">
-                    <dt class="text-slate-600 cursor-help" title="{{ tip_f_band }}">Objetivo negociación (perfil fuerte: comparar bancos, ingresos sólidos…)</dt>
-                    <dd class="font-medium tabular-nums text-indigo-950 cursor-help" title="{{ tip_f_band }}">
+                <div class="flex flex-wrap justify-between gap-2 border-b border-indigo-100/80 pb-2 cursor-help" title="{{ tip_f_band }}">
+                    <dt class="text-slate-600">Objetivo negociación (perfil fuerte: comparar bancos, ingresos sólidos…)</dt>
+                    <dd class="font-medium tabular-nums text-indigo-950">
                         {{ "%.2f"|format(negotiation_hints.objetivo_negociacion_min) }}&nbsp;% – {{ "%.2f"|format(negotiation_hints.objetivo_negociacion_max) }}&nbsp;%
                     </dd>
                 </div>
-                <p class="text-xs text-slate-500 -mt-1 mb-2 cursor-help" title="{{ tip_f_band }}">Banda referida: entre <span class="font-mono">referencia − 0,70%</span> y <span class="font-mono">referencia − 0,50%</span> (misma referencia que la casilla)</p>
-                <div class="flex flex-wrap justify-between gap-2">
-                    <dt class="text-slate-600 cursor-help" title="{{ tip_f_tope }}">Tope orientativo (bonificado): no por encima de</dt>
-                    <dd class="font-medium tabular-nums text-amber-900 cursor-help" title="{{ tip_f_tope }}">{{ "%.2f"|format(negotiation_hints.tope_aceptable_bonificado_regla) }}&nbsp;%</dd>
+                <div class="flex flex-wrap justify-between gap-2 cursor-help" title="{{ tip_f_regla }}">
+                    <dt class="text-slate-600">Tope orientativo (bonificado): no por encima de</dt>
+                    <dd class="font-medium tabular-nums text-amber-900">{{ "%.2f"|format(negotiation_hints.tope_aceptable_bonificado_regla) }}&nbsp;%</dd>
                 </div>
-                <p class="text-xs text-slate-500 -mt-1 cursor-help" title="{{ tip_f_tope }}">Regla práctica: no aceptar tipo fijo bonificado &gt; referencia Euribor (casilla) + 0,20%</p>
             </dl>
 
-            <h3 class="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-2">Tabla alrededor de tu referencia (±0,1% por paso)</h3>
-            <p class="text-xs text-slate-500 mb-2">Cinco escenarios: dos por debajo del valor de la casilla, el valor central y dos por encima (saltos de 0,1 puntos porcentuales).</p>
+            <h3 class="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-2 cursor-help" title="{{ tip_tab_escenarios }}">Tabla de escenarios</h3>
             <div class="overflow-x-auto mb-4">
                 <table class="min-w-full text-xs border border-indigo-100 rounded-lg overflow-hidden">
                     <thead class="bg-indigo-100/60 text-indigo-950">
