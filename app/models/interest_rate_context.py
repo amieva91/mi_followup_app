@@ -1,5 +1,5 @@
 """
-Snapshot diario de contexto de tipos: Euribor 12M (BCE) + futuro ESR=F (Yahoo).
+Snapshot de Euribor 12M (BCE). Columnas Yahoo/spread/tendencia heredadas; nuevas filas solo rellenan BCE.
 Rellenado por cron vía `interest_rate_context_service.refresh_snapshot`.
 """
 from datetime import datetime
