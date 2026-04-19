@@ -24,6 +24,20 @@ def _parse_target_date(raw: str):
         return None
 
 
+def _merge_mortgage_target_into_extra(extra, td):
+    """Una fecha en formulario: copia a extra_json como loan_payment_start (compra = 1.ª cuota)."""
+    if not extra or td is None:
+        return extra
+    try:
+        d = json.loads(extra)
+        if not isinstance(d, dict):
+            return extra
+        d["loan_payment_start"] = td.isoformat()[:10]
+        return json.dumps(d, ensure_ascii=False)
+    except (json.JSONDecodeError, TypeError):
+        return extra
+
+
 @spending_plan_bp.route("/", methods=["GET", "POST"])
 @login_required
 def index():
@@ -67,16 +81,7 @@ def add_goal():
             priority = int(request.form.get("priority") or 3)
             td = _parse_target_date(request.form.get("target_date") or "")
             extra = (request.form.get("extra_json") or "").strip() or None
-            if extra and isinstance(extra, str):
-                try:
-                    d = json.loads(extra)
-                    if isinstance(d, dict):
-                        lp = (request.form.get("loan_payment_start") or "").strip()
-                        if lp:
-                            d["loan_payment_start"] = lp[:10]
-                        extra = json.dumps(d, ensure_ascii=False)
-                except (json.JSONDecodeError, TypeError):
-                    pass
+            extra = _merge_mortgage_target_into_extra(extra, td)
             sps.update_mortgage_goal(
                 current_user.id,
                 update_id,
@@ -95,15 +100,7 @@ def add_goal():
         td = _parse_target_date(request.form.get("target_date") or "")
         extra = (request.form.get("extra_json") or "").strip() or None
         if gtype == "mortgage" and extra:
-            try:
-                d = json.loads(extra)
-                if isinstance(d, dict):
-                    lp = (request.form.get("loan_payment_start") or "").strip()
-                    if lp:
-                        d["loan_payment_start"] = lp[:10]
-                    extra = json.dumps(d, ensure_ascii=False)
-            except (json.JSONDecodeError, TypeError):
-                pass
+            extra = _merge_mortgage_target_into_extra(extra, td)
         raw_inst = request.form.get("installment_months")
         try:
             pay_mode, installment_months = sps.pay_options_from_installment_field(
@@ -238,7 +235,6 @@ def mortgage_simulator():
     interest_context = irctx.get_latest_snapshot()
     sim_form = _default_mortgage_form()
     edit_goal = None
-    loan_payment_start_value = ""
     purchase_date_value = ""
 
     edit_param = request.args.get("edit", type=int)
@@ -254,12 +250,13 @@ def mortgage_simulator():
             sim_form = _sim_form_from_mortgage_goal(mg)
             if mg.target_date:
                 purchase_date_value = mg.target_date.isoformat()
-            try:
-                ex = json.loads(mg.extra_json or "{}")
-                if isinstance(ex, dict) and ex.get("loan_payment_start"):
-                    loan_payment_start_value = str(ex.get("loan_payment_start"))[:10]
-            except (json.JSONDecodeError, TypeError):
-                pass
+            else:
+                try:
+                    ex = json.loads(mg.extra_json or "{}")
+                    if isinstance(ex, dict) and ex.get("loan_payment_start"):
+                        purchase_date_value = str(ex.get("loan_payment_start"))[:10]
+                except (json.JSONDecodeError, TypeError):
+                    pass
 
     if interest_context and interest_context.bce_euribor_12m_percent is not None:
         if not edit_goal:
@@ -337,7 +334,6 @@ def mortgage_simulator():
         negotiation_ref_e=negotiation_ref_e,
         negotiation_ref_rows=negotiation_ref_rows,
         edit_goal=edit_goal,
-        loan_payment_start_value=loan_payment_start_value,
         purchase_date_value=purchase_date_value,
         defaults={
             "notary": mss.DEFAULT_NOTARY,

@@ -144,8 +144,9 @@ def build_mortgage_arrays(
     W: int = PLAN_WINDOW_MONTHS,
 ) -> Tuple[List[float], List[float], List[str]]:
     """
-    Suma aportaciones hipoteca: initial_outlay en mes de compra (target_date o mes 0),
-    cuota desde loan_payment_start (o mes siguiente a compra si falta).
+    Suma aportaciones hipoteca: initial_outlay en mes de compra (target_date),
+    cuota desde loan_payment_start en extra_json (misma fecha que compra si coinciden).
+    Sin target_date en el objetivo: mes 0 (cuanto antes), no fin de ventana.
     """
     mortgage_pay = _zero(W)
     initial_pay = _zero(W)
@@ -158,7 +159,10 @@ def build_mortgage_arrays(
         mp = _mortgage_monthly(extra)
         ini = _mortgage_initial(extra)
         tgt = getattr(g, "target_date", None)
-        purchase_m = _month_offset_from_today(today, tgt, W - 1)
+        if tgt is None:
+            purchase_m = 0
+        else:
+            purchase_m = _month_offset_from_today(today, tgt, W - 1)
 
         raw_start = extra.get("loan_payment_start")
         loan_start_m = purchase_m
