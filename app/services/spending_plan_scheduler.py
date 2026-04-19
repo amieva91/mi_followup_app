@@ -212,11 +212,9 @@ def _try_generic_allocation(
     deadline_m = max(0, min(W - 1, deadline_m))
 
     if pay_mode == "auto":
-        inc = _zero(W)
-        inc[deadline_m] = amount
-        if check(inc):
-            return inc, None
-        for m in range(W):
+        # No intentar primero un pago único en deadline_m (sin fecha, eso era el mes 60):
+        # priorizar el primer mes viable. Con fecha límite, solo meses 0…deadline_m.
+        for m in range(deadline_m + 1):
             inc = _zero(W)
             inc[m] = amount
             if check(inc):
