@@ -1,6 +1,6 @@
 """
-Simulación compra vivienda: gastos de compra por defecto, ITP, préstamo máximo = valor tasación
-(90% precio + 90% ITP), cuota francesa a tipo fijo.
+Simulación compra vivienda: gastos de compra por defecto, ITP, valor de tasación estimado
+(90% precio + 90% ITP), límite préstamo = valor tasación × 0,80, cuota francesa a tipo fijo.
 """
 from __future__ import annotations
 
@@ -80,6 +80,15 @@ class MortgageSimulationResult:
     initial_outlay: float
     info_lines: List[str] = field(default_factory=list)
 
+    def valor_tasacion_estimado_desde_limite_prestamo(self) -> float:
+        """
+        Estimación coherente con: límite préstamo = valor tasación × 0,80
+        → valor tasación ≈ límite préstamo ÷ 0,80.
+        """
+        if self.max_loan_by_policy <= 0:
+            return 0.0
+        return round(float(self.max_loan_by_policy) / 0.80, 2)
+
     def to_extra_json(self) -> str:
         payload: Dict[str, Any] = {
             "monthly_payment": round(self.monthly_payment, 2),
@@ -94,6 +103,7 @@ class MortgageSimulationResult:
             "effective_entry_total": round(self.effective_entry_total, 2),
             "savings_cash": round(self.savings_cash, 2),
             "tasacion_fee": round(self.tasacion_fee, 2),
+            "valor_tasacion_estimado": self.valor_tasacion_estimado_desde_limite_prestamo(),
         }
         return json.dumps(payload, ensure_ascii=False)
 
@@ -184,13 +194,13 @@ def min_savings_cash_hint(
     """
     Mínimo en «ahorros a aportar» (efectivo), equivalente a:
     precio de compra − préstamo máximo + (ITP + notaría + registro + gestión),
-    con préstamo máximo = valor tasación (90% precio + 90% ITP).
+    con préstamo máximo = valor tasación × 0,80 (valor tasación = 90% precio + 90% ITP).
     (Misma cifra que coste total − préstamo − gasto tasación en efectivo.)
     """
     vt = max(0.0, float(valor_tasacion))
     tc = max(0.0, float(total_cost))
     fee = max(0.0, float(tasacion_fee))
-    max_loan = round(vt, 2)
+    max_loan = round(vt * 0.80, 2)
     min_total_equity = max(0.0, tc - max_loan)
     return max(0.0, round(min_total_equity - fee, 2))
 
@@ -254,7 +264,7 @@ def run_simulation(
 ) -> MortgageSimulationResult:
     """
     Valor de tasación estimado: 90% precio + 90% ITP (automático).
-    Préstamo máximo para el cálculo = ese valor de tasación (no un 80% adicional).
+    Límite préstamo = valor tasación × 0,80.
     Efectivo aportado = ahorros (casilla) + gasto tasación.
     """
     pp = max(0.0, float(purchase_price))
@@ -275,7 +285,7 @@ def run_simulation(
     if valor_tas <= 0:
         raise ValueError("No se pudo estimar el valor de tasación (revisa el precio).")
 
-    max_loan = round(valor_tas, 2)
+    max_loan = round(valor_tas * 0.80, 2)
     effective_entry = round(sav + tasacion_fee, 2)
     loan_needed = round(total_cost - effective_entry, 2)
 
@@ -317,11 +327,14 @@ def run_simulation(
     def _eur(x: float) -> str:
         return f"{x:.2f} €"
 
+    valor_tas_estimado_limite = (
+        round(max_loan / 0.80, 2) if max_loan > 0 else 0.0
+    )
+
     info: List[str] = [
         f"Coste total estimado (compra + ITP + gastos, incl. tasación): {_eur(total_cost)}",
-        (
-            f"Límite hipoteca (90% precio + 90% ITP): {_eur(valor_tas)}"
-        ),
+        f"Valor tasación estimado (límite préstamo ÷ 0,80): {_eur(valor_tas_estimado_limite)}",
+        f"Límite hipoteca (tope préstamo en esta simulación): {_eur(max_loan)}",
         f"Aportación efectiva (ahorros + gasto tasación): {_eur(effective_entry)}",
         f"Préstamo: {_eur(loan)} · LTV (% hipoteca, sobre precio+ITP): {ltv_pct:.2f}%",
     ]

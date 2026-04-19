@@ -90,7 +90,7 @@ def _negotiation_reference_rate_percent(sim_form: dict) -> float:
 def _default_mortgage_form():
     return {
         "purchase_price": "280000",
-        "savings": "32000",
+        "savings": "86000",
         "years": "30",
         "first_home": True,
         "annual_interest_percent": "3.50",

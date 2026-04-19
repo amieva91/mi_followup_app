@@ -109,33 +109,37 @@
         {% set tip_tab_col2 = "Oferta estándar bonificada = referencia de esa fila − 0,10%." %}
         {% set tip_tab_col3 = "Objetivo negociación (top) = entre referencia de fila − 0,70% y referencia − 0,50%." %}
 
-        <div class="mt-6 rounded-xl border border-indigo-100 bg-indigo-50/40 p-5 text-sm text-slate-800">
-            <h2 class="text-base font-semibold text-indigo-950 mb-2">Negociación tipo fijo (orientativo)</h2>
-            <p class="text-slate-700 mb-3 leading-relaxed">
+        <details class="mt-6 rounded-xl border border-indigo-100 bg-indigo-50/40 text-sm text-slate-800 group">
+            <summary class="cursor-pointer list-none p-5 pb-3 [&::-webkit-details-marker]:hidden flex flex-wrap items-center justify-between gap-2">
+                <span class="text-base font-semibold text-indigo-950">Negociación tipo fijo (orientativo)</span>
+                <span class="text-xs text-indigo-700 font-medium">Abrir para consultar</span>
+            </summary>
+            <div class="px-5 pb-5 pt-0 border-t border-indigo-100/80">
+            <p class="text-slate-700 mb-3 leading-relaxed pt-4">
                 Los bancos suelen fijar el coste del tipo fijo con referencias del <strong>Euribor a 12 meses</strong>.
             </p>
             <p class="text-xs text-slate-600 mb-3 cursor-help border-l-2 border-indigo-200 pl-2" title="{{ tip_ref_usada }}">
                 <span class="font-medium text-slate-700">Referencia usada:</span>
-                <strong class="tabular-nums">{{ "%.2f"|format(negotiation_ref_e) }}&nbsp;%</strong>
+                <strong id="neg-ref-display" class="tabular-nums">{{ "%.2f"|format(negotiation_ref_e) }}&nbsp;%</strong>
             </p>
             <dl class="space-y-2 mb-4">
                 <div class="flex flex-wrap justify-between gap-2 border-b border-indigo-100/80 pb-2 cursor-help" title="{{ tip_f_std }}">
                     <dt class="text-slate-600">Oferta estándar (con vinculación: nómina, seguros…)</dt>
-                    <dd class="font-medium tabular-nums text-indigo-950">{{ "%.2f"|format(negotiation_hints.oferta_estandar_bonificada) }}&nbsp;%</dd>
+                    <dd id="neg-dd-std" class="font-medium tabular-nums text-indigo-950">{{ "%.2f"|format(negotiation_hints.oferta_estandar_bonificada) }}&nbsp;%</dd>
                 </div>
                 <div class="flex flex-wrap justify-between gap-2 border-b border-indigo-100/80 pb-2 cursor-help" title="{{ tip_f_base }}">
                     <dt class="text-slate-600">Oferta base sin productos vinculados</dt>
-                    <dd class="font-medium tabular-nums text-indigo-950">{{ "%.2f"|format(negotiation_hints.oferta_base_sin_bonificar) }}&nbsp;%</dd>
+                    <dd id="neg-dd-base" class="font-medium tabular-nums text-indigo-950">{{ "%.2f"|format(negotiation_hints.oferta_base_sin_bonificar) }}&nbsp;%</dd>
                 </div>
                 <div class="flex flex-wrap justify-between gap-2 border-b border-indigo-100/80 pb-2 cursor-help" title="{{ tip_f_band }}">
                     <dt class="text-slate-600">Objetivo negociación (perfil fuerte: comparar bancos, ingresos sólidos…)</dt>
-                    <dd class="font-medium tabular-nums text-indigo-950">
+                    <dd id="neg-dd-obj" class="font-medium tabular-nums text-indigo-950">
                         {{ "%.2f"|format(negotiation_hints.objetivo_negociacion_min) }}&nbsp;% – {{ "%.2f"|format(negotiation_hints.objetivo_negociacion_max) }}&nbsp;%
                     </dd>
                 </div>
                 <div class="flex flex-wrap justify-between gap-2 cursor-help" title="{{ tip_f_regla }}">
                     <dt class="text-slate-600">Tope orientativo (bonificado): no por encima de</dt>
-                    <dd class="font-medium tabular-nums text-amber-900">{{ "%.2f"|format(negotiation_hints.tope_aceptable_bonificado_regla) }}&nbsp;%</dd>
+                    <dd id="neg-dd-tope" class="font-medium tabular-nums text-amber-900">{{ "%.2f"|format(negotiation_hints.tope_aceptable_bonificado_regla) }}&nbsp;%</dd>
                 </div>
             </dl>
 
@@ -149,12 +153,12 @@
                             <th class="text-left px-3 py-2 cursor-help" title="{{ tip_tab_col3 }}">Objetivo top (−0,70% … −0,50%)</th>
                         </tr>
                     </thead>
-                    <tbody class="bg-white divide-y divide-indigo-50">
+                    <tbody id="neg-band-body" class="bg-white divide-y divide-indigo-50">
                         {% for row in negotiation_ref_rows %}
-                        <tr class="{% if loop.index0 == 2 %}bg-indigo-50/90{% endif %}">
-                            <td class="px-3 py-2 tabular-nums font-medium">{{ "%.2f"|format(row.euribor_12m) }}&nbsp;%{% if loop.index0 == 2 %} <span class="text-indigo-700 font-normal">(tu casilla)</span>{% endif %}</td>
-                            <td class="px-3 py-2 tabular-nums">{{ "%.2f"|format(row.oferta_estandar_bonificada) }}&nbsp;%</td>
-                            <td class="px-3 py-2 tabular-nums">{{ "%.2f"|format(row.objetivo_negociacion_min) }}&nbsp;% – {{ "%.2f"|format(row.objetivo_negociacion_max) }}&nbsp;%</td>
+                        <tr class="neg-band-row {% if loop.index0 == 2 %}bg-indigo-50/90{% endif %}" data-band-index="{{ loop.index0 }}">
+                            <td class="px-3 py-2 tabular-nums font-medium cell-ref">{{ "%.2f"|format(row.euribor_12m) }}&nbsp;%{% if loop.index0 == 2 %} <span class="text-indigo-700 font-normal neg-casilla-label">(tu casilla)</span>{% endif %}</td>
+                            <td class="px-3 py-2 tabular-nums cell-std">{{ "%.2f"|format(row.oferta_estandar_bonificada) }}&nbsp;%</td>
+                            <td class="px-3 py-2 tabular-nums cell-obj">{{ "%.2f"|format(row.objetivo_negociacion_min) }}&nbsp;% – {{ "%.2f"|format(row.objetivo_negociacion_max) }}&nbsp;%</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -175,7 +179,8 @@
             <p class="mt-3 text-xs text-slate-500 leading-relaxed">
                 Heurística basada en comportamientos habituales de mercado; no es asesoramiento financiero ni una oferta de ningún banco.
             </p>
-        </div>
+            </div>
+        </details>
 
         <div class="border-t border-gray-100 pt-4">
             <p class="text-sm font-medium text-gray-800 mb-2">Gastos de compra (editables)</p>
@@ -210,11 +215,11 @@
         <h2 class="text-lg font-bold text-gray-900 mb-4">Resultado</h2>
         <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 text-sm">
             <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Coste total (compra + ITP + gastos)</dt><dd class="font-medium tabular-nums">{{ "%.2f"|format(result.total_cost) }} €</dd></div>
-            <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Valor tasación estimado (90% precio + 90% ITP)</dt><dd class="font-medium tabular-nums">{{ "%.2f"|format(result.valor_tasacion_inmueble) }} €</dd></div>
+            <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Valor tasación estimado (límite préstamo ÷ 0,80)</dt><dd class="font-medium tabular-nums">{{ "%.2f"|format(result.valor_tasacion_estimado_desde_limite_prestamo()) }} €</dd></div>
             <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Ahorros indicados (efectivo)</dt><dd class="font-medium tabular-nums">{{ "%.2f"|format(result.savings_cash) }} €</dd></div>
             <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Entrada efectiva (ahorros + gasto tasación)</dt><dd class="font-semibold tabular-nums text-indigo-900">{{ "%.2f"|format(result.effective_entry_total) }} €</dd></div>
             <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Préstamo</dt><dd class="font-medium tabular-nums">{{ "%.2f"|format(result.loan_amount) }} €</dd></div>
-            <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Límite hipoteca (= valor tasación)</dt><dd class="font-medium tabular-nums">{{ "%.2f"|format(result.max_loan_by_policy) }} €</dd></div>
+            <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Límite hipoteca</dt><dd class="font-medium tabular-nums">{{ "%.2f"|format(result.max_loan_by_policy) }} €</dd></div>
             <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">LTV (% de Hipoteca)</dt><dd class="font-medium tabular-nums text-indigo-800">{{ "%.2f"|format(result.ltv_percent) }}%</dd></div>
             <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Tipo nominal anual</dt><dd class="font-medium tabular-nums">{{ "%.4f"|format(result.annual_interest_percent) }} %</dd></div>
             <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Cuota mensual (francesa)</dt><dd class="font-bold text-lg tabular-nums text-emerald-800">{{ "%.2f"|format(result.monthly_payment) }} €</dd></div>
@@ -288,6 +293,70 @@
     if (!isNaN(mx) && v > mx) savInput.value = String(mx);
   }
 
+  function round4(x) {
+    return Math.round(x * 10000) / 10000;
+  }
+
+  function fixedHints(e) {
+    e = Math.max(0, e);
+    return {
+      oferta_estandar_bonificada: round4(e - 0.10),
+      oferta_base_sin_bonificar: round4(e + 1.05),
+      objetivo_negociacion_min: round4(e - 0.70),
+      objetivo_negociacion_max: round4(e - 0.50),
+      tope_aceptable_bonificado_regla: round4(e + 0.20)
+    };
+  }
+
+  function parseRateFromInput() {
+    var el = document.getElementById('mp-rate');
+    if (!el) return 3.5;
+    var raw = String(el.value || '').trim().replace(',', '.');
+    if (!raw) return 3.5;
+    var v = parseFloat(raw);
+    if (isNaN(v)) return 3.5;
+    return Math.max(0, Math.min(25, v));
+  }
+
+  function fmtPctHtml(x) {
+    return x.toFixed(2) + '&nbsp;%';
+  }
+
+  function updateNegotiation() {
+    var base = parseRateFromInput();
+    var h = fixedHints(base);
+    var refEl = document.getElementById('neg-ref-display');
+    if (refEl) refEl.innerHTML = fmtPctHtml(base);
+    var elStd = document.getElementById('neg-dd-std');
+    var elBase = document.getElementById('neg-dd-base');
+    var elObj = document.getElementById('neg-dd-obj');
+    var elTope = document.getElementById('neg-dd-tope');
+    if (elStd) elStd.innerHTML = fmtPctHtml(h.oferta_estandar_bonificada);
+    if (elBase) elBase.innerHTML = fmtPctHtml(h.oferta_base_sin_bonificar);
+    if (elObj) {
+      elObj.innerHTML = fmtPctHtml(h.objetivo_negociacion_min) + ' – ' + fmtPctHtml(h.objetivo_negociacion_max);
+    }
+    if (elTope) elTope.innerHTML = fmtPctHtml(h.tope_aceptable_bonificado_regla);
+
+    var offsets = [-0.2, -0.1, 0, 0.1, 0.2];
+    var rows = document.querySelectorAll('#neg-band-body tr.neg-band-row');
+    for (var i = 0; i < rows.length && i < offsets.length; i++) {
+      var ref = round4(base + offsets[i]);
+      var hr = fixedHints(ref);
+      var tr = rows[i];
+      var td0 = tr.querySelector('.cell-ref');
+      var td1 = tr.querySelector('.cell-std');
+      var td2 = tr.querySelector('.cell-obj');
+      var casilla = i === 2 ? ' <span class="text-indigo-700 font-normal neg-casilla-label">(tu casilla)</span>' : '';
+      if (td0) td0.innerHTML = fmtPctHtml(ref) + casilla;
+      if (td1) td1.innerHTML = fmtPctHtml(hr.oferta_estandar_bonificada);
+      if (td2) {
+        td2.innerHTML = fmtPctHtml(hr.objetivo_negociacion_min) + ' – ' + fmtPctHtml(hr.objetivo_negociacion_max);
+      }
+      tr.classList.toggle('bg-indigo-50/90', i === 2);
+    }
+  }
+
   function compute(opts) {
     var autoBumpSavings = !opts || opts.autoBump !== false;
     var pp = num(document.getElementById('mp-purchase'), 0);
@@ -300,7 +369,7 @@
     var itpAmt = Math.round(pp * itpRate * 100) / 100;
     var vt = valorTasacion(pp, itpAmt);
     var tc = pp + itpAmt + n + r + g + t;
-    var maxLoan = Math.round(vt * 100) / 100;
+    var maxLoan = Math.round(vt * 0.80 * 100) / 100;
     var gastosImpuestos = Math.round((itpAmt + n + r + g) * 100) / 100;
     var minCash = Math.max(0, Math.round((pp - maxLoan + gastosImpuestos) * 100) / 100);
 
@@ -373,7 +442,15 @@
       el.addEventListener('change', function () { compute({ autoBump: true }); });
     }
   });
+
+  var rateEl = document.getElementById('mp-rate');
+  if (rateEl) {
+    rateEl.addEventListener('input', function () { updateNegotiation(); });
+    rateEl.addEventListener('change', function () { updateNegotiation(); });
+  }
+
   compute({ autoBump: true });
+  updateNegotiation();
 })();
 </script>
 {% endblock %}
