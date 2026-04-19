@@ -228,11 +228,6 @@
         <p class="text-xs text-gray-600 mt-4 p-3 bg-slate-50 rounded-lg border border-slate-100">
             La <strong>entrada aportada</strong> ({{ "%.2f"|format(result.effective_entry_total) }} €) es la que se descuenta del efectivo en planificación si añades el objetivo hipoteca, además de la cuota mensual en DSR.
         </p>
-        <ul class="mt-4 space-y-1 text-xs text-gray-600 list-disc list-inside">
-            {% for line in result.info_lines %}
-            <li>{{ line }}</li>
-            {% endfor %}
-        </ul>
 
         <div class="mt-8 pt-6 border-t border-gray-100">
             <h3 class="text-sm font-semibold text-gray-900 mb-3">Añadir a planificación como objetivo hipoteca</h3>

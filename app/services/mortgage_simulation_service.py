@@ -324,18 +324,6 @@ def run_simulation(
 
     initial_outlay = effective_entry
 
-    def _eur(x: float) -> str:
-        return f"{x:.2f} €"
-
-    total_estimado_compra_intereses = round(total_cost + total_int, 2)
-    info: List[str] = [
-        f"Compra y gastos de formalización: {_eur(total_cost)}",
-        f"Valor tasación mínima (límite préstamo ÷ 0,80): {_eur(valor_tasacion_estimado)}",
-        f"Total estimado a pagar en {yrs} años (compra + intereses): {_eur(total_estimado_compra_intereses)}",
-        f"Aportación efectiva (ahorros + gasto tasación): {_eur(effective_entry)}",
-        f"Préstamo: {_eur(loan)} · LTV (% hipoteca, sobre precio+ITP): {ltv_pct:.2f}%",
-    ]
-
     return MortgageSimulationResult(
         purchase_price=pp,
         first_home=first_home,
@@ -361,5 +349,4 @@ def run_simulation(
         total_paid_loan=total_paid,
         total_interest=total_int,
         initial_outlay=initial_outlay,
-        info_lines=info,
     )
