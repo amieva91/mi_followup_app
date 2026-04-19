@@ -48,6 +48,80 @@
     </div>
     {% endif %}
 
+    <div class="mb-8 rounded-xl border border-indigo-100 bg-indigo-50/40 p-5 text-sm text-slate-800">
+        <h2 class="text-base font-semibold text-indigo-950 mb-2">Negociación tipo fijo (orientativo)</h2>
+        <p class="text-slate-700 mb-4 leading-relaxed">
+            Los bancos suelen fijar el coste del <strong>tipo fijo</strong> con referencias distintas del Euribor (p. ej. IRS).
+            El <strong>Euribor a 12 meses</strong> es un indicador público fácil de seguir; aquí se usa como <strong>proxy</strong> para orientar la conversación, no como tipo de coste real del banco.
+        </p>
+        {% if negotiation_hints %}
+        <p class="text-xs text-slate-600 mb-3">Cálculos con Euribor 12M (BCE) actual: <strong class="tabular-nums">{{ "%.3f"|format(negotiation_hints.euribor_12m) }}&nbsp;%</strong>.</p>
+        <dl class="space-y-2 mb-4">
+            <div class="flex flex-wrap justify-between gap-2 border-b border-indigo-100/80 pb-2">
+                <dt class="text-slate-600">Oferta estándar (con vinculación: nómina, seguros…)</dt>
+                <dd class="font-medium tabular-nums text-indigo-950">{{ "%.2f"|format(negotiation_hints.oferta_estandar_bonificada) }}&nbsp;%</dd>
+            </div>
+            <div class="text-xs text-slate-500 -mt-1 mb-2">Fórmula referida: <span class="font-mono">E − 0,10%</span></div>
+            <div class="flex flex-wrap justify-between gap-2 border-b border-indigo-100/80 pb-2">
+                <dt class="text-slate-600">Oferta base sin productos vinculados</dt>
+                <dd class="font-medium tabular-nums text-indigo-950">{{ "%.2f"|format(negotiation_hints.oferta_base_sin_bonificar) }}&nbsp;%</dd>
+            </div>
+            <div class="text-xs text-slate-500 -mt-1 mb-2">Fórmula referida: <span class="font-mono">E + 1,05%</span></div>
+            <div class="flex flex-wrap justify-between gap-2 border-b border-indigo-100/80 pb-2">
+                <dt class="text-slate-600">Objetivo negociación (perfil fuerte: comparar bancos, ingresos sólidos…)</dt>
+                <dd class="font-medium tabular-nums text-indigo-950">
+                    {{ "%.2f"|format(negotiation_hints.objetivo_negociacion_min) }}&nbsp;% – {{ "%.2f"|format(negotiation_hints.objetivo_negociacion_max) }}&nbsp;%
+                </dd>
+            </div>
+            <div class="text-xs text-slate-500 -mt-1 mb-2">Banda referida: entre <span class="font-mono">E − 0,70%</span> y <span class="font-mono">E − 0,50%</span></div>
+            <div class="flex flex-wrap justify-between gap-2">
+                <dt class="text-slate-600">Tope orientativo (bonificado): no por encima de</dt>
+                <dd class="font-medium tabular-nums text-amber-900">{{ "%.2f"|format(negotiation_hints.tope_aceptable_bonificado_regla) }}&nbsp;%</dd>
+            </div>
+            <div class="text-xs text-slate-500 -mt-1">Regla práctica: no aceptar tipo fijo bonificado &gt; Euribor + 0,20%</div>
+        </dl>
+        {% else %}
+        <p class="text-slate-600 mb-4">Cuando exista Euribor 12M (BCE) en contexto de tipos, aquí se mostrarán cifras personalizadas.</p>
+        {% endif %}
+
+        <h3 class="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-2">Tabla de referencia (ejemplos)</h3>
+        <div class="overflow-x-auto mb-4">
+            <table class="min-w-full text-xs border border-indigo-100 rounded-lg overflow-hidden">
+                <thead class="bg-indigo-100/60 text-indigo-950">
+                    <tr>
+                        <th class="text-left px-3 py-2">Euribor 12M</th>
+                        <th class="text-left px-3 py-2">Oferta estándar (E − 0,10%)</th>
+                        <th class="text-left px-3 py-2">Objetivo top (E − 0,70% … E − 0,50%)</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-indigo-50">
+                    {% for row in negotiation_ref_rows %}
+                    <tr>
+                        <td class="px-3 py-2 tabular-nums font-medium">{{ "%.1f"|format(row.euribor_12m) }}&nbsp;%</td>
+                        <td class="px-3 py-2 tabular-nums">{{ "%.2f"|format(row.oferta_estandar_bonificada) }}&nbsp;%</td>
+                        <td class="px-3 py-2 tabular-nums">{{ "%.2f"|format(row.objetivo_negociacion_min) }}&nbsp;% – {{ "%.2f"|format(row.objetivo_negociacion_max) }}&nbsp;%</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <h3 class="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-2">Reglas prácticas</h3>
+        <ul class="list-disc list-inside space-y-1 text-slate-700 mb-3">
+            <li><strong>Regla del 0,20%:</strong> valorar con cautela un tipo fijo bonificado por encima de Euribor + 0,20% (frente al E que uses como referencia).</li>
+            <li><strong>LTV y riesgo:</strong> cuanto mayor sea el endeudamiento respecto al valor de tasación (LTV alto), más puede limitarse el margen que el banco ofrece.</li>
+            <li><strong>Coste total:</strong> un tipo más bajo con seguros o productos obligatorios caros puede empeorar el coste anual real; compara siempre el conjunto.</li>
+        </ul>
+        {% if result and result.ltv_percent > 80 %}
+        <p class="text-xs text-amber-900 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+            En esta simulación el LTV es del <strong>{{ "%.2f"|format(result.ltv_percent) }}&nbsp;%</strong> (por encima del 80%). Eso suele asociarse a más riesgo para la entidad y puede reducir el margen de negociación.
+        </p>
+        {% endif %}
+        <p class="mt-3 text-xs text-slate-500 leading-relaxed">
+            Heurística basada en comportamientos habituales de mercado; no es asesoramiento financiero ni una oferta de ningún banco.
+        </p>
+    </div>
+
     <form method="post" class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-8 space-y-6" id="mortgage-sim-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <input type="hidden" name="action" value="simulate"/>

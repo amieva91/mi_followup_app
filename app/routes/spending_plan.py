@@ -143,12 +143,21 @@ def mortgage_simulator():
         except Exception as e:
             flash(f"Simulación no disponible: {e}", "error")
 
+    negotiation_hints = None
+    if interest_context and interest_context.bce_euribor_12m_percent is not None:
+        negotiation_hints = mss.fixed_rate_negotiation_hints(
+            float(interest_context.bce_euribor_12m_percent)
+        )
+    negotiation_ref_rows = mss.fixed_rate_negotiation_reference_rows()
+
     return render_template(
         "spending_plan/mortgage.html",
         result=result,
         sim_form=sim_form,
         ltv_ratio_max=int(mss.LTV_RATIO_MAX_PERCENT),
         interest_context=interest_context,
+        negotiation_hints=negotiation_hints,
+        negotiation_ref_rows=negotiation_ref_rows,
         defaults={
             "notary": mss.DEFAULT_NOTARY,
             "registry": mss.DEFAULT_REGISTRY,

@@ -98,6 +98,43 @@ class MortgageSimulationResult:
         return json.dumps(payload, ensure_ascii=False)
 
 
+@dataclass(frozen=True)
+class FixedRateNegotiationHints:
+    """
+    Heurística orientativa para hipoteca a tipo fijo (mercado ~2026).
+    E = Euribor 12M como proxy público; el coste de referencia interno del banco
+    para fijo suele basarse en IRS, no en Euribor.
+    """
+
+    euribor_12m: float
+    oferta_estandar_bonificada: float
+    oferta_base_sin_bonificar: float
+    objetivo_negociacion_min: float
+    objetivo_negociacion_max: float
+    tope_aceptable_bonificado_regla: float
+
+
+def fixed_rate_negotiation_hints(euribor_12m_percent: float) -> FixedRateNegotiationHints:
+    """Ofertas y bandas de negociación a partir de E (Euribor 12M %)."""
+    e = max(0.0, float(euribor_12m_percent))
+    return FixedRateNegotiationHints(
+        euribor_12m=round(e, 6),
+        oferta_estandar_bonificada=round(e - 0.10, 4),
+        oferta_base_sin_bonificar=round(e + 1.05, 4),
+        objetivo_negociacion_min=round(e - 0.70, 4),
+        objetivo_negociacion_max=round(e - 0.50, 4),
+        tope_aceptable_bonificado_regla=round(e + 0.20, 4),
+    )
+
+
+NEGOTIATION_REFERENCE_EURIBORS: Tuple[float, ...] = (3.0, 2.7, 2.5, 2.0)
+
+
+def fixed_rate_negotiation_reference_rows() -> List[FixedRateNegotiationHints]:
+    """Filas de ejemplo para tabla de referencia."""
+    return [fixed_rate_negotiation_hints(e) for e in NEGOTIATION_REFERENCE_EURIBORS]
+
+
 def french_monthly_payment(
     principal: float, annual_interest_percent: float, years: int
 ) -> float:
