@@ -127,12 +127,16 @@ def fixed_rate_negotiation_hints(euribor_12m_percent: float) -> FixedRateNegotia
     )
 
 
-NEGOTIATION_REFERENCE_EURIBORS: Tuple[float, ...] = (3.0, 2.7, 2.5, 2.0)
+# Tabla alrededor del valor de la casilla «Tipo fijo»: −0,2 / −0,1 / central / +0,1 / +0,2 (p. p.)
+NEGOTIATION_BAND_OFFSETS: Tuple[float, ...] = (-0.2, -0.1, 0.0, 0.1, 0.2)
 
 
-def fixed_rate_negotiation_reference_rows() -> List[FixedRateNegotiationHints]:
-    """Filas de ejemplo para tabla de referencia."""
-    return [fixed_rate_negotiation_hints(e) for e in NEGOTIATION_REFERENCE_EURIBORS]
+def fixed_rate_negotiation_band_rows(reference_percent: float) -> List[FixedRateNegotiationHints]:
+    """Cinco filas: dos por debajo, referencia central y dos por encima (pasos de 0,1 p. p.)."""
+    c = float(reference_percent)
+    return [
+        fixed_rate_negotiation_hints(round(c + off, 4)) for off in NEGOTIATION_BAND_OFFSETS
+    ]
 
 
 def french_monthly_payment(

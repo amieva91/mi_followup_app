@@ -75,6 +75,18 @@ def add_goal():
     return redirect(url_for("spending_plan.index"))
 
 
+def _negotiation_reference_rate_percent(sim_form: dict) -> float:
+    """Tipo fijo del formulario como referencia para la heurística de negociación."""
+    raw = (sim_form.get("annual_interest_percent") or "").strip().replace(",", ".")
+    if not raw:
+        return 3.5
+    try:
+        v = float(raw)
+        return max(0.0, min(25.0, v))
+    except ValueError:
+        return 3.5
+
+
 def _default_mortgage_form():
     return {
         "purchase_price": "280000",
@@ -143,12 +155,9 @@ def mortgage_simulator():
         except Exception as e:
             flash(f"Simulación no disponible: {e}", "error")
 
-    negotiation_hints = None
-    if interest_context and interest_context.bce_euribor_12m_percent is not None:
-        negotiation_hints = mss.fixed_rate_negotiation_hints(
-            float(interest_context.bce_euribor_12m_percent)
-        )
-    negotiation_ref_rows = mss.fixed_rate_negotiation_reference_rows()
+    negotiation_ref_e = _negotiation_reference_rate_percent(sim_form)
+    negotiation_hints = mss.fixed_rate_negotiation_hints(negotiation_ref_e)
+    negotiation_ref_rows = mss.fixed_rate_negotiation_band_rows(negotiation_ref_e)
 
     return render_template(
         "spending_plan/mortgage.html",
@@ -157,6 +166,7 @@ def mortgage_simulator():
         ltv_ratio_max=int(mss.LTV_RATIO_MAX_PERCENT),
         interest_context=interest_context,
         negotiation_hints=negotiation_hints,
+        negotiation_ref_e=negotiation_ref_e,
         negotiation_ref_rows=negotiation_ref_rows,
         defaults={
             "notary": mss.DEFAULT_NOTARY,
