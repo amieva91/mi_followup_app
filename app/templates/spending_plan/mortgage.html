@@ -215,11 +215,11 @@
         <h2 class="text-lg font-bold text-gray-900 mb-4">Resultado</h2>
         <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 text-sm">
             <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Coste total (compra + ITP + gastos)</dt><dd class="font-medium tabular-nums">{{ "%.2f"|format(result.total_cost) }} €</dd></div>
-            <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Valor tasación estimado (90% precio + 90% ITP)</dt><dd class="font-medium tabular-nums">{{ "%.2f"|format(result.valor_tasacion_inmueble) }} €</dd></div>
             <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Ahorros indicados (efectivo)</dt><dd class="font-medium tabular-nums">{{ "%.2f"|format(result.savings_cash) }} €</dd></div>
+            <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Límite de préstamo (90% precio + 90% ITP)</dt><dd class="font-medium tabular-nums">{{ "%.2f"|format(result.max_loan_by_policy) }} €</dd></div>
+            <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Valor tasación estimado (límite préstamo ÷ 0,80)</dt><dd class="font-medium tabular-nums">{{ "%.2f"|format(result.valor_tasacion_inmueble) }} €</dd></div>
             <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Entrada efectiva (ahorros + gasto tasación)</dt><dd class="font-semibold tabular-nums text-indigo-900">{{ "%.2f"|format(result.effective_entry_total) }} €</dd></div>
             <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Préstamo</dt><dd class="font-medium tabular-nums">{{ "%.2f"|format(result.loan_amount) }} €</dd></div>
-            <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Límite hipoteca (90% precio + 90% ITP)</dt><dd class="font-medium tabular-nums">{{ "%.2f"|format(result.max_loan_by_policy) }} €</dd></div>
             <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">LTV (% de Hipoteca)</dt><dd class="font-medium tabular-nums text-indigo-800">{{ "%.2f"|format(result.ltv_percent) }}%</dd></div>
             <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Tipo nominal anual</dt><dd class="font-medium tabular-nums">{{ "%.4f"|format(result.annual_interest_percent) }} %</dd></div>
             <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Cuota mensual (francesa)</dt><dd class="font-bold text-lg tabular-nums text-emerald-800">{{ "%.2f"|format(result.monthly_payment) }} €</dd></div>
@@ -378,7 +378,7 @@
     var ltvDisp = document.getElementById('mp-ltv-display');
 
     if (pp > 0 && hint) {
-      hint.textContent = 'Mínimo en esta casilla: ' + minCash.toFixed(2) + ' € = Precio de compra (' + pp.toFixed(0) + ' €) − Límite hipoteca (' + maxLoan.toFixed(2) + ' €) + gastos e impuestos (' + gastosImpuestos.toFixed(2) + ' €). ';
+      hint.textContent = 'Mínimo en esta casilla: ' + minCash.toFixed(2) + ' € = Precio de compra (' + pp.toFixed(0) + ' €) − Límite de préstamo (' + maxLoan.toFixed(2) + ' €) + gastos e impuestos (' + gastosImpuestos.toFixed(2) + ' €). ';
     } else if (hint) {
       hint.textContent = 'Indica el precio de compra para ver el mínimo de esta casilla.';
     }
