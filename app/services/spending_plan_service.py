@@ -296,10 +296,9 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
     )
     h = min(settings.horizon_months, PLAN_WINDOW_MONTHS)
     months: List[MonthProjection] = []
-    dsr_cap_monthly = (
+    max_pay = (
         round(income_avg * (max_dsr_pct / 100.0), 2) if income_avg > 0 else 0.0
     )
-    max_pay = dsr_cap_monthly
     if sch.ok and len(sch.surplus_monthly) >= h:
         for i in range(h):
             d = date.today() + relativedelta(months=i)
@@ -365,8 +364,6 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
         "mortgage_entry_outlays_total": mortgage_entry_outlays,
         "goals_total_monthly": goals_cash,
         "goals_dsr_monthly": goals_dsr,
-        "dsr_cap_monthly": dsr_cap_monthly,
-        "max_dsr_percent_effective": max_dsr_pct,
         "goal_lines": goal_lines,
         "generic_goals_modal": generic_goals_modal,
         "months": months,
