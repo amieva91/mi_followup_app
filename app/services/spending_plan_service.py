@@ -21,6 +21,7 @@ from app.services.spending_plan_scheduler import (
     PLAN_WINDOW_MONTHS,
     build_candidate_goal,
     compute_plan_schedule,
+    parse_generic_pay_options,
 )
 from app.services.bank_service import BankService
 from app.services.income_expense_aggregator import (
@@ -202,18 +203,21 @@ def sum_goal_monthlies(
         c, d = goal_monthly_amount(g, today, horizon_months)
         cash_tot += c
         dsr_tot += d
-        lines.append(
-            {
-                "id": g.id,
-                "title": g.title,
-                "priority": g.priority,
-                "goal_type": g.goal_type,
-                "amount_total": g.amount_total,
-                "target_date": g.target_date.isoformat() if g.target_date else None,
-                "monthly_cash": c,
-                "monthly_dsr": d,
-            }
-        )
+        row = {
+            "id": g.id,
+            "title": g.title,
+            "priority": g.priority,
+            "goal_type": g.goal_type,
+            "amount_total": g.amount_total,
+            "target_date": g.target_date.isoformat() if g.target_date else None,
+            "monthly_cash": c,
+            "monthly_dsr": d,
+        }
+        if g.goal_type == "generic":
+            pm, im = parse_generic_pay_options(g.extra_json)
+            row["pay_mode"] = pm
+            row["installment_months"] = im
+        lines.append(row)
     return round(cash_tot, 2), round(dsr_tot, 2), lines
 
 
@@ -329,6 +333,20 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
     ).all()
     cat_options = [{"id": c.id, "label": c.full_name} for c in categories]
 
+    generic_goals_modal = [
+        {
+            "id": gl["id"],
+            "title": gl["title"],
+            "priority": gl["priority"],
+            "amount_total": gl["amount_total"],
+            "target_date": gl["target_date"],
+            "pay_mode": gl.get("pay_mode") or "auto",
+            "installment_months": gl.get("installment_months"),
+        }
+        for gl in goal_lines
+        if gl["goal_type"] == "generic"
+    ]
+
     return {
         "settings": settings,
         "fixed_category_ids": fixed_ids,
@@ -341,6 +359,7 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
         "goals_total_monthly": goals_cash,
         "goals_dsr_monthly": goals_dsr,
         "goal_lines": goal_lines,
+        "generic_goals_modal": generic_goals_modal,
         "months": months,
         "category_options": cat_options,
         "plan_schedule": sch,

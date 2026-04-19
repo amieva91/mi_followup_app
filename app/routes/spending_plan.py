@@ -12,8 +12,6 @@ from app.models.spending_plan import SpendingPlanGoal
 from app.services import spending_plan_service as sps
 from app.services import mortgage_simulation_service as mss
 from app.services import interest_rate_context_service as irctx
-from app.services.spending_plan_scheduler import parse_generic_pay_options
-
 spending_plan_bp = Blueprint("spending_plan", __name__, url_prefix="/planificacion")
 
 
@@ -50,6 +48,7 @@ def index():
         return redirect(url_for("spending_plan.index"))
 
     data = sps.get_spending_plan_page_data(current_user.id)
+    data["open_edit_goal_id"] = request.args.get("edit_goal", type=int)
     return render_template("spending_plan/index.html", **data)
 
 
@@ -142,6 +141,8 @@ def edit_goal(goal_id: int):
     if not g:
         flash("Objetivo no encontrado.", "error")
         return redirect(url_for("spending_plan.index"))
+    if request.method == "GET":
+        return redirect(url_for("spending_plan.index", edit_goal=goal_id))
     if request.method == "POST":
         if not request.form.get("csrf_token"):
             flash("Sesión expirada.", "error")
@@ -176,14 +177,6 @@ def edit_goal(goal_id: int):
             db.session.rollback()
             flash(f"No se pudo guardar: {e}", "error")
         return redirect(url_for("spending_plan.index"))
-
-    pay_mode, installment_months = parse_generic_pay_options(g.extra_json)
-    return render_template(
-        "spending_plan/edit_goal.html",
-        goal=g,
-        pay_mode=pay_mode,
-        installment_months=installment_months,
-    )
 
 
 def _sim_form_from_mortgage_goal(goal: SpendingPlanGoal) -> dict:

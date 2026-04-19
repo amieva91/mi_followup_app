@@ -1,7 +1,60 @@
 {% extends "base/layout.html" %}
 {% block title %}Planificación de gastos{% endblock %}
 {% block content %}
-<div class="max-w-6xl mx-auto px-4 py-8">
+<script>
+function spendingPlanGoals(cfg) {
+    const base = cfg.basePath;
+    return {
+        goals: cfg.goals,
+        openEditId: cfg.openEditId,
+        deleteModalOpen: false,
+        editModalOpen: false,
+        deleteUrl: '',
+        deleteTitle: '',
+        editUrl: '',
+        editTitle: '',
+        editAmount: '',
+        editPriority: 3,
+        editTargetDate: '',
+        editPayMode: '',
+        editInstallmentMonths: '',
+        init() {
+            if (this.openEditId != null) {
+                const oid = this.openEditId;
+                const g = this.goals.find((x) => x.id === oid);
+                if (g) this.openEditModal(g);
+                try {
+                    var u = new URL(window.location.href);
+                    u.searchParams.delete('edit_goal');
+                    var q = u.searchParams.toString();
+                    window.history.replaceState({}, '', u.pathname + (q ? '?' + q : '') + u.hash);
+                } catch (e) { /* ignore */ }
+            }
+        },
+        openDeleteModal(g) {
+            this.deleteTitle = g.title;
+            this.deleteUrl = base + '/objetivo/' + g.id + '/eliminar';
+            this.deleteModalOpen = true;
+        },
+        openEditModal(g) {
+            this.editUrl = base + '/objetivo/' + g.id + '/editar';
+            this.editTitle = g.title;
+            this.editAmount = g.amount_total != null ? Number(g.amount_total).toFixed(2) : '';
+            this.editPriority = g.priority;
+            this.editTargetDate = g.target_date || '';
+            var pm = g.pay_mode || 'auto';
+            this.editPayMode = pm === 'auto' ? '' : pm;
+            var im = g.installment_months;
+            this.editInstallmentMonths = (im != null && im !== '') ? String(im) : '';
+            this.editModalOpen = true;
+        },
+        closeDelete() { this.deleteModalOpen = false; },
+        closeEdit() { this.editModalOpen = false; },
+    };
+}
+</script>
+<div class="max-w-6xl mx-auto px-4 py-8"
+     x-data="spendingPlanGoals({ goals: {{ generic_goals_modal|tojson }}, openEditId: {{ open_edit_goal_id|tojson }}, basePath: {{ (url_for('spending_plan.index')|string).rstrip('/')|tojson }} })">
     {% if plan_schedule and not plan_schedule.ok %}
     <div class="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
         <p class="font-semibold">Plan no viable con la configuración actual</p>
@@ -157,13 +210,17 @@
                             {% if g.goal_type == 'mortgage' %}
                             <a href="{{ url_for('spending_plan.mortgage_simulator', edit=g.id) }}" class="text-indigo-600 hover:underline text-xs mr-3">Editar</a>
                             {% else %}
-                            <a href="{{ url_for('spending_plan.edit_goal', goal_id=g.id) }}" class="text-indigo-600 hover:underline text-xs mr-3">Editar</a>
+                            <button type="button"
+                                    @click="openEditModal({ id: {{ g.id }}, title: {{ g.title|tojson }}, priority: {{ g.priority }}, amount_total: {{ g.amount_total }}, target_date: {{ g.target_date|tojson }}, pay_mode: {{ (g.pay_mode or 'auto')|tojson }}, installment_months: {{ g.installment_months|tojson }} })"
+                                    class="text-indigo-600 hover:underline text-xs mr-3 bg-transparent border-0 p-0 cursor-pointer font-inherit">
+                                Editar
+                            </button>
                             {% endif %}
-                            <form method="post" action="{{ url_for('spending_plan.delete_goal', goal_id=g.id) }}" class="inline"
-                                  onsubmit="return confirm('¿Eliminar este objetivo?');">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                                <button type="submit" class="text-red-600 hover:underline text-xs">Eliminar</button>
-                            </form>
+                            <button type="button"
+                                    @click="openDeleteModal({ id: {{ g.id }}, title: {{ g.title|tojson }} })"
+                                    class="text-red-600 hover:underline text-xs bg-transparent border-0 p-0 cursor-pointer font-inherit">
+                                Eliminar
+                            </button>
                         </td>
                     </tr>
                     {% endfor %}
@@ -247,5 +304,87 @@
         Columna Objetivos: cuotas hipoteca + entradas en el mes + cuotas genéricas planificadas. Superávit = ingreso − fijos − esos cargos. El saldo acumulado usa el efectivo en bancos (sin descontar entradas a futuro) y no puede quedar negativo en el modelo.
         Margen DSR = cuota máxima permitida − cuotas hipoteca del mes.
     </p>
+
+    <template x-teleport="body">
+        <div x-show="deleteModalOpen" x-cloak x-transition
+             class="fixed inset-0 z-[60] flex items-center justify-center p-4"
+             style="display: none;">
+            <div class="absolute inset-0 bg-gray-900/50" @click="closeDelete()" aria-hidden="true"></div>
+            <div class="relative bg-white rounded-xl shadow-xl border border-gray-200 max-w-md w-full p-6" role="dialog" aria-modal="true" @click.stop>
+                <h3 class="text-lg font-semibold text-gray-900 mb-2">¿Eliminar este objetivo?</h3>
+                <p class="text-gray-600 text-sm mb-6 leading-relaxed">
+                    Se quitará del plan y de la proyección. <span class="font-medium text-gray-900" x-text="deleteTitle"></span>
+                </p>
+                <div class="flex flex-wrap justify-end gap-3">
+                    <button type="button" @click="closeDelete()"
+                            class="px-4 py-2.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-800 text-sm font-medium">
+                        Cancelar
+                    </button>
+                    <form :action="deleteUrl" method="post" class="inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <button type="submit" class="px-4 py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium">
+                            Eliminar
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <template x-teleport="body">
+        <div x-show="editModalOpen" x-cloak x-transition
+             class="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6 overflow-y-auto"
+             style="display: none;">
+            <div class="absolute inset-0 bg-gray-900/50" @click="closeEdit()" aria-hidden="true"></div>
+            <div class="relative bg-white rounded-xl shadow-xl border border-gray-200 max-w-lg w-full p-6 my-8" role="dialog" aria-modal="true" @click.stop>
+                <h3 class="text-lg font-semibold text-gray-900 mb-1">Editar objetivo genérico</h3>
+                <p class="text-sm text-gray-500 mb-4">Los cambios se validan con el planificador de 5 años y se replanifican automáticamente.</p>
+                <form method="post" :action="editUrl" class="space-y-4">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
+                        <input type="text" name="title" required maxlength="200" x-model="editTitle"
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Importe total (€)</label>
+                        <input type="number" name="amount_total" required min="0.01" step="0.01" x-model="editAmount"
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Prioridad (1–5)</label>
+                        <input type="number" name="priority" min="1" max="5" x-model="editPriority"
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Fecha límite deseada <span class="text-gray-500 font-normal">(opcional)</span></label>
+                        <input type="date" name="target_date" x-model="editTargetDate"
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Forma de pago <span class="text-gray-500 font-normal">(opcional)</span></label>
+                        <select name="pay_mode" x-model="editPayMode" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900">
+                            <option value="">Automático (el sistema elige)</option>
+                            <option value="installments">Cuotas</option>
+                            <option value="lump">Pago único</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1 cursor-help" title="Si eliges «Cuotas» y un número, se respeta; si lo dejas vacío, el planificador elige el mínimo de meses posible.">N.º cuotas <span class="text-gray-500 font-normal">(opc.)</span></label>
+                        <input type="number" name="installment_months" min="1" max="60" placeholder="—" x-model="editInstallmentMonths"
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
+                    </div>
+                    <div class="flex flex-wrap gap-3 pt-2">
+                        <button type="submit" class="px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium">
+                            Guardar y replanificar
+                        </button>
+                        <button type="button" @click="closeEdit()" class="px-5 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">
+                            Cancelar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </template>
 </div>
 {% endblock %}
