@@ -32,9 +32,13 @@ def _parse_extra_dict(raw: Optional[str]) -> Dict[str, Any]:
 
 def parse_generic_pay_options(extra_json: Optional[str]) -> Tuple[str, Optional[int]]:
     d = _parse_extra_dict(extra_json)
-    mode = (d.get("pay_mode") or "installments").strip().lower()
-    if mode not in ("lump", "installments"):
-        mode = "installments"
+    raw = d.get("pay_mode")
+    if raw is None or (isinstance(raw, str) and not raw.strip()):
+        mode = "auto"
+    else:
+        mode = str(raw).strip().lower()
+        if mode not in ("lump", "installments", "auto"):
+            mode = "auto"
     im = d.get("installment_months")
     try:
         im_int = int(im) if im is not None else None
@@ -206,6 +210,33 @@ def _try_generic_allocation(
         return z, None
 
     deadline_m = max(0, min(W - 1, deadline_m))
+
+    if pay_mode == "auto":
+        inc = _zero(W)
+        inc[deadline_m] = amount
+        if check(inc):
+            return inc, None
+        for m in range(W):
+            inc = _zero(W)
+            inc[m] = amount
+            if check(inc):
+                return (
+                    inc,
+                    f"Pago único automático en mes {m + 1} (primera fecha viable).",
+                )
+        for k in range(1, W + 1):
+            for end in range(k - 1, W):
+                start = end - k + 1
+                pay = amount / k
+                inc = _zero(W)
+                for j in range(k):
+                    inc[start + j] = pay
+                if check(inc):
+                    return (
+                        inc,
+                        f"Automático: {k} cuotas iguales desde mes {start + 1}.",
+                    )
+        return None
 
     if pay_mode == "lump":
         for m in range(0, deadline_m + 1):
@@ -416,10 +447,11 @@ def build_candidate_goal(
     amount_total: float,
     target_date: Optional[date],
     extra_json: Optional[str],
+    sort_id: Optional[int] = None,
 ) -> Any:
-    """Objeto anónimo compatible con compute_plan_schedule (último en su prioridad)."""
+    """Objeto anónimo compatible con compute_plan_schedule (id alto = último en misma prioridad salvo sort_id)."""
     return _CandidateGoal(
-        id=CANDIDATE_SORT_ID,
+        id=sort_id if sort_id is not None else CANDIDATE_SORT_ID,
         title=title,
         goal_type=goal_type,
         priority=priority,

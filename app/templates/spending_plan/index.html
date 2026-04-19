@@ -95,22 +95,22 @@
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
             </div>
             <div class="md:col-span-2">
-                <label class="block text-xs font-medium text-gray-600 mb-1">Fecha límite deseada</label>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Fecha límite deseada <span class="text-gray-500 font-normal">(opcional)</span></label>
                 <input type="date" name="target_date"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
             </div>
             <div class="md:col-span-2">
-                <label class="block text-xs font-medium text-gray-600 mb-1">Forma de pago</label>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Forma de pago <span class="text-gray-500 font-normal">(opcional)</span></label>
                 <select name="pay_mode" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900">
-                    <option value="installments">En cuotas (reparto automático)</option>
+                    <option value="">Automático (el sistema elige)</option>
+                    <option value="installments">Cuotas</option>
                     <option value="lump">Pago único</option>
                 </select>
             </div>
             <div class="md:col-span-2">
-                <label class="block text-xs font-medium text-gray-600 mb-1">N.º cuotas (opc.)</label>
-                <input type="number" name="installment_months" min="1" max="60" placeholder="Auto"
+                <label class="block text-xs font-medium text-gray-600 mb-1 cursor-help" title="Si eliges «Cuotas» y un número, se respeta; si lo dejas vacío, el planificador elige el mínimo de meses posible.">N.º cuotas <span class="text-gray-500 font-normal">(opc.)</span></label>
+                <input type="number" name="installment_months" min="1" max="60" placeholder="—"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
-                <p class="text-xs text-gray-500 mt-0.5">Solo si eliges cuotas; si vacío, el planificador elige el mínimo posible.</p>
             </div>
             <div class="md:col-span-12 md:text-right">
                 <button type="submit" class="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 text-sm font-medium">
@@ -141,7 +141,7 @@
                         <th class="py-2 pr-4 text-right">Total</th>
                         <th class="py-2 pr-4 text-right">€/mes (efectivo)</th>
                         <th class="py-2 pr-4 text-right">€/mes (DSR)</th>
-                        <th class="py-2"></th>
+                        <th class="py-2 text-right">Acciones</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
@@ -153,7 +153,12 @@
                         <td class="py-2 pr-4 text-right tabular-nums">{{ "%.2f"|format(g.amount_total) }}</td>
                         <td class="py-2 pr-4 text-right tabular-nums">{{ "%.2f"|format(g.monthly_cash) }}</td>
                         <td class="py-2 pr-4 text-right tabular-nums text-indigo-800">{{ "%.2f"|format(g.monthly_dsr) }}</td>
-                        <td class="py-2 text-right">
+                        <td class="py-2 text-right whitespace-nowrap">
+                            {% if g.goal_type == 'mortgage' %}
+                            <a href="{{ url_for('spending_plan.mortgage_simulator', edit=g.id) }}" class="text-indigo-600 hover:underline text-xs mr-3">Editar</a>
+                            {% else %}
+                            <a href="{{ url_for('spending_plan.edit_goal', goal_id=g.id) }}" class="text-indigo-600 hover:underline text-xs mr-3">Editar</a>
+                            {% endif %}
                             <form method="post" action="{{ url_for('spending_plan.delete_goal', goal_id=g.id) }}" class="inline"
                                   onsubmit="return confirm('¿Eliminar este objetivo?');">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>

@@ -8,9 +8,11 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_required, current_user
 
 from app import db
+from app.models.spending_plan import SpendingPlanGoal
 from app.services import spending_plan_service as sps
 from app.services import mortgage_simulation_service as mss
 from app.services import interest_rate_context_service as irctx
+from app.services.spending_plan_scheduler import parse_generic_pay_options
 
 spending_plan_bp = Blueprint("spending_plan", __name__, url_prefix="/planificacion")
 
@@ -58,11 +60,40 @@ def add_goal():
         flash("Sesión expirada.", "error")
         return redirect(url_for("spending_plan.index"))
     try:
+        gtype = (request.form.get("goal_type") or "generic").strip().lower()
+        update_id = request.form.get("update_goal_id", type=int)
+        if update_id and gtype == "mortgage":
+            title = request.form.get("title") or ""
+            amount = float(request.form.get("amount_total") or 0)
+            priority = int(request.form.get("priority") or 3)
+            td = _parse_target_date(request.form.get("target_date") or "")
+            extra = (request.form.get("extra_json") or "").strip() or None
+            if extra and isinstance(extra, str):
+                try:
+                    d = json.loads(extra)
+                    if isinstance(d, dict):
+                        lp = (request.form.get("loan_payment_start") or "").strip()
+                        if lp:
+                            d["loan_payment_start"] = lp[:10]
+                        extra = json.dumps(d, ensure_ascii=False)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            sps.update_mortgage_goal(
+                current_user.id,
+                update_id,
+                title,
+                amount,
+                priority,
+                td,
+                extra or "{}",
+            )
+            flash("Objetivo hipoteca actualizado.", "success")
+            return redirect(url_for("spending_plan.index"))
+
         title = request.form.get("title") or ""
         amount = float(request.form.get("amount_total") or 0)
         priority = int(request.form.get("priority") or 3)
         td = _parse_target_date(request.form.get("target_date") or "")
-        gtype = (request.form.get("goal_type") or "generic").strip().lower()
         extra = (request.form.get("extra_json") or "").strip() or None
         if gtype == "mortgage" and extra:
             try:
@@ -102,6 +133,85 @@ def add_goal():
     return redirect(url_for("spending_plan.index"))
 
 
+@spending_plan_bp.route("/objetivo/<int:goal_id>/editar", methods=["GET", "POST"])
+@login_required
+def edit_goal(goal_id: int):
+    g = SpendingPlanGoal.query.filter_by(
+        id=goal_id, user_id=current_user.id, goal_type="generic"
+    ).first()
+    if not g:
+        flash("Objetivo no encontrado.", "error")
+        return redirect(url_for("spending_plan.index"))
+    if request.method == "POST":
+        if not request.form.get("csrf_token"):
+            flash("Sesión expirada.", "error")
+            return redirect(url_for("spending_plan.index"))
+        try:
+            title = request.form.get("title") or ""
+            amount = float(request.form.get("amount_total") or 0)
+            priority = int(request.form.get("priority") or 3)
+            td = _parse_target_date(request.form.get("target_date") or "")
+            pay_mode = (request.form.get("pay_mode") or "").strip() or None
+            raw_inst = request.form.get("installment_months")
+            installment_months = None
+            if raw_inst is not None and str(raw_inst).strip() != "":
+                try:
+                    installment_months = int(raw_inst)
+                except ValueError:
+                    installment_months = None
+            sps.update_generic_goal(
+                current_user.id,
+                goal_id,
+                title,
+                amount,
+                priority,
+                td,
+                pay_mode=pay_mode,
+                installment_months=installment_months,
+            )
+            flash("Objetivo actualizado y plan replanificado.", "success")
+        except ValueError as e:
+            flash(str(e), "error")
+        except Exception as e:
+            db.session.rollback()
+            flash(f"No se pudo guardar: {e}", "error")
+        return redirect(url_for("spending_plan.index"))
+
+    pay_mode, installment_months = parse_generic_pay_options(g.extra_json)
+    return render_template(
+        "spending_plan/edit_goal.html",
+        goal=g,
+        pay_mode=pay_mode,
+        installment_months=installment_months,
+    )
+
+
+def _sim_form_from_mortgage_goal(goal: SpendingPlanGoal) -> dict:
+    sim_form = _default_mortgage_form()
+    if not goal or not goal.extra_json:
+        return sim_form
+    try:
+        ex = json.loads(goal.extra_json)
+    except (json.JSONDecodeError, TypeError):
+        return sim_form
+    if not isinstance(ex, dict):
+        return sim_form
+    if ex.get("purchase_price") is not None:
+        sim_form["purchase_price"] = str(ex.get("purchase_price"))
+    if ex.get("savings_cash") is not None:
+        sim_form["savings"] = str(ex.get("savings_cash"))
+    if ex.get("years") is not None:
+        sim_form["years"] = str(int(ex.get("years")))
+    if ex.get("annual_interest_percent") is not None:
+        sim_form["annual_interest_percent"] = str(ex.get("annual_interest_percent"))
+    try:
+        itp = float(ex.get("itp_percent") or 6)
+    except (TypeError, ValueError):
+        itp = 6.0
+    sim_form["first_home"] = itp <= 6.5
+    return sim_form
+
+
 def _negotiation_reference_rate_percent(sim_form: dict) -> float:
     """Tipo fijo del formulario como referencia para la heurística de negociación."""
     raw = (sim_form.get("annual_interest_percent") or "").strip().replace(",", ".")
@@ -134,15 +244,46 @@ def mortgage_simulator():
     result = None
     interest_context = irctx.get_latest_snapshot()
     sim_form = _default_mortgage_form()
+    edit_goal = None
+    loan_payment_start_value = ""
+    purchase_date_value = ""
+
+    edit_param = request.args.get("edit", type=int)
+    if request.method == "POST":
+        edit_param = request.form.get("edit_goal_id", type=int) or edit_param
+
+    if edit_param:
+        mg = SpendingPlanGoal.query.filter_by(
+            id=edit_param, user_id=current_user.id, goal_type="mortgage"
+        ).first()
+        if mg:
+            edit_goal = mg
+            sim_form = _sim_form_from_mortgage_goal(mg)
+            if mg.target_date:
+                purchase_date_value = mg.target_date.isoformat()
+            try:
+                ex = json.loads(mg.extra_json or "{}")
+                if isinstance(ex, dict) and ex.get("loan_payment_start"):
+                    loan_payment_start_value = str(ex.get("loan_payment_start"))[:10]
+            except (json.JSONDecodeError, TypeError):
+                pass
+
     if interest_context and interest_context.bce_euribor_12m_percent is not None:
-        sim_form["annual_interest_percent"] = (
-            f"{float(interest_context.bce_euribor_12m_percent):.2f}"
-        )
+        if not edit_goal:
+            sim_form["annual_interest_percent"] = (
+                f"{float(interest_context.bce_euribor_12m_percent):.2f}"
+            )
 
     if request.method == "POST" and request.form.get("action") == "simulate":
         if not request.form.get("csrf_token"):
             flash("Sesión expirada.", "error")
-            return redirect(url_for("spending_plan.mortgage_simulator"))
+            eid_redir = request.form.get("edit_goal_id", type=int)
+            return redirect(
+                url_for(
+                    "spending_plan.mortgage_simulator",
+                    **({"edit": eid_redir} if eid_redir else {}),
+                )
+            )
         sim_form = {
             "purchase_price": (request.form.get("purchase_price") or "").strip(),
             "savings": (request.form.get("savings") or "").strip(),
@@ -156,6 +297,13 @@ def mortgage_simulator():
             "gestoria": (request.form.get("gestoria") or "").strip(),
             "tasacion": (request.form.get("tasacion") or "").strip(),
         }
+        eid = request.form.get("edit_goal_id", type=int)
+        if eid:
+            mg = SpendingPlanGoal.query.filter_by(
+                id=eid, user_id=current_user.id, goal_type="mortgage"
+            ).first()
+            if mg:
+                edit_goal = mg
         try:
             pp = float(sim_form["purchase_price"] or 0)
             sav = float(sim_form["savings"] or 0)
@@ -195,6 +343,9 @@ def mortgage_simulator():
         negotiation_hints=negotiation_hints,
         negotiation_ref_e=negotiation_ref_e,
         negotiation_ref_rows=negotiation_ref_rows,
+        edit_goal=edit_goal,
+        loan_payment_start_value=loan_payment_start_value,
+        purchase_date_value=purchase_date_value,
         defaults={
             "notary": mss.DEFAULT_NOTARY,
             "registry": mss.DEFAULT_REGISTRY,

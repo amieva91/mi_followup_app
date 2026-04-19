@@ -13,6 +13,12 @@
         </div>
     </div>
 
+    {% if edit_goal %}
+    <p class="mb-6 text-sm text-indigo-900 bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3">
+        Editando el objetivo «{{ edit_goal.title }}». Modifica la simulación y pulsa <strong>Calcular</strong>; luego guarda para actualizar el plan.
+    </p>
+    {% endif %}
+
     {% if interest_context %}
     <div class="mb-8 rounded-xl border border-slate-200 bg-slate-50/80 p-5 text-sm text-slate-800">
         <div class="flex flex-wrap items-baseline justify-between gap-2 mb-3">
@@ -51,6 +57,9 @@
     <form method="post" class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-8 space-y-6" id="mortgage-sim-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <input type="hidden" name="action" value="simulate"/>
+        {% if edit_goal %}
+        <input type="hidden" name="edit_goal_id" value="{{ edit_goal.id }}"/>
+        {% endif %}
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -230,35 +239,40 @@
         </p>
 
         <div class="mt-8 pt-6 border-t border-gray-100">
-            <h3 class="text-sm font-semibold text-gray-900 mb-3">Añadir a planificación como objetivo hipoteca</h3>
+            <h3 class="text-sm font-semibold text-gray-900 mb-3">{% if edit_goal %}Guardar objetivo hipoteca en el plan{% else %}Añadir a planificación como objetivo hipoteca{% endif %}</h3>
             <p class="text-xs text-gray-500 mb-3">Solo desde aquí se registra una hipoteca de vivienda. Se valida contra el plan (5 años, DSR, saldo no negativo y entrada con efectivo disponible). La cuota del préstamo puede proyectarse más allá de 5 años; el planificador solo comprueba los primeros 60 meses.</p>
             <form method="post" action="{{ url_for('spending_plan.add_goal') }}" class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                 <input type="hidden" name="goal_type" value="mortgage"/>
                 <input type="hidden" name="amount_total" value="{{ "%.2f"|format(result.loan_amount) }}"/>
                 <input type="hidden" name="extra_json" value="{{ result.to_extra_json()|e }}"/>
+                {% if edit_goal %}
+                <input type="hidden" name="update_goal_id" value="{{ edit_goal.id }}"/>
+                {% endif %}
                 <div class="md:col-span-4">
                     <label class="block text-xs font-medium text-gray-600 mb-1">Nombre del objetivo</label>
-                    <input type="text" name="title" required maxlength="200" value="Hipoteca vivienda"
+                    <input type="text" name="title" required maxlength="200" value="{{ edit_goal.title if edit_goal else 'Hipoteca vivienda' }}"
                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
                 </div>
                 <div class="md:col-span-2">
                     <label class="block text-xs font-medium text-gray-600 mb-1">Prioridad (1–5)</label>
-                    <input type="number" name="priority" min="1" max="5" value="2"
+                    <input type="number" name="priority" min="1" max="5" value="{{ edit_goal.priority if edit_goal else 2 }}"
                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
                 </div>
                 <div class="md:col-span-3">
                     <label class="block text-xs font-medium text-gray-600 mb-1">Fecha de compra / entrada (mes del desembolso)</label>
-                    <input type="date" name="target_date" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
+                    <input type="date" name="target_date" value="{{ purchase_date_value or '' }}"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
                 </div>
                 <div class="md:col-span-3">
                     <label class="block text-xs font-medium text-gray-600 mb-1">Primera cuota hipoteca</label>
-                    <input type="date" name="loan_payment_start" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
+                    <input type="date" name="loan_payment_start" value="{{ loan_payment_start_value or '' }}"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
                     <p class="text-xs text-gray-500 mt-1">No anterior a la fecha de compra.</p>
                 </div>
                 <div class="md:col-span-12 md:text-right">
                     <button type="submit" class="w-full md:w-auto px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 text-sm font-medium">
-                        Añadir objetivo hipoteca
+                        {% if edit_goal %}Guardar cambios y replanificar{% else %}Añadir objetivo hipoteca{% endif %}
                     </button>
                 </div>
             </form>

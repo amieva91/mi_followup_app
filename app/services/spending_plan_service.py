@@ -348,6 +348,26 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
     }
 
 
+def _generic_extra_json(
+    pay_mode: Optional[str], installment_months: Optional[int]
+) -> str:
+    raw_pm = (pay_mode or "").strip().lower()
+    if not raw_pm:
+        pm = "auto"
+    elif raw_pm in ("lump", "installments", "auto"):
+        pm = raw_pm
+    else:
+        pm = "auto"
+    im: Optional[int] = None
+    if pm == "installments" and installment_months is not None:
+        if str(installment_months).strip() != "":
+            try:
+                im = max(1, int(installment_months))
+            except (TypeError, ValueError):
+                im = None
+    return json.dumps({"pay_mode": pm, "installment_months": im}, ensure_ascii=False)
+
+
 def add_goal(
     user_id: int,
     title: str,
@@ -373,18 +393,7 @@ def add_goal(
         gt = "generic"
     extra: Optional[str] = None
     if gt == "generic":
-        pm = (pay_mode or "installments").strip().lower()
-        if pm not in ("lump", "installments"):
-            pm = "installments"
-        im: Optional[int] = None
-        if installment_months is not None and str(installment_months).strip() != "":
-            try:
-                im = max(1, int(installment_months))
-            except (TypeError, ValueError):
-                im = None
-        extra = json.dumps(
-            {"pay_mode": pm, "installment_months": im}, ensure_ascii=False
-        )
+        extra = _generic_extra_json(pay_mode, installment_months)
     elif extra_json is not None:
         raw = str(extra_json).strip()
         if raw:
@@ -435,6 +444,147 @@ def add_goal(
         extra_json=extra,
     )
     db.session.add(g)
+    db.session.commit()
+    return g
+
+
+def update_generic_goal(
+    user_id: int,
+    goal_id: int,
+    title: str,
+    amount_total: float,
+    priority: int,
+    target_date: Optional[date],
+    pay_mode: Optional[str] = None,
+    installment_months: Optional[int] = None,
+) -> SpendingPlanGoal:
+    g = SpendingPlanGoal.query.filter_by(
+        id=goal_id, user_id=user_id, goal_type="generic"
+    ).first()
+    if not g:
+        raise ValueError("Objetivo no encontrado o no es genérico.")
+    title = (title or "").strip()
+    if not title:
+        raise ValueError("El nombre del objetivo es obligatorio.")
+    amt = float(amount_total)
+    if amt <= 0:
+        raise ValueError("El importe debe ser mayor que cero.")
+    pr = int(priority)
+    if pr < 1 or pr > 5:
+        raise ValueError("La prioridad debe estar entre 1 y 5 (1 = más alta).")
+    extra = _generic_extra_json(pay_mode, installment_months)
+    settings = _get_or_create_settings(user_id)
+    fixed_ids = get_fixed_category_ids(user_id)
+    income_avg = get_avg_monthly_income(user_id, 12)
+    fixed_total, _ = compute_fixed_expenses_monthly(user_id, fixed_ids)
+    bank_gross = get_current_bank_cash(user_id)
+    others = [
+        x
+        for x in SpendingPlanGoal.query.filter_by(user_id=user_id).all()
+        if x.id != goal_id
+    ]
+    cand = build_candidate_goal(
+        title=title,
+        goal_type="generic",
+        priority=pr,
+        amount_total=amt,
+        target_date=target_date,
+        extra_json=extra,
+        sort_id=goal_id,
+    )
+    merged = others + [cand]
+    sch = compute_plan_schedule(
+        today=date.today(),
+        income_avg=income_avg,
+        fixed_monthly=fixed_total,
+        starting_cash=bank_gross,
+        max_dsr_percent=settings.max_dsr_percent,
+        goals=merged,
+    )
+    if not sch.ok:
+        raise ValueError(
+            sch.error_message
+            or "No se puede guardar: plan no viable en el horizonte de 5 años."
+        )
+    g.title = title[:200]
+    g.amount_total = amt
+    g.priority = pr
+    g.target_date = target_date
+    g.extra_json = extra
+    db.session.commit()
+    return g
+
+
+def update_mortgage_goal(
+    user_id: int,
+    goal_id: int,
+    title: str,
+    amount_total: float,
+    priority: int,
+    target_date: Optional[date],
+    extra_json: str,
+) -> SpendingPlanGoal:
+    g = SpendingPlanGoal.query.filter_by(
+        id=goal_id, user_id=user_id, goal_type="mortgage"
+    ).first()
+    if not g:
+        raise ValueError("Objetivo hipoteca no encontrado.")
+    title = (title or "").strip()
+    if not title:
+        raise ValueError("El nombre del objetivo es obligatorio.")
+    amt = float(amount_total)
+    if amt <= 0:
+        raise ValueError("El importe debe ser mayor que cero.")
+    pr = int(priority)
+    if pr < 1 or pr > 5:
+        raise ValueError("La prioridad debe estar entre 1 y 5 (1 = más alta).")
+    raw = str(extra_json or "").strip()
+    if not raw:
+        raise ValueError("Faltan datos de la simulación.")
+    if len(raw) > 32000:
+        raise ValueError("Datos extra demasiado largos.")
+    try:
+        json.loads(raw)
+    except json.JSONDecodeError:
+        raise ValueError("Datos de simulación no válidos.")
+    settings = _get_or_create_settings(user_id)
+    fixed_ids = get_fixed_category_ids(user_id)
+    income_avg = get_avg_monthly_income(user_id, 12)
+    fixed_total, _ = compute_fixed_expenses_monthly(user_id, fixed_ids)
+    bank_gross = get_current_bank_cash(user_id)
+    others = [
+        x
+        for x in SpendingPlanGoal.query.filter_by(user_id=user_id).all()
+        if x.id != goal_id
+    ]
+    cand = build_candidate_goal(
+        title=title,
+        goal_type="mortgage",
+        priority=pr,
+        amount_total=amt,
+        target_date=target_date,
+        extra_json=raw,
+        sort_id=goal_id,
+    )
+    merged = others + [cand]
+    sch = compute_plan_schedule(
+        today=date.today(),
+        income_avg=income_avg,
+        fixed_monthly=fixed_total,
+        starting_cash=bank_gross,
+        max_dsr_percent=settings.max_dsr_percent,
+        goals=merged,
+    )
+    if not sch.ok:
+        raise ValueError(
+            sch.error_message
+            or "No se puede guardar: plan no viable en el horizonte de 5 años."
+        )
+    g.title = title[:200]
+    g.amount_total = amt
+    g.priority = pr
+    g.target_date = target_date
+    g.extra_json = raw
     db.session.commit()
     return g
 
