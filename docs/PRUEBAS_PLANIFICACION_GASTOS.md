@@ -8,6 +8,36 @@ Usar en [followup.fit](https://followup.fit/) (rama experimental) o entorno loca
 2. Ir a **Planificación de gastos** (`/planificacion`).
 3. Anotar: ingreso medio, gastos fijos, efectivo inicial, DSR % configurado.
 
+### Seguimiento (marcado al confirmar cada prueba)
+
+- [ ] Prep
+- [x] A1
+- [x] A2
+- [x] A3
+- [x] A4
+- [x] A5
+- [ ] A6
+- [ ] A7
+- [ ] B1
+- [ ] B2
+- [ ] C1
+- [ ] C2
+- [ ] C3
+- [ ] C4
+- [ ] C5
+- [ ] C6
+- [ ] C7
+- [ ] D1
+- [ ] D2
+- [ ] D3
+- [ ] E1
+- [ ] E2
+- [ ] E3
+- [ ] E4
+- [ ] F1
+- [ ] F2
+- [ ] G
+
 ---
 
 ## A. Modales y navegación (UI)
@@ -37,11 +67,11 @@ Usar en [followup.fit](https://followup.fit/) (rama experimental) o entorno loca
 
 | # | Escenario | Pasos | Resultado esperado |
 |---|-----------|--------|-------------------|
-| C1 | Solo nombre + importe + prioridad | Sin fecha, forma **Automático** | Objetivo añadido; planificador asigna modo (único/cuotas) según saldo, DSR y prioridades. |
-| C2 | Automático + fecha límite | Fecha futura, resto automático | Intenta cumplir hacia esa fecha si el plan es viable. |
-| C3 | Pago único explícito | **Pago único** + importe | Una carga concentrada en un mes (o mensaje de error / aviso si no cabe). |
-| C4 | Cuotas + número | **Cuotas**, N meses | Reparto en N meses (o aviso del planificador). |
-| C5 | Cuotas sin número | **Cuotas**, N.º cuotas vacío | Mínimo de meses posible según reglas (tooltip / avisos). |
+| C1 | Solo nombre + importe + prioridad | Sin fecha, **N.º cuotas** vacío | Objetivo añadido; planificador asigna modo (único/cuotas) según saldo, DSR y prioridades. |
+| C2 | Automático + fecha límite | Fecha futura, cuotas vacías | Intenta cumplir hacia esa fecha si el plan es viable. |
+| C3 | Pago único explícito | **N.º cuotas = 1** | Una carga concentrada en un mes (o mensaje de error / aviso si no cabe). |
+| C4 | Cuotas + número | **N.º cuotas = N** (≥ 2) | Reparto en N meses (o aviso del planificador). |
+| C5 | Cuotas “automáticas” | **N.º cuotas** vacío con objetivo que requiera fraccionar | Mínimo de meses posible según reglas (tooltip / avisos). |
 | C6 | Plan inviable | Varios objetivos + poco saldo o DSR muy bajo | Banner rojo «Plan no viable…» con mensaje claro; proyección fallback si aplica. |
 | C7 | Avisos no bloqueantes | Configuración límite | Caja ámbar «Avisos del planificador» con lista de textos comprensibles. |
 

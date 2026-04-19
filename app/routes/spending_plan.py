@@ -104,14 +104,14 @@ def add_goal():
                     extra = json.dumps(d, ensure_ascii=False)
             except (json.JSONDecodeError, TypeError):
                 pass
-        pay_mode = (request.form.get("pay_mode") or "").strip() or None
         raw_inst = request.form.get("installment_months")
-        installment_months = None
-        if raw_inst is not None and str(raw_inst).strip() != "":
-            try:
-                installment_months = int(raw_inst)
-            except ValueError:
-                installment_months = None
+        try:
+            pay_mode, installment_months = sps.pay_options_from_installment_field(
+                raw_inst
+            )
+        except ValueError as e:
+            flash(str(e), "error")
+            return redirect(url_for("spending_plan.index"))
         sps.add_goal(
             current_user.id,
             title,
@@ -152,14 +152,14 @@ def edit_goal(goal_id: int):
             amount = float(request.form.get("amount_total") or 0)
             priority = int(request.form.get("priority") or 3)
             td = _parse_target_date(request.form.get("target_date") or "")
-            pay_mode = (request.form.get("pay_mode") or "").strip() or None
             raw_inst = request.form.get("installment_months")
-            installment_months = None
-            if raw_inst is not None and str(raw_inst).strip() != "":
-                try:
-                    installment_months = int(raw_inst)
-                except ValueError:
-                    installment_months = None
+            try:
+                pay_mode, installment_months = sps.pay_options_from_installment_field(
+                    raw_inst
+                )
+            except ValueError as e:
+                flash(str(e), "error")
+                return redirect(url_for("spending_plan.index"))
             sps.update_generic_goal(
                 current_user.id,
                 goal_id,

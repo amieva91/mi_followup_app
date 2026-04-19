@@ -340,8 +340,9 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
             "priority": gl["priority"],
             "amount_total": gl["amount_total"],
             "target_date": gl["target_date"],
-            "pay_mode": gl.get("pay_mode") or "auto",
-            "installment_months": gl.get("installment_months"),
+            "installment_field": installment_field_for_ui(
+                gl.get("pay_mode"), gl.get("installment_months")
+            ),
         }
         for gl in goal_lines
         if gl["goal_type"] == "generic"
@@ -365,6 +366,44 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
         "plan_schedule": sch,
         "plan_window_months": PLAN_WINDOW_MONTHS,
     }
+
+
+def installment_field_for_ui(
+    pay_mode: Optional[str], installment_months: Optional[int]
+) -> str:
+    """Valor del campo único N.º cuotas: vacío=auto, 1=pago único, ≥2=cuotas."""
+    pm = (pay_mode or "auto").strip().lower()
+    if pm == "lump":
+        return "1"
+    if pm == "installments" and installment_months is not None:
+        try:
+            return str(max(1, int(installment_months)))
+        except (TypeError, ValueError):
+            return ""
+    return ""
+
+
+def pay_options_from_installment_field(
+    raw: Optional[str],
+) -> Tuple[str, Optional[int]]:
+    """
+    Interpreta el campo único de cuotas del formulario.
+    Vacío → automático; 1 → pago único; 2–60 → cuotas en N meses.
+    """
+    if raw is None or str(raw).strip() == "":
+        return "auto", None
+    try:
+        n = int(str(raw).strip())
+    except ValueError as e:
+        raise ValueError(
+            "N.º cuotas: introduce un número entero o déjalo vacío para automático."
+        ) from e
+    if n < 1:
+        raise ValueError("N.º cuotas debe ser al menos 1, o vacío para automático.")
+    n = min(60, n)
+    if n == 1:
+        return "lump", None
+    return "installments", n
 
 
 def _generic_extra_json(
