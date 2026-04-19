@@ -327,10 +327,11 @@ def run_simulation(
     def _eur(x: float) -> str:
         return f"{x:.2f} €"
 
+    total_estimado_compra_intereses = round(total_cost + total_int, 2)
     info: List[str] = [
-        f"Coste total estimado (compra + ITP + gastos, incl. tasación): {_eur(total_cost)}",
-        f"Límite de préstamo (90% precio + 90% ITP): {_eur(max_loan)}",
-        f"Valor tasación estimado (límite préstamo ÷ 0,80): {_eur(valor_tasacion_estimado)}",
+        f"Compra y gastos de formalización: {_eur(total_cost)}",
+        f"Valor tasación mínima (límite préstamo ÷ 0,80): {_eur(valor_tasacion_estimado)}",
+        f"Total estimado a pagar en {yrs} años (compra + intereses): {_eur(total_estimado_compra_intereses)}",
         f"Aportación efectiva (ahorros + gasto tasación): {_eur(effective_entry)}",
         f"Préstamo: {_eur(loan)} · LTV (% hipoteca, sobre precio+ITP): {ltv_pct:.2f}%",
     ]
