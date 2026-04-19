@@ -32,11 +32,13 @@ function spendingPlanGoals(cfg) {
             }
         },
         openDeleteModal(g) {
-            this.deleteTitle = g.title;
+            if (!g || g.id == null) return;
+            this.deleteTitle = g.title || '';
             this.deleteUrl = base + '/objetivo/' + g.id + '/eliminar';
             this.deleteModalOpen = true;
         },
         openEditModal(g) {
+            if (!g || g.id == null) return;
             this.editUrl = base + '/objetivo/' + g.id + '/editar';
             this.editTitle = g.title;
             this.editAmount = g.amount_total != null ? Number(g.amount_total).toFixed(2) : '';
@@ -54,7 +56,7 @@ function spendingPlanGoals(cfg) {
 }
 </script>
 <div class="max-w-6xl mx-auto px-4 py-8"
-     x-data="spendingPlanGoals({ goals: {{ generic_goals_modal|tojson }}, openEditId: {{ open_edit_goal_id|tojson }}, basePath: {{ (url_for('spending_plan.index')|string).rstrip('/')|tojson }} })">
+     x-data='spendingPlanGoals({ goals: {{ generic_goals_modal|tojson }}, openEditId: {{ open_edit_goal_id|tojson }}, basePath: {{ (url_for("spending_plan.index")|string).rstrip("/")|tojson }} })'>
     {% if plan_schedule and not plan_schedule.ok %}
     <div class="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
         <p class="font-semibold">Plan no viable con la configuración actual</p>
@@ -211,13 +213,13 @@ function spendingPlanGoals(cfg) {
                             <a href="{{ url_for('spending_plan.mortgage_simulator', edit=g.id) }}" class="text-indigo-600 hover:underline text-xs mr-3">Editar</a>
                             {% else %}
                             <button type="button"
-                                    @click="openEditModal({ id: {{ g.id }}, title: {{ g.title|tojson }}, priority: {{ g.priority }}, amount_total: {{ g.amount_total }}, target_date: {{ g.target_date|tojson }}, pay_mode: {{ (g.pay_mode or 'auto')|tojson }}, installment_months: {{ g.installment_months|tojson }} })"
+                                    @click='openEditModal(goals.find(function (x) { return x.id === {{ g.id }}; }))'
                                     class="text-indigo-600 hover:underline text-xs mr-3 bg-transparent border-0 p-0 cursor-pointer font-inherit">
                                 Editar
                             </button>
                             {% endif %}
                             <button type="button"
-                                    @click="openDeleteModal({ id: {{ g.id }}, title: {{ g.title|tojson }} })"
+                                    @click='openDeleteModal({ id: {{ g.id }}, title: {{ g.title|tojson }} })'
                                     class="text-red-600 hover:underline text-xs bg-transparent border-0 p-0 cursor-pointer font-inherit">
                                 Eliminar
                             </button>
