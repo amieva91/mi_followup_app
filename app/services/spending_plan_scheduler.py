@@ -106,22 +106,36 @@ def _add_vec(a: Sequence[float], b: Sequence[float]) -> List[float]:
     return [float(a[i]) + float(b[i]) for i in range(len(a))]
 
 
-def _simulate_cash_non_negative(
+def _simulate_cash_initial_only(
     cash0: float,
     income: float,
     fixed: float,
-    mortgage: Sequence[float],
     initial: Sequence[float],
-    generic: Sequence[float],
 ) -> bool:
-    W = len(mortgage)
+    """
+    Saldo acumulado solo se ve afectado por ingresos, gastos fijos y entrada hipotecaria.
+    Las cuotas de préstamo y los objetivos genéricos no descuentan del efectivo (van por cupo DSR).
+    """
+    W = len(initial)
     cash = cash0
     for m in range(W):
         cash += income - fixed
-        cash -= mortgage[m]
         cash -= initial[m]
-        cash -= generic[m]
         if cash < -1e-4:
+            return False
+    return True
+
+
+def _dsr_within_cap(
+    income: float,
+    max_dsr_pct: float,
+    mortgage: Sequence[float],
+    generic: Sequence[float],
+) -> bool:
+    cap = income * (max_dsr_pct / 100.0) if income > 0 else 0.0
+    W = len(mortgage)
+    for m in range(W):
+        if mortgage[m] + generic[m] > cap + 1e-4:
             return False
     return True
 
@@ -202,12 +216,15 @@ def _try_generic_allocation(
     fixed: float,
     mortgage: Sequence[float],
     initial: Sequence[float],
+    max_dsr_pct: float,
 ) -> Optional[Tuple[List[float], Optional[str]]]:
-    """Devuelve incremento a generic por mes o None si no cabe en ventana."""
+    """Devuelve incremento a generic por mes o None si no cabe (DSR + efectivo solo entrada)."""
 
     def check(extra: List[float]) -> bool:
         g = _add_vec(base_generic, extra)
-        return _simulate_cash_non_negative(cash0, income, fixed, mortgage, initial, g)
+        if not _dsr_within_cap(income, max_dsr_pct, mortgage, g):
+            return False
+        return _simulate_cash_initial_only(cash0, income, fixed, initial)
 
     if amount <= 1e-6:
         z = _zero(W)
@@ -288,7 +305,7 @@ def _try_generic_allocation(
             if check(inc):
                 return (
                     inc,
-                    f"Cuotas repartidas en {k} meses (desde mes {start + 1}) para cumplir saldo ≥ 0.",
+                    f"Cuotas repartidas en {k} meses (desde mes {start + 1}) dentro del cupo DSR.",
                 )
     return None
 
@@ -322,13 +339,6 @@ def compute_plan_schedule(
             initial_outlay_by_month=initial,
         )
 
-    dsr_ok = []
-    cap = income_avg * (max_dsr_percent / 100.0) if income_avg > 0 else 0.0
-    for m in range(W):
-        ok = income_avg <= 0 or mortgage[m] <= cap + 1e-4
-        dsr_ok.append(ok)
-    out.dsr_ok_each_month = dsr_ok
-
     generics = [g for g in goals if getattr(g, "goal_type", "generic") == "generic"]
     generics.sort(key=lambda x: (x.priority, x.id))
 
@@ -354,14 +364,15 @@ def compute_plan_schedule(
             fixed_monthly,
             mortgage,
             initial,
+            max_dsr_percent,
         )
         if res is None:
             return PlanScheduleResult(
                 ok=False,
                 error_message=(
-                    f"No se puede afrontar el objetivo «{g.title}» ({amt:.2f} €) en los próximos "
-                    f"{W // 12} años con el saldo disponible, DSR y prioridades actuales. "
-                    "Reduce importe, aplaza la fecha, divide en más cuotas o ajusta otros objetivos."
+                    f"No se puede encajar el objetivo «{g.title}» ({amt:.2f} €) en el cupo DSR "
+                    f"o la entrada hipotecaria agota el efectivo disponible. "
+                    "Reduce importe, sube el % DSR, divide en más cuotas o ajusta prioridades."
                 ),
                 mortgage_payments_monthly=mortgage,
                 initial_outlay_by_month=initial,
@@ -384,24 +395,26 @@ def compute_plan_schedule(
     out.generic_payments_monthly = base
     out.goal_details = details
 
+    cap = income_avg * (max_dsr_percent / 100.0) if income_avg > 0 else 0.0
+    dsr_ok: List[bool] = []
+    for m in range(W):
+        ok = income_avg <= 0 or (mortgage[m] + base[m] <= cap + 1e-4)
+        dsr_ok.append(ok)
+    out.dsr_ok_each_month = dsr_ok
+
     surplus: List[float] = []
     cash_tr: List[float] = []
     cash = starting_cash
     for m in range(W):
-        s = (
-            income_avg
-            - fixed_monthly
-            - mortgage[m]
-            - initial[m]
-            - base[m]
-        )
+        # Superávit de liquidez: solo ingreso − fijos − entrada hipotecaria (cuotas y genéricos van por DSR)
+        s = income_avg - fixed_monthly - initial[m]
         surplus.append(round(s, 2))
         cash += s
         cash_tr.append(round(cash, 2))
         if cash < -1e-4:
             out.ok = False
             out.error_message = (
-                "El plan resulta en saldo negativo; revisa datos o prioridades."
+                "El efectivo disponible no cubre la entrada hipotecaria prevista; revisa datos o prioridades."
             )
     out.surplus_monthly = surplus
     out.cash_balance_monthly = cash_tr

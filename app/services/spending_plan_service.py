@@ -165,8 +165,8 @@ def _months_to_spread(today: date, target: Optional[date], horizon_months: int) 
 
 def goal_monthly_amount(goal: SpendingPlanGoal, today: date, horizon_months: int) -> Tuple[float, float]:
     """
-    (cuota mensual que sale del efectivo, cuota que consume cupo DSR).
-    Hipoteca: si extra_json trae monthly_payment, se usa; si no, amount_total/meses.
+    (cuota mensual desde efectivo, cuota que consume cupo DSR).
+    Genéricos y cuota hipoteca: solo DSR (0 efectivo). La entrada hipotecaria va aparte al saldo.
     """
     months = _months_to_spread(today, goal.target_date, horizon_months)
     if goal.goal_type == "mortgage" and goal.extra_json:
@@ -175,20 +175,20 @@ def goal_monthly_amount(goal: SpendingPlanGoal, today: date, horizon_months: int
             mp = data.get("monthly_payment")
             if mp is not None and float(mp) > 0:
                 v = round(float(mp), 2)
-                return v, v
+                return 0.0, v
         except (json.JSONDecodeError, TypeError, ValueError):
             pass
     base = round(goal.amount_total / months, 2) if months > 0 else float(goal.amount_total or 0)
     if goal.goal_type == "mortgage":
-        return base, base
-    return base, 0.0
+        return 0.0, base
+    return 0.0, base
 
 
 def sum_goal_monthlies(
     user_id: int, horizon_months: int
 ) -> Tuple[float, float, List[dict]]:
     """
-    Suma de cuotas mensuales (efectivo total, subconjunto DSR/hipoteca) y detalle por objetivo.
+    Suma de cuotas mensuales estimadas (efectivo ~0 salvo modelo antiguo; DSR = genéricos + hipoteca).
     """
     goals = (
         SpendingPlanGoal.query.filter_by(user_id=user_id)
@@ -224,15 +224,15 @@ def sum_goal_monthlies(
 def build_monthly_projection(
     income_avg: float,
     fixed_monthly: float,
-    goals_cash_monthly: float,
-    mortgage_dsr_monthly: float,
+    goals_monthly_display: float,
+    goals_dsr_monthly: float,
     starting_cash: float,
     max_dsr_percent: float,
     horizon_months: int = 12,
 ) -> List[MonthProjection]:
     """
-    goals_cash_monthly: compromiso mensual de todos los objetivos (incluye cuota hipoteca en efectivo).
-    mortgage_dsr_monthly: parte que consume el cupo DSR (típico: cuota préstamo).
+    Vista sin plan detallado: cuota máx. DSR y margen respecto a la suma DSR estimada de objetivos.
+    Superávit de liquidez ≈ ingreso − fijos (los objetivos no descuentan del efectivo salvo entradas en plan completo).
     """
     out: List[MonthProjection] = []
     max_pay = round(income_avg * (max_dsr_percent / 100.0), 2) if income_avg > 0 else 0.0
@@ -242,16 +242,16 @@ def build_monthly_projection(
     for i in range(horizon_months):
         d = today + relativedelta(months=i)
         label = d.strftime("%b %Y")
-        surplus = round(income_avg - fixed_monthly - goals_cash_monthly, 2)
+        surplus = round(income_avg - fixed_monthly, 2)
         cash = round(cash + surplus, 2)
-        margin = round(max_pay - mortgage_dsr_monthly, 2)
+        margin = round(max_pay - goals_dsr_monthly, 2)
         out.append(
             MonthProjection(
                 month_label=label,
                 month_index=i + 1,
                 income=income_avg,
                 fixed_expenses=fixed_monthly,
-                goals_monthly=goals_cash_monthly,
+                goals_monthly=goals_monthly_display,
                 surplus=surplus,
                 ending_cash=cash,
                 max_debt_payment=max_pay,
@@ -308,7 +308,12 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
                 + sch.generic_payments_monthly[i]
                 + sch.initial_outlay_by_month[i]
             )
-            margin = round(max_pay - sch.mortgage_payments_monthly[i], 2)
+            margin = round(
+                max_pay
+                - sch.mortgage_payments_monthly[i]
+                - sch.generic_payments_monthly[i],
+                2,
+            )
             months.append(
                 MonthProjection(
                     month_label=label,
@@ -326,7 +331,7 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
         months = build_monthly_projection(
             income_avg,
             fixed_total,
-            goals_cash,
+            goals_cash + goals_dsr,
             goals_dsr,
             cash0,
             max_dsr_pct,
@@ -362,7 +367,7 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
         "starting_cash": cash0,
         "bank_cash_gross": bank_cash_gross,
         "mortgage_entry_outlays_total": mortgage_entry_outlays,
-        "goals_total_monthly": goals_cash,
+        "goals_total_monthly": round(goals_cash + goals_dsr, 2),
         "goals_dsr_monthly": goals_dsr,
         "goal_lines": goal_lines,
         "generic_goals_modal": generic_goals_modal,

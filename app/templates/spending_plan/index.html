@@ -292,8 +292,8 @@ function spendingPlanGoals(cfg) {
         </table>
     </div>
     <p class="text-xs text-gray-500 mt-2">
-        Columna Objetivos: cuotas hipoteca + entradas en el mes + cuotas genéricas planificadas. Superávit = ingreso − fijos − esos cargos. El saldo acumulado usa el efectivo en bancos (sin descontar entradas a futuro) y no puede quedar negativo en el modelo.
-        Margen DSR = cuota máxima permitida − cuotas hipoteca del mes.
+        Columna Objetivos: cuotas hipoteca + entradas en el mes + cuotas genéricas planificadas. Superávit de liquidez = ingreso − fijos − entradas hipotecarias del mes (cuotas y genéricos compiten por cupo DSR y no descuentan del saldo salvo la entrada).
+        Margen DSR = cuota máxima permitida − cuota hipoteca − objetivos genéricos del mes (todo lo que compite por el cupo).
     </p>
 
     <template x-teleport="body">
