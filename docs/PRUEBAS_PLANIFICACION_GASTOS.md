@@ -23,7 +23,7 @@ Usar en [followup.fit](https://followup.fit/) (rama experimental) o entorno loca
 - [x] C1
 - [x] C2
 - [x] C3
-- [ ] C4
+- [x] C4
 - [x] C5
 - [ ] C6
 - [ ] C7
