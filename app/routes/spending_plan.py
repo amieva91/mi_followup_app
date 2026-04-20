@@ -152,18 +152,33 @@ def add_goal():
         msg = str(e)
         if not wants_json:
             flash(msg, "error")
-        if wants_json and (request.form.get("goal_type") or "generic").strip().lower() == "generic":
-            sug = sps.suggest_adjustments_for_generic(
-                current_user.id,
-                None,
-                request.form.get("title") or "",
-                float(request.form.get("amount_total") or 0),
-                int(request.form.get("priority") or 3),
-                _parse_target_date(request.form.get("target_date") or ""),
-                request.form.get("installment_months"),
-                bool(request.form.get("date_fixed")),
-            )
-            return jsonify({"ok": False, "error_message": msg, "suggestions": sug}), 400
+        if wants_json:
+            gtype_now = (request.form.get("goal_type") or "generic").strip().lower()
+            if gtype_now == "generic":
+                sug = sps.suggest_adjustments_for_generic(
+                    current_user.id,
+                    None,
+                    request.form.get("title") or "",
+                    float(request.form.get("amount_total") or 0),
+                    int(request.form.get("priority") or 3),
+                    _parse_target_date(request.form.get("target_date") or ""),
+                    request.form.get("installment_months"),
+                    bool(request.form.get("date_fixed")),
+                )
+                return jsonify({"ok": False, "error_message": msg, "suggestions": sug}), 400
+            if gtype_now == "mortgage":
+                td = _parse_target_date(request.form.get("target_date") or "")
+                extra = (request.form.get("extra_json") or "").strip() or ""
+                extra = _merge_mortgage_target_into_extra(extra, td)
+                sug = sps.suggest_adjustments_for_mortgage(
+                    current_user.id,
+                    None,
+                    request.form.get("title") or "",
+                    float(request.form.get("amount_total") or 0),
+                    td,
+                    extra,
+                )
+                return jsonify({"ok": False, "error_message": msg, "suggestions": sug}), 400
         if wants_json:
             return jsonify({"ok": False, "error_message": msg}), 400
     except Exception as e:

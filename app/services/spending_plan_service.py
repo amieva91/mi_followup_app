@@ -936,6 +936,72 @@ def suggest_adjustments_for_generic(
     return suggestions
 
 
+def suggest_adjustments_for_mortgage(
+    user_id: int,
+    goal_id: Optional[int],
+    title: str,
+    amount_total: float,
+    target_date: Optional[date],
+    extra_json: str,
+) -> List[dict]:
+    """
+    Sugiere una fecha alternativa para la hipoteca cuando la entrada no encaja por liquidez.
+    Devuelve sugerencias {type, field, value, label}.
+    """
+    suggestions: List[dict] = []
+    if target_date is None:
+        return suggestions
+
+    today = date.today()
+    settings = _get_or_create_settings(user_id)
+    fixed_ids = get_fixed_category_ids(user_id)
+    income_avg = get_avg_monthly_income(user_id, 12)
+    fixed_total, _ = compute_fixed_expenses_monthly(user_id, fixed_ids)
+    bank_gross = get_current_bank_cash(user_id)
+
+    all_goals = SpendingPlanGoal.query.filter_by(user_id=user_id).all()
+    others = [g for g in all_goals if goal_id is None or g.id != goal_id]
+    sort_id = goal_id if goal_id is not None else 10**9
+
+    def try_date(td: date) -> bool:
+        cand = build_candidate_goal(
+            title=title,
+            goal_type="mortgage",
+            priority=1,
+            amount_total=float(amount_total or 0),
+            target_date=td,
+            extra_json=extra_json,
+            sort_id=sort_id,
+        )
+        sch = compute_plan_schedule(
+            today=today,
+            income_avg=income_avg,
+            fixed_monthly=fixed_total,
+            starting_cash=bank_gross,
+            max_dsr_percent=settings.max_dsr_percent,
+            goals=others + [cand],
+        )
+        return bool(sch.ok)
+
+    # Buscar primer mes viable >= fecha elegida (máx ventana 5 años)
+    start_m = (target_date.year - today.year) * 12 + (target_date.month - today.month)
+    start_m = max(0, min(PLAN_WINDOW_MONTHS - 1, start_m))
+    for m in range(start_m, PLAN_WINDOW_MONTHS):
+        td = today + relativedelta(months=m)
+        if try_date(td):
+            v = td.isoformat()
+            suggestions.append(
+                {
+                    "type": "set_field",
+                    "field": "target_date",
+                    "value": v,
+                    "label": f"Fecha recomendada: {v}",
+                }
+            )
+            break
+    return suggestions
+
+
 def delete_goal(user_id: int, goal_id: int) -> bool:
     g = SpendingPlanGoal.query.filter_by(id=goal_id, user_id=user_id).first()
     if not g:
