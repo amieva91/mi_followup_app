@@ -1087,9 +1087,35 @@ def delete_goal(user_id: int, goal_id: int) -> bool:
     return True
 
 
+def _assert_plan_viable_with_dsr(user_id: int, max_dsr_percent: float) -> None:
+    """Comprueba que el plan actual encaja con el DSR propuesto; si no, lanza ValueError."""
+    max_dsr_percent = max(1.0, min(80.0, float(max_dsr_percent)))
+    fixed_ids = get_fixed_category_ids(user_id)
+    income_avg = get_avg_monthly_income(user_id, 12)
+    fixed_total, _ = compute_fixed_expenses_monthly(user_id, fixed_ids)
+    bank_gross = get_current_bank_cash(user_id)
+    goals = SpendingPlanGoal.query.filter_by(user_id=user_id).all()
+    sch = compute_plan_schedule(
+        today=date.today(),
+        income_avg=income_avg,
+        fixed_monthly=fixed_total,
+        starting_cash=bank_gross,
+        max_dsr_percent=max_dsr_percent,
+        goals=goals,
+    )
+    if not sch.ok:
+        raise ValueError(
+            sch.error_message
+            or "Con este % DSR el plan actual no es viable. Sube el límite o ajusta objetivos."
+        )
+
+
 def update_settings(user_id: int, max_dsr_percent: float, horizon_months: int = 12) -> SpendingPlanSettings:
+    max_dsr = max(1.0, min(80.0, float(max_dsr_percent)))
+    horizon = max(1, min(60, int(horizon_months)))
+    _assert_plan_viable_with_dsr(user_id, max_dsr)
     s = _get_or_create_settings(user_id)
-    s.max_dsr_percent = max(1.0, min(80.0, float(max_dsr_percent)))
-    s.horizon_months = max(1, min(60, int(horizon_months)))
+    s.max_dsr_percent = max_dsr
+    s.horizon_months = horizon
     db.session.commit()
     return s

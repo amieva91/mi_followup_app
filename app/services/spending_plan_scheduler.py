@@ -10,7 +10,30 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+from dateutil.relativedelta import relativedelta
+
 PLAN_WINDOW_MONTHS = 60
+
+_SPANISH_MONTHS = (
+    "enero",
+    "febrero",
+    "marzo",
+    "abril",
+    "mayo",
+    "junio",
+    "julio",
+    "agosto",
+    "septiembre",
+    "octubre",
+    "noviembre",
+    "diciembre",
+)
+
+
+def _plan_slot_calendar_label(today: date, month_index: int) -> str:
+    """Etiqueta mes/año del slot `month_index` (0 = mes calendario de `today`)."""
+    d = today + relativedelta(months=int(month_index))
+    return f"{_SPANISH_MONTHS[d.month - 1]} {d.year}"
 
 
 def _month_offset_from_today(today: date, d: Optional[date], cap: int) -> int:
@@ -376,11 +399,12 @@ def compute_plan_schedule(
 
     viol = _dsr_violation(income_avg, mortgage, max_dsr_percent)
     if viol is not None:
+        when = _plan_slot_calendar_label(today, viol)
         return PlanScheduleResult(
             ok=False,
             error_message=(
                 "La suma de cuotas hipoteca supera el límite DSR en uno o más meses "
-                f"(primer conflicto ~mes {viol + 1} desde hoy). Reduce cuotas o sube ingreso/DSR."
+                f"(primer conflicto en {when}). Reduce cuotas o sube ingreso/DSR."
             ),
             mortgage_payments_monthly=mortgage,
             initial_outlay_by_month=initial,
@@ -448,7 +472,7 @@ def compute_plan_schedule(
                 error_message=(
                     f"No se puede encajar el objetivo «{g.title}» ({amt:.2f} €) en el cupo DSR "
                     f"o la entrada hipotecaria agota el efectivo disponible. "
-                    "Reduce importe, sube el % DSR, divide en más cuotas o ajusta prioridades."
+                    "Reduce importe, sube el % DSR o ajusta prioridades."
                 ),
                 mortgage_payments_monthly=mortgage,
                 initial_outlay_by_month=initial,
