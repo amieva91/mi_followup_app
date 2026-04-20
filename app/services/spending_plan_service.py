@@ -622,6 +622,24 @@ def add_goal(
                 raise ValueError("extra_json no es JSON válido.")
             extra = raw
 
+    # Hipoteca sin fecha: buscar primera fecha viable automáticamente.
+    if gt == "mortgage" and target_date is None and extra:
+        auto_td = _first_viable_mortgage_date(user_id, extra, exclude_goal_id=None)
+        if auto_td is None:
+            raise ValueError(
+                "No hay una fecha viable en los próximos 5 años para encajar la entrada hipotecaria "
+                "con el efectivo disponible y el cupo DSR."
+            )
+        target_date = auto_td
+        # Persistir también en extra_json como loan_payment_start para coherencia
+        try:
+            d = json.loads(extra)
+            if isinstance(d, dict):
+                d["loan_payment_start"] = auto_td.isoformat()[:10]
+                extra = json.dumps(d, ensure_ascii=False)
+        except (json.JSONDecodeError, TypeError):
+            pass
+
     settings = _get_or_create_settings(user_id)
     fixed_ids = get_fixed_category_ids(user_id)
     income_avg = get_avg_monthly_income(user_id, 12)
@@ -775,6 +793,23 @@ def update_mortgage_goal(
         for x in SpendingPlanGoal.query.filter_by(user_id=user_id).all()
         if x.id != goal_id
     ]
+    # Si no hay fecha: buscar fecha viable automáticamente
+    if target_date is None:
+        auto_td = _first_viable_mortgage_date(user_id, raw, exclude_goal_id=goal_id)
+        if auto_td is None:
+            raise ValueError(
+                "No hay una fecha viable en los próximos 5 años para encajar la entrada hipotecaria "
+                "con el efectivo disponible y el cupo DSR."
+            )
+        target_date = auto_td
+        try:
+            d = json.loads(raw)
+            if isinstance(d, dict):
+                d["loan_payment_start"] = auto_td.isoformat()[:10]
+                raw = json.dumps(d, ensure_ascii=False)
+        except (json.JSONDecodeError, TypeError):
+            pass
+
     cand = build_candidate_goal(
         title=title,
         goal_type="mortgage",
@@ -805,6 +840,47 @@ def update_mortgage_goal(
     g.extra_json = raw
     db.session.commit()
     return g
+
+
+def _first_viable_mortgage_date(
+    user_id: int,
+    extra_json: str,
+    exclude_goal_id: Optional[int],
+) -> Optional[date]:
+    """
+    Encuentra la primera fecha (mes) en la ventana de 5 años en la que la hipoteca
+    encaja (entrada con liquidez + DSR). Devuelve None si no existe.
+    """
+    today = date.today()
+    settings = _get_or_create_settings(user_id)
+    fixed_ids = get_fixed_category_ids(user_id)
+    income_avg = get_avg_monthly_income(user_id, 12)
+    fixed_total, _ = compute_fixed_expenses_monthly(user_id, fixed_ids)
+    bank_gross = get_current_bank_cash(user_id)
+    goals = SpendingPlanGoal.query.filter_by(user_id=user_id).all()
+    others = [g for g in goals if exclude_goal_id is None or g.id != exclude_goal_id]
+    for m in range(PLAN_WINDOW_MONTHS):
+        td = today + relativedelta(months=m)
+        cand = build_candidate_goal(
+            title="(auto)",
+            goal_type="mortgage",
+            priority=1,
+            amount_total=1.0,
+            target_date=td,
+            extra_json=extra_json,
+            sort_id=10**9,
+        )
+        sch = compute_plan_schedule(
+            today=today,
+            income_avg=income_avg,
+            fixed_monthly=fixed_total,
+            starting_cash=bank_gross,
+            max_dsr_percent=settings.max_dsr_percent,
+            goals=others + [cand],
+        )
+        if sch.ok:
+            return td
+    return None
 
 
 def suggest_adjustments_for_generic(
