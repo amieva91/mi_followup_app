@@ -4,7 +4,17 @@ Planificación de gastos / presupuestos (rama experimentos).
 import json
 from datetime import datetime
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash, make_response, jsonify
+from flask import (
+    Blueprint,
+    render_template,
+    request,
+    redirect,
+    url_for,
+    flash,
+    make_response,
+    jsonify,
+    session,
+)
 from flask_login import login_required, current_user
 
 from app import db
@@ -76,7 +86,8 @@ def add_goal():
         "X-Requested-With"
     ) == "XMLHttpRequest"
     if not request.form.get("csrf_token"):
-        flash("Sesión expirada.", "error")
+        if not wants_json:
+            flash("Sesión expirada.", "error")
         if wants_json:
             return jsonify({"ok": False, "error_message": "Sesión expirada."}), 400
         return redirect(url_for("spending_plan.index"))
@@ -99,7 +110,8 @@ def add_goal():
                 td,
                 extra or "{}",
             )
-            flash("Objetivo hipoteca actualizado.", "success")
+            if not wants_json:
+                flash("Objetivo hipoteca actualizado.", "success")
             if wants_json:
                 return jsonify({"ok": True})
             return redirect(url_for("spending_plan.index"))
@@ -132,12 +144,14 @@ def add_goal():
             installment_months=installment_months,
             date_fixed=date_fixed,
         )
-        flash("Objetivo añadido.", "success")
+        if not wants_json:
+            flash("Objetivo añadido.", "success")
         if wants_json:
             return jsonify({"ok": True})
     except ValueError as e:
         msg = str(e)
-        flash(msg, "error")
+        if not wants_json:
+            flash(msg, "error")
         if wants_json and (request.form.get("goal_type") or "generic").strip().lower() == "generic":
             sug = sps.suggest_adjustments_for_generic(
                 current_user.id,
@@ -155,7 +169,8 @@ def add_goal():
     except Exception as e:
         db.session.rollback()
         msg = f"No se pudo añadir: {e}"
-        flash(msg, "error")
+        if not wants_json:
+            flash(msg, "error")
         if wants_json:
             return jsonify({"ok": False, "error_message": msg}), 500
     return redirect(url_for("spending_plan.index"))
@@ -177,7 +192,8 @@ def edit_goal(goal_id: int):
             "X-Requested-With"
         ) == "XMLHttpRequest"
         if not request.form.get("csrf_token"):
-            flash("Sesión expirada.", "error")
+            if not wants_json:
+                flash("Sesión expirada.", "error")
             if wants_json:
                 return jsonify({"ok": False, "error_message": "Sesión expirada."}), 400
             return redirect(url_for("spending_plan.index"))
@@ -206,12 +222,14 @@ def edit_goal(goal_id: int):
                 installment_months=installment_months,
                 date_fixed=date_fixed,
             )
-            flash("Objetivo actualizado y plan replanificado.", "success")
+            if not wants_json:
+                flash("Objetivo actualizado y plan replanificado.", "success")
             if wants_json:
                 return jsonify({"ok": True})
         except ValueError as e:
             msg = str(e)
-            flash(msg, "error")
+            if not wants_json:
+                flash(msg, "error")
             if wants_json:
                 sug = sps.suggest_adjustments_for_generic(
                     current_user.id,
@@ -227,7 +245,8 @@ def edit_goal(goal_id: int):
         except Exception as e:
             db.session.rollback()
             msg = f"No se pudo guardar: {e}"
-            flash(msg, "error")
+            if not wants_json:
+                flash(msg, "error")
             if wants_json:
                 return jsonify({"ok": False, "error_message": msg}), 500
         return redirect(url_for("spending_plan.index"))
@@ -288,6 +307,8 @@ def _default_mortgage_form():
 @spending_plan_bp.route("/vivienda", methods=["GET", "POST"])
 @login_required
 def mortgage_simulator():
+    # Evitar que errores de AJAX (genéricos) aparezcan aquí.
+    session.pop("_flashes", None)
     result = None
     interest_context = irctx.get_latest_snapshot()
     sim_form = _default_mortgage_form()
