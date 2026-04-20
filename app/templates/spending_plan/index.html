@@ -326,7 +326,7 @@ function spendingPlanGoals(cfg) {
                             {% for it in mm %}
                             <span class="inline-block w-2.5 h-2.5 rounded-full"
                                   style="background: {{ it.color }};"
-                                  title="{{ it.title }}: {{ \"%.2f\"|format(it.amount) }} €"></span>
+                                  title="{{ it.title }}: {{ '%.2f'|format(it.amount) }} €"></span>
                             {% endfor %}
                         </div>
                         {% else %}
