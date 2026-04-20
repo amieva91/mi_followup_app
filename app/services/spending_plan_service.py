@@ -153,6 +153,78 @@ class MonthProjection:
     dsr_margin: float
 
 
+GOAL_COLOR_PALETTE = [
+    "#D50000",  # Tomate
+    "#E67C73",  # Flamenco
+    "#F4511E",  # Mandarina
+    "#F6BF26",  # Plátano
+    "#33B864",  # Salvia
+    "#0B8043",  # Albahaca
+    "#039BE5",  # Pavo real
+    "#3F51B5",  # Arándano
+    "#7986CB",  # Lavanda
+    "#8E24AA",  # Uva
+    "#616161",  # Grafito
+]
+
+
+def _build_goal_color_and_schedule_meta(
+    sch: Any, month_labels: List[str], horizon_months: int
+) -> Tuple[Dict[int, dict], List[List[dict]]]:
+    """
+    Meta por objetivo basada en el planificador:
+    - color (palette)
+    - mes de inicio (primer mes con pago > 0)
+    - nº cuotas (nº de meses con pago > 0 dentro de la ventana)
+    Y una estructura por mes para pintar puntos en la proyección.
+    """
+    meta: Dict[int, dict] = {}
+    marks: List[List[dict]] = [[] for _ in range(max(0, int(horizon_months)))]
+    if not sch or not getattr(sch, "ok", False):
+        return meta, marks
+
+    details = getattr(sch, "goal_details", None) or []
+    for idx, gd in enumerate(details):
+        gid = getattr(gd, "goal_id", None)
+        if gid is None:
+            continue
+        color = GOAL_COLOR_PALETTE[idx % len(GOAL_COLOR_PALETTE)]
+        payments = getattr(gd, "payments_by_month", None) or []
+
+        first_idx: Optional[int] = None
+        positive_months = 0
+        for mi, p in enumerate(payments):
+            try:
+                pv = float(p or 0)
+            except (TypeError, ValueError):
+                pv = 0.0
+            if pv > 0.001:
+                positive_months += 1
+                if first_idx is None:
+                    first_idx = mi
+                if 0 <= mi < len(marks):
+                    marks[mi].append(
+                        {
+                            "goal_id": int(gid),
+                            "title": str(getattr(gd, "title", "") or ""),
+                            "amount": round(pv, 2),
+                            "color": color,
+                        }
+                    )
+
+        start_label = (
+            month_labels[first_idx]
+            if first_idx is not None and 0 <= first_idx < len(month_labels)
+            else None
+        )
+        meta[int(gid)] = {
+            "color": color,
+            "start_month_label": start_label,
+            "installments_planned": positive_months if positive_months > 0 else None,
+        }
+    return meta, marks
+
+
 def _months_to_spread(today: date, target: Optional[date], horizon_months: int) -> int:
     """Meses para repartir el coste del objetivo (mínimo 1)."""
     if target is None:
@@ -363,6 +435,20 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
         d = date.today() + relativedelta(months=i)
         schedule_month_labels.append(d.strftime("%b %Y"))
 
+    goal_meta, month_goal_marks = _build_goal_color_and_schedule_meta(
+        sch, schedule_month_labels, settings.horizon_months
+    )
+    for row in goal_lines:
+        gid = row.get("id")
+        try:
+            gid_int = int(gid) if gid is not None else None
+        except (TypeError, ValueError):
+            gid_int = None
+        m = goal_meta.get(gid_int or -1, {})
+        row["color"] = m.get("color")
+        row["start_month_label"] = m.get("start_month_label")
+        row["installments_planned"] = m.get("installments_planned")
+
     return {
         "settings": settings,
         "fixed_category_ids": fixed_ids,
@@ -381,6 +467,7 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
         "plan_schedule": sch,
         "plan_window_months": PLAN_WINDOW_MONTHS,
         "schedule_month_labels": schedule_month_labels,
+        "month_goal_marks": month_goal_marks,
     }
 
 

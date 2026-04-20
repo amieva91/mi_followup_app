@@ -208,6 +208,8 @@ function spendingPlanGoals(cfg) {
                         <th class="py-2 pr-4">Prior.</th>
                         <th class="py-2 pr-4">Nombre</th>
                         <th class="py-2 pr-4">Tipo</th>
+                        <th class="py-2 pr-4">Inicio</th>
+                        <th class="py-2 pr-4 text-right">N.º cuotas</th>
                         <th class="py-2 pr-4 text-right">Total</th>
                         <th class="py-2 pr-4 text-right">€/mes (efectivo)</th>
                         <th class="py-2 pr-4 text-right">€/mes (DSR)</th>
@@ -218,8 +220,17 @@ function spendingPlanGoals(cfg) {
                     {% for g in goal_lines %}
                     <tr>
                         <td class="py-2 pr-4 font-medium">{{ g.priority }}</td>
-                        <td class="py-2 pr-4">{{ g.title }}</td>
+                        <td class="py-2 pr-4">
+                            <span class="inline-flex items-center">
+                                <span class="inline-block w-2.5 h-2.5 rounded-full mr-2 shrink-0"
+                                      style="background: {{ g.color or '#616161' }};"
+                                      title="Color objetivo"></span>
+                                <span>{{ g.title }}</span>
+                            </span>
+                        </td>
                         <td class="py-2 pr-4 text-gray-600">{% if g.goal_type == 'mortgage' %}Hipoteca{% else %}Genérico{% endif %}</td>
+                        <td class="py-2 pr-4 text-gray-700">{% if g.start_month_label %}{{ g.start_month_label }}{% else %}—{% endif %}</td>
+                        <td class="py-2 pr-4 text-right tabular-nums text-gray-700">{% if g.installments_planned %}{{ g.installments_planned }}{% else %}—{% endif %}</td>
                         <td class="py-2 pr-4 text-right tabular-nums">{{ "%.2f"|format(g.amount_total) }}</td>
                         <td class="py-2 pr-4 text-right tabular-nums">{{ "%.2f"|format(g.monthly_cash) }}</td>
                         <td class="py-2 pr-4 text-right tabular-nums text-indigo-800">{{ "%.2f"|format(g.monthly_dsr) }}</td>
@@ -246,34 +257,6 @@ function spendingPlanGoals(cfg) {
         </div>
         {% else %}
         <p class="text-sm text-gray-500">No hay objetivos. Añade uno para ver su impacto en la proyección.</p>
-        {% endif %}
-
-        {% if plan_schedule and plan_schedule.ok and plan_schedule.goal_details and schedule_month_labels %}
-        <div class="mt-6 pt-6 border-t border-gray-100">
-            <h3 class="text-sm font-semibold text-gray-800 mb-1">Cuándo paga cada objetivo (5 años)</h3>
-            <p class="text-xs text-gray-500 mb-3">Meses con cargo según el planificador; el primer mes coincide con la columna «Mes» de la proyección.</p>
-            <div class="space-y-4">
-                {% for gd in plan_schedule.goal_details %}
-                {% set max_pay_m = (gd.payments_by_month or [0])|max %}
-                <div class="rounded-lg border border-gray-100 bg-gray-50/50 p-3">
-                    <p class="text-sm font-medium text-gray-900">{{ gd.title }}
-                        <span class="text-gray-500 font-normal">({% if gd.goal_type == 'mortgage' %}Hipoteca{% else %}Genérico{% endif %}, prior. {{ gd.priority }})</span>
-                    </p>
-                    {% if max_pay_m > 0.001 %}
-                    <ul class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-700">
-                        {% for p in gd.payments_by_month %}
-                            {% if loop.index0 < schedule_month_labels|length and p > 0.001 %}
-                                <li class="tabular-nums">{{ schedule_month_labels[loop.index0] }}: {{ "%.2f"|format(p) }} €</li>
-                            {% endif %}
-                        {% endfor %}
-                    </ul>
-                    {% else %}
-                    <p class="mt-2 text-xs text-gray-500">Sin pagos con importe en esta ventana.</p>
-                    {% endif %}
-                </div>
-                {% endfor %}
-            </div>
-        </div>
         {% endif %}
     </div>
 
@@ -323,9 +306,9 @@ function spendingPlanGoals(cfg) {
                     <th class="px-4 py-3 text-right">Ingreso</th>
                     <th class="px-4 py-3 text-right">Fijos</th>
                     <th class="px-4 py-3 text-right">Objetivos</th>
+                    <th class="px-4 py-3">Quién paga</th>
                     <th class="px-4 py-3 text-right">Superávit</th>
                     <th class="px-4 py-3 text-right">Saldo acum.</th>
-                    <th class="px-4 py-3 text-right">Cuota máx.</th>
                     <th class="px-4 py-3 text-right">Margen DSR</th>
                 </tr>
             </thead>
@@ -336,9 +319,22 @@ function spendingPlanGoals(cfg) {
                     <td class="px-4 py-2 text-right tabular-nums">{{ "%.2f"|format(m.income) }}</td>
                     <td class="px-4 py-2 text-right tabular-nums">{{ "%.2f"|format(m.fixed_expenses) }}</td>
                     <td class="px-4 py-2 text-right tabular-nums text-amber-800">{{ "%.2f"|format(m.goals_monthly) }}</td>
+                    <td class="px-4 py-2">
+                        {% set mm = month_goal_marks[loop.index0] if month_goal_marks and loop.index0 < month_goal_marks|length else [] %}
+                        {% if mm %}
+                        <div class="flex flex-wrap gap-1.5 items-center">
+                            {% for it in mm %}
+                            <span class="inline-block w-2.5 h-2.5 rounded-full"
+                                  style="background: {{ it.color }};"
+                                  title="{{ it.title }}: {{ \"%.2f\"|format(it.amount) }} €"></span>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <span class="text-xs text-gray-400">—</span>
+                        {% endif %}
+                    </td>
                     <td class="px-4 py-2 text-right tabular-nums {% if m.surplus >= 0 %}text-emerald-700{% else %}text-red-600{% endif %}">{{ "%.2f"|format(m.surplus) }}</td>
                     <td class="px-4 py-2 text-right tabular-nums font-medium">{{ "%.2f"|format(m.ending_cash) }}</td>
-                    <td class="px-4 py-2 text-right tabular-nums text-gray-700">{{ "%.2f"|format(m.max_debt_payment) }}</td>
                     <td class="px-4 py-2 text-right tabular-nums text-indigo-700">{{ "%.2f"|format(m.dsr_margin) }}</td>
                 </tr>
                 {% endfor %}
@@ -347,7 +343,7 @@ function spendingPlanGoals(cfg) {
     </div>
     <p class="text-xs text-gray-500 mt-2">
         Columna Objetivos: cuotas hipoteca + entradas en el mes + cuotas genéricas planificadas. Superávit de liquidez = ingreso − fijos − entradas hipotecarias del mes (cuotas y genéricos compiten por cupo DSR y no descuentan del saldo salvo la entrada).
-        Margen DSR = cuota máxima permitida − cuota hipoteca − objetivos genéricos del mes (todo lo que compite por el cupo).
+        Margen DSR = cuota máxima permitida − cuota hipoteca − objetivos genéricos del mes (todo lo que compite por el cupo). La columna “Quién paga” marca con puntos los objetivos con cargo en ese mes.
     </p>
 
     <template x-teleport="body">
