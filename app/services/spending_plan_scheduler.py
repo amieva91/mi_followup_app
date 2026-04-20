@@ -224,9 +224,10 @@ def build_mortgage_arrays(
 
 def _try_generic_allocation(
     amount: float,
-    deadline_m: int,
+    start_m: int,
     pay_mode: str,
     user_installments: Optional[int],
+    date_fixed: bool,
     W: int,
     base_generic: List[float],
     cash0: float,
@@ -248,12 +249,16 @@ def _try_generic_allocation(
         z = _zero(W)
         return z, None
 
-    deadline_m = max(0, min(W - 1, deadline_m))
+    start_m = max(0, min(W - 1, start_m))
 
     if pay_mode == "auto":
-        # No intentar primero un pago único en deadline_m (sin fecha, eso era el mes 60):
-        # priorizar el primer mes viable. Con fecha límite, solo meses 0…deadline_m.
-        for m in range(deadline_m + 1):
+        # Con fecha indicada: nunca empezar antes de start_m. Sin fecha (start_m=0): libre.
+        if date_fixed:
+            inc = _zero(W)
+            inc[start_m] = amount
+            if check(inc):
+                return inc, f"Pago único automático en el mes fijado ({start_m + 1})."
+        for m in range(start_m, W):
             inc = _zero(W)
             inc[m] = amount
             if check(inc):
@@ -262,8 +267,22 @@ def _try_generic_allocation(
                     f"Pago único automático en mes {m + 1} (primera fecha viable).",
                 )
         for k in range(1, W + 1):
-            for end in range(k - 1, W):
-                start = end - k + 1
+            if date_fixed:
+                start = start_m
+                end = start + k - 1
+                if end >= W:
+                    continue
+                pay = amount / k
+                inc = _zero(W)
+                for j in range(k):
+                    inc[start + j] = pay
+                if check(inc):
+                    return (
+                        inc,
+                        f"Automático: {k} cuotas iguales desde mes {start + 1}.",
+                    )
+                continue
+            for start in range(start_m, W - k + 1):
                 pay = amount / k
                 inc = _zero(W)
                 for j in range(k):
@@ -276,18 +295,19 @@ def _try_generic_allocation(
         return None
 
     if pay_mode == "lump":
-        for m in range(0, deadline_m + 1):
+        if date_fixed:
             inc = _zero(W)
-            inc[m] = amount
+            inc[start_m] = amount
             if check(inc):
-                return inc, None if m <= deadline_m else f"Pago único desplazado al mes {m + 1}."
-        for m in range(deadline_m + 1, W):
+                return inc, None
+            return None
+        for m in range(start_m, W):
             inc = _zero(W)
             inc[m] = amount
             if check(inc):
                 return (
                     inc,
-                    f"No es posible pagar en la fecha deseada; primera fecha viable: mes {m + 1} (desde hoy).",
+                    None,
                 )
         return None
 
@@ -299,32 +319,36 @@ def _try_generic_allocation(
         ks = list(range(1, W + 1))
 
     for k in ks:
-        end = deadline_m
-        start = end - k + 1
-        if start < 0:
-            continue
+        if date_fixed:
+            start = start_m
+            end = start + k - 1
+            if end >= W:
+                continue
+        else:
+            start = start_m
+            end = start + k - 1
+            if end >= W:
+                continue
         pay = amount / k
         inc = _zero(W)
         for j in range(k):
             inc[start + j] = pay
         if check(inc):
             msg = None
-            if start < 0:
-                continue
             return inc, msg
 
-    for k in range(1, W + 1):
-        for end in range(k - 1, W):
-            start = end - k + 1
-            pay = amount / k
-            inc = _zero(W)
-            for j in range(k):
-                inc[start + j] = pay
-            if check(inc):
-                return (
-                    inc,
-                    f"Cuotas repartidas en {k} meses (desde mes {start + 1}) dentro del cupo DSR.",
-                )
+    if not date_fixed:
+        for k in range(1, W + 1):
+            for start in range(start_m, W - k + 1):
+                pay = amount / k
+                inc = _zero(W)
+                for j in range(k):
+                    inc[start + j] = pay
+                if check(inc):
+                    return (
+                        inc,
+                        f"Cuotas repartidas en {k} meses (desde mes {start + 1}) dentro del cupo DSR.",
+                    )
     return None
 
 
@@ -393,13 +417,17 @@ def compute_plan_schedule(
         mode, inst = parse_generic_pay_options(getattr(g, "extra_json", None))
         amt = float(getattr(g, "amount_total", 0) or 0)
         tgt = getattr(g, "target_date", None)
-        deadline = _month_offset_from_today(today, tgt, W - 1)
+        # Si hay fecha: es la fecha de inicio (no empezar antes).
+        # Si no hay fecha: el algoritmo decide libremente (start_m=0).
+        start_m = _month_offset_from_today(today, tgt, W - 1) if tgt is not None else 0
+        date_fixed = bool(extra.get("date_fixed")) if isinstance(extra, dict) else False
 
         res = _try_generic_allocation(
             amt,
-            deadline,
+            start_m,
             mode,
             inst,
+            date_fixed,
             W,
             base,
             starting_cash,

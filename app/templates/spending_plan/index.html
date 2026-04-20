@@ -17,6 +17,7 @@ function spendingPlanGoals(cfg) {
         editPriority: 3,
         editTargetDate: '',
         editInstallmentMonths: '',
+        editDateFixed: false,
         init() {
             if (this.openEditId != null) {
                 const oid = this.openEditId;
@@ -45,6 +46,7 @@ function spendingPlanGoals(cfg) {
             this.editTargetDate = g.target_date || '';
             var f = g.installment_field;
             this.editInstallmentMonths = (f != null && f !== '') ? String(f) : '';
+            this.editDateFixed = !!g.date_fixed;
             this.editModalOpen = true;
         },
         closeDelete() { this.deleteModalOpen = false; },
@@ -173,9 +175,17 @@ function spendingPlanGoals(cfg) {
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
             </div>
             <div class="md:col-span-3">
-                <label class="block text-xs font-medium text-gray-600 mb-1">Fecha límite deseada <span class="text-gray-500 font-normal">(opcional)</span></label>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Fecha inicio <span class="text-gray-500 font-normal">(opcional)</span></label>
                 <input type="date" name="target_date"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
+            </div>
+            <div class="md:col-span-3">
+                <label class="block text-xs font-medium text-gray-600 mb-1">Fecha inamovible <span class="text-gray-500 font-normal">(opc.)</span></label>
+                <label class="inline-flex items-center gap-2 text-sm text-gray-800 select-none">
+                    <input type="checkbox" name="date_fixed" value="1"
+                           class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"/>
+                    <span>Colocar el gasto a partir de esa fecha, sin adelantarlo</span>
+                </label>
             </div>
             <div class="md:col-span-3">
                 <label class="block text-xs font-medium text-gray-600 mb-1 cursor-help" title="Vacío = el sistema elige el reparto; 1 = pago único; 2 o más = cuotas en ese número de meses (máx. 60).">N.º cuotas <span class="text-gray-500 font-normal">(opc.)</span></label>
@@ -229,7 +239,10 @@ function spendingPlanGoals(cfg) {
                             </span>
                         </td>
                         <td class="py-2 pr-4 text-gray-600">{% if g.goal_type == 'mortgage' %}Hipoteca{% else %}Genérico{% endif %}</td>
-                        <td class="py-2 pr-4 text-gray-700">{% if g.start_month_label %}{{ g.start_month_label }}{% else %}—{% endif %}</td>
+                        <td class="py-2 pr-4 text-gray-700">
+                            {% if g.start_month_label %}{{ g.start_month_label }}{% else %}—{% endif %}
+                            {% if g.date_fixed %}<span class="ml-2 inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-700">fija</span>{% endif %}
+                        </td>
                         <td class="py-2 pr-4 text-right tabular-nums text-gray-700">{% if g.installments_planned %}{{ g.installments_planned }}{% else %}—{% endif %}</td>
                         <td class="py-2 pr-4 text-right tabular-nums">{{ "%.2f"|format(g.amount_total) }}</td>
                         <td class="py-2 pr-4 text-right tabular-nums">{{ "%.2f"|format(g.monthly_cash) }}</td>
@@ -270,25 +283,25 @@ function spendingPlanGoals(cfg) {
             <p class="text-2xl font-bold text-rose-900">{{ "%.2f"|format(fixed_total) }} €</p>
         </div>
         <div class="bg-amber-50 border border-amber-100 rounded-xl p-4">
-            <p class="text-xs font-medium text-amber-900 uppercase">Cuota / mes</p>
+            <p class="text-xs font-medium text-amber-900 uppercase">Cuota Mensual Media (5 años)</p>
             <p class="text-2xl font-bold text-amber-950">{{ "%.2f"|format(avg_quota_monthly_5y or 0) }} €</p>
-            <p class="text-xs text-amber-800 mt-1">
-                Media 5 años (cuotas DSR).{% if avg_dsr_used_pct_5y is not none and dsr_cap_monthly %} DSR ocupado: {{ "%.1f"|format(avg_dsr_used_pct_5y) }}% (cap {{ "%.2f"|format(dsr_cap_monthly) }} €/mes).{% endif %}
-            </p>
-            {% if dsr_free_total_5y and dsr_free_total_5y > 0 %}
-            <p class="text-xs text-amber-800 mt-1">
-                DSR libre total (5 años): <span class="tabular-nums font-medium">{{ "%.2f"|format(dsr_free_total_5y) }} €</span>
-            </p>
-            {% endif %}
+            <ul class="text-xs text-amber-800 mt-2 list-disc list-inside space-y-0.5">
+                {% if avg_dsr_used_pct_5y is not none %}
+                <li>DSR ocupado: <span class="tabular-nums font-medium">{{ "%.1f"|format(avg_dsr_used_pct_5y) }}%</span></li>
+                {% endif %}
+                {% if dsr_free_total_5y is not none %}
+                <li>DSR libre total: <span class="tabular-nums font-medium">{{ "%.2f"|format(dsr_free_total_5y) }} €</span></li>
+                {% endif %}
+            </ul>
         </div>
         <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
             <p class="text-xs font-medium text-emerald-800 uppercase">Efectivo para proyección (mes actual)</p>
             <p class="text-2xl font-bold text-emerald-900">{{ "%.2f"|format(starting_cash) }} €</p>
             {% if mortgage_entry_outlays_total and mortgage_entry_outlays_total > 0 %}
-            <p class="text-xs text-emerald-900 mt-2">
-                Saldo bancos: {{ "%.2f"|format(bank_cash_gross) }} €
-                − {{ "%.2f"|format(mortgage_entry_outlays_total) }} € (entradas hipoteca en objetivos)
-            </p>
+            <ul class="text-xs text-emerald-900 mt-2 list-disc list-inside space-y-0.5">
+                <li>Saldo bancos: <span class="tabular-nums font-medium">{{ "%.2f"|format(bank_cash_gross) }} €</span></li>
+                <li>Entradas hipoteca: <span class="tabular-nums font-medium">{{ "%.2f"|format(mortgage_entry_outlays_total) }} €</span></li>
+            </ul>
             {% endif %}
         </div>
     </div>
@@ -405,9 +418,17 @@ function spendingPlanGoals(cfg) {
                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Fecha límite deseada <span class="text-gray-500 font-normal">(opcional)</span></label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Fecha inicio <span class="text-gray-500 font-normal">(opcional)</span></label>
                         <input type="date" name="target_date" x-model="editTargetDate"
                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Fecha inamovible <span class="text-gray-500 font-normal">(opc.)</span></label>
+                        <label class="inline-flex items-center gap-2 text-sm text-gray-800 select-none">
+                            <input type="checkbox" name="date_fixed" value="1" x-model="editDateFixed"
+                                   class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"/>
+                            <span>No adelantar pagos si hay fecha</span>
+                        </label>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1 cursor-help" title="Vacío = el sistema elige el reparto; 1 = pago único; 2 o más = cuotas en ese número de meses (máx. 60).">N.º cuotas <span class="text-gray-500 font-normal">(opc.)</span></label>

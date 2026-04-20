@@ -105,6 +105,7 @@ def add_goal():
         if gtype == "mortgage" and extra:
             extra = _merge_mortgage_target_into_extra(extra, td)
         raw_inst = request.form.get("installment_months")
+        date_fixed = bool(request.form.get("date_fixed"))
         try:
             pay_mode, installment_months = sps.pay_options_from_installment_field(
                 raw_inst
@@ -122,6 +123,7 @@ def add_goal():
             extra_json=extra,
             pay_mode=pay_mode,
             installment_months=installment_months,
+            date_fixed=date_fixed,
         )
         flash("Objetivo añadido.", "success")
     except ValueError as e:
@@ -153,6 +155,7 @@ def edit_goal(goal_id: int):
             priority = int(request.form.get("priority") or 3)
             td = _parse_target_date(request.form.get("target_date") or "")
             raw_inst = request.form.get("installment_months")
+            date_fixed = bool(request.form.get("date_fixed"))
             try:
                 pay_mode, installment_months = sps.pay_options_from_installment_field(
                     raw_inst
@@ -169,6 +172,7 @@ def edit_goal(goal_id: int):
                 td,
                 pay_mode=pay_mode,
                 installment_months=installment_months,
+                date_fixed=date_fixed,
             )
             flash("Objetivo actualizado y plan replanificado.", "success")
         except ValueError as e:

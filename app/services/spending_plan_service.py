@@ -289,6 +289,11 @@ def sum_goal_monthlies(
             pm, im = parse_generic_pay_options(g.extra_json)
             row["pay_mode"] = pm
             row["installment_months"] = im
+            try:
+                ex = json.loads(g.extra_json or "{}")
+                row["date_fixed"] = bool(ex.get("date_fixed")) if isinstance(ex, dict) else False
+            except (json.JSONDecodeError, TypeError):
+                row["date_fixed"] = False
         lines.append(row)
     return round(cash_tot, 2), round(dsr_tot, 2), lines
 
@@ -314,7 +319,8 @@ def build_monthly_projection(
     for i in range(horizon_months):
         d = today + relativedelta(months=i)
         label = d.strftime("%b %Y")
-        surplus = round(income_avg - fixed_monthly, 2)
+        # Superávit (vista usuario): ingreso − fijos − cuota (DSR) estimada
+        surplus = round(income_avg - fixed_monthly - goals_dsr_monthly, 2)
         cash = round(cash + surplus, 2)
         margin = round(max_pay - goals_dsr_monthly, 2)
         out.append(
@@ -375,6 +381,7 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
     avg_dsr_used_pct_5y: Optional[float] = None
     dsr_free_total_5y = 0.0
     if sch.ok and len(sch.surplus_monthly) >= h:
+        cash_display = float(bank_cash_gross or 0)
         for i in range(h):
             d = date.today() + relativedelta(months=i)
             label = d.strftime("%b %Y")
@@ -383,6 +390,11 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
                 + sch.generic_payments_monthly[i]
                 + sch.initial_outlay_by_month[i]
             )
+            quota_m = sch.mortgage_payments_monthly[i] + sch.generic_payments_monthly[i]
+            surplus_display = round(
+                income_avg - fixed_total - sch.initial_outlay_by_month[i] - quota_m, 2
+            )
+            cash_display = round(cash_display + surplus_display, 2)
             margin = round(
                 max_pay
                 - sch.mortgage_payments_monthly[i]
@@ -396,8 +408,8 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
                     income=income_avg,
                     fixed_expenses=fixed_total,
                     goals_monthly=round(g_m, 2),
-                    surplus=sch.surplus_monthly[i],
-                    ending_cash=sch.cash_balance_monthly[i],
+                    surplus=surplus_display,
+                    ending_cash=cash_display,
                     max_debt_payment=max_pay,
                     dsr_margin=margin,
                 )
@@ -442,6 +454,7 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
             "installment_field": installment_field_for_ui(
                 gl.get("pay_mode"), gl.get("installment_months")
             ),
+            "date_fixed": bool(gl.get("date_fixed")),
         }
         for gl in goal_lines
         if gl["goal_type"] == "generic"
@@ -547,7 +560,26 @@ def _generic_extra_json(
                 im = max(1, int(installment_months))
             except (TypeError, ValueError):
                 im = None
-    return json.dumps({"pay_mode": pm, "installment_months": im}, ensure_ascii=False)
+    return json.dumps(
+        {"pay_mode": pm, "installment_months": im, "date_fixed": False},
+        ensure_ascii=False,
+    )
+
+
+def _set_generic_date_fixed(extra_json: str, date_fixed: bool) -> str:
+    try:
+        d = json.loads(extra_json or "{}")
+    except (json.JSONDecodeError, TypeError):
+        d = {}
+    if not isinstance(d, dict):
+        d = {}
+    d["date_fixed"] = bool(date_fixed)
+    # Mantener claves conocidas si existían
+    if "pay_mode" not in d:
+        d["pay_mode"] = "auto"
+    if "installment_months" not in d:
+        d["installment_months"] = None
+    return json.dumps(d, ensure_ascii=False)
 
 
 def add_goal(
@@ -560,6 +592,7 @@ def add_goal(
     extra_json: Optional[str] = None,
     pay_mode: Optional[str] = None,
     installment_months: Optional[int] = None,
+    date_fixed: bool = False,
 ) -> SpendingPlanGoal:
     title = (title or "").strip()
     if not title:
@@ -575,7 +608,9 @@ def add_goal(
         gt = "generic"
     extra: Optional[str] = None
     if gt == "generic":
-        extra = _generic_extra_json(pay_mode, installment_months)
+        extra = _set_generic_date_fixed(
+            _generic_extra_json(pay_mode, installment_months), date_fixed
+        )
     elif extra_json is not None:
         raw = str(extra_json).strip()
         if raw:
@@ -639,6 +674,7 @@ def update_generic_goal(
     target_date: Optional[date],
     pay_mode: Optional[str] = None,
     installment_months: Optional[int] = None,
+    date_fixed: bool = False,
 ) -> SpendingPlanGoal:
     g = SpendingPlanGoal.query.filter_by(
         id=goal_id, user_id=user_id, goal_type="generic"
@@ -654,7 +690,7 @@ def update_generic_goal(
     pr = int(priority)
     if pr < 1 or pr > 5:
         raise ValueError("La prioridad debe estar entre 1 y 5 (1 = más alta).")
-    extra = _generic_extra_json(pay_mode, installment_months)
+    extra = _set_generic_date_fixed(_generic_extra_json(pay_mode, installment_months), date_fixed)
     settings = _get_or_create_settings(user_id)
     fixed_ids = get_fixed_category_ids(user_id)
     income_avg = get_avg_monthly_income(user_id, 12)
