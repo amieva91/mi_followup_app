@@ -174,19 +174,19 @@ function spendingPlanGoals(cfg) {
                 <input type="number" name="priority" min="1" max="5" value="3"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
             </div>
-            <div class="md:col-span-3">
+            <div class="md:col-span-3" id="generic-target-date-wrap">
                 <label class="block text-xs font-medium text-gray-600 mb-1">Fecha inicio <span class="text-gray-500 font-normal">(opcional)</span></label>
                 <input id="generic-target-date-input" type="date" name="target_date"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
             </div>
-            <div class="md:col-span-3" id="date-fixed-create-wrap" style="display: none;">
+            <div class="md:col-span-1" id="date-fixed-create-wrap" style="display: none;">
                 <label class="block text-xs font-medium text-gray-600 mb-1">Fecha inamovible <span class="text-gray-500 font-normal">(opc.)</span></label>
                 <div class="flex items-center h-[42px]">
                     <input id="date-fixed-create-input" type="checkbox" name="date_fixed" value="1"
                            class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"/>
                 </div>
             </div>
-            <div class="md:col-span-3">
+            <div class="md:col-span-3" id="generic-installments-wrap">
                 <label class="block text-xs font-medium text-gray-600 mb-1 cursor-help" title="Vacío = el sistema elige el reparto; 1 = pago único; 2 o más = cuotas en ese número de meses (máx. 60).">N.º cuotas <span class="text-gray-500 font-normal">(opc.)</span></label>
                 <input type="number" name="installment_months" min="1" max="60" placeholder="—"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
@@ -202,11 +202,18 @@ function spendingPlanGoals(cfg) {
             var d = document.getElementById('generic-target-date-input');
             var wrap = document.getElementById('date-fixed-create-wrap');
             var chk = document.getElementById('date-fixed-create-input');
+            var dateWrap = document.getElementById('generic-target-date-wrap');
+            var instWrap = document.getElementById('generic-installments-wrap');
             function sync() {
-                if (!d || !wrap || !chk) return;
+                if (!d || !wrap || !chk || !dateWrap || !instWrap) return;
                 var hasDate = !!(d.value && String(d.value).trim());
                 wrap.style.display = hasDate ? '' : 'none';
                 if (!hasDate) chk.checked = false;
+                // Cuando aparece "Fecha inamovible", compactar Fecha + Cuotas para que quepa todo en línea.
+                dateWrap.classList.toggle('md:col-span-3', !hasDate);
+                dateWrap.classList.toggle('md:col-span-2', hasDate);
+                instWrap.classList.toggle('md:col-span-3', !hasDate);
+                instWrap.classList.toggle('md:col-span-2', hasDate);
             }
             if (d) {
                 d.addEventListener('input', sync);
