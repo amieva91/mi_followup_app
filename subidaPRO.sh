@@ -37,11 +37,12 @@ else
     echo "   ⚠️  No se encontró BD para backup"
 fi
 
-# Pull código (-c safe.directory evita dubious ownership sin modificar .gitconfig)
+# Código en main (checkout explícito: si el servidor estaba en otra rama, p. ej. experimental)
 echo "📥 Descargando cambios desde main..."
 git -c safe.directory=/var/www/followup fetch origin
+git -c safe.directory=/var/www/followup checkout main
 git -c safe.directory=/var/www/followup pull origin main
-echo "   ✓ Código actualizado"
+echo "   ✓ Código actualizado (rama main)"
 
 # Activar venv
 source venv/bin/activate
