@@ -28,12 +28,12 @@ Usar en [followup.fit](https://followup.fit/) (rama experimental) o entorno loca
 - [x] C6
 - [x] C7
 - [x] Fecha fija (inamovible)
-- [ ] H1
-- [ ] H2
-- [ ] H3
-- [ ] D1
-- [ ] D2
-- [ ] D3
+- [x] H1
+- [x] H2
+- [x] H3
+- [x] D1
+- [x] D2
+- [x] D3
 - [ ] E1
 - [ ] E2
 - [ ] E3

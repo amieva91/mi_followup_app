@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from datetime import date
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from dateutil.relativedelta import relativedelta
 
@@ -167,13 +167,116 @@ GOAL_COLOR_PALETTE = [
     "#616161",  # Grafito
 ]
 
+UI_COLOR_JSON_KEY = "ui_color"
+
+
+def _parse_ui_color_from_extra(extra_json: Optional[str]) -> Optional[str]:
+    try:
+        d = json.loads(extra_json or "{}")
+        if not isinstance(d, dict):
+            return None
+        c = d.get(UI_COLOR_JSON_KEY)
+        if isinstance(c, str):
+            t = c.strip()
+            if len(t) == 7 and t.startswith("#"):
+                return t
+    except (json.JSONDecodeError, TypeError):
+        pass
+    return None
+
+
+def _merge_ui_color_into_extra(extra_json: Optional[str], color: str) -> str:
+    try:
+        d = json.loads(extra_json or "{}")
+    except (json.JSONDecodeError, TypeError):
+        d = {}
+    if not isinstance(d, dict):
+        d = {}
+    d[UI_COLOR_JSON_KEY] = color
+    return json.dumps(d, ensure_ascii=False)
+
+
+def _used_ui_colors_for_user(user_id: int, exclude_goal_id: Optional[int] = None) -> set:
+    goals = SpendingPlanGoal.query.filter_by(user_id=user_id).all()
+    used: set = set()
+    for g in goals:
+        if exclude_goal_id is not None and g.id == exclude_goal_id:
+            continue
+        c = _parse_ui_color_from_extra(g.extra_json)
+        if c:
+            used.add(c.lower())
+    return used
+
+
+def _allocate_free_ui_color(user_id: int, exclude_goal_id: Optional[int] = None) -> str:
+    used = _used_ui_colors_for_user(user_id, exclude_goal_id=exclude_goal_id)
+    for p in GOAL_COLOR_PALETTE:
+        if p.lower() not in used:
+            return p
+    n = SpendingPlanGoal.query.filter_by(user_id=user_id).count()
+    return GOAL_COLOR_PALETTE[n % len(GOAL_COLOR_PALETTE)]
+
+
+def _ensure_extra_has_ui_color(
+    prior_extra: Optional[str],
+    new_extra: str,
+    user_id: int,
+    *,
+    exclude_goal_id: Optional[int],
+) -> str:
+    """Conserva ui_color del objetivo al editar; asigna hueco libre al crear o si faltaba."""
+    kept = _parse_ui_color_from_extra(prior_extra)
+    if kept:
+        return _merge_ui_color_into_extra(new_extra, kept)
+    col = _allocate_free_ui_color(user_id, exclude_goal_id=exclude_goal_id)
+    return _merge_ui_color_into_extra(new_extra, col)
+
+
+def ensure_goal_ui_colors_backfill(user_id: int) -> None:
+    """Asigna ui_color a objetivos antiguos sin clave (una vez por carga si aplica)."""
+    goals = (
+        SpendingPlanGoal.query.filter_by(user_id=user_id)
+        .order_by(SpendingPlanGoal.id.asc())
+        .all()
+    )
+    need = [g for g in goals if not _parse_ui_color_from_extra(g.extra_json)]
+    if not need:
+        return
+    used = _used_ui_colors_for_user(user_id, exclude_goal_id=None)
+    changed = False
+    for g in need:
+        chosen: Optional[str] = None
+        for p in GOAL_COLOR_PALETTE:
+            if p.lower() not in used:
+                chosen = p
+                used.add(p.lower())
+                break
+        if chosen is None:
+            chosen = GOAL_COLOR_PALETTE[g.id % len(GOAL_COLOR_PALETTE)]
+        g.extra_json = _merge_ui_color_into_extra(g.extra_json, chosen)
+        changed = True
+    if changed:
+        db.session.commit()
+
+
+def _goal_color_map_from_db(goals_db: Sequence[Any]) -> Dict[int, str]:
+    out: Dict[int, str] = {}
+    for g in goals_db:
+        c = _parse_ui_color_from_extra(getattr(g, "extra_json", None))
+        if c:
+            out[int(g.id)] = c
+    return out
+
 
 def _build_goal_color_and_schedule_meta(
-    sch: Any, month_labels: List[str], horizon_months: int
+    sch: Any,
+    month_labels: List[str],
+    horizon_months: int,
+    goals_db: Sequence[Any],
 ) -> Tuple[Dict[int, dict], List[List[dict]]]:
     """
     Meta por objetivo basada en el planificador:
-    - color (palette)
+    - color (persistido en extra_json; estable al cambiar prioridad)
     - mes de inicio (primer mes con pago > 0)
     - nº cuotas (nº de meses con pago > 0 dentro de la ventana)
     Y una estructura por mes para pintar puntos en la proyección.
@@ -183,12 +286,15 @@ def _build_goal_color_and_schedule_meta(
     if not sch or not getattr(sch, "ok", False):
         return meta, marks
 
+    color_map = _goal_color_map_from_db(goals_db)
     details = getattr(sch, "goal_details", None) or []
-    for idx, gd in enumerate(details):
+    for _, gd in enumerate(details):
         gid = getattr(gd, "goal_id", None)
         if gid is None:
             continue
-        color = GOAL_COLOR_PALETTE[idx % len(GOAL_COLOR_PALETTE)]
+        color = color_map.get(int(gid)) or GOAL_COLOR_PALETTE[
+            int(gid) % len(GOAL_COLOR_PALETTE)
+        ]
         payments = getattr(gd, "payments_by_month", None) or []
 
         first_idx: Optional[int] = None
@@ -370,6 +476,7 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
         user_id, min(settings.horizon_months, PLAN_WINDOW_MONTHS)
     )
 
+    ensure_goal_ui_colors_backfill(user_id)
     goals_db = (
         SpendingPlanGoal.query.filter_by(user_id=user_id)
         .order_by(SpendingPlanGoal.priority.asc(), SpendingPlanGoal.id.asc())
@@ -494,7 +601,7 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
             )
 
     goal_meta, month_goal_marks = _build_goal_color_and_schedule_meta(
-        sch, schedule_month_labels, settings.horizon_months
+        sch, schedule_month_labels, settings.horizon_months, goals_db
     )
     for row in goal_lines:
         gid = row.get("id")
@@ -690,6 +797,11 @@ def add_goal(
     if gt == "mortgage" and extra:
         extra = _set_mortgage_date_fixed(extra, mortgage_date_user_fixed)
 
+    if extra:
+        extra = _ensure_extra_has_ui_color(
+            None, extra, user_id, exclude_goal_id=None
+        )
+
     settings = _get_or_create_settings(user_id)
     fixed_ids = get_fixed_category_ids(user_id)
     income_avg = get_avg_monthly_income(user_id, 12)
@@ -759,6 +871,9 @@ def update_generic_goal(
     if pr < 1 or pr > 5:
         raise ValueError("La prioridad debe estar entre 1 y 5 (1 = más alta).")
     extra = _set_generic_date_fixed(_generic_extra_json(pay_mode, installment_months), date_fixed)
+    extra = _ensure_extra_has_ui_color(
+        g.extra_json, extra, user_id, exclude_goal_id=goal_id
+    )
     settings = _get_or_create_settings(user_id)
     fixed_ids = get_fixed_category_ids(user_id)
     income_avg = get_avg_monthly_income(user_id, 12)
@@ -865,6 +980,9 @@ def update_mortgage_goal(
             pass
 
     raw = _set_mortgage_date_fixed(raw, purchase_date_user_fixed)
+    raw = _ensure_extra_has_ui_color(
+        g.extra_json, raw, user_id, exclude_goal_id=goal_id
+    )
 
     cand = build_candidate_goal(
         title=title,
