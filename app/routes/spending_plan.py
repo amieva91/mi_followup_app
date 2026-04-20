@@ -86,7 +86,7 @@ def add_goal():
         if update_id and gtype == "mortgage":
             title = request.form.get("title") or ""
             amount = float(request.form.get("amount_total") or 0)
-            priority = int(request.form.get("priority") or 3)
+            priority = 1
             td = _parse_target_date(request.form.get("target_date") or "")
             extra = (request.form.get("extra_json") or "").strip() or None
             extra = _merge_mortgage_target_into_extra(extra, td)
@@ -106,7 +106,7 @@ def add_goal():
 
         title = request.form.get("title") or ""
         amount = float(request.form.get("amount_total") or 0)
-        priority = int(request.form.get("priority") or 3)
+        priority = 1 if gtype == "mortgage" else int(request.form.get("priority") or 3)
         td = _parse_target_date(request.form.get("target_date") or "")
         extra = (request.form.get("extra_json") or "").strip() or None
         if gtype == "mortgage" and extra:
