@@ -270,9 +270,16 @@ function spendingPlanGoals(cfg) {
             <p class="text-2xl font-bold text-rose-900">{{ "%.2f"|format(fixed_total) }} €</p>
         </div>
         <div class="bg-amber-50 border border-amber-100 rounded-xl p-4">
-            <p class="text-xs font-medium text-amber-900 uppercase">Objetivos / mes</p>
-            <p class="text-2xl font-bold text-amber-950">{{ "%.2f"|format(goals_total_monthly) }} €</p>
-            <p class="text-xs text-amber-800 mt-1">DSR: {{ "%.2f"|format(goals_dsr_monthly) }} €/mes</p>
+            <p class="text-xs font-medium text-amber-900 uppercase">Cuota / mes</p>
+            <p class="text-2xl font-bold text-amber-950">{{ "%.2f"|format(avg_quota_monthly_5y or 0) }} €</p>
+            <p class="text-xs text-amber-800 mt-1">
+                Media 5 años (cuotas DSR).{% if avg_dsr_used_pct_5y is not none and dsr_cap_monthly %} DSR ocupado: {{ "%.1f"|format(avg_dsr_used_pct_5y) }}% (cap {{ "%.2f"|format(dsr_cap_monthly) }} €/mes).{% endif %}
+            </p>
+            {% if dsr_free_total_5y and dsr_free_total_5y > 0 %}
+            <p class="text-xs text-amber-800 mt-1">
+                DSR libre total (5 años): <span class="tabular-nums font-medium">{{ "%.2f"|format(dsr_free_total_5y) }} €</span>
+            </p>
+            {% endif %}
         </div>
         <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
             <p class="text-xs font-medium text-emerald-800 uppercase">Efectivo para proyección (mes actual)</p>
@@ -305,7 +312,7 @@ function spendingPlanGoals(cfg) {
                     <th class="px-4 py-3">Mes</th>
                     <th class="px-4 py-3 text-right">Ingreso</th>
                     <th class="px-4 py-3 text-right">Fijos</th>
-                    <th class="px-4 py-3 text-right">Objetivos</th>
+                    <th class="px-4 py-3 text-right">Cuota</th>
                     <th class="px-4 py-3">Pagos</th>
                     <th class="px-4 py-3 text-right">Superávit</th>
                     <th class="px-4 py-3 text-right">Saldo acum.</th>
@@ -342,7 +349,7 @@ function spendingPlanGoals(cfg) {
         </table>
     </div>
     <p class="text-xs text-gray-500 mt-2">
-        Columna Objetivos: cuotas hipoteca + entradas en el mes + cuotas genéricas planificadas. Superávit de liquidez = ingreso − fijos − entradas hipotecarias del mes (cuotas y genéricos compiten por cupo DSR y no descuentan del saldo salvo la entrada).
+        Columna Cuota: cuotas hipoteca + entradas en el mes + cuotas genéricas planificadas. Superávit de liquidez = ingreso − fijos − entradas hipotecarias del mes (cuotas y genéricos compiten por cupo DSR y no descuentan del saldo salvo la entrada).
         Margen DSR = cuota máxima permitida − cuota hipoteca − objetivos genéricos del mes (todo lo que compite por el cupo). La columna “Pagos” marca con puntos los objetivos con cargo en ese mes.
     </p>
 

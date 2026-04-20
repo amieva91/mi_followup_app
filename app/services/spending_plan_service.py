@@ -371,6 +371,9 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
     max_pay = (
         round(income_avg * (max_dsr_pct / 100.0), 2) if income_avg > 0 else 0.0
     )
+    avg_quota_monthly_5y = 0.0
+    avg_dsr_used_pct_5y: Optional[float] = None
+    dsr_free_total_5y = 0.0
     if sch.ok and len(sch.surplus_monthly) >= h:
         for i in range(h):
             d = date.today() + relativedelta(months=i)
@@ -399,6 +402,16 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
                     dsr_margin=margin,
                 )
             )
+        # Métricas 5 años (DSR): media cuotas (hipoteca + genéricos), % ocupado y € libres totales.
+        used_vec: List[float] = []
+        for i in range(PLAN_WINDOW_MONTHS):
+            mv = sch.mortgage_payments_monthly[i] if i < len(sch.mortgage_payments_monthly) else 0.0
+            gv = sch.generic_payments_monthly[i] if i < len(sch.generic_payments_monthly) else 0.0
+            used_vec.append(float(mv or 0) + float(gv or 0))
+        avg_quota_monthly_5y = round(sum(used_vec) / PLAN_WINDOW_MONTHS, 2) if used_vec else 0.0
+        if max_pay > 0:
+            avg_dsr_used_pct_5y = round((avg_quota_monthly_5y / max_pay) * 100.0, 1)
+            dsr_free_total_5y = round(sum(max(0.0, max_pay - u) for u in used_vec), 2)
     else:
         months = build_monthly_projection(
             income_avg,
@@ -409,6 +422,10 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
             max_dsr_pct,
             h,
         )
+        avg_quota_monthly_5y = round(float(goals_dsr or 0), 2)
+        if max_pay > 0:
+            avg_dsr_used_pct_5y = round((avg_quota_monthly_5y / max_pay) * 100.0, 1)
+            dsr_free_total_5y = round(max(0.0, (max_pay - avg_quota_monthly_5y)) * PLAN_WINDOW_MONTHS, 2)
 
     categories = ExpenseCategory.query.filter_by(user_id=user_id).order_by(
         ExpenseCategory.name
@@ -463,6 +480,10 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
         "goal_lines": goal_lines,
         "generic_goals_modal": generic_goals_modal,
         "months": months,
+        "dsr_cap_monthly": max_pay,
+        "avg_quota_monthly_5y": avg_quota_monthly_5y,
+        "avg_dsr_used_pct_5y": avg_dsr_used_pct_5y,
+        "dsr_free_total_5y": dsr_free_total_5y,
         "category_options": cat_options,
         "plan_schedule": sch,
         "plan_window_months": PLAN_WINDOW_MONTHS,
