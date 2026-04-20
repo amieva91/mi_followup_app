@@ -319,36 +319,41 @@ def _try_generic_allocation(
         ks = list(range(1, W + 1))
 
     for k in ks:
-        if date_fixed:
-            start = start_m
-            end = start + k - 1
-            if end >= W:
-                continue
-        else:
-            start = start_m
-            end = start + k - 1
-            if end >= W:
-                continue
-        pay = amount / k
-        inc = _zero(W)
-        for j in range(k):
-            inc[start + j] = pay
-        if check(inc):
-            msg = None
-            return inc, msg
-
-    if not date_fixed:
-        for k in range(1, W + 1):
+        # Con cuotas explícitas: mantener k y permitir mover el inicio >= start_m.
+        if user_installments is not None and not date_fixed:
             for start in range(start_m, W - k + 1):
                 pay = amount / k
                 inc = _zero(W)
                 for j in range(k):
                     inc[start + j] = pay
                 if check(inc):
-                    return (
-                        inc,
-                        f"Cuotas repartidas en {k} meses (desde mes {start + 1}) dentro del cupo DSR.",
-                    )
+                    return inc, None
+        else:
+            start = start_m
+            end = start + k - 1
+            if end >= W:
+                continue
+            pay = amount / k
+            inc = _zero(W)
+            for j in range(k):
+                inc[start + j] = pay
+            if check(inc):
+                return inc, None
+
+    if not date_fixed:
+        # Solo si el usuario NO especificó cuotas: buscar k y start.
+        if user_installments is None:
+            for k in range(1, W + 1):
+                for start in range(start_m, W - k + 1):
+                    pay = amount / k
+                    inc = _zero(W)
+                    for j in range(k):
+                        inc[start + j] = pay
+                    if check(inc):
+                        return (
+                            inc,
+                            f"Cuotas repartidas en {k} meses (desde mes {start + 1}) dentro del cupo DSR.",
+                        )
     return None
 
 

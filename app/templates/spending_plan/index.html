@@ -234,12 +234,12 @@ function spendingPlanGoals(cfg) {
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
             </div>
             <div class="md:col-span-2" id="generic-amount-wrap">
-                <label class="block text-xs font-medium text-gray-600 mb-1">Importe total (€)</label>
+                <label class="block text-xs font-medium text-gray-600 mb-1 whitespace-nowrap">Importe total (€)</label>
                 <input id="generic-amount-input" type="number" name="amount_total" required min="0.01" step="0.01"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
             </div>
             <div class="md:col-span-1" id="generic-priority-wrap">
-                <label class="block text-xs font-medium text-gray-600 mb-1">Prioridad (1–5)</label>
+                <label class="block text-xs font-medium text-gray-600 mb-1 whitespace-nowrap">Prioridad (1–5)</label>
                 <input type="number" name="priority" min="1" max="5" value="3"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
             </div>
@@ -286,13 +286,13 @@ function spendingPlanGoals(cfg) {
                 dateWrap.classList.toggle('md:col-span-2', hasDate);
                 instWrap.classList.toggle('md:col-span-3', !hasDate);
                 instWrap.classList.toggle('md:col-span-2', hasDate);
-                // Ajuste adicional para que los títulos no hagan wrap
-                titleWrap.classList.toggle('md:col-span-3', !hasDate);
-                titleWrap.classList.toggle('md:col-span-4', hasDate);
-                amountWrap.classList.toggle('md:col-span-2', !hasDate);
-                amountWrap.classList.toggle('md:col-span-1', hasDate);
-                prioWrap.classList.toggle('md:col-span-1', !hasDate);
-                prioWrap.classList.toggle('md:col-span-2', hasDate);
+                // Ajustes finos: mantener spans consistentes; el wrap de títulos se controla con whitespace-nowrap.
+                titleWrap.classList.toggle('md:col-span-3', true);
+                titleWrap.classList.remove('md:col-span-4');
+                amountWrap.classList.toggle('md:col-span-2', true);
+                amountWrap.classList.remove('md:col-span-1');
+                prioWrap.classList.toggle('md:col-span-1', true);
+                prioWrap.classList.remove('md:col-span-2');
             }
             if (d) {
                 d.addEventListener('input', sync);
@@ -552,7 +552,7 @@ function spendingPlanGoals(cfg) {
                         <input type="date" name="target_date" x-model="editTargetDate"
                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
                     </div>
-                    <div x-show="!!editTargetDate" x-effect="if (!editTargetDate) editDateFixed = false" class="flex items-center justify-between gap-4">
+                    <div x-show="!!editTargetDate" x-effect="if (!editTargetDate) editDateFixed = false" class="flex items-center gap-3">
                         <label class="block text-sm font-medium text-gray-700">Fecha inamovible</label>
                         <input type="checkbox" name="date_fixed" value="1" x-model="editDateFixed"
                                class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"/>
