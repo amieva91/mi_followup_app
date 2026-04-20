@@ -227,7 +227,7 @@ function spendingPlanGoals(cfg) {
         <div class="flex flex-wrap items-start justify-between gap-4 mb-4">
             <h2 class="text-lg font-bold text-gray-900">Objetivos planificados</h2>
             <a href="{{ url_for('spending_plan.mortgage_simulator') }}" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700">
-                Simulador compra vivienda (hipoteca)
+                Añadir hipoteca (Simulador)
             </a>
         </div>
         <p class="text-sm text-gray-600 mb-3">
@@ -274,7 +274,7 @@ function spendingPlanGoals(cfg) {
                 <button type="submit" :disabled="addPlanning"
                         :class="addPlanning ? 'opacity-80 cursor-not-allowed' : ''"
                         class="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 text-sm font-medium">
-                    <span x-show="!addPlanning">Añadir objetivo genérico</span>
+                    <span x-show="!addPlanning">Añadir gasto sin entrada</span>
                     <span x-show="addPlanning" class="inline-flex items-center gap-2">
                         Planificando
                         <span class="inline-block w-4 h-4 border-2 border-white/70 border-t-transparent rounded-full animate-spin"></span>
