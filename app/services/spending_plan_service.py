@@ -153,6 +153,46 @@ class MonthProjection:
     dsr_margin: float
 
 
+def _ending_cash_projection_table_style(
+    bank_gross: float,
+    income_avg: float,
+    fixed_total: float,
+    sch: Any,
+    n_months: int,
+) -> float:
+    """
+    Misma lógica que la columna «Saldo acum.» de la proyección mensual en pantalla:
+    cada mes suma ingreso − fijos − entrada hipotecaria − cuota (DSR).
+    """
+    cash = float(bank_gross or 0)
+    for i in range(min(n_months, PLAN_WINDOW_MONTHS)):
+        mv = (
+            sch.mortgage_payments_monthly[i]
+            if i < len(sch.mortgage_payments_monthly)
+            else 0.0
+        )
+        gv = (
+            sch.generic_payments_monthly[i]
+            if i < len(sch.generic_payments_monthly)
+            else 0.0
+        )
+        ini = (
+            sch.initial_outlay_by_month[i]
+            if i < len(sch.initial_outlay_by_month)
+            else 0.0
+        )
+        quota_m = float(mv or 0) + float(gv or 0)
+        surplus = round(
+            float(income_avg)
+            - float(fixed_total)
+            - float(ini or 0)
+            - quota_m,
+            2,
+        )
+        cash = round(cash + surplus, 2)
+    return cash
+
+
 GOAL_COLOR_PALETTE = [
     "#D50000",  # Tomate
     "#E67C73",  # Flamenco
@@ -585,16 +625,17 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
 
     balance_end_5y: Optional[float] = None
     bank_vs_end_pct: Optional[float] = None
-    net_liquidity_change_5y: Optional[float] = None
-    if (
-        sch.ok
-        and sch.cash_balance_monthly
-        and len(sch.cash_balance_monthly) >= PLAN_WINDOW_MONTHS
-    ):
+    if sch.ok and len(getattr(sch, "mortgage_payments_monthly", []) or []) >= PLAN_WINDOW_MONTHS:
         balance_end_5y = round(
-            float(sch.cash_balance_monthly[PLAN_WINDOW_MONTHS - 1]), 2
+            _ending_cash_projection_table_style(
+                bank_cash_gross,
+                income_avg,
+                fixed_total,
+                sch,
+                PLAN_WINDOW_MONTHS,
+            ),
+            2,
         )
-        net_liquidity_change_5y = round(balance_end_5y - float(bank_cash_gross or 0), 2)
         if bank_cash_gross and float(bank_cash_gross) > 1e-6:
             bank_vs_end_pct = round(
                 (balance_end_5y / float(bank_cash_gross) - 1.0) * 100.0, 1
@@ -639,7 +680,6 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
         "month_goal_marks": month_goal_marks,
         "balance_end_5y": balance_end_5y,
         "bank_vs_end_pct": bank_vs_end_pct,
-        "net_liquidity_change_5y": net_liquidity_change_5y,
     }
 
 

@@ -425,17 +425,12 @@ function spendingPlanGoals(cfg) {
                 {% endif %}
             </p>
             <ul class="text-xs text-emerald-900 mt-2 list-disc list-inside space-y-0.5">
-                <li>Saldo bancos: <span class="tabular-nums font-medium">{{ "%.2f"|format(bank_cash_gross) }} €</span></li>
+                <li>Saldo bancos: Actual: <span class="tabular-nums font-medium">{{ "%.2f"|format(bank_cash_gross) }} €</span></li>
                 {% if mortgage_entry_outlays_total and mortgage_entry_outlays_total > 0 %}
-                <li>Entradas hipoteca (objetivos): <span class="tabular-nums font-medium">{{ "%.2f"|format(mortgage_entry_outlays_total) }} €</span></li>
-                {% endif %}
-                {% if net_liquidity_change_5y is not none %}
-                <li>Cambio neto en el plan (5 años): <span class="tabular-nums font-medium">{{ "%+.2f"|format(net_liquidity_change_5y) }} €</span></li>
+                <li>Entradas hipoteca: <span class="tabular-nums font-medium">{{ "%.2f"|format(mortgage_entry_outlays_total) }} €</span></li>
                 {% endif %}
                 {% if bank_vs_end_pct is not none %}
-                <li>Vs. saldo actual (5 años): <span class="tabular-nums font-medium">{{ "%+.1f"|format(bank_vs_end_pct) }} %</span>
-                    {% if bank_vs_end_pct >= 0 %}<span class="text-emerald-800">(revalorización)</span>{% else %}<span class="text-amber-900">(depreciación)</span>{% endif %}
-                </li>
+                <li>{% if bank_vs_end_pct >= 0 %}Revalorización saldo{% else %}Depreciación saldo{% endif %} (5 años): <span class="tabular-nums font-medium">{{ "%+.1f"|format(bank_vs_end_pct) }} %</span></li>
                 {% endif %}
             </ul>
         </div>
