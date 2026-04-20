@@ -414,14 +414,28 @@ function spendingPlanGoals(cfg) {
             </ul>
         </div>
         <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
-            <p class="text-xs font-medium text-emerald-800 uppercase">Efectivo para proyección (mes actual)</p>
-            <p class="text-2xl font-bold text-emerald-900">{{ "%.2f"|format(starting_cash) }} €</p>
-            {% if mortgage_entry_outlays_total and mortgage_entry_outlays_total > 0 %}
+            <p class="text-xs font-medium text-emerald-800 uppercase">Saldo total acumulado (5 años)</p>
+            <p class="text-2xl font-bold text-emerald-900">
+                {% if balance_end_5y is not none %}
+                {{ "%.2f"|format(balance_end_5y) }} €
+                {% else %}
+                —
+                {% endif %}
+            </p>
             <ul class="text-xs text-emerald-900 mt-2 list-disc list-inside space-y-0.5">
                 <li>Saldo bancos: <span class="tabular-nums font-medium">{{ "%.2f"|format(bank_cash_gross) }} €</span></li>
-                <li>Entradas hipoteca: <span class="tabular-nums font-medium">{{ "%.2f"|format(mortgage_entry_outlays_total) }} €</span></li>
+                {% if mortgage_entry_outlays_total and mortgage_entry_outlays_total > 0 %}
+                <li>Entradas hipoteca (objetivos): <span class="tabular-nums font-medium">{{ "%.2f"|format(mortgage_entry_outlays_total) }} €</span></li>
+                {% endif %}
+                {% if net_liquidity_change_5y is not none %}
+                <li>Cambio neto en el plan (5 años): <span class="tabular-nums font-medium">{{ "%+.2f"|format(net_liquidity_change_5y) }} €</span></li>
+                {% endif %}
+                {% if bank_vs_end_pct is not none %}
+                <li>Vs. saldo actual (5 años): <span class="tabular-nums font-medium">{{ "%+.1f"|format(bank_vs_end_pct) }} %</span>
+                    {% if bank_vs_end_pct >= 0 %}<span class="text-emerald-800">(revalorización)</span>{% else %}<span class="text-amber-900">(depreciación)</span>{% endif %}
+                </li>
+                {% endif %}
             </ul>
-            {% endif %}
         </div>
     </div>
 

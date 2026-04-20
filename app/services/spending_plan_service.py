@@ -476,6 +476,23 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
         d = date.today() + relativedelta(months=i)
         schedule_month_labels.append(d.strftime("%b %Y"))
 
+    balance_end_5y: Optional[float] = None
+    bank_vs_end_pct: Optional[float] = None
+    net_liquidity_change_5y: Optional[float] = None
+    if (
+        sch.ok
+        and sch.cash_balance_monthly
+        and len(sch.cash_balance_monthly) >= PLAN_WINDOW_MONTHS
+    ):
+        balance_end_5y = round(
+            float(sch.cash_balance_monthly[PLAN_WINDOW_MONTHS - 1]), 2
+        )
+        net_liquidity_change_5y = round(balance_end_5y - float(bank_cash_gross or 0), 2)
+        if bank_cash_gross and float(bank_cash_gross) > 1e-6:
+            bank_vs_end_pct = round(
+                (balance_end_5y / float(bank_cash_gross) - 1.0) * 100.0, 1
+            )
+
     goal_meta, month_goal_marks = _build_goal_color_and_schedule_meta(
         sch, schedule_month_labels, settings.horizon_months
     )
@@ -513,6 +530,9 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
         "plan_window_months": PLAN_WINDOW_MONTHS,
         "schedule_month_labels": schedule_month_labels,
         "month_goal_marks": month_goal_marks,
+        "balance_end_5y": balance_end_5y,
+        "bank_vs_end_pct": bank_vs_end_pct,
+        "net_liquidity_change_5y": net_liquidity_change_5y,
     }
 
 
