@@ -807,6 +807,135 @@ def update_mortgage_goal(
     return g
 
 
+def suggest_adjustments_for_generic(
+    user_id: int,
+    goal_id: Optional[int],
+    title: str,
+    amount_total: float,
+    priority: int,
+    target_date: Optional[date],
+    raw_installment_months: Optional[str],
+    date_fixed: bool,
+) -> List[dict]:
+    """
+    Sugiere cambios aplicables para que el plan sea viable sin perder el contexto del usuario.
+    Devuelve una lista de sugerencias {type, field, value, label}.
+    """
+    suggestions: List[dict] = []
+    today = date.today()
+    settings = _get_or_create_settings(user_id)
+    fixed_ids = get_fixed_category_ids(user_id)
+    income_avg = get_avg_monthly_income(user_id, 12)
+    fixed_total, _ = compute_fixed_expenses_monthly(user_id, fixed_ids)
+    bank_gross = get_current_bank_cash(user_id)
+    all_goals = SpendingPlanGoal.query.filter_by(user_id=user_id).all()
+    others = [g for g in all_goals if goal_id is None or g.id != goal_id]
+
+    # Parse current pay options
+    pay_mode = "auto"
+    inst: Optional[int] = None
+    try:
+        pay_mode, inst = pay_options_from_installment_field(raw_installment_months)
+    except ValueError:
+        pay_mode, inst = "auto", None
+
+    sort_id = goal_id if goal_id is not None else 10**9
+
+    def try_schedule(
+        *,
+        td: Optional[date],
+        pm: str,
+        im: Optional[int],
+        df: bool,
+    ) -> Optional[PlanScheduleResult]:
+        extra = _set_generic_date_fixed(_generic_extra_json(pm, im), df)
+        cand = build_candidate_goal(
+            title=title,
+            goal_type="generic",
+            priority=int(priority),
+            amount_total=float(amount_total or 0),
+            target_date=td,
+            extra_json=extra,
+            sort_id=sort_id,
+        )
+        merged = others + [cand]
+        sch = compute_plan_schedule(
+            today=today,
+            income_avg=income_avg,
+            fixed_monthly=fixed_total,
+            starting_cash=bank_gross,
+            max_dsr_percent=settings.max_dsr_percent,
+            goals=merged,
+        )
+        return sch if sch.ok else None
+
+    def first_payment_date_str(sch: PlanScheduleResult) -> Optional[str]:
+        for gd in getattr(sch, "goal_details", []) or []:
+            if getattr(gd, "goal_id", None) == sort_id:
+                for i, p in enumerate(getattr(gd, "payments_by_month", []) or []):
+                    try:
+                        pv = float(p or 0)
+                    except (TypeError, ValueError):
+                        pv = 0.0
+                    if pv > 0.001:
+                        return (today + relativedelta(months=i)).isoformat()
+        return None
+
+    # 1) Sugerencias de fecha
+    if target_date is not None:
+        sch_ge = try_schedule(td=target_date, pm=pay_mode, im=inst, df=False)
+        if sch_ge:
+            d1 = first_payment_date_str(sch_ge)
+            if d1:
+                suggestions.append(
+                    {
+                        "type": "set_field",
+                        "field": "target_date",
+                        "value": d1,
+                        "label": f"Fecha viable (≥ la indicada): {d1}",
+                    }
+                )
+        sch_any = try_schedule(td=None, pm=pay_mode, im=inst, df=False)
+        if sch_any:
+            d2 = first_payment_date_str(sch_any)
+            if d2:
+                suggestions.append(
+                    {
+                        "type": "set_field",
+                        "field": "target_date",
+                        "value": d2,
+                        "label": f"Primera fecha viable (auto): {d2}",
+                    }
+                )
+
+    # 2) Sugerencias de cuotas
+    if pay_mode == "installments":
+        for k in range(2, 61):
+            sch_k = try_schedule(td=target_date, pm="installments", im=k, df=date_fixed)
+            if sch_k:
+                suggestions.append(
+                    {
+                        "type": "set_field",
+                        "field": "installment_months",
+                        "value": str(k),
+                        "label": f"Cuotas sugeridas: {k} meses",
+                    }
+                )
+                break
+        sch_auto = try_schedule(td=target_date, pm="auto", im=None, df=date_fixed)
+        if sch_auto:
+            suggestions.append(
+                {
+                    "type": "set_field",
+                    "field": "installment_months",
+                    "value": "",
+                    "label": "Dejar cuotas en automático",
+                }
+            )
+
+    return suggestions
+
+
 def delete_goal(user_id: int, goal_id: int) -> bool:
     g = SpendingPlanGoal.query.filter_by(id=goal_id, user_id=user_id).first()
     if not g:

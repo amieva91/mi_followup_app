@@ -22,7 +22,7 @@ Usar en [followup.fit](https://followup.fit/) (rama experimental) o entorno loca
 - [x] B2
 - [x] C1
 - [x] C2
-- [ ] C3
+- [x] C3
 - [ ] C4
 - [ ] C5
 - [ ] C6
@@ -76,6 +76,14 @@ Usar en [followup.fit](https://followup.fit/) (rama experimental) o entorno loca
 | C7 | Avisos no bloqueantes | Configuración límite | Caja ámbar «Avisos del planificador» con lista de textos comprensibles. |
 
 ---
+
+## H. Replanificación sin salir del modal (AJAX)
+
+| # | Escenario | Pasos | Resultado esperado |
+|---|-----------|--------|-------------------|
+| H1 | Error al añadir (fecha fija imposible) | Crear genérico con **Fecha inicio** + **Fecha inamovible**, guardar | Se mantiene el formulario, aparece modal «No se puede replanificar» con motivo y sugerencias. La primera sugerencia (si existe) es una fecha viable **≥** la indicada; segunda sugerencia (si existe) es primera fecha viable. Pulsar sugerencia rellena la fecha; volver a guardar funciona. |
+| H2 | Error al editar (cuotas no encajan) | Editar genérico, fijar **N.º cuotas** alto/bajo para romper plan, guardar | Modal con motivo y sugerencia de **N cuotas** o «Automático». Al aplicar, se rellena el campo cuotas y se puede reintentar sin cerrar modal. |
+| H3 | Error sin solución | Forzar caso DSR insuficiente | Modal informa del motivo y puede no ofrecer sugerencias; no se pierde el estado del modal/form. |
 
 ## D. Prioridades y reorganización
 

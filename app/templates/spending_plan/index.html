@@ -9,6 +9,10 @@ function spendingPlanGoals(cfg) {
         openEditId: cfg.openEditId,
         deleteModalOpen: false,
         editModalOpen: false,
+        infoModalOpen: false,
+        infoModalTitle: '',
+        infoModalMessage: '',
+        infoModalSuggestions: [],
         deleteUrl: '',
         deleteTitle: '',
         editUrl: '',
@@ -51,6 +55,71 @@ function spendingPlanGoals(cfg) {
         },
         closeDelete() { this.deleteModalOpen = false; },
         closeEdit() { this.editModalOpen = false; },
+        closeInfo() { this.infoModalOpen = false; this.infoModalSuggestions = []; },
+        openInfo(payload) {
+            this.infoModalTitle = (payload && payload.title) ? payload.title : 'No se puede replanificar';
+            this.infoModalMessage = (payload && payload.message) ? payload.message : '';
+            this.infoModalSuggestions = (payload && payload.suggestions) ? payload.suggestions : [];
+            this.infoModalOpen = true;
+        },
+        applySuggestion(s) {
+            if (!s) return;
+            if (s.type === 'set_field') {
+                if (s.field === 'target_date') {
+                    var el = document.getElementById('generic-target-date-input');
+                    if (el) { el.value = s.value || ''; el.dispatchEvent(new Event('change', { bubbles: true })); }
+                    if (this.editModalOpen) { this.editTargetDate = s.value || ''; }
+                }
+                if (s.field === 'installment_months') {
+                    var el2 = document.getElementById('generic-installments-input');
+                    if (el2) { el2.value = s.value || ''; el2.dispatchEvent(new Event('change', { bubbles: true })); }
+                    if (this.editModalOpen) { this.editInstallmentMonths = s.value || ''; }
+                }
+            }
+            this.closeInfo();
+        },
+        async submitAddGeneric(evt) {
+            if (evt) evt.preventDefault();
+            var form = document.getElementById('add-generic-goal-form');
+            if (!form) return;
+            try {
+                var fd = new FormData(form);
+                var r = await fetch(form.action, {
+                    method: 'POST',
+                    body: fd,
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                var data = await r.json().catch(function () { return null; });
+                if (r.ok && data && data.ok) { window.location.reload(); return; }
+                this.openInfo({
+                    message: (data && data.error_message) ? data.error_message : 'No se pudo replanificar.',
+                    suggestions: (data && data.suggestions) ? data.suggestions : [],
+                });
+            } catch (e) {
+                this.openInfo({ message: 'No se pudo guardar (error de red).', suggestions: [] });
+            }
+        },
+        async submitEditGeneric(evt) {
+            if (evt) evt.preventDefault();
+            var form = document.querySelector('form[data-edit-generic-form=\"1\"]');
+            if (!form) return;
+            try {
+                var fd = new FormData(form);
+                var r = await fetch(form.action, {
+                    method: 'POST',
+                    body: fd,
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                var data = await r.json().catch(function () { return null; });
+                if (r.ok && data && data.ok) { window.location.reload(); return; }
+                this.openInfo({
+                    message: (data && data.error_message) ? data.error_message : 'No se pudo replanificar.',
+                    suggestions: (data && data.suggestions) ? data.suggestions : [],
+                });
+            } catch (e) {
+                this.openInfo({ message: 'No se pudo guardar (error de red).', suggestions: [] });
+            }
+        },
     };
 }
 </script>
@@ -156,20 +225,20 @@ function spendingPlanGoals(cfg) {
             La <strong>compra de vivienda con hipoteca</strong> solo se registra desde el simulador, donde podrás indicar la primera cuota y la fecha de compra.
         </p>
 
-        <form method="post" action="{{ url_for('spending_plan.add_goal') }}" class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end mb-6 pb-6 border-b border-gray-100">
+        <form id="add-generic-goal-form" @submit="submitAddGeneric" method="post" action="{{ url_for('spending_plan.add_goal') }}" class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end mb-6 pb-6 border-b border-gray-100">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
             <input type="hidden" name="goal_type" value="generic"/>
-            <div class="md:col-span-3">
+            <div class="md:col-span-3" id="generic-title-wrap">
                 <label class="block text-xs font-medium text-gray-600 mb-1">Nombre</label>
                 <input type="text" name="title" required maxlength="200" placeholder="Ej. Coche, reforma, préstamo…"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
             </div>
-            <div class="md:col-span-2">
+            <div class="md:col-span-2" id="generic-amount-wrap">
                 <label class="block text-xs font-medium text-gray-600 mb-1">Importe total (€)</label>
-                <input type="number" name="amount_total" required min="0.01" step="0.01"
+                <input id="generic-amount-input" type="number" name="amount_total" required min="0.01" step="0.01"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
             </div>
-            <div class="md:col-span-1">
+            <div class="md:col-span-1" id="generic-priority-wrap">
                 <label class="block text-xs font-medium text-gray-600 mb-1">Prioridad (1–5)</label>
                 <input type="number" name="priority" min="1" max="5" value="3"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
@@ -180,7 +249,7 @@ function spendingPlanGoals(cfg) {
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
             </div>
             <div class="md:col-span-1" id="date-fixed-create-wrap" style="display: none;">
-                <label class="block text-xs font-medium text-gray-600 mb-1">Fecha inamovible <span class="text-gray-500 font-normal">(opc.)</span></label>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Fecha inamovible</label>
                 <div class="flex items-center h-[42px]">
                     <input id="date-fixed-create-input" type="checkbox" name="date_fixed" value="1"
                            class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"/>
@@ -188,7 +257,7 @@ function spendingPlanGoals(cfg) {
             </div>
             <div class="md:col-span-3" id="generic-installments-wrap">
                 <label class="block text-xs font-medium text-gray-600 mb-1 cursor-help" title="Vacío = el sistema elige el reparto; 1 = pago único; 2 o más = cuotas en ese número de meses (máx. 60).">N.º cuotas <span class="text-gray-500 font-normal">(opc.)</span></label>
-                <input type="number" name="installment_months" min="1" max="60" placeholder="—"
+                <input id="generic-installments-input" type="number" name="installment_months" min="1" max="60" placeholder="—"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
             </div>
             <div class="md:col-span-12 md:text-right">
@@ -204,8 +273,11 @@ function spendingPlanGoals(cfg) {
             var chk = document.getElementById('date-fixed-create-input');
             var dateWrap = document.getElementById('generic-target-date-wrap');
             var instWrap = document.getElementById('generic-installments-wrap');
+            var titleWrap = document.getElementById('generic-title-wrap');
+            var amountWrap = document.getElementById('generic-amount-wrap');
+            var prioWrap = document.getElementById('generic-priority-wrap');
             function sync() {
-                if (!d || !wrap || !chk || !dateWrap || !instWrap) return;
+                if (!d || !wrap || !chk || !dateWrap || !instWrap || !titleWrap || !amountWrap || !prioWrap) return;
                 var hasDate = !!(d.value && String(d.value).trim());
                 wrap.style.display = hasDate ? '' : 'none';
                 if (!hasDate) chk.checked = false;
@@ -214,6 +286,13 @@ function spendingPlanGoals(cfg) {
                 dateWrap.classList.toggle('md:col-span-2', hasDate);
                 instWrap.classList.toggle('md:col-span-3', !hasDate);
                 instWrap.classList.toggle('md:col-span-2', hasDate);
+                // Ajuste adicional para que los títulos no hagan wrap
+                titleWrap.classList.toggle('md:col-span-3', !hasDate);
+                titleWrap.classList.toggle('md:col-span-4', hasDate);
+                amountWrap.classList.toggle('md:col-span-2', !hasDate);
+                amountWrap.classList.toggle('md:col-span-1', hasDate);
+                prioWrap.classList.toggle('md:col-span-1', !hasDate);
+                prioWrap.classList.toggle('md:col-span-2', hasDate);
             }
             if (d) {
                 d.addEventListener('input', sync);
@@ -391,6 +470,33 @@ function spendingPlanGoals(cfg) {
     </p>
 
     <template x-teleport="body">
+        <div x-show="infoModalOpen" x-cloak x-transition
+             class="fixed inset-0 z-[70] flex items-center justify-center p-4"
+             style="display: none;">
+            <div class="absolute inset-0 bg-gray-900/50" @click="closeInfo()" aria-hidden="true"></div>
+            <div class="relative bg-white rounded-xl shadow-xl border border-gray-200 max-w-lg w-full p-6" role="dialog" aria-modal="true" @click.stop>
+                <h3 class="text-lg font-semibold text-gray-900 mb-2" x-text="infoModalTitle"></h3>
+                <p class="text-sm text-gray-700 mb-4 whitespace-pre-line" x-text="infoModalMessage"></p>
+                <div x-show="infoModalSuggestions && infoModalSuggestions.length" class="mb-4">
+                    <p class="text-xs font-medium text-gray-600 mb-2">Sugerencias</p>
+                    <div class="flex flex-col gap-2">
+                        <template x-for="(s, idx) in infoModalSuggestions" :key="idx">
+                            <button type="button"
+                                    class="text-left px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-sm"
+                                    @click="applySuggestion(s)">
+                                <span class="font-medium" x-text="s.label || 'Aplicar'"></span>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+                <div class="flex justify-end">
+                    <button type="button" @click="closeInfo()" class="px-4 py-2.5 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-800">Aceptar</button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <template x-teleport="body">
         <div x-show="deleteModalOpen" x-cloak x-transition
              class="fixed inset-0 z-[60] flex items-center justify-center p-4"
              style="display: none;">
@@ -424,7 +530,7 @@ function spendingPlanGoals(cfg) {
             <div class="relative bg-white rounded-xl shadow-xl border border-gray-200 max-w-lg w-full p-6 my-8" role="dialog" aria-modal="true" @click.stop>
                 <h3 class="text-lg font-semibold text-gray-900 mb-1">Editar objetivo genérico</h3>
                 <p class="text-sm text-gray-500 mb-4">Los cambios se validan con el planificador de 5 años y se replanifican automáticamente.</p>
-                <form method="post" :action="editUrl" class="space-y-4">
+                <form method="post" :action="editUrl" class="space-y-4" data-edit-generic-form="1" @submit="submitEditGeneric">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
@@ -446,12 +552,10 @@ function spendingPlanGoals(cfg) {
                         <input type="date" name="target_date" x-model="editTargetDate"
                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
                     </div>
-                    <div x-show="!!editTargetDate" x-effect="if (!editTargetDate) editDateFixed = false">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Fecha inamovible <span class="text-gray-500 font-normal">(opc.)</span></label>
-                        <div class="flex items-center h-[42px]">
-                            <input type="checkbox" name="date_fixed" value="1" x-model="editDateFixed"
-                                   class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"/>
-                        </div>
+                    <div x-show="!!editTargetDate" x-effect="if (!editTargetDate) editDateFixed = false" class="flex items-center justify-between gap-4">
+                        <label class="block text-sm font-medium text-gray-700">Fecha inamovible</label>
+                        <input type="checkbox" name="date_fixed" value="1" x-model="editDateFixed"
+                               class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"/>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1 cursor-help" title="Vacío = el sistema elige el reparto; 1 = pago único; 2 o más = cuotas en ese número de meses (máx. 60).">N.º cuotas <span class="text-gray-500 font-normal">(opc.)</span></label>

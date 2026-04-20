@@ -4,7 +4,7 @@ Planificación de gastos / presupuestos (rama experimentos).
 import json
 from datetime import datetime
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash, make_response
+from flask import Blueprint, render_template, request, redirect, url_for, flash, make_response, jsonify
 from flask_login import login_required, current_user
 
 from app import db
@@ -72,8 +72,13 @@ def index():
 @spending_plan_bp.route("/objetivo", methods=["POST"])
 @login_required
 def add_goal():
+    wants_json = "application/json" in (request.headers.get("Accept") or "") or request.headers.get(
+        "X-Requested-With"
+    ) == "XMLHttpRequest"
     if not request.form.get("csrf_token"):
         flash("Sesión expirada.", "error")
+        if wants_json:
+            return jsonify({"ok": False, "error_message": "Sesión expirada."}), 400
         return redirect(url_for("spending_plan.index"))
     try:
         gtype = (request.form.get("goal_type") or "generic").strip().lower()
@@ -95,6 +100,8 @@ def add_goal():
                 extra or "{}",
             )
             flash("Objetivo hipoteca actualizado.", "success")
+            if wants_json:
+                return jsonify({"ok": True})
             return redirect(url_for("spending_plan.index"))
 
         title = request.form.get("title") or ""
@@ -126,11 +133,31 @@ def add_goal():
             date_fixed=date_fixed,
         )
         flash("Objetivo añadido.", "success")
+        if wants_json:
+            return jsonify({"ok": True})
     except ValueError as e:
-        flash(str(e), "error")
+        msg = str(e)
+        flash(msg, "error")
+        if wants_json and (request.form.get("goal_type") or "generic").strip().lower() == "generic":
+            sug = sps.suggest_adjustments_for_generic(
+                current_user.id,
+                None,
+                request.form.get("title") or "",
+                float(request.form.get("amount_total") or 0),
+                int(request.form.get("priority") or 3),
+                _parse_target_date(request.form.get("target_date") or ""),
+                request.form.get("installment_months"),
+                bool(request.form.get("date_fixed")),
+            )
+            return jsonify({"ok": False, "error_message": msg, "suggestions": sug}), 400
+        if wants_json:
+            return jsonify({"ok": False, "error_message": msg}), 400
     except Exception as e:
         db.session.rollback()
-        flash(f"No se pudo añadir: {e}", "error")
+        msg = f"No se pudo añadir: {e}"
+        flash(msg, "error")
+        if wants_json:
+            return jsonify({"ok": False, "error_message": msg}), 500
     return redirect(url_for("spending_plan.index"))
 
 
@@ -146,8 +173,13 @@ def edit_goal(goal_id: int):
     if request.method == "GET":
         return redirect(url_for("spending_plan.index", edit_goal=goal_id))
     if request.method == "POST":
+        wants_json = "application/json" in (request.headers.get("Accept") or "") or request.headers.get(
+            "X-Requested-With"
+        ) == "XMLHttpRequest"
         if not request.form.get("csrf_token"):
             flash("Sesión expirada.", "error")
+            if wants_json:
+                return jsonify({"ok": False, "error_message": "Sesión expirada."}), 400
             return redirect(url_for("spending_plan.index"))
         try:
             title = request.form.get("title") or ""
@@ -175,11 +207,29 @@ def edit_goal(goal_id: int):
                 date_fixed=date_fixed,
             )
             flash("Objetivo actualizado y plan replanificado.", "success")
+            if wants_json:
+                return jsonify({"ok": True})
         except ValueError as e:
-            flash(str(e), "error")
+            msg = str(e)
+            flash(msg, "error")
+            if wants_json:
+                sug = sps.suggest_adjustments_for_generic(
+                    current_user.id,
+                    goal_id,
+                    request.form.get("title") or "",
+                    float(request.form.get("amount_total") or 0),
+                    int(request.form.get("priority") or 3),
+                    _parse_target_date(request.form.get("target_date") or ""),
+                    request.form.get("installment_months"),
+                    bool(request.form.get("date_fixed")),
+                )
+                return jsonify({"ok": False, "error_message": msg, "suggestions": sug}), 400
         except Exception as e:
             db.session.rollback()
-            flash(f"No se pudo guardar: {e}", "error")
+            msg = f"No se pudo guardar: {e}"
+            flash(msg, "error")
+            if wants_json:
+                return jsonify({"ok": False, "error_message": msg}), 500
         return redirect(url_for("spending_plan.index"))
 
 
