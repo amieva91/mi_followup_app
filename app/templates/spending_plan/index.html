@@ -306,7 +306,7 @@ function spendingPlanGoals(cfg) {
                     <th class="px-4 py-3 text-right">Ingreso</th>
                     <th class="px-4 py-3 text-right">Fijos</th>
                     <th class="px-4 py-3 text-right">Objetivos</th>
-                    <th class="px-4 py-3">Quién paga</th>
+                    <th class="px-4 py-3">Pagos</th>
                     <th class="px-4 py-3 text-right">Superávit</th>
                     <th class="px-4 py-3 text-right">Saldo acum.</th>
                     <th class="px-4 py-3 text-right">Margen DSR</th>
@@ -343,7 +343,7 @@ function spendingPlanGoals(cfg) {
     </div>
     <p class="text-xs text-gray-500 mt-2">
         Columna Objetivos: cuotas hipoteca + entradas en el mes + cuotas genéricas planificadas. Superávit de liquidez = ingreso − fijos − entradas hipotecarias del mes (cuotas y genéricos compiten por cupo DSR y no descuentan del saldo salvo la entrada).
-        Margen DSR = cuota máxima permitida − cuota hipoteca − objetivos genéricos del mes (todo lo que compite por el cupo). La columna “Quién paga” marca con puntos los objetivos con cargo en ese mes.
+        Margen DSR = cuota máxima permitida − cuota hipoteca − objetivos genéricos del mes (todo lo que compite por el cupo). La columna “Pagos” marca con puntos los objetivos con cargo en ese mes.
     </p>
 
     <template x-teleport="body">
