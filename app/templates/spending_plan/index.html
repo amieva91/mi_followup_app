@@ -9,6 +9,8 @@ function spendingPlanGoals(cfg) {
         openEditId: cfg.openEditId,
         deleteModalOpen: false,
         editModalOpen: false,
+        addPlanning: false,
+        editPlanning: false,
         infoModalOpen: false,
         infoModalTitle: '',
         infoModalMessage: '',
@@ -82,6 +84,8 @@ function spendingPlanGoals(cfg) {
             if (evt) evt.preventDefault();
             var form = document.getElementById('add-generic-goal-form');
             if (!form) return;
+            if (this.addPlanning) return;
+            this.addPlanning = true;
             try {
                 var fd = new FormData(form);
                 var r = await fetch(form.action, {
@@ -97,12 +101,16 @@ function spendingPlanGoals(cfg) {
                 });
             } catch (e) {
                 this.openInfo({ message: 'No se pudo guardar (error de red).', suggestions: [] });
+            } finally {
+                this.addPlanning = false;
             }
         },
         async submitEditGeneric(evt) {
             if (evt) evt.preventDefault();
             var form = document.querySelector('form[data-edit-generic-form=\"1\"]');
             if (!form) return;
+            if (this.editPlanning) return;
+            this.editPlanning = true;
             try {
                 var fd = new FormData(form);
                 var r = await fetch(form.action, {
@@ -118,6 +126,8 @@ function spendingPlanGoals(cfg) {
                 });
             } catch (e) {
                 this.openInfo({ message: 'No se pudo guardar (error de red).', suggestions: [] });
+            } finally {
+                this.editPlanning = false;
             }
         },
     };
@@ -261,8 +271,14 @@ function spendingPlanGoals(cfg) {
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
             </div>
             <div class="md:col-span-12 md:text-right">
-                <button type="submit" class="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 text-sm font-medium">
-                    Añadir objetivo genérico
+                <button type="submit" :disabled="addPlanning"
+                        :class="addPlanning ? 'opacity-80 cursor-not-allowed' : ''"
+                        class="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 text-sm font-medium">
+                    <span x-show="!addPlanning">Añadir objetivo genérico</span>
+                    <span x-show="addPlanning" class="inline-flex items-center gap-2">
+                        Planificando
+                        <span class="inline-block w-4 h-4 border-2 border-white/70 border-t-transparent rounded-full animate-spin"></span>
+                    </span>
                 </button>
             </div>
         </form>
@@ -563,8 +579,14 @@ function spendingPlanGoals(cfg) {
                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
                     </div>
                     <div class="flex flex-wrap gap-3 pt-2">
-                        <button type="submit" class="px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium">
-                            Guardar y replanificar
+                        <button type="submit" :disabled="editPlanning"
+                                :class="editPlanning ? 'opacity-80 cursor-not-allowed' : ''"
+                                class="px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium">
+                            <span x-show="!editPlanning">Guardar y replanificar</span>
+                            <span x-show="editPlanning" class="inline-flex items-center gap-2">
+                                Planificando
+                                <span class="inline-block w-4 h-4 border-2 border-white/70 border-t-transparent rounded-full animate-spin"></span>
+                            </span>
                         </button>
                         <button type="button" @click="closeEdit()" class="px-5 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">
                             Cancelar

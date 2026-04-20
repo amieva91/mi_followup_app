@@ -262,8 +262,8 @@
                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
                 </div>
                 <div class="md:col-span-12 md:text-right">
-                    <button type="submit" class="w-full md:w-auto px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 text-sm font-medium">
-                        {% if edit_goal %}Guardar cambios y replanificar{% else %}Añadir objetivo hipoteca{% endif %}
+                    <button id="mortgage-save-btn" type="submit" class="w-full md:w-auto px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 text-sm font-medium">
+                        <span id="mortgage-save-btn-label">{% if edit_goal %}Guardar cambios y replanificar{% else %}Añadir objetivo hipoteca{% endif %}</span>
                     </button>
                 </div>
             </form>
@@ -505,9 +505,17 @@
   }
 
   var saveForm = document.getElementById('mortgage-save-form');
+  var saveBtn = document.getElementById('mortgage-save-btn');
+  var saveBtnLabel = document.getElementById('mortgage-save-btn-label');
+  var saveBtnHtmlInitial = saveBtn ? saveBtn.innerHTML : '';
   if (saveForm) {
     saveForm.addEventListener('submit', async function (evt) {
       evt.preventDefault();
+      if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.classList.add('opacity-80', 'cursor-not-allowed');
+        saveBtn.innerHTML = '<span class=\"inline-flex items-center gap-2\">Planificando<span class=\"inline-block w-4 h-4 border-2 border-white/70 border-t-transparent rounded-full animate-spin\"></span></span>';
+      }
       try {
         var fd = new FormData(saveForm);
         var r = await fetch(saveForm.action, { method: 'POST', body: fd, headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }});
@@ -516,6 +524,12 @@
         openInfoModal('No se puede guardar la hipoteca', (data && data.error_message) ? data.error_message : 'No se pudo replanificar.', (data && data.suggestions) ? data.suggestions : []);
       } catch (e) {
         openInfoModal('No se puede guardar la hipoteca', 'No se pudo guardar (error de red).', []);
+      } finally {
+        if (saveBtn) {
+          saveBtn.disabled = false;
+          saveBtn.classList.remove('opacity-80', 'cursor-not-allowed');
+          saveBtn.innerHTML = saveBtnHtmlInitial;
+        }
       }
     });
   }
