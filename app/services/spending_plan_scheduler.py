@@ -263,10 +263,9 @@ def _mortgage_vectors_for_goal(
         if loan_start_m + k < W:
             mortgage_pay[loan_start_m + k] += mp
 
-    if ini > 0 and purchase_m > 0:
-        note = (
-            f"«{g.title}»: entrada {ini:.0f} € en mes {purchase_m + 1} (desde hoy)."
-        )
+    if ini > 0:
+        when = _plan_slot_calendar_label(today, purchase_m)
+        note = f"«{g.title}»: entrada {ini:.0f} € en {when}."
     return mortgage_pay, initial_pay, note
 
 
@@ -297,6 +296,7 @@ def build_mortgage_arrays(
 
 
 def _try_generic_allocation(
+    today: date,
     amount: float,
     start_m: int,
     pay_mode: str,
@@ -312,6 +312,9 @@ def _try_generic_allocation(
     max_dsr_pct: float,
 ) -> Optional[Tuple[List[float], Optional[str]]]:
     """Devuelve incremento a generic por mes o None si no cabe (DSR + efectivo solo entrada)."""
+
+    def _slot_lbl(month_index: int) -> str:
+        return _plan_slot_calendar_label(today, month_index)
 
     def check(extra: List[float]) -> bool:
         g = _add_vec(base_generic, extra)
@@ -331,14 +334,17 @@ def _try_generic_allocation(
             inc = _zero(W)
             inc[start_m] = amount
             if check(inc):
-                return inc, f"Pago único automático en el mes fijado ({start_m + 1})."
+                return (
+                    inc,
+                    f"Pago único automático en {_slot_lbl(start_m)} (fecha fijada).",
+                )
         for m in range(start_m, W):
             inc = _zero(W)
             inc[m] = amount
             if check(inc):
                 return (
                     inc,
-                    f"Pago único automático en mes {m + 1} (primera fecha viable).",
+                    f"Pago único automático en {_slot_lbl(m)} (primera fecha viable).",
                 )
         for k in range(1, W + 1):
             if date_fixed:
@@ -353,7 +359,7 @@ def _try_generic_allocation(
                 if check(inc):
                     return (
                         inc,
-                        f"Automático: {k} cuotas iguales desde mes {start + 1}.",
+                        f"Automático: {k} cuotas iguales desde {_slot_lbl(start)}.",
                     )
                 continue
             for start in range(start_m, W - k + 1):
@@ -364,7 +370,7 @@ def _try_generic_allocation(
                 if check(inc):
                     return (
                         inc,
-                        f"Automático: {k} cuotas iguales desde mes {start + 1}.",
+                        f"Automático: {k} cuotas iguales desde {_slot_lbl(start)}.",
                     )
         return None
 
@@ -426,7 +432,7 @@ def _try_generic_allocation(
                     if check(inc):
                         return (
                             inc,
-                            f"Cuotas repartidas en {k} meses (desde mes {start + 1}) dentro del cupo DSR.",
+                            f"Cuotas repartidas en {k} meses (desde {_slot_lbl(start)}) dentro del cupo DSR.",
                         )
     return None
 
@@ -520,6 +526,7 @@ def compute_plan_schedule(
             date_fixed = bool(extra.get("date_fixed")) if isinstance(extra, dict) else False
 
             res = _try_generic_allocation(
+                today,
                 amt,
                 start_m,
                 mode,

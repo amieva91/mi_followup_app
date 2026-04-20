@@ -319,14 +319,16 @@ function spendingPlanGoals(cfg) {
         </script>
 
         {% if plan_schedule and plan_schedule.warnings %}
-        <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-            <p class="font-medium text-amber-900 mb-1">Avisos del planificador</p>
-            <ul class="list-disc list-inside space-y-0.5 text-amber-900/90">
+        <details class="mb-4 rounded-lg border border-amber-200 bg-amber-50 text-sm text-amber-950">
+            <summary class="cursor-pointer font-medium text-amber-900 px-3 py-2">
+                Avisos del planificador
+            </summary>
+            <ul class="list-disc list-inside space-y-0.5 text-amber-900/90 px-3 pb-3 pt-0">
                 {% for w in plan_schedule.warnings %}
                 <li>{{ w }}</li>
                 {% endfor %}
             </ul>
-        </div>
+        </details>
         {% endif %}
 
         {% if goal_lines %}
@@ -440,14 +442,16 @@ function spendingPlanGoals(cfg) {
     </div>
 
     {% if fixed_lines %}
-    <div class="mb-6">
-        <h2 class="text-sm font-semibold text-gray-700 mb-2">Desglose gastos fijos</h2>
-        <ul class="text-sm text-gray-600 space-y-1">
+    <details class="mb-6">
+        <summary class="cursor-pointer text-sm font-semibold text-gray-700">
+            Desglose gastos fijos
+        </summary>
+        <ul class="text-sm text-gray-600 space-y-1 mt-2">
             {% for line in fixed_lines %}
             <li class="flex justify-between max-w-md"><span>{{ line.name }}</span><span class="tabular-nums">{{ "%.2f"|format(line.average_monthly) }} €/mes</span></li>
             {% endfor %}
         </ul>
-    </div>
+    </details>
     {% endif %}
 
     <h2 class="text-lg font-bold text-gray-900 mb-3">Proyección mensual</h2>
