@@ -624,7 +624,9 @@ def add_goal(
 
     # Hipoteca sin fecha: buscar primera fecha viable automáticamente.
     if gt == "mortgage" and target_date is None and extra:
-        auto_td = _first_viable_mortgage_date(user_id, extra, exclude_goal_id=None)
+        auto_td = _first_viable_mortgage_date(
+            user_id, extra, exclude_goal_id=None, priority=pr
+        )
         if auto_td is None:
             raise ValueError(
                 "No hay una fecha viable en los próximos 5 años para encajar la entrada hipotecaria "
@@ -795,7 +797,9 @@ def update_mortgage_goal(
     ]
     # Si no hay fecha: buscar fecha viable automáticamente
     if target_date is None:
-        auto_td = _first_viable_mortgage_date(user_id, raw, exclude_goal_id=goal_id)
+        auto_td = _first_viable_mortgage_date(
+            user_id, raw, exclude_goal_id=goal_id, priority=pr
+        )
         if auto_td is None:
             raise ValueError(
                 "No hay una fecha viable en los próximos 5 años para encajar la entrada hipotecaria "
@@ -846,6 +850,7 @@ def _first_viable_mortgage_date(
     user_id: int,
     extra_json: str,
     exclude_goal_id: Optional[int],
+    priority: int = 3,
 ) -> Optional[date]:
     """
     Encuentra la primera fecha (mes) en la ventana de 5 años en la que la hipoteca
@@ -859,12 +864,13 @@ def _first_viable_mortgage_date(
     bank_gross = get_current_bank_cash(user_id)
     goals = SpendingPlanGoal.query.filter_by(user_id=user_id).all()
     others = [g for g in goals if exclude_goal_id is None or g.id != exclude_goal_id]
+    pr = max(1, min(5, int(priority)))
     for m in range(PLAN_WINDOW_MONTHS):
         td = today + relativedelta(months=m)
         cand = build_candidate_goal(
             title="(auto)",
             goal_type="mortgage",
-            priority=1,
+            priority=pr,
             amount_total=1.0,
             target_date=td,
             extra_json=extra_json,
@@ -1019,6 +1025,7 @@ def suggest_adjustments_for_mortgage(
     amount_total: float,
     target_date: Optional[date],
     extra_json: str,
+    priority: int = 3,
 ) -> List[dict]:
     """
     Sugiere una fecha alternativa para la hipoteca cuando la entrada no encaja por liquidez.
@@ -1038,12 +1045,13 @@ def suggest_adjustments_for_mortgage(
     all_goals = SpendingPlanGoal.query.filter_by(user_id=user_id).all()
     others = [g for g in all_goals if goal_id is None or g.id != goal_id]
     sort_id = goal_id if goal_id is not None else 10**9
+    pr = max(1, min(5, int(priority)))
 
     def try_date(td: date) -> bool:
         cand = build_candidate_goal(
             title=title,
             goal_type="mortgage",
-            priority=1,
+            priority=pr,
             amount_total=float(amount_total or 0),
             target_date=td,
             extra_json=extra_json,

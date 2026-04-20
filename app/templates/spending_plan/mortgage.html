@@ -254,8 +254,13 @@
                     <input type="text" name="title" required maxlength="200" value="{{ edit_goal.title if edit_goal else 'Hipoteca vivienda' }}"
                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
                 </div>
-                <input type="hidden" name="priority" value="1"/>
-                <div class="md:col-span-8">
+                <div class="md:col-span-2">
+                    <label class="block text-xs font-medium text-gray-600 mb-1 whitespace-nowrap">Prioridad (1–5)</label>
+                    <input type="number" name="priority" min="1" max="5" step="1" required
+                           value="{{ edit_goal.priority if edit_goal else 3 }}"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
+                </div>
+                <div class="md:col-span-6">
                     <label class="block text-xs font-medium text-gray-600 mb-1">Fecha de compra (Entrada) y primera cuota</label>
                     <input type="date" name="target_date"
                            value="{{ purchase_date_value or '' }}"

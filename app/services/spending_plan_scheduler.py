@@ -175,6 +175,57 @@ def _dsr_violation(
     return None
 
 
+def _goal_priority_value(g: Any) -> int:
+    pr = getattr(g, "priority", None)
+    try:
+        return int(pr) if pr is not None else 3
+    except (TypeError, ValueError):
+        return 3
+
+
+def _goal_schedule_sort_key(g: Any) -> Tuple[int, int]:
+    prio = _goal_priority_value(g)
+    gid = getattr(g, "id", None)
+    try:
+        iid = int(gid) if gid is not None else 0
+    except (TypeError, ValueError):
+        iid = 0
+    return (prio, iid)
+
+
+def _accumulate_mortgage_initial_and_notes(
+    today: date, goals: Sequence[Any], W: int
+) -> Tuple[List[float], List[str]]:
+    """Suma entradas hipotecarias (todos los objetivos hipoteca) para simulación de efectivo."""
+    initial = _zero(W)
+    notes: List[str] = []
+    for g in goals:
+        if getattr(g, "goal_type", "") != "mortgage":
+            continue
+        _, ini, n = _mortgage_vectors_for_goal(today, g, W)
+        for i in range(W):
+            initial[i] += ini[i]
+        if n:
+            notes.append(n)
+    return initial, notes
+
+
+def _first_combined_dsr_conflict_index(
+    income: float,
+    max_dsr_pct: float,
+    mortgage: Sequence[float],
+    generic: Sequence[float],
+) -> Optional[int]:
+    if income <= 0:
+        return None
+    cap = income * (max_dsr_pct / 100.0)
+    W = len(mortgage)
+    for m in range(W):
+        if mortgage[m] + generic[m] > cap + 1e-4:
+            return m
+    return None
+
+
 def _mortgage_vectors_for_goal(
     today: date, g: Any, W: int
 ) -> Tuple[List[float], List[float], Optional[str]]:
@@ -392,106 +443,125 @@ def compute_plan_schedule(
     W = PLAN_WINDOW_MONTHS
     out = PlanScheduleResult(ok=True, generic_payments_monthly=_zero(W))
 
-    mortgage, initial, mnotes = build_mortgage_arrays(today, goals, W)
-    out.mortgage_payments_monthly = mortgage
-    out.initial_outlay_by_month = initial
+    # Entradas hipotecarias totales (todas las hipotecas): el efectivo debe contemplarlas siempre.
+    full_initial, mnotes = _accumulate_mortgage_initial_and_notes(today, goals, W)
     out.warnings.extend(mnotes)
 
-    viol = _dsr_violation(income_avg, mortgage, max_dsr_percent)
-    if viol is not None:
-        when = _plan_slot_calendar_label(today, viol)
-        return PlanScheduleResult(
-            ok=False,
-            error_message=(
-                "La suma de cuotas hipoteca supera el límite DSR en uno o más meses "
-                f"(primer conflicto en {when}). Reduce cuotas o sube ingreso/DSR."
-            ),
-            mortgage_payments_monthly=mortgage,
-            initial_outlay_by_month=initial,
-        )
+    schedulable = [
+        g
+        for g in goals
+        if getattr(g, "goal_type", "generic") in ("generic", "mortgage")
+    ]
+    schedulable.sort(key=_goal_schedule_sort_key)
 
-    mortgage_details: List[GoalScheduleDetail] = []
-    for g in goals:
-        if getattr(g, "goal_type", "") != "mortgage":
-            continue
-        mp, ini, _ = _mortgage_vectors_for_goal(today, g, W)
-        combined = [round(mp[i] + ini[i], 2) for i in range(W)]
-        amt = float(getattr(g, "amount_total", 0) or 0)
-        pr = getattr(g, "priority", None)
-        try:
-            prio = int(pr) if pr is not None else 3
-        except (TypeError, ValueError):
-            prio = 3
-        mortgage_details.append(
-            GoalScheduleDetail(
-                goal_id=getattr(g, "id", None),
-                title=str(getattr(g, "title", "") or ""),
-                goal_type="mortgage",
-                priority=prio,
-                amount_total=amt,
-                pay_mode="mortgage",
-                payments_by_month=combined,
-                adjusted_message=None,
-            )
-        )
-
-    generics = [g for g in goals if getattr(g, "goal_type", "generic") == "generic"]
-    generics.sort(key=lambda x: (x.priority, x.id))
-
+    combined_mortgage = _zero(W)
     base = _zero(W)
+    mortgage_details: List[GoalScheduleDetail] = []
     details: List[GoalScheduleDetail] = []
 
-    for g in generics:
-        extra = _parse_extra_dict(getattr(g, "extra_json", None))
-        mode, inst = parse_generic_pay_options(getattr(g, "extra_json", None))
-        amt = float(getattr(g, "amount_total", 0) or 0)
-        tgt = getattr(g, "target_date", None)
-        # Si hay fecha: es la fecha de inicio (no empezar antes).
-        # Si no hay fecha: el algoritmo decide libremente (start_m=0).
-        start_m = _month_offset_from_today(today, tgt, W - 1) if tgt is not None else 0
-        date_fixed = bool(extra.get("date_fixed")) if isinstance(extra, dict) else False
-
-        res = _try_generic_allocation(
-            amt,
-            start_m,
-            mode,
-            inst,
-            date_fixed,
-            W,
-            base,
-            starting_cash,
-            income_avg,
-            fixed_monthly,
-            mortgage,
-            initial,
-            max_dsr_percent,
-        )
-        if res is None:
-            return PlanScheduleResult(
-                ok=False,
-                error_message=(
-                    f"No se puede encajar el objetivo «{g.title}» ({amt:.2f} €) en el cupo DSR "
-                    f"o la entrada hipotecaria agota el efectivo disponible. "
-                    "Reduce importe, sube el % DSR o ajusta prioridades."
-                ),
-                mortgage_payments_monthly=mortgage,
-                initial_outlay_by_month=initial,
+    for g in schedulable:
+        gt = getattr(g, "goal_type", "generic")
+        if gt == "mortgage":
+            mp, ini, _ = _mortgage_vectors_for_goal(today, g, W)
+            combined_mortgage = _add_vec(combined_mortgage, mp)
+            conflict = _first_combined_dsr_conflict_index(
+                income_avg, max_dsr_percent, combined_mortgage, base
             )
-        inc_vec, adj = res[0], res[1]
-        base = _add_vec(base, inc_vec)
-        details.append(
-            GoalScheduleDetail(
-                goal_id=getattr(g, "id", None),
-                title=g.title,
-                goal_type="generic",
-                priority=g.priority,
-                amount_total=amt,
-                pay_mode=mode,
-                payments_by_month=list(inc_vec),
-                adjusted_message=adj,
+            if conflict is not None:
+                title_g = str(getattr(g, "title", "") or "")
+                viol_m_only = _dsr_violation(
+                    income_avg, combined_mortgage, max_dsr_percent
+                )
+                if viol_m_only is not None:
+                    when_m = _plan_slot_calendar_label(today, viol_m_only)
+                    return PlanScheduleResult(
+                        ok=False,
+                        error_message=(
+                            "La suma de cuotas hipoteca supera el límite DSR en uno o más meses "
+                            f"(primer conflicto en {when_m}). Reduce cuotas o sube ingreso/DSR."
+                        ),
+                        mortgage_payments_monthly=combined_mortgage,
+                        initial_outlay_by_month=full_initial,
+                    )
+                when = _plan_slot_calendar_label(today, conflict)
+                return PlanScheduleResult(
+                    ok=False,
+                    error_message=(
+                        f"No cabe la hipoteca «{title_g}» en el cupo DSR junto con los objetivos "
+                        f"ya colocados hasta esta prioridad (primer conflicto en {when}). "
+                        "Ajusta prioridades, fecha o importe, o sube el % DSR."
+                    ),
+                    mortgage_payments_monthly=combined_mortgage,
+                    initial_outlay_by_month=full_initial,
+                )
+            amt = float(getattr(g, "amount_total", 0) or 0)
+            prio = _goal_priority_value(g)
+            combined_row = [round(mp[i] + ini[i], 2) for i in range(W)]
+            mortgage_details.append(
+                GoalScheduleDetail(
+                    goal_id=getattr(g, "id", None),
+                    title=str(getattr(g, "title", "") or ""),
+                    goal_type="mortgage",
+                    priority=prio,
+                    amount_total=amt,
+                    pay_mode="mortgage",
+                    payments_by_month=combined_row,
+                    adjusted_message=None,
+                )
             )
-        )
+        else:
+            extra = _parse_extra_dict(getattr(g, "extra_json", None))
+            mode, inst = parse_generic_pay_options(getattr(g, "extra_json", None))
+            amt = float(getattr(g, "amount_total", 0) or 0)
+            tgt = getattr(g, "target_date", None)
+            start_m = (
+                _month_offset_from_today(today, tgt, W - 1) if tgt is not None else 0
+            )
+            date_fixed = bool(extra.get("date_fixed")) if isinstance(extra, dict) else False
 
+            res = _try_generic_allocation(
+                amt,
+                start_m,
+                mode,
+                inst,
+                date_fixed,
+                W,
+                base,
+                starting_cash,
+                income_avg,
+                fixed_monthly,
+                combined_mortgage,
+                full_initial,
+                max_dsr_percent,
+            )
+            if res is None:
+                return PlanScheduleResult(
+                    ok=False,
+                    error_message=(
+                        f"No se puede encajar el objetivo «{g.title}» ({amt:.2f} €) en el cupo DSR "
+                        f"o la entrada hipotecaria agota el efectivo disponible. "
+                        "Reduce importe, sube el % DSR o ajusta prioridades."
+                    ),
+                    mortgage_payments_monthly=combined_mortgage,
+                    initial_outlay_by_month=full_initial,
+                )
+            inc_vec, adj = res[0], res[1]
+            base = _add_vec(base, inc_vec)
+            details.append(
+                GoalScheduleDetail(
+                    goal_id=getattr(g, "id", None),
+                    title=g.title,
+                    goal_type="generic",
+                    priority=g.priority,
+                    amount_total=amt,
+                    pay_mode=mode,
+                    payments_by_month=list(inc_vec),
+                    adjusted_message=adj,
+                )
+            )
+
+    out.mortgage_payments_monthly = combined_mortgage
+    out.initial_outlay_by_month = full_initial
     out.generic_payments_monthly = base
     out.goal_details = sorted(
         mortgage_details + details,
@@ -501,7 +571,7 @@ def compute_plan_schedule(
     cap = income_avg * (max_dsr_percent / 100.0) if income_avg > 0 else 0.0
     dsr_ok: List[bool] = []
     for m in range(W):
-        ok = income_avg <= 0 or (mortgage[m] + base[m] <= cap + 1e-4)
+        ok = income_avg <= 0 or (combined_mortgage[m] + base[m] <= cap + 1e-4)
         dsr_ok.append(ok)
     out.dsr_ok_each_month = dsr_ok
 
@@ -509,8 +579,7 @@ def compute_plan_schedule(
     cash_tr: List[float] = []
     cash = starting_cash
     for m in range(W):
-        # Superávit de liquidez: solo ingreso − fijos − entrada hipotecaria (cuotas y genéricos van por DSR)
-        s = income_avg - fixed_monthly - initial[m]
+        s = income_avg - fixed_monthly - full_initial[m]
         surplus.append(round(s, 2))
         cash += s
         cash_tr.append(round(cash, 2))
