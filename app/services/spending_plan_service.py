@@ -294,6 +294,17 @@ def sum_goal_monthlies(
                 row["date_fixed"] = bool(ex.get("date_fixed")) if isinstance(ex, dict) else False
             except (json.JSONDecodeError, TypeError):
                 row["date_fixed"] = False
+        elif g.goal_type == "mortgage":
+            try:
+                ex = json.loads(g.extra_json or "{}")
+                if isinstance(ex, dict) and "date_fixed" in ex:
+                    row["date_fixed"] = bool(ex.get("date_fixed"))
+                else:
+                    row["date_fixed"] = bool(g.target_date)
+            except (json.JSONDecodeError, TypeError):
+                row["date_fixed"] = bool(g.target_date)
+        else:
+            row["date_fixed"] = False
         lines.append(row)
     return round(cash_tot, 2), round(dsr_tot, 2), lines
 
@@ -566,6 +577,18 @@ def _generic_extra_json(
     )
 
 
+def _set_mortgage_date_fixed(extra_json: str, purchase_date_user_fixed: bool) -> str:
+    """Marca si la fecha de compra la eligió el usuario (True) o el algoritmo (False)."""
+    try:
+        d = json.loads(extra_json or "{}")
+    except (json.JSONDecodeError, TypeError):
+        d = {}
+    if not isinstance(d, dict):
+        d = {}
+    d["date_fixed"] = bool(purchase_date_user_fixed)
+    return json.dumps(d, ensure_ascii=False)
+
+
 def _set_generic_date_fixed(extra_json: str, date_fixed: bool) -> str:
     try:
         d = json.loads(extra_json or "{}")
@@ -622,6 +645,8 @@ def add_goal(
                 raise ValueError("extra_json no es JSON válido.")
             extra = raw
 
+    mortgage_date_user_fixed = bool(gt == "mortgage" and target_date is not None)
+
     # Hipoteca sin fecha: buscar primera fecha viable automáticamente.
     if gt == "mortgage" and target_date is None and extra:
         auto_td = _first_viable_mortgage_date(
@@ -641,6 +666,9 @@ def add_goal(
                 extra = json.dumps(d, ensure_ascii=False)
         except (json.JSONDecodeError, TypeError):
             pass
+
+    if gt == "mortgage" and extra:
+        extra = _set_mortgage_date_fixed(extra, mortgage_date_user_fixed)
 
     settings = _get_or_create_settings(user_id)
     fixed_ids = get_fixed_category_ids(user_id)
@@ -795,6 +823,7 @@ def update_mortgage_goal(
         for x in SpendingPlanGoal.query.filter_by(user_id=user_id).all()
         if x.id != goal_id
     ]
+    purchase_date_user_fixed = target_date is not None
     # Si no hay fecha: buscar fecha viable automáticamente
     if target_date is None:
         auto_td = _first_viable_mortgage_date(
@@ -806,6 +835,7 @@ def update_mortgage_goal(
                 "con el efectivo disponible y el cupo DSR."
             )
         target_date = auto_td
+        purchase_date_user_fixed = False
         try:
             d = json.loads(raw)
             if isinstance(d, dict):
@@ -813,6 +843,8 @@ def update_mortgage_goal(
                 raw = json.dumps(d, ensure_ascii=False)
         except (json.JSONDecodeError, TypeError):
             pass
+
+    raw = _set_mortgage_date_fixed(raw, purchase_date_user_fixed)
 
     cand = build_candidate_goal(
         title=title,
