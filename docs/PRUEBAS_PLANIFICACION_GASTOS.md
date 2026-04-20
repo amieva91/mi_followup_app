@@ -10,7 +10,7 @@ Usar en [followup.fit](https://followup.fit/) (rama experimental) o entorno loca
 
 ### Seguimiento (marcado al confirmar cada prueba)
 
-- [ ] Prep
+- [x] Prep
 - [x] A1
 - [x] A2
 - [x] A3
@@ -38,9 +38,9 @@ Usar en [followup.fit](https://followup.fit/) (rama experimental) o entorno loca
 - [x] E2
 - [x] E3
 - [x] E4
-- [ ] F1
-- [ ] F2
-- [ ] G
+- [x] F1
+- [x] F2
+- [x] G
 
 ---
 
