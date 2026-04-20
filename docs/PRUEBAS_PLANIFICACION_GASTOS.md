@@ -34,10 +34,10 @@ Usar en [followup.fit](https://followup.fit/) (rama experimental) o entorno loca
 - [x] D1
 - [x] D2
 - [x] D3
-- [ ] E1
-- [ ] E2
-- [ ] E3
-- [ ] E4
+- [x] E1
+- [x] E2
+- [x] E3
+- [x] E4
 - [ ] F1
 - [ ] F2
 - [ ] G
@@ -106,7 +106,7 @@ Usar en [followup.fit](https://followup.fit/) (rama experimental) o entorno loca
 | E1 | Reducir importe | Editar modal, bajar importe | Menor carga mensual o menos meses; proyección mejora. |
 | E2 | Aumentar importe | Subir importe | Puede empeorar saldo o volver plan inviable → mensaje adecuado. |
 | E3 | Quitar fecha límite | Dejar fecha vacía en edición | Planificador ya no fuerza esa fecha. |
-| E4 | Borrar objetivo | Eliminar desde modal | Totales «Objetivos / mes» y filas de proyección se actualizan. |
+| E4 | Borrar objetivo | Eliminar desde modal | Tarjetas resumen y tabla de proyección (cuotas, saldo acumulado, etc.) se actualizan sin el objetivo. |
 
 ---
 
