@@ -117,12 +117,7 @@
                             {% if day_pct >= 0 %}+{% endif %}{{ day_pct|decimal_eu(2) }}% Day
                         {% endif %}
                     </span>
-                </div>
-                <div class="mt-1 text-xs text-indigo-200">
-                    <span id="dashboard-staleness">Actualizado hace 0 min</span>
-                </div>
-                {% if summary.health_score %}
-                <div class="mt-3">
+                    {% if summary.health_score %}
                     <div class="inline-flex items-center gap-3 bg-white/10 backdrop-blur rounded-xl px-4 py-3 max-w-[300px]">
                         <div class="flex items-center justify-center w-9 h-9 rounded-lg bg-white/10 text-lg">
                             {{ summary.health_score.emoji }}
@@ -136,8 +131,11 @@
                             </div>
                         </div>
                     </div>
+                    {% endif %}
                 </div>
-                {% endif %}
+                <div class="mt-1 text-xs text-indigo-200">
+                    <span id="dashboard-staleness">Actualizado hace 0 min</span>
+                </div>
             </div>
             <div class="flex flex-wrap items-stretch justify-end gap-4 shrink-0 lg:justify-self-end">
                 {% if summary.get('commodities') %}
