@@ -1039,37 +1039,60 @@ def get_debt_details(user_id: int) -> Dict[str, Any]:
     total_debt = 0
     total_monthly = 0
     debt_list = []
-    
+
     today = date.today()
-    
+
+    plan_ids = [p.id for p in plans]
+    paid_counts = {}
+    next_dates = {}
+    last_dates = {}
+    if plan_ids:
+        from sqlalchemy import func
+
+        paid_rows = (
+            db.session.query(Expense.debt_plan_id, func.count(Expense.id))
+            .filter(Expense.debt_plan_id.in_(plan_ids), Expense.date <= today)
+            .group_by(Expense.debt_plan_id)
+            .all()
+        )
+        paid_counts = {pid: int(cnt or 0) for pid, cnt in paid_rows}
+
+        next_rows = (
+            db.session.query(Expense.debt_plan_id, func.min(Expense.date))
+            .filter(Expense.debt_plan_id.in_(plan_ids), Expense.date > today)
+            .group_by(Expense.debt_plan_id)
+            .all()
+        )
+        next_dates = {pid: dt for pid, dt in next_rows if dt is not None}
+
+        last_rows = (
+            db.session.query(Expense.debt_plan_id, func.max(Expense.date))
+            .filter(Expense.debt_plan_id.in_(plan_ids))
+            .group_by(Expense.debt_plan_id)
+            .all()
+        )
+        last_dates = {pid: dt for pid, dt in last_rows if dt is not None}
+
     for plan in plans:
         # Calcular pagos realizados y restantes
-        paid_count = plan.installment_expenses.filter(Expense.date <= today).count()
+        paid_count = paid_counts.get(plan.id, 0)
         remaining_payments = max(0, plan.months - paid_count)
         remaining = plan.monthly_payment * remaining_payments
-        
+
         total_debt += remaining
         total_monthly += plan.monthly_payment
-        
-        # Próxima cuota
-        next_payment = Expense.query.filter(
-            Expense.debt_plan_id == plan.id,
-            Expense.date > today
-        ).order_by(Expense.date.asc()).first()
 
-        # Última cuota (fin del plan) para ordenar por "próximo a expirar"
-        last_payment = Expense.query.filter(
-            Expense.debt_plan_id == plan.id
-        ).order_by(Expense.date.desc()).first()
-        
+        next_payment_date = next_dates.get(plan.id)
+        last_payment_date = last_dates.get(plan.id)
+
         debt_list.append({
             'name': plan.name,
             'remaining': round(remaining, 2),
             'installment': round(plan.monthly_payment, 2),
-            'next_date': next_payment.date.strftime('%d/%m/%Y') if next_payment else None,
+            'next_date': next_payment_date.strftime('%d/%m/%Y') if next_payment_date else None,
             'remaining_payments': remaining_payments,
-            'end_date': last_payment.date.strftime('%d/%m/%Y') if last_payment else None,
-            'end_date_dt': last_payment.date if last_payment else None,
+            'end_date': last_payment_date.strftime('%d/%m/%Y') if last_payment_date else None,
+            'end_date_dt': last_payment_date,
         })
 
     # Límite de endeudamiento (misma lógica que /debts)

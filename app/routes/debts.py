@@ -103,7 +103,11 @@ def update_limit():
             current_user.debt_limit_percent = val
             db.session.commit()
             from app.services.dashboard_summary_cache import DashboardSummaryCacheService
-            DashboardSummaryCacheService.invalidate(current_user.id)
+            # Cambio de límite afecta al widget de deuda actual, no al histórico:
+            # intentar recompute ligero para evitar reconstrucción completa al abrir /dashboard.
+            updated = DashboardSummaryCacheService.recompute_current_from_cache(current_user.id)
+            if updated is None:
+                DashboardSummaryCacheService.invalidate(current_user.id)
             flash(f'Límite de endeudamiento actualizado a {val}%', 'success')
         else:
             flash('El porcentaje debe estar entre 5 y 100', 'error')

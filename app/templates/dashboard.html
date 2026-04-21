@@ -98,7 +98,7 @@
     <!-- Header Patrimonio -->
     <div class="bg-gradient-to-br from-indigo-600 via-indigo-700 to-violet-700 rounded-[20px] shadow-xl p-8 mb-8 text-white overflow-hidden relative">
         <div class="flex flex-wrap items-start justify-between gap-6">
-            <div>
+            <div class="flex-1 min-w-[280px]">
                 <p class="text-indigo-200 text-sm font-medium uppercase tracking-wide">Patrimonio Neto Total</p>
                 <h1 id="net-worth-value" class="text-4xl md:text-5xl font-bold mt-1">{{ "%.2f"|format(summary.net_worth) }} €</h1>
                 <div class="flex items-center gap-4 mt-2 text-sm">
@@ -123,6 +123,7 @@
                 </div>
             </div>
             {% if summary.health_score %}
+            <div class="flex-1 min-w-[260px] flex justify-center self-center">
             <div class="flex items-center gap-4 bg-white/10 backdrop-blur rounded-xl px-5 py-4 min-w-[240px] max-w-[340px]">
                 <div class="flex items-center justify-center w-12 h-12 rounded-xl bg-white/10 text-2xl">
                     {{ summary.health_score.emoji }}
@@ -136,8 +137,9 @@
                     <p class="text-sm font-semibold text-white/95">{{ summary.health_score.level }}</p>
                 </div>
             </div>
+            </div>
             {% endif %}
-            <div class="flex flex-wrap items-stretch justify-end gap-4 shrink-0">
+            <div class="flex-1 flex flex-wrap items-stretch justify-end gap-4 shrink-0">
             {% if summary.get('commodities') %}
             <div class="bg-white/10 backdrop-blur rounded-xl p-4 min-w-[240px] max-w-[340px]" id="commodities-block">
                 <h4 class="text-xs font-semibold text-indigo-200 uppercase tracking-wide mb-2">Commodities</h4>
@@ -205,7 +207,7 @@
              @click.self="closeHealthModal(); document.body.style.overflow = ''"
              @keydown.escape.window="if(healthModalOpen) { closeHealthModal(); document.body.style.overflow = '' }"
              style="display: none;">
-            <div class="expand-modal-inner w-[92vw] max-w-2xl" @click.stop>
+            <div class="expand-modal-inner w-[92vw] max-w-lg" @click.stop>
                 <div class="flex items-start justify-between gap-3 mb-3">
                     <div class="min-w-0">
                         <h3 class="font-bold text-gray-800 truncate" x-text="healthModalTitle"></h3>
@@ -300,20 +302,17 @@
                 <h3 class="text-sm font-bold text-gray-800">Activos</h3>
             </div>
 
-            <div class="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6 items-center">
-                <div class="flex items-center justify-center">
-                    <div class="w-[320px] h-[260px]">
-                        <canvas id="distributionChart"></canvas>
-                    </div>
-                </div>
-                <div class="flex flex-col justify-center">
+            <div class="grid grid-cols-1 lg:grid-cols-[430px_1fr] gap-6 items-start">
+                <div class="grid grid-cols-[1fr_220px] gap-4 items-center min-w-0">
                     <div id="distributionLegend" class="space-y-2 text-sm">
                         {# Leyenda generada por JS (solo categorías con valor > 0) #}
                     </div>
+                    <div class="w-[220px] h-[220px] justify-self-end">
+                        <canvas id="distributionChart"></canvas>
+                    </div>
                 </div>
-            </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mt-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {% if summary.breakdown.cash|default(0) > 0 %}
                 <a href="{{ url_for('banks.dashboard') }}" class="p-4 rounded-xl bg-emerald-50 border-l-4 border-emerald-500 hover:bg-emerald-100 transition">
                     <p class="text-xs text-gray-600 mb-1">Cash & Bancos</p>
@@ -369,6 +368,7 @@
                     </div>
                 </a>
                 {% endif %}
+                </div>
             </div>
         </div>
         {% endif %}
@@ -479,25 +479,7 @@
                 <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
                 <h3 class="text-lg font-bold text-gray-800">{{ summary.health_score.emoji }} Salud Financiera</h3>
             </div>
-            <div class="flex flex-wrap items-center gap-8 p-4 bg-white rounded-xl shadow-sm mb-6">
-                <div class="relative w-24 h-24 flex-shrink-0">
-                    <svg class="w-24 h-24 transform -rotate-90" viewBox="0 0 36 36">
-                        <path class="text-gray-200" stroke="currentColor" stroke-width="3" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
-                        <path class="{% if summary.health_score.color == 'green' %}text-green-500{% elif summary.health_score.color == 'blue' %}text-blue-500{% elif summary.health_score.color == 'yellow' %}text-yellow-500{% else %}text-red-500{% endif %}" 
-                              stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="{{ summary.health_score.score }}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
-                    </svg>
-                    <div class="absolute inset-0 flex flex-col items-center justify-center">
-                        <span class="text-2xl font-bold">{{ summary.health_score.score }}</span>
-                        <span class="text-xs text-gray-500">/ 100</span>
-                    </div>
-                </div>
-                <div class="flex-1">
-                    <p class="text-xl font-bold {% if summary.health_score.color == 'green' %}text-green-600{% elif summary.health_score.color == 'blue' %}text-blue-600{% elif summary.health_score.color == 'yellow' %}text-yellow-600{% else %}text-red-600{% endif %}">
-                        {{ summary.health_score.level }}
-                    </p>
-                    <p class="text-sm text-gray-500 mt-2">Pulsa en un indicador para ver detalle</p>
-                </div>
-            </div>
+            <p class="text-sm text-gray-500 mb-4">Pulsa en un indicador para ver detalle</p>
             <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
                 {% for key, comp in summary.health_score.components.items() %}
                 <div class="bg-white rounded-lg p-4 shadow-sm cursor-pointer hover:shadow-md transition"
@@ -684,8 +666,8 @@
     {% endif %}
 
     <!-- FAB acciones rápidas -->
-    <div class="fixed bottom-6 left-6 z-[9998]" @click.away="fabOpen = false">
-        <div x-show="fabOpen" x-transition x-cloak class="mb-3 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden w-60" style="display:none;">
+    <div class="fixed bottom-6 left-6 z-[9998]" id="fab-root">
+        <div id="fab-menu" class="hidden mb-3 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden w-60">
             <div class="p-2 space-y-1">
                 <a href="{{ url_for('incomes.new') }}" class="block px-3 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium text-gray-800">💵 Nuevo ingreso</a>
                 <a href="{{ url_for('expenses.new') }}" class="block px-3 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium text-gray-800">💸 Nuevo gasto</a>
@@ -694,10 +676,10 @@
             </div>
         </div>
         <button type="button"
+                id="fab-toggle"
                 class="w-14 h-14 rounded-full shadow-xl bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center text-2xl"
-                @click="fabOpen = !fabOpen"
                 aria-label="Acciones rápidas">
-            <span x-text="fabOpen ? '×' : '+'"></span>
+            <span id="fab-toggle-icon">+</span>
         </button>
     </div>
 </div>
@@ -1028,21 +1010,51 @@ function dashboardConfig() {
 
                 this.healthModalKey = k;
                 this.healthModalTitle = comp.label || 'Detalle';
+                const statusMap = { good: 'Correcto', warning: 'Atención', bad: 'Mejorable' };
+                const statusTxt = statusMap[String(comp.status || '').toLowerCase()] || 'N/A';
+                const pct = (Number(comp.max) > 0) ? Math.round((Number(comp.score || 0) / Number(comp.max)) * 100) : 0;
 
                 // Render base
                 const parts = [];
-                parts.push(`<div class="grid grid-cols-2 gap-3 mb-4">
+                parts.push(`<div class="grid grid-cols-2 gap-2 mb-3">
                     <div class="bg-gray-50 rounded-lg p-3">
                         <div class="text-xs text-gray-500">Valor</div>
-                        <div class="text-lg font-bold text-gray-900">${comp.value || '—'}</div>
+                        <div class="text-base font-bold text-gray-900">${comp.value || '—'}</div>
                     </div>
                     <div class="bg-gray-50 rounded-lg p-3">
                         <div class="text-xs text-gray-500">Ideal</div>
-                        <div class="text-lg font-bold text-gray-900">${comp.ideal || '—'}</div>
+                        <div class="text-base font-bold text-gray-900">${comp.ideal || '—'}</div>
+                    </div>
+                </div>`);
+                parts.push(`<div class="grid grid-cols-3 gap-2 mb-3">
+                    <div class="bg-gray-50 rounded-lg p-2">
+                        <div class="text-[11px] text-gray-500">Puntuación</div>
+                        <div class="text-sm font-semibold text-gray-900">${comp.score || 0}/${comp.max || 0}</div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-2">
+                        <div class="text-[11px] text-gray-500">Cobertura</div>
+                        <div class="text-sm font-semibold text-gray-900">${pct}%</div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-2">
+                        <div class="text-[11px] text-gray-500">Estado</div>
+                        <div class="text-sm font-semibold text-gray-900">${statusTxt}</div>
                     </div>
                 </div>`);
                 if (comp.description) {
                     parts.push(`<p class="text-sm text-gray-600">${comp.description}</p>`);
+                }
+                if (k === 'debt_ratio' && comp.debt_amount != null) {
+                    parts.push(`<p class="text-xs text-gray-500 mt-2">Deuda total considerada: ${Number(comp.debt_amount || 0).toFixed(2)} €</p>`);
+                }
+                if (k === 'diversification' && comp.breakdown) {
+                    const rows = Object.entries(comp.breakdown || {})
+                        .filter(([, v]) => Number(v || 0) > 0)
+                        .map(([label, v]) =>
+                            `<div class="flex items-center justify-between text-xs"><span class="text-gray-600">${label}</span><span class="font-semibold text-gray-900">${Number(v).toFixed(1)}%</span></div>`)
+                        .join('');
+                    if (rows) {
+                        parts.push(`<div class="mt-2 p-3 rounded-lg bg-gray-50 border"><div class="text-xs text-gray-500 mb-1">Composición</div>${rows}</div>`);
+                    }
                 }
 
                 // Casos especiales
@@ -1052,12 +1064,12 @@ function dashboardConfig() {
                     const current = Number(comp.current_amount || 0);
                     const missing = Math.max(0, target - current);
                     const pct = target > 0 ? Math.min(100, (current / target) * 100) : 0;
-                    parts.push(`<div class="mt-5 p-4 rounded-xl border bg-white">
+                    parts.push(`<div class="mt-4 p-3 rounded-xl border bg-white">
                         <div class="flex items-center justify-between mb-2">
-                            <div class="text-sm font-semibold text-gray-800">Fondo de emergencia</div>
-                            <div class="text-xs text-gray-500">${(s.months_runway != null ? Number(s.months_runway).toFixed(1) : '—')} meses</div>
+                            <div class="text-xs text-gray-500">Cobertura</div>
+                            <div class="text-xs font-semibold text-gray-700">${(s.months_runway != null ? Number(s.months_runway).toFixed(1) : '—')} meses</div>
                         </div>
-                        <div class="grid grid-cols-3 gap-3">
+                        <div class="grid grid-cols-3 gap-2">
                             <div class="bg-gray-50 rounded-lg p-3">
                                 <div class="text-xs text-gray-500">Tienes</div>
                                 <div class="text-sm font-bold text-gray-900">${current.toFixed(2)} €</div>
@@ -1078,9 +1090,9 @@ function dashboardConfig() {
                 }
                 if (k === 'savings_rate' && window.DASH_SAVINGS) {
                     const sv = window.DASH_SAVINGS;
-                    parts.push(`<div class="mt-5 p-4 rounded-xl border bg-white">
+                    parts.push(`<div class="mt-4 p-3 rounded-xl border bg-white">
                         <div class="text-sm font-semibold text-gray-800 mb-2">Resumen (12 meses)</div>
-                        <div class="grid grid-cols-2 gap-3">
+                        <div class="grid grid-cols-2 gap-2">
                             <div class="bg-gray-50 rounded-lg p-3">
                                 <div class="text-xs text-gray-500">Ingresos totales</div>
                                 <div class="text-sm font-bold text-emerald-700">+${Number(sv.total_income || 0).toFixed(2)} €</div>
@@ -1347,6 +1359,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const labels = (mini || []).map(m => m.month_label || m.month_key || '');
         const values = (mini || []).map(m => Number(m.amount) || 0);
         const limitLine = (maxMonthly != null) ? labels.map(() => maxMonthly) : [];
+        const maxData = Math.max(0, ...(values || []), maxMonthly != null ? maxMonthly : 0);
+        const yMax = maxData > 0 ? (maxData * 1.12) : 100;
 
         new Chart(debtMiniCtx, {
             data: {
@@ -1388,7 +1402,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 },
                 scales: {
                     x: { ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 6 } },
-                    y: { beginAtZero: true, ticks: { callback: v => (v/1000).toFixed(0) + 'k' } }
+                    y: {
+                        beginAtZero: true,
+                        suggestedMax: yMax,
+                        ticks: { callback: v => (v/1000).toFixed(0) + 'k' }
+                    }
                 }
             }
         });
@@ -1804,6 +1822,37 @@ async function pollDashboardState() {
         /* red; reintento en siguiente ciclo */
     }
 }
+
+// FAB acciones rápidas (fallback sin Alpine)
+(function initFab() {
+    const root = document.getElementById('fab-root');
+    const menu = document.getElementById('fab-menu');
+    const btn = document.getElementById('fab-toggle');
+    const icon = document.getElementById('fab-toggle-icon');
+    if (!root || !menu || !btn || !icon) return;
+
+    const close = () => {
+        menu.classList.add('hidden');
+        icon.textContent = '+';
+    };
+    const open = () => {
+        menu.classList.remove('hidden');
+        icon.textContent = '×';
+    };
+    const toggle = () => {
+        if (menu.classList.contains('hidden')) open();
+        else close();
+    };
+
+    btn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        toggle();
+    });
+    document.addEventListener('click', (ev) => {
+        if (!root.contains(ev.target)) close();
+    });
+})();
 
 // Polling cada 30s mientras la pestaña está abierta
 setInterval(pollDashboardState, 30000);
