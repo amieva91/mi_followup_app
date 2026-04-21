@@ -1,61 +1,100 @@
 # Plan de Pruebas - Dashboard Experimental
 
 ## Objetivo
-Validar que los cambios visuales y de rendimiento del dashboard en `ui/dashboard-layout-experiments` funcionan sin regresiones, incluyendo:
-- Nuevo layout del bloque `Activos` (lista con detalle por tipo de activo).
-- Reubicacion del score de salud financiera en cabecera (bloque izquierdo).
-- Rendimiento y consistencia al cambiar `limite de endeudamiento`.
+Validar end-to-end todos los cambios definidos para el rediseño global de `/dashboard` en `ui/dashboard-layout-experiments`, incluyendo UI, reglas de visibilidad, persistencia de orden, recomendaciones, y cache/polling.
 
 ## Alcance funcional
-- Vista `/dashboard`.
+- Vista `GET /dashboard`.
 - Endpoint `POST /debts/limit`.
-- Polling de dashboard (`meta.version` / `_now_cached_at`).
-- Tarjeta `Activos` y cabecera principal.
+- Endpoint layout `GET/POST /dashboard/layout`.
+- Integracion de modulos: finanzas, deudas, portfolio, crypto, metales, inmuebles.
+- Polling de dashboard (`meta.version`, `meta._now_cached_at`).
 
-## Checklist manual
+## Datos de prueba minimos
+- Usuario A: con datos completos (ingresos, gastos, deudas, activos, salud financiera).
+- Usuario B: usuario nuevo con pocos o ningun dato.
+- Usuario C: datos parciales (solo algunos modulos) para validar visibilidad condicional.
 
-### 1) Cabecera y score de salud
-- [ ] Abrir `/dashboard` con datos de salud financiera.
-- [ ] Confirmar que el score de salud aparece en el bloque izquierdo, debajo del patrimonio neto total.
-- [ ] Verificar que no aparece duplicado en otros bloques de cabecera.
-- [ ] Confirmar que en desktop la cabecera se mantiene en una sola linea visual.
+## Checklist manual completo
 
-### 2) Tarjeta Activos (detalle en lista)
-- [ ] Confirmar que rosco y leyenda siguen igual (sin cambios de interaccion).
-- [ ] Verificar que el bloque derecho muestra una lista compacta por activo (Cash, Portfolio, Crypto, Metales, Inmuebles).
-- [ ] Validar que cada fila mantiene su enlace al modulo correspondiente.
-- [ ] Revisar que importes y subtotales coinciden con el detalle del modulo origen.
-- [ ] Comprobar que tipos sin datos no se muestran.
+### 1) Cabecera y score salud financiera
+- [ ] Abrir `/dashboard` con datos de salud.
+- [ ] Confirmar que el score de salud aparece en el grid izquierdo, en la misma linea del importe de patrimonio neto total.
+- [ ] Verificar que no aparece duplicado en otra zona de cabecera.
+- [ ] Confirmar cabecera en una sola linea en desktop y sin solapes en mobile/tablet.
 
-### 3) Limite de endeudamiento (rendimiento)
-- [ ] Ir a deudas y cambiar el limite (por ejemplo 35% -> 40% -> 30%).
-- [ ] Medir tiempo de respuesta percibido (objetivo: inmediato, sin espera larga).
-- [ ] Confirmar que se actualizan los valores derivados:
-  - `max_monthly_debt`
-  - `max_yearly_debt`
-  - `margin`
-  - linea de limite en el mini grafico
-- [ ] Confirmar que no se recalcula todo el dashboard en ese POST (sin bloqueo largo).
+### 2) Salud financiera (card + modales)
+- [ ] Confirmar que en la card de salud NO aparece el score global.
+- [ ] Confirmar que los indicadores son clicables.
+- [ ] Verificar que cada click abre modal sin botones de confirmar.
+- [ ] Verificar cierre del modal con click fuera y con tecla `Esc`.
+- [ ] Validar que `emergency_fund` y `savings_rate` muestran en modal el detalle ampliado esperado.
+- [ ] Verificar que no se muestra el texto "Pulsa en un indicador para ver detalle".
 
-### 4) Consistencia de cache/polling
-- [ ] Con dashboard abierto en una pestana, cambiar el limite en otra pestana.
-- [ ] Verificar que la pestana abierta refleja el cambio via polling (version NOW actualizada).
-- [ ] Confirmar que historicos/series no cambian por este ajuste de limite.
-- [ ] Hacer F5 y comprobar que los datos siguen consistentes con los modulos origen.
+### 3) Recomendaciones personalizadas
+- [ ] Confirmar que se muestran recomendaciones solo para modulos con registros.
+- [ ] Verificar integracion de alertas de salud dentro de recomendaciones.
+- [ ] Validar que no hay duplicados evidentes entre recomendaciones equivalentes.
+- [ ] Comprobar prioridades/estilos (high/medium/low) correctos.
 
-### 5) Pruebas de no regresion rapidas
-- [ ] Crear/editar/eliminar una deuda y confirmar que el dashboard sigue actualizando valores.
-- [ ] Revisar tarjetas de ingresos/gastos y recomendaciones para confirmar que no hay efectos colaterales.
-- [ ] Revisar consola del navegador (sin errores JS nuevos en `/dashboard`).
+### 4) Tarjeta Activos (version final)
+- [ ] Confirmar que `Activos` es tarjeta simple (no wide), solo con rosco + leyenda.
+- [ ] Verificar que el rosco mantiene tooltip/hover.
+- [ ] Verificar que la leyenda muestra solo categorias con valor > 0.
+- [ ] Validar que no aparece el bloque de detalle por activo (cash/portfolio/crypto/metales/inmuebles) dentro de esta tarjeta.
+
+### 5) Deudas: card wide + mini chart + limite
+- [ ] Con deudas activas, verificar bloque izquierdo (totales + top proximos vencimientos).
+- [ ] Verificar mini chart de 6 barras (-2, -1, actual, +1, +2, +3) y linea de limite.
+- [ ] Confirmar escala Y progresiva y legible (sin ticks repetidos absurdos).
+- [ ] Validar color y valor del margen segun positivo/negativo.
+- [ ] Sin deudas: confirmar que la tarjeta no aparece.
+
+### 6) Cambio de limite de endeudamiento (rendimiento + consistencia)
+- [ ] Cambiar limite varias veces (ej. 35 -> 40 -> 30).
+- [ ] Medir respuesta percibida (objetivo: rapida, sin bloqueos largos).
+- [ ] Verificar actualizacion de `max_monthly_debt`, `max_yearly_debt`, `margin`, y linea de limite.
+- [ ] Confirmar que no hay recompute pesado del dashboard en ese POST.
+
+### 7) Cache y polling
+- [ ] Con dashboard abierto en pestana 1, cambiar limite en pestana 2.
+- [ ] Confirmar que la pestana 1 se actualiza por polling (cambio de `meta.version`/`_now_cached_at`).
+- [ ] Validar que historicos no se recalculan indebidamente por cambiar el limite.
+- [ ] Hacer F5 y comprobar coherencia de datos con los modulos origen.
+
+### 8) Persistencia de orden de tarjetas (multi-dispositivo)
+- [ ] Reordenar tarjetas por drag&drop y recargar: se mantiene orden.
+- [ ] Cerrar sesion y volver a entrar: se mantiene orden.
+- [ ] Abrir con otro navegador/dispositivo del mismo usuario: se replica orden.
+- [ ] Verificar que una tarjeta nueva se inserta al final de su lane por defecto sin romper orden previo.
+
+### 9) Visibilidad condicional y empty states
+- [ ] Usuario con datos parciales: solo aparecen tarjetas de modulos con datos.
+- [ ] Usuario nuevo: aparece empty state guiado (no dashboard vacio).
+- [ ] Confirmar que no se renderizan tarjetas vacias.
+
+### 10) Ingresos/Gastos por categoria
+- [ ] Verificar card de medias por categoria en dos columnas (gastos vs ingresos).
+- [ ] Validar comportamiento cuando solo una columna tiene datos.
+
+### 11) FAB de acciones rapidas
+- [ ] Verificar boton flotante abajo izquierda.
+- [ ] Confirmar alternancia `+` / `x` y despliegue de opciones.
+- [ ] Validar navegacion de cada accion y cierre al pulsar fuera.
+
+### 12) Regresion rapida transversal
+- [ ] Crear/editar/eliminar una deuda y validar actualizacion dashboard.
+- [ ] Revisar consola browser: sin errores JS nuevos en `/dashboard`.
+- [ ] Revisar que charts existentes (evolucion, ingresos/gastos, proyeccion) siguen operativos.
 
 ## Criterios de aceptacion
-- Cambios visuales aplicados segun diseno esperado.
-- Cambio de limite sin latencia alta.
-- Sin datos stale persistentes tras polling y F5.
-- Sin regresiones funcionales en deudas ni en tarjetas relacionadas.
+- Comportamiento visual y funcional acorde al rediseño acordado.
+- Sin regresiones de cache/polling ni datos stale persistentes.
+- Cambio de limite de deuda rapido y consistente.
+- Orden de tarjetas persistente en sesion y multi-dispositivo.
 
-## Notas tecnicas de seguridad del cambio en cache
-- `POST /debts/limit` solo modifica `debt_details.limit_info` dentro del cache del usuario.
-- Se actualiza `meta.version` y `meta._now_cached_at` para que polling detecte el cambio.
-- No invalida ni recalcula bloques historicos, reduciendo coste y riesgo de bloqueo.
-- Si no existe cache, no fuerza rebuild en el POST; se reconstruye en carga normal del dashboard.
+## Notas tecnicas (cache limite deuda)
+- `POST /debts/limit` modifica solo `debt_details.limit_info` del cache del usuario cuando existe.
+- Se actualiza `meta.version` y `meta._now_cached_at` para notificar polling.
+- No fuerza invalidate/recompute completo en ese endpoint.
+- Si no existe cache, no lo construye en caliente; se genera en carga normal del dashboard.

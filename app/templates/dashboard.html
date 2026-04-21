@@ -100,7 +100,24 @@
         <div class="grid grid-cols-1 lg:grid-cols-[minmax(320px,1fr)_minmax(360px,auto)] items-start lg:items-center gap-6">
             <div class="min-w-0">
                 <p class="text-indigo-200 text-sm font-medium uppercase tracking-wide">Patrimonio Neto Total</p>
-                <h1 id="net-worth-value" class="text-4xl md:text-5xl font-bold mt-1">{{ "%.2f"|format(summary.net_worth) }} €</h1>
+                <div class="mt-1 flex flex-wrap items-end gap-3">
+                    <h1 id="net-worth-value" class="text-4xl md:text-5xl font-bold">{{ "%.2f"|format(summary.net_worth) }} €</h1>
+                    {% if summary.health_score %}
+                    <div class="inline-flex items-center gap-3 bg-white/10 backdrop-blur rounded-xl px-4 py-2.5 mb-1 max-w-[340px]">
+                        <div class="flex items-center justify-center w-9 h-9 rounded-lg bg-white/10 text-lg">
+                            {{ summary.health_score.emoji }}
+                        </div>
+                        <div class="min-w-0">
+                            <p class="text-indigo-200 text-[11px] font-semibold uppercase tracking-wide">Salud financiera</p>
+                            <div class="flex items-baseline gap-2">
+                                <span class="text-lg font-bold text-white tabular-nums">{{ summary.health_score.score }}</span>
+                                <span class="text-indigo-100/90 text-xs">/ 100</span>
+                                <span class="text-xs font-semibold text-white/95 truncate">{{ summary.health_score.level }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
                 <div class="flex items-center gap-4 mt-2 text-sm">
                     {% if summary.changes.month >= 0 %}
                     <span id="month-change" class="bg-green-500/30 px-2 py-1 rounded">+{{ "%.2f"|format(summary.changes.month) }} € Month</span>
@@ -121,21 +138,6 @@
                 <div class="mt-1 text-xs text-indigo-200">
                     <span id="dashboard-staleness">Actualizado hace 0 min</span>
                 </div>
-                {% if summary.health_score %}
-                <div class="mt-3 inline-flex items-center gap-3 bg-white/10 backdrop-blur rounded-xl px-4 py-3 max-w-[340px]">
-                    <div class="flex items-center justify-center w-10 h-10 rounded-lg bg-white/10 text-xl">
-                        {{ summary.health_score.emoji }}
-                    </div>
-                    <div class="min-w-0">
-                        <p class="text-indigo-200 text-[11px] font-semibold uppercase tracking-wide">Salud financiera</p>
-                        <div class="flex items-baseline gap-2">
-                            <span class="text-xl font-bold text-white tabular-nums">{{ summary.health_score.score }}</span>
-                            <span class="text-indigo-100/90 text-xs">/ 100</span>
-                        </div>
-                        <p class="text-xs font-semibold text-white/95">{{ summary.health_score.level }}</p>
-                    </div>
-                </div>
-                {% endif %}
             </div>
             <div class="flex flex-wrap items-stretch justify-end gap-4 shrink-0">
             {% if summary.get('commodities') %}
@@ -293,104 +295,6 @@
 
         {% set any_assets = (summary.breakdown.cash|default(0) + summary.breakdown.portfolio|default(0) + summary.breakdown.crypto|default(0) + summary.breakdown.metales|default(0) + summary.breakdown.real_estate|default(0)) > 0 %}
         {% if any_assets %}
-        <!-- Activos: distribución + resumen (wide) -->
-        <div class="dashboard-card dashboard-card--wide p-6" data-card-id="assets_distribution">
-            <div class="flex items-center justify-between mb-4">
-                <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
-                <h3 class="text-sm font-bold text-gray-800">Activos</h3>
-            </div>
-
-            <div class="grid grid-cols-1 lg:grid-cols-[430px_1fr] gap-4 items-start">
-                <div class="grid grid-cols-[220px_1fr] gap-4 items-center min-w-0">
-                    <div class="w-[220px] h-[220px]">
-                        <canvas id="distributionChart"></canvas>
-                    </div>
-                    <div id="distributionLegend" class="space-y-2 text-sm">
-                        {# Leyenda generada por JS (solo categorías con valor > 0) #}
-                    </div>
-                </div>
-
-                <div class="min-w-0">
-                <ul class="space-y-2">
-                {% if summary.breakdown.cash|default(0) > 0 %}
-                <li>
-                    <a href="{{ url_for('banks.dashboard') }}" class="flex items-start justify-between gap-4 px-3 py-2 rounded-lg border border-emerald-100 bg-emerald-50/70 hover:bg-emerald-100/80 transition">
-                        <div class="min-w-0">
-                            <p class="text-sm font-semibold text-gray-800">Cash & Bancos</p>
-                            <div id="assets-cash-banks" class="mt-0.5 text-xs text-gray-600 space-y-0.5">
-                            {% for bank in summary.cash_details[:2] %}
-                                {% if bank.amount and bank.amount > 0 %}
-                                <p>{{ bank.icon }} {{ bank.name }}: {{ "%.2f"|format(bank.amount) }} €</p>
-                                {% endif %}
-                            {% endfor %}
-                            </div>
-                        </div>
-                        <p class="text-base font-bold text-gray-900 shrink-0"><span id="assets-cash-total">{{ "%.2f"|format(summary.breakdown.cash) }} €</span></p>
-                    </a>
-                </li>
-                {% endif %}
-
-                {% if summary.portfolio_details and summary.portfolio_details.total_value|default(0) > 0 %}
-                <li>
-                    <a href="{{ url_for('portfolio.dashboard') }}" class="flex items-start justify-between gap-4 px-3 py-2 rounded-lg border border-blue-100 bg-blue-50/70 hover:bg-blue-100/80 transition">
-                        <div class="min-w-0">
-                            <p class="text-sm font-semibold text-gray-800">Portfolio</p>
-                            <p id="assets-portfolio-pnl" class="text-xs mt-0.5 {% if summary.portfolio_details.total_pnl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
-                                {% if summary.portfolio_details.total_pnl >= 0 %}+{% endif %}{{ "%.2f"|format(summary.portfolio_details.total_pnl) }} € ({{ summary.portfolio_details.total_pnl_pct }}%)
-                            </p>
-                        </div>
-                        <p class="text-base font-bold text-gray-900 shrink-0"><span id="assets-portfolio-total">{{ "%.2f"|format(summary.portfolio_details.total_value) }} €</span></p>
-                    </a>
-                </li>
-                {% endif %}
-
-                {% if summary.crypto_details and summary.crypto_details.total_value|default(0) > 0 %}
-                <li>
-                    <a href="{{ url_for('crypto.dashboard') }}" class="flex items-start justify-between gap-4 px-3 py-2 rounded-lg border border-amber-100 bg-amber-50/70 hover:bg-amber-100/80 transition">
-                        <div class="min-w-0">
-                            <p class="text-sm font-semibold text-gray-800">Crypto</p>
-                            <p id="assets-crypto-pnl" class="text-xs mt-0.5 {% if summary.crypto_details.total_pnl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
-                                {% if summary.crypto_details.total_pnl >= 0 %}+{% endif %}{{ "%.2f"|format(summary.crypto_details.total_pnl) }} €
-                            </p>
-                        </div>
-                        <p class="text-base font-bold text-gray-900 shrink-0"><span id="assets-crypto-total">{{ "%.2f"|format(summary.crypto_details.total_value) }} €</span></p>
-                    </a>
-                </li>
-                {% endif %}
-
-                {% if summary.metales_details and summary.metales_details.total_value|default(0) > 0 %}
-                <li>
-                    <a href="{{ url_for('metales.dashboard') }}" class="flex items-start justify-between gap-4 px-3 py-2 rounded-lg border border-yellow-100 bg-yellow-50/70 hover:bg-yellow-100/80 transition">
-                        <div class="min-w-0">
-                            <p class="text-sm font-semibold text-gray-800">Metales</p>
-                            <p id="assets-metales-pnl" class="text-xs mt-0.5 {% if summary.metales_details.total_pnl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
-                                {% if summary.metales_details.total_pnl >= 0 %}+{% endif %}{{ "%.2f"|format(summary.metales_details.total_pnl) }} €
-                            </p>
-                        </div>
-                        <p class="text-base font-bold text-gray-900 shrink-0"><span id="assets-metales-total">{{ "%.2f"|format(summary.metales_details.total_value) }} €</span></p>
-                    </a>
-                </li>
-                {% endif %}
-
-                {% if summary.real_estate_details and summary.real_estate_details.total_value|default(0) > 0 %}
-                <li>
-                    <a href="{{ url_for('real_estate.dashboard') }}" class="flex items-start justify-between gap-4 px-3 py-2 rounded-lg border border-teal-100 bg-teal-50/70 hover:bg-teal-100/80 transition">
-                        <div class="min-w-0">
-                            <p class="text-sm font-semibold text-gray-800">Inmuebles</p>
-                            <div id="assets-realestate-props" class="mt-0.5 text-xs text-gray-600 space-y-0.5">
-                                {% for prop in summary.real_estate_details.properties[:2] %}
-                                <p>{{ prop.icon }} {{ prop.address[:26] }}{% if prop.address|length > 26 %}...{% endif %}</p>
-                                {% endfor %}
-                            </div>
-                        </div>
-                        <p class="text-base font-bold text-gray-900 shrink-0"><span id="assets-realestate-total">{{ "%.2f"|format(summary.real_estate_details.total_value) }} €</span></p>
-                    </a>
-                </li>
-                {% endif %}
-                </ul>
-                </div>
-            </div>
-        </div>
         {% endif %}
 
         <!-- Ingresos vs Gastos (wide) -->
@@ -528,6 +432,24 @@
       </div>
 
       <div id="sortable-widgets-normal" class="dashboard-lane dashboard-lane--normal">
+        {% if any_assets %}
+        <!-- Activos: tarjeta simple (rosco + leyenda) -->
+        <div class="dashboard-card p-5" data-card-id="assets_distribution">
+            <div class="flex items-center justify-between mb-3">
+                <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
+                <h3 class="text-sm font-bold text-gray-800">Activos</h3>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-[220px_1fr] gap-4 items-center">
+                <div class="w-[220px] h-[220px] mx-auto sm:mx-0">
+                    <canvas id="distributionChart"></canvas>
+                </div>
+                <div id="distributionLegend" class="space-y-2 text-sm">
+                    {# Leyenda generada por JS (solo categorías con valor > 0) #}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Proyecciones -->
         <div class="dashboard-card p-5" data-card-id="projection">
             <div class="flex items-center justify-between mb-2">
@@ -1645,83 +1567,6 @@ function applyDashboardUpdate(summary) {
                     `<div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full" style="background-color:${c.color}"></span>${c.label} ${c.pct != null ? c.pct : 0}%</div>`
                 ).join('');
             }
-        }
-    }
-
-    // Resumen de Activos (Cash, Portfolio, Crypto, Metales, Inmuebles)
-    if (summary.breakdown) {
-        const cashEl = document.getElementById('assets-cash-total');
-        if (cashEl && typeof summary.breakdown.cash === 'number') {
-            cashEl.textContent = `${summary.breakdown.cash.toFixed(2)} €`;
-        }
-    }
-    if (Array.isArray(summary.cash_details)) {
-        const box = document.getElementById('assets-cash-banks');
-        if (box) {
-            box.innerHTML = (summary.cash_details || []).slice(0, 2).map(b =>
-                `<p class="text-xs text-gray-500 mt-1">${b.icon || '🏦'} ${b.name || ''}: ${(Number(b.amount) || 0).toFixed(2)} €</p>`
-            ).join('');
-        }
-    }
-    if (summary.portfolio_details) {
-        const portEl = document.getElementById('assets-portfolio-total');
-        if (portEl && typeof summary.portfolio_details.total_value === 'number') {
-            portEl.textContent = `${summary.portfolio_details.total_value.toFixed(2)} €`;
-        }
-    }
-    if (summary.crypto_details) {
-        const cryptoEl = document.getElementById('assets-crypto-total');
-        if (cryptoEl && typeof summary.crypto_details.total_value === 'number') {
-            cryptoEl.textContent = `${summary.crypto_details.total_value.toFixed(2)} €`;
-        }
-    }
-    if (summary.metales_details) {
-        const metalEl = document.getElementById('assets-metales-total');
-        if (metalEl && typeof summary.metales_details.total_value === 'number') {
-            metalEl.textContent = `${summary.metales_details.total_value.toFixed(2)} €`;
-        }
-    }
-    if (summary.portfolio_details) {
-        const pnlEl = document.getElementById('assets-portfolio-pnl');
-        if (pnlEl && typeof summary.portfolio_details.total_pnl === 'number' && typeof summary.portfolio_details.total_pnl_pct === 'number') {
-            const pnl = summary.portfolio_details.total_pnl;
-            const pct = summary.portfolio_details.total_pnl_pct;
-            pnlEl.textContent = `${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} € (${pct.toFixed(1)}%)`;
-            pnlEl.classList.remove('text-green-600', 'text-red-600');
-            pnlEl.classList.add(pnl >= 0 ? 'text-green-600' : 'text-red-600');
-        }
-    }
-    if (summary.real_estate_details) {
-        const reEl = document.getElementById('assets-realestate-total');
-        if (reEl && typeof summary.real_estate_details.total_value === 'number') {
-            reEl.textContent = `${summary.real_estate_details.total_value.toFixed(2)} €`;
-        }
-    }
-    if (summary.crypto_details) {
-        const pnlEl = document.getElementById('assets-crypto-pnl');
-        if (pnlEl && typeof summary.crypto_details.total_pnl === 'number') {
-            const pnl = summary.crypto_details.total_pnl;
-            pnlEl.textContent = `${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} €`;
-            pnlEl.classList.remove('text-green-600', 'text-red-600');
-            pnlEl.classList.add(pnl >= 0 ? 'text-green-600' : 'text-red-600');
-        }
-    }
-    if (summary.metales_details) {
-        const pnlEl = document.getElementById('assets-metales-pnl');
-        if (pnlEl && typeof summary.metales_details.total_pnl === 'number') {
-            const pnl = summary.metales_details.total_pnl;
-            pnlEl.textContent = `${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} €`;
-            pnlEl.classList.remove('text-green-600', 'text-red-600');
-            pnlEl.classList.add(pnl >= 0 ? 'text-green-600' : 'text-red-600');
-        }
-    }
-    if (summary.real_estate_details && Array.isArray(summary.real_estate_details.properties)) {
-        const propsEl = document.getElementById('assets-realestate-props');
-        if (propsEl) {
-            const props = summary.real_estate_details.properties.slice(0, 2);
-            propsEl.innerHTML = props.map(p =>
-                `<p class="text-xs text-gray-500 mt-1">${p.icon || ''} ${p.address ? (p.address.substring(0, 20) + (p.address.length > 20 ? '...' : '')) : ''}</p>`
-            ).join('');
         }
     }
 
