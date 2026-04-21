@@ -7,7 +7,7 @@ from datetime import datetime, date
 from sqlalchemy import func, extract
 from app.routes import main_bp
 from app import db
-from app.models import Expense, Income, UserDashboardConfig, DEFAULT_WIDGETS
+from app.models import Expense, Income, UserDashboardConfig, UserDashboardLayout, DEFAULT_WIDGETS
 from app.services.net_worth_service import get_dashboard_summary
 from app.services.price_polling_service import get_updated_asset_ids_for_user
 
@@ -330,6 +330,70 @@ def save_dashboard_config():
     UserDashboardConfig.save_user_config(current_user.id, widgets)
     
     return jsonify({'success': True, 'message': 'Configuración guardada'})
+
+
+@main_bp.route('/dashboard/layout', methods=['GET', 'POST'])
+@login_required
+def dashboard_layout():
+    """
+    Persistencia del orden de tarjetas del Dashboard global por usuario.
+
+    - GET: devuelve {wide:[], tail:[], normal:[]}
+    - POST: recibe {wide:[], tail:[], normal:[]} y persiste posiciones
+    """
+    if request.method == 'GET':
+        rows = (
+            UserDashboardLayout.query
+            .filter_by(user_id=current_user.id)
+            .order_by(UserDashboardLayout.lane.asc(), UserDashboardLayout.position.asc())
+            .all()
+        )
+        out = {'wide': [], 'tail': [], 'normal': []}
+        for r in rows:
+            lane = (r.lane or '').strip().lower()
+            if lane not in out:
+                continue
+            out[lane].append(r.card_id)
+        return jsonify({'success': True, 'layout': out}), 200
+
+    data = request.get_json(silent=True) or {}
+    wide = data.get('wide') or []
+    tail = data.get('tail') or []
+    normal = data.get('normal') or []
+
+    def _clean_ids(items):
+        ids = []
+        for x in (items or []):
+            if not isinstance(x, str):
+                continue
+            s = x.strip()
+            if not s:
+                continue
+            # Guardar tal cual el data-card-id; evitar tamaños absurdos
+            if len(s) > 80:
+                s = s[:80]
+            ids.append(s)
+        return ids
+
+    wide = _clean_ids(wide)
+    tail = _clean_ids(tail)
+    normal = _clean_ids(normal)
+
+    # Reemplazo completo: mantiene coherencia y permite que cards desaparecidas se purguen
+    UserDashboardLayout.query.filter_by(user_id=current_user.id).delete()
+    pos = 0
+    for i, cid in enumerate(wide):
+        db.session.add(UserDashboardLayout(user_id=current_user.id, card_id=cid, lane='wide', position=i))
+        pos += 1
+    for i, cid in enumerate(tail):
+        db.session.add(UserDashboardLayout(user_id=current_user.id, card_id=cid, lane='tail', position=i))
+        pos += 1
+    for i, cid in enumerate(normal):
+        db.session.add(UserDashboardLayout(user_id=current_user.id, card_id=cid, lane='normal', position=i))
+        pos += 1
+    db.session.commit()
+
+    return jsonify({'success': True, 'count': pos}), 200
 
 
 @main_bp.route('/health')

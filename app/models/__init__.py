@@ -22,6 +22,7 @@ from app.models.debt_plan import DebtPlan
 from app.models.real_estate import RealEstateProperty, PropertyValuation, PROPERTY_TYPES, PROPERTY_ICONS, get_property_icon
 from app.models.bank import Bank, BankBalance
 from app.models.dashboard_config import UserDashboardConfig, DEFAULT_WIDGETS
+from app.models.dashboard_layout import UserDashboardLayout
 from app.models.api_call_log import ApiCallLog
 from app.models.user_login_log import UserLoginLog
 from app.models.price_polling_state import PricePollingState
@@ -59,6 +60,7 @@ __all__ = [
     'RealEstateProperty', 'PropertyValuation', 'PROPERTY_TYPES', 'PROPERTY_ICONS', 'get_property_icon',
     'Bank', 'BankBalance',
     'UserDashboardConfig', 'DEFAULT_WIDGETS',
+    'UserDashboardLayout',
     'ApiCallLog',
     'UserLoginLog',
     'PricePollingState',
