@@ -96,6 +96,15 @@ class DashboardOnboardingService:
         return completed
 
     @staticmethod
+    def _has_bank_cash_data(user_id: int) -> bool:
+        return (
+            db.session.query(BankBalance.id)
+            .filter(BankBalance.user_id == user_id, BankBalance.amount != 0)
+            .first()
+            is not None
+        )
+
+    @staticmethod
     def _has_economic_data(user_id: int, applicable_keys: list[str]) -> bool:
         """
         Define cuándo se considera que el dashboard debe desbloquearse.
@@ -126,15 +135,8 @@ class DashboardOnboardingService:
             return True
 
         # Bancos solo desbloquean si existe al menos un saldo con importe distinto de 0.
-        if "banks" in keys:
-            has_bank_balance = (
-                db.session.query(BankBalance.id)
-                .filter(BankBalance.user_id == user_id, BankBalance.amount != 0)
-                .first()
-                is not None
-            )
-            if has_bank_balance:
-                return True
+        if "banks" in keys and DashboardOnboardingService._has_bank_cash_data(user_id):
+            return True
 
         return False
 
@@ -179,10 +181,28 @@ class DashboardOnboardingService:
                 )
             return payload
 
+        pending_payload = to_payload(pending_keys)
+        # Paso guiado adicional:
+        # Si ya existe al menos un banco pero no hay cash registrado, sugerir registrar efectivo.
+        if "banks" in applicable_keys:
+            has_any_bank = DashboardOnboardingService._exists_any(Bank, user.id)
+            has_bank_cash = DashboardOnboardingService._has_bank_cash_data(user.id)
+            if has_any_bank and not has_bank_cash:
+                pending_payload.insert(
+                    0,
+                    {
+                        "key": "banks_cash_setup",
+                        "label": "Registrar efectivo en tu banco",
+                        "module_key": "finance",
+                        "endpoint": "banks.dashboard",
+                        "endpoint_kwargs": {},
+                    },
+                )
+
         return {
             "applicable_milestones": to_payload(applicable_keys),
             "completed_milestones": to_payload(completed_keys),
-            "pending_milestones": to_payload(pending_keys),
+            "pending_milestones": pending_payload,
             "newly_completed_milestones": to_payload(newly_completed),
             "completed_count": completed_count,
             "total_count": total,
