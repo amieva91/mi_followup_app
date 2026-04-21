@@ -24,6 +24,7 @@ from app.models import (
     Income,
     PortfolioHolding,
     RealEstateProperty,
+    Transaction,
     User,
 )
 
@@ -116,6 +117,11 @@ class DashboardOnboardingService:
             return True
         if "metales" in keys and DashboardOnboardingService._portfolio_exists(user_id, ("Commodity",)):
             return True
+        if (
+            {"portfolio", "crypto", "metales"} & keys
+            and DashboardOnboardingService._exists_any(Transaction, user_id)
+        ):
+            return True
         if "real_estate" in keys and DashboardOnboardingService._exists_any(RealEstateProperty, user_id):
             return True
 
@@ -181,6 +187,7 @@ class DashboardOnboardingService:
             "completed_count": completed_count,
             "total_count": total,
             "progress_percent": percent,
+            "has_economic_data": has_economic_data,
             "show_initial_onboarding": total > 0 and not has_economic_data,
             "show_next_step_popup": has_economic_data and completed_count > 0 and len(newly_completed) > 0,
         }

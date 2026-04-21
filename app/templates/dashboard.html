@@ -96,9 +96,11 @@
     {% set onboarding = onboarding or {} %}
     {% set onboarding_initial = onboarding.show_initial_onboarding|default(false) %}
     {% set onboarding_popup = onboarding.show_next_step_popup|default(false) %}
+    {% set onboarding_has_data = onboarding.has_economic_data|default(false) %}
     {% set onboarding_new_keys = (onboarding.newly_completed_milestones|default([]) | map(attribute='key') | list) %}
     <div class="w-full px-4 sm:px-5 lg:px-6 py-6" x-data="dashboardConfig()" x-init="initSortable()">
     
+    {% if onboarding_has_data %}
     <!-- Header Patrimonio -->
     <div class="bg-gradient-to-br from-indigo-600 via-indigo-700 to-violet-700 rounded-[20px] shadow-xl p-8 mb-8 text-white overflow-hidden relative">
         <div class="grid grid-cols-1 {% if not onboarding_initial %}lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]{% endif %} items-start lg:items-center gap-6">
@@ -197,6 +199,7 @@
             {% endif %}
         </div>
     </div>
+    {% endif %}
 
     {% if onboarding_initial %}
     <div class="bg-white rounded-[20px] border border-gray-100 shadow-sm p-8 mb-8">
