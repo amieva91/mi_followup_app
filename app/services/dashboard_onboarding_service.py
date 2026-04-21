@@ -17,6 +17,7 @@ from app import db
 from app.models import (
     Asset,
     Bank,
+    BankBalance,
     DashboardOnboardingState,
     DebtPlan,
     Expense,
@@ -94,6 +95,44 @@ class DashboardOnboardingService:
         return completed
 
     @staticmethod
+    def _has_economic_data(user_id: int, applicable_keys: list[str]) -> bool:
+        """
+        Define cuándo se considera que el dashboard debe desbloquearse.
+
+        Regla: hace falta al menos un dato económico real (movimiento/posición/saldo),
+        no solo crear entidades vacías como un banco sin saldos.
+        """
+        keys = set(applicable_keys)
+
+        if "incomes" in keys and DashboardOnboardingService._exists_any(Income, user_id):
+            return True
+        if "expenses" in keys and DashboardOnboardingService._exists_any(Expense, user_id):
+            return True
+        if "debts" in keys and DashboardOnboardingService._exists_any(DebtPlan, user_id):
+            return True
+        if "portfolio" in keys and DashboardOnboardingService._portfolio_exists(user_id, ("Stock", "ETF")):
+            return True
+        if "crypto" in keys and DashboardOnboardingService._portfolio_exists(user_id, ("Crypto",)):
+            return True
+        if "metales" in keys and DashboardOnboardingService._portfolio_exists(user_id, ("Commodity",)):
+            return True
+        if "real_estate" in keys and DashboardOnboardingService._exists_any(RealEstateProperty, user_id):
+            return True
+
+        # Bancos solo desbloquean si existe al menos un saldo con importe distinto de 0.
+        if "banks" in keys:
+            has_bank_balance = (
+                db.session.query(BankBalance.id)
+                .filter(BankBalance.user_id == user_id, BankBalance.amount != 0)
+                .first()
+                is not None
+            )
+            if has_bank_balance:
+                return True
+
+        return False
+
+    @staticmethod
     def _milestone_defs_by_module(enabled_modules: set[str]) -> list[MilestoneDef]:
         return [m for m in DashboardOnboardingService.MILESTONES if m.module_key in enabled_modules]
 
@@ -114,6 +153,7 @@ class DashboardOnboardingService:
         total = len(applicable_keys)
         completed_count = len(completed_keys)
         percent = int(round((completed_count / total) * 100)) if total > 0 else 100
+        has_economic_data = DashboardOnboardingService._has_economic_data(user.id, applicable_keys)
 
         def to_payload(keys: list[str]) -> list[dict[str, Any]]:
             payload = []
@@ -141,8 +181,8 @@ class DashboardOnboardingService:
             "completed_count": completed_count,
             "total_count": total,
             "progress_percent": percent,
-            "show_initial_onboarding": total > 0 and completed_count == 0,
-            "show_next_step_popup": completed_count > 0 and len(newly_completed) > 0,
+            "show_initial_onboarding": total > 0 and not has_economic_data,
+            "show_next_step_popup": has_economic_data and completed_count > 0 and len(newly_completed) > 0,
         }
 
     @staticmethod
