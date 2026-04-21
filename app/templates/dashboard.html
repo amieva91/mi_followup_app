@@ -93,16 +93,20 @@
         margin: auto;
     }
 </style>
+    {% set onboarding = onboarding or {} %}
+    {% set onboarding_initial = onboarding.show_initial_onboarding|default(false) %}
+    {% set onboarding_popup = onboarding.show_next_step_popup|default(false) %}
+    {% set onboarding_new_keys = (onboarding.newly_completed_milestones|default([]) | map(attribute='key') | list) %}
     <div class="w-full px-4 sm:px-5 lg:px-6 py-6" x-data="dashboardConfig()" x-init="initSortable()">
     
     <!-- Header Patrimonio -->
     <div class="bg-gradient-to-br from-indigo-600 via-indigo-700 to-violet-700 rounded-[20px] shadow-xl p-8 mb-8 text-white overflow-hidden relative">
-        <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-start lg:items-center gap-6">
+        <div class="grid grid-cols-1 {% if not onboarding_initial %}lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]{% endif %} items-start lg:items-center gap-6">
             <div class="min-w-0">
                 <p class="text-indigo-200 text-sm font-medium uppercase tracking-wide">Patrimonio Neto Total</p>
                 <div class="mt-1 flex flex-wrap items-center gap-4">
                     <h1 id="net-worth-value" class="text-4xl md:text-5xl font-bold">{{ "%.2f"|format(summary.net_worth) }} €</h1>
-                    {% if summary.health_score %}
+                    {% if summary.health_score and not onboarding_initial %}
                     <div class="w-28 h-28 ml-36 rounded-full bg-white/10 backdrop-blur border border-white/25 shadow-[0_10px_24px_rgba(0,0,0,0.2)] flex flex-col items-center justify-center text-center px-2 shrink-0 cursor-help" title="Health Score: {{ summary.health_score.score }}/100">
                         <span class="text-lg leading-none">{{ summary.health_score.emoji }}</span>
                         <span class="text-2xl font-bold text-white tabular-nums leading-tight mt-1">{{ summary.health_score.score }}</span>
@@ -131,6 +135,7 @@
                     <span id="dashboard-staleness">Actualizado hace 0 min</span>
                 </div>
             </div>
+            {% if not onboarding_initial %}
             <div class="flex flex-wrap items-stretch justify-end gap-4 shrink-0 lg:justify-self-end">
                 {% if summary.get('commodities') %}
                 <div class="bg-white/10 backdrop-blur rounded-xl p-4 min-w-[240px] max-w-[340px]" id="commodities-block">
@@ -189,8 +194,111 @@
                 </div>
                 {% endif %}
             </div>
+            {% endif %}
         </div>
     </div>
+
+    {% if onboarding_initial %}
+    <div class="bg-white rounded-[20px] border border-gray-100 shadow-sm p-8 mb-8">
+        <div class="max-w-5xl mx-auto">
+            <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+                <div>
+                    <h2 class="text-2xl font-bold text-gray-900">Bienvenido a tu dashboard</h2>
+                    <p class="text-sm text-gray-600 mt-1">Todavía no hay datos registrados. Empieza por cualquiera de estas acciones y el dashboard se irá desbloqueando automáticamente.</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-xs uppercase tracking-wide text-gray-500 font-semibold">Progreso inicial</p>
+                    <p class="text-2xl font-bold text-indigo-700">{{ onboarding.progress_percent|default(0) }}%</p>
+                </div>
+            </div>
+
+            {% if onboarding.pending_milestones %}
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 mt-6">
+                {% for step in onboarding.pending_milestones %}
+                <a href="{{ step.url }}"
+                   class="flex items-center justify-between gap-3 p-4 rounded-xl border border-indigo-100 bg-indigo-50 hover:bg-indigo-100/80 transition">
+                    <div>
+                        <p class="text-xs uppercase tracking-wide text-indigo-500 font-semibold">{{ step.module_key|replace('_', ' ') }}</p>
+                        <p class="text-sm font-semibold text-gray-800">{{ step.label }}</p>
+                    </div>
+                    <span class="text-indigo-600 font-bold">→</span>
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="mt-6 rounded-xl border border-emerald-100 bg-emerald-50 p-4">
+                <p class="text-sm font-semibold text-emerald-800">No hay hitos configurados para los módulos activos de esta cuenta.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if onboarding_popup and not onboarding_initial %}
+    <div x-data="{
+            open: true,
+            closing: false,
+            closeOnboardingPopup() {
+                if (this.closing || !this.open) return;
+                this.closing = true;
+                fetch('{{ url_for('main.dashboard_onboarding_ack') }}', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify({ milestones: {{ onboarding_new_keys | tojson }} })
+                }).catch(() => {}).finally(() => {
+                    this.open = false;
+                    this.closing = false;
+                });
+            }
+        }">
+        <template x-teleport="body">
+            <div x-show="open" x-transition x-cloak
+                 class="expand-modal"
+                 @click.self="closeOnboardingPopup()"
+                 @keydown.escape.window="if(open) closeOnboardingPopup()"
+                 style="display: none;">
+                <div class="expand-modal-inner w-[92vw] max-w-2xl" @click.stop>
+                    <div class="flex items-start justify-between gap-3 mb-4">
+                        <div>
+                            <h3 class="text-lg font-bold text-gray-800">Siguiente paso recomendado</h3>
+                            <p class="text-sm text-gray-600">Has avanzado en tu configuración. Te proponemos lo siguiente para completar tu dashboard.</p>
+                        </div>
+                        <button type="button" class="text-gray-400 hover:text-gray-600 cursor-pointer" @click="closeOnboardingPopup()">✕</button>
+                    </div>
+
+                    <div class="rounded-xl bg-indigo-50 border border-indigo-100 p-4 mb-4">
+                        <p class="text-xs font-semibold text-indigo-600 uppercase tracking-wide">Progreso onboarding</p>
+                        <p class="text-2xl font-bold text-indigo-800 mt-1">{{ onboarding.progress_percent|default(0) }}%</p>
+                        <p class="text-sm text-indigo-700 mt-1">{{ onboarding.completed_count|default(0) }} de {{ onboarding.total_count|default(0) }} hitos completados</p>
+                    </div>
+
+                    {% if onboarding.pending_milestones %}
+                    <div class="space-y-2 mb-4">
+                        {% for step in onboarding.pending_milestones[:4] %}
+                        <a href="{{ step.url }}" class="flex items-center justify-between gap-3 p-3 rounded-lg border border-gray-200 hover:bg-gray-50">
+                            <span class="text-sm font-medium text-gray-800">{{ step.label }}</span>
+                            <span class="text-indigo-600 font-bold">→</span>
+                        </a>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <div class="flex justify-end">
+                        <button type="button"
+                                class="px-4 py-2 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700"
+                                @click="closeOnboardingPopup()">
+                            Continuar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </template>
+    </div>
+    {% endif %}
 
     <!-- Modal detalle Salud Financiera (clic fuera para cerrar; sin botones) -->
     <template x-teleport="body">
@@ -212,6 +320,7 @@
         </div>
     </template>
 
+    {% if not onboarding_initial %}
     <!-- Dashboard (2 carriles): WIDE izquierda, normales derecha -->
     <div class="dashboard-lanes">
       <div class="dashboard-lane--wide-col">
@@ -575,12 +684,13 @@
       </div>
     </div>
     </div><!-- Fin dashboard-lanes -->
+    {% endif %}
 
     {# Empty state: evitar sensación de vacío para usuarios nuevos #}
     {% set has_finance = (summary.savings.total_income|default(0) + summary.savings.total_expense|default(0)) > 0 %}
     {% set has_assets_any = (summary.breakdown.cash|default(0) + summary.breakdown.portfolio|default(0) + summary.breakdown.crypto|default(0) + summary.breakdown.metales|default(0) + summary.breakdown.real_estate|default(0)) > 0 %}
     {% set has_any_content = has_finance or has_assets_any or (summary.debt_details.plans_count|default(0) > 0) or (summary.recent_transactions and summary.recent_transactions|length > 0) %}
-    {% if not has_any_content %}
+    {% if not onboarding_initial and not has_any_content %}
     <div class="mt-10 bg-white rounded-[20px] border border-gray-100 shadow-sm p-6">
         <h3 class="text-lg font-bold text-gray-800">Tu dashboard irá tomando forma</h3>
         <p class="text-sm text-gray-600 mt-1">A medida que añadas datos, aparecerán tarjetas con gráficos, métricas y recomendaciones.</p>
@@ -599,6 +709,7 @@
     {% endif %}
 
     <!-- FAB acciones rápidas -->
+    {% if not onboarding_initial %}
     <div class="fixed bottom-6 left-6 z-[9998]" id="fab-root">
         <div id="fab-menu" class="hidden mb-3 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden w-60">
             <div class="p-2 space-y-1">
@@ -615,6 +726,7 @@
             <span id="fab-toggle-icon">+</span>
         </button>
     </div>
+    {% endif %}
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
