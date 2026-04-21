@@ -103,10 +103,9 @@
                 <div class="mt-1 flex flex-wrap items-center gap-4">
                     <h1 id="net-worth-value" class="text-4xl md:text-5xl font-bold">{{ "%.2f"|format(summary.net_worth) }} €</h1>
                     {% if summary.health_score %}
-                    <div class="w-28 h-28 ml-12 rounded-full bg-white/10 backdrop-blur border border-white/25 shadow-[0_10px_24px_rgba(0,0,0,0.2)] flex flex-col items-center justify-center text-center px-2 shrink-0">
+                    <div class="w-28 h-28 ml-36 rounded-full bg-white/10 backdrop-blur border border-white/25 shadow-[0_10px_24px_rgba(0,0,0,0.2)] flex flex-col items-center justify-center text-center px-2 shrink-0">
                         <span class="text-base leading-none">{{ summary.health_score.emoji }}</span>
                         <span class="text-xl font-bold text-white tabular-nums leading-tight mt-1">{{ summary.health_score.score }}</span>
-                        <span class="text-[10px] text-indigo-100/90 leading-none">/ 100</span>
                         <span class="text-[10px] font-semibold text-white/95 leading-tight mt-0.5 truncate max-w-full">{{ summary.health_score.level }}</span>
                     </div>
                     {% endif %}
