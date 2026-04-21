@@ -97,7 +97,7 @@
     
     <!-- Header Patrimonio -->
     <div class="bg-gradient-to-br from-indigo-600 via-indigo-700 to-violet-700 rounded-[20px] shadow-xl p-8 mb-8 text-white overflow-hidden relative">
-        <div class="grid grid-cols-1 lg:grid-cols-[minmax(320px,1fr)_auto_minmax(320px,1fr)] items-start lg:items-center gap-6">
+        <div class="grid grid-cols-1 lg:grid-cols-[minmax(320px,1fr)_minmax(360px,auto)] items-start lg:items-center gap-6">
             <div class="min-w-0">
                 <p class="text-indigo-200 text-sm font-medium uppercase tracking-wide">Patrimonio Neto Total</p>
                 <h1 id="net-worth-value" class="text-4xl md:text-5xl font-bold mt-1">{{ "%.2f"|format(summary.net_worth) }} €</h1>
@@ -121,24 +121,22 @@
                 <div class="mt-1 text-xs text-indigo-200">
                     <span id="dashboard-staleness">Actualizado hace 0 min</span>
                 </div>
-            </div>
-            {% if summary.health_score %}
-            <div class="flex justify-center self-center">
-            <div class="flex items-center gap-4 bg-white/10 backdrop-blur rounded-xl px-5 py-4 min-w-[240px] max-w-[340px]">
-                <div class="flex items-center justify-center w-12 h-12 rounded-xl bg-white/10 text-2xl">
-                    {{ summary.health_score.emoji }}
-                </div>
-                <div class="min-w-0">
-                    <p class="text-indigo-200 text-xs font-semibold uppercase tracking-wide">Salud financiera</p>
-                    <div class="flex items-baseline gap-2">
-                        <span class="text-2xl font-bold text-white tabular-nums">{{ summary.health_score.score }}</span>
-                        <span class="text-indigo-100/90 text-sm">/ 100</span>
+                {% if summary.health_score %}
+                <div class="mt-3 inline-flex items-center gap-3 bg-white/10 backdrop-blur rounded-xl px-4 py-3 max-w-[340px]">
+                    <div class="flex items-center justify-center w-10 h-10 rounded-lg bg-white/10 text-xl">
+                        {{ summary.health_score.emoji }}
                     </div>
-                    <p class="text-sm font-semibold text-white/95">{{ summary.health_score.level }}</p>
+                    <div class="min-w-0">
+                        <p class="text-indigo-200 text-[11px] font-semibold uppercase tracking-wide">Salud financiera</p>
+                        <div class="flex items-baseline gap-2">
+                            <span class="text-xl font-bold text-white tabular-nums">{{ summary.health_score.score }}</span>
+                            <span class="text-indigo-100/90 text-xs">/ 100</span>
+                        </div>
+                        <p class="text-xs font-semibold text-white/95">{{ summary.health_score.level }}</p>
+                    </div>
                 </div>
+                {% endif %}
             </div>
-            </div>
-            {% endif %}
             <div class="flex flex-wrap items-stretch justify-end gap-4 shrink-0">
             {% if summary.get('commodities') %}
             <div class="bg-white/10 backdrop-blur rounded-xl p-4 min-w-[240px] max-w-[340px]" id="commodities-block">
@@ -312,62 +310,84 @@
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="min-w-0">
+                <ul class="space-y-2">
                 {% if summary.breakdown.cash|default(0) > 0 %}
-                <a href="{{ url_for('banks.dashboard') }}" class="p-3 rounded-lg bg-emerald-50 border-l-4 border-emerald-500 hover:bg-emerald-100 transition">
-                    <p class="text-xs text-gray-600 mb-1">Cash & Bancos</p>
-                    <p class="text-lg font-bold text-gray-900"><span id="assets-cash-total">{{ "%.2f"|format(summary.breakdown.cash) }} €</span></p>
-                    <div id="assets-cash-banks">
-                    {% for bank in summary.cash_details[:2] %}
-                        {% if bank.amount and bank.amount > 0 %}
-                        <p class="text-xs text-gray-500 mt-1">{{ bank.icon }} {{ bank.name }}: {{ "%.2f"|format(bank.amount) }} €</p>
-                        {% endif %}
-                    {% endfor %}
-                    </div>
-                </a>
+                <li>
+                    <a href="{{ url_for('banks.dashboard') }}" class="flex items-start justify-between gap-4 px-3 py-2 rounded-lg border border-emerald-100 bg-emerald-50/70 hover:bg-emerald-100/80 transition">
+                        <div class="min-w-0">
+                            <p class="text-sm font-semibold text-gray-800">Cash & Bancos</p>
+                            <div id="assets-cash-banks" class="mt-0.5 text-xs text-gray-600 space-y-0.5">
+                            {% for bank in summary.cash_details[:2] %}
+                                {% if bank.amount and bank.amount > 0 %}
+                                <p>{{ bank.icon }} {{ bank.name }}: {{ "%.2f"|format(bank.amount) }} €</p>
+                                {% endif %}
+                            {% endfor %}
+                            </div>
+                        </div>
+                        <p class="text-base font-bold text-gray-900 shrink-0"><span id="assets-cash-total">{{ "%.2f"|format(summary.breakdown.cash) }} €</span></p>
+                    </a>
+                </li>
                 {% endif %}
 
                 {% if summary.portfolio_details and summary.portfolio_details.total_value|default(0) > 0 %}
-                <a href="{{ url_for('portfolio.dashboard') }}" class="p-3 rounded-lg bg-blue-50 border-l-4 border-blue-500 hover:bg-blue-100 transition">
-                    <p class="text-xs text-gray-600 mb-1">Portfolio</p>
-                    <p class="text-lg font-bold text-gray-900"><span id="assets-portfolio-total">{{ "%.2f"|format(summary.portfolio_details.total_value) }} €</span></p>
-                    <p id="assets-portfolio-pnl" class="text-xs {% if summary.portfolio_details.total_pnl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
-                        {% if summary.portfolio_details.total_pnl >= 0 %}+{% endif %}{{ "%.2f"|format(summary.portfolio_details.total_pnl) }} € ({{ summary.portfolio_details.total_pnl_pct }}%)
-                    </p>
-                </a>
+                <li>
+                    <a href="{{ url_for('portfolio.dashboard') }}" class="flex items-start justify-between gap-4 px-3 py-2 rounded-lg border border-blue-100 bg-blue-50/70 hover:bg-blue-100/80 transition">
+                        <div class="min-w-0">
+                            <p class="text-sm font-semibold text-gray-800">Portfolio</p>
+                            <p id="assets-portfolio-pnl" class="text-xs mt-0.5 {% if summary.portfolio_details.total_pnl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                                {% if summary.portfolio_details.total_pnl >= 0 %}+{% endif %}{{ "%.2f"|format(summary.portfolio_details.total_pnl) }} € ({{ summary.portfolio_details.total_pnl_pct }}%)
+                            </p>
+                        </div>
+                        <p class="text-base font-bold text-gray-900 shrink-0"><span id="assets-portfolio-total">{{ "%.2f"|format(summary.portfolio_details.total_value) }} €</span></p>
+                    </a>
+                </li>
                 {% endif %}
 
                 {% if summary.crypto_details and summary.crypto_details.total_value|default(0) > 0 %}
-                <a href="{{ url_for('crypto.dashboard') }}" class="p-3 rounded-lg bg-amber-50 border-l-4 border-amber-500 hover:bg-amber-100 transition">
-                    <p class="text-xs text-gray-600 mb-1">Crypto</p>
-                    <p class="text-lg font-bold text-gray-900"><span id="assets-crypto-total">{{ "%.2f"|format(summary.crypto_details.total_value) }} €</span></p>
-                    <p id="assets-crypto-pnl" class="text-xs {% if summary.crypto_details.total_pnl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
-                        {% if summary.crypto_details.total_pnl >= 0 %}+{% endif %}{{ "%.2f"|format(summary.crypto_details.total_pnl) }} €
-                    </p>
-                </a>
+                <li>
+                    <a href="{{ url_for('crypto.dashboard') }}" class="flex items-start justify-between gap-4 px-3 py-2 rounded-lg border border-amber-100 bg-amber-50/70 hover:bg-amber-100/80 transition">
+                        <div class="min-w-0">
+                            <p class="text-sm font-semibold text-gray-800">Crypto</p>
+                            <p id="assets-crypto-pnl" class="text-xs mt-0.5 {% if summary.crypto_details.total_pnl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                                {% if summary.crypto_details.total_pnl >= 0 %}+{% endif %}{{ "%.2f"|format(summary.crypto_details.total_pnl) }} €
+                            </p>
+                        </div>
+                        <p class="text-base font-bold text-gray-900 shrink-0"><span id="assets-crypto-total">{{ "%.2f"|format(summary.crypto_details.total_value) }} €</span></p>
+                    </a>
+                </li>
                 {% endif %}
 
                 {% if summary.metales_details and summary.metales_details.total_value|default(0) > 0 %}
-                <a href="{{ url_for('metales.dashboard') }}" class="p-3 rounded-lg bg-yellow-50 border-l-4 border-yellow-500 hover:bg-yellow-100 transition">
-                    <p class="text-xs text-gray-600 mb-1">Metales</p>
-                    <p class="text-lg font-bold text-gray-900"><span id="assets-metales-total">{{ "%.2f"|format(summary.metales_details.total_value) }} €</span></p>
-                    <p id="assets-metales-pnl" class="text-xs {% if summary.metales_details.total_pnl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
-                        {% if summary.metales_details.total_pnl >= 0 %}+{% endif %}{{ "%.2f"|format(summary.metales_details.total_pnl) }} €
-                    </p>
-                </a>
+                <li>
+                    <a href="{{ url_for('metales.dashboard') }}" class="flex items-start justify-between gap-4 px-3 py-2 rounded-lg border border-yellow-100 bg-yellow-50/70 hover:bg-yellow-100/80 transition">
+                        <div class="min-w-0">
+                            <p class="text-sm font-semibold text-gray-800">Metales</p>
+                            <p id="assets-metales-pnl" class="text-xs mt-0.5 {% if summary.metales_details.total_pnl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                                {% if summary.metales_details.total_pnl >= 0 %}+{% endif %}{{ "%.2f"|format(summary.metales_details.total_pnl) }} €
+                            </p>
+                        </div>
+                        <p class="text-base font-bold text-gray-900 shrink-0"><span id="assets-metales-total">{{ "%.2f"|format(summary.metales_details.total_value) }} €</span></p>
+                    </a>
+                </li>
                 {% endif %}
 
                 {% if summary.real_estate_details and summary.real_estate_details.total_value|default(0) > 0 %}
-                <a href="{{ url_for('real_estate.dashboard') }}" class="p-3 rounded-lg bg-teal-50 border-l-4 border-teal-500 hover:bg-teal-100 transition">
-                    <p class="text-xs text-gray-600 mb-1">Inmuebles</p>
-                    <p class="text-lg font-bold text-gray-900"><span id="assets-realestate-total">{{ "%.2f"|format(summary.real_estate_details.total_value) }} €</span></p>
-                    <div id="assets-realestate-props">
-                        {% for prop in summary.real_estate_details.properties[:2] %}
-                        <p class="text-xs text-gray-500 mt-1">{{ prop.icon }} {{ prop.address[:20] }}{% if prop.address|length > 20 %}...{% endif %}</p>
-                        {% endfor %}
-                    </div>
-                </a>
+                <li>
+                    <a href="{{ url_for('real_estate.dashboard') }}" class="flex items-start justify-between gap-4 px-3 py-2 rounded-lg border border-teal-100 bg-teal-50/70 hover:bg-teal-100/80 transition">
+                        <div class="min-w-0">
+                            <p class="text-sm font-semibold text-gray-800">Inmuebles</p>
+                            <div id="assets-realestate-props" class="mt-0.5 text-xs text-gray-600 space-y-0.5">
+                                {% for prop in summary.real_estate_details.properties[:2] %}
+                                <p>{{ prop.icon }} {{ prop.address[:26] }}{% if prop.address|length > 26 %}...{% endif %}</p>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <p class="text-base font-bold text-gray-900 shrink-0"><span id="assets-realestate-total">{{ "%.2f"|format(summary.real_estate_details.total_value) }} €</span></p>
+                    </a>
+                </li>
                 {% endif %}
+                </ul>
                 </div>
             </div>
         </div>
