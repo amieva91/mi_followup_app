@@ -70,31 +70,63 @@
     <!-- Referencia de Emojis -->
     <div class="mt-6 bg-gray-50 rounded-lg p-4" x-data>
         <p class="font-semibold text-gray-700 mb-3">💡 Haz clic en un emoji para usarlo:</p>
-        <div class="grid grid-cols-4 gap-3">
-            <button type="button" @click="document.getElementById('icon').value = '💼'" 
-                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Salario">💼</button>
-            <button type="button" @click="document.getElementById('icon').value = '💻'" 
-                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Freelance">💻</button>
-            <button type="button" @click="document.getElementById('icon').value = '📈'" 
-                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Inversiones">📈</button>
-            <button type="button" @click="document.getElementById('icon').value = '🏠'" 
-                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Alquiler">🏠</button>
-            <button type="button" @click="document.getElementById('icon').value = '🎁'" 
-                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Bonos">🎁</button>
-            <button type="button" @click="document.getElementById('icon').value = '🛍️'" 
-                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Venta">🛍️</button>
-            <button type="button" @click="document.getElementById('icon').value = '💰'" 
-                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Dividendos">💰</button>
-            <button type="button" @click="document.getElementById('icon').value = '💵'" 
-                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Otros">💵</button>
-            <button type="button" @click="document.getElementById('icon').value = '🎓'" 
-                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Beca">🎓</button>
-            <button type="button" @click="document.getElementById('icon').value = '🏆'" 
-                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Premio">🏆</button>
-            <button type="button" @click="document.getElementById('icon').value = '🎯'" 
-                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Comisión">🎯</button>
-            <button type="button" @click="document.getElementById('icon').value = '💳'" 
-                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="Reembolso">💳</button>
+        {% set income_emojis = [
+            ('💼', 'Salario'),
+            ('💻', 'Freelance'),
+            ('📈', 'Inversiones'),
+            ('🏠', 'Alquiler'),
+            ('🎁', 'Bonos'),
+            ('🛍️', 'Venta'),
+            ('💰', 'Dividendos'),
+            ('💵', 'Otros'),
+            ('🎓', 'Beca'),
+            ('🏆', 'Premio'),
+            ('🎯', 'Comisión'),
+            ('💳', 'Reembolso'),
+            ('🏢', 'Nómina empresa'),
+            ('🧾', 'Facturación'),
+            ('🤝', 'Consultoría'),
+            ('🧠', 'Asesoría'),
+            ('🧑‍🏫', 'Clases'),
+            ('🎤', 'Ponencias'),
+            ('📚', 'Royalties'),
+            ('📹', 'Contenido en vídeo'),
+            ('📸', 'Fotografía'),
+            ('🎨', 'Diseño'),
+            ('🎼', 'Composición musical'),
+            ('🎹', 'Actuaciones'),
+            ('🏦', 'Intereses bancarios'),
+            ('💹', 'Trading'),
+            ('🪙', 'Cripto ganancias'),
+            ('🏘️', 'Renta inmobiliaria'),
+            ('🚚', 'Logística'),
+            ('🧰', 'Servicios técnicos'),
+            ('🛠️', 'Mantenimiento'),
+            ('🧮', 'Contabilidad'),
+            ('📊', 'Analítica'),
+            ('🧵', 'Artesanía'),
+            ('🌐', 'Publicidad online'),
+            ('📦', 'Dropshipping'),
+            ('🛒', 'Ecommerce'),
+            ('🤖', 'Automatizaciones'),
+            ('🛰️', 'Servicios tecnológicos'),
+            ('🔐', 'Ciberseguridad'),
+            ('🧬', 'I+D'),
+            ('🏛️', 'Subvenciones públicas'),
+            ('💡', 'Licencias/Patentes'),
+            ('🔗', 'Afiliados/Referidos'),
+            ('🪪', 'Membresías'),
+            ('📬', 'Newsletter de pago'),
+            ('🗂️', 'Gestión administrativa'),
+            ('🧭', 'Mentoría'),
+            ('⏱️', 'Horas extra'),
+            ('🌟', 'Propinas')
+        ] %}
+        <div class="grid grid-cols-5 gap-3">
+            {% for emoji, label in income_emojis %}
+            <button type="button" @click="document.getElementById('icon').value = '{{ emoji }}'"
+                    class="text-3xl hover:bg-white hover:scale-110 transition p-2 rounded cursor-pointer" title="{{ label }}">{{ emoji }}</button>
+            {% endfor %}
         </div>
     </div>
 </div>
