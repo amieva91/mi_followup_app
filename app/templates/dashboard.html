@@ -97,10 +97,19 @@
     
     <!-- Header Patrimonio -->
     <div class="bg-gradient-to-br from-indigo-600 via-indigo-700 to-violet-700 rounded-[20px] shadow-xl p-8 mb-8 text-white overflow-hidden relative">
-        <div class="flex flex-wrap items-start justify-between gap-6">
-            <div>
+        <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-start lg:items-center gap-6">
+            <div class="min-w-0">
                 <p class="text-indigo-200 text-sm font-medium uppercase tracking-wide">Patrimonio Neto Total</p>
-                <h1 id="net-worth-value" class="text-4xl md:text-5xl font-bold mt-1">{{ "%.2f"|format(summary.net_worth) }} €</h1>
+                <div class="mt-1 flex flex-wrap items-center gap-4">
+                    <h1 id="net-worth-value" class="text-4xl md:text-5xl font-bold">{{ "%.2f"|format(summary.net_worth) }} €</h1>
+                    {% if summary.health_score %}
+                    <div class="w-28 h-28 ml-36 rounded-full bg-white/10 backdrop-blur border border-white/25 shadow-[0_10px_24px_rgba(0,0,0,0.2)] flex flex-col items-center justify-center text-center px-2 shrink-0 cursor-help" title="Health Score: {{ summary.health_score.score }}/100">
+                        <span class="text-lg leading-none">{{ summary.health_score.emoji }}</span>
+                        <span class="text-2xl font-bold text-white tabular-nums leading-tight mt-1">{{ summary.health_score.score }}</span>
+                        <span class="text-xs font-semibold text-white/95 leading-tight mt-0.5 truncate max-w-full">{{ summary.health_score.level }}</span>
+                    </div>
+                    {% endif %}
+                </div>
                 <div class="flex items-center gap-4 mt-2 text-sm">
                     {% if summary.changes.month >= 0 %}
                     <span id="month-change" class="bg-green-500/30 px-2 py-1 rounded">+{{ "%.2f"|format(summary.changes.month) }} € Month</span>
@@ -122,66 +131,86 @@
                     <span id="dashboard-staleness">Actualizado hace 0 min</span>
                 </div>
             </div>
-            <div class="flex flex-wrap items-stretch justify-end gap-4 shrink-0">
-            {% if summary.get('commodities') %}
-            <div class="bg-white/10 backdrop-blur rounded-xl p-4 min-w-[240px] max-w-[340px]" id="commodities-block">
-                <h4 class="text-xs font-semibold text-indigo-200 uppercase tracking-wide mb-2">Commodities</h4>
-                <div id="commodities-list" class="space-y-1.5">
-                    {% for c in summary.commodities %}
-                    <div class="grid grid-cols-[1fr_92px_64px] items-center gap-2 text-sm price-cell" data-asset-id="{{ c.asset_id }}">
-                        <span class="font-medium truncate">{{ c.name }}</span>
-                        <span class="text-center shrink-0 text-indigo-50/90 tabular-nums">
-                            {{ "$%.2f"|format(c.price or 0) }}
-                        </span>
-                        {% if c.day_change_percent is not none %}
-                        <span class="text-right {% if c.day_change_percent >= 0 %}text-emerald-300{% else %}text-red-300{% endif %} font-semibold shrink-0 tabular-nums">
-                            {{ "%+.1f"|format(c.day_change_percent) }}%
-                        </span>
-                        {% else %}
-                        <span class="text-right text-indigo-200/70 font-semibold shrink-0">—</span>
-                        {% endif %}
+            <div class="flex flex-wrap items-stretch justify-end gap-4 shrink-0 lg:justify-self-end">
+                {% if summary.get('commodities') %}
+                <div class="bg-white/10 backdrop-blur rounded-xl p-4 min-w-[240px] max-w-[340px]" id="commodities-block">
+                    <h4 class="text-xs font-semibold text-indigo-200 uppercase tracking-wide mb-2">Commodities</h4>
+                    <div id="commodities-list" class="space-y-1.5">
+                        {% for c in summary.commodities %}
+                        <div class="grid grid-cols-[1fr_92px_64px] items-center gap-2 text-sm price-cell" data-asset-id="{{ c.asset_id }}">
+                            <span class="font-medium truncate">{{ c.name }}</span>
+                            <span class="text-center shrink-0 text-indigo-50/90 tabular-nums">
+                                {{ "$%.2f"|format(c.price or 0) }}
+                            </span>
+                            {% if c.day_change_percent is not none %}
+                            <span class="text-right {% if c.day_change_percent >= 0 %}text-emerald-300{% else %}text-red-300{% endif %} font-semibold shrink-0 tabular-nums">
+                                {{ "%+.1f"|format(c.day_change_percent) }}%
+                            </span>
+                            {% else %}
+                            <span class="text-right text-indigo-200/70 font-semibold shrink-0">—</span>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
                     </div>
-                    {% endfor %}
                 </div>
-            </div>
-            {% endif %}
-            {% if summary.get('market_indices') %}
-            <div class="bg-white/10 backdrop-blur rounded-xl p-4 min-w-[200px] max-w-[280px]" id="market-indices-block">
-                <h4 class="text-xs font-semibold text-indigo-200 uppercase tracking-wide mb-2">Índices (día)</h4>
-                <div id="market-indices-list" class="space-y-1.5">
-                    {% for ix in summary.market_indices %}
-                    <div class="flex items-center justify-between text-sm">
-                        <span class="font-medium truncate mr-2">{{ ix.name }}</span>
-                        {% if ix.day_change_percent is not none %}
-                        <span class="{% if ix.day_change_percent >= 0 %}text-emerald-300{% else %}text-red-300{% endif %} font-semibold shrink-0">
-                            {{ "%+.1f"|format(ix.day_change_percent) }}%
-                        </span>
-                        {% else %}
-                        <span class="text-indigo-200/70 font-semibold shrink-0">—</span>
-                        {% endif %}
+                {% endif %}
+                {% if summary.get('market_indices') %}
+                <div class="bg-white/10 backdrop-blur rounded-xl p-4 min-w-[200px] max-w-[280px]" id="market-indices-block">
+                    <h4 class="text-xs font-semibold text-indigo-200 uppercase tracking-wide mb-2">Índices (día)</h4>
+                    <div id="market-indices-list" class="space-y-1.5">
+                        {% for ix in summary.market_indices %}
+                        <div class="flex items-center justify-between text-sm">
+                            <span class="font-medium truncate mr-2">{{ ix.name }}</span>
+                            {% if ix.day_change_percent is not none %}
+                            <span class="{% if ix.day_change_percent >= 0 %}text-emerald-300{% else %}text-red-300{% endif %} font-semibold shrink-0">
+                                {{ "%+.1f"|format(ix.day_change_percent) }}%
+                            </span>
+                            {% else %}
+                            <span class="text-indigo-200/70 font-semibold shrink-0">—</span>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
                     </div>
-                    {% endfor %}
                 </div>
-            </div>
-            {% endif %}
-            {% if summary.get('top_movers') %}
-            <div class="bg-white/10 backdrop-blur rounded-xl p-4 min-w-[200px] max-w-[280px]" id="top-movers-block">
-                <h4 class="text-xs font-semibold text-indigo-200 uppercase tracking-wide mb-2">Top Movers (día)</h4>
-                <div id="top-movers-list" class="space-y-1.5">
-                    {% for m in summary.top_movers[:5] %}
-                    <div class="flex items-center justify-between text-sm price-cell" data-asset-id="{{ m.asset_id }}">
-                        <span class="font-medium truncate">{{ m.symbol }}</span>
-                        <span class="{% if m.day_change_percent >= 0 %}text-emerald-300{% else %}text-red-300{% endif %} font-semibold shrink-0 ml-2">
-                            {{ "%+.1f"|format(m.day_change_percent) }}%
-                        </span>
+                {% endif %}
+                {% if summary.get('top_movers') %}
+                <div class="bg-white/10 backdrop-blur rounded-xl p-4 min-w-[200px] max-w-[280px]" id="top-movers-block">
+                    <h4 class="text-xs font-semibold text-indigo-200 uppercase tracking-wide mb-2">Top Movers (día)</h4>
+                    <div id="top-movers-list" class="space-y-1.5">
+                        {% for m in summary.top_movers[:5] %}
+                        <div class="flex items-center justify-between text-sm price-cell" data-asset-id="{{ m.asset_id }}">
+                            <span class="font-medium truncate">{{ m.symbol }}</span>
+                            <span class="{% if m.day_change_percent >= 0 %}text-emerald-300{% else %}text-red-300{% endif %} font-semibold shrink-0 ml-2">
+                                {{ "%+.1f"|format(m.day_change_percent) }}%
+                            </span>
+                        </div>
+                        {% endfor %}
                     </div>
-                    {% endfor %}
                 </div>
-            </div>
-            {% endif %}
+                {% endif %}
             </div>
         </div>
     </div>
+
+    <!-- Modal detalle Salud Financiera (clic fuera para cerrar; sin botones) -->
+    <template x-teleport="body">
+        <div x-show="healthModalOpen" x-transition x-cloak
+             class="expand-modal"
+             @click.self="closeHealthModal(); document.body.style.overflow = ''"
+             @keydown.escape.window="if(healthModalOpen) { closeHealthModal(); document.body.style.overflow = '' }"
+             style="display: none;">
+            <div class="expand-modal-inner" style="width: fit-content; max-width: min(92vw, 640px);" @click.stop>
+                <div class="flex items-start justify-between gap-3 mb-3">
+                    <div class="min-w-0">
+                        <h3 class="font-bold text-gray-800 truncate" x-text="healthModalTitle"></h3>
+                        <p class="text-xs text-gray-500 mt-0.5">Pulsa fuera para cerrar</p>
+                    </div>
+                    <button type="button" class="text-gray-400 hover:text-gray-600 cursor-pointer" @click="closeHealthModal(); document.body.style.overflow = ''">✕</button>
+                </div>
+                <div class="prose prose-sm max-w-none" x-html="healthModalHtml"></div>
+            </div>
+        </div>
+    </template>
 
     <!-- Dashboard (2 carriles): WIDE izquierda, normales derecha -->
     <div class="dashboard-lanes">
@@ -256,54 +285,9 @@
             </template>
         </div>
 
-        <!-- Resumen de Activos unificado: Cash, Portfolio, Crypto, Metales, Inmuebles -->
-        <div class="dashboard-card dashboard-card--wide p-6" data-card-id="assets_summary">
-            <div class="flex items-center justify-between mb-4">
-                <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
-                <h3 class="text-sm font-bold text-gray-800">💰 Resumen de Activos</h3>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                <a href="{{ url_for('banks.dashboard') }}" class="p-4 rounded-xl bg-emerald-50 border-l-4 border-emerald-500 hover:bg-emerald-100 transition">
-                    <p class="text-xs text-gray-600 mb-1">Cash & Bancos</p>
-                    <p class="text-lg font-bold text-gray-900"><span id="assets-cash-total">{{ "%.2f"|format(summary.breakdown.cash) }} €</span></p>
-                    <div id="assets-cash-banks">
-                    {% for bank in summary.cash_details[:2] %}
-                    <p class="text-xs text-gray-500 mt-1">{{ bank.icon }} {{ bank.name }}: {{ "%.2f"|format(bank.amount) }} €</p>
-                    {% endfor %}
-                    </div>
-                </a>
-                <a href="{{ url_for('portfolio.dashboard') }}" class="p-4 rounded-xl bg-blue-50 border-l-4 border-blue-500 hover:bg-blue-100 transition">
-                    <p class="text-xs text-gray-600 mb-1">Portfolio</p>
-                    <p class="text-lg font-bold text-gray-900"><span id="assets-portfolio-total">{{ "%.2f"|format(summary.portfolio_details.total_value) }} €</span></p>
-                    <p id="assets-portfolio-pnl" class="text-xs {% if summary.portfolio_details.total_pnl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
-                        {% if summary.portfolio_details.total_pnl >= 0 %}+{% endif %}{{ "%.2f"|format(summary.portfolio_details.total_pnl) }} € ({{ summary.portfolio_details.total_pnl_pct }}%)
-                    </p>
-                </a>
-                <a href="{{ url_for('crypto.dashboard') }}" class="p-4 rounded-xl bg-amber-50 border-l-4 border-amber-500 hover:bg-amber-100 transition">
-                    <p class="text-xs text-gray-600 mb-1">Crypto</p>
-                    <p class="text-lg font-bold text-gray-900"><span id="assets-crypto-total">{{ "%.2f"|format(summary.crypto_details.total_value) }} €</span></p>
-                    <p id="assets-crypto-pnl" class="text-xs {% if summary.crypto_details.total_pnl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
-                        {% if summary.crypto_details.total_pnl >= 0 %}+{% endif %}{{ "%.2f"|format(summary.crypto_details.total_pnl) }} €
-                    </p>
-                </a>
-                <a href="{{ url_for('metales.dashboard') }}" class="p-4 rounded-xl bg-yellow-50 border-l-4 border-yellow-500 hover:bg-yellow-100 transition">
-                    <p class="text-xs text-gray-600 mb-1">Metales</p>
-                    <p class="text-lg font-bold text-gray-900"><span id="assets-metales-total">{{ "%.2f"|format(summary.metales_details.total_value) }} €</span></p>
-                    <p id="assets-metales-pnl" class="text-xs {% if summary.metales_details.total_pnl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
-                        {% if summary.metales_details.total_pnl >= 0 %}+{% endif %}{{ "%.2f"|format(summary.metales_details.total_pnl) }} €
-                    </p>
-                </a>
-                <a href="{{ url_for('real_estate.dashboard') }}" class="p-4 rounded-xl bg-teal-50 border-l-4 border-teal-500 hover:bg-teal-100 transition">
-                    <p class="text-xs text-gray-600 mb-1">Inmuebles</p>
-                    <p class="text-lg font-bold text-gray-900"><span id="assets-realestate-total">{{ "%.2f"|format(summary.real_estate_details.total_value) }} €</span></p>
-                    <div id="assets-realestate-props">
-                        {% for prop in summary.real_estate_details.properties[:2] %}
-                        <p class="text-xs text-gray-500 mt-1">{{ prop.icon }} {{ prop.address[:20] }}{% if prop.address|length > 20 %}...{% endif %}</p>
-                        {% endfor %}
-                    </div>
-                </a>
-            </div>
-        </div>
+        {% set any_assets = (summary.breakdown.cash|default(0) + summary.breakdown.portfolio|default(0) + summary.breakdown.crypto|default(0) + summary.breakdown.metales|default(0) + summary.breakdown.real_estate|default(0)) > 0 %}
+        {% if any_assets %}
+        {% endif %}
 
         <!-- Ingresos vs Gastos (wide) -->
         <div class="dashboard-card dashboard-card--wide p-6" data-card-id="income_expense" x-data="{ expanded: false }">
@@ -330,63 +314,76 @@
             </template>
         </div>
 
-        <!-- Deudas + Próximos Pagos (solo si hay algo que mostrar) -->
-        {% if (summary.debt_details and summary.debt_details.plans_count and summary.debt_details.plans_count > 0) or (summary.upcoming_payments and summary.upcoming_payments|length > 0) %}
+        <!-- Deudas (solo si hay planes activos) -->
+        {% if summary.debt_details and summary.debt_details.plans_count and summary.debt_details.plans_count > 0 %}
         <div class="dashboard-card dashboard-card--wide p-6 border-l-4 border-red-400" data-card-id="debt_payments">
             <div class="flex items-center justify-between mb-4">
                 <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
-                <h3 class="text-sm font-bold text-gray-800">Deudas · Próximos Pagos</h3>
+                <a href="{{ url_for('debts.dashboard') }}" class="flex items-center gap-2 group">
+                    <h3 class="text-sm font-bold text-gray-800">Deudas</h3>
+                    <span class="text-xs text-gray-500">({{ summary.debt_details.plans_count }})</span>
+                    <span class="text-gray-400 group-hover:text-indigo-500">→</span>
+                </a>
             </div>
-            <div class="grid md:grid-cols-2 gap-6">
-                <!-- Deudas -->
-                <div>
-                    <a href="{{ url_for('debts.dashboard') }}" class="flex items-center justify-between mb-3 group">
-                        <h3 class="text-sm font-bold text-gray-800">Deudas ({{ summary.debt_details.plans_count }})</h3>
-                        <span class="text-gray-400 group-hover:text-indigo-500">→</span>
-                    </a>
-                    <div class="flex items-center justify-between mb-3">
-                        <div>
-                            <p class="text-xs text-gray-500">Total pendiente</p>
-                            <p class="text-xl font-bold text-red-600">-{{ "%.2f"|format(summary.debt_details.total_debt) }} EUR</p>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Izquierda: resumen + planes próximos a expirar -->
+                <div class="min-w-0">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-red-50 rounded-xl p-4 border border-red-100">
+                            <p class="text-xs text-gray-600">Total pendiente</p>
+                            <p class="text-xl font-bold text-red-700">-{{ "%.2f"|format(summary.debt_details.total_debt) }} €</p>
                         </div>
-                        <div class="text-right">
-                            <p class="text-xs text-gray-500">Cuota mensual</p>
-                            <p class="text-lg font-bold text-gray-800">{{ "%.2f"|format(summary.debt_details.total_monthly) }} EUR</p>
+                        <div class="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                            <p class="text-xs text-gray-600">Cuota mensual</p>
+                            <p class="text-xl font-bold text-gray-900">{{ "%.2f"|format(summary.debt_details.total_monthly) }} €</p>
                         </div>
                     </div>
-                    <div class="space-y-2 pt-3 border-t">
-                        {% for plan in summary.debt_details.plans[:4] %}
-                        <div class="flex justify-between items-center text-sm">
-                            <span class="text-gray-600">{{ plan.name }}</span>
-                            <div class="text-right">
-                                <span class="font-medium">{{ "%.2f"|format(plan.remaining) }} EUR</span>
-                                {% if plan.next_date %}<span class="text-xs text-gray-400 ml-2">prox: {{ plan.next_date }}</span>{% endif %}
-                            </div>
+
+                    <div class="mt-4 pt-4 border-t">
+                        <div class="flex items-center justify-between mb-2">
+                            <h4 class="text-sm font-bold text-gray-800">Próximas a expirar</h4>
+                            <span class="text-xs text-gray-500">Top 5</span>
                         </div>
-                        {% endfor %}
-                    </div>
-                </div>
-                <!-- Próximos Pagos -->
-                <div>
-                    <h3 class="text-sm font-bold text-gray-800 mb-3">📅 Próximos Pagos</h3>
-                    {% if summary.upcoming_payments %}
-                    <div class="space-y-3">
-                        {% for payment in summary.upcoming_payments[:5] %}
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center gap-2">
-                                <span>{{ payment.icon }}</span>
-                                <div>
-                                    <p class="text-sm text-gray-700">{{ payment.name }}</p>
-                                    <p class="text-xs text-gray-400">{{ payment.date }} ({{ payment.days_until }}d)</p>
+                        <div class="space-y-2">
+                            {% for plan in summary.debt_details.expiring_plans %}
+                            <div class="flex items-center justify-between text-sm">
+                                <div class="min-w-0">
+                                    <p class="text-gray-700 truncate">{{ plan.name }}</p>
+                                    {% if plan.end_date %}<p class="text-xs text-gray-400">última cuota: {{ plan.end_date }}</p>{% endif %}
+                                </div>
+                                <div class="text-right shrink-0 ml-3">
+                                    <p class="font-semibold text-gray-900">{{ "%.2f"|format(plan.remaining) }} €</p>
+                                    {% if plan.installment %}<p class="text-xs text-gray-400">{{ "%.2f"|format(plan.installment) }} €/mes</p>{% endif %}
                                 </div>
                             </div>
-                            <span class="font-medium text-red-600">-{{ "%.2f"|format(payment.amount) }}€</span>
+                            {% endfor %}
                         </div>
-                        {% endfor %}
                     </div>
-                    {% else %}
-                    <p class="text-gray-500 text-sm">No hay pagos próximos</p>
-                    {% endif %}
+                </div>
+
+                <!-- Derecha: mini gráfico + límite -->
+                <div class="min-w-0">
+                    {% set li = summary.debt_details.limit_info %}
+                    <div class="flex items-start justify-between gap-4 mb-2">
+                        <div>
+                            <h4 class="text-sm font-bold text-gray-800">Pagos por mes (mini)</h4>
+                            {% if li %}
+                            <p class="text-xs text-gray-500">⚙️ Límite: {{ li.debt_limit_percent|decimal_eu(0) }}% · máx {{ li.max_monthly_debt|decimal_eu(2) }} €/mes</p>
+                            {% endif %}
+                        </div>
+                        {% if li %}
+                        <div class="text-right">
+                            <p class="text-xs text-gray-500">Margen</p>
+                            <p class="text-sm font-bold {% if li.margin >= 0 %}text-emerald-700{% else %}text-red-700{% endif %}">
+                                {{ li.margin|decimal_eu(2) }} €
+                            </p>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="h-[220px] bg-white rounded-xl border border-gray-100 p-3">
+                        <canvas id="debtMiniChart"></canvas>
+                    </div>
                 </div>
             </div>
         </div>
@@ -398,36 +395,13 @@
                 <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
                 <h3 class="text-lg font-bold text-gray-800">{{ summary.health_score.emoji }} Salud Financiera</h3>
             </div>
-            <div class="flex flex-wrap items-center gap-8 p-4 bg-white rounded-xl shadow-sm mb-6">
-                <div class="relative w-24 h-24 flex-shrink-0">
-                    <svg class="w-24 h-24 transform -rotate-90" viewBox="0 0 36 36">
-                        <path class="text-gray-200" stroke="currentColor" stroke-width="3" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
-                        <path class="{% if summary.health_score.color == 'green' %}text-green-500{% elif summary.health_score.color == 'blue' %}text-blue-500{% elif summary.health_score.color == 'yellow' %}text-yellow-500{% else %}text-red-500{% endif %}" 
-                              stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="{{ summary.health_score.score }}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
-                    </svg>
-                    <div class="absolute inset-0 flex flex-col items-center justify-center">
-                        <span class="text-2xl font-bold">{{ summary.health_score.score }}</span>
-                        <span class="text-xs text-gray-500">/ 100</span>
-                    </div>
-                </div>
-                <div class="flex-1">
-                    <p class="text-xl font-bold {% if summary.health_score.color == 'green' %}text-green-600{% elif summary.health_score.color == 'blue' %}text-blue-600{% elif summary.health_score.color == 'yellow' %}text-yellow-600{% else %}text-red-600{% endif %}">
-                        {{ summary.health_score.level }}
-                    </p>
-                    {% if summary.health_score.alerts %}
-                    <div class="mt-2 space-y-1">
-                        {% for alert in summary.health_score.alerts %}
-                        <p class="text-sm {% if alert.type == 'danger' %}text-red-600{% else %}text-yellow-600{% endif %}">{{ alert.icon }} {{ alert.text }}</p>
-                        {% endfor %}
-                    </div>
-                    {% else %}
-                    <p class="text-sm text-gray-500 mt-2">Sin alertas activas</p>
-                    {% endif %}
-                </div>
-            </div>
             <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
                 {% for key, comp in summary.health_score.components.items() %}
-                <div class="bg-white rounded-lg p-4 shadow-sm">
+                <div class="bg-white rounded-lg p-4 shadow-sm cursor-pointer hover:shadow-md transition"
+                     role="button" tabindex="0"
+                     @click="openHealthModal('{{ key }}')"
+                     @keydown.enter.prevent="openHealthModal('{{ key }}')"
+                     @keydown.space.prevent="openHealthModal('{{ key }}')">
                     <div class="flex items-center justify-between mb-2">
                         <span class="text-sm text-gray-600">{{ comp.label }}</span>
                         <span class="text-xs px-1.5 py-0.5 rounded {% if comp.status == 'good' %}bg-green-100 text-green-700{% elif comp.status == 'warning' %}bg-yellow-100 text-yellow-700{% else %}bg-red-100 text-red-700{% endif %}">{{ comp.score }}/{{ comp.max }}</span>
@@ -450,17 +424,23 @@
       </div>
 
       <div id="sortable-widgets-normal" class="dashboard-lane dashboard-lane--normal">
-        <!-- Distribución Activos -->
-        <div class="dashboard-card p-5" data-card-id="distribution">
-            <div class="flex items-center justify-between mb-2">
+        {% if any_assets %}
+        <!-- Activos: tarjeta simple (rosco + leyenda) -->
+        <div class="dashboard-card p-5" data-card-id="assets_distribution">
+            <div class="flex items-center justify-between mb-3">
                 <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
-                <h3 class="text-sm font-bold text-gray-800">Distribución de Activos</h3>
+                <h3 class="text-sm font-bold text-gray-800">Activos</h3>
             </div>
-            <div class="h-[320px] flex-1 min-h-0"><canvas id="distributionChart"></canvas></div>
-            <div id="distributionLegend" class="mt-2 grid grid-cols-2 gap-2 text-xs">
-                {# Leyenda generada por JS (solo categorías con valor > 0) #}
+            <div class="grid grid-cols-1 sm:grid-cols-[236px_1fr] gap-7 items-center">
+                <div class="w-[236px] h-[236px] mx-auto sm:mx-0">
+                    <canvas id="distributionChart" style="filter: drop-shadow(0 12px 16px rgba(15, 23, 42, 0.25));"></canvas>
+                </div>
+                <div id="distributionLegend" class="space-y-2 text-sm">
+                    {# Leyenda generada por JS (solo categorías con valor > 0) #}
+                </div>
             </div>
         </div>
+        {% endif %}
 
         <!-- Proyecciones -->
         <div class="dashboard-card p-5" data-card-id="projection">
@@ -509,83 +489,82 @@
         </div>
         {% endif %}
 
-        <!-- Tasa de Ahorro -->
-        <div class="dashboard-card p-5" data-card-id="savings_rate">
-            <div class="flex items-center justify-between mb-2">
-                <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
-                <h3 class="text-sm font-bold text-gray-800">Tasa de Ahorro (12 meses)</h3>
-            </div>
-            <div class="flex items-center gap-6">
-                <div class="relative w-28 h-28">
-                    <svg class="w-28 h-28 transform -rotate-90" viewBox="0 0 36 36">
-                        <path class="text-gray-200" stroke="currentColor" stroke-width="3" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
-                        <path class="{% if summary.savings.savings_rate >= 20 %}text-green-500{% elif summary.savings.savings_rate >= 10 %}text-yellow-500{% else %}text-red-500{% endif %}" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="{{ summary.savings.savings_rate }}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
-                    </svg>
-                    <span class="absolute inset-0 flex items-center justify-center text-2xl font-bold">{{ summary.savings.savings_rate }}%</span>
-                </div>
-                <div class="flex-1 space-y-2">
-                    <div class="flex justify-between">
-                        <span class="text-gray-500">Ingresos totales</span>
-                        <span class="font-medium text-green-600">+{{ "%.2f"|format(summary.savings.total_income) }} EUR</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-gray-500">Gastos totales</span>
-                        <span class="font-medium text-red-600">-{{ "%.2f"|format(summary.savings.total_expense) }} EUR</span>
-                    </div>
-                    <div class="flex justify-between pt-2 border-t">
-                        <span class="text-gray-700 font-medium">Ahorro total</span>
-                        <span class="font-bold {% if summary.savings.total_savings >= 0 %}text-blue-600{% else %}text-red-600{% endif %}">{{ "%.2f"|format(summary.savings.total_savings) }} EUR</span>
-                    </div>
-                    <div class="flex justify-between text-sm">
-                        <span class="text-gray-400">Media mensual</span>
-                        <span class="text-gray-600">{{ "%.2f"|format(summary.savings.avg_monthly_savings) }} EUR/mes</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Gastos medios por categoría (últimos 12 meses) -->
+        <!-- Ingresos/Gastos medios por categoría (últimos 12 meses) -->
         {% set expense_cats = (summary.expense_category_summary | default([]) | selectattr('average', 'defined') | selectattr('average', 'gt', 0) | list | sort(attribute='average', reverse=True))[:10] %}
-        {% if expense_cats %}
+        {% set income_cats = (summary.income_category_summary | default([]) | selectattr('average', 'defined') | selectattr('average', 'gt', 0) | list | sort(attribute='average', reverse=True))[:10] %}
+        {% if expense_cats or income_cats %}
         <div class="dashboard-card p-5" data-card-id="expense_by_category">
             <div class="flex items-center justify-between mb-2">
                 <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
-                <a href="{{ url_for('expenses.list') }}" class="flex items-center justify-between flex-1 group">
-                <h3 class="text-sm font-bold text-gray-800">📋 Gastos medios por categoría</h3>
-                <span class="text-gray-400 group-hover:text-indigo-500">→</span>
-                </a>
+                <div class="flex items-center justify-between flex-1">
+                <h3 class="text-sm font-bold text-gray-800">📋 Medias por categoría</h3>
+                <span class="text-gray-300"> </span>
+                </div>
             </div>
             <p class="text-xs text-gray-500 mb-4">Últimos 12 meses</p>
-            <div class="space-y-3">
-                {% for cat in expense_cats %}
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                        <span>{{ cat.icon|default('💰') }}</span>
-                        <span class="text-sm text-gray-700">{{ cat.name }}</span>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {% if expense_cats %}
+                <div>
+                    <a href="{{ url_for('expenses.list') }}" class="flex items-center justify-between mb-3 group">
+                        <h4 class="text-sm font-bold text-gray-800">Gastos medios</h4>
+                        <span class="text-gray-400 group-hover:text-indigo-500">→</span>
+                    </a>
+                    <div class="space-y-3">
+                        {% for cat in expense_cats %}
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-2 min-w-0">
+                                <span class="shrink-0">{{ cat.icon|default('💰') }}</span>
+                                <span class="text-sm text-gray-700 truncate">{{ cat.name }}</span>
+                            </div>
+                            <span class="font-medium text-gray-800 shrink-0 ml-3">{{ "%.0f"|format(cat.average) }} €/mes</span>
+                        </div>
+                        {% endfor %}
                     </div>
-                    <span class="font-medium text-gray-800">{{ "%.0f"|format(cat.average) }} €/mes</span>
                 </div>
-                {% endfor %}
+                {% endif %}
+
+                {% if income_cats %}
+                <div>
+                    <a href="{{ url_for('incomes.list') }}" class="flex items-center justify-between mb-3 group">
+                        <h4 class="text-sm font-bold text-gray-800">Ingresos medios</h4>
+                        <span class="text-gray-400 group-hover:text-indigo-500">→</span>
+                    </a>
+                    <div class="space-y-3">
+                        {% for cat in income_cats %}
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-2 min-w-0">
+                                <span class="shrink-0">{{ cat.icon|default('💵') }}</span>
+                                <span class="text-sm text-gray-700 truncate">{{ cat.category|default(cat.name) }}</span>
+                            </div>
+                            <span class="font-medium text-gray-800 shrink-0 ml-3">{{ "%.0f"|format(cat.average) }} €/mes</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
             </div>
         </div>
         {% endif %}
 
-        <!-- Salud Financiera 3: Recomendaciones (lista vertical) -->
-        {% if summary.health_score.tips %}
+        <!-- Recomendaciones (unificadas; solo si hay datos) -->
+        {% set recs = summary.recommendations | default([]) %}
+        {% if recs and recs|length > 0 %}
         <div class="dashboard-card p-6 bg-white border border-gray-100" data-card-id="health_tips">
             <div class="flex items-center justify-between mb-4">
                 <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
                 <h3 class="text-lg font-bold text-gray-800">💡 Recomendaciones Personalizadas</h3>
             </div>
-            {% set tips_count = summary.health_score.tips|length %}
-            <div class="space-y-3 {% if tips_count > 4 %}max-h-[18rem] overflow-y-auto pr-1{% endif %}">
-                {% for tip in summary.health_score.tips %}
+            {% set tips_count = recs|length %}
+            <div class="space-y-3 {% if tips_count > 5 %}max-h-[18rem] overflow-y-auto pr-1{% endif %}">
+                {% for tip in recs %}
                 <div class="flex items-start gap-3 p-3 rounded-lg {% if tip.priority == 'high' %}bg-red-50 border-l-4 border-red-400{% elif tip.priority == 'medium' %}bg-yellow-50 border-l-4 border-yellow-400{% else %}bg-blue-50 border-l-4 border-blue-400{% endif %}">
-                    <span class="text-xl">{{ tip.icon }}</span>
+                    <span class="text-xl">{{ tip.icon|default('💡') }}</span>
                     <div class="flex-1">
                         <p class="font-medium text-gray-800">{{ tip.title }}</p>
                         <p class="text-sm text-gray-600">{{ tip.text }}</p>
+                        {% if tip.action %}
                         <p class="text-sm font-medium mt-1 {% if tip.priority == 'high' %}text-red-600{% elif tip.priority == 'medium' %}text-yellow-600{% else %}text-blue-600{% endif %}">→ {{ tip.action }}</p>
+                        {% endif %}
                     </div>
                 </div>
                 {% endfor %}
@@ -593,62 +572,48 @@
         </div>
         {% endif %}
 
-        <!-- Salud Financiera 4: Fondo de Emergencia (siempre simple) -->
-        <div class="dashboard-card p-6 bg-white border border-gray-100" data-card-id="health_emergency">
-            <div class="flex items-center justify-between mb-4">
-                <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
-                <h3 class="text-lg font-bold text-gray-800">🛡️ Fondo de Emergencia</h3>
-            </div>
-            <div class="flex items-center gap-4 mb-4">
-                <div class="relative w-20 h-20 flex-shrink-0">
-                    <svg class="w-20 h-20 transform -rotate-90" viewBox="0 0 36 36">
-                        <path class="text-gray-200" stroke="currentColor" stroke-width="4" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
-                        <path class="{% if summary.health_score.summary.months_runway >= 6 %}text-green-500{% elif summary.health_score.summary.months_runway >= 3 %}text-yellow-500{% else %}text-red-500{% endif %}" 
-                              stroke="currentColor" stroke-width="4" fill="none" stroke-dasharray="{{ [summary.health_score.summary.months_runway / 6 * 100, 100] | min }}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
-                    </svg>
-                    <div class="absolute inset-0 flex flex-col items-center justify-center">
-                        <span class="text-lg font-bold">{{ "%.1f"|format(summary.health_score.summary.months_runway) }}</span>
-                        <span class="text-xs text-gray-500">meses</span>
-                    </div>
-                </div>
-                <div class="flex-1">
-                    <p class="text-sm text-gray-600">Tienes <span class="font-bold">{{ "%.2f"|format(summary.health_score.components.emergency_fund.current_amount) }} EUR</span></p>
-                    <p class="text-sm text-gray-600">Objetivo: <span class="font-medium">{{ "%.2f"|format(summary.health_score.components.emergency_fund.target_amount) }} EUR</span></p>
-                    {% if summary.health_score.components.emergency_fund.target_amount > summary.health_score.components.emergency_fund.current_amount %}
-                    <p class="text-sm text-red-600 mt-1">Faltan {{ "%.2f"|format(summary.health_score.components.emergency_fund.target_amount - summary.health_score.components.emergency_fund.current_amount) }} EUR</p>
-                    {% else %}
-                    <p class="text-sm text-green-600 mt-1">✓ Objetivo alcanzado</p>
-                    {% endif %}
-                </div>
-            </div>
-            <div class="w-full bg-gray-200 rounded-full h-4">
-                <div class="{% if summary.health_score.summary.months_runway >= 6 %}bg-green-500{% elif summary.health_score.summary.months_runway >= 3 %}bg-yellow-500{% else %}bg-red-500{% endif %} h-4 rounded-full transition-all" 
-                     style="width: {% if summary.health_score.components.emergency_fund.target_amount and summary.health_score.components.emergency_fund.target_amount > 0 %}{{ [100 * summary.health_score.components.emergency_fund.current_amount / summary.health_score.components.emergency_fund.target_amount, 100] | min }}{% else %}0{% endif %}%"></div>
-            </div>
-        </div>
-
       </div>
     </div>
     </div><!-- Fin dashboard-lanes -->
 
-    <!-- Acciones rápidas -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
-        <a href="{{ url_for('incomes.new') }}" class="group flex flex-col items-center justify-center rounded-[20px] bg-emerald-50 hover:bg-emerald-100 p-6 text-center transition-all duration-200 border border-emerald-100 hover:shadow-lg hover:-translate-y-0.5">
-            <span class="text-2xl mb-2">+</span>
-            <p class="text-sm font-semibold text-emerald-800">Nuevo Ingreso</p>
-        </a>
-        <a href="{{ url_for('expenses.new') }}" class="group flex flex-col items-center justify-center rounded-[20px] bg-rose-50 hover:bg-rose-100 p-6 text-center transition-all duration-200 border border-rose-100 hover:shadow-lg hover:-translate-y-0.5">
-            <span class="text-2xl mb-2">−</span>
-            <p class="text-sm font-semibold text-rose-800">Nuevo Gasto</p>
-        </a>
-        <a href="{{ url_for('incomes.list') }}" class="group flex flex-col items-center justify-center rounded-[20px] bg-blue-50 hover:bg-blue-100 p-6 text-center transition-all duration-200 border border-blue-100 hover:shadow-lg hover:-translate-y-0.5">
-            <span class="text-xl mb-2">💵</span>
-            <p class="text-sm font-semibold text-blue-800">Ver Ingresos</p>
-        </a>
-        <a href="{{ url_for('expenses.list') }}" class="group flex flex-col items-center justify-center rounded-[20px] bg-violet-50 hover:bg-violet-100 p-6 text-center transition-all duration-200 border border-violet-100 hover:shadow-lg hover:-translate-y-0.5">
-            <span class="text-xl mb-2">📋</span>
-            <p class="text-sm font-semibold text-violet-800">Ver Gastos</p>
-        </a>
+    {# Empty state: evitar sensación de vacío para usuarios nuevos #}
+    {% set has_finance = (summary.savings.total_income|default(0) + summary.savings.total_expense|default(0)) > 0 %}
+    {% set has_assets_any = (summary.breakdown.cash|default(0) + summary.breakdown.portfolio|default(0) + summary.breakdown.crypto|default(0) + summary.breakdown.metales|default(0) + summary.breakdown.real_estate|default(0)) > 0 %}
+    {% set has_any_content = has_finance or has_assets_any or (summary.debt_details.plans_count|default(0) > 0) or (summary.recent_transactions and summary.recent_transactions|length > 0) %}
+    {% if not has_any_content %}
+    <div class="mt-10 bg-white rounded-[20px] border border-gray-100 shadow-sm p-6">
+        <h3 class="text-lg font-bold text-gray-800">Tu dashboard irá tomando forma</h3>
+        <p class="text-sm text-gray-600 mt-1">A medida que añadas datos, aparecerán tarjetas con gráficos, métricas y recomendaciones.</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-5">
+            {% if current_user|user_has_module('finance') %}
+            <a href="{{ url_for('banks.new') }}" class="px-4 py-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-100 text-sm font-semibold text-emerald-800">🏦 Añadir banco</a>
+            <a href="{{ url_for('incomes.new') }}" class="px-4 py-3 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-100 text-sm font-semibold text-blue-800">💵 Nuevo ingreso</a>
+            <a href="{{ url_for('expenses.new') }}" class="px-4 py-3 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-100 text-sm font-semibold text-rose-800">💸 Nuevo gasto</a>
+            <a href="{{ url_for('debts.new', next='debts') }}" class="px-4 py-3 rounded-xl bg-violet-50 hover:bg-violet-100 border border-violet-100 text-sm font-semibold text-violet-800">📋 Añadir deuda</a>
+            {% endif %}
+            {% if current_user|user_has_module('stock') %}
+            <a href="{{ url_for('portfolio.import_csv') }}" class="px-4 py-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-100 text-sm font-semibold text-slate-800">📥 Importar portfolio</a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- FAB acciones rápidas -->
+    <div class="fixed bottom-6 left-6 z-[9998]" id="fab-root">
+        <div id="fab-menu" class="hidden mb-3 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden w-60">
+            <div class="p-2 space-y-1">
+                <a href="{{ url_for('incomes.new') }}" class="block px-3 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium text-gray-800">💵 Nuevo ingreso</a>
+                <a href="{{ url_for('expenses.new') }}" class="block px-3 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium text-gray-800">💸 Nuevo gasto</a>
+                <a href="{{ url_for('incomes.list') }}" class="block px-3 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium text-gray-800">📋 Ver ingresos</a>
+                <a href="{{ url_for('expenses.list') }}" class="block px-3 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium text-gray-800">📋 Ver gastos</a>
+            </div>
+        </div>
+        <button type="button"
+                id="fab-toggle"
+                class="w-14 h-14 rounded-full shadow-xl bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center text-2xl"
+                aria-label="Acciones rápidas">
+            <span id="fab-toggle-icon">+</span>
+        </button>
     </div>
 </div>
 
@@ -680,6 +645,8 @@ function flashPriceCells(assetIds) {
 // Estado JS derivado del resumen inicial
 let fullHistory = {{ summary.history | tojson }};
 const historyMeta = {{ summary.history_meta | tojson }};
+window.DASH_HEALTH = {{ summary.health_score | tojson }};
+window.DASH_SAVINGS = {{ summary.savings | tojson }};
 let evolutionChart = null;
 let evolutionModalChart = null;
 let incomeExpenseModalChart = null;
@@ -789,6 +756,13 @@ function dashboardConfig() {
         chartPeriod: 12,
         widgets: { {% for widget in default_widgets %}'{{ widget.id }}': {% if widget.id.startswith('health_detail_') %}true{% else %}{{ 'true' if (widget_config.get(widget.id) or {'enabled': True}).get('enabled', True) else 'false' }}{% endif %},{% endfor %} },
         _didAutoBalance: false,
+        _hasServerLayout: false,
+        _layoutEndpoint: '{{ url_for("main.dashboard_layout") }}',
+        healthModalOpen: false,
+        healthModalKey: null,
+        healthModalTitle: '',
+        healthModalHtml: '',
+        fabOpen: false,
         
         loadWidgetOrder() {
             const wide = document.getElementById('sortable-widgets-wide');
@@ -831,8 +805,46 @@ function dashboardConfig() {
                 }
             } catch (e) { /* ignore */ }
         },
-        initSortable() {
-            this.loadWidgetOrder();
+        applyOrder(container, order) {
+            if (!container) return;
+            const cards = container.querySelectorAll('[data-card-id]');
+            const byId = {};
+            cards.forEach(c => { byId[c.dataset.cardId] = c; });
+            (order || []).forEach(id => {
+                const el = byId[id];
+                if (el) container.appendChild(el);
+            });
+        },
+        async loadWidgetOrderFromServer() {
+            const wide = document.getElementById('sortable-widgets-wide');
+            const tail = document.getElementById('sortable-widgets-tail');
+            const normal = document.getElementById('sortable-widgets-normal');
+            if (!wide || !tail || !normal) return false;
+
+            try {
+                const resp = await fetch(this._layoutEndpoint, { credentials: 'same-origin' });
+                if (!resp.ok) return false;
+                const data = await resp.json();
+                const layout = data && data.layout ? data.layout : null;
+                if (!layout) return false;
+                const hasAny = (layout.wide && layout.wide.length) || (layout.normal && layout.normal.length) || (layout.tail && layout.tail.length);
+                if (!hasAny) return false;
+
+                this.applyOrder(wide, layout.wide);
+                this.applyOrder(tail, layout.tail);
+                this.applyOrder(normal, layout.normal);
+                this._hasServerLayout = true;
+                return true;
+            } catch (e) {
+                return false;
+            }
+        },
+        async initSortable() {
+            // 1) Prefer server layout (multi-dispositivo). 2) Fallback a localStorage (migración).
+            const gotServer = await this.loadWidgetOrderFromServer();
+            if (!gotServer) {
+                this.loadWidgetOrder();
+            }
             const wide = document.getElementById('sortable-widgets-wide');
             const tail = document.getElementById('sortable-widgets-tail');
             const normal = document.getElementById('sortable-widgets-normal');
@@ -863,6 +875,12 @@ function dashboardConfig() {
                 !!localStorage.getItem('dashboard_card_order_normal') ||
                 !!localStorage.getItem('dashboard_card_order');
 
+            // Si no hay layout en servidor pero sí en localStorage, migrarlo al servidor.
+            if (!this._hasServerLayout && hasAnySaved) {
+                try { await this.saveWidgetOrder(); } catch (e) { /* ignore */ }
+                this._hasServerLayout = true;
+            }
+
             if (!hasAnySaved) {
                 const rebalance = () => this.autoBalanceTail();
                 // esperar a que charts / fuentes ajusten alturas
@@ -883,7 +901,7 @@ function dashboardConfig() {
             } catch (e) { console.error('Error:', e); }
         },
         
-        saveWidgetOrder() {
+        async saveWidgetOrder() {
             const wide = document.getElementById('sortable-widgets-wide');
             const tail = document.getElementById('sortable-widgets-tail');
             const normal = document.getElementById('sortable-widgets-normal');
@@ -896,6 +914,144 @@ function dashboardConfig() {
             localStorage.setItem('dashboard_card_order_wide', JSON.stringify(w));
             localStorage.setItem('dashboard_card_order_tail', JSON.stringify(t));
             localStorage.setItem('dashboard_card_order_normal', JSON.stringify(n));
+
+            try {
+                await fetch(this._layoutEndpoint, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify({ wide: w, tail: t, normal: n })
+                });
+            } catch (e) { /* ignore */ }
+        },
+
+        closeHealthModal() {
+            this.healthModalOpen = false;
+            this.healthModalKey = null;
+            this.healthModalTitle = '';
+            this.healthModalHtml = '';
+        },
+        openHealthModal(key) {
+            try {
+                if (!window.DASH_HEALTH || !window.DASH_HEALTH.components) return;
+                const k = String(key || '');
+                const comp = window.DASH_HEALTH.components[k];
+                if (!comp) return;
+
+                this.healthModalKey = k;
+                this.healthModalTitle = comp.label || 'Detalle';
+                const statusMap = { good: 'Correcto', warning: 'Atención', bad: 'Mejorable' };
+                const statusTxt = statusMap[String(comp.status || '').toLowerCase()] || 'N/A';
+                const pct = (Number(comp.max) > 0) ? Math.round((Number(comp.score || 0) / Number(comp.max)) * 100) : 0;
+
+                // Render base
+                const parts = [];
+                parts.push(`<div class="grid grid-cols-2 gap-2 mb-3">
+                    <div class="bg-gray-50 rounded-lg p-3">
+                        <div class="text-xs text-gray-500">Valor</div>
+                        <div class="text-base font-bold text-gray-900">${comp.value || '—'}</div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-3">
+                        <div class="text-xs text-gray-500">Ideal</div>
+                        <div class="text-base font-bold text-gray-900">${comp.ideal || '—'}</div>
+                    </div>
+                </div>`);
+                parts.push(`<div class="grid grid-cols-3 gap-2 mb-3">
+                    <div class="bg-gray-50 rounded-lg p-2">
+                        <div class="text-[11px] text-gray-500">Puntuación</div>
+                        <div class="text-sm font-semibold text-gray-900">${comp.score || 0}/${comp.max || 0}</div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-2">
+                        <div class="text-[11px] text-gray-500">Cobertura</div>
+                        <div class="text-sm font-semibold text-gray-900">${pct}%</div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-2">
+                        <div class="text-[11px] text-gray-500">Estado</div>
+                        <div class="text-sm font-semibold text-gray-900">${statusTxt}</div>
+                    </div>
+                </div>`);
+                if (comp.description) {
+                    parts.push(`<p class="text-sm text-gray-600">${comp.description}</p>`);
+                }
+                if (k === 'debt_ratio' && comp.debt_amount != null) {
+                    parts.push(`<p class="text-xs text-gray-500 mt-2">Deuda total considerada: ${Number(comp.debt_amount || 0).toFixed(2)} €</p>`);
+                }
+                if (k === 'diversification' && comp.breakdown) {
+                    const rows = Object.entries(comp.breakdown || {})
+                        .filter(([, v]) => Number(v || 0) > 0)
+                        .map(([label, v]) =>
+                            `<div class="flex items-center justify-between text-xs"><span class="text-gray-600">${label}</span><span class="font-semibold text-gray-900">${Number(v).toFixed(1)}%</span></div>`)
+                        .join('');
+                    if (rows) {
+                        parts.push(`<div class="mt-2 p-3 rounded-lg bg-gray-50 border"><div class="text-xs text-gray-500 mb-1">Composición</div>${rows}</div>`);
+                    }
+                }
+
+                // Casos especiales
+                if (k === 'emergency_fund') {
+                    const s = window.DASH_HEALTH.summary || {};
+                    const target = Number(comp.target_amount || 0);
+                    const current = Number(comp.current_amount || 0);
+                    const missing = Math.max(0, target - current);
+                    const pct = target > 0 ? Math.min(100, (current / target) * 100) : 0;
+                    parts.push(`<div class="mt-4 p-3 rounded-xl border bg-white">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="text-xs text-gray-500">Cobertura</div>
+                            <div class="text-xs font-semibold text-gray-700">${(s.months_runway != null ? Number(s.months_runway).toFixed(1) : '—')} meses</div>
+                        </div>
+                        <div class="grid grid-cols-3 gap-2">
+                            <div class="bg-gray-50 rounded-lg p-3">
+                                <div class="text-xs text-gray-500">Tienes</div>
+                                <div class="text-sm font-bold text-gray-900">${current.toFixed(2)} €</div>
+                            </div>
+                            <div class="bg-gray-50 rounded-lg p-3">
+                                <div class="text-xs text-gray-500">Objetivo</div>
+                                <div class="text-sm font-bold text-gray-900">${target.toFixed(2)} €</div>
+                            </div>
+                            <div class="bg-gray-50 rounded-lg p-3">
+                                <div class="text-xs text-gray-500">Falta</div>
+                                <div class="text-sm font-bold ${missing > 0 ? 'text-red-600' : 'text-emerald-600'}">${missing.toFixed(2)} €</div>
+                            </div>
+                        </div>
+                        <div class="mt-3 w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                            <div class="h-3 bg-emerald-500" style="width: ${pct.toFixed(1)}%"></div>
+                        </div>
+                    </div>`);
+                }
+                if (k === 'savings_rate' && window.DASH_SAVINGS) {
+                    const sv = window.DASH_SAVINGS;
+                    parts.push(`<div class="mt-4 p-3 rounded-xl border bg-white">
+                        <div class="text-sm font-semibold text-gray-800 mb-2">Resumen (12 meses)</div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div class="bg-gray-50 rounded-lg p-3">
+                                <div class="text-xs text-gray-500">Ingresos totales</div>
+                                <div class="text-sm font-bold text-emerald-700">+${Number(sv.total_income || 0).toFixed(2)} €</div>
+                            </div>
+                            <div class="bg-gray-50 rounded-lg p-3">
+                                <div class="text-xs text-gray-500">Gastos totales</div>
+                                <div class="text-sm font-bold text-rose-700">-${Number(sv.total_expense || 0).toFixed(2)} €</div>
+                            </div>
+                            <div class="bg-gray-50 rounded-lg p-3">
+                                <div class="text-xs text-gray-500">Ahorro total</div>
+                                <div class="text-sm font-bold text-gray-900">${Number(sv.total_savings || 0).toFixed(2)} €</div>
+                            </div>
+                            <div class="bg-gray-50 rounded-lg p-3">
+                                <div class="text-xs text-gray-500">Media mensual</div>
+                                <div class="text-sm font-bold text-gray-900">${Number(sv.avg_monthly_savings || 0).toFixed(2)} €/mes</div>
+                            </div>
+                        </div>
+                    </div>`);
+                }
+
+                this.healthModalHtml = parts.join('');
+                this.healthModalOpen = true;
+                document.body.style.overflow = 'hidden';
+            } catch (e) {
+                /* ignore */
+            }
         },
 
         autoBalanceTail() {
@@ -1077,6 +1233,21 @@ document.addEventListener('DOMContentLoaded', function() {
             { label: 'Inmuebles', value: {{ summary.breakdown.real_estate|default(0) }}, pct: {{ summary.breakdown.breakdown_pct.real_estate|default(0) }}, color: '#0d9488' }
         ];
         const distFiltered = distCategories.filter(c => c.value > 0);
+        // Plugin simple para dar sensación de “profundidad” (sombra suave)
+        const donutShadowPlugin = {
+            id: 'donutShadow',
+            beforeDatasetDraw(chart, args, pluginOptions) {
+                const { ctx } = chart;
+                ctx.save();
+                ctx.shadowColor = 'rgba(15, 23, 42, 0.18)';
+                ctx.shadowBlur = 14;
+                ctx.shadowOffsetX = 0;
+                ctx.shadowOffsetY = 6;
+            },
+            afterDatasetDraw(chart) {
+                chart.ctx.restore();
+            }
+        };
         distributionChart = new Chart(distCtx, {
             type: 'doughnut',
             data: {
@@ -1084,7 +1255,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 datasets: [{
                     data: distFiltered.map(c => c.value),
                     backgroundColor: distFiltered.map(c => c.color),
-                    borderWidth: 0
+                    borderWidth: 2,
+                    borderColor: 'rgba(255,255,255,0.85)',
+                    spacing: 2,
+                    hoverOffset: 10
                 }]
             },
             options: {
@@ -1092,14 +1266,89 @@ document.addEventListener('DOMContentLoaded', function() {
                 maintainAspectRatio: false,
                 plugins: { legend: { display: false } },
                 cutout: '65%'
-            }
+            },
+            plugins: [donutShadowPlugin]
         });
         // Leyenda: solo categorías con valor
         if (distLegend && distFiltered.length > 0) {
             distLegend.innerHTML = distFiltered.map(c =>
-                `<div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full" style="background-color:${c.color}"></span>${c.label} ${c.pct}%</div>`
+                `<div class="flex items-center justify-between gap-3 bg-gray-50 rounded-lg px-3 py-2">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color:${c.color}"></span>
+                        <span class="text-gray-700 font-medium truncate">${c.label}</span>
+                    </div>
+                    <span class="text-gray-900 font-semibold tabular-nums">${c.pct}%</span>
+                </div>`
             ).join('');
         }
+    }
+
+    // Mini gráfico Deudas (6 barras) + límite
+    const debtMiniCtx = document.getElementById('debtMiniChart');
+    if (debtMiniCtx) {
+        const mini = {{ (summary.debt_details.mini_schedule if summary.debt_details is defined and summary.debt_details and summary.debt_details.mini_schedule is defined else []) | tojson }};
+        const li = {{ (summary.debt_details.limit_info if summary.debt_details is defined and summary.debt_details and summary.debt_details.limit_info is defined else {}) | tojson }};
+        const maxMonthly = (li && typeof li.max_monthly_debt === 'number') ? li.max_monthly_debt : null;
+        const labels = (mini || []).map(m => m.month_label || m.month_key || '');
+        const values = (mini || []).map(m => Number(m.amount) || 0);
+        const limitLine = (maxMonthly != null) ? labels.map(() => maxMonthly) : [];
+        const maxData = Math.max(0, ...(values || []), maxMonthly != null ? maxMonthly : 0);
+        const yMax = maxData > 0 ? (maxData * 1.12) : 100;
+
+        new Chart(debtMiniCtx, {
+            data: {
+                labels,
+                datasets: [
+                    {
+                        type: 'bar',
+                        label: 'Pagos',
+                        data: values,
+                        backgroundColor: 'rgba(239, 68, 68, 0.55)',
+                        borderColor: 'rgb(239, 68, 68)',
+                        borderWidth: 1,
+                        borderRadius: 8
+                    },
+                    ...(maxMonthly != null ? [{
+                        type: 'line',
+                        label: 'Límite',
+                        data: limitLine,
+                        borderColor: 'rgba(220, 38, 38, 0.9)',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0,
+                    }] : [])
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => {
+                                const v = (ctx.parsed && ctx.parsed.y != null) ? ctx.parsed.y : ctx.raw;
+                                return `${ctx.dataset.label}: ${(Number(v) || 0).toLocaleString('es-ES')} €`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: { ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 6 } },
+                    y: {
+                        beginAtZero: true,
+                        suggestedMax: yMax,
+                        ticks: {
+                            callback: v => {
+                                const n = Number(v || 0);
+                                if (Math.abs(n) >= 1000) return `${(n / 1000).toFixed(1)}k`;
+                                return n.toLocaleString('es-ES');
+                            }
+                        }
+                    }
+                }
+            }
+        });
     }
 
     // Grafico Ingresos vs Gastos
@@ -1313,83 +1562,6 @@ function applyDashboardUpdate(summary) {
         }
     }
 
-    // Resumen de Activos (Cash, Portfolio, Crypto, Metales, Inmuebles)
-    if (summary.breakdown) {
-        const cashEl = document.getElementById('assets-cash-total');
-        if (cashEl && typeof summary.breakdown.cash === 'number') {
-            cashEl.textContent = `${summary.breakdown.cash.toFixed(2)} €`;
-        }
-    }
-    if (Array.isArray(summary.cash_details)) {
-        const box = document.getElementById('assets-cash-banks');
-        if (box) {
-            box.innerHTML = (summary.cash_details || []).slice(0, 2).map(b =>
-                `<p class="text-xs text-gray-500 mt-1">${b.icon || '🏦'} ${b.name || ''}: ${(Number(b.amount) || 0).toFixed(2)} €</p>`
-            ).join('');
-        }
-    }
-    if (summary.portfolio_details) {
-        const portEl = document.getElementById('assets-portfolio-total');
-        if (portEl && typeof summary.portfolio_details.total_value === 'number') {
-            portEl.textContent = `${summary.portfolio_details.total_value.toFixed(2)} €`;
-        }
-    }
-    if (summary.crypto_details) {
-        const cryptoEl = document.getElementById('assets-crypto-total');
-        if (cryptoEl && typeof summary.crypto_details.total_value === 'number') {
-            cryptoEl.textContent = `${summary.crypto_details.total_value.toFixed(2)} €`;
-        }
-    }
-    if (summary.metales_details) {
-        const metalEl = document.getElementById('assets-metales-total');
-        if (metalEl && typeof summary.metales_details.total_value === 'number') {
-            metalEl.textContent = `${summary.metales_details.total_value.toFixed(2)} €`;
-        }
-    }
-    if (summary.portfolio_details) {
-        const pnlEl = document.getElementById('assets-portfolio-pnl');
-        if (pnlEl && typeof summary.portfolio_details.total_pnl === 'number' && typeof summary.portfolio_details.total_pnl_pct === 'number') {
-            const pnl = summary.portfolio_details.total_pnl;
-            const pct = summary.portfolio_details.total_pnl_pct;
-            pnlEl.textContent = `${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} € (${pct.toFixed(1)}%)`;
-            pnlEl.classList.remove('text-green-600', 'text-red-600');
-            pnlEl.classList.add(pnl >= 0 ? 'text-green-600' : 'text-red-600');
-        }
-    }
-    if (summary.real_estate_details) {
-        const reEl = document.getElementById('assets-realestate-total');
-        if (reEl && typeof summary.real_estate_details.total_value === 'number') {
-            reEl.textContent = `${summary.real_estate_details.total_value.toFixed(2)} €`;
-        }
-    }
-    if (summary.crypto_details) {
-        const pnlEl = document.getElementById('assets-crypto-pnl');
-        if (pnlEl && typeof summary.crypto_details.total_pnl === 'number') {
-            const pnl = summary.crypto_details.total_pnl;
-            pnlEl.textContent = `${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} €`;
-            pnlEl.classList.remove('text-green-600', 'text-red-600');
-            pnlEl.classList.add(pnl >= 0 ? 'text-green-600' : 'text-red-600');
-        }
-    }
-    if (summary.metales_details) {
-        const pnlEl = document.getElementById('assets-metales-pnl');
-        if (pnlEl && typeof summary.metales_details.total_pnl === 'number') {
-            const pnl = summary.metales_details.total_pnl;
-            pnlEl.textContent = `${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} €`;
-            pnlEl.classList.remove('text-green-600', 'text-red-600');
-            pnlEl.classList.add(pnl >= 0 ? 'text-green-600' : 'text-red-600');
-        }
-    }
-    if (summary.real_estate_details && Array.isArray(summary.real_estate_details.properties)) {
-        const propsEl = document.getElementById('assets-realestate-props');
-        if (propsEl) {
-            const props = summary.real_estate_details.properties.slice(0, 2);
-            propsEl.innerHTML = props.map(p =>
-                `<p class="text-xs text-gray-500 mt-1">${p.icon || ''} ${p.address ? (p.address.substring(0, 20) + (p.address.length > 20 ? '...' : '')) : ''}</p>`
-            ).join('');
-        }
-    }
-
     // Top Movers
     if (Array.isArray(summary.top_movers)) {
         const inner = document.getElementById('top-movers-list');
@@ -1512,6 +1684,37 @@ async function pollDashboardState() {
         /* red; reintento en siguiente ciclo */
     }
 }
+
+// FAB acciones rápidas (fallback sin Alpine)
+(function initFab() {
+    const root = document.getElementById('fab-root');
+    const menu = document.getElementById('fab-menu');
+    const btn = document.getElementById('fab-toggle');
+    const icon = document.getElementById('fab-toggle-icon');
+    if (!root || !menu || !btn || !icon) return;
+
+    const close = () => {
+        menu.classList.add('hidden');
+        icon.textContent = '+';
+    };
+    const open = () => {
+        menu.classList.remove('hidden');
+        icon.textContent = '×';
+    };
+    const toggle = () => {
+        if (menu.classList.contains('hidden')) open();
+        else close();
+    };
+
+    btn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        toggle();
+    });
+    document.addEventListener('click', (ev) => {
+        if (!root.contains(ev.target)) close();
+    });
+})();
 
 // Polling cada 30s mientras la pestaña está abierta
 setInterval(pollDashboardState, 30000);

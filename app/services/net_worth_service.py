@@ -1031,7 +1031,7 @@ def get_real_estate_details(user_id: int) -> Dict[str, Any]:
 def get_debt_details(user_id: int) -> Dict[str, Any]:
     """Detalle de deudas con próximas cuotas."""
     try:
-        from app.models import DebtPlan, Expense
+        from app.models import DebtPlan, Expense, User
         plans = DebtPlan.query.filter_by(user_id=user_id, status='ACTIVE').all()
     except OperationalError:
         return {'total_debt': 0, 'total_monthly': 0, 'plans_count': 0, 'plans': []}
@@ -1039,37 +1039,121 @@ def get_debt_details(user_id: int) -> Dict[str, Any]:
     total_debt = 0
     total_monthly = 0
     debt_list = []
-    
+
     today = date.today()
-    
+
+    plan_ids = [p.id for p in plans]
+    paid_counts = {}
+    next_dates = {}
+    last_dates = {}
+    if plan_ids:
+        from sqlalchemy import func
+
+        paid_rows = (
+            db.session.query(Expense.debt_plan_id, func.count(Expense.id))
+            .filter(Expense.debt_plan_id.in_(plan_ids), Expense.date <= today)
+            .group_by(Expense.debt_plan_id)
+            .all()
+        )
+        paid_counts = {pid: int(cnt or 0) for pid, cnt in paid_rows}
+
+        next_rows = (
+            db.session.query(Expense.debt_plan_id, func.min(Expense.date))
+            .filter(Expense.debt_plan_id.in_(plan_ids), Expense.date > today)
+            .group_by(Expense.debt_plan_id)
+            .all()
+        )
+        next_dates = {pid: dt for pid, dt in next_rows if dt is not None}
+
+        last_rows = (
+            db.session.query(Expense.debt_plan_id, func.max(Expense.date))
+            .filter(Expense.debt_plan_id.in_(plan_ids))
+            .group_by(Expense.debt_plan_id)
+            .all()
+        )
+        last_dates = {pid: dt for pid, dt in last_rows if dt is not None}
+
     for plan in plans:
         # Calcular pagos realizados y restantes
-        paid_count = plan.installment_expenses.filter(Expense.date <= today).count()
+        paid_count = paid_counts.get(plan.id, 0)
         remaining_payments = max(0, plan.months - paid_count)
         remaining = plan.monthly_payment * remaining_payments
-        
+
         total_debt += remaining
         total_monthly += plan.monthly_payment
-        
-        # Próxima cuota
-        next_payment = Expense.query.filter(
-            Expense.debt_plan_id == plan.id,
-            Expense.date > today
-        ).order_by(Expense.date.asc()).first()
-        
+
+        next_payment_date = next_dates.get(plan.id)
+        last_payment_date = last_dates.get(plan.id)
+
         debt_list.append({
             'name': plan.name,
             'remaining': round(remaining, 2),
             'installment': round(plan.monthly_payment, 2),
-            'next_date': next_payment.date.strftime('%d/%m/%Y') if next_payment else None,
-            'remaining_payments': remaining_payments
+            'next_date': next_payment_date.strftime('%d/%m/%Y') if next_payment_date else None,
+            'remaining_payments': remaining_payments,
+            'end_date': last_payment_date.strftime('%d/%m/%Y') if last_payment_date else None,
+            'end_date_dt': last_payment_date,
         })
-    
+
+    # Límite de endeudamiento (misma lógica que /debts)
+    limit_info = None
+    try:
+        from app.services.debt_service import DebtService
+        user = User.query.get(user_id)
+        if user:
+            limit_info = DebtService.get_debt_limit_info(user)
+    except Exception:
+        limit_info = None
+
+    # Mini calendario (6 barras): -2, -1, actual, +1, +2, +3
+    mini_schedule = []
+    try:
+        from dateutil.relativedelta import relativedelta
+        from collections import defaultdict
+
+        start = date(today.year, today.month, 1) + relativedelta(months=-2)
+        end = date(today.year, today.month, 1) + relativedelta(months=+3)
+
+        expenses = Expense.query.filter(
+            Expense.user_id == user_id,
+            Expense.debt_plan_id.isnot(None),
+            Expense.date >= start,
+            Expense.date < (end + relativedelta(months=1)),
+        ).all()
+        by_month = defaultdict(float)
+        for e in expenses:
+            k = e.date.strftime('%Y-%m')
+            by_month[k] += float(e.amount or 0)
+
+        _MESES = ('Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre')
+        current = start
+        while current <= end:
+            key = current.strftime('%Y-%m')
+            label = f"{_MESES[current.month - 1]} {current.year}"
+            mini_schedule.append({
+                'month_key': key,
+                'month_label': label,
+                'amount': round(by_month.get(key, 0.0), 2),
+            })
+            current = current + relativedelta(months=1)
+    except Exception:
+        mini_schedule = []
+
+    # Planes próximos a expirar (por end_date ascendente, si existe)
+    expiring = sorted(
+        [d for d in debt_list if d.get('end_date_dt')],
+        key=lambda x: x.get('end_date_dt'),
+    )[:5]
+
     return {
         'total_debt': round(total_debt, 2),
         'total_monthly': round(total_monthly, 2),
         'plans_count': len(plans),
-        'plans': sorted(debt_list, key=lambda x: x['remaining'], reverse=True)
+        'plans': sorted(debt_list, key=lambda x: x['remaining'], reverse=True),
+        'expiring_plans': expiring,
+        'limit_info': limit_info,
+        'mini_schedule': mini_schedule,
     }
 
 
@@ -1838,13 +1922,22 @@ def get_dashboard_summary(user_id: int) -> Dict[str, Any]:
     currency_exposure = get_currency_exposure(user_id)
     from app.services.income_expense_aggregator import (
         get_expense_category_summary_with_adjustment,
+        get_income_category_summary_with_adjustment,
     )
 
     expense_category_summary = get_expense_category_summary_with_adjustment(
         user_id, months=12
     )
+    income_category_summary = get_income_category_summary_with_adjustment(
+        user_id, months=12
+    )
     year_comparison = get_year_comparison(user_id)
     health_score = get_financial_health_score(user_id)
+    try:
+        from app.services.recommendation_service import RecommendationService
+        recommendations = RecommendationService.build_for_dashboard(user_id, health_score=health_score)
+    except Exception:
+        recommendations = []
 
     current_block = _build_dashboard_current_from_history(breakdown, history)
     # DAY % y EUR (broker real + crypto + metales). Pueden ser None.
@@ -1889,7 +1982,9 @@ def get_dashboard_summary(user_id: int) -> Dict[str, Any]:
         "currency_exposure": currency_exposure,
         "year_comparison": year_comparison,
         "health_score": health_score,
+        "recommendations": recommendations,
         "expense_category_summary": expense_category_summary,
+        "income_category_summary": income_category_summary,
         # Campos nuevos para futuras optimizaciones de cache
         "history_block": history_block,
         "current_block": current_block,
