@@ -122,80 +122,82 @@
                     <span id="dashboard-staleness">Actualizado hace 0 min</span>
                 </div>
             </div>
-            <div class="flex flex-wrap items-stretch justify-end gap-4 shrink-0">
-            {% if summary.health_score %}
-            <div class="bg-white/10 backdrop-blur rounded-xl p-4 min-w-[240px] max-w-[320px]">
-                <div class="flex items-center gap-3">
-                    <div class="flex items-center justify-center w-9 h-9 rounded-lg bg-white/10 text-lg">
-                        {{ summary.health_score.emoji }}
-                    </div>
-                    <div class="min-w-0">
-                        <p class="text-indigo-200 text-[11px] font-semibold uppercase tracking-wide">Salud financiera</p>
-                        <div class="flex items-baseline gap-2">
-                            <span class="text-lg font-bold text-white tabular-nums">{{ summary.health_score.score }}</span>
-                            <span class="text-indigo-100/90 text-xs">/ 100</span>
-                            <span class="text-xs font-semibold text-white/95 truncate">{{ summary.health_score.level }}</span>
+            <div class="flex flex-col items-end gap-3 shrink-0">
+                {% if summary.health_score %}
+                <div class="bg-white/10 backdrop-blur rounded-xl p-4 min-w-[240px] max-w-[320px]">
+                    <div class="flex items-center gap-3">
+                        <div class="flex items-center justify-center w-9 h-9 rounded-lg bg-white/10 text-lg">
+                            {{ summary.health_score.emoji }}
+                        </div>
+                        <div class="min-w-0">
+                            <p class="text-indigo-200 text-[11px] font-semibold uppercase tracking-wide">Salud financiera</p>
+                            <div class="flex items-baseline gap-2">
+                                <span class="text-lg font-bold text-white tabular-nums">{{ summary.health_score.score }}</span>
+                                <span class="text-indigo-100/90 text-xs">/ 100</span>
+                                <span class="text-xs font-semibold text-white/95 truncate">{{ summary.health_score.level }}</span>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-            {% endif %}
-            {% if summary.get('commodities') %}
-            <div class="bg-white/10 backdrop-blur rounded-xl p-4 min-w-[240px] max-w-[340px]" id="commodities-block">
-                <h4 class="text-xs font-semibold text-indigo-200 uppercase tracking-wide mb-2">Commodities</h4>
-                <div id="commodities-list" class="space-y-1.5">
-                    {% for c in summary.commodities %}
-                    <div class="grid grid-cols-[1fr_92px_64px] items-center gap-2 text-sm price-cell" data-asset-id="{{ c.asset_id }}">
-                        <span class="font-medium truncate">{{ c.name }}</span>
-                        <span class="text-center shrink-0 text-indigo-50/90 tabular-nums">
-                            {{ "$%.2f"|format(c.price or 0) }}
-                        </span>
-                        {% if c.day_change_percent is not none %}
-                        <span class="text-right {% if c.day_change_percent >= 0 %}text-emerald-300{% else %}text-red-300{% endif %} font-semibold shrink-0 tabular-nums">
-                            {{ "%+.1f"|format(c.day_change_percent) }}%
-                        </span>
-                        {% else %}
-                        <span class="text-right text-indigo-200/70 font-semibold shrink-0">—</span>
-                        {% endif %}
+                {% endif %}
+                <div class="flex flex-wrap items-stretch justify-end gap-4">
+                {% if summary.get('commodities') %}
+                <div class="bg-white/10 backdrop-blur rounded-xl p-4 min-w-[240px] max-w-[340px]" id="commodities-block">
+                    <h4 class="text-xs font-semibold text-indigo-200 uppercase tracking-wide mb-2">Commodities</h4>
+                    <div id="commodities-list" class="space-y-1.5">
+                        {% for c in summary.commodities %}
+                        <div class="grid grid-cols-[1fr_92px_64px] items-center gap-2 text-sm price-cell" data-asset-id="{{ c.asset_id }}">
+                            <span class="font-medium truncate">{{ c.name }}</span>
+                            <span class="text-center shrink-0 text-indigo-50/90 tabular-nums">
+                                {{ "$%.2f"|format(c.price or 0) }}
+                            </span>
+                            {% if c.day_change_percent is not none %}
+                            <span class="text-right {% if c.day_change_percent >= 0 %}text-emerald-300{% else %}text-red-300{% endif %} font-semibold shrink-0 tabular-nums">
+                                {{ "%+.1f"|format(c.day_change_percent) }}%
+                            </span>
+                            {% else %}
+                            <span class="text-right text-indigo-200/70 font-semibold shrink-0">—</span>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
                     </div>
-                    {% endfor %}
                 </div>
-            </div>
-            {% endif %}
-            {% if summary.get('market_indices') %}
-            <div class="bg-white/10 backdrop-blur rounded-xl p-4 min-w-[200px] max-w-[280px]" id="market-indices-block">
-                <h4 class="text-xs font-semibold text-indigo-200 uppercase tracking-wide mb-2">Índices (día)</h4>
-                <div id="market-indices-list" class="space-y-1.5">
-                    {% for ix in summary.market_indices %}
-                    <div class="flex items-center justify-between text-sm">
-                        <span class="font-medium truncate mr-2">{{ ix.name }}</span>
-                        {% if ix.day_change_percent is not none %}
-                        <span class="{% if ix.day_change_percent >= 0 %}text-emerald-300{% else %}text-red-300{% endif %} font-semibold shrink-0">
-                            {{ "%+.1f"|format(ix.day_change_percent) }}%
-                        </span>
-                        {% else %}
-                        <span class="text-indigo-200/70 font-semibold shrink-0">—</span>
-                        {% endif %}
+                {% endif %}
+                {% if summary.get('market_indices') %}
+                <div class="bg-white/10 backdrop-blur rounded-xl p-4 min-w-[200px] max-w-[280px]" id="market-indices-block">
+                    <h4 class="text-xs font-semibold text-indigo-200 uppercase tracking-wide mb-2">Índices (día)</h4>
+                    <div id="market-indices-list" class="space-y-1.5">
+                        {% for ix in summary.market_indices %}
+                        <div class="flex items-center justify-between text-sm">
+                            <span class="font-medium truncate mr-2">{{ ix.name }}</span>
+                            {% if ix.day_change_percent is not none %}
+                            <span class="{% if ix.day_change_percent >= 0 %}text-emerald-300{% else %}text-red-300{% endif %} font-semibold shrink-0">
+                                {{ "%+.1f"|format(ix.day_change_percent) }}%
+                            </span>
+                            {% else %}
+                            <span class="text-indigo-200/70 font-semibold shrink-0">—</span>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
                     </div>
-                    {% endfor %}
                 </div>
-            </div>
-            {% endif %}
-            {% if summary.get('top_movers') %}
-            <div class="bg-white/10 backdrop-blur rounded-xl p-4 min-w-[200px] max-w-[280px]" id="top-movers-block">
-                <h4 class="text-xs font-semibold text-indigo-200 uppercase tracking-wide mb-2">Top Movers (día)</h4>
-                <div id="top-movers-list" class="space-y-1.5">
-                    {% for m in summary.top_movers[:5] %}
-                    <div class="flex items-center justify-between text-sm price-cell" data-asset-id="{{ m.asset_id }}">
-                        <span class="font-medium truncate">{{ m.symbol }}</span>
-                        <span class="{% if m.day_change_percent >= 0 %}text-emerald-300{% else %}text-red-300{% endif %} font-semibold shrink-0 ml-2">
-                            {{ "%+.1f"|format(m.day_change_percent) }}%
-                        </span>
+                {% endif %}
+                {% if summary.get('top_movers') %}
+                <div class="bg-white/10 backdrop-blur rounded-xl p-4 min-w-[200px] max-w-[280px]" id="top-movers-block">
+                    <h4 class="text-xs font-semibold text-indigo-200 uppercase tracking-wide mb-2">Top Movers (día)</h4>
+                    <div id="top-movers-list" class="space-y-1.5">
+                        {% for m in summary.top_movers[:5] %}
+                        <div class="flex items-center justify-between text-sm price-cell" data-asset-id="{{ m.asset_id }}">
+                            <span class="font-medium truncate">{{ m.symbol }}</span>
+                            <span class="{% if m.day_change_percent >= 0 %}text-emerald-300{% else %}text-red-300{% endif %} font-semibold shrink-0 ml-2">
+                                {{ "%+.1f"|format(m.day_change_percent) }}%
+                            </span>
+                        </div>
+                        {% endfor %}
                     </div>
-                    {% endfor %}
                 </div>
-            </div>
-            {% endif %}
+                {% endif %}
+                </div>
             </div>
         </div>
     </div>
