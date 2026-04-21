@@ -192,7 +192,7 @@ class DashboardOnboardingService:
                     0,
                     {
                         "key": "banks_cash_setup",
-                        "label": "Registrar efectivo en tu banco",
+                        "label": "Registrar saldo en tu banco",
                         "module_key": "finance",
                         "endpoint": "banks.dashboard",
                         "endpoint_kwargs": {},
