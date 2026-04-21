@@ -103,11 +103,36 @@ def update_limit():
             current_user.debt_limit_percent = val
             db.session.commit()
             from app.services.dashboard_summary_cache import DashboardSummaryCacheService
-            # Cambio de límite afecta al widget de deuda actual, no al histórico:
-            # intentar recompute ligero para evitar reconstrucción completa al abrir /dashboard.
-            updated = DashboardSummaryCacheService.recompute_current_from_cache(current_user.id)
-            if updated is None:
-                DashboardSummaryCacheService.invalidate(current_user.id)
+            from app.models.dashboard_summary_cache import DashboardSummaryCache
+            # Evitar recompute pesado aquí (puede tardar varios segundos).
+            # Ajuste mínimo en caché: actualizar limit_info del bloque deuda si existe.
+            cache = DashboardSummaryCache.query.filter_by(user_id=current_user.id).first()
+            if cache and cache.cached_data:
+                data = dict(cache.cached_data or {})
+                debt_details = dict(data.get('debt_details') or {})
+                li = dict(debt_details.get('limit_info') or {})
+                if li:
+                    avg_income = float(li.get('avg_monthly_income') or 0.0)
+                    current_monthly = float(li.get('current_monthly_debt') or 0.0)
+                    max_monthly = round(avg_income * (val / 100.0), 2)
+                    li['debt_limit_percent'] = val
+                    li['max_monthly_debt'] = max_monthly
+                    li['max_yearly_debt'] = round(max_monthly * 12, 2)
+                    li['margin'] = round(max_monthly - current_monthly, 2)
+                    debt_details['limit_info'] = li
+                    data['debt_details'] = debt_details
+                    # bump versión NOW para que polling detecte cambios si la pestaña está abierta
+                    meta = dict(data.get('meta') or {})
+                    from datetime import datetime, timezone
+                    now = datetime.utcnow().replace(tzinfo=timezone.utc)
+                    meta['version'] = int(now.timestamp() * 1000)
+                    meta['_now_cached_at'] = now.isoformat().replace('+00:00', 'Z')
+                    data['meta'] = meta
+                    cache.cached_data = data
+                    db.session.commit()
+            else:
+                # Sin caché: no forzar rebuild completo aquí.
+                pass
             flash(f'Límite de endeudamiento actualizado a {val}%', 'success')
         else:
             flash('El porcentaje debe estar entre 5 y 100', 'error')
