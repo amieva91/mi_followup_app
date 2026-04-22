@@ -20,6 +20,11 @@ Este documento sirve como referencia viva para mantener consistencia visual y fu
   - sombra exterior + brillo interior.
 - KPIs con borde lateral de color y lectura rapida.
 - Etiquetas KPI en formato frase (sin `UPPERCASE` forzado), con jerarquia como referencia de `Deudas` (`text-sm`, `font-medium`, `text-gray-600`).
+- Tonalidades KPI recomendadas (agradables y consistentes):
+  - negativos: gama `rose` (`rose-400/500/600` + texto `rose-700/800`),
+  - positivos: gama `emerald` (`emerald-400/500/600` + texto `emerald-700/800`),
+  - neutros/auxiliares: `slate`,
+  - tendencia/info: `sky`.
 - Formularios mas realistas:
   - ancho acotado (`max-w-5xl` en formularios largos),
   - columnas equilibradas,

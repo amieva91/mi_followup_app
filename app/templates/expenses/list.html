@@ -92,24 +92,24 @@
     <!-- Fase 6: Cuadros de resumen -->
     {% if summary_metrics %}
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-        <div class="expense-kpi p-4 border-l-4 border-red-500">
+        <div class="expense-kpi p-4 border-l-4 border-rose-500">
             <p class="text-gray-600 text-sm font-medium">Media mensual</p>
-            <p class="text-2xl font-bold text-red-600">-{{ '%.2f'|format(summary_metrics.media_mensual) }} €</p>
+            <p class="text-2xl font-bold text-rose-700">-{{ '%.2f'|format(summary_metrics.media_mensual) }} €</p>
         </div>
-        <div class="expense-kpi p-4 border-l-4 border-red-600">
+        <div class="expense-kpi p-4 border-l-4 border-rose-600">
             <p class="text-gray-600 text-sm font-medium">Total período</p>
-            <p class="text-2xl font-bold text-red-700">-{{ '%.2f'|format(summary_metrics.total_periodo) }} €</p>
+            <p class="text-2xl font-bold text-rose-800">-{{ '%.2f'|format(summary_metrics.total_periodo) }} €</p>
         </div>
-        <div class="expense-kpi p-4 border-l-4 border-red-400">
+        <div class="expense-kpi p-4 border-l-4 border-rose-400">
             <p class="text-gray-600 text-sm font-medium">Mes con más gastos</p>
             <p class="text-lg font-semibold text-gray-800">{{ summary_metrics.mes_max.label }}</p>
-            <p class="text-sm text-red-600">-{{ '%.2f'|format(summary_metrics.mes_max.amount) }} €</p>
+            <p class="text-sm text-rose-700">-{{ '%.2f'|format(summary_metrics.mes_max.amount) }} €</p>
         </div>
-        <div class="expense-kpi p-4 border-l-4 border-gray-400">
+        <div class="expense-kpi p-4 border-l-4 border-slate-400">
             <p class="text-gray-600 text-sm font-medium">Meses con datos</p>
             <p class="text-2xl font-bold text-gray-700">{{ summary_metrics.meses_con_datos }}/12</p>
         </div>
-        <div class="expense-kpi p-4 border-l-4 border-blue-400">
+        <div class="expense-kpi p-4 border-l-4 border-sky-400">
             <p class="text-gray-600 text-sm font-medium">Tendencia</p>
             <p class="text-2xl font-bold" title="Último mes vs media">
                 {% if summary_metrics.tendencia == '↑' %}📈{% elif summary_metrics.tendencia == '↓' %}📉{% else %}➡️{% endif %}

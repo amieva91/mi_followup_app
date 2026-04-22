@@ -81,22 +81,22 @@
 
     <!-- Resumen y Límite -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <div class="debt-kpi bg-white rounded-lg shadow p-4 border-l-4 border-red-500">
+        <div class="debt-kpi bg-white rounded-lg shadow p-4 border-l-4 border-rose-500">
             <p class="text-gray-600 text-sm font-medium">Total deuda pendiente</p>
             <p class="text-2xl font-bold text-gray-900">{{ total_debt|decimal_eu(2) }} €</p>
         </div>
-        <div class="debt-kpi bg-white rounded-lg shadow p-4 border-l-4 border-blue-500">
+        <div class="debt-kpi bg-white rounded-lg shadow p-4 border-l-4 border-sky-500">
             <p class="text-gray-600 text-sm font-medium">Ingresos medios (12m)</p>
             <p class="text-2xl font-bold text-gray-900">{{ limit_info.avg_monthly_income|decimal_eu(2) }} €</p>
         </div>
-        <div class="debt-kpi bg-white rounded-lg shadow p-4 border-l-4 {% if limit_info.margin >= 0 %}border-green-500{% else %}border-red-500{% endif %}">
+        <div class="debt-kpi bg-white rounded-lg shadow p-4 border-l-4 {% if limit_info.margin >= 0 %}border-emerald-500{% else %}border-rose-500{% endif %}">
             <p class="text-gray-600 text-sm font-medium">Margen disponible</p>
-            <p class="text-2xl font-bold {% if limit_info.margin >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+            <p class="text-2xl font-bold {% if limit_info.margin >= 0 %}text-emerald-700{% else %}text-rose-700{% endif %}">
                 {{ limit_info.margin|decimal_eu(2) }} €
             </p>
             <p class="text-xs text-gray-500">Según límite {{ limit_info.debt_limit_percent|decimal_eu(0) }}%</p>
         </div>
-        <div class="debt-kpi bg-white rounded-lg shadow p-4 border-l-4 border-gray-500">
+        <div class="debt-kpi bg-white rounded-lg shadow p-4 border-l-4 border-slate-500">
             <p class="text-gray-600 text-sm font-medium">Límite máximo mensual</p>
             <p class="text-2xl font-bold text-gray-900">{{ limit_info.max_monthly_debt|decimal_eu(2) }} €</p>
             <p class="text-xs text-gray-500">{{ limit_info.max_yearly_debt|decimal_eu(2) }} €/año</p>
