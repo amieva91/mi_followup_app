@@ -77,6 +77,12 @@
         width: 15rem;
         min-width: 15rem;
     }
+    @media (max-width: 1024px) {
+        .table-actions-col {
+            width: 12rem;
+            min-width: 12rem;
+        }
+    }
 </style>
 <div class="max-w-[92%] mx-auto px-4 py-8">
     <!-- Header -->
@@ -148,7 +154,7 @@
     </div>
 
     <!-- Lista de planes activos -->
-    <div class="debt-card bg-white rounded-lg shadow overflow-hidden">
+    <div class="debt-card bg-white rounded-lg shadow overflow-x-auto overflow-y-hidden">
         <h2 class="debt-title text-xl p-4 border-b">📋 Planes activos</h2>
         {% if plans %}
         <table class="min-w-full divide-y divide-gray-200">
@@ -246,7 +252,7 @@
 
     <!-- Planes no activos (PAID_OFF / CANCELLED) -->
     {% if inactive_plans %}
-    <div class="debt-card bg-white rounded-lg shadow overflow-hidden mt-6">
+    <div class="debt-card bg-white rounded-lg shadow overflow-x-auto overflow-y-hidden mt-6">
         <h2 class="debt-title text-xl p-4 border-b">📂 Histórico (pagados / cancelados)</h2>
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">

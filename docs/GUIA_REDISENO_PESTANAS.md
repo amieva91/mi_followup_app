@@ -138,3 +138,4 @@ Este documento sirve como referencia viva para mantener consistencia visual y fu
 - Estandar de acciones en tablas: `Editar` en `teal`, acciones secundarias de flujo (ej. `Reestructurar`) en `sky`, advertencias en `amber` y destructivas en `rose/red`.
 - Estandar de micro-interaccion en acciones de tabla: mismo peso (`font-semibold`), espaciado homogeneo entre icono/texto y estado hover con ligera elevacion visual.
 - Estandar de layout en tablas redisenadas: fijar ancho consistente de la columna `Acciones` para evitar saltos visuales entre filas y modulos.
+- Regla responsive para tablas: en anchos reducidos, mantener `overflow-x-auto` en contenedor y reducir ancho minimo de `Acciones` para conservar legibilidad sin romper layout.
