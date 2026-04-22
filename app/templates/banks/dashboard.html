@@ -40,6 +40,13 @@
         transform: scale(0.98);
         filter: brightness(0.96);
     }
+    .modal-touch-btn {
+        transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease;
+    }
+    .modal-touch-btn:active {
+        transform: scale(0.98);
+        filter: brightness(0.96);
+    }
 </style>
 <div class="max-w-[92%] mx-auto px-4 py-8">
     <!-- Header -->
@@ -247,25 +254,25 @@
 
     <!-- Modal confirmación eliminar banco -->
     <div id="delete-bank-modal"
-         class="fixed inset-0 z-[9999] bg-black/40 backdrop-blur-[2px] items-center justify-center p-4 hidden">
-        <div class="guide-surface w-full max-w-md p-6">
-            <h3 class="text-lg font-bold text-gray-900">Eliminar banco</h3>
-            <p class="text-sm text-gray-600 mt-2">
+         class="fixed inset-0 z-50 items-center justify-center bg-black/55 p-4 hidden">
+        <div class="w-full max-w-md rounded-2xl border border-slate-200 bg-gradient-to-br from-[#f8fbfc] to-[#f1f7f8] p-6 shadow-[0_20px_45px_rgba(15,23,42,0.28)]">
+            <h3 class="text-lg font-semibold mb-3 text-gray-900">🗑️ Confirmar eliminación</h3>
+            <p class="text-sm text-gray-700 mb-4">
                 ¿Eliminar <span id="delete-bank-name" class="font-semibold text-gray-800"></span> y todos sus saldos?
             </p>
-            <div class="mt-6 flex justify-end gap-2">
-                <button type="button"
-                        id="delete-bank-cancel"
-                        class="guide-touch-btn bank-touch-btn px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 cursor-pointer">
-                    Cancelar
-                </button>
+            <div class="space-y-3">
                 <form method="POST" id="delete-bank-form" action="#">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit"
-                            class="guide-touch-btn bank-touch-btn px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 cursor-pointer">
-                        Eliminar
+                            class="modal-touch-btn w-full border border-rose-300 bg-rose-100 hover:bg-rose-200 text-rose-900 px-4 py-3 rounded-xl transition font-medium">
+                        Sí, eliminar
                     </button>
                 </form>
+                <button type="button"
+                        id="delete-bank-cancel"
+                        class="modal-touch-btn w-full bg-slate-700 hover:bg-slate-800 text-white px-4 py-2.5 rounded-full transition font-medium cursor-pointer">
+                    Cancelar
+                </button>
             </div>
         </div>
     </div>

@@ -35,9 +35,9 @@
 </style>
 <div class="max-w-[92%] mx-auto px-4 py-8">
     <div class="max-w-2xl w-full mx-auto">
-        <div class="flex items-center gap-4 mb-6">
-            <a href="{{ url_for('banks.dashboard') }}" class="form-touch-btn text-teal-700 hover:text-teal-900">← Volver</a>
-            <h1 class="text-3xl font-bold text-gray-800">🏦 {{ title }}</h1>
+        <div class="relative flex items-center justify-center mb-4 sm:mb-5 min-h-[2.75rem]">
+            <a href="{{ url_for('banks.dashboard') }}" class="form-touch-btn absolute left-0 text-teal-700 hover:text-teal-900">← Volver</a>
+            <h1 class="text-3xl font-bold text-gray-800 text-center">🏦 {{ title }}</h1>
         </div>
 
         <div class="bank-form-card p-6 w-full">

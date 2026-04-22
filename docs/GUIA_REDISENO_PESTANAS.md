@@ -151,3 +151,5 @@ Este documento sirve como referencia viva para mantener consistencia visual y fu
 - La tarjeta de bienvenida del dashboard y modales de primera visita (ej. Bancos) deben usar la misma superficie 3D suave y paleta teal-slate que el resto del sistema.
 - Rediseno de `Bancos` completado: tarjetas de registro/total/evolucion/listado y empty state migradas a superficie 3D suave, con acciones primarias en `teal` y foco de inputs/selects unificado.
 - Formularios de `Bancos` (`new/edit`) alineados al patron de formularios de modulos (`card + sections + CTA tactiles`) manteniendo dropdown visual para color con muestras.
+- Ajuste de `Bancos` (`new/edit`): cabecera compacta y titulo centrado visualmente sobre la tarjeta para reforzar eje unico de lectura en desktop.
+- Modal `Eliminar banco` estandarizado al patron CRUD de `Gastos/Ingresos` (overlay, panel 3D, CTA destructiva principal y cancelar secundario full-width).
