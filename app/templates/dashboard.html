@@ -547,6 +547,19 @@
                 <button @click="expanded = true; document.body.style.overflow = 'hidden'; $nextTick(() => openIncomeExpenseModal())" class="expand-btn px-2 py-1 text-indigo-600 hover:bg-indigo-50 rounded cursor-pointer ml-auto" title="Ampliar gráfico">⊞ Ampliar</button>
             </div>
             <div class="h-[340px] flex-1 min-h-0 card-surface-3d p-3"><canvas id="incomeExpenseChart"></canvas></div>
+            <div class="flex flex-wrap items-center gap-2.5 mt-3 pt-3 border-t">
+                <span class="text-xs text-gray-500">Mostrar:</span>
+                <label class="evo-toggle">
+                    <input type="checkbox" checked onchange="toggleIncomeExpenseDataset(0, this.checked)" class="sr-only">
+                    <span class="evo-toggle-check">✓</span>
+                    <span class="text-xs text-emerald-700 font-semibold">Ingresos</span>
+                </label>
+                <label class="evo-toggle">
+                    <input type="checkbox" checked onchange="toggleIncomeExpenseDataset(1, this.checked)" class="sr-only">
+                    <span class="evo-toggle-check">✓</span>
+                    <span class="text-xs text-red-700 font-semibold">Gastos</span>
+                </label>
+            </div>
             <!-- Modal emergente - clic en fondo para cerrar -->
             <template x-teleport="body">
             <div x-show="expanded" x-transition x-cloak class="expand-modal"
@@ -1031,6 +1044,12 @@ function toggleChartDataset(index, show) {
     if (!evolutionChart) return;
     evolutionChart.data.datasets[index].hidden = !show;
     evolutionChart.update();
+}
+
+function toggleIncomeExpenseDataset(index, show) {
+    if (!incomeExpenseMainChart || !incomeExpenseMainChart.data || !incomeExpenseMainChart.data.datasets[index]) return;
+    incomeExpenseMainChart.data.datasets[index].hidden = !show;
+    incomeExpenseMainChart.update();
 }
 
 // Función global para actualizar periodo

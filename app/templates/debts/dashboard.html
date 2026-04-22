@@ -19,11 +19,45 @@
     }
     .debt-kpi {
         border-radius: 14px;
-        border: 1px solid rgba(148,163,184,0.2);
-        box-shadow: 0 10px 24px rgba(15,23,42,0.08);
+        box-shadow:
+            inset 0 0 0 1px rgba(148,163,184,0.16),
+            0 10px 24px rgba(15,23,42,0.08);
     }
     .debt-table-row {
         background: linear-gradient(180deg, rgba(255,255,255,0.94), rgba(248,250,252,0.9));
+    }
+    .debt-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        padding: 0.32rem 0.62rem;
+        border-radius: 9999px;
+        border: 1px solid rgba(99, 102, 241, 0.16);
+        background: rgba(255, 255, 255, 0.9);
+        cursor: pointer;
+        transition: all 0.18s ease;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+    }
+    .debt-toggle:hover { transform: translateY(-1px); box-shadow: 0 6px 14px rgba(15, 23, 42, 0.14); }
+    .debt-toggle-check {
+        width: 0.95rem;
+        height: 0.95rem;
+        border-radius: 9999px;
+        border: 1px solid #c7d2fe;
+        background: #e0e7ff;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.65rem;
+        font-weight: 700;
+        color: transparent;
+        transition: all 0.2s ease;
+    }
+    .debt-toggle input:checked + .debt-toggle-check {
+        background: linear-gradient(180deg, #6366f1, #4f46e5);
+        border-color: #4f46e5;
+        color: #fff;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
     }
 </style>
 <div class="max-w-[92%] mx-auto px-4 py-8">
@@ -89,6 +123,7 @@
     <div class="debt-card bg-white rounded-lg shadow p-6 mb-6">
         <h2 class="debt-title text-xl mb-4">📊 Pagos por mes (histórico y próximos 12 meses)</h2>
         <p class="text-sm text-gray-600 mb-4">La línea roja marca tu límite máximo mensual. Pasa el cursor sobre una fila para resaltar su plan en el gráfico.</p>
+        <div id="debtChartLegend" class="flex flex-wrap items-center gap-2.5 mb-3"></div>
         <div class="rounded-2xl border border-slate-200/70 bg-gradient-to-b from-white to-slate-50 p-3 shadow-inner" style="position: relative; height: 400px;">
             <canvas id="debtChart"></canvas>
         </div>
@@ -360,6 +395,38 @@
     });
 
     window.debtChartInstance = debtChart;
+    const legendRoot = document.getElementById('debtChartLegend');
+    const renderLegend = () => {
+        if (!legendRoot || !debtChart) return;
+        const datasets = debtChart.data.datasets || [];
+        legendRoot.innerHTML = '<span class="text-xs text-gray-500">Mostrar:</span>';
+        datasets.forEach((ds, idx) => {
+            const color = (typeof ds.borderColor === 'string' && ds.borderColor) || 'rgb(79,70,229)';
+            const checked = !debtChart.getDatasetMeta(idx).hidden;
+            const item = document.createElement('label');
+            item.className = 'debt-toggle';
+            item.innerHTML = `
+                <input type="checkbox" class="sr-only" ${checked ? 'checked' : ''}>
+                <span class="debt-toggle-check">✓</span>
+                <span class="text-xs font-semibold" style="color:${color}">${ds.label || 'Serie'}</span>
+            `;
+            const input = item.querySelector('input');
+            input.addEventListener('change', (e) => {
+                debtChart.setDatasetVisibility(idx, e.target.checked);
+                debtChart.update();
+            });
+            legendRoot.appendChild(item);
+        });
+    };
+    const syncLegendChecks = () => {
+        if (!legendRoot || !debtChart) return;
+        const inputs = legendRoot.querySelectorAll('input[type="checkbox"]');
+        inputs.forEach((input, idx) => {
+            input.checked = !debtChart.getDatasetMeta(idx).hidden;
+        });
+    };
+    renderLegend();
+
     window.debtChartHighlightPlan = function(planId) {
         if (!debtChart) return;
         const idx = debtChart.data.datasets.findIndex(ds => ds.planId === planId);
@@ -368,6 +435,7 @@
             if (ds.planId && ds.planId !== planId) debtChart.setDatasetVisibility(i, false);
         });
         debtChart.update('none');
+        syncLegendChecks();
     };
     window.debtChartUnhighlight = function() {
         if (!debtChart) return;
@@ -375,6 +443,7 @@
             if (ds.planId) debtChart.setDatasetVisibility(i, true);
         });
         debtChart.update('none');
+        syncLegendChecks();
     };
 })();
 </script>
