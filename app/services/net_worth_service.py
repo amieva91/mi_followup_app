@@ -1633,27 +1633,58 @@ def get_financial_health_score(user_id: int) -> Dict[str, Any]:
         'description': 'Crecimiento últimos 12 meses'
     }
     
-    # 7. INVERSIÓN VS AHORRO (0-10 puntos) - ideal tener dinero invertido
-    investments_total = breakdown['portfolio'] + breakdown['crypto'] + breakdown['metales']
-    investment_ratio = (investments_total / breakdown['assets_total'] * 100) if breakdown['assets_total'] > 0 else 0
-    
-    if investment_ratio >= 50:
+    # 7. RATIO INVERSIÓN POR MÓDULOS (0-10 puntos)
+    # Incluye inmobiliario como activo de inversión y adapta el ratio al número de módulos
+    # de inversión que el usuario tenga habilitados.
+    investments_total = (
+        breakdown['portfolio'] + breakdown['crypto'] + breakdown['metales'] + breakdown.get('real_estate', 0)
+    )
+    investment_ratio_capital = (investments_total / breakdown['assets_total'] * 100) if breakdown['assets_total'] > 0 else 0
+    investment_modules = [
+        ("stock", breakdown["portfolio"] > 0),
+        ("crypto", breakdown["crypto"] > 0),
+        ("metales", breakdown["metales"] > 0),
+        ("real_estate", breakdown.get("real_estate", 0) > 0),
+    ]
+    enabled_investment_modules = [k for k, _ in investment_modules if enabled_modules.get(k)]
+    enabled_investment_count = len(enabled_investment_modules)
+    covered_investment_count = sum(
+        1 for k, has_value in investment_modules if enabled_modules.get(k) and has_value
+    )
+    investment_module_ratio = (
+        covered_investment_count / enabled_investment_count * 100
+    ) if enabled_investment_count > 0 else 0
+    investment_ratio = investment_module_ratio
+
+    if investment_module_ratio >= 100:
         scores['investment_ratio'] = 10
-    elif investment_ratio >= 30:
+    elif investment_module_ratio >= 67:
         scores['investment_ratio'] = 8
-    elif investment_ratio >= 15:
+    elif investment_module_ratio >= 34:
         scores['investment_ratio'] = 5
     else:
         scores['investment_ratio'] = 2
-    
+
     details['investment_ratio'] = {
         'score': scores['investment_ratio'],
         'max': 10,
         'label': 'Ratio Inversión',
-        'value': f'{investment_ratio:.1f}%',
-        'ideal': '30-70%',
-        'status': 'good' if 30 <= investment_ratio <= 70 else 'warning' if investment_ratio > 0 else 'bad',
-        'description': '% invertido vs cash'
+        'value': f'{covered_investment_count}/{enabled_investment_count} módulos',
+        'ideal': f'{enabled_investment_count}/{enabled_investment_count} módulos' if enabled_investment_count > 0 else 'N/A',
+        'status': (
+            'good' if enabled_investment_count > 0 and covered_investment_count == enabled_investment_count
+            else 'warning' if covered_investment_count > 0
+            else 'bad'
+        ),
+        'description': (
+            'Cobertura de módulos de inversión activos (incluye inmobiliario). '
+            f'Capital invertido: {investment_ratio_capital:.1f}% del patrimonio.'
+        ),
+        'coverage': {
+            'covered': covered_investment_count,
+            'enabled': enabled_investment_count,
+            'percent': round(investment_module_ratio, 1),
+        },
     }
     
     # ============ APLICABILIDAD POR MÓDULOS / DATOS ============
@@ -1755,6 +1786,7 @@ def get_financial_health_score(user_id: int) -> Dict[str, Any]:
             'debt_ratio': debt_ratio,
             'months_runway': months_runway,
             'investment_ratio': investment_ratio,
+            'investment_ratio_capital': round(investment_ratio_capital, 1),
             'growth_pct': growth_pct,
             'assets_count': assets_with_value,
             'positive_months': positive_months,
@@ -1803,7 +1835,7 @@ def _generate_health_tips(details, savings_rate, debt_ratio, months_runway,
             'priority': 'medium',
             'icon': '📈',
             'title': 'Poco invertido',
-            'text': f'Solo el {investment_ratio:.1f}% está invertido.',
+            'text': f'Solo cubres el {investment_ratio:.1f}% de tus módulos de inversión activos.',
             'action': 'Considera invertir parte del exceso de liquidez'
         })
     
