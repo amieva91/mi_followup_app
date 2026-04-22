@@ -82,6 +82,10 @@
         transform: translateY(-1px);
         background: rgba(148, 163, 184, 0.14);
     }
+    .table-actions-col {
+        width: 11rem;
+        min-width: 11rem;
+    }
 </style>
 <div class="max-w-[92%] mx-auto px-4 py-8">
     <!-- Header -->
@@ -222,7 +226,7 @@
                         <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Monto
                         </th>
-                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th class="table-actions-col px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Acciones
                         </th>
                     </tr>
@@ -302,7 +306,7 @@
                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-semibold text-red-600">
                                 -€{{ '%.2f'|format(expense.amount) }}
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-center text-sm">
+                            <td class="table-actions-col px-6 py-4 whitespace-nowrap text-center text-sm">
                                 <div class="flex justify-center space-x-2" x-data="{ showDeleteModal: false, showEditScopeModal: false, showTerminateModal: false, expenseId: {{ expense.id }}, isRecurring: {{ 'true' if expense.is_recurring and expense.recurrence_group_id and not expense.debt_plan_id else 'false' }}, isDebtInstallment: {{ 'true' if expense.debt_plan_id else 'false' }}, debtPlanId: {{ expense.debt_plan_id or 0 }} }">
                                     {% if expense.debt_plan_id %}
                                     <a href="{{ url_for('debts.edit', id=expense.debt_plan_id, next='expenses') }}" 

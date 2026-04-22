@@ -73,6 +73,10 @@
     .table-action-link:hover {
         transform: translateY(-1px);
     }
+    .table-actions-col {
+        width: 15rem;
+        min-width: 15rem;
+    }
 </style>
 <div class="max-w-[92%] mx-auto px-4 py-8">
     <!-- Header -->
@@ -156,7 +160,7 @@
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Meses</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Inicio</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Categoría</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                    <th class="table-actions-col px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acciones</th>
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
@@ -168,7 +172,7 @@
                     <td class="px-6 py-4 text-sm text-gray-700">{{ get_months_paid(plan.id) }}/{{ plan.months }}</td>
                     <td class="px-6 py-4 text-sm text-gray-700">{{ plan.start_date.strftime('%d/%m/%Y') }}</td>
                     <td class="px-6 py-4 text-sm text-gray-700">{{ plan.category.icon }} {{ plan.category.name }}</td>
-                    <td class="px-6 py-4">
+                    <td class="table-actions-col px-6 py-4">
                         <div class="flex justify-end items-center flex-wrap gap-x-3 gap-y-1">
                         <a href="{{ url_for('debts.edit', id=plan.id) }}" class="table-action-link text-teal-700 hover:text-teal-800">
                             ✏️ Editar
@@ -254,7 +258,7 @@
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Inicio</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Categoría</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                    <th class="table-actions-col px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acciones</th>
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
@@ -273,7 +277,7 @@
                     </td>
                     <td class="px-6 py-4 text-sm text-gray-700">{{ plan.start_date.strftime('%d/%m/%Y') }}</td>
                     <td class="px-6 py-4 text-sm text-gray-700">{{ plan.category.icon }} {{ plan.category.name }}</td>
-                    <td class="px-6 py-4">
+                    <td class="table-actions-col px-6 py-4">
                         <div class="flex justify-end items-center flex-wrap gap-x-3 gap-y-1">
                         <a href="{{ url_for('debts.edit', id=plan.id) }}" class="table-action-link text-teal-700 hover:text-teal-800">
                             ✏️ Editar
