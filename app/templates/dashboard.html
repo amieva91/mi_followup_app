@@ -92,6 +92,57 @@
         pointer-events: auto;
         margin: auto;
     }
+    .card-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-weight: 700;
+        color: #1f2937;
+        letter-spacing: 0.01em;
+    }
+    .evo-chart-surface {
+        background:
+            radial-gradient(circle at 30% -10%, rgba(99, 102, 241, 0.2), transparent 45%),
+            linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(238, 242, 255, 0.72) 100%);
+        border: 1px solid rgba(99, 102, 241, 0.2);
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.85),
+            inset 0 -20px 40px rgba(99, 102, 241, 0.06),
+            0 16px 36px rgba(30, 41, 59, 0.16);
+    }
+    .evo-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        padding: 0.32rem 0.62rem;
+        border-radius: 9999px;
+        border: 1px solid rgba(99, 102, 241, 0.16);
+        background: rgba(255, 255, 255, 0.88);
+        cursor: pointer;
+        transition: all 0.18s ease;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+    }
+    .evo-toggle:hover { transform: translateY(-1px); box-shadow: 0 6px 14px rgba(15, 23, 42, 0.14); }
+    .evo-toggle-check {
+        width: 0.95rem;
+        height: 0.95rem;
+        border-radius: 9999px;
+        border: 1px solid #c7d2fe;
+        background: #e0e7ff;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.65rem;
+        font-weight: 700;
+        color: transparent;
+        transition: all 0.2s ease;
+    }
+    .evo-toggle input:checked + .evo-toggle-check {
+        background: linear-gradient(180deg, #6366f1, #4f46e5);
+        border-color: #4f46e5;
+        color: #fff;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
+    }
 </style>
     {% set onboarding = onboarding or {} %}
     {% set onboarding_initial = onboarding.show_initial_onboarding|default(false) %}
@@ -387,7 +438,7 @@
         <div id="dashboard-evolution-wrap" class="dashboard-card dashboard-card--wide p-6" data-card-id="evolution_chart" x-data="{ expanded: false }">
             <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
                 <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
-                <h3 class="text-sm font-bold text-gray-800">Evolución del Patrimonio</h3>
+                <h3 class="card-title text-sm">📈 Evolución del Patrimonio</h3>
                 <div class="flex items-center gap-2">
                     <button @click="expanded = true; document.body.style.overflow = 'hidden'; $nextTick(() => openEvolutionModal())" class="expand-btn px-2 py-1 text-indigo-600 hover:bg-indigo-50 rounded cursor-pointer" title="Ampliar gráfico">⊞ Ampliar</button>
                     <span class="text-xs text-gray-500">Periodo:</span>
@@ -399,32 +450,38 @@
                     </div>
                 </div>
             </div>
-            <div class="h-[340px] flex-1 min-h-0"><canvas id="evolutionChart"></canvas></div>
-            <div class="flex flex-wrap items-center gap-3 mt-3 pt-3 border-t">
+            <div class="h-[340px] flex-1 min-h-0 evo-chart-surface rounded-2xl p-3"><canvas id="evolutionChart"></canvas></div>
+            <div class="flex flex-wrap items-center gap-2.5 mt-3 pt-3 border-t">
                 <span class="text-xs text-gray-500">Mostrar:</span>
-                <label class="flex items-center gap-1.5 cursor-pointer">
-                    <input type="checkbox" checked onchange="toggleChartDataset(0, this.checked)" class="w-3.5 h-3.5 text-indigo-600 rounded">
-                    <span class="text-xs text-indigo-600 font-medium">Patrimonio Neto</span>
+                <label class="evo-toggle">
+                    <input type="checkbox" checked onchange="toggleChartDataset(0, this.checked)" class="sr-only">
+                    <span class="evo-toggle-check">✓</span>
+                    <span class="text-xs text-indigo-700 font-semibold">Patrimonio Neto</span>
                 </label>
-                <label class="flex items-center gap-1.5 cursor-pointer">
-                    <input type="checkbox" onchange="toggleChartDataset(1, this.checked)" class="w-3.5 h-3.5 text-emerald-600 rounded">
-                    <span class="text-xs text-emerald-600">Cash</span>
+                <label class="evo-toggle">
+                    <input type="checkbox" onchange="toggleChartDataset(1, this.checked)" class="sr-only">
+                    <span class="evo-toggle-check">✓</span>
+                    <span class="text-xs text-emerald-700">Cash</span>
                 </label>
-                <label class="flex items-center gap-1.5 cursor-pointer">
-                    <input type="checkbox" onchange="toggleChartDataset(2, this.checked)" class="w-3.5 h-3.5 text-blue-600 rounded">
-                    <span class="text-xs text-blue-600">Broker</span>
+                <label class="evo-toggle">
+                    <input type="checkbox" onchange="toggleChartDataset(2, this.checked)" class="sr-only">
+                    <span class="evo-toggle-check">✓</span>
+                    <span class="text-xs text-blue-700">Broker</span>
                 </label>
-                <label class="flex items-center gap-1.5 cursor-pointer">
-                    <input type="checkbox" onchange="toggleChartDataset(3, this.checked)" class="w-3.5 h-3.5 text-amber-500 rounded">
-                    <span class="text-xs text-amber-500">Crypto</span>
+                <label class="evo-toggle">
+                    <input type="checkbox" onchange="toggleChartDataset(3, this.checked)" class="sr-only">
+                    <span class="evo-toggle-check">✓</span>
+                    <span class="text-xs text-amber-600">Crypto</span>
                 </label>
-                <label class="flex items-center gap-1.5 cursor-pointer">
-                    <input type="checkbox" onchange="toggleChartDataset(4, this.checked)" class="w-3.5 h-3.5 text-yellow-500 rounded">
-                    <span class="text-xs text-yellow-500">Metales</span>
+                <label class="evo-toggle">
+                    <input type="checkbox" onchange="toggleChartDataset(4, this.checked)" class="sr-only">
+                    <span class="evo-toggle-check">✓</span>
+                    <span class="text-xs text-yellow-600">Metales</span>
                 </label>
-                <label class="flex items-center gap-1.5 cursor-pointer">
-                    <input type="checkbox" onchange="toggleChartDataset(5, this.checked)" class="w-3.5 h-3.5 text-teal-600 rounded">
-                    <span class="text-xs text-teal-600">Inmuebles</span>
+                <label class="evo-toggle">
+                    <input type="checkbox" onchange="toggleChartDataset(5, this.checked)" class="sr-only">
+                    <span class="evo-toggle-check">✓</span>
+                    <span class="text-xs text-teal-700">Inmuebles</span>
                 </label>
             </div>
             <p class="text-xs text-gray-400 mt-2 italic">Patrimonio = Cash + Broker + Crypto + Metales + Inmuebles</p>
@@ -437,7 +494,7 @@
                  style="display: none;">
                 <div class="expand-modal-inner w-[90vw] max-w-4xl" @click.stop>
                     <div class="flex justify-between items-center mb-3">
-                        <h3 class="font-bold text-gray-800">Evolución del Patrimonio</h3>
+                        <h3 class="card-title">📈 Evolución del Patrimonio</h3>
                         <button @click="expanded = false; closeEvolutionModal(); document.body.style.overflow = ''" class="text-gray-500 hover:text-gray-700 cursor-pointer">✕ Cerrar</button>
                     </div>
                     <div class="flex bg-gray-100 rounded-lg p-1 mb-3">
@@ -462,7 +519,7 @@
         <div class="dashboard-card dashboard-card--wide p-6" data-card-id="income_expense" x-data="{ expanded: false }">
             <div class="flex items-center justify-between mb-2">
                 <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
-                <h3 class="text-sm font-bold text-gray-800">Ingresos vs Gastos (12 meses)</h3>
+                <h3 class="card-title text-sm">📊 Ingresos vs Gastos (12 meses)</h3>
                 <button @click="expanded = true; document.body.style.overflow = 'hidden'; $nextTick(() => openIncomeExpenseModal())" class="expand-btn px-2 py-1 text-indigo-600 hover:bg-indigo-50 rounded cursor-pointer" title="Ampliar gráfico">⊞ Ampliar</button>
             </div>
             <div class="h-[340px] flex-1 min-h-0"><canvas id="incomeExpenseChart"></canvas></div>
@@ -474,7 +531,7 @@
                  style="display: none;">
                 <div class="expand-modal-inner w-[90vw] max-w-4xl" @click.stop>
                     <div class="flex justify-between items-center mb-3">
-                        <h3 class="font-bold text-gray-800">Ingresos vs Gastos (12 meses)</h3>
+                        <h3 class="card-title">📊 Ingresos vs Gastos (12 meses)</h3>
                         <button @click="expanded = false; closeIncomeExpenseModal(); document.body.style.overflow = ''" class="text-gray-500 hover:text-gray-700 cursor-pointer">✕ Cerrar</button>
                     </div>
                     <div style="width: 100%; height: 400px;"><canvas id="incomeExpenseChartModal"></canvas></div>
@@ -490,7 +547,7 @@
             <div class="flex items-center justify-between mb-4">
                 <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
                 <a href="{{ url_for('debts.dashboard') }}" class="flex items-center gap-2 group">
-                    <h3 class="text-sm font-bold text-gray-800">Deudas</h3>
+                    <h3 class="card-title text-sm">📉 Deudas</h3>
                     <span class="text-xs text-gray-500">({{ summary.debt_details.plans_count }})</span>
                     <span class="text-gray-400 group-hover:text-indigo-500">→</span>
                 </a>
@@ -563,7 +620,7 @@
         <div class="dashboard-card dashboard-card--wide p-6 bg-gradient-to-br from-slate-50/80 to-indigo-50/50 border-indigo-100/50" data-card-id="health_score">
             <div class="flex items-center justify-between mb-4">
                 <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
-                <h3 class="text-lg font-bold text-gray-800">{{ summary.health_score.emoji }} Salud Financiera</h3>
+                <h3 class="card-title text-lg">{{ summary.health_score.emoji }} Salud Financiera</h3>
             </div>
             {% set health_component_count = summary.health_score.components | length %}
             <div class="grid {% if health_component_count <= 2 %}grid-cols-1 md:grid-cols-2{% elif health_component_count <= 4 %}grid-cols-1 md:grid-cols-2 lg:grid-cols-4{% else %}grid-cols-2 md:grid-cols-4 lg:grid-cols-7{% endif %} gap-4">
@@ -600,7 +657,7 @@
         <div class="dashboard-card p-5" data-card-id="assets_distribution">
             <div class="flex items-center justify-between mb-3">
                 <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
-                <h3 class="text-sm font-bold text-gray-800">Activos</h3>
+                <h3 class="card-title text-sm">🧩 Activos</h3>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-[236px_1fr] gap-7 items-center">
                 <div class="w-[236px] h-[236px] mx-auto sm:mx-0">
@@ -623,7 +680,7 @@
         <div class="dashboard-card p-5" data-card-id="projection">
             <div class="flex items-center justify-between mb-2">
                 <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
-                <h3 class="text-sm font-bold text-gray-800">Previsión Patrimonio</h3>
+                <h3 class="card-title text-sm">🔮 Previsión Patrimonio</h3>
             </div>
             <p class="text-sm text-gray-500 mb-4">Ahorro mensual: <span class="font-semibold text-green-600">+{{ "%.2f"|format(summary.projections.avg_monthly_savings) }} EUR</span></p>
             <div class="grid grid-cols-3 gap-3 mb-4">
@@ -646,7 +703,7 @@
         <div class="dashboard-card p-6 border-l-4 border-indigo-300" data-card-id="recent_movements">
             <div class="flex items-center justify-between mb-4">
                 <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
-                <h3 class="text-sm font-bold text-gray-800">🔄 Últimos Movimientos</h3>
+                <h3 class="card-title text-sm">🔄 Últimos Movimientos</h3>
             </div>
             <div class="space-y-3">
                 {% for tx in summary.recent_transactions %}
@@ -675,7 +732,7 @@
             <div class="flex items-center justify-between mb-2">
                 <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
                 <div class="flex items-center justify-between flex-1">
-                <h3 class="text-sm font-bold text-gray-800">📋 Medias por categoría</h3>
+                <h3 class="card-title text-sm">📋 Medias por categoría</h3>
                 <span class="text-gray-300"> </span>
                 </div>
             </div>
@@ -729,7 +786,7 @@
         <div class="dashboard-card p-6 bg-white border border-gray-100" data-card-id="health_tips">
             <div class="flex items-center justify-between mb-4">
                 <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
-                <h3 class="text-lg font-bold text-gray-800">💡 Recomendaciones Personalizadas</h3>
+                <h3 class="card-title text-lg">💡 Recomendaciones Personalizadas</h3>
             </div>
             {% if recs and recs|length > 0 %}
             {% set tips_count = recs|length %}
@@ -844,16 +901,61 @@ let currentChartPeriod = 12;
 let lastPolledEvolutionLastNw = (fullHistory.length && fullHistory[fullHistory.length - 1].net_worth != null)
     ? Number(fullHistory[fullHistory.length - 1].net_worth) : null;
 
+const evolutionDepthPlugin = {
+    id: 'evolutionDepth',
+    beforeDatasetsDraw(chart) {
+        const area = chart.chartArea;
+        if (!area) return;
+        const { ctx } = chart;
+        ctx.save();
+        const floor = ctx.createLinearGradient(0, area.top + area.height * 0.45, 0, area.bottom);
+        floor.addColorStop(0, 'rgba(99, 102, 241, 0.03)');
+        floor.addColorStop(1, 'rgba(30, 41, 59, 0.11)');
+        ctx.fillStyle = floor;
+        ctx.fillRect(area.left, area.top + area.height * 0.45, area.width, area.height * 0.55);
+        ctx.restore();
+    },
+    beforeDatasetDraw(chart, args) {
+        const dataset = chart.data.datasets?.[args.index];
+        if (!dataset) return;
+        const { ctx } = chart;
+        ctx.save();
+        if (args.index === 0) {
+            ctx.shadowColor = 'rgba(99, 102, 241, 0.35)';
+            ctx.shadowBlur = 16;
+            ctx.shadowOffsetY = 6;
+        } else if (!dataset.hidden) {
+            ctx.shadowColor = 'rgba(15, 23, 42, 0.16)';
+            ctx.shadowBlur = 8;
+            ctx.shadowOffsetY = 3;
+        }
+    },
+    afterDatasetDraw(chart) {
+        chart.ctx.restore();
+    }
+};
+
+function makeEvolutionGradient(canvas) {
+    const ctx = canvas.getContext('2d');
+    const h = canvas.clientHeight || 340;
+    const gradient = ctx.createLinearGradient(0, 0, 0, h);
+    gradient.addColorStop(0, 'rgba(99, 102, 241, 0.35)');
+    gradient.addColorStop(0.6, 'rgba(99, 102, 241, 0.11)');
+    gradient.addColorStop(1, 'rgba(99, 102, 241, 0.02)');
+    return gradient;
+}
+
 function openEvolutionModal() {
     const ctx = document.getElementById('evolutionChartModal');
     if (!ctx || evolutionModalChart) return;
     let filtered = currentChartPeriod > 0 ? fullHistory.slice(-currentChartPeriod) : fullHistory;
+    const modalFill = makeEvolutionGradient(ctx);
     evolutionModalChart = new Chart(ctx, {
         type: 'line',
         data: {
             labels: filtered.map(h => h.month_label),
             datasets: [
-                { label: 'Patrimonio Neto', data: filtered.map(h => h.net_worth), borderColor: 'rgb(99, 102, 241)', backgroundColor: 'rgba(99, 102, 241, 0.1)', borderWidth: 3, fill: true, tension: 0.3, hidden: false },
+                { label: 'Patrimonio Neto', data: filtered.map(h => h.net_worth), borderColor: 'rgb(99, 102, 241)', backgroundColor: modalFill, borderWidth: 3, fill: true, tension: 0.3, hidden: false, pointRadius: 2.5, pointHoverRadius: 5 },
                 { label: 'Cash', data: filtered.map(h => h.cash), borderColor: 'rgb(16, 185, 129)', borderWidth: 2, fill: false, tension: 0.3, hidden: true },
                 { label: 'Broker', data: filtered.map(h => h.broker_total), borderColor: 'rgb(59, 130, 246)', borderWidth: 2, fill: false, tension: 0.3, hidden: true },
                 { label: 'Crypto', data: filtered.map(h => h.crypto), borderColor: 'rgb(245, 158, 11)', borderWidth: 2, fill: false, tension: 0.3, hidden: true },
@@ -862,7 +964,8 @@ function openEvolutionModal() {
             ]
         },
         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } },
-            scales: { y: { beginAtZero: true, ticks: { callback: v => (v/1000).toFixed(0) + 'k' } } } }
+            scales: { y: { beginAtZero: true, ticks: { callback: v => (v/1000).toFixed(0) + 'k' } } } },
+        plugins: [evolutionDepthPlugin]
     });
 }
 function closeEvolutionModal() {
@@ -1332,6 +1435,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (evoCtx) {
         // Por defecto mostrar últimos 12 meses
         const initialHistory = fullHistory.slice(-12);
+        const evoFill = makeEvolutionGradient(evoCtx);
         
         evolutionChart = new Chart(evoCtx, {
             type: 'line',
@@ -1342,10 +1446,12 @@ document.addEventListener('DOMContentLoaded', function() {
                         label: 'Patrimonio Neto',
                         data: initialHistory.map(h => h.net_worth),
                         borderColor: 'rgb(99, 102, 241)',
-                        backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                        backgroundColor: evoFill,
                         borderWidth: 3,
                         fill: true,
                         tension: 0.3,
+                        pointRadius: 2.5,
+                        pointHoverRadius: 5,
                         order: 0,
                         hidden: false
                     },
@@ -1426,7 +1532,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         ticks: { callback: v => (v/1000).toFixed(0) + 'k' } 
                     } 
                 }
-            }
+            },
+            plugins: [evolutionDepthPlugin]
         });
     }
 
