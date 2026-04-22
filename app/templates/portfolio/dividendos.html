@@ -3,26 +3,48 @@
 {% block title %}Dividendos - Portfolio - FollowUp{% endblock %}
 
 {% block content %}
-<div class="max-w-[92%] mx-auto">
+<style>
+    .portfolio-card {
+        background: linear-gradient(145deg, #f8fbfc 0%, #f1f7f8 100%);
+        border: 1px solid rgba(63, 95, 115, 0.14);
+        border-radius: 16px;
+        box-shadow: 0 14px 30px rgba(15,23,42,0.1), inset 0 1px 0 rgba(255,255,255,0.85);
+    }
+    .portfolio-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-weight: 700;
+        color: #1f2937;
+    }
+    .portfolio-touch-btn {
+        transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease;
+    }
+    .portfolio-touch-btn:active {
+        transform: scale(0.98);
+        filter: brightness(0.96);
+    }
+</style>
+<div class="max-w-[92%] mx-auto px-4 py-8">
     <!-- Header -->
     <div class="flex justify-between items-center mb-8">
         <div>
-            <h1 class="text-3xl font-bold text-gray-900">💰 Dividendos</h1>
+            <h1 class="portfolio-title text-3xl">💰 Dividendos</h1>
             <p class="text-gray-600 mt-1">Últimos 12 meses (mes a mes) y proyección anualizada desde el inicio</p>
         </div>
-        <a href="{{ url_for('portfolio.dashboard') }}" class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm font-medium text-gray-700">
-            ← Volver al Dashboard
+        <a href="{{ url_for('portfolio.dashboard') }}" class="portfolio-touch-btn inline-flex items-center px-4 py-2 bg-slate-200 border border-slate-300 rounded-xl hover:bg-slate-300 transition text-sm font-semibold text-slate-700">
+            Dashboard
         </a>
     </div>
 
     {% if monthly_dividends or annualized_dividends %}
-    <div class="bg-white rounded-xl shadow-sm p-6 mb-8 border border-gray-200">
+    <div class="portfolio-card p-6 mb-8">
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <!-- Últimos 12 meses -->
             {% if monthly_dividends and monthly_dividends|length > 0 %}
             <div>
                 <h3 class="text-md font-semibold text-gray-800 mb-4">📅 Últimos 12 Meses</h3>
-                <div class="relative" style="height: 300px;">
+                <div class="relative rounded-2xl border border-slate-200/70 bg-gradient-to-b from-white to-slate-50 p-3" style="height: 300px;">
                     <canvas id="monthlyDividendsChart"></canvas>
                 </div>
                 <div class="mt-4 text-xs text-gray-600">
@@ -36,7 +58,7 @@
                 {% if yearly_dividends and yearly_dividends|length > 0 %}
                 <div class="mt-8">
                     <h3 class="text-md font-semibold text-gray-800 mb-4">📊 Año a Año (Desde el Inicio)</h3>
-                    <div class="relative" style="height: 300px;">
+                    <div class="relative rounded-2xl border border-slate-200/70 bg-gradient-to-b from-white to-slate-50 p-3" style="height: 300px;">
                         <canvas id="yearlyDividendsChart"></canvas>
                     </div>
                 </div>
@@ -49,7 +71,7 @@
             <div>
                 <h3 class="text-md font-semibold text-gray-800 mb-4">📊 Métricas Anualizadas</h3>
                 <div class="space-y-4">
-                    <div class="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <div class="p-4 bg-sky-50/90 rounded-lg border border-sky-200">
                         <div class="text-sm text-gray-600 mb-1">YTD (Año Actual)</div>
                         <div class="text-2xl font-bold text-blue-700">
                             {{ annualized_dividends.total_dividends_ytd|decimal_eu(2) }} EUR
@@ -59,7 +81,7 @@
                         </div>
                     </div>
                     
-                    <div class="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                    <div class="p-4 bg-teal-50/85 rounded-lg border border-teal-200">
                         <div class="text-sm text-gray-600 mb-1">Total Histórico</div>
                         <div class="text-2xl font-bold text-purple-700">
                             {{ annualized_dividends.total_dividends_all_time|decimal_eu(2) }} EUR
@@ -69,7 +91,7 @@
                         </div>
                     </div>
                     
-                    <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <div class="p-4 bg-slate-50 rounded-lg border border-slate-200">
                         <div class="text-sm text-gray-600 mb-1">Promedio Anual Histórico</div>
                         <div class="text-2xl font-bold text-gray-700">
                             {{ annualized_dividends.average_annual_dividends|decimal_eu(2) }} EUR
@@ -84,7 +106,7 @@
         </div>
     </div>
     {% else %}
-    <div class="bg-gray-50 rounded-xl p-12 text-center text-gray-600">
+    <div class="portfolio-card p-12 text-center text-gray-600">
         <p class="text-lg">No hay datos de dividendos disponibles.</p>
         <p class="text-sm mt-2">Registra transacciones de dividendos para ver esta información.</p>
     </div>

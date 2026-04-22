@@ -125,6 +125,12 @@ Este documento sirve como referencia viva para mantener consistencia visual y fu
 - Ingresos nuevo/editar (`/incomes/new`, edit)
 - Bancos dashboard (`/banks`)
 - Bancos nuevo/editar (`/banks/new`, edit)
+- Portfolio dashboard (`/portfolio`)
+- Portfolio performance (`/portfolio/performance`)
+- Portfolio dividendos (`/portfolio/dividendos`)
+- Portfolio index comparison (`/portfolio/index-comparison`)
+- Portfolio diversificacion (`/portfolio/diversificacion`)
+- Portfolio currencies (`/portfolio/currencies`)
 
 ## Bitacora de cambios (ir ampliando)
 
@@ -157,3 +163,5 @@ Este documento sirve como referencia viva para mantener consistencia visual y fu
 - Ajuste responsive en `Bancos new/edit`: cabecera `text-2xl -> sm:text-3xl`, separaciones compactas y bloque de acciones en columna en movil (`w-full`) con retorno a fila en `sm+`.
 - Regla responsive unificada en formularios (`Ingresos`, `Gastos`, `Deudas`, `Bancos`): bloque de acciones `flex-col sm:flex-row` y botones `w-full sm:w-auto` para mantener touch targets amplios en movil y layout compacto en desktop.
 - Consistencia de secundarios en formularios: boton `Cancelar` normalizado a paleta `slate` (`bg-slate-200/hover:bg-slate-300/text-slate-700`) en `Gastos` y `Deudas`, alineado con `Ingresos/Bancos`.
+- Rediseño de `Portfolio` (dashboard/performance/dividendos/index-comparison/diversificacion/currencies): cards y contenedores migrados a superficie 3D suave, headers en formato `emoji + titulo`, tablas/chart-surface homogeneizadas y botones primarios/secundarios alineados a paleta teal-slate.
+- Modales y flujos de soporte en portfolio (actualización de precios + fix Yahoo URL) alineados al patrón visual CRUD/modales del sistema con overlay oscuro, panel 3D y acciones táctiles consistentes.

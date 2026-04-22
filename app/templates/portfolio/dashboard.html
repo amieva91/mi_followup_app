@@ -4,14 +4,68 @@
 {% block title %}Portfolio - FollowUp{% endblock %}
 
 {% block content %}
-<div class="max-w-[92%] mx-auto">
+<style>
+    #portfolio-dashboard .portfolio-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-weight: 700;
+        color: #1f2937;
+    }
+    #portfolio-dashboard .bg-white.rounded-xl.shadow-sm {
+        background: linear-gradient(145deg, #f8fbfc 0%, #f1f7f8 100%);
+        border: 1px solid rgba(63, 95, 115, 0.14);
+        box-shadow: 0 14px 30px rgba(15,23,42,0.1), inset 0 1px 0 rgba(255,255,255,0.85);
+    }
+    #portfolio-dashboard .btn-primary,
+    #portfolio-dashboard .btn-secondary {
+        border-radius: 0.75rem;
+        font-weight: 600;
+        transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease;
+    }
+    #portfolio-dashboard .modal-touch-btn {
+        transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease;
+    }
+    #portfolio-dashboard .btn-primary:active,
+    #portfolio-dashboard .btn-secondary:active,
+    #portfolio-dashboard .modal-touch-btn:active {
+        transform: scale(0.98);
+        filter: brightness(0.96);
+    }
+    #portfolio-dashboard .btn-primary {
+        background: #0d9488;
+        color: #fff;
+        box-shadow: 0 10px 20px rgba(13,148,136,0.28);
+    }
+    #portfolio-dashboard .btn-primary:hover {
+        background: #0f766e;
+    }
+    #portfolio-dashboard .btn-secondary {
+        background: #e2e8f0;
+        color: #334155;
+        border: 1px solid #cbd5e1;
+    }
+    #portfolio-dashboard .btn-secondary:hover {
+        background: #cbd5e1;
+    }
+    #portfolio-dashboard .table-row-3d:hover {
+        background-color: #f8fafc;
+    }
+    #portfolio-dashboard .chart-surface {
+        border-radius: 1rem;
+        border: 1px solid rgba(148,163,184,0.24);
+        background: linear-gradient(to bottom, #ffffff, #f8fafc);
+        padding: 0.75rem;
+    }
+</style>
+<div id="portfolio-dashboard" class="max-w-[92%] mx-auto px-4 py-8">
     <!-- Header -->
-    <div class="flex justify-between items-center mb-8">
+    <div class="flex justify-between items-center gap-3 flex-wrap mb-8">
         <div>
-            <h1 class="text-3xl font-bold text-gray-900">📊 Mi Portfolio</h1>
+            <h1 class="portfolio-title text-3xl">📊 Mi Portfolio</h1>
             <p class="text-gray-600 mt-1">Vista general de tus inversiones</p>
         </div>
-        <div class="flex gap-3">
+        <div class="flex gap-3 flex-wrap">
             <!-- Botón Actualizar Precios (Sprint 3 Final) -->
             <button onclick="startPriceUpdate()" class="btn-secondary flex items-center gap-2">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -252,7 +306,7 @@
         <h2 class="text-lg font-semibold text-gray-700">📅 Rentabilidades Año a Año</h2>
         <p class="text-xs text-gray-500">Rentabilidad anual calculada con Modified Dietz (el último año es YTD)</p>
     </div>
-    <div class="bg-white rounded-xl shadow-sm p-6 mb-8 border border-gray-200">
+    <div class="bg-white rounded-xl shadow-sm p-6 mb-8">
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <!-- Lista de rentabilidades -->
             <div x-data="{ showAll: false }">
@@ -311,7 +365,7 @@
             <!-- Gráfico de barras -->
             <div>
                 <h3 class="text-md font-semibold text-gray-800 mb-4">📈 Gráfico de Rentabilidades</h3>
-                <div class="relative" style="height: 300px;">
+                <div class="relative chart-surface" style="height: 300px;">
                     <canvas id="yearlyReturnsChart"></canvas>
                 </div>
             </div>
@@ -515,7 +569,7 @@
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
                     {% for holding in holdings %}
-                    <tr class="hover:bg-gray-50">
+                    <tr class="table-row-3d">
                         <!-- Activo -->
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="flex items-center gap-1">
@@ -627,15 +681,15 @@
     {% endif %}
 </div>
 
-<!-- Modal de actualización de precios (Sprint 3 Final) -->
-<div id="priceUpdateModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-        <div class="mt-3">
+<!-- Modal de actualización de precios -->
+<div id="priceUpdateModal" class="hidden fixed inset-0 z-50 bg-black/55 p-4 overflow-y-auto">
+    <div class="mx-auto mt-16 w-full max-w-md rounded-2xl border border-slate-200 bg-gradient-to-br from-[#f8fbfc] to-[#f1f7f8] p-6 shadow-[0_20px_45px_rgba(15,23,42,0.28)]">
+        <div>
             <div class="flex items-center justify-between mb-4">
                 <h3 id="modalTitle" class="text-lg font-medium text-gray-900">
                     🔄 Actualizando precios...
                 </h3>
-                <div id="spinner" class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                <div id="spinner" class="animate-spin rounded-full h-6 w-6 border-b-2 border-teal-600"></div>
             </div>
             
             <!-- Barra de progreso -->
@@ -644,8 +698,8 @@
                     <span id="progressText">0 / 0</span>
                     <span id="estimatedTime"></span>
                 </div>
-                <div class="w-full bg-gray-200 rounded-full h-2.5">
-                    <div id="progressBar" class="bg-blue-600 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+                <div class="w-full bg-slate-200 rounded-full h-2.5">
+                    <div id="progressBar" class="bg-teal-600 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
                 </div>
             </div>
             
@@ -666,7 +720,7 @@
                     </div>
                 </div>
                 <div id="fixErrorsSection" class="hidden mt-3 pt-3 border-t border-gray-200">
-                    <button type="button" id="fixErrorsBtn" class="px-3 py-2 bg-amber-100 text-amber-800 text-sm font-medium rounded-md hover:bg-amber-200">
+                    <button type="button" id="fixErrorsBtn" class="modal-touch-btn px-3 py-2 bg-amber-100 text-amber-800 text-sm font-medium rounded-lg hover:bg-amber-200">
                         ¿ Arreglar errores ?
                     </button>
                     <p id="fixErrorsHint" class="text-xs text-gray-500 mt-1">Introduce la URL de Yahoo para cada activo en fallo (opcional).</p>
@@ -678,7 +732,7 @@
             
             <!-- Botón cerrar -->
             <div class="flex justify-end">
-                <button id="closeModalBtn" onclick="closeModal()" class="px-4 py-2 bg-gray-200 text-gray-800 text-sm font-medium rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-300">
+                <button id="closeModalBtn" onclick="closeModal()" class="modal-touch-btn px-4 py-2 bg-slate-200 text-slate-800 text-sm font-medium rounded-xl hover:bg-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-300">
                     Cerrar
                 </button>
             </div>
