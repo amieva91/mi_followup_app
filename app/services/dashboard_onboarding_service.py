@@ -45,7 +45,7 @@ class DashboardOnboardingService:
         MilestoneDef("banks", "🏦", "Conectar tu primer banco", "finance", "banks.new"),
         MilestoneDef("incomes", "💵", "Registrar tu primer ingreso", "finance", "incomes.new"),
         MilestoneDef("expenses", "💸", "Registrar tu primer gasto", "finance", "expenses.new"),
-        MilestoneDef("debts", "📋", "Registrar tu primera deuda", "finance", "debts.new", {"next": "debts"}),
+        MilestoneDef("debts", "📋", "Registrar tus deudas", "finance", "debts.new", {"next": "debts"}),
         MilestoneDef("portfolio", "📈", "Registra tu primera Acción (CSV)", "stock", "portfolio.transaction_new"),
         MilestoneDef("crypto", "🪙", "Registra tu primera Crypto", "crypto", "crypto.transaction_new"),
         MilestoneDef("metales", "🥇", "Registra tu primer Metal", "metales", "metales.transaction_new"),
