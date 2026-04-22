@@ -291,14 +291,14 @@
                                 <div class="flex justify-center space-x-2" x-data="{ showDeleteModal: false, showEditScopeModal: false, showTerminateModal: false, expenseId: {{ expense.id }}, isRecurring: {{ 'true' if expense.is_recurring and expense.recurrence_group_id and not expense.debt_plan_id else 'false' }}, isDebtInstallment: {{ 'true' if expense.debt_plan_id else 'false' }}, debtPlanId: {{ expense.debt_plan_id or 0 }} }">
                                     {% if expense.debt_plan_id %}
                                     <a href="{{ url_for('debts.edit', id=expense.debt_plan_id, next='expenses') }}" 
-                                       class="text-blue-600 hover:text-blue-800" title="Editar plan de deuda">
+                                       class="text-teal-700 hover:text-teal-800" title="Editar plan de deuda">
                                         ✏️
                                     </a>
                                     {% else %}
                                     {% if expense.is_recurring and expense.recurrence_group_id %}
                                     <button type="button"
                                             @click="showEditScopeModal = true"
-                                            class="text-blue-600 hover:text-blue-800 p-0 border-0 bg-transparent cursor-pointer"
+                                            class="text-teal-700 hover:text-teal-800 p-0 border-0 bg-transparent cursor-pointer"
                                             title="Editar">
                                         ✏️
                                     </button>
@@ -307,7 +307,7 @@
                                     {% include 'includes/recurrence_edit_scope_modal.html' %}
                                     {% else %}
                                     <a href="{{ url_for('expenses.edit', id=expense.id) }}"
-                                       class="text-blue-600 hover:text-blue-800" title="Editar">
+                                       class="text-teal-700 hover:text-teal-800" title="Editar">
                                         ✏️
                                     </a>
                                     {% endif %}

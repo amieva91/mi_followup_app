@@ -156,11 +156,11 @@
                     <td class="px-6 py-4 text-sm text-gray-700">{{ plan.start_date.strftime('%d/%m/%Y') }}</td>
                     <td class="px-6 py-4 text-sm text-gray-700">{{ plan.category.icon }} {{ plan.category.name }}</td>
                     <td class="px-6 py-4 text-right space-x-2">
-                        <a href="{{ url_for('debts.edit', id=plan.id) }}" class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                        <a href="{{ url_for('debts.edit', id=plan.id) }}" class="text-teal-700 hover:text-teal-800 text-sm font-medium">
                             ✏️ Editar
                         </a>
                         <span class="text-gray-300">|</span>
-                        <a href="{{ url_for('debts.restructure', id=plan.id) }}" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
+                        <a href="{{ url_for('debts.restructure', id=plan.id) }}" class="text-sky-700 hover:text-sky-800 text-sm font-medium">
                             🔄 Reestructurar
                         </a>
                         <span class="text-gray-300">|</span>
@@ -263,7 +263,7 @@
                     <td class="px-6 py-4 text-sm text-gray-700">{{ plan.start_date.strftime('%d/%m/%Y') }}</td>
                     <td class="px-6 py-4 text-sm text-gray-700">{{ plan.category.icon }} {{ plan.category.name }}</td>
                     <td class="px-6 py-4 text-right space-x-2">
-                        <a href="{{ url_for('debts.edit', id=plan.id) }}" class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                        <a href="{{ url_for('debts.edit', id=plan.id) }}" class="text-teal-700 hover:text-teal-800 text-sm font-medium">
                             ✏️ Editar
                         </a>
                         <span class="text-gray-300">|</span>

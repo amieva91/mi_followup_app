@@ -276,7 +276,7 @@
                                     {% if income.is_recurring and income.recurrence_group_id %}
                                     <button type="button"
                                             @click="showEditScopeModal = true"
-                                            class="text-blue-600 hover:text-blue-800 p-0 border-0 bg-transparent cursor-pointer"
+                                            class="text-teal-700 hover:text-teal-800 p-0 border-0 bg-transparent cursor-pointer"
                                             title="Editar">
                                         ✏️
                                     </button>
@@ -285,7 +285,7 @@
                                     {% include 'includes/recurrence_edit_scope_modal.html' %}
                                     {% else %}
                                     <a href="{{ url_for('incomes.edit', id=income.id) }}"
-                                       class="text-blue-600 hover:text-blue-800" title="Editar">
+                                       class="text-teal-700 hover:text-teal-800" title="Editar">
                                         ✏️
                                     </a>
                                     {% endif %}

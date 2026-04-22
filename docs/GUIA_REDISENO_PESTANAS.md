@@ -135,3 +135,4 @@ Este documento sirve como referencia viva para mantener consistencia visual y fu
 - Se unifica tipografia/jerarquia de etiquetas KPI de gastos e ingresos con el estilo base de deudas.
 - Se redisenan modales de ingresos, gastos y deudas con plantilla visual unificada (gradiente, borde suave, CTA principal y secundario consistentes).
 - Ajuste fino cross-modulo: headers y botones primarios/acciones de paginacion en ingresos, gastos y deudas alineados al mismo patron visual (teal primario + slate secundario + radios/sombras consistentes).
+- Estandar de acciones en tablas: `Editar` en `teal`, acciones secundarias de flujo (ej. `Reestructurar`) en `sky`, advertencias en `amber` y destructivas en `rose/red`.
