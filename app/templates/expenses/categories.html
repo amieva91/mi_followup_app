@@ -3,19 +3,37 @@
 {% block title %}Categorías de Gastos{% endblock %}
 
 {% block content %}
+<style>
+    .expense-card {
+        background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(248,250,252,0.92));
+        border: 1px solid rgba(148,163,184,0.2);
+        border-radius: 16px;
+        box-shadow: 0 14px 30px rgba(15,23,42,0.1), inset 0 1px 0 rgba(255,255,255,0.85);
+    }
+    .expense-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-weight: 700;
+        color: #1f2937;
+    }
+    .expense-row {
+        background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(248,250,252,0.92));
+    }
+</style>
 <div class="max-w-[92%] mx-auto px-4 py-8">
     <!-- Header -->
     <div class="flex justify-between items-center mb-6">
-        <h1 class="text-3xl font-bold text-gray-800">💸 Categorías de Gastos</h1>
+        <h1 class="expense-title text-3xl">💸 Categorías de Gastos</h1>
         <a href="{{ url_for('expenses.new_category') }}" 
-           class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition">
+           class="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 transition shadow-[0_10px_20px_rgba(79,70,229,0.3)]">
             + Nueva Categoría
         </a>
     </div>
 
     {% if categories %}
         <!-- Tabla de Categorías -->
-        <div class="bg-white rounded-lg shadow-md overflow-hidden">
+        <div class="expense-card overflow-hidden">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
@@ -38,7 +56,7 @@
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
                     {% for category in categories %}
-                        <tr class="hover:bg-gray-50 {% if category.parent %}bg-gray-50{% endif %}">
+                        <tr class="expense-row hover:bg-gray-50 {% if category.parent %}bg-gray-50{% endif %}">
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="flex items-center space-x-3 {% if category.parent %}pl-8{% endif %}">
                                     {% if category.parent %}
@@ -103,7 +121,7 @@
         </div>
     {% else %}
         <!-- Empty State -->
-        <div class="bg-blue-50 border border-blue-200 rounded-lg p-8 text-center">
+        <div class="expense-card bg-blue-50/80 border-blue-200 p-8 text-center">
             <p class="text-xl text-blue-800 mb-4">📂 No tienes categorías de gastos aún</p>
             <p class="text-gray-600 mb-6">
                 Crea tu primera categoría para empezar a organizar tus gastos

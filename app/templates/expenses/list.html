@@ -30,6 +30,42 @@
     .expense-table-row {
         background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(248,250,252,0.92));
     }
+    .expense-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        padding: 0.32rem 0.62rem;
+        border-radius: 9999px;
+        border: 1px solid rgba(239,68,68,0.2);
+        background: rgba(255, 255, 255, 0.9);
+        cursor: pointer;
+        transition: all 0.18s ease;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+    }
+    .expense-toggle:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 14px rgba(15, 23, 42, 0.14);
+    }
+    .expense-toggle-check {
+        width: 0.95rem;
+        height: 0.95rem;
+        border-radius: 9999px;
+        border: 1px solid #fecaca;
+        background: #fee2e2;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.65rem;
+        font-weight: 700;
+        color: transparent;
+        transition: all 0.2s ease;
+    }
+    .expense-toggle input:checked + .expense-toggle-check {
+        background: linear-gradient(180deg, #ef4444, #dc2626);
+        border-color: #dc2626;
+        color: #fff;
+        box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
+    }
 </style>
 <div class="max-w-[92%] mx-auto px-4 py-8">
     <!-- Header -->
@@ -76,6 +112,7 @@
             <p class="text-2xl font-bold" title="Último mes vs media">
                 {% if summary_metrics.tendencia == '↑' %}📈{% elif summary_metrics.tendencia == '↓' %}📉{% else %}➡️{% endif %}
             </p>
+            <p class="text-xs text-gray-500">Último mes vs media 12m (umbral ±5%)</p>
         </div>
     </div>
     {% endif %}
@@ -123,6 +160,7 @@
         <div class="h-64 rounded-2xl border border-slate-200/70 bg-gradient-to-b from-white to-slate-50 p-3 shadow-inner">
             <canvas id="monthlyExpensesChart"></canvas>
         </div>
+        <div id="expensesChartLegend" class="flex flex-wrap items-center gap-2.5 mt-3 pt-3 border-t"></div>
     </div>
     {% endif %}
 
@@ -510,7 +548,7 @@
     if (!ctx) return;
     const labels = monthlyTotals.map(m => m.month_label);
     const data = monthlyTotals.map(m => m.total);
-    new Chart(ctx, {
+    const expensesChart = new Chart(ctx, {
         type: 'bar',
         data: {
             labels: labels,
@@ -546,6 +584,23 @@
             }
         }
     });
+    const legendRoot = document.getElementById('expensesChartLegend');
+    if (!legendRoot) return;
+    legendRoot.innerHTML = `
+        <span class="text-xs text-gray-500">Mostrar:</span>
+        <label class="expense-toggle">
+            <input id="toggleExpensesSeries" type="checkbox" class="sr-only" checked>
+            <span class="expense-toggle-check">✓</span>
+            <span class="text-xs font-semibold text-red-700">Gastos (€)</span>
+        </label>
+    `;
+    const toggle = document.getElementById('toggleExpensesSeries');
+    if (toggle) {
+        toggle.addEventListener('change', function() {
+            expensesChart.setDatasetVisibility(0, this.checked);
+            expensesChart.update();
+        });
+    }
 })();
 </script>
 {% endif %}

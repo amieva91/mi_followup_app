@@ -1,0 +1,92 @@
+# Guia de rediseno de pestanas (FollowUp)
+
+Este documento sirve como referencia viva para mantener consistencia visual y funcional mientras se redisenan las pestanas del producto.
+
+## Objetivo
+
+- Unificar la experiencia visual (look & feel moderno, limpio y consistente).
+- Mantener jerarquia clara de informacion (KPI -> grafica -> tabla/acciones).
+- Evitar regresiones de usabilidad (interacciones, filtros, modales, formularios).
+- Documentar decisiones para que se apliquen en nuevas pantanas.
+
+## Principios de diseno acordados
+
+- Estilo general `3D suave`: superficies elevadas, sombras sutiles, gradientes ligeros.
+- Titulos homogeneos: formato `emoji + titulo`, alineados a la izquierda.
+- Contenedores en tarjetas reutilizables:
+  - fondo degradado suave,
+  - borde sutil,
+  - radio generoso,
+  - sombra exterior + brillo interior.
+- KPIs con borde lateral de color y lectura rapida.
+- Formularios mas realistas:
+  - ancho acotado (`max-w-5xl` en formularios largos),
+  - columnas equilibradas,
+  - grupos visuales por bloques,
+  - botones de accion prominentes.
+- Modales integrados al sistema visual (no aspecto browser por defecto).
+
+## Reglas de graficas y filtros
+
+- Quitar leyendas antiguas por defecto de Chart.js cuando exista filtro custom.
+- Mostrar filtros/toggles custom **debajo de la grafica** (nunca encima).
+- Tooltips claros con formato monetario local (`es-ES`).
+- Escalas legibles y coherentes con el dato representado.
+
+## Reglas para tablas y listados
+
+- Filas con fondo suave y hover visible.
+- Cabeceras compactas, legibles y consistentes entre pestañas.
+- Empty state amigable y accionable (CTA directo).
+- Acciones con iconos y prioridad visual clara.
+
+## Reglas para navegacion
+
+- Orden de desplegables segun prioridad de flujo:
+  - primero `Ingresos`,
+  - despues `Gastos`.
+- Mantener nomenclatura y accesos consistentes entre modulos.
+
+## Reglas para modales de integracion/reconciliacion
+
+- Modal con estilo del sistema (borde + gradiente + sombra profunda).
+- Titulo explicito y contexto del impacto.
+- CTA principal destacado y boton secundario neutro.
+- Cierre por click fuera + boton cancelar.
+
+## Significado del KPI "Tendencia" en gastos
+
+- Se compara el ultimo mes contra la media de 12 meses.
+- Umbral:
+  - `↑` si el ultimo mes > media * 1.05,
+  - `↓` si el ultimo mes < media * 0.95,
+  - `≈` en rango intermedio.
+- En gastos, `↑` implica que el ultimo mes fue superior a la media del periodo.
+
+## Checklist rapido antes de dar por cerrada una pestana
+
+- [ ] Titulo en formato `emoji + titulo`.
+- [ ] KPIs con estilo unificado.
+- [ ] Grafica con filtros custom debajo.
+- [ ] Leyenda antigua eliminada si aplica.
+- [ ] Tabla/lista con estilo unificado y hover.
+- [ ] Empty state con CTA.
+- [ ] Formularios compactos y proporcionados.
+- [ ] Modales integrados visualmente.
+- [ ] Revisado en desktop y en resolucion intermedia.
+
+## Pestanas ya tocadas (iteracion actual)
+
+- Deudas dashboard (`/debts`)
+- Deudas nuevo/editar (`/debts/new`, `/debts/<id>/edit`)
+- Gastos listado (`/expenses`)
+- Gastos categorias (`/expenses/categories`)
+- Gastos categoria nueva/editar (`/expenses/categories/new`, edit)
+- Gastos nuevo/editar (`/expenses/new`, edit)
+
+## Bitacora de cambios (ir ampliando)
+
+- Se fija criterio de filtros de graficas debajo del lienzo.
+- Se unifica estilo 3D en cards principales de gastos y deudas.
+- Se adapta modal "Integrar" al sistema visual.
+- Se documenta semantica de KPI "Tendencia" para evitar ambiguedad.
