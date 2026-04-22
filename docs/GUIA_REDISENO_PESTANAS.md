@@ -153,3 +153,4 @@ Este documento sirve como referencia viva para mantener consistencia visual y fu
 - Formularios de `Bancos` (`new/edit`) alineados al patron de formularios de modulos (`card + sections + CTA tactiles`) manteniendo dropdown visual para color con muestras.
 - Ajuste de `Bancos` (`new/edit`): cabecera compacta y titulo centrado visualmente sobre la tarjeta para reforzar eje unico de lectura en desktop.
 - Modal `Eliminar banco` estandarizado al patron CRUD de `Gastos/Ingresos` (overlay, panel 3D, CTA destructiva principal y cancelar secundario full-width).
+- Ajuste de coherencia cross-modulo en formularios: se elimina `← Volver` en `Bancos new/edit` y la cabecera pasa al mismo formato simple `emoji + titulo` usado en `Gastos/Ingresos`.
