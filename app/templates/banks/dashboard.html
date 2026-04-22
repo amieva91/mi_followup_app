@@ -180,9 +180,9 @@
          data-intro-key="{{ banks_intro_key }}"
          data-year="{{ selected_year }}"
          data-month="{{ selected_month }}"
-         class="fixed inset-0 z-[9999] bg-black/50 backdrop-blur-[2px] flex items-center justify-center p-4 transition-opacity duration-200 opacity-0 pointer-events-none">
+         class="fixed inset-0 z-[9999] bg-black/50 backdrop-blur-[2px] flex items-center justify-center p-4 opacity-0 pointer-events-none">
         <div id="banks-intro-modal-panel"
-             class="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-gray-100 p-6 sm:p-8 transition-all duration-200 ease-out opacity-0 scale-95 translate-y-2">
+             class="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-gray-100 p-6 sm:p-8">
             <h2 class="text-xl sm:text-2xl font-bold text-gray-900">🏦 Bienvenido a Saldos Bancarios</h2>
             <p class="text-sm sm:text-base text-gray-700 mt-3 leading-relaxed">
                 Esta pestaña te ayuda a reflejar tu <span class="font-semibold">dinero disponible real</span>:
@@ -330,18 +330,104 @@ function navigateYear(inp) {
 
     const csrfTokenMeta = document.querySelector('meta[name="csrf-token"]');
     const csrfToken = csrfTokenMeta ? csrfTokenMeta.getAttribute('content') : '';
+    const supportsReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let introIsOpen = false;
+    let introIsAnimating = false;
+
+    const setModalVisible = (visible) => {
+        if (visible) {
+            introModal.classList.remove('pointer-events-none');
+            introModal.classList.add('opacity-100');
+            introModal.classList.remove('opacity-0');
+            return;
+        }
+        introModal.classList.add('pointer-events-none');
+        introModal.classList.remove('opacity-100');
+        introModal.classList.add('opacity-0');
+    };
+
+    const computePanelDeltaFromIcon = () => {
+        const iconRect = openIntroBtn.getBoundingClientRect();
+        const panelRect = introPanel.getBoundingClientRect();
+        const iconCenterX = iconRect.left + iconRect.width / 2;
+        const iconCenterY = iconRect.top + iconRect.height / 2;
+        const panelCenterX = panelRect.left + panelRect.width / 2;
+        const panelCenterY = panelRect.top + panelRect.height / 2;
+        return {
+            dx: iconCenterX - panelCenterX,
+            dy: iconCenterY - panelCenterY,
+        };
+    };
 
     const openIntro = () => {
-        introModal.classList.remove('opacity-0', 'pointer-events-none');
-        introModal.classList.add('opacity-100');
-        introPanel.classList.remove('opacity-0', 'scale-95', 'translate-y-2');
-        introPanel.classList.add('opacity-100', 'scale-100', 'translate-y-0');
+        if (introIsOpen || introIsAnimating) return;
+        introIsAnimating = true;
+        setModalVisible(true);
+
+        if (supportsReducedMotion) {
+            introPanel.style.transform = 'translate(0, 0) scale(1)';
+            introPanel.style.opacity = '1';
+            introIsOpen = true;
+            introIsAnimating = false;
+            return;
+        }
+
+        const { dx, dy } = computePanelDeltaFromIcon();
+        const overlayAnimation = introModal.animate(
+            [{ opacity: 0 }, { opacity: 1 }],
+            { duration: 220, easing: 'ease-out', fill: 'forwards' }
+        );
+        const panelAnimation = introPanel.animate(
+            [
+                { transform: `translate(${dx}px, ${dy}px) scale(0.18)`, opacity: 0 },
+                { transform: 'translate(0px, 0px) scale(1)', opacity: 1 },
+            ],
+            { duration: 320, easing: 'cubic-bezier(0.16, 1, 0.3, 1)', fill: 'forwards' }
+        );
+        panelAnimation.onfinish = () => {
+            overlayAnimation.cancel();
+            panelAnimation.cancel();
+            introPanel.style.transform = 'translate(0, 0) scale(1)';
+            introPanel.style.opacity = '1';
+            introIsOpen = true;
+            introIsAnimating = false;
+        };
     };
+
     const closeIntro = () => {
-        introModal.classList.add('opacity-0', 'pointer-events-none');
-        introModal.classList.remove('opacity-100');
-        introPanel.classList.add('opacity-0', 'scale-95', 'translate-y-2');
-        introPanel.classList.remove('opacity-100', 'scale-100', 'translate-y-0');
+        if (!introIsOpen || introIsAnimating) return;
+        introIsAnimating = true;
+
+        if (supportsReducedMotion) {
+            setModalVisible(false);
+            introPanel.style.transform = 'translate(0, 0) scale(1)';
+            introPanel.style.opacity = '1';
+            introIsOpen = false;
+            introIsAnimating = false;
+            return;
+        }
+
+        const { dx, dy } = computePanelDeltaFromIcon();
+        const overlayAnimation = introModal.animate(
+            [{ opacity: 1 }, { opacity: 0 }],
+            { duration: 180, easing: 'ease-in', fill: 'forwards' }
+        );
+        const panelAnimation = introPanel.animate(
+            [
+                { transform: 'translate(0px, 0px) scale(1)', opacity: 1 },
+                { transform: `translate(${dx}px, ${dy}px) scale(0.18)`, opacity: 0 },
+            ],
+            { duration: 240, easing: 'cubic-bezier(0.7, 0, 0.84, 0)', fill: 'forwards' }
+        );
+        panelAnimation.onfinish = () => {
+            overlayAnimation.cancel();
+            panelAnimation.cancel();
+            setModalVisible(false);
+            introPanel.style.transform = 'translate(0, 0) scale(1)';
+            introPanel.style.opacity = '1';
+            introIsOpen = false;
+            introIsAnimating = false;
+        };
     };
 
     if (introModal.dataset.autoOpen === '1') {
