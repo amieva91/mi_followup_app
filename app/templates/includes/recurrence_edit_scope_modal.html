@@ -1,5 +1,14 @@
 {# Requiere en el padre x-data: showEditScopeModal (bool)
    Variables: kind 'income'|'expense', item_id (int) #}
+<style>
+    .modal-touch-btn {
+        transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease;
+    }
+    .modal-touch-btn:active {
+        transform: scale(0.97);
+        filter: brightness(0.96);
+    }
+</style>
 <div x-show="showEditScopeModal"
      x-cloak
      class="fixed inset-0 z-[55] flex items-center justify-center bg-black/55 p-4"
@@ -13,33 +22,33 @@
         <div class="space-y-2">
             {% if kind == 'expense' %}
             <a href="{{ url_for('expenses.edit', id=item_id, scope='series') }}"
-               class="block w-full text-left px-4 py-3 rounded-xl border border-slate-300 hover:border-teal-400 hover:bg-teal-50/70 transition text-sm">
+               class="modal-touch-btn block w-full text-left px-4 py-3 rounded-xl border border-slate-300 hover:border-teal-400 hover:bg-teal-50/70 transition text-sm">
                 <span class="font-semibold text-gray-900">Serie completa</span>
                 <span class="block text-gray-600 text-xs mt-0.5">Mismos valores en todas las cuotas</span>
             </a>
             <a href="{{ url_for('expenses.edit', id=item_id, scope='future') }}"
-               class="block w-full text-left px-4 py-3 rounded-xl border border-slate-300 hover:border-amber-400 hover:bg-amber-50/80 transition text-sm">
+               class="modal-touch-btn block w-full text-left px-4 py-3 rounded-xl border border-slate-300 hover:border-amber-400 hover:bg-amber-50/80 transition text-sm">
                 <span class="font-semibold text-gray-900">Solo entradas futuras</span>
                 <span class="block text-gray-600 text-xs mt-0.5">Desde esta cuota en adelante</span>
             </a>
             <a href="{{ url_for('expenses.edit', id=item_id, scope='entry') }}"
-               class="block w-full text-left px-4 py-3 rounded-xl border border-slate-300 hover:border-emerald-400 hover:bg-emerald-50/80 transition text-sm">
+               class="modal-touch-btn block w-full text-left px-4 py-3 rounded-xl border border-slate-300 hover:border-emerald-400 hover:bg-emerald-50/80 transition text-sm">
                 <span class="font-semibold text-gray-900">Solo esta entrada</span>
                 <span class="block text-gray-600 text-xs mt-0.5">Solo este mes</span>
             </a>
             {% else %}
             <a href="{{ url_for('incomes.edit', id=item_id, scope='series') }}"
-               class="block w-full text-left px-4 py-3 rounded-xl border border-slate-300 hover:border-teal-400 hover:bg-teal-50/70 transition text-sm">
+               class="modal-touch-btn block w-full text-left px-4 py-3 rounded-xl border border-slate-300 hover:border-teal-400 hover:bg-teal-50/70 transition text-sm">
                 <span class="font-semibold text-gray-900">Serie completa</span>
                 <span class="block text-gray-600 text-xs mt-0.5">Mismos valores en todas las cuotas</span>
             </a>
             <a href="{{ url_for('incomes.edit', id=item_id, scope='future') }}"
-               class="block w-full text-left px-4 py-3 rounded-xl border border-slate-300 hover:border-amber-400 hover:bg-amber-50/80 transition text-sm">
+               class="modal-touch-btn block w-full text-left px-4 py-3 rounded-xl border border-slate-300 hover:border-amber-400 hover:bg-amber-50/80 transition text-sm">
                 <span class="font-semibold text-gray-900">Solo entradas futuras</span>
                 <span class="block text-gray-600 text-xs mt-0.5">Desde esta cuota en adelante</span>
             </a>
             <a href="{{ url_for('incomes.edit', id=item_id, scope='entry') }}"
-               class="block w-full text-left px-4 py-3 rounded-xl border border-slate-300 hover:border-emerald-400 hover:bg-emerald-50/80 transition text-sm">
+               class="modal-touch-btn block w-full text-left px-4 py-3 rounded-xl border border-slate-300 hover:border-emerald-400 hover:bg-emerald-50/80 transition text-sm">
                 <span class="font-semibold text-gray-900">Solo esta entrada</span>
                 <span class="block text-gray-600 text-xs mt-0.5">Solo este mes</span>
             </a>
@@ -50,7 +59,7 @@
         </p>
         <button type="button"
                 @click="showEditScopeModal = false"
-                class="w-full mt-3 px-3 py-2.5 text-sm rounded-full bg-slate-700 text-white hover:bg-slate-800 transition">
+                class="modal-touch-btn w-full mt-3 px-3 py-2.5 text-sm rounded-full bg-slate-700 text-white hover:bg-slate-800 transition">
             Cancelar
         </button>
     </div>

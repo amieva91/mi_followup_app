@@ -143,3 +143,4 @@ Este documento sirve como referencia viva para mantener consistencia visual y fu
 - Ajuste movil extra (<=480px): priorizar iconos en acciones de tabla (ocultar texto en acciones largas con tooltip) para preservar espacio util.
 - En dispositivos tactiles (`pointer: coarse`), ampliar el area clicable de acciones de tabla para mejorar precision de toque.
 - Añadir estado `:active` visible en acciones tactiles (ligera escala/contraste) para confirmar interacción al pulsar.
+- Extender el estado tactil `:active` a botones de modales (confirmar/cancelar/crear) para una respuesta uniforme en mobile.

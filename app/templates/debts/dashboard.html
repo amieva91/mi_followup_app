@@ -78,6 +78,13 @@
         background: rgba(100, 116, 139, 0.16);
         border-radius: 0.5rem;
     }
+    .modal-touch-btn {
+        transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease;
+    }
+    .modal-touch-btn:active {
+        transform: scale(0.97);
+        filter: brightness(0.96);
+    }
     .table-action-emoji {
         line-height: 1;
         display: inline-flex;
@@ -238,10 +245,10 @@
                                 <form method="POST" action="{{ url_for('debts.pay_off', id=plan.id) }}" class="space-y-2">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <div class="flex gap-2">
-                                        <button type="submit" class="flex-1 rounded-full bg-teal-600 hover:bg-teal-700 text-white px-4 py-2.5 transition font-medium">
+                                        <button type="submit" class="modal-touch-btn flex-1 rounded-full bg-teal-600 hover:bg-teal-700 text-white px-4 py-2.5 transition font-medium">
                                             Sí, marcar como pagado
                                         </button>
-                                        <button type="button" @click="showPayOffModal = false" class="rounded-full bg-slate-700 hover:bg-slate-800 text-white px-4 py-2.5 transition font-medium">
+                                        <button type="button" @click="showPayOffModal = false" class="modal-touch-btn rounded-full bg-slate-700 hover:bg-slate-800 text-white px-4 py-2.5 transition font-medium">
                                             Cancelar
                                         </button>
                                     </div>
@@ -260,10 +267,10 @@
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <input type="hidden" name="delete_future_only" value="true">
                                     <div class="flex gap-2">
-                                        <button type="submit" class="flex-1 rounded-full border border-amber-300 bg-amber-100 hover:bg-amber-200 text-amber-900 px-4 py-2.5 transition font-medium">
+                                        <button type="submit" class="modal-touch-btn flex-1 rounded-full border border-amber-300 bg-amber-100 hover:bg-amber-200 text-amber-900 px-4 py-2.5 transition font-medium">
                                             Sí, cancelar futuras
                                         </button>
-                                        <button type="button" @click="showCancelFutureModal = false" class="rounded-full bg-slate-700 hover:bg-slate-800 text-white px-4 py-2.5 transition font-medium">
+                                        <button type="button" @click="showCancelFutureModal = false" class="modal-touch-btn rounded-full bg-slate-700 hover:bg-slate-800 text-white px-4 py-2.5 transition font-medium">
                                             Cancelar
                                         </button>
                                     </div>

@@ -86,6 +86,13 @@
         transform: translateY(0) scale(0.96);
         background: rgba(100, 116, 139, 0.22);
     }
+    .modal-touch-btn {
+        transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease;
+    }
+    .modal-touch-btn:active {
+        transform: scale(0.97);
+        filter: brightness(0.96);
+    }
     .table-actions-col {
         width: 11rem;
         min-width: 11rem;
@@ -362,7 +369,7 @@
                                             <div class="flex flex-wrap justify-end gap-3">
                                                 <button type="button"
                                                         @click="showTerminateModal = false"
-                                                        class="px-4 py-2.5 rounded-full text-sm font-medium bg-slate-700 text-white hover:bg-slate-800 transition shrink-0">
+                                                        class="modal-touch-btn px-4 py-2.5 rounded-full text-sm font-medium bg-slate-700 text-white hover:bg-slate-800 transition shrink-0">
                                                     Cancelar
                                                 </button>
                                                 <form method="POST"
@@ -370,7 +377,7 @@
                                                       class="inline shrink-0">
                                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                                     <button type="submit"
-                                                            class="px-5 py-2.5 rounded-full text-sm font-medium border border-amber-300 bg-amber-100 text-amber-900 hover:bg-amber-200 transition">
+                                                            class="modal-touch-btn px-5 py-2.5 rounded-full text-sm font-medium border border-amber-300 bg-amber-100 text-amber-900 hover:bg-amber-200 transition">
                                                         Terminar
                                                     </button>
                                                 </form>
@@ -396,7 +403,7 @@
                                                         <form method="POST" action="{{ url_for('incomes.delete', id=income.id) }}">
                                                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                                             <input type="hidden" name="delete_series" value="false">
-                                                            <button type="submit" class="w-full border border-amber-300 bg-amber-100 hover:bg-amber-200 text-amber-900 px-4 py-3 rounded-xl transition font-medium">
+                                                            <button type="submit" class="modal-touch-btn w-full border border-amber-300 bg-amber-100 hover:bg-amber-200 text-amber-900 px-4 py-3 rounded-xl transition font-medium">
                                                                 📌 Eliminar solo esta entrada
                                                             </button>
                                                         </form>
@@ -404,7 +411,7 @@
                                                         <form method="POST" action="{{ url_for('incomes.delete', id=income.id) }}">
                                                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                                             <input type="hidden" name="delete_series" value="true">
-                                                            <button type="submit" class="w-full border border-rose-300 bg-rose-100 hover:bg-rose-200 text-rose-900 px-4 py-3 rounded-xl transition font-medium">
+                                                            <button type="submit" class="modal-touch-btn w-full border border-rose-300 bg-rose-100 hover:bg-rose-200 text-rose-900 px-4 py-3 rounded-xl transition font-medium">
                                                                 🔥 Eliminar toda la serie
                                                             </button>
                                                         </form>
@@ -417,14 +424,14 @@
                                                     <p class="text-gray-700 mb-4">¿Estás seguro de que deseas eliminar este ingreso?</p>
                                                     <form method="POST" action="{{ url_for('incomes.delete', id=income.id) }}">
                                                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                                        <button type="submit" class="w-full border border-rose-300 bg-rose-100 hover:bg-rose-200 text-rose-900 px-4 py-3 rounded-xl transition font-medium">
+                                                        <button type="submit" class="modal-touch-btn w-full border border-rose-300 bg-rose-100 hover:bg-rose-200 text-rose-900 px-4 py-3 rounded-xl transition font-medium">
                                                             Sí, eliminar
                                                         </button>
                                                     </form>
                                                 </div>
                                             </template>
                                             
-                                            <button @click="showDeleteModal = false" class="w-full mt-3 bg-slate-700 hover:bg-slate-800 text-white px-4 py-2.5 rounded-full transition font-medium">
+                                            <button @click="showDeleteModal = false" class="modal-touch-btn w-full mt-3 bg-slate-700 hover:bg-slate-800 text-white px-4 py-2.5 rounded-full transition font-medium">
                                                 Cancelar
                                             </button>
                                         </div>
