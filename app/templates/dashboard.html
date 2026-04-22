@@ -225,13 +225,14 @@
                     <h3 class="text-sm font-bold text-gray-800 uppercase tracking-wide mb-3">Finanzas</h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                         {% for step in finance_steps %}
-                        <a href="{{ step.url }}"
-                           class="flex items-center justify-between gap-3 p-4 rounded-xl border border-indigo-100 bg-indigo-50 hover:bg-indigo-100/80 transition">
+                        <a href="{% if step.locked %}javascript:void(0){% else %}{{ step.url }}{% endif %}"
+                           title="{{ step.lock_reason if step.locked else '' }}"
+                           class="flex items-center justify-between gap-3 p-4 rounded-xl border transition {% if step.locked %}border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed opacity-80{% else %}border-indigo-100 bg-indigo-50 hover:bg-indigo-100/80{% endif %}">
                             <div class="flex items-center gap-3 min-w-0">
                                 <span class="text-2xl shrink-0">{{ step.icon|default('📌') }}</span>
                                 <p class="text-sm font-semibold text-gray-800 truncate">{{ step.label }}</p>
                             </div>
-                            <span class="text-indigo-600 font-bold">→</span>
+                            <span class="font-bold {% if step.locked %}text-gray-400{% else %}text-indigo-600{% endif %}">{% if step.locked %}🔒{% else %}→{% endif %}</span>
                         </a>
                         {% endfor %}
                     </div>

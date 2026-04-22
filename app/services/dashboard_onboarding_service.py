@@ -207,11 +207,13 @@ class DashboardOnboardingService:
                 },
             )
         # Paso guiado adicional:
-        # Si ya existe al menos un banco pero no hay cash registrado, sugerir registrar efectivo.
+        # Paso guiado de saldo bancario:
+        # - sin banco: mostrar bloqueado con candado
+        # - con banco y sin saldo: mostrar activo
         if "banks" in applicable_keys:
             has_any_bank = DashboardOnboardingService._exists_any(Bank, user.id)
             has_bank_cash = DashboardOnboardingService._has_bank_cash_data(user.id)
-            if has_any_bank and not has_bank_cash:
+            if not has_bank_cash:
                 pending_payload.insert(
                     0,
                     {
@@ -219,8 +221,10 @@ class DashboardOnboardingService:
                         "icon": "💶",
                         "label": "Registrar saldo en tu banco",
                         "module_key": "finance",
-                        "endpoint": "banks.dashboard",
+                        "endpoint": "banks.dashboard" if has_any_bank else "banks.new",
                         "endpoint_kwargs": {},
+                        "locked": not has_any_bank,
+                        "lock_reason": "Necesitas registrar un banco primero" if not has_any_bank else "",
                     },
                 )
 

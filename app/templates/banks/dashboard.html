@@ -3,7 +3,7 @@
 {% block title %}Bancos - FollowUp{% endblock %}
 
 {% block content %}
-<div class="max-w-[92%] mx-auto px-4 py-8">
+<div class="max-w-[92%] mx-auto px-4 py-8" x-data="{ openDelete:false, deleteAction:'', deleteName:'' }">
     <!-- Header -->
     <div class="flex justify-between items-center mb-6">
         <h1 class="text-3xl font-bold text-gray-800">🏦 Mis Bancos</h1>
@@ -142,10 +142,11 @@
                     </td>
                     <td class="px-6 py-4 text-right">
                         <a href="{{ url_for('banks.edit', id=bank.id) }}" class="text-blue-600 hover:text-blue-800 mr-3">Editar</a>
-                        <form method="POST" action="{{ url_for('banks.delete', id=bank.id) }}" class="inline" onsubmit="return confirm('¿Eliminar este banco y todos sus saldos?')">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <button type="submit" class="text-red-600 hover:text-red-800">Eliminar</button>
-                        </form>
+                        <button type="button"
+                                class="text-red-600 hover:text-red-800 cursor-pointer"
+                                @click="openDelete = true; deleteAction = {{ url_for('banks.delete', id=bank.id)|tojson }}; deleteName = {{ bank.name|tojson }}">
+                            Eliminar
+                        </button>
                     </td>
                 </tr>
                 {% endfor %}
@@ -163,6 +164,36 @@
         </a>
     </div>
     {% endif %}
+
+    <!-- Modal confirmación eliminar banco -->
+    <template x-teleport="body">
+        <div x-show="openDelete" x-transition
+             class="fixed inset-0 z-[9999] bg-black/40 backdrop-blur-[2px] flex items-center justify-center p-4"
+             @click.self="openDelete = false"
+             @keydown.escape.window="if(openDelete) openDelete = false"
+             style="display:none;">
+            <div class="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-gray-100 p-6" @click.stop>
+                <h3 class="text-lg font-bold text-gray-900">Eliminar banco</h3>
+                <p class="text-sm text-gray-600 mt-2">
+                    ¿Eliminar <span class="font-semibold text-gray-800" x-text="deleteName"></span> y todos sus saldos?
+                </p>
+                <div class="mt-6 flex justify-end gap-2">
+                    <button type="button"
+                            class="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 cursor-pointer"
+                            @click="openDelete = false">
+                        Cancelar
+                    </button>
+                    <form method="POST" :action="deleteAction">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit"
+                                class="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 cursor-pointer">
+                            Eliminar
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </template>
 </div>
 
 {% if cash_evolution %}
