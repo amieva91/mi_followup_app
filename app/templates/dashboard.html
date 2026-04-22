@@ -143,6 +143,27 @@
         color: #fff;
         box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
     }
+    .card-surface-3d {
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 252, 0.92));
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        border-radius: 14px;
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.9),
+            0 10px 22px rgba(15, 23, 42, 0.12);
+    }
+    .card-row-3d {
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 252, 0.9));
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 12px;
+        box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+    }
+    .metric-tile-3d {
+        border-radius: 14px;
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.85),
+            0 10px 24px rgba(15, 23, 42, 0.1);
+    }
 </style>
     {% set onboarding = onboarding or {} %}
     {% set onboarding_initial = onboarding.show_initial_onboarding|default(false) %}
@@ -521,7 +542,7 @@
                 <h3 class="card-title text-sm">📊 Ingresos vs Gastos (12 meses)</h3>
                 <button @click="expanded = true; document.body.style.overflow = 'hidden'; $nextTick(() => openIncomeExpenseModal())" class="expand-btn px-2 py-1 text-indigo-600 hover:bg-indigo-50 rounded cursor-pointer" title="Ampliar gráfico">⊞ Ampliar</button>
             </div>
-            <div class="h-[340px] flex-1 min-h-0"><canvas id="incomeExpenseChart"></canvas></div>
+            <div class="h-[340px] flex-1 min-h-0 card-surface-3d p-3"><canvas id="incomeExpenseChart"></canvas></div>
             <!-- Modal emergente - clic en fondo para cerrar -->
             <template x-teleport="body">
             <div x-show="expanded" x-transition x-cloak class="expand-modal"
@@ -556,11 +577,11 @@
                 <!-- Izquierda: resumen + planes próximos a expirar -->
                 <div class="min-w-0">
                     <div class="grid grid-cols-2 gap-4">
-                        <div class="bg-red-50 rounded-xl p-4 border border-red-100">
+                        <div class="metric-tile-3d bg-red-50 rounded-xl p-4 border border-red-100">
                             <p class="text-xs text-gray-600">Total pendiente</p>
                             <p class="text-xl font-bold text-red-700">-{{ "%.2f"|format(summary.debt_details.total_debt) }} €</p>
                         </div>
-                        <div class="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                        <div class="metric-tile-3d bg-slate-50 rounded-xl p-4 border border-slate-100">
                             <p class="text-xs text-gray-600">Cuota mensual</p>
                             <p class="text-xl font-bold text-gray-900">{{ "%.2f"|format(summary.debt_details.total_monthly) }} €</p>
                         </div>
@@ -573,7 +594,7 @@
                         </div>
                         <div class="space-y-2">
                             {% for plan in summary.debt_details.expiring_plans %}
-                            <div class="flex items-center justify-between text-sm">
+                            <div class="card-row-3d px-3 py-2 flex items-center justify-between text-sm">
                                 <div class="min-w-0">
                                     <p class="text-gray-700 truncate">{{ plan.name }}</p>
                                     {% if plan.end_date %}<p class="text-xs text-gray-400">última cuota: {{ plan.end_date }}</p>{% endif %}
@@ -607,7 +628,7 @@
                         </div>
                         {% endif %}
                     </div>
-                    <div class="h-[220px] bg-white rounded-xl border border-gray-100 p-3">
+                    <div class="h-[220px] card-surface-3d p-3">
                         <canvas id="debtMiniChart"></canvas>
                     </div>
                 </div>
@@ -624,7 +645,7 @@
             {% set health_component_count = summary.health_score.components | length %}
             <div class="grid {% if health_component_count <= 2 %}grid-cols-1 md:grid-cols-2{% elif health_component_count <= 4 %}grid-cols-1 md:grid-cols-2 lg:grid-cols-4{% else %}grid-cols-2 md:grid-cols-4 lg:grid-cols-7{% endif %} gap-4">
                 {% for key, comp in summary.health_score.components.items() %}
-                <div class="bg-white rounded-lg p-4 shadow-sm cursor-pointer hover:shadow-md transition"
+                <div class="card-surface-3d bg-white rounded-lg p-4 shadow-sm cursor-pointer hover:shadow-md transition"
                      role="button" tabindex="0"
                      @click="openHealthModal('{{ key }}')"
                      @keydown.enter.prevent="openHealthModal('{{ key }}')"
@@ -684,14 +705,14 @@
             <p class="text-sm text-gray-500 mb-4">Ahorro mensual: <span class="font-semibold text-green-600">+{{ "%.2f"|format(summary.projections.avg_monthly_savings) }} EUR</span></p>
             <div class="grid grid-cols-3 gap-3 mb-4">
                 {% for key, proj in summary.projections.projections.items() %}
-                <div class="border-l-4 border-indigo-400 pl-3">
+                <div class="metric-tile-3d border-l-4 border-indigo-400 pl-3 py-2 pr-2">
                     <p class="text-xs text-gray-500">{{ proj.years }} {% if proj.years == 1 %}año{% else %}años{% endif %}</p>
                     <p class="text-lg font-bold text-gray-800">{{ "%.0f"|format(proj.projected_value) }}€</p>
                     <p class="text-xs {% if proj.growth >= 0 %}text-green-600{% else %}text-red-600{% endif %}">{{ proj.growth_pct }}%</p>
                 </div>
                 {% endfor %}
             </div>
-            <div class="h-48 mt-2 flex-1 min-h-0">
+            <div class="h-48 mt-2 flex-1 min-h-0 card-surface-3d p-2">
                 <canvas id="projectionChart"></canvas>
             </div>
         </div>
@@ -706,7 +727,7 @@
             </div>
             <div class="space-y-3">
                 {% for tx in summary.recent_transactions %}
-                <div class="flex items-center justify-between">
+                <div class="card-row-3d px-3 py-2 flex items-center justify-between">
                     <div class="flex items-center gap-2">
                         <span>{{ tx.icon }}</span>
                         <div>
@@ -744,7 +765,7 @@
                     </a>
                     <div class="space-y-3">
                         {% for cat in expense_cats %}
-                        <div class="flex items-center justify-between">
+                        <div class="card-row-3d px-3 py-2 flex items-center justify-between">
                             <div class="flex items-center gap-2 min-w-0">
                                 <span class="shrink-0">{{ cat.icon|default('💰') }}</span>
                                 <span class="text-sm text-gray-700 truncate">{{ cat.name }}</span>
@@ -763,7 +784,7 @@
                     </a>
                     <div class="space-y-3">
                         {% for cat in income_cats %}
-                        <div class="flex items-center justify-between">
+                        <div class="card-row-3d px-3 py-2 flex items-center justify-between">
                             <div class="flex items-center gap-2 min-w-0">
                                 <span class="shrink-0">{{ cat.icon|default('💵') }}</span>
                                 <span class="text-sm text-gray-700 truncate">{{ cat.category|default(cat.name) }}</span>
