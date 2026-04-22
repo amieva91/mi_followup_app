@@ -154,3 +154,4 @@ Este documento sirve como referencia viva para mantener consistencia visual y fu
 - Ajuste de `Bancos` (`new/edit`): cabecera compacta y titulo centrado visualmente sobre la tarjeta para reforzar eje unico de lectura en desktop.
 - Modal `Eliminar banco` estandarizado al patron CRUD de `Gastos/Ingresos` (overlay, panel 3D, CTA destructiva principal y cancelar secundario full-width).
 - Ajuste de coherencia cross-modulo en formularios: se elimina `← Volver` en `Bancos new/edit` y la cabecera pasa al mismo formato simple `emoji + titulo` usado en `Gastos/Ingresos`.
+- Ajuste responsive en `Bancos new/edit`: cabecera `text-2xl -> sm:text-3xl`, separaciones compactas y bloque de acciones en columna en movil (`w-full`) con retorno a fila en `sm+`.
