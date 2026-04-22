@@ -47,6 +47,30 @@ Este documento sirve como referencia viva para mantener consistencia visual y fu
   - despues `Gastos`.
 - Mantener nomenclatura y accesos consistentes entre modulos.
 
+## Paleta visual (decision actual)
+
+- Variante elegida para navegacion superior y pantallas de acceso: **B**.
+- Base navbar/top bars:
+  - gradiente principal: `#2f4858 -> #3f5f73`,
+  - hover de enlaces: tonos claros `teal/slate` (sin saturacion fuerte),
+  - badge/acento: `emerald` suave.
+- Principio de color:
+  - priorizar tonos frios desaturados (teal-slate) para reducir fatiga visual,
+  - reservar colores intensos para estados semanticos (error, warning, exito),
+  - evitar fondos excesivamente electricos en barras y cabeceras.
+
+## Reglas de aplicacion de color
+
+- Barra superior global: siempre paleta B.
+- Portada + login/registro + recuperacion de clave: coherentes con la misma familia cromatica.
+- Cabecera principal del dashboard (Patrimonio Neto Total): usar gradiente de familia B.
+- Botones primarios de formularios en pestañas redisenadas:
+  - preferencia `teal-600/700`,
+  - focus ring en `teal-500`.
+- Graficas/toggles:
+  - filtros bajo grafica,
+  - color activo coherente con la paleta de cada modulo (evitar mezcla aleatoria de acentos).
+
 ## Reglas para modales de integracion/reconciliacion
 
 - Modal con estilo del sistema (borde + gradiente + sombra profunda).
@@ -90,3 +114,4 @@ Este documento sirve como referencia viva para mantener consistencia visual y fu
 - Se unifica estilo 3D en cards principales de gastos y deudas.
 - Se adapta modal "Integrar" al sistema visual.
 - Se documenta semantica de KPI "Tendencia" para evitar ambiguedad.
+- Se fija oficialmente la variante de color B y su regla de aplicacion transversal.

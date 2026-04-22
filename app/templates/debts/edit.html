@@ -46,7 +46,7 @@
                 <div class="space-y-4">
                     <div class="debt-form-section p-4">
                         {{ form.name.label(class="block text-gray-700 font-semibold mb-2") }}
-                        {{ form.name(class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500") }}
+                        {{ form.name(class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500") }}
                         {% if form.name.errors %}<div class="text-red-600 text-sm mt-1">{% for e in form.name.errors %}{{ e }}{% endfor %}</div>{% endif %}
                     </div>
 
@@ -54,12 +54,12 @@
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 {{ form.total_amount.label(class="block text-gray-700 font-semibold mb-2") }}
-                                {{ form.total_amount(class="w-full px-4 py-2 border rounded-lg", **{'x-model': 'total', '@input': 'total = parseFloat($event.target.value) || 0'}) }}
+                                {{ form.total_amount(class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500", **{'x-model': 'total', '@input': 'total = parseFloat($event.target.value) || 0'}) }}
                                 {% if form.total_amount.errors %}<div class="text-red-600 text-sm mt-1">{% for e in form.total_amount.errors %}{{ e }}{% endfor %}</div>{% endif %}
                             </div>
                             <div>
                                 {{ form.months.label(class="block text-gray-700 font-semibold mb-2") }}
-                                {{ form.months(class="w-full px-4 py-2 border rounded-lg", **{'x-model': 'months', '@input': 'months = parseInt($event.target.value) || 0'}) }}
+                                {{ form.months(class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500", **{'x-model': 'months', '@input': 'months = parseInt($event.target.value) || 0'}) }}
                                 {% if form.months.errors %}<div class="text-red-600 text-sm mt-1">{% for e in form.months.errors %}{{ e }}{% endfor %}</div>{% endif %}
                             </div>
                         </div>
@@ -74,7 +74,7 @@
                     <div class="debt-form-section p-4">
                         {{ form.category_id.label(class="block text-gray-700 font-semibold mb-2") }}
                         <div class="flex items-center gap-2">
-                            {{ form.category_id(id='category_id', class="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500") }}
+                            {{ form.category_id(id='category_id', class="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500") }}
                             {% set category_select_id = 'category_id' %}
                             {% include 'components/category_modal_expense.html' %}
                         </div>
@@ -85,7 +85,7 @@
                 <div class="space-y-4">
                     <div class="debt-form-section p-4">
                         {{ form.start_date.label(class="block text-gray-700 font-semibold mb-2") }}
-                        {{ form.start_date(class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500") }}
+                        {{ form.start_date(class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500") }}
                         {% if form.start_date.errors %}<div class="text-red-600 text-sm mt-1">{% for e in form.start_date.errors %}{{ e }}{% endfor %}</div>{% endif %}
                     </div>
 
@@ -97,7 +97,7 @@
             </div>
 
             <div class="flex space-x-3">
-                <button type="button" onclick="var f=document.getElementById('debt-edit-form');f.requestSubmit?f.requestSubmit():f.submit()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl transition font-semibold shadow-[0_10px_18px_rgba(37,99,235,0.28)]">
+                <button type="button" onclick="var f=document.getElementById('debt-edit-form');f.requestSubmit?f.requestSubmit():f.submit()" class="flex-1 bg-teal-600 hover:bg-teal-700 text-white px-6 py-3 rounded-xl transition font-semibold shadow-[0_10px_18px_rgba(13,148,136,0.28)]">
                     Guardar cambios
                 </button>
                 <a href="{{ url_for('expenses.list') if next_page == 'expenses' else url_for('debts.dashboard') }}" class="flex-1 text-center bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-3 rounded-xl transition font-semibold">Cancelar</a>
