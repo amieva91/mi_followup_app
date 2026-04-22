@@ -180,8 +180,9 @@
          data-intro-key="{{ banks_intro_key }}"
          data-year="{{ selected_year }}"
          data-month="{{ selected_month }}"
-         class="fixed inset-0 z-[9999] bg-black/50 backdrop-blur-[2px] items-center justify-center p-4 hidden">
-        <div class="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-gray-100 p-6 sm:p-8">
+         class="fixed inset-0 z-[9999] bg-black/50 backdrop-blur-[2px] flex items-center justify-center p-4 transition-opacity duration-200 opacity-0 pointer-events-none">
+        <div id="banks-intro-modal-panel"
+             class="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-gray-100 p-6 sm:p-8 transition-all duration-200 ease-out opacity-0 scale-95 translate-y-2">
             <h2 class="text-xl sm:text-2xl font-bold text-gray-900">🏦 Bienvenido a Saldos Bancarios</h2>
             <p class="text-sm sm:text-base text-gray-700 mt-3 leading-relaxed">
                 Esta pestaña te ayuda a reflejar tu <span class="font-semibold">dinero disponible real</span>:
@@ -322,24 +323,29 @@ function navigateYear(inp) {
 
 (function () {
     const introModal = document.getElementById('banks-intro-modal');
+    const introPanel = document.getElementById('banks-intro-modal-panel');
     const openIntroBtn = document.getElementById('open-banks-intro');
     const understoodBtn = document.getElementById('banks-intro-understood');
-    if (!introModal || !openIntroBtn || !understoodBtn) return;
+    if (!introModal || !introPanel || !openIntroBtn || !understoodBtn) return;
 
     const csrfTokenMeta = document.querySelector('meta[name="csrf-token"]');
     const csrfToken = csrfTokenMeta ? csrfTokenMeta.getAttribute('content') : '';
 
     const openIntro = () => {
-        introModal.classList.remove('hidden');
-        introModal.classList.add('flex');
+        introModal.classList.remove('opacity-0', 'pointer-events-none');
+        introModal.classList.add('opacity-100');
+        introPanel.classList.remove('opacity-0', 'scale-95', 'translate-y-2');
+        introPanel.classList.add('opacity-100', 'scale-100', 'translate-y-0');
     };
     const closeIntro = () => {
-        introModal.classList.add('hidden');
-        introModal.classList.remove('flex');
+        introModal.classList.add('opacity-0', 'pointer-events-none');
+        introModal.classList.remove('opacity-100');
+        introPanel.classList.add('opacity-0', 'scale-95', 'translate-y-2');
+        introPanel.classList.remove('opacity-100', 'scale-100', 'translate-y-0');
     };
 
     if (introModal.dataset.autoOpen === '1') {
-        openIntro();
+        requestAnimationFrame(openIntro);
     }
 
     openIntroBtn.addEventListener('click', openIntro);
@@ -369,7 +375,7 @@ function navigateYear(inp) {
     });
 
     document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape' && !introModal.classList.contains('hidden')) {
+        if (event.key === 'Escape' && !introModal.classList.contains('pointer-events-none')) {
             closeIntro();
         }
     });
