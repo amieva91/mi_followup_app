@@ -92,6 +92,13 @@
             min-width: 8.5rem;
         }
     }
+    @media (max-width: 640px) {
+        .responsive-data-table th,
+        .responsive-data-table td {
+            padding-left: 0.75rem;
+            padding-right: 0.75rem;
+        }
+    }
 </style>
 <div class="max-w-[92%] mx-auto px-4 py-8">
     <!-- Header -->
@@ -217,7 +224,7 @@
     {% if expenses.items %}
         <!-- Tabla de Gastos -->
         <div class="expense-card overflow-x-auto overflow-y-hidden">
-            <table class="min-w-full divide-y divide-gray-200">
+            <table class="responsive-data-table min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
