@@ -168,11 +168,11 @@
             </div>
 
             <div class="flex flex-col sm:flex-row gap-3 mt-5">
-                <button type="button" onclick="var f=document.getElementById('income-form');f.requestSubmit?f.requestSubmit():f.submit()" class="form-touch-btn flex-1 rounded-xl bg-teal-600 hover:bg-teal-700 text-white px-6 py-3 transition font-semibold shadow-[0_10px_20px_rgba(13,148,136,0.3)]">
+                <button type="button" onclick="var f=document.getElementById('income-form');f.requestSubmit?f.requestSubmit():f.submit()" class="form-touch-btn w-full sm:w-auto rounded-xl bg-teal-600 hover:bg-teal-700 text-white px-6 py-3 transition font-semibold shadow-[0_10px_20px_rgba(13,148,136,0.3)]">
                     Guardar Ingreso
                 </button>
                 <a href="{{ url_for('incomes.list') }}" 
-                   class="form-touch-btn flex-1 text-center rounded-xl bg-slate-700 hover:bg-slate-800 text-white px-6 py-3 transition font-semibold">
+                   class="form-touch-btn w-full sm:w-auto text-center rounded-xl bg-slate-700 hover:bg-slate-800 text-white px-6 py-3 transition font-semibold">
                     Cancelar
                 </a>
             </div>

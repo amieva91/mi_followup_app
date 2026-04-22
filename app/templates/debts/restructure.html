@@ -71,12 +71,12 @@
                 <p class="text-blue-800">Meses a pagar: <strong x-text="previewMonths"></strong></p>
             </div>
 
-            <div class="flex space-x-3">
+            <div class="flex flex-col sm:flex-row gap-3">
                 <button type="button" onclick="var f=document.getElementById('restructure-form');f.requestSubmit?f.requestSubmit():f.submit()"
-                        class="form-touch-btn flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition font-semibold">
+                        class="form-touch-btn w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition font-semibold">
                     Reestructurar plan
                 </button>
-                <a href="{{ url_for('debts.dashboard') }}" class="form-touch-btn flex-1 text-center bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-3 rounded-lg transition font-semibold">Cancelar</a>
+                <a href="{{ url_for('debts.dashboard') }}" class="form-touch-btn w-full sm:w-auto text-center bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-3 rounded-lg transition font-semibold">Cancelar</a>
             </div>
         </form>
     </div>
