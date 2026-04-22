@@ -141,3 +141,4 @@ Este documento sirve como referencia viva para mantener consistencia visual y fu
 - Regla responsive para tablas: en anchos reducidos, mantener `overflow-x-auto` en contenedor y reducir ancho minimo de `Acciones` para conservar legibilidad sin romper layout.
 - Ajuste movil recomendado (<=640px): compactar padding horizontal de celdas (`th/td`) en tablas de listados para mejorar densidad y lectura.
 - Ajuste movil extra (<=480px): priorizar iconos en acciones de tabla (ocultar texto en acciones largas con tooltip) para preservar espacio util.
+- En dispositivos tactiles (`pointer: coarse`), ampliar el area clicable de acciones de tabla para mejorar precision de toque.
