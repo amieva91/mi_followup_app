@@ -565,7 +565,8 @@
                 <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
                 <h3 class="text-lg font-bold text-gray-800">{{ summary.health_score.emoji }} Salud Financiera</h3>
             </div>
-            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+            {% set health_component_count = summary.health_score.components | length %}
+            <div class="grid {% if health_component_count <= 2 %}grid-cols-1 md:grid-cols-2{% elif health_component_count <= 4 %}grid-cols-1 md:grid-cols-2 lg:grid-cols-4{% else %}grid-cols-2 md:grid-cols-4 lg:grid-cols-7{% endif %} gap-4">
                 {% for key, comp in summary.health_score.components.items() %}
                 <div class="bg-white rounded-lg p-4 shadow-sm cursor-pointer hover:shadow-md transition"
                      role="button" tabindex="0"
@@ -1052,12 +1053,14 @@ function dashboardConfig() {
 
             const common = {
                 animation: 150,
-                handle: '.card-drag-handle',
                 ghostClass: 'sortable-ghost',
                 chosenClass: 'sortable-chosen',
                 emptyInsertThreshold: 120,
                 invertSwap: true,
                 swapThreshold: 0.65,
+                // Permite arrastrar desde el fondo de la tarjeta, pero respeta controles interactivos.
+                filter: 'a,button,input,textarea,select,option,label,[role="button"],[contenteditable="true"],canvas,.no-drag',
+                preventOnFilter: false,
                 onEnd: () => this.saveWidgetOrder()
             };
 

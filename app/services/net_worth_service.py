@@ -1432,6 +1432,13 @@ def get_financial_health_score(user_id: int) -> Dict[str, Any]:
     savings = get_savings_rate(user_id, months=12)
     breakdown = get_net_worth_breakdown(user_id)
     history = get_net_worth_history(user_id, months=12)
+    enabled_modules = {
+        "finance": _user_has_module(user_id, "finance"),
+        "stock": _user_has_module(user_id, "stock"),
+        "crypto": _user_has_module(user_id, "crypto"),
+        "metales": _user_has_module(user_id, "metales"),
+        "real_estate": _user_has_module(user_id, "real_estate"),
+    }
     
     # Datos mensuales para análisis
     income_monthly = get_income_monthly_totals_with_adjustment(user_id, months=12)
@@ -1470,13 +1477,17 @@ def get_financial_health_score(user_id: int) -> Dict[str, Any]:
     }
     
     # 2. CONSISTENCIA DEL AHORRO (0-15 puntos) - baja variabilidad mensual
-    if len(monthly_savings_list) > 1 and np.mean(monthly_savings_list) != 0:
+    active_months = sum(
+        1 for inc, exp in zip(income_monthly, expense_monthly)
+        if (inc.get("total", 0) > 0 or exp.get("total", 0) > 0)
+    )
+    if active_months > 1 and np.mean(monthly_savings_list) != 0:
         savings_std = np.std(monthly_savings_list)
         savings_mean = abs(np.mean(monthly_savings_list))
         consistency = 1 - min(1, savings_std / savings_mean) if savings_mean > 0 else 0
         consistency_pct = consistency * 100
     else:
-        consistency_pct = 50
+        consistency_pct = 0
     
     if consistency_pct >= 80:
         scores['consistency'] = 15
@@ -1645,9 +1656,37 @@ def get_financial_health_score(user_id: int) -> Dict[str, Any]:
         'description': '% invertido vs cash'
     }
     
+    # ============ APLICABILIDAD POR MÓDULOS / DATOS ============
+    has_income_data = savings["total_income"] > 0
+    has_expense_data = savings["total_expense"] > 0
+    has_finance_flow_data = has_income_data or has_expense_data
+    has_investment_modules = any(enabled_modules.get(k) for k in ("stock", "crypto", "metales"))
+    has_real_estate_module = bool(enabled_modules.get("real_estate"))
+    has_non_cash_assets = (breakdown["portfolio"] + breakdown["crypto"] + breakdown["metales"] + breakdown.get("real_estate", 0)) > 0
+    has_debt_data = breakdown["debt"] > 0
+    has_history_signal = len(history) >= 2 and any(
+        h.get("net_worth", 0) != history[0].get("net_worth", 0) for h in history[1:]
+    )
+
+    applicability = {
+        "savings_rate": enabled_modules["finance"] and has_income_data,
+        "consistency": enabled_modules["finance"] and active_months >= 2 and has_income_data,
+        "diversification": has_non_cash_assets and (has_investment_modules or has_real_estate_module),
+        "debt_ratio": enabled_modules["finance"] and has_debt_data,
+        "emergency_fund": enabled_modules["finance"] and has_expense_data,
+        "growth": has_history_signal,
+        "investment_ratio": has_investment_modules,
+    }
+
+    for k, d in details.items():
+        d["applicable"] = bool(applicability.get(k, True))
+
+    applicable_scores = {k: v for k, v in scores.items() if applicability.get(k, True)}
+    applicable_details = {k: v for k, v in details.items() if applicability.get(k, True)}
+
     # ============ CALCULAR SCORE TOTAL ============
-    total_score = sum(scores.values())
-    max_score = sum(d['max'] for d in details.values())
+    total_score = sum(applicable_scores.values())
+    max_score = sum(d['max'] for d in applicable_details.values())
     
     # Normalizar a 100
     normalized_score = round((total_score / max_score) * 100) if max_score > 0 else 0
@@ -1675,11 +1714,26 @@ def get_financial_health_score(user_id: int) -> Dict[str, Any]:
         emoji = '🔴'
     
     # ============ GENERAR CONSEJOS ============
-    tips = _generate_health_tips(details, savings_rate, debt_ratio, months_runway, 
-                                  investment_ratio, growth_pct, positive_months)
+    tips = _generate_health_tips(
+        applicable_details,
+        savings_rate,
+        debt_ratio,
+        months_runway,
+        investment_ratio,
+        growth_pct,
+        positive_months,
+        active_months=active_months,
+    )
     
     # ============ ALERTAS ============
-    alerts = _generate_health_alerts(user_id, monthly_savings_list, debt_ratio, months_runway)
+    alerts = _generate_health_alerts(
+        user_id,
+        monthly_savings_list,
+        debt_ratio,
+        months_runway,
+        has_expense_data=has_expense_data,
+        active_months=active_months,
+    )
     
     # ============ HISTÓRICO DEL SCORE ============
     score_history = _calculate_score_history(user_id)
@@ -1691,7 +1745,8 @@ def get_financial_health_score(user_id: int) -> Dict[str, Any]:
         'level': level,
         'color': color,
         'emoji': emoji,
-        'components': details,
+        'components': applicable_details,
+        'hidden_components': [k for k, ok in applicability.items() if not ok],
         'tips': tips,
         'alerts': alerts,
         'score_history': score_history,
@@ -1702,24 +1757,27 @@ def get_financial_health_score(user_id: int) -> Dict[str, Any]:
             'investment_ratio': investment_ratio,
             'growth_pct': growth_pct,
             'assets_count': assets_with_value,
-            'positive_months': positive_months
+            'positive_months': positive_months,
+            'active_months': active_months,
+            'enabled_modules': enabled_modules,
         }
     }
 
 
-def _generate_health_tips(details, savings_rate, debt_ratio, months_runway, 
-                          investment_ratio, growth_pct, positive_months):
+def _generate_health_tips(details, savings_rate, debt_ratio, months_runway,
+                          investment_ratio, growth_pct, positive_months, *, active_months: int = 0):
     """Genera consejos priorizados basados en las métricas."""
     tips = []
     
     # Priorizar por impacto
-    if months_runway < 3:
+    if details.get("emergency_fund") and months_runway < 3:
+        pending = max(0.0, details["emergency_fund"]["target_amount"] - details["emergency_fund"]["current_amount"])
         tips.append({
             'priority': 'high',
             'icon': '🚨',
             'title': 'Fondo de emergencia bajo',
             'text': f'Tienes solo {months_runway:.1f} meses de gastos cubiertos. Objetivo: 6 meses.',
-            'action': f'Ahorra {details["emergency_fund"]["target_amount"] - details["emergency_fund"]["current_amount"]:.0f}€ más'
+            'action': f'Ahorra +{pending:.0f}€ más'
         })
     
     if debt_ratio > 30:
@@ -1731,7 +1789,7 @@ def _generate_health_tips(details, savings_rate, debt_ratio, months_runway,
             'action': 'Prioriza reducir deuda antes de invertir más'
         })
     
-    if savings_rate < 10:
+    if details.get("savings_rate") and savings_rate < 10:
         tips.append({
             'priority': 'high',
             'icon': '💰',
@@ -1740,7 +1798,7 @@ def _generate_health_tips(details, savings_rate, debt_ratio, months_runway,
             'action': 'Revisa gastos no esenciales y automatiza el ahorro'
         })
     
-    if investment_ratio < 20 and months_runway >= 3:
+    if details.get("investment_ratio") and investment_ratio < 20 and months_runway >= 3:
         tips.append({
             'priority': 'medium',
             'icon': '📈',
@@ -1749,7 +1807,7 @@ def _generate_health_tips(details, savings_rate, debt_ratio, months_runway,
             'action': 'Considera invertir parte del exceso de liquidez'
         })
     
-    if positive_months < 8:
+    if details.get("consistency") and active_months >= 2 and positive_months < 8:
         tips.append({
             'priority': 'medium',
             'icon': '📉',
@@ -1758,7 +1816,7 @@ def _generate_health_tips(details, savings_rate, debt_ratio, months_runway,
             'action': 'Establece un presupuesto mensual fijo'
         })
     
-    if details['diversification']['score'] < 10:
+    if details.get('diversification') and details['diversification']['score'] < 10:
         tips.append({
             'priority': 'low',
             'icon': '🎯',
@@ -1767,7 +1825,7 @@ def _generate_health_tips(details, savings_rate, debt_ratio, months_runway,
             'action': 'Diversifica entre diferentes tipos de activos'
         })
     
-    if growth_pct < 5 and savings_rate > 0:
+    if details.get("growth") and growth_pct < 5 and savings_rate > 0:
         tips.append({
             'priority': 'low',
             'icon': '🐢',
@@ -1779,12 +1837,12 @@ def _generate_health_tips(details, savings_rate, debt_ratio, months_runway,
     return tips[:5]
 
 
-def _generate_health_alerts(user_id, monthly_savings_list, debt_ratio, months_runway):
+def _generate_health_alerts(user_id, monthly_savings_list, debt_ratio, months_runway, *, has_expense_data: bool, active_months: int):
     """Genera alertas importantes."""
     alerts = []
     
     # Alerta si los últimos 2 meses fueron negativos
-    if len(monthly_savings_list) >= 2:
+    if active_months >= 2 and len(monthly_savings_list) >= 2:
         if monthly_savings_list[-1] < 0 and monthly_savings_list[-2] < 0:
             alerts.append({
                 'type': 'warning',
@@ -1793,7 +1851,7 @@ def _generate_health_alerts(user_id, monthly_savings_list, debt_ratio, months_ru
             })
     
     # Alerta de fondo de emergencia crítico
-    if months_runway < 1:
+    if has_expense_data and months_runway < 1:
         alerts.append({
             'type': 'danger',
             'icon': '🚨',
