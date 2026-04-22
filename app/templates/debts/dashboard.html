@@ -5,8 +5,8 @@
 {% block content %}
 <style>
     .debt-card {
-        background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(248,250,252,0.92));
-        border: 1px solid rgba(148,163,184,0.2);
+        background: linear-gradient(145deg, #f8fbfc 0%, #f1f7f8 100%);
+        border: 1px solid rgba(63, 95, 115, 0.14);
         border-radius: 16px;
         box-shadow: 0 14px 30px rgba(15,23,42,0.1), inset 0 1px 0 rgba(255,255,255,0.85);
     }
@@ -24,7 +24,7 @@
             0 10px 24px rgba(15,23,42,0.08);
     }
     .debt-table-row {
-        background: linear-gradient(180deg, rgba(255,255,255,0.94), rgba(248,250,252,0.9));
+        background: linear-gradient(145deg, rgba(248,251,252,0.96), rgba(241,247,248,0.9));
     }
     .debt-toggle {
         display: inline-flex;
@@ -123,7 +123,7 @@
     <div class="debt-card bg-white rounded-lg shadow p-6 mb-6">
         <h2 class="debt-title text-xl mb-4">📊 Pagos por mes (histórico y próximos 12 meses)</h2>
         <p class="text-sm text-gray-600 mb-4">La línea roja marca tu límite máximo mensual. Pasa el cursor sobre una fila para resaltar su plan en el gráfico.</p>
-        <div class="rounded-2xl border border-slate-200/70 bg-gradient-to-b from-white to-slate-50 p-3 shadow-inner" style="position: relative; height: 400px;">
+        <div class="rounded-2xl border border-slate-300/70 bg-gradient-to-b from-[#f8fbfc] to-[#f1f7f8] p-3 shadow-inner" style="position: relative; height: 400px;">
             <canvas id="debtChart"></canvas>
         </div>
         <div id="debtChartLegend" class="flex flex-wrap items-center gap-2.5 mt-3 pt-3 border-t"></div>

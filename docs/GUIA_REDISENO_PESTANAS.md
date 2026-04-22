@@ -64,6 +64,10 @@ Este documento sirve como referencia viva para mantener consistencia visual y fu
 - Barra superior global: siempre paleta B.
 - Portada + login/registro + recuperacion de clave: coherentes con la misma familia cromatica.
 - Cabecera principal del dashboard (Patrimonio Neto Total): usar gradiente de familia B.
+- Tarjetas y recuadros (fondo estandar recomendado):
+  - `background: linear-gradient(145deg, #f8fbfc 0%, #f1f7f8 100%)`,
+  - `border: 1px solid rgba(63, 95, 115, 0.14)`,
+  - version para bloques internos: `background: linear-gradient(145deg, rgba(248,251,252,0.96), rgba(241,247,248,0.9))` y `border: 1px solid rgba(63, 95, 115, 0.13)`.
 - Botones primarios de formularios en pestañas redisenadas:
   - preferencia `teal-600/700`,
   - focus ring en `teal-500`.
@@ -115,3 +119,4 @@ Este documento sirve como referencia viva para mantener consistencia visual y fu
 - Se adapta modal "Integrar" al sistema visual.
 - Se documenta semantica de KPI "Tendencia" para evitar ambiguedad.
 - Se fija oficialmente la variante de color B y su regla de aplicacion transversal.
+- Se estandariza el fondo de tarjetas/recuadros para gastos y deudas con gradiente suave teal-slate.
