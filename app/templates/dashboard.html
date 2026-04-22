@@ -724,12 +724,14 @@
 
         <!-- Recomendaciones (unificadas; solo si hay datos) -->
         {% set recs = summary.recommendations | default([]) %}
-        {% if recs and recs|length > 0 %}
+        {% set recommendation_data_ready = (summary.health_score.summary.active_months | default(0)) >= 2 %}
+        {% if (recs and recs|length > 0) or not recommendation_data_ready %}
         <div class="dashboard-card p-6 bg-white border border-gray-100" data-card-id="health_tips">
             <div class="flex items-center justify-between mb-4">
                 <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
                 <h3 class="text-lg font-bold text-gray-800">💡 Recomendaciones Personalizadas</h3>
             </div>
+            {% if recs and recs|length > 0 %}
             {% set tips_count = recs|length %}
             <div class="space-y-3 {% if tips_count > 5 %}max-h-[18rem] overflow-y-auto pr-1{% endif %}">
                 {% for tip in recs %}
@@ -745,6 +747,12 @@
                 </div>
                 {% endfor %}
             </div>
+            {% else %}
+            <div class="rounded-xl border border-indigo-100 bg-indigo-50 p-4">
+                <p class="text-sm font-semibold text-indigo-800">Aun no hay datos suficientes para recomendaciones personalizadas.</p>
+                <p class="text-sm text-indigo-700 mt-1">Anade 1-2 meses de ingresos y gastos para desbloquear sugerencias mas precisas.</p>
+            </div>
+            {% endif %}
         </div>
         {% endif %}
 
