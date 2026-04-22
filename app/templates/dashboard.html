@@ -171,6 +171,18 @@
         transform: scale(0.98);
         filter: brightness(0.96);
     }
+    .onboarding-guide-card {
+        background: linear-gradient(145deg, #f8fbfc 0%, #f1f7f8 100%);
+        border: 1px solid rgba(63, 95, 115, 0.14);
+        border-radius: 20px;
+        box-shadow: 0 14px 30px rgba(15,23,42,0.1), inset 0 1px 0 rgba(255,255,255,0.85);
+    }
+    .onboarding-popup-surface {
+        background: linear-gradient(145deg, #f8fbfc 0%, #f1f7f8 100%);
+        border: 1px solid rgba(63, 95, 115, 0.14);
+        border-radius: 20px;
+        box-shadow: 0 20px 44px rgba(15,23,42,0.2), inset 0 1px 0 rgba(255,255,255,0.88);
+    }
 </style>
     {% set onboarding = onboarding or {} %}
     {% set onboarding_initial = onboarding.show_initial_onboarding|default(false) %}
@@ -281,7 +293,7 @@
     {% endif %}
 
     {% if onboarding_initial %}
-    <div class="bg-white rounded-[20px] border border-gray-100 shadow-sm p-8 mb-8">
+    <div class="onboarding-guide-card p-8 mb-8">
         <div class="max-w-5xl mx-auto">
             <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
                 <div>
@@ -351,7 +363,7 @@
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                         {% for key, label in modules.items() %}
-                        <label class="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer">
+                        <label class="dashboard-touch-btn flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer">
                             <input type="checkbox"
                                    name="module_{{ key }}"
                                    value="on"
@@ -396,19 +408,19 @@
                  @click.self="closeOnboardingPopup()"
                  @keydown.escape.window="if(open) closeOnboardingPopup()"
                  style="display: none;">
-                <div class="expand-modal-inner w-[92vw] max-w-2xl" @click.stop>
+                <div class="expand-modal-inner onboarding-popup-surface w-[92vw] max-w-2xl" @click.stop>
                     <div class="flex items-start justify-between gap-3 mb-4">
                         <div>
                             <h3 class="text-lg font-bold text-gray-800">Siguiente paso recomendado</h3>
                             <p class="text-sm text-gray-600">Has avanzado en tu configuración. Te proponemos lo siguiente para completar tu dashboard.</p>
                         </div>
-                        <button type="button" class="text-gray-400 hover:text-gray-600 cursor-pointer" @click="closeOnboardingPopup()">✕</button>
+                        <button type="button" class="dashboard-touch-btn px-2 py-1 rounded-lg text-gray-400 hover:text-gray-600 cursor-pointer" @click="closeOnboardingPopup()">✕</button>
                     </div>
 
-                    <div class="rounded-xl bg-indigo-50 border border-indigo-100 p-4 mb-4">
-                        <p class="text-xs font-semibold text-indigo-600 uppercase tracking-wide">Progreso onboarding</p>
-                        <p class="text-2xl font-bold text-indigo-800 mt-1">{{ onboarding.progress_percent|default(0) }}%</p>
-                        <p class="text-sm text-indigo-700 mt-1">{{ onboarding.completed_count|default(0) }} de {{ onboarding.total_count|default(0) }} hitos completados</p>
+                    <div class="rounded-xl bg-teal-50 border border-teal-100 p-4 mb-4">
+                        <p class="text-xs font-semibold text-teal-700 uppercase tracking-wide">Progreso onboarding</p>
+                        <p class="text-2xl font-bold text-teal-900 mt-1">{{ onboarding.progress_percent|default(0) }}%</p>
+                        <p class="text-sm text-teal-800 mt-1">{{ onboarding.completed_count|default(0) }} de {{ onboarding.total_count|default(0) }} hitos completados</p>
                     </div>
 
                     {% if onboarding.pending_milestones %}
@@ -426,7 +438,7 @@
 
                     <div class="flex justify-end">
                         <button type="button"
-                                class="dashboard-touch-btn px-4 py-2 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700"
+                                class="dashboard-touch-btn px-4 py-2 rounded-lg bg-teal-600 text-white font-semibold hover:bg-teal-700"
                                 @click="closeOnboardingPopup()">
                             Omitir
                         </button>
