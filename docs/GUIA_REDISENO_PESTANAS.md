@@ -123,6 +123,8 @@ Este documento sirve como referencia viva para mantener consistencia visual y fu
 - Ingresos categorias (`/incomes/categories`)
 - Ingresos categoria nueva/editar (`/incomes/categories/new`, edit)
 - Ingresos nuevo/editar (`/incomes/new`, edit)
+- Bancos dashboard (`/banks`)
+- Bancos nuevo/editar (`/banks/new`, edit)
 
 ## Bitacora de cambios (ir ampliando)
 
@@ -147,3 +149,5 @@ Este documento sirve como referencia viva para mantener consistencia visual y fu
 - Aplicar el mismo patron tactil `:active` en botones de formularios principales (guardar/crear/actualizar/cancelar) para coherencia global.
 - Aplicar el patron tactil tambien en CTAs de dashboard/onboarding (hitos, popup, empty state y FAB) para continuidad completa de interacción.
 - La tarjeta de bienvenida del dashboard y modales de primera visita (ej. Bancos) deben usar la misma superficie 3D suave y paleta teal-slate que el resto del sistema.
+- Rediseno de `Bancos` completado: tarjetas de registro/total/evolucion/listado y empty state migradas a superficie 3D suave, con acciones primarias en `teal` y foco de inputs/selects unificado.
+- Formularios de `Bancos` (`new/edit`) alineados al patron de formularios de modulos (`card + sections + CTA tactiles`) manteniendo dropdown visual para color con muestras.

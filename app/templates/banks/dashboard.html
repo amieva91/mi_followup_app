@@ -4,6 +4,29 @@
 
 {% block content %}
 <style>
+    .bank-card {
+        background: linear-gradient(145deg, #f8fbfc 0%, #f1f7f8 100%);
+        border: 1px solid rgba(63, 95, 115, 0.14);
+        border-radius: 16px;
+        box-shadow: 0 14px 30px rgba(15,23,42,0.1), inset 0 1px 0 rgba(255,255,255,0.85);
+    }
+    .bank-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-weight: 700;
+        color: #1f2937;
+    }
+    .bank-table-row {
+        background: linear-gradient(145deg, rgba(248,251,252,0.96), rgba(241,247,248,0.9));
+    }
+    .bank-touch-btn {
+        transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease;
+    }
+    .bank-touch-btn:active {
+        transform: scale(0.98);
+        filter: brightness(0.96);
+    }
     .guide-surface {
         background: linear-gradient(145deg, #f8fbfc 0%, #f1f7f8 100%);
         border: 1px solid rgba(63, 95, 115, 0.14);
@@ -22,15 +45,15 @@
     <!-- Header -->
     <div class="flex justify-between items-center mb-6">
         <div class="flex items-center gap-3">
-            <h1 class="text-3xl font-bold text-gray-800">🏦 Mis Bancos</h1>
+            <h1 class="bank-title text-3xl">🏦 Mis Bancos</h1>
             <button type="button"
                     id="open-banks-intro"
-                    class="guide-touch-btn w-8 h-8 rounded-full border border-teal-200 text-teal-700 bg-teal-50 hover:bg-teal-100 font-bold cursor-pointer"
+                    class="bank-touch-btn w-8 h-8 rounded-full border border-teal-200 text-teal-700 bg-teal-50 hover:bg-teal-100 font-bold cursor-pointer"
                     title="Qué es esta pestaña">
                 i
             </button>
         </div>
-        <a href="{{ url_for('banks.new') }}" class="guide-touch-btn bg-teal-600 hover:bg-teal-700 text-white px-6 py-2 rounded-lg transition">
+        <a href="{{ url_for('banks.new') }}" class="bank-touch-btn bg-teal-600 hover:bg-teal-700 text-white px-6 py-2 rounded-xl transition shadow-[0_10px_20px_rgba(13,148,136,0.3)]">
             + Añadir banco
         </a>
     </div>
@@ -51,8 +74,8 @@
         {% set next_year = selected_year %}
     {% endif %}
     <!-- Selector de mes -->
-    <div class="bg-white rounded-lg shadow p-4 mb-6">
-        <h2 class="text-lg font-bold text-gray-800 mb-3">📅 Registrar saldos</h2>
+    <div class="bank-card p-4 mb-6">
+        <h2 class="bank-title text-lg mb-3">📅 Registrar saldos</h2>
         <form method="POST" action="{{ url_for('banks.save_balances') }}" class="flex flex-wrap items-end gap-4">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="year" value="{{ selected_year }}">
@@ -60,12 +83,12 @@
 
             <div class="flex gap-2 sm:gap-3 items-end flex-wrap">
                 <a href="{{ url_for('banks.dashboard', year=prev_year, month=prev_month) }}"
-                   class="inline-flex items-center justify-center w-10 h-10 shrink-0 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400 shadow-sm transition"
+                   class="bank-touch-btn inline-flex items-center justify-center w-10 h-10 shrink-0 rounded-xl border border-slate-300 bg-white text-gray-700 hover:bg-slate-50 hover:border-slate-400 shadow-sm transition"
                    title="Mes anterior">←</a>
                 <div class="flex gap-3 items-center">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Mes</label>
-                    <select name="nav_month" onchange="navigateMonth(this)" class="px-3 py-2 border rounded-lg">
+                    <select name="nav_month" onchange="navigateMonth(this)" class="px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
                         {% set mes_nombres = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'] %}
                         {% for m in range(1, 13) %}
                         <option value="{{ m }}" {% if m == selected_month %}selected{% endif %}>{{ mes_nombres[m-1] }} {{ selected_year }}</option>
@@ -74,12 +97,12 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Año</label>
-                    <input type="number" name="nav_year" value="{{ selected_year }}" min="2020" max="2030" onchange="navigateYear(this)" class="px-3 py-2 border rounded-lg w-24">
+                    <input type="number" name="nav_year" value="{{ selected_year }}" min="2020" max="2030" onchange="navigateYear(this)" class="px-3 py-2 border border-slate-300 rounded-xl w-24 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
                 </div>
-                <a href="{{ url_for('banks.dashboard', year=selected_year, month=selected_month) }}" id="nav-link" class="text-blue-600 hover:underline text-sm self-end pb-2">Ir</a>
+                <a href="{{ url_for('banks.dashboard', year=selected_year, month=selected_month) }}" id="nav-link" class="text-teal-700 hover:underline text-sm self-end pb-2">Ir</a>
                 </div>
                 <a href="{{ url_for('banks.dashboard', year=next_year, month=next_month) }}"
-                   class="inline-flex items-center justify-center w-10 h-10 shrink-0 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400 shadow-sm transition"
+                   class="bank-touch-btn inline-flex items-center justify-center w-10 h-10 shrink-0 rounded-xl border border-slate-300 bg-white text-gray-700 hover:bg-slate-50 hover:border-slate-400 shadow-sm transition"
                    title="Mes siguiente">→</a>
             </div>
 
@@ -90,12 +113,12 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">{{ bank.icon }} {{ bank.name }}</label>
                     <input type="number" name="balance_{{ bank.id }}" value="{{ balances.get(bank.id, '') }}" step="0.01" placeholder="0.00"
-                           class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                           class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
                 </div>
                 {% endfor %}
             </div>
 
-            <button type="submit" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg transition h-10">
+            <button type="submit" class="bank-touch-btn bg-teal-600 hover:bg-teal-700 text-white px-6 py-2 rounded-xl transition h-10 shadow-[0_10px_20px_rgba(13,148,136,0.28)]">
                 Guardar saldos
             </button>
         </form>
@@ -103,24 +126,24 @@
     </div>
 
     <!-- Total del mes -->
-    <div class="bg-white rounded-lg shadow p-4 mb-6">
+    <div class="bank-card p-4 mb-6">
         <p class="text-gray-600">Total efectivo bancario ({{ ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][selected_month-1] }} {{ selected_year }}):</p>
-        <p class="text-2xl font-bold text-indigo-600">{{ total_cash|decimal_eu(2) }} €</p>
+        <p class="text-2xl font-bold text-teal-700">{{ total_cash|decimal_eu(2) }} €</p>
     </div>
 
     <!-- Gráfico evolución -->
     {% if cash_evolution %}
-    <div class="bg-white rounded-lg shadow p-4 mb-6">
-        <h2 class="text-lg font-bold text-gray-800 mb-3">📈 Evolución del efectivo bancario (últimos 12 meses)</h2>
-        <div class="h-64">
+    <div class="bank-card p-4 mb-6">
+        <h2 class="bank-title text-lg mb-3">📈 Evolución del efectivo bancario (últimos 12 meses)</h2>
+        <div class="h-64 rounded-2xl border border-slate-200/70 bg-gradient-to-b from-white to-slate-50 p-3 shadow-inner">
             <canvas id="cashEvolutionChart"></canvas>
         </div>
     </div>
     {% endif %}
 
     <!-- Lista de bancos -->
-    <div class="bg-white rounded-lg shadow overflow-hidden">
-        <h2 class="text-lg font-bold text-gray-800 p-4 border-b">Entidades registradas</h2>
+    <div class="bank-card overflow-hidden">
+        <h2 class="bank-title text-lg p-4 border-b">🏛️ Entidades registradas</h2>
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
@@ -130,7 +153,7 @@
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
                 {% for bank in banks %}
-                <tr class="hover:bg-gray-50">
+                <tr class="bank-table-row hover:bg-gray-50">
                     <td class="px-6 py-4">
                         {# Dot de color: soporta nuevas claves, legacy (blue/indigo/green/gray) y HEX (#RRGGBB) #}
                         {% set c = (bank.color or 'blue') %}
@@ -164,9 +187,9 @@
                         <span class="font-medium text-gray-900 ml-2">{{ bank.name }}</span>
                     </td>
                     <td class="px-6 py-4 text-right">
-                        <a href="{{ url_for('banks.edit', id=bank.id) }}" class="text-blue-600 hover:text-blue-800 mr-3">Editar</a>
+                        <a href="{{ url_for('banks.edit', id=bank.id) }}" class="bank-touch-btn text-teal-700 hover:text-teal-800 mr-3">Editar</a>
                         <button type="button"
-                                class="text-red-600 hover:text-red-800 cursor-pointer js-open-delete"
+                                class="bank-touch-btn text-red-600 hover:text-red-800 cursor-pointer js-open-delete"
                                 data-delete-action="{{ url_for('banks.delete', id=bank.id) }}"
                                 data-bank-name="{{ bank.name }}">
                             Eliminar
@@ -180,10 +203,10 @@
 
     {% else %}
     <!-- Empty state -->
-    <div class="bg-blue-50 border border-blue-200 rounded-lg p-8 text-center">
-        <p class="text-xl text-blue-800 mb-4">🏦 No tienes bancos registrados</p>
+    <div class="bank-card p-8 text-center">
+        <p class="text-xl text-gray-800 mb-4">🏦 No tienes bancos registrados</p>
         <p class="text-gray-600 mb-6">Añade las entidades bancarias donde tienes tus cuentas para registrar los saldos mensuales.</p>
-        <a href="{{ url_for('banks.new') }}" class="inline-block bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition">
+        <a href="{{ url_for('banks.new') }}" class="bank-touch-btn inline-block bg-teal-600 hover:bg-teal-700 text-white px-6 py-3 rounded-xl transition shadow-[0_10px_20px_rgba(13,148,136,0.28)]">
             + Añadir primer banco
         </a>
     </div>
@@ -215,7 +238,7 @@
             <div class="mt-6 flex justify-end">
                 <button type="button"
                         id="banks-intro-understood"
-                        class="guide-touch-btn px-5 py-2.5 rounded-lg bg-teal-600 text-white font-semibold hover:bg-teal-700 cursor-pointer">
+                        class="guide-touch-btn bank-touch-btn px-5 py-2.5 rounded-lg bg-teal-600 text-white font-semibold hover:bg-teal-700 cursor-pointer">
                     Entendido, empezar
                 </button>
             </div>
@@ -233,13 +256,13 @@
             <div class="mt-6 flex justify-end gap-2">
                 <button type="button"
                         id="delete-bank-cancel"
-                        class="guide-touch-btn px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 cursor-pointer">
+                        class="guide-touch-btn bank-touch-btn px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 cursor-pointer">
                     Cancelar
                 </button>
                 <form method="POST" id="delete-bank-form" action="#">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit"
-                            class="guide-touch-btn px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 cursor-pointer">
+                            class="guide-touch-btn bank-touch-btn px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 cursor-pointer">
                         Eliminar
                     </button>
                 </form>
@@ -264,8 +287,8 @@
             datasets: [{
                 label: 'Efectivo (€)',
                 data: values,
-                borderColor: 'rgb(79, 70, 229)',
-                backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                borderColor: 'rgb(13, 148, 136)',
+                backgroundColor: 'rgba(13, 148, 136, 0.12)',
                 fill: true,
                 tension: 0.3
             }]
