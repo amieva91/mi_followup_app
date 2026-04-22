@@ -445,18 +445,18 @@
             <div class="mt-6 flex justify-center space-x-2">
                 {% if incomes.has_prev %}
                     <a href="{{ url_for('incomes.list', page=incomes.prev_num, category=selected_category) }}" 
-                       class="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded transition">
+                       class="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-xl transition">
                         ← Anterior
                     </a>
                 {% endif %}
                 
-                <span class="px-4 py-2 bg-teal-600 text-white rounded">
+                <span class="px-4 py-2 bg-teal-600 text-white rounded-xl shadow-[0_8px_18px_rgba(13,148,136,0.26)]">
                     Página {{ incomes.page }} de {{ incomes.pages }}
                 </span>
                 
                 {% if incomes.has_next %}
                     <a href="{{ url_for('incomes.list', page=incomes.next_num, category=selected_category) }}" 
-                       class="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded transition">
+                       class="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-xl transition">
                         Siguiente →
                     </a>
                 {% endif %}

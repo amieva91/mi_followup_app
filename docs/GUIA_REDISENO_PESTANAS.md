@@ -134,3 +134,4 @@ Este documento sirve como referencia viva para mantener consistencia visual y fu
 - Se estandariza el fondo de tarjetas/recuadros para gastos y deudas con gradiente suave teal-slate.
 - Se unifica tipografia/jerarquia de etiquetas KPI de gastos e ingresos con el estilo base de deudas.
 - Se redisenan modales de ingresos, gastos y deudas con plantilla visual unificada (gradiente, borde suave, CTA principal y secundario consistentes).
+- Ajuste fino cross-modulo: headers y botones primarios/acciones de paginacion en ingresos, gastos y deudas alineados al mismo patron visual (teal primario + slate secundario + radios/sombras consistentes).
