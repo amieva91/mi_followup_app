@@ -18,6 +18,7 @@ from app.models import (
     Asset,
     Bank,
     BankBalance,
+    BrokerAccount,
     DashboardOnboardingState,
     DebtPlan,
     Expense,
@@ -45,9 +46,9 @@ class DashboardOnboardingService:
         MilestoneDef("incomes", "💵", "Registrar tu primer ingreso", "finance", "incomes.new"),
         MilestoneDef("expenses", "💸", "Registrar tu primer gasto", "finance", "expenses.new"),
         MilestoneDef("debts", "📋", "Registrar tu primera deuda", "finance", "debts.new", {"next": "debts"}),
-        MilestoneDef("portfolio", "📈", "Importar o registrar acciones", "stock", "portfolio.import_csv"),
-        MilestoneDef("crypto", "🪙", "Registrar tu primera transacción crypto", "crypto", "crypto.transaction_new"),
-        MilestoneDef("metales", "🥇", "Registrar tu primera compra de metales", "metales", "metales.transaction_new"),
+        MilestoneDef("portfolio", "📈", "Registra tu primera Acción (CSV)", "stock", "portfolio.transaction_new"),
+        MilestoneDef("crypto", "🪙", "Registra tu primera Crypto", "crypto", "crypto.transaction_new"),
+        MilestoneDef("metales", "🥇", "Registra tu primer Metal", "metales", "metales.transaction_new"),
         MilestoneDef("real_estate", "🏠", "Registrar tu primer inmueble", "real_estate", "real_estate.new"),
     )
 
@@ -167,10 +168,13 @@ class DashboardOnboardingService:
         def to_payload(keys: list[str]) -> list[dict[str, Any]]:
             payload = []
             by_key = {m.key: m for m in milestone_defs}
+            has_broker_account = DashboardOnboardingService._exists_any(BrokerAccount, user.id)
+            broker_required_keys = {"portfolio", "crypto", "metales"}
             for k in keys:
                 m = by_key.get(k)
                 if not m:
                     continue
+                is_locked = (k in broker_required_keys) and not has_broker_account
                 payload.append(
                     {
                         "key": m.key,
@@ -179,11 +183,29 @@ class DashboardOnboardingService:
                         "module_key": m.module_key,
                         "endpoint": m.endpoint,
                         "endpoint_kwargs": m.endpoint_kwargs or {},
+                        "locked": is_locked,
+                        "lock_reason": "Necesitas registrar un broker primero" if is_locked else "",
                     }
                 )
             return payload
 
         pending_payload = to_payload(pending_keys)
+        has_broker_account = DashboardOnboardingService._exists_any(BrokerAccount, user.id)
+        has_investment_modules = any(k in enabled_modules for k in ("stock", "crypto", "metales"))
+        if has_investment_modules and not has_broker_account:
+            pending_payload.insert(
+                0,
+                {
+                    "key": "broker_setup",
+                    "icon": "🏛️",
+                    "label": "Registra tu Broker",
+                    "module_key": "stock",
+                    "endpoint": "portfolio.account_new",
+                    "endpoint_kwargs": {},
+                    "locked": False,
+                    "lock_reason": "",
+                },
+            )
         # Paso guiado adicional:
         # Si ya existe al menos un banco pero no hay cash registrado, sugerir registrar efectivo.
         if "banks" in applicable_keys:
