@@ -23,6 +23,13 @@
         font-weight: 700;
         color: #1f2937;
     }
+    .form-touch-btn {
+        transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease;
+    }
+    .form-touch-btn:active {
+        transform: scale(0.98);
+        filter: brightness(0.96);
+    }
 </style>
 <div class="max-w-5xl mx-auto px-4 py-8">
     <!-- Header -->
@@ -79,9 +86,9 @@
 
             <!-- Botones -->
             <div class="flex space-x-3">
-                {{ form.submit(class="flex-1 bg-teal-600 hover:bg-teal-700 text-white px-6 py-3 rounded-xl transition font-semibold shadow-[0_10px_20px_rgba(13,148,136,0.3)]") }}
+                {{ form.submit(class="form-touch-btn flex-1 bg-teal-600 hover:bg-teal-700 text-white px-6 py-3 rounded-xl transition font-semibold shadow-[0_10px_20px_rgba(13,148,136,0.3)]") }}
                 <a href="{{ url_for('expenses.categories') }}" 
-                   class="flex-1 text-center bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-3 rounded-xl transition font-semibold">
+                   class="form-touch-btn flex-1 text-center bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-3 rounded-xl transition font-semibold">
                     Cancelar
                 </a>
             </div>

@@ -28,6 +28,13 @@
         grid-template-columns: 1fr;
         gap: 1rem;
     }
+    .form-touch-btn {
+        transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease;
+    }
+    .form-touch-btn:active {
+        transform: scale(0.98);
+        filter: brightness(0.96);
+    }
     @media (min-width: 900px) {
         .debt-form-grid {
             grid-template-columns: 1.15fr 0.85fr;
@@ -97,10 +104,10 @@
             </div>
 
             <div class="flex space-x-3">
-                <button type="button" onclick="var f=document.getElementById('debt-edit-form');f.requestSubmit?f.requestSubmit():f.submit()" class="flex-1 bg-teal-600 hover:bg-teal-700 text-white px-6 py-3 rounded-xl transition font-semibold shadow-[0_10px_18px_rgba(13,148,136,0.28)]">
+                <button type="button" onclick="var f=document.getElementById('debt-edit-form');f.requestSubmit?f.requestSubmit():f.submit()" class="form-touch-btn flex-1 bg-teal-600 hover:bg-teal-700 text-white px-6 py-3 rounded-xl transition font-semibold shadow-[0_10px_18px_rgba(13,148,136,0.28)]">
                     Guardar cambios
                 </button>
-                <a href="{{ url_for('expenses.list') if next_page == 'expenses' else url_for('debts.dashboard') }}" class="flex-1 text-center bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-3 rounded-xl transition font-semibold">Cancelar</a>
+                <a href="{{ url_for('expenses.list') if next_page == 'expenses' else url_for('debts.dashboard') }}" class="form-touch-btn flex-1 text-center bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-3 rounded-xl transition font-semibold">Cancelar</a>
             </div>
         </form>
     </div>

@@ -23,6 +23,13 @@
         font-weight: 700;
         color: #1f2937;
     }
+    .form-touch-btn {
+        transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease;
+    }
+    .form-touch-btn:active {
+        transform: scale(0.98);
+        filter: brightness(0.96);
+    }
 </style>
 <div class="max-w-5xl mx-auto px-4 py-8">
     <h1 class="income-form-title text-3xl mb-6">💵 {{ title }}</h1>
@@ -70,9 +77,9 @@
             </div>
 
             <div class="mt-5 flex flex-col sm:flex-row gap-3">
-                {{ form.submit(class="flex-1 rounded-xl bg-teal-600 hover:bg-teal-700 text-white px-6 py-3 transition font-semibold shadow-[0_10px_20px_rgba(13,148,136,0.3)]") }}
+                {{ form.submit(class="form-touch-btn flex-1 rounded-xl bg-teal-600 hover:bg-teal-700 text-white px-6 py-3 transition font-semibold shadow-[0_10px_20px_rgba(13,148,136,0.3)]") }}
                 <a href="{{ url_for('incomes.categories') }}" 
-                   class="flex-1 text-center rounded-xl bg-slate-700 hover:bg-slate-800 text-white px-6 py-3 transition font-semibold">
+                   class="form-touch-btn flex-1 text-center rounded-xl bg-slate-700 hover:bg-slate-800 text-white px-6 py-3 transition font-semibold">
                     Cancelar
                 </a>
             </div>
