@@ -2,7 +2,7 @@
 Blueprint para gestión de cuentas bancarias
 """
 from datetime import date
-from flask import Blueprint, render_template, redirect, url_for, flash, request
+from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_required, current_user
 from app import db
 from app.models import Bank, BankBalance, DashboardOnboardingState
@@ -143,6 +143,10 @@ def intro_ack():
         current.add(intro_key)
         row.notified_milestones = sorted(current)
         db.session.commit()
+
+    wants_json = request.headers.get("X-Requested-With") == "XMLHttpRequest" or request.is_json
+    if wants_json:
+        return jsonify({"success": True}), 200
 
     year = request.form.get('year', type=int)
     month = request.form.get('month', type=int)
