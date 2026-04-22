@@ -165,3 +165,4 @@ Este documento sirve como referencia viva para mantener consistencia visual y fu
 - Consistencia de secundarios en formularios: boton `Cancelar` normalizado a paleta `slate` (`bg-slate-200/hover:bg-slate-300/text-slate-700`) en `Gastos` y `Deudas`, alineado con `Ingresos/Bancos`.
 - Rediseño de `Portfolio` (dashboard/performance/dividendos/index-comparison/diversificacion/currencies): cards y contenedores migrados a superficie 3D suave, headers en formato `emoji + titulo`, tablas/chart-surface homogeneizadas y botones primarios/secundarios alineados a paleta teal-slate.
 - Modales y flujos de soporte en portfolio (actualización de precios + fix Yahoo URL) alineados al patrón visual CRUD/modales del sistema con overlay oscuro, panel 3D y acciones táctiles consistentes.
+- Ajuste fino en `Portfolio dashboard`: KPIs de "Métricas Globales e Históricas" y sus desgloses internos pasan a superficie 3D más marcada para evitar apariencia de fondo blanco plano.
