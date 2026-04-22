@@ -1107,38 +1107,24 @@ def get_debt_details(user_id: int) -> Dict[str, Any]:
 
     # Mini calendario (6 barras): -2, -1, actual, +1, +2, +3
     mini_schedule = []
+    mini_plan_ids = []
+    mini_plan_colors = {}
+    mini_plan_names = {}
     try:
-        from dateutil.relativedelta import relativedelta
-        from collections import defaultdict
-
-        start = date(today.year, today.month, 1) + relativedelta(months=-2)
-        end = date(today.year, today.month, 1) + relativedelta(months=+3)
-
-        expenses = Expense.query.filter(
-            Expense.user_id == user_id,
-            Expense.debt_plan_id.isnot(None),
-            Expense.date >= start,
-            Expense.date < (end + relativedelta(months=1)),
-        ).all()
-        by_month = defaultdict(float)
-        for e in expenses:
-            k = e.date.strftime('%Y-%m')
-            by_month[k] += float(e.amount or 0)
-
-        _MESES = ('Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-                  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre')
-        current = start
-        while current <= end:
-            key = current.strftime('%Y-%m')
-            label = f"{_MESES[current.month - 1]} {current.year}"
-            mini_schedule.append({
-                'month_key': key,
-                'month_label': label,
-                'amount': round(by_month.get(key, 0.0), 2),
-            })
-            current = current + relativedelta(months=1)
+        from app.services.debt_service import DebtService
+        schedule_payload = DebtService.get_monthly_debt_schedule(
+            user_id, months_ahead=3, months_back=2, include_by_plan=True
+        )
+        if isinstance(schedule_payload, dict):
+            mini_schedule = list(schedule_payload.get("months") or [])
+            mini_plan_ids = list(schedule_payload.get("plan_ids") or [])
+            mini_plan_colors = dict(schedule_payload.get("plan_colors") or {})
+            mini_plan_names = dict(schedule_payload.get("plan_names") or {})
     except Exception:
         mini_schedule = []
+        mini_plan_ids = []
+        mini_plan_colors = {}
+        mini_plan_names = {}
 
     # Planes próximos a expirar (por end_date ascendente, si existe)
     expiring = sorted(
@@ -1154,6 +1140,9 @@ def get_debt_details(user_id: int) -> Dict[str, Any]:
         'expiring_plans': expiring,
         'limit_info': limit_info,
         'mini_schedule': mini_schedule,
+        'mini_plan_ids': mini_plan_ids,
+        'mini_plan_colors': mini_plan_colors,
+        'mini_plan_names': mini_plan_names,
     }
 
 
