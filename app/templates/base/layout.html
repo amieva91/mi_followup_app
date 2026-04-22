@@ -44,6 +44,25 @@
             0% { background-color: rgba(34, 197, 94, 0.35); }
             100% { background-color: transparent; }
         }
+        .nav-dropdown-panel {
+            background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,251,252,0.96));
+            border: 1px solid rgba(63,95,115,0.14);
+            border-radius: 14px;
+            box-shadow: 0 14px 28px rgba(15,23,42,0.16);
+            padding: 0.35rem 0;
+            color: #0f172a;
+        }
+        .nav-dropdown-link {
+            display: block;
+            padding: 0.55rem 1rem;
+            color: #334155;
+            font-size: 0.875rem;
+            transition: background-color 0.18s ease, color 0.18s ease;
+        }
+        .nav-dropdown-link:hover {
+            background: rgba(15,118,110,0.08);
+            color: #0f172a;
+        }
     </style>
     
     {% block extra_css %}{% endblock %}
@@ -54,7 +73,7 @@
     {% if request.endpoint not in ('main.index', 'auth.login', 'auth.register') %}
     {% set nav_bg_style = 'linear-gradient(90deg, #2f4858 0%, #3f5f73 100%)' %}
     {% set nav_badge_class = 'bg-emerald-500' %}
-    <nav class="text-white shadow-lg" style="background: {{ nav_bg_style }};">
+    <nav class="text-white shadow-lg border-b border-white/15" style="background: {{ nav_bg_style }};">
         <div class="w-full px-4 sm:px-6 py-3">
             <div class="flex items-center justify-between gap-4">
                 <!-- Logo + Menú (izquierda) -->
@@ -91,10 +110,10 @@
                                 </button>
                                 <div x-show="open" x-cloak x-transition
                                      class="absolute left-0 top-full pt-1 w-48 z-[100]">
-                                    <div class="bg-white rounded-lg shadow-lg py-2 text-gray-900">
-                                        <a href="{{ url_for('incomes.list') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">📋 Ver Ingresos</a>
-                                        <a href="{{ url_for('incomes.new') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">+ Nuevo Ingreso</a>
-                                        <a href="{{ url_for('incomes.categories') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">📂 Categorías</a>
+                                    <div class="nav-dropdown-panel">
+                                        <a href="{{ url_for('incomes.list') }}" class="nav-dropdown-link">📋 Ver Ingresos</a>
+                                        <a href="{{ url_for('incomes.new') }}" class="nav-dropdown-link">+ Nuevo Ingreso</a>
+                                        <a href="{{ url_for('incomes.categories') }}" class="nav-dropdown-link">📂 Categorías</a>
                                     </div>
                                 </div>
                             </div>
@@ -109,11 +128,11 @@
                                 </button>
                                 <div x-show="open" x-cloak x-transition
                                      class="absolute left-0 top-full pt-1 w-48 z-[100]">
-                                    <div class="bg-white rounded-lg shadow-lg py-2 text-gray-900">
-                                        <a href="{{ url_for('expenses.list') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">📋 Ver Gastos</a>
-                                        <a href="{{ url_for('expenses.new') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">+ Nuevo Gasto</a>
-                                        <a href="{{ url_for('debts.new', next='expenses') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">📋 Pagar a plazos</a>
-                                        <a href="{{ url_for('expenses.categories') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">📂 Categorías</a>
+                                    <div class="nav-dropdown-panel">
+                                        <a href="{{ url_for('expenses.list') }}" class="nav-dropdown-link">📋 Ver Gastos</a>
+                                        <a href="{{ url_for('expenses.new') }}" class="nav-dropdown-link">+ Nuevo Gasto</a>
+                                        <a href="{{ url_for('debts.new', next='expenses') }}" class="nav-dropdown-link">📋 Pagar a plazos</a>
+                                        <a href="{{ url_for('expenses.categories') }}" class="nav-dropdown-link">📂 Categorías</a>
                                     </div>
                                 </div>
                             </div>
@@ -128,9 +147,9 @@
                                 </button>
                                 <div x-show="open" x-cloak x-transition
                                      class="absolute left-0 top-full pt-1 w-48 z-[100]">
-                                    <div class="bg-white rounded-lg shadow-lg py-2 text-gray-900">
-                                        <a href="{{ url_for('debts.dashboard') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">📊 Dashboard</a>
-                                        <a href="{{ url_for('debts.new', next='debts') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">+ Nueva deuda</a>
+                                    <div class="nav-dropdown-panel">
+                                        <a href="{{ url_for('debts.dashboard') }}" class="nav-dropdown-link">📊 Dashboard</a>
+                                        <a href="{{ url_for('debts.new', next='debts') }}" class="nav-dropdown-link">+ Nueva deuda</a>
                                     </div>
                                 </div>
                             </div>
@@ -145,9 +164,9 @@
                                 </button>
                                 <div x-show="open" x-cloak x-transition
                                      class="absolute left-0 top-full pt-1 w-48 z-[100]">
-                                    <div class="bg-white rounded-lg shadow-lg py-2 text-gray-900">
-                                        <a href="{{ url_for('banks.dashboard') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">📊 Saldos bancarios</a>
-                                        <a href="{{ url_for('banks.new') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">+ Añadir banco</a>
+                                    <div class="nav-dropdown-panel">
+                                        <a href="{{ url_for('banks.dashboard') }}" class="nav-dropdown-link">📊 Saldos bancarios</a>
+                                        <a href="{{ url_for('banks.new') }}" class="nav-dropdown-link">+ Añadir banco</a>
                                     </div>
                                 </div>
                             </div>
@@ -164,13 +183,13 @@
                                 </button>
                                 <div x-show="open" x-cloak x-transition
                                      class="absolute left-0 top-full pt-1 w-56 z-[100]">
-                                    <div class="bg-white rounded-lg shadow-lg py-2 text-gray-900">
-                                        <a href="{{ url_for('portfolio.dashboard') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">📊 Dashboard</a>
-                                        <a href="{{ url_for('portfolio.performance') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">📈 Performance</a>
-                                        <a href="{{ url_for('portfolio.dividendos') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">💰 Dividendos</a>
-                                        <a href="{{ url_for('portfolio.index_comparison') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">🏆 Index Comparison</a>
-                                        <a href="{{ url_for('portfolio.diversificacion') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">📊 Diversificación</a>
-                                        <a href="{{ url_for('portfolio.currencies') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">💱 Divisas</a>
+                                    <div class="nav-dropdown-panel">
+                                        <a href="{{ url_for('portfolio.dashboard') }}" class="nav-dropdown-link">📊 Dashboard</a>
+                                        <a href="{{ url_for('portfolio.performance') }}" class="nav-dropdown-link">📈 Performance</a>
+                                        <a href="{{ url_for('portfolio.dividendos') }}" class="nav-dropdown-link">💰 Dividendos</a>
+                                        <a href="{{ url_for('portfolio.index_comparison') }}" class="nav-dropdown-link">🏆 Index Comparison</a>
+                                        <a href="{{ url_for('portfolio.diversificacion') }}" class="nav-dropdown-link">📊 Diversificación</a>
+                                        <a href="{{ url_for('portfolio.currencies') }}" class="nav-dropdown-link">💱 Divisas</a>
                                     </div>
                                 </div>
                             </div>
@@ -185,9 +204,9 @@
                                 </button>
                                 <div x-show="open" x-cloak x-transition
                                      class="absolute left-0 top-full pt-1 w-56 z-[100]">
-                                    <div class="bg-white rounded-lg shadow-lg py-2 text-gray-900">
-                                        <a href="{{ url_for('portfolio.holdings_list') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">📈 Cartera</a>
-                                        <a href="{{ url_for('portfolio.watchlist') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">📋 Watchlist</a>
+                                    <div class="nav-dropdown-panel">
+                                        <a href="{{ url_for('portfolio.holdings_list') }}" class="nav-dropdown-link">📈 Cartera</a>
+                                        <a href="{{ url_for('portfolio.watchlist') }}" class="nav-dropdown-link">📋 Watchlist</a>
                                     </div>
                                 </div>
                             </div>
@@ -225,11 +244,11 @@
                                 </button>
                                 <div x-show="open" x-cloak x-transition
                                      class="absolute left-0 top-full pt-1 w-56 z-[100]">
-                                    <div class="bg-white rounded-lg shadow-lg py-2 text-gray-900">
-                                        <a href="{{ url_for('portfolio.transactions_list') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">📝 Transacciones</a>
-                                        <a href="{{ url_for('portfolio.import_csv') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">📥 Importar CSV</a>
-                                        <a href="{{ url_for('portfolio.data_export_import') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">📦 Import/Export en Excel</a>
-                                        <a href="{{ url_for('portfolio.accounts_list') }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">🏦 Cuentas</a>
+                                    <div class="nav-dropdown-panel">
+                                        <a href="{{ url_for('portfolio.transactions_list') }}" class="nav-dropdown-link">📝 Transacciones</a>
+                                        <a href="{{ url_for('portfolio.import_csv') }}" class="nav-dropdown-link">📥 Importar CSV</a>
+                                        <a href="{{ url_for('portfolio.data_export_import') }}" class="nav-dropdown-link">📦 Import/Export en Excel</a>
+                                        <a href="{{ url_for('portfolio.accounts_list') }}" class="nav-dropdown-link">🏦 Cuentas</a>
                                     </div>
                                 </div>
                             </div>
@@ -244,9 +263,9 @@
                 <div class="relative inline-block flex-shrink-0 ml-4" x-data="{ open: false }" @click.away="open = false">
                     <button type="button" @click="open = !open" class="flex items-center gap-2 hover:opacity-90 transition py-1">
                         {% if current_user.get_avatar_url() %}
-                        <img src="{{ current_user.get_avatar_url() }}" alt="" class="w-8 h-8 rounded-full object-cover ring-2 ring-blue-200">
+                        <img src="{{ current_user.get_avatar_url() }}" alt="" class="w-8 h-8 rounded-full object-cover ring-2 ring-teal-200">
                         {% else %}
-                        <span class="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold">{{ current_user.get_initials() }}</span>
+                        <span class="w-8 h-8 rounded-full bg-teal-600 text-white flex items-center justify-center text-sm font-bold">{{ current_user.get_initials() }}</span>
                         {% endif %}
                         <span class="text-slate-200 text-sm font-medium">{{ current_user.username }}</span>
                         <svg class="w-4 h-4 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -255,12 +274,12 @@
                     </button>
                     <div x-show="open" x-cloak x-transition
                          class="absolute right-0 top-full pt-1 w-56 z-[100]">
-                        <div class="bg-white rounded-lg shadow-lg py-2 text-gray-900">
+                        <div class="nav-dropdown-panel">
                             <div class="px-4 py-3 border-b border-gray-100 flex items-center gap-3">
                                 {% if current_user.get_avatar_url() %}
                                 <img src="{{ current_user.get_avatar_url() }}" alt="" class="w-10 h-10 rounded-full object-cover">
                                 {% else %}
-                                <span class="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold">{{ current_user.get_initials() }}</span>
+                                <span class="w-10 h-10 rounded-full bg-teal-600 text-white flex items-center justify-center text-sm font-bold">{{ current_user.get_initials() }}</span>
                                 {% endif %}
                                 <span class="font-medium">{{ current_user.username }}</span>
                             </div>
@@ -293,7 +312,7 @@
                             <a href="{{ url_for('auth.login') }}" class="hover:text-teal-100 transition">
                                 Iniciar Sesión
                             </a>
-                    <a href="{{ url_for('auth.register') }}" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg transition">
+                    <a href="{{ url_for('auth.register') }}" class="bg-teal-600 hover:bg-teal-700 px-4 py-2 rounded-lg transition">
                         Registrarse
                     </a>
                 </div>

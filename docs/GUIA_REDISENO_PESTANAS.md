@@ -32,6 +32,7 @@ Este documento sirve como referencia viva para mantener consistencia visual y fu
 - Mostrar filtros/toggles custom **debajo de la grafica** (nunca encima).
 - Tooltips claros con formato monetario local (`es-ES`).
 - Escalas legibles y coherentes con el dato representado.
+- En pestañas redisenadas, mantener acabado visual `3D suave` en las graficas (superficie con relieve sutil, sin saturar el color de fondo).
 
 ## Reglas para tablas y listados
 
