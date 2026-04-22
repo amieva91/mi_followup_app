@@ -3,21 +3,49 @@
 {% block title %}Gastos{% endblock %}
 
 {% block content %}
+<style>
+    .expense-card {
+        background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(248,250,252,0.92));
+        border: 1px solid rgba(148,163,184,0.2);
+        border-radius: 16px;
+        box-shadow: 0 14px 30px rgba(15,23,42,0.1), inset 0 1px 0 rgba(255,255,255,0.85);
+    }
+    .expense-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-weight: 700;
+        color: #1f2937;
+    }
+    .expense-kpi {
+        border-radius: 14px;
+        box-shadow: inset 0 0 0 1px rgba(148,163,184,0.16), 0 10px 24px rgba(15,23,42,0.08);
+    }
+    .expense-chip {
+        border-radius: 9999px;
+        border: 1px solid rgba(248,113,113,0.22);
+        background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(254,242,242,0.82));
+        box-shadow: 0 5px 12px rgba(127,29,29,0.09);
+    }
+    .expense-table-row {
+        background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(248,250,252,0.92));
+    }
+</style>
 <div class="max-w-[92%] mx-auto px-4 py-8">
     <!-- Header -->
     <div class="flex justify-between items-center mb-6">
-        <h1 class="text-3xl font-bold text-gray-800">💸 Mis Gastos</h1>
+        <h1 class="expense-title text-3xl">💸 Mis Gastos</h1>
         <div class="flex space-x-3">
             <a href="{{ url_for('expenses.categories') }}" 
-               class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition">
+               class="rounded-xl bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 transition shadow-[0_8px_18px_rgba(15,23,42,0.22)]">
                 📂 Categorías
             </a>
             <a href="{{ url_for('debts.new', next='expenses') }}" 
-               class="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg transition">
+               class="rounded-xl bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 transition shadow-[0_8px_18px_rgba(180,83,9,0.26)]">
                 📋 Pagar a plazos
             </a>
             <a href="{{ url_for('expenses.new') }}" 
-               class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition">
+               class="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 transition shadow-[0_10px_20px_rgba(79,70,229,0.3)]">
                 + Nuevo Gasto
             </a>
         </div>
@@ -26,24 +54,24 @@
     <!-- Fase 6: Cuadros de resumen -->
     {% if summary_metrics %}
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-red-500">
+        <div class="expense-kpi bg-white p-4 border-l-4 border-red-500">
             <p class="text-sm text-gray-500 uppercase tracking-wide">Media mensual</p>
             <p class="text-xl font-bold text-red-600">-{{ '%.2f'|format(summary_metrics.media_mensual) }} €</p>
         </div>
-        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-red-600">
+        <div class="expense-kpi bg-white p-4 border-l-4 border-red-600">
             <p class="text-sm text-gray-500 uppercase tracking-wide">Total período</p>
             <p class="text-xl font-bold text-red-700">-{{ '%.2f'|format(summary_metrics.total_periodo) }} €</p>
         </div>
-        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-red-400">
+        <div class="expense-kpi bg-white p-4 border-l-4 border-red-400">
             <p class="text-sm text-gray-500 uppercase tracking-wide">Mes con más gastos</p>
             <p class="text-lg font-semibold text-gray-800">{{ summary_metrics.mes_max.label }}</p>
             <p class="text-sm text-red-600">-{{ '%.2f'|format(summary_metrics.mes_max.amount) }} €</p>
         </div>
-        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-gray-400">
+        <div class="expense-kpi bg-white p-4 border-l-4 border-gray-400">
             <p class="text-sm text-gray-500 uppercase tracking-wide">Meses con datos</p>
             <p class="text-xl font-bold text-gray-700">{{ summary_metrics.meses_con_datos }}/12</p>
         </div>
-        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-blue-400">
+        <div class="expense-kpi bg-white p-4 border-l-4 border-blue-400">
             <p class="text-sm text-gray-500 uppercase tracking-wide">Tendencia</p>
             <p class="text-2xl font-bold" title="Último mes vs media">
                 {% if summary_metrics.tendencia == '↑' %}📈{% elif summary_metrics.tendencia == '↓' %}📉{% else %}➡️{% endif %}
@@ -54,14 +82,14 @@
 
     <!-- Resumen por categoría (12 meses) -->
     {% if category_summary %}
-    <div class="bg-white rounded-lg shadow p-4 mb-6">
-        <h2 class="text-lg font-bold text-gray-800 mb-3">📊 Resumen por categoría (últimos 12 meses)</h2>
+    <div class="expense-card p-4 mb-6">
+        <h2 class="expense-title text-lg mb-3">📊 Resumen por categoría (últimos 12 meses)</h2>
         <div class="flex flex-wrap gap-3">
             {% for parent in category_summary %}
             {% if parent.children %}
             {% for child in parent.children %}
             <a href="{{ url_for('expenses.list', category=child.id) }}"
-               class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 hover:bg-red-50 hover:border-red-300 transition">
+               class="expense-chip inline-flex items-center gap-2 px-4 py-2 hover:border-red-300 transition">
                 <span class="text-xl">{{ child.icon }}</span>
                 <span class="font-medium text-gray-800">{{ child.name }}</span>
                 <span class="text-red-600 font-semibold">-{{ '%.2f'|format(child.average) }} €/mes ({{ '%.2f'|format(child.total) }} €)</span>
@@ -69,14 +97,14 @@
             {% endfor %}
             {% else %}
             {% if parent.name == 'Ajustes' %}
-            <span class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 bg-gray-50" title="Ajuste de cierre calculado a partir de saldos bancarios (solo lectura)">
+            <span class="expense-chip inline-flex items-center gap-2 px-4 py-2 border-gray-200 bg-gray-50" title="Ajuste de cierre calculado a partir de saldos bancarios (solo lectura)">
                 <span class="text-xl">{{ parent.icon }}</span>
                 <span class="font-medium text-gray-800">{{ parent.name }}</span>
                 <span class="text-red-600 font-semibold">-{{ '%.2f'|format(parent.average) }} €/mes ({{ '%.2f'|format(parent.total) }} €)</span>
             </span>
             {% else %}
             <a href="{{ url_for('expenses.list', category=parent.id) }}"
-               class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 hover:bg-red-50 hover:border-red-300 transition">
+               class="expense-chip inline-flex items-center gap-2 px-4 py-2 hover:border-red-300 transition">
                 <span class="text-xl">{{ parent.icon }}</span>
                 <span class="font-medium text-gray-800">{{ parent.name }}</span>
                 <span class="text-red-600 font-semibold">-{{ '%.2f'|format(parent.average) }} €/mes ({{ '%.2f'|format(parent.total) }} €)</span>
@@ -90,9 +118,9 @@
 
     <!-- Gráfico: Gastos últimos 12 meses -->
     {% if monthly_totals %}
-    <div class="bg-white rounded-lg shadow p-4 mb-6">
-        <h2 class="text-lg font-bold text-gray-800 mb-3">📈 Gastos por mes (últimos 12 meses)</h2>
-        <div class="h-64">
+    <div class="expense-card p-4 mb-6">
+        <h2 class="expense-title text-lg mb-3">📈 Gastos por mes (últimos 12 meses)</h2>
+        <div class="h-64 rounded-2xl border border-slate-200/70 bg-gradient-to-b from-white to-slate-50 p-3 shadow-inner">
             <canvas id="monthlyExpensesChart"></canvas>
         </div>
     </div>
@@ -100,7 +128,7 @@
 
     <!-- Filtro por categoría -->
     {% if categories %}
-        <div class="bg-white rounded-lg shadow-md p-4 mb-6">
+        <div class="expense-card p-4 mb-6">
             <form method="GET" action="{{ url_for('expenses.list') }}" class="flex items-center space-x-3">
                 <label class="font-semibold text-gray-700">Filtrar por categoría:</label>
                 <select name="category" onchange="this.form.submit()" 
@@ -124,7 +152,7 @@
 
     {% if expenses.items %}
         <!-- Tabla de Gastos -->
-        <div class="bg-white rounded-lg shadow-md overflow-hidden">
+        <div class="expense-card overflow-hidden">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
@@ -161,7 +189,7 @@
                         {% if synthetic_entries and (current_year, current_month) in synthetic_entries %}
                             {% set syn = synthetic_entries[(current_year, current_month)] %}
                             {% if syn.stock_market > 0 %}
-                        <tr class="hover:bg-gray-50" title="Depósitos a broker IBKR/DeGiro en este mes (calculado automáticamente)">
+                        <tr class="expense-table-row hover:bg-gray-50" title="Depósitos a broker IBKR/DeGiro en este mes (calculado automáticamente)">
                             <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-500 italic">—</td>
                             <td class="px-6 py-3 whitespace-nowrap">
                                 <span class="inline-flex items-center space-x-2">
@@ -176,7 +204,7 @@
                         </tr>
                             {% endif %}
                             {% if syn.ajuste > 0 %}
-                        <tr class="bg-gray-50 hover:bg-gray-100" title="Ajuste de reconciliación: diferencia entre saldo bancario real y gastos/ingresos registrados">
+                        <tr class="expense-table-row bg-gray-50 hover:bg-gray-100" title="Ajuste de reconciliación: diferencia entre saldo bancario real y gastos/ingresos registrados">
                             <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-500 italic">—</td>
                             <td class="px-6 py-3 whitespace-nowrap">
                                 <span class="inline-flex items-center space-x-2">
@@ -196,7 +224,7 @@
                             {% endif %}
                         {% endif %}
                         {% endif %}
-                        <tr class="hover:bg-gray-50">
+                        <tr class="expense-table-row hover:bg-gray-50">
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                                 {{ expense.date.strftime('%d/%m/%Y') }}
                             </td>
@@ -375,7 +403,7 @@
                             </td>
                         </tr>
                         {% if orphan.stock_market > 0 %}
-                        <tr class="hover:bg-gray-50" title="Depósitos a broker IBKR/DeGiro en este mes (calculado automáticamente)">
+                        <tr class="expense-table-row hover:bg-gray-50" title="Depósitos a broker IBKR/DeGiro en este mes (calculado automáticamente)">
                             <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-500 italic">—</td>
                             <td class="px-6 py-3 whitespace-nowrap">
                                 <span class="inline-flex items-center space-x-2">
@@ -390,7 +418,7 @@
                         </tr>
                         {% endif %}
                         {% if orphan.ajuste > 0 %}
-                        <tr class="bg-gray-50 hover:bg-gray-100" title="Ajuste de reconciliación: diferencia entre saldo bancario real y gastos/ingresos registrados">
+                        <tr class="expense-table-row bg-gray-50 hover:bg-gray-100" title="Ajuste de reconciliación: diferencia entre saldo bancario real y gastos/ingresos registrados">
                             <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-500 italic">—</td>
                             <td class="px-6 py-3 whitespace-nowrap">
                                 <span class="inline-flex items-center space-x-2">
@@ -449,7 +477,7 @@
         {% endif %}
     {% else %}
         <!-- Empty State -->
-        <div class="bg-blue-50 border border-blue-200 rounded-lg p-8 text-center">
+        <div class="expense-card bg-blue-50/80 border-blue-200 p-8 text-center">
             <p class="text-xl text-blue-800 mb-4">📝 No tienes gastos registrados aún</p>
             <p class="text-gray-600 mb-6">
                 {% if selected_category %}
