@@ -275,16 +275,11 @@
                                    name="module_{{ key }}"
                                    value="on"
                                    class="w-4 h-4 text-indigo-600 rounded border-gray-300"
+                                   onchange="this.form.requestSubmit()"
                                    {% if enabled_module_keys and key in enabled_module_keys %}checked{% endif %}>
                             <span class="text-sm font-medium text-gray-700">{{ label }}</span>
                         </label>
                         {% endfor %}
-                    </div>
-                    <div class="mt-4">
-                        <button type="submit"
-                                class="px-4 py-2 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700">
-                            Guardar módulos
-                        </button>
                     </div>
                 </form>
             </div>
@@ -307,7 +302,7 @@
                         'Content-Type': 'application/json',
                         'X-CSRFToken': '{{ csrf_token() }}'
                     },
-                    body: JSON.stringify({ milestones: {{ onboarding_new_keys | tojson }} })
+                    body: JSON.stringify({ milestones: {{ onboarding_new_keys | tojson | forceescape }} })
                 }).catch(() => {}).finally(() => {
                     this.open = false;
                     this.closing = false;
@@ -457,6 +452,8 @@
         {% if any_assets %}
         {% endif %}
 
+        {% set has_income_expense_data = (summary.savings.total_income|default(0) + summary.savings.total_expense|default(0)) > 0 %}
+        {% if has_income_expense_data %}
         <!-- Ingresos vs Gastos (wide) -->
         <div class="dashboard-card dashboard-card--wide p-6" data-card-id="income_expense" x-data="{ expanded: false }">
             <div class="flex items-center justify-between mb-2">
@@ -481,6 +478,7 @@
             </div>
             </template>
         </div>
+        {% endif %}
 
         <!-- Deudas (solo si hay planes activos) -->
         {% if summary.debt_details and summary.debt_details.plans_count and summary.debt_details.plans_count > 0 %}
@@ -1616,6 +1614,10 @@ function updateDashboardStaleness(cachedAtIso) {
     const stalenessEl = document.getElementById('dashboard-staleness');
     if (!stalenessEl || !cachedAtIso) return;
     const cachedAt = new Date(cachedAtIso);
+    if (!Number.isFinite(cachedAt.getTime())) {
+        stalenessEl.textContent = 'Actualizado recientemente';
+        return;
+    }
     const now = new Date();
     const diffMin = Math.max(0, Math.round((now - cachedAt) / 60000));
     stalenessEl.textContent = diffMin === 0
