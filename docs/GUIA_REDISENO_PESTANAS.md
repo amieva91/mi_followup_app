@@ -19,6 +19,7 @@ Este documento sirve como referencia viva para mantener consistencia visual y fu
   - radio generoso,
   - sombra exterior + brillo interior.
 - KPIs con borde lateral de color y lectura rapida.
+- Etiquetas KPI en formato frase (sin `UPPERCASE` forzado), con jerarquia como referencia de `Deudas` (`text-sm`, `font-medium`, `text-gray-600`).
 - Formularios mas realistas:
   - ancho acotado (`max-w-5xl` en formularios largos),
   - columnas equilibradas,
@@ -121,3 +122,4 @@ Este documento sirve como referencia viva para mantener consistencia visual y fu
 - Se documenta semantica de KPI "Tendencia" para evitar ambiguedad.
 - Se fija oficialmente la variante de color B y su regla de aplicacion transversal.
 - Se estandariza el fondo de tarjetas/recuadros para gastos y deudas con gradiente suave teal-slate.
+- Se unifica tipografia/jerarquia de etiquetas KPI de gastos e ingresos con el estilo base de deudas.

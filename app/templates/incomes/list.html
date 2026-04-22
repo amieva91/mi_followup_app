@@ -3,10 +3,31 @@
 {% block title %}Ingresos{% endblock %}
 
 {% block content %}
+<style>
+    .income-card {
+        background: linear-gradient(145deg, #f8fbfc 0%, #f1f7f8 100%);
+        border: 1px solid rgba(63, 95, 115, 0.14);
+        border-radius: 16px;
+        box-shadow: 0 14px 30px rgba(15,23,42,0.1), inset 0 1px 0 rgba(255,255,255,0.85);
+    }
+    .income-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-weight: 700;
+        color: #1f2937;
+    }
+    .income-kpi {
+        background: linear-gradient(145deg, rgba(248,251,252,0.98), rgba(241,247,248,0.92));
+        border: 1px solid rgba(63, 95, 115, 0.14);
+        border-radius: 14px;
+        box-shadow: inset 0 0 0 1px rgba(148,163,184,0.16), 0 10px 24px rgba(15,23,42,0.08);
+    }
+</style>
 <div class="max-w-[92%] mx-auto px-4 py-8">
     <!-- Header -->
     <div class="flex justify-between items-center mb-6">
-        <h1 class="text-3xl font-bold text-gray-800">💵 Mis Ingresos</h1>
+        <h1 class="income-title text-3xl">💵 Mis Ingresos</h1>
         <div class="flex space-x-3">
             <a href="{{ url_for('incomes.categories') }}" 
                class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition">
@@ -22,25 +43,25 @@
     <!-- Fase 6: Cuadros de resumen -->
     {% if summary_metrics %}
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
-            <p class="text-sm text-gray-500 uppercase tracking-wide">Media mensual</p>
-            <p class="text-xl font-bold text-green-600">+{{ '%.2f'|format(summary_metrics.media_mensual) }} €</p>
+        <div class="income-kpi p-4 border-l-4 border-green-500">
+            <p class="text-gray-600 text-sm font-medium">Media mensual</p>
+            <p class="text-2xl font-bold text-green-600">+{{ '%.2f'|format(summary_metrics.media_mensual) }} €</p>
         </div>
-        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-green-600">
-            <p class="text-sm text-gray-500 uppercase tracking-wide">Total período</p>
-            <p class="text-xl font-bold text-green-700">+{{ '%.2f'|format(summary_metrics.total_periodo) }} €</p>
+        <div class="income-kpi p-4 border-l-4 border-green-600">
+            <p class="text-gray-600 text-sm font-medium">Total período</p>
+            <p class="text-2xl font-bold text-green-700">+{{ '%.2f'|format(summary_metrics.total_periodo) }} €</p>
         </div>
-        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-green-400">
-            <p class="text-sm text-gray-500 uppercase tracking-wide">Mes con más ingresos</p>
+        <div class="income-kpi p-4 border-l-4 border-green-400">
+            <p class="text-gray-600 text-sm font-medium">Mes con más ingresos</p>
             <p class="text-lg font-semibold text-gray-800">{{ summary_metrics.mes_max.label }}</p>
             <p class="text-sm text-green-600">+{{ '%.2f'|format(summary_metrics.mes_max.amount) }} €</p>
         </div>
-        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-gray-400">
-            <p class="text-sm text-gray-500 uppercase tracking-wide">Meses con datos</p>
-            <p class="text-xl font-bold text-gray-700">{{ summary_metrics.meses_con_datos }}/12</p>
+        <div class="income-kpi p-4 border-l-4 border-gray-400">
+            <p class="text-gray-600 text-sm font-medium">Meses con datos</p>
+            <p class="text-2xl font-bold text-gray-700">{{ summary_metrics.meses_con_datos }}/12</p>
         </div>
-        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-blue-400">
-            <p class="text-sm text-gray-500 uppercase tracking-wide">Tendencia</p>
+        <div class="income-kpi p-4 border-l-4 border-blue-400">
+            <p class="text-gray-600 text-sm font-medium">Tendencia</p>
             <p class="text-2xl font-bold" title="Último mes vs media">
                 {% if summary_metrics.tendencia == '↑' %}📈{% elif summary_metrics.tendencia == '↓' %}📉{% else %}➡️{% endif %}
             </p>
