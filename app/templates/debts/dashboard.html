@@ -3,6 +3,29 @@
 {% block title %}Deudas - FollowUp{% endblock %}
 
 {% block content %}
+<style>
+    .debt-card {
+        background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(248,250,252,0.92));
+        border: 1px solid rgba(148,163,184,0.2);
+        border-radius: 16px;
+        box-shadow: 0 14px 30px rgba(15,23,42,0.1), inset 0 1px 0 rgba(255,255,255,0.85);
+    }
+    .debt-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-weight: 700;
+        color: #1f2937;
+    }
+    .debt-kpi {
+        border-radius: 14px;
+        border: 1px solid rgba(148,163,184,0.2);
+        box-shadow: 0 10px 24px rgba(15,23,42,0.08);
+    }
+    .debt-table-row {
+        background: linear-gradient(180deg, rgba(255,255,255,0.94), rgba(248,250,252,0.9));
+    }
+</style>
 <div class="max-w-[92%] mx-auto px-4 py-8">
     <!-- Header -->
     <div class="flex justify-between items-center mb-6">
@@ -22,22 +45,22 @@
 
     <!-- Resumen y Límite -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-red-500">
+        <div class="debt-kpi bg-white rounded-lg shadow p-4 border-l-4 border-red-500">
             <p class="text-gray-600 text-sm font-medium">Total deuda pendiente</p>
             <p class="text-2xl font-bold text-gray-900">{{ total_debt|decimal_eu(2) }} €</p>
         </div>
-        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-blue-500">
+        <div class="debt-kpi bg-white rounded-lg shadow p-4 border-l-4 border-blue-500">
             <p class="text-gray-600 text-sm font-medium">Ingresos medios (12m)</p>
             <p class="text-2xl font-bold text-gray-900">{{ limit_info.avg_monthly_income|decimal_eu(2) }} €</p>
         </div>
-        <div class="bg-white rounded-lg shadow p-4 border-l-4 {% if limit_info.margin >= 0 %}border-green-500{% else %}border-red-500{% endif %}">
+        <div class="debt-kpi bg-white rounded-lg shadow p-4 border-l-4 {% if limit_info.margin >= 0 %}border-green-500{% else %}border-red-500{% endif %}">
             <p class="text-gray-600 text-sm font-medium">Margen disponible</p>
             <p class="text-2xl font-bold {% if limit_info.margin >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
                 {{ limit_info.margin|decimal_eu(2) }} €
             </p>
             <p class="text-xs text-gray-500">Según límite {{ limit_info.debt_limit_percent|decimal_eu(0) }}%</p>
         </div>
-        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-gray-500">
+        <div class="debt-kpi bg-white rounded-lg shadow p-4 border-l-4 border-gray-500">
             <p class="text-gray-600 text-sm font-medium">Límite máximo mensual</p>
             <p class="text-2xl font-bold text-gray-900">{{ limit_info.max_monthly_debt|decimal_eu(2) }} €</p>
             <p class="text-xs text-gray-500">{{ limit_info.max_yearly_debt|decimal_eu(2) }} €/año</p>
@@ -45,8 +68,8 @@
     </div>
 
     <!-- Configurar límite -->
-    <div class="bg-white rounded-lg shadow p-4 mb-6">
-        <h2 class="text-lg font-bold text-gray-800 mb-3">⚙️ Límite de endeudamiento</h2>
+    <div class="debt-card bg-white rounded-lg shadow p-4 mb-6">
+        <h2 class="debt-title text-lg mb-3">⚙️ Límite de endeudamiento</h2>
         <form method="POST" action="{{ url_for('debts.update_limit') }}" class="flex items-end gap-3">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="flex-1 max-w-xs">
@@ -63,17 +86,17 @@
     </div>
 
     <!-- Gráfico de barras -->
-    <div class="bg-white rounded-lg shadow p-6 mb-6">
-        <h2 class="text-xl font-bold text-gray-800 mb-4">📊 Pagos por mes (histórico y próximos 12 meses)</h2>
+    <div class="debt-card bg-white rounded-lg shadow p-6 mb-6">
+        <h2 class="debt-title text-xl mb-4">📊 Pagos por mes (histórico y próximos 12 meses)</h2>
         <p class="text-sm text-gray-600 mb-4">La línea roja marca tu límite máximo mensual. Pasa el cursor sobre una fila para resaltar su plan en el gráfico.</p>
-        <div style="position: relative; height: 400px;">
+        <div class="rounded-2xl border border-slate-200/70 bg-gradient-to-b from-white to-slate-50 p-3 shadow-inner" style="position: relative; height: 400px;">
             <canvas id="debtChart"></canvas>
         </div>
     </div>
 
     <!-- Lista de planes activos -->
-    <div class="bg-white rounded-lg shadow overflow-hidden">
-        <h2 class="text-xl font-bold text-gray-800 p-4 border-b">Planes activos</h2>
+    <div class="debt-card bg-white rounded-lg shadow overflow-hidden">
+        <h2 class="debt-title text-xl p-4 border-b">📋 Planes activos</h2>
         {% if plans %}
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
@@ -89,7 +112,7 @@
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
                 {% for plan in plans %}
-                <tr class="hover:bg-gray-50 cursor-pointer transition" data-plan-id="{{ plan.id }}" onmouseenter="window.debtChartHighlightPlan&&window.debtChartHighlightPlan({{ plan.id }})" onmouseleave="window.debtChartUnhighlight&&window.debtChartUnhighlight()" x-data="{ showPayOffModal: false, showCancelFutureModal: false }">
+                <tr class="debt-table-row hover:bg-gray-50 cursor-pointer transition" data-plan-id="{{ plan.id }}" onmouseenter="window.debtChartHighlightPlan&&window.debtChartHighlightPlan({{ plan.id }})" onmouseleave="window.debtChartUnhighlight&&window.debtChartUnhighlight()" x-data="{ showPayOffModal: false, showCancelFutureModal: false }">
                     <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ plan.name }}</td>
                     <td class="px-6 py-4 text-sm text-gray-700">{{ plan.total_amount|decimal_eu(2) }} €</td>
                     <td class="px-6 py-4 text-sm text-gray-700">{{ plan.monthly_payment|decimal_eu(2) }} €</td>
@@ -172,8 +195,8 @@
 
     <!-- Planes no activos (PAID_OFF / CANCELLED) -->
     {% if inactive_plans %}
-    <div class="bg-white rounded-lg shadow overflow-hidden mt-6">
-        <h2 class="text-xl font-bold text-gray-800 p-4 border-b">📂 Histórico (pagados / cancelados)</h2>
+    <div class="debt-card bg-white rounded-lg shadow overflow-hidden mt-6">
+        <h2 class="debt-title text-xl p-4 border-b">📂 Histórico (pagados / cancelados)</h2>
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
@@ -189,7 +212,7 @@
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
                 {% for plan in inactive_plans %}
-                <tr class="hover:bg-gray-50">
+                <tr class="debt-table-row hover:bg-gray-50">
                     <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ plan.name }}</td>
                     <td class="px-6 py-4 text-sm text-gray-700">{{ plan.total_amount|decimal_eu(2) }} €</td>
                     <td class="px-6 py-4 text-sm text-gray-700">{{ plan.monthly_payment|decimal_eu(2) }} €</td>
