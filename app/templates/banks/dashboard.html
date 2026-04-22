@@ -3,7 +3,7 @@
 {% block title %}Bancos - FollowUp{% endblock %}
 
 {% block content %}
-<div class="max-w-[92%] mx-auto px-4 py-8" x-data="{ openDelete:false, deleteAction:'', deleteName:'' }">
+<div class="max-w-[92%] mx-auto px-4 py-8">
     <!-- Header -->
     <div class="flex justify-between items-center mb-6">
         <h1 class="text-3xl font-bold text-gray-800">🏦 Mis Bancos</h1>
@@ -143,8 +143,9 @@
                     <td class="px-6 py-4 text-right">
                         <a href="{{ url_for('banks.edit', id=bank.id) }}" class="text-blue-600 hover:text-blue-800 mr-3">Editar</a>
                         <button type="button"
-                                class="text-red-600 hover:text-red-800 cursor-pointer"
-                                @click="openDelete = true; deleteAction = {{ url_for('banks.delete', id=bank.id)|tojson }}; deleteName = {{ bank.name|tojson }}">
+                                class="text-red-600 hover:text-red-800 cursor-pointer js-open-delete"
+                                data-delete-action="{{ url_for('banks.delete', id=bank.id) }}"
+                                data-bank-name="{{ bank.name }}">
                             Eliminar
                         </button>
                     </td>
@@ -165,35 +166,65 @@
     </div>
     {% endif %}
 
-    <!-- Modal confirmación eliminar banco -->
-    <template x-teleport="body">
-        <div x-show="openDelete" x-transition
-             class="fixed inset-0 z-[9999] bg-black/40 backdrop-blur-[2px] flex items-center justify-center p-4"
-             @click.self="openDelete = false"
-             @keydown.escape.window="if(openDelete) openDelete = false"
-             style="display:none;">
-            <div class="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-gray-100 p-6" @click.stop>
-                <h3 class="text-lg font-bold text-gray-900">Eliminar banco</h3>
-                <p class="text-sm text-gray-600 mt-2">
-                    ¿Eliminar <span class="font-semibold text-gray-800" x-text="deleteName"></span> y todos sus saldos?
-                </p>
-                <div class="mt-6 flex justify-end gap-2">
-                    <button type="button"
-                            class="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 cursor-pointer"
-                            @click="openDelete = false">
-                        Cancelar
+    <!-- Modal intro bancos (solo primera visita) -->
+    {% if show_intro_modal %}
+    <div id="banks-intro-modal"
+         class="fixed inset-0 z-[9999] bg-black/50 backdrop-blur-[2px] flex items-center justify-center p-4">
+        <div class="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-gray-100 p-6 sm:p-8">
+            <h2 class="text-xl sm:text-2xl font-bold text-gray-900">🏦 Bienvenido a Saldos Bancarios</h2>
+            <p class="text-sm sm:text-base text-gray-700 mt-3 leading-relaxed">
+                Esta pestaña te ayuda a reflejar tu <span class="font-semibold">dinero disponible real</span>:
+                el efectivo/cash que tienes en tus cuentas bancarias (no brokers) en cada momento.
+            </p>
+            <p class="text-sm sm:text-base text-gray-700 mt-3 leading-relaxed">
+                La idea es muy simple: <span class="font-semibold">1 vez al mes</span>, registra el saldo total de cada banco.
+                Con eso, FollowUp puede ver cómo evoluciona tu liquidez 💧 y relacionarla con ingresos 💵 y gastos 💸
+                para darte mejores ajustes y recomendaciones.
+            </p>
+            <div class="mt-4 rounded-xl border border-indigo-100 bg-indigo-50 p-4">
+                <p class="text-sm text-indigo-900 font-medium">✨ Resumen rápido:</p>
+                <p class="text-sm text-indigo-800 mt-1">Saldo mensual de tus bancos = visión clara de tu liquidez + análisis más preciso del dashboard.</p>
+            </div>
+            <div class="mt-6 flex justify-end">
+                <form method="POST" action="{{ url_for('banks.intro_ack') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="intro_key" value="{{ banks_intro_key }}">
+                    <input type="hidden" name="year" value="{{ selected_year }}">
+                    <input type="hidden" name="month" value="{{ selected_month }}">
+                    <button type="submit"
+                            class="px-5 py-2.5 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700 cursor-pointer">
+                        Entendido, empezar
                     </button>
-                    <form method="POST" :action="deleteAction">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <button type="submit"
-                                class="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 cursor-pointer">
-                            Eliminar
-                        </button>
-                    </form>
-                </div>
+                </form>
             </div>
         </div>
-    </template>
+    </div>
+    {% endif %}
+
+    <!-- Modal confirmación eliminar banco -->
+    <div id="delete-bank-modal"
+         class="fixed inset-0 z-[9999] bg-black/40 backdrop-blur-[2px] items-center justify-center p-4 hidden">
+        <div class="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-gray-100 p-6">
+            <h3 class="text-lg font-bold text-gray-900">Eliminar banco</h3>
+            <p class="text-sm text-gray-600 mt-2">
+                ¿Eliminar <span id="delete-bank-name" class="font-semibold text-gray-800"></span> y todos sus saldos?
+            </p>
+            <div class="mt-6 flex justify-end gap-2">
+                <button type="button"
+                        id="delete-bank-cancel"
+                        class="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 cursor-pointer">
+                    Cancelar
+                </button>
+                <form method="POST" id="delete-bank-form" action="#">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit"
+                            class="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 cursor-pointer">
+                        Eliminar
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
 </div>
 
 {% if cash_evolution %}
@@ -246,5 +277,42 @@ function navigateYear(inp) {
     const m = document.querySelector('select[name="nav_month"]').value;
     window.location = "{{ url_for('banks.dashboard') }}?year=" + y + "&month=" + m;
 }
+
+(function () {
+    const modal = document.getElementById('delete-bank-modal');
+    const form = document.getElementById('delete-bank-form');
+    const nameEl = document.getElementById('delete-bank-name');
+    const cancelBtn = document.getElementById('delete-bank-cancel');
+    if (!modal || !form || !nameEl || !cancelBtn) return;
+
+    const closeModal = () => {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        form.setAttribute('action', '#');
+        nameEl.textContent = '';
+    };
+
+    document.querySelectorAll('.js-open-delete').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const action = btn.getAttribute('data-delete-action');
+            const name = btn.getAttribute('data-bank-name');
+            if (!action) return;
+            form.setAttribute('action', action);
+            nameEl.textContent = name || 'este banco';
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        });
+    });
+
+    cancelBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (event) => {
+        if (event.target === modal) closeModal();
+    });
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && !modal.classList.contains('hidden')) {
+            closeModal();
+        }
+    });
+})();
 </script>
 {% endblock %}

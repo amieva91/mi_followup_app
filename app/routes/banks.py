@@ -5,7 +5,7 @@ from datetime import date
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
 from app import db
-from app.models import Bank, BankBalance
+from app.models import Bank, BankBalance, DashboardOnboardingState
 from app.forms import BankForm
 from app.services.bank_service import BankService
 
@@ -18,6 +18,7 @@ def dashboard():
     """Dashboard de bancos: lista, saldos del mes, gráfico"""
     year = request.args.get('year', type=int) or date.today().year
     month = request.args.get('month', type=int) or date.today().month
+    intro_key = "banks_intro_modal_v1"
 
     # Validar mes
     if month < 1:
@@ -29,6 +30,9 @@ def dashboard():
     balances = BankService.get_balances_for_month(current_user.id, year, month)
     total_cash = BankService.get_total_cash_by_month(current_user.id, year, month)
     cash_evolution = BankService.get_cash_evolution(current_user.id, months=12)
+    onboarding_state = DashboardOnboardingState.query.filter_by(user_id=current_user.id).first()
+    notified = set((onboarding_state.notified_milestones or []) if onboarding_state else [])
+    show_intro_modal = intro_key not in notified
 
     return render_template(
         'banks/dashboard.html',
@@ -37,7 +41,9 @@ def dashboard():
         total_cash=total_cash,
         cash_evolution=cash_evolution,
         selected_year=year,
-        selected_month=month
+        selected_month=month,
+        show_intro_modal=show_intro_modal,
+        banks_intro_key=intro_key,
     )
 
 
@@ -120,3 +126,26 @@ def save_balances():
         CacheRebuildStateService.mark_now(current_user.id)
     flash('Saldos guardados', 'success')
     return redirect(url_for('banks.dashboard', year=year, month=month))
+
+
+@banks_bp.route('/intro/ack', methods=['POST'])
+@login_required
+def intro_ack():
+    """Marcar modal introductorio de bancos como mostrado (solo una vez por usuario)."""
+    intro_key = request.form.get("intro_key", "banks_intro_modal_v1")
+    row = DashboardOnboardingState.query.filter_by(user_id=current_user.id).first()
+    if not row:
+        row = DashboardOnboardingState(user_id=current_user.id, notified_milestones=[])
+        db.session.add(row)
+
+    current = set(row.notified_milestones or [])
+    if intro_key not in current:
+        current.add(intro_key)
+        row.notified_milestones = sorted(current)
+        db.session.commit()
+
+    year = request.form.get('year', type=int)
+    month = request.form.get('month', type=int)
+    if year and month:
+        return redirect(url_for('banks.dashboard', year=year, month=month))
+    return redirect(url_for('banks.dashboard'))
