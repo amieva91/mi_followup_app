@@ -7,7 +7,7 @@ from datetime import datetime, date
 from sqlalchemy import func, extract
 from app.routes import main_bp
 from app import db
-from app.models import Expense, Income, UserDashboardConfig, UserDashboardLayout, DEFAULT_WIDGETS
+from app.models import Expense, Income, UserDashboardConfig, UserDashboardLayout, DEFAULT_WIDGETS, MODULES
 from app.services.dashboard_onboarding_service import DashboardOnboardingService
 from app.services.net_worth_service import get_dashboard_summary
 from app.services.price_polling_service import get_updated_asset_ids_for_user
@@ -53,6 +53,8 @@ def dashboard():
         'dashboard.html',
         summary=summary,
         onboarding=onboarding,
+        modules=MODULES,
+        enabled_module_keys=current_user.get_enabled_modules(),
         widget_config=widget_config,
         enabled_widgets=enabled_widgets,
         default_widgets=DEFAULT_WIDGETS,
@@ -70,6 +72,19 @@ def dashboard_onboarding_ack():
         return jsonify({"success": False, "error": "Formato inválido"}), 400
     saved = DashboardOnboardingService.acknowledge_milestones(current_user.id, milestones)
     return jsonify({"success": True, "saved": saved}), 200
+
+
+@main_bp.route('/dashboard/onboarding/modules', methods=['POST'])
+@login_required
+def dashboard_onboarding_modules():
+    enabled = [k for k in MODULES.keys() if request.form.get(f'module_{k}') == 'on']
+    if not enabled:
+        flash('Debes mantener al menos un módulo activo.', 'warning')
+        return redirect(url_for('main.dashboard'))
+    current_user.enabled_modules = enabled
+    db.session.commit()
+    flash('Módulos actualizados. Las sugerencias se han ajustado.', 'success')
+    return redirect(url_for('main.dashboard'))
 
 
 @main_bp.route('/api/price-updates')

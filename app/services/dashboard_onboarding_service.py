@@ -32,6 +32,7 @@ from app.models import (
 @dataclass(frozen=True)
 class MilestoneDef:
     key: str
+    icon: str
     label: str
     module_key: str
     endpoint: str
@@ -40,14 +41,14 @@ class MilestoneDef:
 
 class DashboardOnboardingService:
     MILESTONES: tuple[MilestoneDef, ...] = (
-        MilestoneDef("banks", "Conectar tu primer banco", "finance", "banks.new"),
-        MilestoneDef("incomes", "Registrar tu primer ingreso", "finance", "incomes.new"),
-        MilestoneDef("expenses", "Registrar tu primer gasto", "finance", "expenses.new"),
-        MilestoneDef("debts", "Registrar tu primera deuda", "finance", "debts.new", {"next": "debts"}),
-        MilestoneDef("portfolio", "Importar o registrar acciones", "stock", "portfolio.import_csv"),
-        MilestoneDef("crypto", "Registrar tu primera transacción crypto", "crypto", "crypto.transaction_new"),
-        MilestoneDef("metales", "Registrar tu primera compra de metales", "metales", "metales.transaction_new"),
-        MilestoneDef("real_estate", "Registrar tu primer inmueble", "real_estate", "real_estate.new"),
+        MilestoneDef("banks", "🏦", "Conectar tu primer banco", "finance", "banks.new"),
+        MilestoneDef("incomes", "💵", "Registrar tu primer ingreso", "finance", "incomes.new"),
+        MilestoneDef("expenses", "💸", "Registrar tu primer gasto", "finance", "expenses.new"),
+        MilestoneDef("debts", "📋", "Registrar tu primera deuda", "finance", "debts.new", {"next": "debts"}),
+        MilestoneDef("portfolio", "📈", "Importar o registrar acciones", "stock", "portfolio.import_csv"),
+        MilestoneDef("crypto", "🪙", "Registrar tu primera transacción crypto", "crypto", "crypto.transaction_new"),
+        MilestoneDef("metales", "🥇", "Registrar tu primera compra de metales", "metales", "metales.transaction_new"),
+        MilestoneDef("real_estate", "🏠", "Registrar tu primer inmueble", "real_estate", "real_estate.new"),
     )
 
     @staticmethod
@@ -173,6 +174,7 @@ class DashboardOnboardingService:
                 payload.append(
                     {
                         "key": m.key,
+                        "icon": m.icon,
                         "label": m.label,
                         "module_key": m.module_key,
                         "endpoint": m.endpoint,
@@ -192,6 +194,7 @@ class DashboardOnboardingService:
                     0,
                     {
                         "key": "banks_cash_setup",
+                        "icon": "💶",
                         "label": "Registrar saldo en tu banco",
                         "module_key": "finance",
                         "endpoint": "banks.dashboard",
