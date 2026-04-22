@@ -164,6 +164,13 @@
             inset 0 1px 0 rgba(255, 255, 255, 0.85),
             0 10px 24px rgba(15, 23, 42, 0.1);
     }
+    .dashboard-touch-btn {
+        transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease;
+    }
+    .dashboard-touch-btn:active {
+        transform: scale(0.98);
+        filter: brightness(0.96);
+    }
 </style>
     {% set onboarding = onboarding or {} %}
     {% set onboarding_initial = onboarding.show_initial_onboarding|default(false) %}
@@ -299,7 +306,7 @@
                         {% for step in finance_steps %}
                         <a href="{% if step.locked or step.completed %}javascript:void(0){% else %}{{ step.url }}{% endif %}"
                            title="{% if step.locked %}{{ step.lock_reason }}{% elif step.completed %}Completado{% else %}{% endif %}"
-                           class="flex items-center justify-between gap-3 p-4 rounded-xl border transition {% if step.completed %}border-emerald-200 bg-emerald-50 text-emerald-700 cursor-default{% elif step.locked %}border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed opacity-80{% else %}border-indigo-100 bg-indigo-50 hover:bg-indigo-100/80{% endif %}">
+                           class="dashboard-touch-btn flex items-center justify-between gap-3 p-4 rounded-xl border transition {% if step.completed %}border-emerald-200 bg-emerald-50 text-emerald-700 cursor-default{% elif step.locked %}border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed opacity-80{% else %}border-indigo-100 bg-indigo-50 hover:bg-indigo-100/80{% endif %}">
                             <div class="flex items-center gap-3 min-w-0">
                                 <span class="text-2xl shrink-0">{{ step.icon|default('📌') }}</span>
                                 <p class="text-sm font-semibold {% if step.completed %}text-emerald-800{% else %}text-gray-800{% endif %} truncate">{{ step.label }}</p>
@@ -318,7 +325,7 @@
                         {% for step in investment_steps %}
                         <a href="{% if step.locked or step.completed %}javascript:void(0){% else %}{{ step.url }}{% endif %}"
                            title="{% if step.locked %}{{ step.lock_reason }}{% elif step.completed %}Completado{% else %}{% endif %}"
-                           class="flex items-center justify-between gap-3 p-4 rounded-xl border transition {% if step.completed %}border-emerald-200 bg-emerald-50 text-emerald-700 cursor-default{% elif step.locked %}border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed opacity-80{% else %}border-violet-100 bg-violet-50 hover:bg-violet-100/80{% endif %}">
+                           class="dashboard-touch-btn flex items-center justify-between gap-3 p-4 rounded-xl border transition {% if step.completed %}border-emerald-200 bg-emerald-50 text-emerald-700 cursor-default{% elif step.locked %}border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed opacity-80{% else %}border-violet-100 bg-violet-50 hover:bg-violet-100/80{% endif %}">
                             <div class="flex items-center gap-3 min-w-0">
                                 <span class="text-2xl shrink-0">{{ step.icon|default('📌') }}</span>
                                 <p class="text-sm font-semibold {% if step.completed %}text-emerald-800{% else %}text-gray-800{% endif %} truncate">{{ step.label }}</p>
@@ -409,7 +416,7 @@
                         {% for step in onboarding.pending_milestones[:4] %}
                         <a href="{% if step.locked %}javascript:void(0){% else %}{{ step.url }}{% endif %}"
                            title="{{ step.lock_reason if step.locked else '' }}"
-                           class="flex items-center justify-between gap-3 p-3 rounded-lg border transition {% if step.locked %}border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed opacity-80{% else %}border-gray-200 hover:bg-gray-50{% endif %}">
+                           class="dashboard-touch-btn flex items-center justify-between gap-3 p-3 rounded-lg border transition {% if step.locked %}border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed opacity-80{% else %}border-gray-200 hover:bg-gray-50{% endif %}">
                             <span class="text-sm font-medium text-gray-800">{{ step.label }}</span>
                             <span class="font-bold {% if step.locked %}text-gray-400{% else %}text-indigo-600{% endif %}">{% if step.locked %}🔒{% else %}→{% endif %}</span>
                         </a>
@@ -419,7 +426,7 @@
 
                     <div class="flex justify-end">
                         <button type="button"
-                                class="px-4 py-2 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700"
+                                class="dashboard-touch-btn px-4 py-2 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700"
                                 @click="closeOnboardingPopup()">
                             Omitir
                         </button>
@@ -862,13 +869,13 @@
         <p class="text-sm text-gray-600 mt-1">A medida que añadas datos, aparecerán tarjetas con gráficos, métricas y recomendaciones.</p>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-5">
             {% if current_user|user_has_module('finance') %}
-            <a href="{{ url_for('banks.new') }}" class="px-4 py-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-100 text-sm font-semibold text-emerald-800">🏦 Añadir banco</a>
-            <a href="{{ url_for('incomes.new') }}" class="px-4 py-3 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-100 text-sm font-semibold text-blue-800">💵 Nuevo ingreso</a>
-            <a href="{{ url_for('expenses.new') }}" class="px-4 py-3 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-100 text-sm font-semibold text-rose-800">💸 Nuevo gasto</a>
-            <a href="{{ url_for('debts.new', next='debts') }}" class="px-4 py-3 rounded-xl bg-violet-50 hover:bg-violet-100 border border-violet-100 text-sm font-semibold text-violet-800">📋 Añadir deuda</a>
+            <a href="{{ url_for('banks.new') }}" class="dashboard-touch-btn px-4 py-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-100 text-sm font-semibold text-emerald-800">🏦 Añadir banco</a>
+            <a href="{{ url_for('incomes.new') }}" class="dashboard-touch-btn px-4 py-3 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-100 text-sm font-semibold text-blue-800">💵 Nuevo ingreso</a>
+            <a href="{{ url_for('expenses.new') }}" class="dashboard-touch-btn px-4 py-3 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-100 text-sm font-semibold text-rose-800">💸 Nuevo gasto</a>
+            <a href="{{ url_for('debts.new', next='debts') }}" class="dashboard-touch-btn px-4 py-3 rounded-xl bg-violet-50 hover:bg-violet-100 border border-violet-100 text-sm font-semibold text-violet-800">📋 Añadir deuda</a>
             {% endif %}
             {% if current_user|user_has_module('stock') %}
-            <a href="{{ url_for('portfolio.import_csv') }}" class="px-4 py-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-100 text-sm font-semibold text-slate-800">📥 Importar portfolio</a>
+            <a href="{{ url_for('portfolio.import_csv') }}" class="dashboard-touch-btn px-4 py-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-100 text-sm font-semibold text-slate-800">📥 Importar portfolio</a>
             {% endif %}
         </div>
     </div>
@@ -879,15 +886,15 @@
     <div class="fixed bottom-6 left-6 z-[9998]" id="fab-root">
         <div id="fab-menu" class="hidden mb-3 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden w-60">
             <div class="p-2 space-y-1">
-                <a href="{{ url_for('incomes.new') }}" class="block px-3 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium text-gray-800">💵 Nuevo ingreso</a>
-                <a href="{{ url_for('expenses.new') }}" class="block px-3 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium text-gray-800">💸 Nuevo gasto</a>
-                <a href="{{ url_for('incomes.list') }}" class="block px-3 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium text-gray-800">📋 Ver ingresos</a>
-                <a href="{{ url_for('expenses.list') }}" class="block px-3 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium text-gray-800">📋 Ver gastos</a>
+                <a href="{{ url_for('incomes.new') }}" class="dashboard-touch-btn block px-3 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium text-gray-800">💵 Nuevo ingreso</a>
+                <a href="{{ url_for('expenses.new') }}" class="dashboard-touch-btn block px-3 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium text-gray-800">💸 Nuevo gasto</a>
+                <a href="{{ url_for('incomes.list') }}" class="dashboard-touch-btn block px-3 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium text-gray-800">📋 Ver ingresos</a>
+                <a href="{{ url_for('expenses.list') }}" class="dashboard-touch-btn block px-3 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium text-gray-800">📋 Ver gastos</a>
             </div>
         </div>
         <button type="button"
                 id="fab-toggle"
-                class="w-14 h-14 rounded-full shadow-xl bg-teal-600 hover:bg-teal-700 text-white flex items-center justify-center text-2xl"
+                class="dashboard-touch-btn w-14 h-14 rounded-full shadow-xl bg-teal-600 hover:bg-teal-700 text-white flex items-center justify-center text-2xl"
                 aria-label="Acciones rápidas">
             <span id="fab-toggle-icon">+</span>
         </button>

@@ -145,3 +145,4 @@ Este documento sirve como referencia viva para mantener consistencia visual y fu
 - Añadir estado `:active` visible en acciones tactiles (ligera escala/contraste) para confirmar interacción al pulsar.
 - Extender el estado tactil `:active` a botones de modales (confirmar/cancelar/crear) para una respuesta uniforme en mobile.
 - Aplicar el mismo patron tactil `:active` en botones de formularios principales (guardar/crear/actualizar/cancelar) para coherencia global.
+- Aplicar el patron tactil tambien en CTAs de dashboard/onboarding (hitos, popup, empty state y FAB) para continuidad completa de interacción.
