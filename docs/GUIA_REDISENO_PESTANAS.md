@@ -88,6 +88,7 @@ Este documento sirve como referencia viva para mantener consistencia visual y fu
 - Titulo explicito y contexto del impacto.
 - CTA principal destacado y boton secundario neutro.
 - Cierre por click fuera + boton cancelar.
+- Aplicar este patron tambien a modales CRUD de listas (eliminar, terminar contrato, alcance de recurrencia, creacion rapida de categoria).
 
 ## Significado del KPI "Tendencia" en gastos
 
@@ -118,6 +119,10 @@ Este documento sirve como referencia viva para mantener consistencia visual y fu
 - Gastos categorias (`/expenses/categories`)
 - Gastos categoria nueva/editar (`/expenses/categories/new`, edit)
 - Gastos nuevo/editar (`/expenses/new`, edit)
+- Ingresos listado (`/incomes`)
+- Ingresos categorias (`/incomes/categories`)
+- Ingresos categoria nueva/editar (`/incomes/categories/new`, edit)
+- Ingresos nuevo/editar (`/incomes/new`, edit)
 
 ## Bitacora de cambios (ir ampliando)
 
@@ -128,3 +133,4 @@ Este documento sirve como referencia viva para mantener consistencia visual y fu
 - Se fija oficialmente la variante de color B y su regla de aplicacion transversal.
 - Se estandariza el fondo de tarjetas/recuadros para gastos y deudas con gradiente suave teal-slate.
 - Se unifica tipografia/jerarquia de etiquetas KPI de gastos e ingresos con el estilo base de deudas.
+- Se redisenan modales de ingresos, gastos y deudas con plantilla visual unificada (gradiente, borde suave, CTA principal y secundario consistentes).

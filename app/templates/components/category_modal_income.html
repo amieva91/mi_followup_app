@@ -1,20 +1,20 @@
 {# Modal crear categoría de ingreso. Usa div en lugar de form para evitar formularios anidados. #}
 <div x-data="categoryModalIncome('{{ url_for('incomes.quick_create_category') }}', '{{ category_select_id }}')" x-cloak>
-    <button type="button" @click="open()" class="ml-2 px-2 py-1 text-sm bg-gray-200 hover:bg-gray-300 rounded" title="Crear categoría">+</button>
-    <div x-show="show" x-transition class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" style="display: none;">
-        <div class="bg-white rounded-lg shadow-xl p-6 max-w-sm w-full mx-4" @click.away="close()">
-            <h3 class="text-lg font-bold mb-4">Nueva categoría de ingreso</h3>
+    <button type="button" @click="open()" class="ml-2 px-3 py-2 text-sm rounded-xl bg-slate-700 hover:bg-slate-800 text-white transition" title="Crear categoría rápida">+</button>
+    <div x-show="show" x-transition class="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4" style="display: none;">
+        <div class="w-full max-w-sm rounded-2xl border border-slate-200 bg-gradient-to-br from-[#f8fbfc] to-[#f1f7f8] p-6 shadow-[0_20px_45px_rgba(15,23,42,0.28)]" @click.away="close()">
+            <h3 class="text-lg font-bold mb-4 text-gray-900">Nueva categoría de ingreso</h3>
             <div class="mb-3">
                 <label class="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
-                <input type="text" x-model="name" class="w-full px-3 py-2 border rounded-lg" placeholder="Ej: Freelance" required>
+                <input type="text" x-model="name" class="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500" placeholder="Ej: Freelance" required>
             </div>
             <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700 mb-1">Icono</label>
-                <input type="text" x-model="icon" class="w-full px-3 py-2 border rounded-lg" placeholder="💵">
+                <input type="text" x-model="icon" class="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500" placeholder="💵">
             </div>
             <div class="flex gap-2">
-                <button type="button" @click="submit()" class="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg">Crear</button>
-                <button type="button" @click="close()" class="px-4 py-2 border rounded-lg">Cancelar</button>
+                <button type="button" @click="submit()" class="flex-1 rounded-full bg-teal-600 hover:bg-teal-700 text-white px-4 py-2.5 transition">Crear</button>
+                <button type="button" @click="close()" class="px-4 py-2.5 rounded-full bg-slate-700 hover:bg-slate-800 text-white transition">Cancelar</button>
             </div>
             <p x-show="error" x-text="error" class="mt-2 text-red-600 text-sm"></p>
         </div>
