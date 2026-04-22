@@ -39,7 +39,13 @@ def dashboard():
     now = datetime.now()
 
     onboarding = DashboardOnboardingService.build_state(current_user)
-    for bucket in ("applicable_milestones", "completed_milestones", "pending_milestones", "newly_completed_milestones"):
+    for bucket in (
+        "applicable_milestones",
+        "initial_guide_milestones",
+        "completed_milestones",
+        "pending_milestones",
+        "newly_completed_milestones",
+    ):
         items = onboarding.get(bucket) or []
         for item in items:
             endpoint = item.get("endpoint")

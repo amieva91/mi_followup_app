@@ -215,9 +215,9 @@
                 </div>
             </div>
 
-            {% if onboarding.pending_milestones %}
-            {% set finance_steps = onboarding.pending_milestones | selectattr('module_key', 'equalto', 'finance') | list %}
-            {% set investment_steps = onboarding.pending_milestones | rejectattr('module_key', 'equalto', 'finance') | list %}
+            {% if onboarding.initial_guide_milestones %}
+            {% set finance_steps = onboarding.initial_guide_milestones | selectattr('module_key', 'equalto', 'finance') | list %}
+            {% set investment_steps = onboarding.initial_guide_milestones | rejectattr('module_key', 'equalto', 'finance') | list %}
 
             <div class="mt-6 space-y-6">
                 {% if finance_steps %}
@@ -225,14 +225,14 @@
                     <h3 class="text-sm font-bold text-gray-800 uppercase tracking-wide mb-3">Finanzas</h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                         {% for step in finance_steps %}
-                        <a href="{% if step.locked %}javascript:void(0){% else %}{{ step.url }}{% endif %}"
-                           title="{{ step.lock_reason if step.locked else '' }}"
-                           class="flex items-center justify-between gap-3 p-4 rounded-xl border transition {% if step.locked %}border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed opacity-80{% else %}border-indigo-100 bg-indigo-50 hover:bg-indigo-100/80{% endif %}">
+                        <a href="{% if step.locked or step.completed %}javascript:void(0){% else %}{{ step.url }}{% endif %}"
+                           title="{% if step.locked %}{{ step.lock_reason }}{% elif step.completed %}Completado{% else %}{% endif %}"
+                           class="flex items-center justify-between gap-3 p-4 rounded-xl border transition {% if step.completed %}border-emerald-200 bg-emerald-50 text-emerald-700 cursor-default{% elif step.locked %}border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed opacity-80{% else %}border-indigo-100 bg-indigo-50 hover:bg-indigo-100/80{% endif %}">
                             <div class="flex items-center gap-3 min-w-0">
                                 <span class="text-2xl shrink-0">{{ step.icon|default('📌') }}</span>
-                                <p class="text-sm font-semibold text-gray-800 truncate">{{ step.label }}</p>
+                                <p class="text-sm font-semibold {% if step.completed %}text-emerald-800{% else %}text-gray-800{% endif %} truncate">{{ step.label }}</p>
                             </div>
-                            <span class="font-bold {% if step.locked %}text-gray-400{% else %}text-indigo-600{% endif %}">{% if step.locked %}🔒{% else %}→{% endif %}</span>
+                            <span class="font-bold {% if step.completed %}text-emerald-600{% elif step.locked %}text-gray-400{% else %}text-indigo-600{% endif %}">{% if step.completed %}✅{% elif step.locked %}🔒{% else %}→{% endif %}</span>
                         </a>
                         {% endfor %}
                     </div>
@@ -244,14 +244,14 @@
                     <h3 class="text-sm font-bold text-gray-800 uppercase tracking-wide mb-3">Inversiones</h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                         {% for step in investment_steps %}
-                        <a href="{% if step.locked %}javascript:void(0){% else %}{{ step.url }}{% endif %}"
-                           title="{{ step.lock_reason if step.locked else '' }}"
-                           class="flex items-center justify-between gap-3 p-4 rounded-xl border transition {% if step.locked %}border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed opacity-80{% else %}border-violet-100 bg-violet-50 hover:bg-violet-100/80{% endif %}">
+                        <a href="{% if step.locked or step.completed %}javascript:void(0){% else %}{{ step.url }}{% endif %}"
+                           title="{% if step.locked %}{{ step.lock_reason }}{% elif step.completed %}Completado{% else %}{% endif %}"
+                           class="flex items-center justify-between gap-3 p-4 rounded-xl border transition {% if step.completed %}border-emerald-200 bg-emerald-50 text-emerald-700 cursor-default{% elif step.locked %}border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed opacity-80{% else %}border-violet-100 bg-violet-50 hover:bg-violet-100/80{% endif %}">
                             <div class="flex items-center gap-3 min-w-0">
                                 <span class="text-2xl shrink-0">{{ step.icon|default('📌') }}</span>
-                                <p class="text-sm font-semibold text-gray-800 truncate">{{ step.label }}</p>
+                                <p class="text-sm font-semibold {% if step.completed %}text-emerald-800{% else %}text-gray-800{% endif %} truncate">{{ step.label }}</p>
                             </div>
-                            <span class="font-bold {% if step.locked %}text-gray-400{% else %}text-violet-600{% endif %}">{% if step.locked %}🔒{% else %}→{% endif %}</span>
+                            <span class="font-bold {% if step.completed %}text-emerald-600{% elif step.locked %}text-gray-400{% else %}text-violet-600{% endif %}">{% if step.completed %}✅{% elif step.locked %}🔒{% else %}→{% endif %}</span>
                         </a>
                         {% endfor %}
                     </div>

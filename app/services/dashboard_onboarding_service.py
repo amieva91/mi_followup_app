@@ -175,6 +175,7 @@ class DashboardOnboardingService:
                 if not m:
                     continue
                 is_locked = (k in broker_required_keys) and not has_broker_account
+                is_completed = k in completed_set
                 payload.append(
                     {
                         "key": m.key,
@@ -184,28 +185,31 @@ class DashboardOnboardingService:
                         "endpoint": m.endpoint,
                         "endpoint_kwargs": m.endpoint_kwargs or {},
                         "locked": is_locked,
+                        "completed": is_completed,
                         "lock_reason": "Necesitas registrar un broker primero" if is_locked else "",
                     }
                 )
             return payload
 
-        pending_payload = to_payload(pending_keys)
+        guide_payload = to_payload(applicable_keys)
+        pending_payload = [item for item in guide_payload if not item.get("completed")]
         has_broker_account = DashboardOnboardingService._exists_any(BrokerAccount, user.id)
         has_investment_modules = any(k in enabled_modules for k in ("stock", "crypto", "metales"))
-        if has_investment_modules and not has_broker_account:
-            pending_payload.insert(
-                0,
-                {
-                    "key": "broker_setup",
-                    "icon": "🏛️",
-                    "label": "Registra tu Broker",
-                    "module_key": "stock",
-                    "endpoint": "portfolio.account_new",
-                    "endpoint_kwargs": {},
-                    "locked": False,
-                    "lock_reason": "",
-                },
-            )
+        if has_investment_modules:
+            broker_item = {
+                "key": "broker_setup",
+                "icon": "🏛️",
+                "label": "Registra tu Broker",
+                "module_key": "stock",
+                "endpoint": "portfolio.account_new",
+                "endpoint_kwargs": {},
+                "locked": False,
+                "completed": has_broker_account,
+                "lock_reason": "",
+            }
+            guide_payload.insert(0, broker_item)
+            if not broker_item["completed"]:
+                pending_payload.insert(0, broker_item)
         # Paso guiado adicional:
         # Paso guiado de saldo bancario:
         # - sin banco: mostrar bloqueado con candado
@@ -213,23 +217,24 @@ class DashboardOnboardingService:
         if "banks" in applicable_keys:
             has_any_bank = DashboardOnboardingService._exists_any(Bank, user.id)
             has_bank_cash = DashboardOnboardingService._has_bank_cash_data(user.id)
-            if not has_bank_cash:
-                pending_payload.insert(
-                    0,
-                    {
-                        "key": "banks_cash_setup",
-                        "icon": "💶",
-                        "label": "Registrar saldo en tu banco",
-                        "module_key": "finance",
-                        "endpoint": "banks.dashboard" if has_any_bank else "banks.new",
-                        "endpoint_kwargs": {},
-                        "locked": not has_any_bank,
-                        "lock_reason": "Necesitas registrar un banco primero" if not has_any_bank else "",
-                    },
-                )
+            bank_cash_item = {
+                "key": "banks_cash_setup",
+                "icon": "💶",
+                "label": "Registrar saldo en tu banco",
+                "module_key": "finance",
+                "endpoint": "banks.dashboard" if has_any_bank else "banks.new",
+                "endpoint_kwargs": {},
+                "locked": not has_any_bank,
+                "completed": has_bank_cash,
+                "lock_reason": "Necesitas registrar un banco primero" if not has_any_bank else "",
+            }
+            guide_payload.insert(0, bank_cash_item)
+            if not bank_cash_item["completed"]:
+                pending_payload.insert(0, bank_cash_item)
 
         return {
-            "applicable_milestones": to_payload(applicable_keys),
+            "applicable_milestones": guide_payload,
+            "initial_guide_milestones": guide_payload,
             "completed_milestones": to_payload(completed_keys),
             "pending_milestones": pending_payload,
             "newly_completed_milestones": to_payload(newly_completed),
