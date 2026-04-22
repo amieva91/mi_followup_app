@@ -118,12 +118,18 @@ def save_balances():
     # - mes pasado => FULL
     # - mes actual/futuro => NOW
     from app.services.cache_rebuild_state_service import CacheRebuildStateService
+    from app.services.dashboard_summary_cache import DashboardSummaryCacheService
 
     today = date.today()
     if (year, month) < (today.year, today.month):
         CacheRebuildStateService.mark_full_history(current_user.id)
     else:
         CacheRebuildStateService.mark_now(current_user.id)
+    # Refresco inmediato del snapshot para evitar tarjetas con datos sintéticos obsoletos.
+    DashboardSummaryCacheService.touch_for_dates(
+        current_user.id,
+        month_refs=[(year, month)],
+    )
     flash('Saldos guardados', 'success')
     return redirect(url_for('banks.dashboard', year=year, month=month))
 
