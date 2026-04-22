@@ -73,6 +73,13 @@
     .table-action-link:hover {
         transform: translateY(-1px);
     }
+    .table-action-emoji {
+        line-height: 1;
+        display: inline-flex;
+    }
+    .table-action-label {
+        line-height: 1.2;
+    }
     .table-actions-col {
         width: 15rem;
         min-width: 15rem;
@@ -88,6 +95,22 @@
         .responsive-data-table td {
             padding-left: 0.75rem;
             padding-right: 0.75rem;
+        }
+    }
+    @media (max-width: 480px) {
+        .table-actions-col {
+            width: 4.5rem;
+            min-width: 4.5rem;
+        }
+        .table-action-link {
+            width: 1.9rem;
+            height: 1.9rem;
+            justify-content: center;
+            gap: 0;
+            padding: 0;
+        }
+        .table-action-label {
+            display: none;
         }
     }
 </style>
@@ -187,14 +210,14 @@
                     <td class="px-6 py-4 text-sm text-gray-700">{{ plan.category.icon }} {{ plan.category.name }}</td>
                     <td class="table-actions-col px-6 py-4">
                         <div class="flex justify-end items-center flex-wrap gap-x-3 gap-y-1">
-                        <a href="{{ url_for('debts.edit', id=plan.id) }}" class="table-action-link text-teal-700 hover:text-teal-800">
-                            ✏️ Editar
+                        <a href="{{ url_for('debts.edit', id=plan.id) }}" class="table-action-link text-teal-700 hover:text-teal-800" title="Editar">
+                            <span class="table-action-emoji">✏️</span><span class="table-action-label">Editar</span>
                         </a>
-                        <a href="{{ url_for('debts.restructure', id=plan.id) }}" class="table-action-link text-sky-700 hover:text-sky-800">
-                            🔄 Reestructurar
+                        <a href="{{ url_for('debts.restructure', id=plan.id) }}" class="table-action-link text-sky-700 hover:text-sky-800" title="Reestructurar">
+                            <span class="table-action-emoji">🔄</span><span class="table-action-label">Reestructurar</span>
                         </a>
-                        <button type="button" @click="showPayOffModal = true" class="table-action-link text-emerald-700 hover:text-emerald-800">
-                            ✓ Pagar anticipado
+                        <button type="button" @click="showPayOffModal = true" class="table-action-link text-emerald-700 hover:text-emerald-800" title="Pagar anticipado">
+                            <span class="table-action-emoji">✓</span><span class="table-action-label">Pagar anticipado</span>
                         </button>
                         <!-- Modal Pagar anticipado -->
                         <div x-show="showPayOffModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4" style="display: none;">
@@ -214,8 +237,8 @@
                                 </form>
                             </div>
                         </div>
-                        <button type="button" @click="showCancelFutureModal = true" class="table-action-link text-amber-600 hover:text-amber-800">
-                            ⏹ Solo futuras
+                        <button type="button" @click="showCancelFutureModal = true" class="table-action-link text-amber-600 hover:text-amber-800" title="Solo futuras">
+                            <span class="table-action-emoji">⏹</span><span class="table-action-label">Solo futuras</span>
                         </button>
                         <!-- Modal Solo futuras -->
                         <div x-show="showCancelFutureModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4" style="display: none;">
@@ -239,8 +262,8 @@
                         <form method="POST" action="{{ url_for('debts.cancel', id=plan.id) }}" class="inline">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <input type="hidden" name="delete_future_only" value="false">
-                            <button type="submit" class="table-action-link text-red-600 hover:text-red-800">
-                                🗑 Eliminar todo
+                            <button type="submit" class="table-action-link text-red-600 hover:text-red-800" title="Eliminar todo">
+                                <span class="table-action-emoji">🗑</span><span class="table-action-label">Eliminar todo</span>
                             </button>
                         </form>
                         </div>
@@ -292,14 +315,14 @@
                     <td class="px-6 py-4 text-sm text-gray-700">{{ plan.category.icon }} {{ plan.category.name }}</td>
                     <td class="table-actions-col px-6 py-4">
                         <div class="flex justify-end items-center flex-wrap gap-x-3 gap-y-1">
-                        <a href="{{ url_for('debts.edit', id=plan.id) }}" class="table-action-link text-teal-700 hover:text-teal-800">
-                            ✏️ Editar
+                        <a href="{{ url_for('debts.edit', id=plan.id) }}" class="table-action-link text-teal-700 hover:text-teal-800" title="Editar">
+                            <span class="table-action-emoji">✏️</span><span class="table-action-label">Editar</span>
                         </a>
                         <form method="POST" action="{{ url_for('debts.cancel', id=plan.id) }}" class="inline">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <input type="hidden" name="delete_future_only" value="false">
-                            <button type="submit" class="table-action-link text-red-600 hover:text-red-800">
-                                🗑 Eliminar
+                            <button type="submit" class="table-action-link text-red-600 hover:text-red-800" title="Eliminar">
+                                <span class="table-action-emoji">🗑</span><span class="table-action-label">Eliminar</span>
                             </button>
                         </form>
                         </div>
