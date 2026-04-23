@@ -17,6 +17,11 @@
         font-weight: 700;
         color: #1f2937;
     }
+    .expense-kpi {
+        background: linear-gradient(145deg, rgba(248,251,252,0.98), rgba(241,247,248,0.92));
+        border-radius: 14px;
+        box-shadow: inset 0 0 0 1px rgba(148,163,184,0.16), 0 10px 24px rgba(15,23,42,0.08);
+    }
     .expense-chip {
         border-radius: 9999px;
         border: 1px solid rgba(248,113,113,0.22);
@@ -146,29 +151,29 @@
     <!-- Fase 6: Cuadros de resumen -->
     {% if summary_metrics %}
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-        <div class="rounded-xl border border-rose-200/60 bg-gradient-to-br from-rose-50/95 to-slate-50/90 p-4 shadow-[0_8px_22px_rgba(15,23,42,0.07)] border-l-4 border-rose-500">
-            <p class="text-sm font-medium text-rose-800">Media mensual</p>
-            <p class="text-2xl font-bold text-rose-950 tabular-nums">-{{ '%.2f'|format(summary_metrics.media_mensual) }} €</p>
+        <div class="expense-kpi p-4 border-l-4 border-rose-500">
+            <p class="text-gray-600 text-sm font-medium">Media mensual</p>
+            <p class="text-2xl font-bold text-rose-700">-{{ '%.2f'|format(summary_metrics.media_mensual) }} €</p>
         </div>
-        <div class="rounded-xl border border-rose-200/50 bg-gradient-to-br from-rose-50/90 to-slate-50/90 p-4 shadow-[0_8px_22px_rgba(15,23,42,0.07)] border-l-4 border-rose-600">
-            <p class="text-sm font-medium text-rose-800">Total período</p>
-            <p class="text-2xl font-bold text-rose-950 tabular-nums">-{{ '%.2f'|format(summary_metrics.total_periodo) }} €</p>
+        <div class="expense-kpi p-4 border-l-4 border-rose-600">
+            <p class="text-gray-600 text-sm font-medium">Total período</p>
+            <p class="text-2xl font-bold text-rose-800">-{{ '%.2f'|format(summary_metrics.total_periodo) }} €</p>
         </div>
-        <div class="rounded-xl border border-amber-200/60 bg-gradient-to-br from-amber-50/95 to-slate-50/90 p-4 shadow-[0_8px_22px_rgba(15,23,42,0.07)] border-l-4 border-amber-500">
-            <p class="text-sm font-medium text-amber-900">Mes con más gastos</p>
-            <p class="text-base font-semibold text-slate-800">{{ summary_metrics.mes_max.label }}</p>
-            <p class="mt-0.5 text-sm font-bold tabular-nums text-amber-900">-{{ '%.2f'|format(summary_metrics.mes_max.amount) }} €</p>
+        <div class="expense-kpi p-4 border-l-4 border-rose-400">
+            <p class="text-gray-600 text-sm font-medium">Mes con más gastos</p>
+            <p class="text-lg font-semibold text-gray-800">{{ summary_metrics.mes_max.label }}</p>
+            <p class="text-sm text-rose-700">-{{ '%.2f'|format(summary_metrics.mes_max.amount) }} €</p>
         </div>
-        <div class="rounded-xl border border-slate-200/80 bg-gradient-to-br from-slate-50/95 to-slate-50/90 p-4 shadow-[0_8px_22px_rgba(15,23,42,0.07)] border-l-4 border-slate-500">
-            <p class="text-sm font-medium text-slate-600">Meses con datos</p>
-            <p class="text-2xl font-bold text-slate-900 tabular-nums">{{ summary_metrics.meses_con_datos }}/12</p>
+        <div class="expense-kpi p-4 border-l-4 border-slate-400">
+            <p class="text-gray-600 text-sm font-medium">Meses con datos</p>
+            <p class="text-2xl font-bold text-gray-700">{{ summary_metrics.meses_con_datos }}/12</p>
         </div>
-        <div class="rounded-xl border border-sky-200/60 bg-gradient-to-br from-sky-50/95 to-slate-50/90 p-4 shadow-[0_8px_22px_rgba(15,23,42,0.07)] border-l-4 border-sky-500">
-            <p class="text-sm font-medium text-sky-800">Tendencia</p>
-            <p class="text-2xl font-bold text-slate-900" title="Último mes vs media">
+        <div class="expense-kpi p-4 border-l-4 border-sky-400">
+            <p class="text-gray-600 text-sm font-medium">Tendencia</p>
+            <p class="text-2xl font-bold" title="Último mes vs media">
                 {% if summary_metrics.tendencia == '↑' %}📈{% elif summary_metrics.tendencia == '↓' %}📉{% else %}➡️{% endif %}
             </p>
-            <p class="mt-1.5 text-xs text-slate-500">Último mes vs media 12m</p>
+            <p class="text-xs text-gray-500">Último mes vs media 12m</p>
         </div>
     </div>
     {% endif %}
