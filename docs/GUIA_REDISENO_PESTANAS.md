@@ -36,9 +36,13 @@ Este documento sirve como referencia viva para mantener consistencia visual y fu
 
 - Quitar leyendas antiguas por defecto de Chart.js cuando exista filtro custom.
 - Mostrar filtros/toggles custom **debajo de la grafica** (nunca encima).
+- **Una sola serie** por grafico: desactivar leyenda Chart.js (no aporta y duplica ruido visual).
+- **Selector de frecuencia / periodo** (diaria, semanal, … o 1A/3A/…): usar el **mismo patron segmentado** que en **Evolucion del Patrimonio** del dashboard principal (`contenedor bg-gray-100 rounded-lg p-1`, boton activo `bg-white shadow text-indigo-600`, inactivo `text-gray-600`).
+- **Varias series** en un mismo lienzo (p. ej. valor real + capital): toggles estilo `evo-toggle` (pastillas con check, como *Mostrar* bajo Evolucion del Patrimonio o tipo en posiciones de cartera), nunca leyenda superior por defecto.
+- Textos explicativos largos del tipo *«calculada segun Modified Dietz (GIPS)»* **no** van como parrafo bajo el titulo: van en el icono **i** (`pf-info`) con modal o panel breve, para no recargar la jerarquia visual.
 - Tooltips claros con formato monetario local (`es-ES`).
 - Escalas legibles y coherentes con el dato representado.
-- En pestañas redisenadas, mantener acabado visual `3D suave` en las graficas (superficie con relieve sutil, sin saturar el color de fondo).
+- En pestañas redisenadas, mantener acabado visual `3D suave` en las graficas (superficie con relieve sutil, sin saturar el color de fondo), alineada a la familia de tarjetas (degradado teal-slate, sin parches blancos sueltos en el contenedor del canvas).
 
 ## Reglas para tablas y listados
 
@@ -53,6 +57,7 @@ Este documento sirve como referencia viva para mantener consistencia visual y fu
   - primero `Ingresos`,
   - despues `Gastos`.
 - Mantener nomenclatura y accesos consistentes entre modulos.
+- En formularios a los que se accede desde varias rutas (p. ej. **nueva transacción** en portfolio), el enlace de **«Volver»** debe comportarse como **vuelta atrás** (`history.back()`), no como destino fijo a un solo listado. Conservar `href` como **fallback** (p. ej. listado de transacciones) si no hay historial o por accesibilidad.
 
 ## Paleta visual (decision actual)
 
@@ -218,3 +223,4 @@ Marcar cada ítem al cerrar el redisño. Sirve para homogeneizar con el resto de
 - `Portfolio` P&L por activo (`/portfolio/pl-by-asset`): redisño a `portfolio-card`, tabla slate/teal, tipografía y KPIs resumen alineados a la guía.
 - Formulario nueva/editar transacción (`/portfolio/transactions/new` y edición): contenedor `max-w-5xl`, tarjeta principal y secciones internas con gradiente paleta B, inputs `rounded-xl` y anillo de foco `teal`, bloque venta con acento lateral teal, botones de enriquecimiento y envío alineados a primario teal / secundario slate; sin cambiar IDs/names usados por JS.
 - `Portfolio` análisis de performance (`/portfolio/performance`): cabecera y badges de sync en familia teal-slate, lienzo de cada gráfico con `chart-surface` coherente con el dashboard, pie informativo en rail degradado teal/slate y mensaje de error en `rose` suave.
+- Formulario transacción: **Volver** con `history.back()` + fallback; performance: frecuencia con segmentos como «Evolución del Patrimonio», toggles `evo-toggle` para valor real / capital invertido, leyendas Chart desactivadas en series únicas, textos metodológicos en `pf-info`; **Mi Portfolio** — bloque rentabilidades año a año: tarjeta y contenedor del gráfico de barras con degradado teal-slate (sin caja blanca suelta).

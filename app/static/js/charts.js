@@ -101,6 +101,7 @@ function createPortfolioValueChart(ctx, data) {
             },
             plugins: {
                 ...commonChartOptions.plugins,
+                legend: { display: false },
                 tooltip: {
                     ...commonChartOptions.plugins.tooltip,
                     callbacks: {
@@ -167,6 +168,7 @@ function createReturnsChart(ctx, data) {
             },
             plugins: {
                 ...commonChartOptions.plugins,
+                legend: { display: false },
                 tooltip: {
                     ...commonChartOptions.plugins.tooltip,
                     callbacks: {
@@ -238,6 +240,7 @@ function createLeverageChart(ctx, data) {
             },
             plugins: {
                 ...commonChartOptions.plugins,
+                legend: { display: false },
                 tooltip: {
                     ...commonChartOptions.plugins.tooltip,
                     callbacks: {
@@ -296,6 +299,7 @@ function createCashFlowsChart(ctx, data) {
             },
             plugins: {
                 ...commonChartOptions.plugins,
+                legend: { display: false },
                 tooltip: {
                     ...commonChartOptions.plugins.tooltip,
                     callbacks: {
@@ -364,6 +368,7 @@ function createPLChart(ctx, data) {
             },
             plugins: {
                 ...commonChartOptions.plugins,
+                legend: { display: false },
                 tooltip: {
                     ...commonChartOptions.plugins.tooltip,
                     callbacks: {
@@ -374,6 +379,39 @@ function createPLChart(ctx, data) {
                     }
                 }
             }
+        }
+    });
+}
+
+/**
+ * Toggles bajo el gráfico 1: Valor real / Capital invertido (sin leyenda Chart.js)
+ */
+function initPerformanceValueToggles() {
+    const chart = window.portfolioValueChart;
+    const container = document.getElementById('performanceValueToggles');
+    if (!chart || !container) return;
+    if (!container.dataset.pvBound) {
+        container.dataset.pvBound = '1';
+        container.addEventListener('change', function (e) {
+            const t = e.target;
+            if (!t || t.type !== 'checkbox' || !t.hasAttribute('data-dataset-idx')) return;
+            const idx = parseInt(t.getAttribute('data-dataset-idx'), 10);
+            if (Number.isNaN(idx)) return;
+            const c = window.portfolioValueChart;
+            if (!c) return;
+            const m = c.getDatasetMeta(idx);
+            if (m) {
+                m.hidden = !t.checked;
+                c.update();
+            }
+        });
+    }
+    container.querySelectorAll('input[type="checkbox"][data-dataset-idx]').forEach((input) => {
+        const idx = parseInt(input.getAttribute('data-dataset-idx'), 10);
+        if (Number.isNaN(idx)) return;
+        const meta = chart.getDatasetMeta(idx);
+        if (meta) {
+            input.checked = !meta.hidden;
         }
     });
 }
@@ -493,6 +531,8 @@ async function loadCharts(frequency, opts = {}) {
         const ctx5 = document.getElementById('plChart').getContext('2d');
         window.plChart = createPLChart(ctx5, data);
 
+        initPerformanceValueToggles();
+
         // Indicadores HIST/NOW y staleness (performance)
         if (data.meta) {
             updateSyncType('performanceSyncType', data.meta.sync_type);
@@ -516,30 +556,34 @@ async function loadCharts(frequency, opts = {}) {
 }
 
 /**
- * Misma idea visual que "Periodo" (1A / 3A / …) en Evolución del Patrimonio (dashboard principal)
+ * Mismo criterio que "Periodo" (1A / 3A / …) en Evolución del Patrimonio (app/templates/dashboard.html)
  */
 function initPerformanceFrequencyBar() {
     const bar = document.getElementById('performanceFrequencyBar');
     if (!bar) return;
-    const buttons = bar.querySelectorAll('.perf-freq-btn');
-    function setActive(activeFreq) {
+    const buttons = bar.querySelectorAll('.period-btn');
+    function setActive(activeEl) {
         buttons.forEach((b) => {
-            const on = b.getAttribute('data-frequency') === activeFreq;
-            b.classList.toggle('bg-white', on);
-            b.classList.toggle('shadow', on);
-            b.classList.toggle('text-indigo-600', on);
-            b.classList.toggle('text-gray-600', !on);
+            b.classList.remove('bg-white', 'shadow', 'text-indigo-600');
+            b.classList.add('text-gray-600');
         });
+        if (activeEl) {
+            activeEl.classList.remove('text-gray-600');
+            activeEl.classList.add('bg-white', 'shadow', 'text-indigo-600');
+        }
     }
     buttons.forEach((btn) => {
         btn.addEventListener('click', function () {
             const f = this.getAttribute('data-frequency');
             if (!f) return;
-            setActive(f);
+            setActive(this);
             loadCharts(f);
         });
     });
-    setActive(evolutionFrequency);
+    const current = bar.querySelector('[data-frequency="' + evolutionFrequency + '"]') || bar.querySelector('[data-frequency="monthly"]');
+    if (current) {
+        setActive(current);
+    }
 }
 
 /**

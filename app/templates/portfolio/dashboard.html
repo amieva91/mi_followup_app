@@ -219,6 +219,20 @@ document.addEventListener('alpine:init', () => {
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 8px 24px rgba(15, 23, 42, 0.06);
         padding: 0.5rem 0.35rem 0.35rem;
     }
+    #portfolio-dashboard .yearly-returns-surface {
+        background: linear-gradient(145deg, #f8fbfc 0%, #f1f7f8 100%);
+        border: 1px solid rgba(63, 95, 115, 0.14);
+        box-shadow: 0 14px 30px rgba(15,23,42,0.1), inset 0 1px 0 rgba(255,255,255,0.85);
+    }
+    #portfolio-dashboard .yearly-returns-chart-surface {
+        border-radius: 1rem;
+        border: 1px solid rgba(63, 95, 115, 0.12);
+        background:
+            radial-gradient(circle at 30% -10%, rgba(20, 184, 166, 0.09), transparent 45%),
+            linear-gradient(180deg, rgba(255, 255, 255, 0.97) 0%, rgba(241, 247, 248, 0.95) 100%);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92), inset 0 -12px 24px rgba(20, 184, 166, 0.05);
+        padding: 0.5rem 0.35rem 0.35rem;
+    }
 </style>
 <div id="portfolio-dashboard" class="max-w-[92%] mx-auto px-4 py-8" x-data="{ kpiModal: null, openKpi(id) { this.kpiModal = id; document.body.style.overflow = 'hidden'; }, closeKpi() { this.kpiModal = null; document.body.style.overflow = ''; } }" @keydown.escape.window="if (kpiModal) closeKpi()">
     <!-- Header -->
@@ -357,7 +371,7 @@ document.addEventListener('alpine:init', () => {
         <h2 class="text-lg font-semibold text-gray-700">📅 Rentabilidades Año a Año</h2>
         <button type="button" class="pf-info shrink-0" @click="openKpi('info_yearly')" title="Cómo se calcula y el resumen" aria-label="Información rentabilidades año a año">i</button>
     </div>
-    <div class="bg-white rounded-xl shadow-sm p-4 sm:p-6 mb-8" x-data="yearlyReturnsBlock()">
+    <div class="yearly-returns-surface rounded-xl p-4 sm:p-6 mb-8" x-data="yearlyReturnsBlock()">
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
             <div class="flex flex-col min-h-0" x-ref="yrCol">
                 <h3 class="text-md font-semibold text-gray-800 mb-2">📊 Resumen por Año</h3>
@@ -387,7 +401,7 @@ document.addEventListener('alpine:init', () => {
             </div>
             <div class="flex flex-col min-w-0">
                 <h3 class="text-md font-semibold text-gray-800 mb-2">📈 Gráfico de Rentabilidades</h3>
-                <div class="chart-surface-3d flex-1 min-h-[300px] relative" style="min-height: 300px;">
+                <div class="yearly-returns-chart-surface flex-1 min-h-[300px] relative" style="min-height: 300px;">
                     <canvas id="yearlyReturnsChart"></canvas>
                 </div>
             </div>
@@ -1368,13 +1382,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 layout: { padding: { top: 4, right: 2, left: 2, bottom: 0 } },
                 plugins: {
                     legend: { display: false },
-                    title: {
-                        display: true,
-                        text: 'Rentabilidad anual (%)',
-                        color: '#475569',
-                        font: { size: 12, weight: '600' },
-                        padding: { bottom: 6, top: 0 }
-                    },
+                    title: { display: false },
                     tooltip: {
                         callbacks: {
                             label: function(context) {

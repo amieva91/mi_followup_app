@@ -31,12 +31,63 @@
         box-shadow: inset 0 1px 0 rgba(255,255,255,0.9);
         padding: 0.75rem;
     }
+    #portfolio-performance .pf-info {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.375rem;
+        height: 1.375rem;
+        border-radius: 9999px;
+        border: 1px solid rgb(204 251 241);
+        background: rgb(240 253 250);
+        color: rgb(15 118 110);
+        font-size: 0.65rem;
+        font-weight: 700;
+        line-height: 1;
+        cursor: pointer;
+        flex-shrink: 0;
+        padding: 0;
+    }
+    #portfolio-performance .pf-info:focus { outline: 2px solid rgba(20, 184, 166, 0.5); outline-offset: 1px; }
+    #portfolio-performance .holdings-evo-wrap .evo-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.28rem 0.55rem;
+        border-radius: 9999px;
+        border: 1px solid rgba(15, 118, 110, 0.18);
+        background: rgba(255, 255, 255, 0.92);
+        cursor: pointer;
+        transition: all 0.18s ease;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.07);
+    }
+    #portfolio-performance .holdings-evo-wrap .evo-toggle:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1); }
+    #portfolio-performance .holdings-evo-wrap .evo-toggle-check {
+        width: 0.95rem;
+        height: 0.95rem;
+        border-radius: 9999px;
+        border: 1px solid #99f6e4;
+        background: #ccfbf1;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.65rem;
+        font-weight: 700;
+        color: transparent;
+        flex-shrink: 0;
+    }
+    #portfolio-performance .holdings-evo-wrap .evo-toggle input:checked + .evo-toggle-check {
+        background: linear-gradient(180deg, #14b8a6, #0f766e);
+        border-color: #0f766e;
+        color: #fff;
+        box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.2);
+    }
     #portfolio-performance .info-rail {
         background: linear-gradient(145deg, rgba(240, 253, 250, 0.5) 0%, rgba(241, 247, 248, 0.95) 100%);
         border: 1px solid rgba(45, 106, 101, 0.18);
     }
 </style>
-<div id="portfolio-performance" class="max-w-[92%] mx-auto px-4 py-8">
+<div id="portfolio-performance" class="max-w-[92%] mx-auto px-4 py-8" x-data="{ perfInfo: null }" @keydown.escape.window="if (perfInfo) { perfInfo = null; document.body.style.overflow = '' }">
     <!-- Header -->
     <div class="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center mb-8">
         <div>
@@ -69,32 +120,45 @@
     <div id="chartsContainer" class="hidden space-y-6">
         <!-- Gráfico 1: Evolución del Valor Real de la Cuenta -->
         <div class="portfolio-card p-6">  
-            <div class="mb-4">
-                <h2 class="portfolio-title text-xl">📈 Evolución del Valor Real de la Cuenta</h2>
-                <p class="text-sm text-slate-600 mt-1">
-                    Valor de las posiciones (sin apalancamiento) vs capital invertido neto
-                </p>
+            <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">
+                <div class="flex items-start gap-2 min-w-0">
+                    <h2 class="portfolio-title text-xl">📈 Evolución del Valor Real de la Cuenta</h2>
+                    <button type="button" class="pf-info mt-0.5 shrink-0" @click="perfInfo = 'c1'; document.body.style.overflow = 'hidden'" title="Más información" aria-label="Información sobre el gráfico de valor y capital">i</button>
+                </div>
+                <div class="flex items-center gap-2 flex-wrap sm:ml-auto sm:shrink-0">
+                    <span class="text-xs text-gray-500">Frecuencia:</span>
+                    <div class="flex bg-gray-100 rounded-lg p-1" id="performanceFrequencyBar" role="group" aria-label="Frecuencia de los datos mostrados en los gráficos">
+                        <button type="button" class="period-btn perf-freq-btn px-3 py-1 text-xs font-medium rounded-md transition text-gray-600" data-frequency="daily">Diaria</button>
+                        <button type="button" class="period-btn perf-freq-btn px-3 py-1 text-xs font-medium rounded-md transition text-gray-600" data-frequency="weekly">Semanal</button>
+                        <button type="button" class="period-btn perf-freq-btn px-3 py-1 text-xs font-medium rounded-md transition bg-white shadow text-indigo-600" data-frequency="monthly">Mensual</button>
+                    </div>
+                </div>
             </div>
             <div class="chart-surface" style="position: relative; height: 400px;">
                 <canvas id="portfolioValueChart"></canvas>
             </div>
-            <div class="mt-3 pt-3 border-t border-slate-200/80 flex flex-wrap items-center gap-2">
-                <span class="text-xs text-gray-500">Frecuencia:</span>
-                <div class="flex bg-gray-100 rounded-lg p-1" id="performanceFrequencyBar" role="group" aria-label="Frecuencia de los datos mostrados en los gráficos">
-                    <button type="button" class="perf-freq-btn px-3 py-1 text-xs font-medium rounded-md transition text-gray-600" data-frequency="daily">Diaria</button>
-                    <button type="button" class="perf-freq-btn px-3 py-1 text-xs font-medium rounded-md transition text-gray-600" data-frequency="weekly">Semanal</button>
-                    <button type="button" class="perf-freq-btn px-3 py-1 text-xs font-medium rounded-md transition bg-white shadow text-indigo-600" data-frequency="monthly">Mensual</button>
+            <div class="mt-3 pt-3 border-t border-slate-200/80">
+                <div class="holdings-evo-wrap flex flex-wrap items-center gap-1.5" id="performanceValueToggles" aria-label="Mostrar u ocultar series">
+                    <span class="text-xs text-gray-500 font-medium">Mostrar:</span>
+                    <label class="evo-toggle cursor-pointer">
+                        <input type="checkbox" class="sr-only" checked data-dataset-idx="0">
+                        <span class="evo-toggle-check">✓</span>
+                        <span class="text-xs text-slate-800">Valor Real de la Cuenta</span>
+                    </label>
+                    <label class="evo-toggle cursor-pointer">
+                        <input type="checkbox" class="sr-only" checked data-dataset-idx="1">
+                        <span class="evo-toggle-check">✓</span>
+                        <span class="text-xs text-slate-800">Capital Invertido</span>
+                    </label>
                 </div>
             </div>
         </div>
 
         <!-- Gráfico 2: Rentabilidad Acumulada -->
         <div class="portfolio-card p-6">  
-            <div class="mb-4">
+            <div class="mb-4 flex items-start gap-2">
                 <h2 class="portfolio-title text-xl">💎 Rentabilidad Acumulada (Modified Dietz)</h2>
-                <p class="text-sm text-slate-600 mt-1">
-                    Rentabilidad % calculada según el método Modified Dietz (estándar GIPS)
-                </p>
+                <button type="button" class="pf-info mt-0.5 shrink-0" @click="perfInfo = 'c2'; document.body.style.overflow = 'hidden'" title="Más información" aria-label="Información rentabilidad Modified Dietz">i</button>
             </div>
             <div class="chart-surface" style="position: relative; height: 400px;">
                 <canvas id="returnsChart"></canvas>
@@ -103,11 +167,9 @@
 
         <!-- Gráfico 3: Apalancamiento/Cash Histórico -->
         <div class="portfolio-card p-6">  
-            <div class="mb-4">
+            <div class="mb-4 flex items-start gap-2">
                 <h2 class="portfolio-title text-xl">⚡ Apalancamiento / 💵 Cash Histórico</h2>
-                <p class="text-sm text-slate-600 mt-1">
-                    Dinero prestado por el broker (positivo) o cash disponible sin invertir (negativo)
-                </p>
+                <button type="button" class="pf-info mt-0.5 shrink-0" @click="perfInfo = 'c3'; document.body.style.overflow = 'hidden'" title="Más información" aria-label="Información apalancamiento y cash">i</button>
             </div>
             <div class="chart-surface" style="position: relative; height: 400px;">
                 <canvas id="leverageChart"></canvas>
@@ -116,11 +178,9 @@
 
         <!-- Gráfico 4: Flujos de Caja Acumulados -->
         <div class="portfolio-card p-6">  
-            <div class="mb-4">
+            <div class="mb-4 flex items-start gap-2">
                 <h2 class="portfolio-title text-xl">💰 Flujos de Caja Acumulados</h2>
-                <p class="text-sm text-slate-600 mt-1">
-                    Suma neta de depósitos y retiradas a lo largo del tiempo
-                </p>
+                <button type="button" class="pf-info mt-0.5 shrink-0" @click="perfInfo = 'c4'; document.body.style.overflow = 'hidden'" title="Más información" aria-label="Información flujos de caja">i</button>
             </div>
             <div class="chart-surface" style="position: relative; height: 400px;">
                 <canvas id="cashFlowsChart"></canvas>
@@ -129,34 +189,79 @@
 
         <!-- Gráfico 5: P&L Total Acumulado -->
         <div class="portfolio-card p-6">  
-            <div class="mb-4">
+            <div class="mb-4 flex items-start gap-2">
                 <h2 class="portfolio-title text-xl">📊 P&L Total Acumulado</h2>
-                <p class="text-sm text-slate-600 mt-1">
-                    Ganancias/Pérdidas totales históricas (Realizado + No Realizado + Dividendos - Comisiones)
-                </p>
+                <button type="button" class="pf-info mt-0.5 shrink-0" @click="perfInfo = 'c5'; document.body.style.overflow = 'hidden'" title="Más información" aria-label="Información P&L acumulado">i</button>
             </div>
             <div class="chart-surface" style="position: relative; height: 400px;">
                 <canvas id="plChart"></canvas>
             </div>
         </div>
 
-        <!-- Info Footer -->
-        <div class="info-rail rounded-xl p-6">
-            <div class="flex items-start gap-3">
-                <div class="flex-shrink-0 mt-0.5">
-                    <svg class="h-6 w-6 text-teal-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                </div>
-                <div class="flex-1 min-w-0">
-                    <h3 class="text-sm font-semibold text-slate-900">ℹ️ Sobre estos gráficos</h3>
-                    <div class="mt-2 text-sm text-slate-700 space-y-1.5">
-                        <p><strong>📈 Valor del portfolio:</strong> Incluye el valor actual de todas tus posiciones abiertas a precio de mercado.</p>
-                        <p><strong>💰 Capital invertido:</strong> Depósitos totales menos retiradas (no incluye ganancias ni pérdidas).</p>
-                        <p><strong>💎 Rentabilidad acumulada:</strong> Calculada con el método Modified Dietz, estándar de la industria financiera (GIPS). Pondera los flujos de caja en el tiempo.</p>
+        <!-- Nota pie -->
+        <div class="info-rail rounded-xl p-4 text-sm text-slate-600">
+            El detalle de cada métrica está en el icono <span class="font-semibold text-slate-800">i</span> de su gráfico. Los avisos de sincronización (HIST+NOW / actualización) se muestran arriba a la derecha.
+        </div>
+    </div>
+
+    <!-- Modales informativos (textos que antes estaban bajo el título) -->
+    <div x-show="perfInfo" x-cloak class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55" @click="perfInfo = null; document.body.style.overflow = ''" role="dialog" aria-modal="true">
+        <div @click.stop class="relative w-full max-w-md max-h-[min(88vh,28rem)] flex flex-col rounded-2xl border border-slate-200/80 bg-gradient-to-br from-[#f8fbfc] to-[#f1f7f8] shadow-[0_20px_45px_rgba(15,23,42,0.28)]">
+            <template x-if="perfInfo === 'c1'">
+                <div class="flex flex-col min-h-0 max-h-[min(88vh,28rem)]">
+                    <div class="px-4 py-3 border-b border-slate-200/80 flex items-center justify-between gap-2">
+                        <h4 class="text-sm font-semibold text-slate-900">Evolución del valor y capital</h4>
+                        <button type="button" class="text-sm rounded-lg px-3 py-1.5 bg-slate-700 text-white font-semibold hover:bg-slate-800 shrink-0" @click="perfInfo = null; document.body.style.overflow = ''">Cerrar</button>
+                    </div>
+                    <div class="p-4 text-sm text-slate-700 overflow-y-auto">
+                        <p>Compara el <strong>valor de las posiciones</strong> (sin apalancamiento) con el <strong>capital invertido neto</strong> (depósitos − retiradas) a lo largo del tiempo. Puedes mostrar u ocultar cada serie con los interruptores bajo el gráfico, y cambiar la frecuencia (diaria, semanal, mensual) con el mismo criterio visual que en «Evolución del Patrimonio» del dashboard principal.</p>
                     </div>
                 </div>
-            </div>
+            </template>
+            <template x-if="perfInfo === 'c2'">
+                <div class="flex flex-col min-h-0 max-h-[min(88vh,28rem)]">
+                    <div class="px-4 py-3 border-b border-slate-200/80 flex items-center justify-between gap-2">
+                        <h4 class="text-sm font-semibold text-slate-900">Rentabilidad acumulada (Modified Dietz)</h4>
+                        <button type="button" class="text-sm rounded-lg px-3 py-1.5 bg-slate-700 text-white font-semibold hover:bg-slate-800 shrink-0" @click="perfInfo = null; document.body.style.overflow = ''">Cerrar</button>
+                    </div>
+                    <div class="p-4 text-sm text-slate-700 overflow-y-auto">
+                        <p>La <strong>rentabilidad % acumulada</strong> se calcula con el método <strong>Modified Dietz</strong>, alineado con buenas prácticas de medición (referencia <strong>GIPS</strong>), ponderando flujos de caja en el tiempo.</p>
+                    </div>
+                </div>
+            </template>
+            <template x-if="perfInfo === 'c3'">
+                <div class="flex flex-col min-h-0 max-h-[min(88vh,28rem)]">
+                    <div class="px-4 py-3 border-b border-slate-200/80 flex items-center justify-between gap-2">
+                        <h4 class="text-sm font-semibold text-slate-900">Apalancamiento y cash</h4>
+                        <button type="button" class="text-sm rounded-lg px-3 py-1.5 bg-slate-700 text-white font-semibold hover:bg-slate-800 shrink-0" @click="perfInfo = null; document.body.style.overflow = ''">Cerrar</button>
+                    </div>
+                    <div class="p-4 text-sm text-slate-700 overflow-y-auto">
+                        <p><strong>Positivo</strong> suele indicar <strong>cash</strong> disponible; <strong>negativo</strong> o contexto de margen, <strong>dinero prestado</strong> por el broker (apalancamiento), según el cálculo en tu cuenta.</p>
+                    </div>
+                </div>
+            </template>
+            <template x-if="perfInfo === 'c4'">
+                <div class="flex flex-col min-h-0 max-h-[min(88vh,28rem)]">
+                    <div class="px-4 py-3 border-b border-slate-200/80 flex items-center justify-between gap-2">
+                        <h4 class="text-sm font-semibold text-slate-900">Flujos de caja</h4>
+                        <button type="button" class="text-sm rounded-lg px-3 py-1.5 bg-slate-700 text-white font-semibold hover:bg-slate-800 shrink-0" @click="perfInfo = null; document.body.style.overflow = ''">Cerrar</button>
+                    </div>
+                    <div class="p-4 text-sm text-slate-700 overflow-y-auto">
+                        <p>Suma <strong>acumulada</strong> neta de <strong>depósitos y retiradas</strong> a lo largo del tiempo (capital invertido neto en el eje del tiempo).</p>
+                    </div>
+                </div>
+            </template>
+            <template x-if="perfInfo === 'c5'">
+                <div class="flex flex-col min-h-0 max-h-[min(88vh,28rem)]">
+                    <div class="px-4 py-3 border-b border-slate-200/80 flex items-center justify-between gap-2">
+                        <h4 class="text-sm font-semibold text-slate-900">P&amp;L acumulado</h4>
+                        <button type="button" class="text-sm rounded-lg px-3 py-1.5 bg-slate-700 text-white font-semibold hover:bg-slate-800 shrink-0" @click="perfInfo = null; document.body.style.overflow = ''">Cerrar</button>
+                    </div>
+                    <div class="p-4 text-sm text-slate-700 overflow-y-auto">
+                        <p><strong>Ganancias y pérdidas</strong> totales históricas: realizado, no realizado, dividendos y comisiones, de forma acumulada.</p>
+                    </div>
+                </div>
+            </template>
         </div>
     </div>
 </div>
