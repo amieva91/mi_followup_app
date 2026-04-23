@@ -47,6 +47,17 @@ document.addEventListener('alpine:init', () => {
             this.mainN = Math.min(this.years.length, Math.max(2, rows * 2));
         },
     }));
+    Alpine.data('holdingsTypeFilter', () => ({
+        /** Vacío = mostrar todos. Si hay entradas, se combinan con OR. */
+        selected: [],
+        isRowVisible(ht) {
+            if (!this.selected || this.selected.length === 0) return true;
+            return this.selected.includes(ht);
+        },
+        clearAll() {
+            this.selected = [];
+        },
+    }));
 });
 </script>
 <style>
@@ -213,9 +224,9 @@ document.addEventListener('alpine:init', () => {
     }
     #portfolio-dashboard .chart-surface-3d {
         border-radius: 1rem;
-        border: 1px solid rgba(148,163,184,0.28);
-        background: linear-gradient(165deg, #ffffff 0%, #e2e8f0 38%, #cbd5e1 100%);
-        box-shadow: inset 0 2px 0 rgba(255,255,255,0.9), 0 12px 28px rgba(15,23,42,0.12);
+        border: 1px solid rgba(63, 95, 115, 0.12);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(248, 250, 252, 0.95) 100%);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 8px 24px rgba(15, 23, 42, 0.06);
         padding: 0.5rem 0.35rem 0.35rem;
     }
 </style>
@@ -386,7 +397,8 @@ document.addEventListener('alpine:init', () => {
             </div>
             <div class="flex flex-col min-w-0">
                 <h3 class="text-md font-semibold text-gray-800 mb-2">📈 Gráfico de Rentabilidades</h3>
-                <p class="text-xs text-slate-500 mb-2">Relieve 3D suave (barras con color sólido y sombreado de borde)</p>
+                <p class="text-xs text-slate-500 mb-1">Cada <strong>barra</strong> = rentabilidad del año en <strong>porcentaje</strong> (eje Y). Pasa el cursor para ver también el importe en €.</p>
+                <p class="text-[0.65rem] text-slate-400 mb-2">Eje: % (Modified Dietz anual / YTD). No es el importe en euros.</p>
                 <div class="chart-surface-3d flex-1 min-h-[300px] relative" style="min-height: 300px;">
                     <canvas id="yearlyReturnsChart"></canvas>
                 </div>
@@ -525,12 +537,12 @@ document.addEventListener('alpine:init', () => {
     {% if holdings %}
     {% set ns_types = namespace(types=[]) %}
     {% for h in holdings %}
-        {% set _t = h['asset'].asset_type or 'Otro' %}
+        {% set _t = (h['asset'].asset_type.strip() if h['asset'].asset_type else '') or 'Otro' %}
         {% if _t not in ns_types.types %}
             {% set _ = ns_types.types.append(_t) %}
         {% endif %}
     {% endfor %}
-    <div class="holdings-surface mb-8" x-data="{ hFilter: 'all' }">
+    <div class="holdings-surface mb-8" x-data="holdingsTypeFilter()">
         <div class="px-4 sm:px-6 py-4 border-b border-slate-200/80 bg-slate-50/50 flex flex-col gap-3">
             <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                 <div class="min-w-0">
@@ -539,17 +551,16 @@ document.addEventListener('alpine:init', () => {
                     <p class="text-[0.7rem] text-slate-500 mt-1.5 leading-snug max-w-xl">Punto junto al nombre: <span class="text-emerald-600 font-medium">verde</span> = beneficio (P&amp;L &gt; 0), <span class="text-rose-600 font-medium">rojo</span> = pérdida (P&amp;L &lt; 0), <span class="text-slate-500 font-medium">gris</span> = sin P&amp;L o cero. El borde izquierdo de la fila usa el mismo criterio.</p>
                 </div>
                 <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 shrink-0">
-                    <div class="holdings-evo-wrap flex flex-wrap items-center gap-1.5">
-                        <span class="text-xs text-slate-500 font-medium">Tipo:</span>
-                        <label class="evo-toggle">
-                            <input type="radio" name="holdings-type-filter" class="sr-only" value="all" x-model="hFilter">
-                            <span class="evo-toggle-check">✓</span>
-                            <span class="text-xs text-slate-800 font-semibold">Todos</span>
-                        </label>
+                    <div class="holdings-evo-wrap flex flex-wrap items-center gap-1.5 max-w-full">
+                        <span class="text-xs text-slate-500 font-medium shrink-0">Tipo:</span>
+                        <button type="button"
+                                class="evo-toggle text-xs font-semibold text-slate-800"
+                                :class="selected.length === 0 ? 'eo-on' : ''"
+                                @click="clearAll()">Todos</button>
                         {% for t in ns_types.types|sort %}
-                        <label class="evo-toggle">
-                            <input type="radio" name="holdings-type-filter" class="sr-only" value="{{ t|e }}" x-model="hFilter">
-                            <span class="evo-toggle-check">✓</span>
+                        <label class="evo-toggle cursor-pointer" :class="selected.indexOf({{ t|tojson }}) &gt;= 0 ? 'eo-on' : ''">
+                            <input type="checkbox" class="sr-only" value={{ t|tojson }} x-model="selected">
+                            <span class="evo-toggle-check" x-text="selected.indexOf({{ t|tojson }}) &gt;= 0 ? '✓' : ' '">✓</span>
                             <span class="text-xs text-slate-800">{{ t }}</span>
                         </label>
                         {% endfor %}
@@ -593,10 +604,10 @@ document.addEventListener('alpine:init', () => {
                 </thead>
                 <tbody class="bg-white/60 divide-y divide-slate-100">
                     {% for holding in holdings %}
-                    {% set htype = holding['asset'].asset_type or 'Otro' %}
+                    {% set htype = (holding['asset'].asset_type.strip() if holding['asset'].asset_type else '') or 'Otro' %}
                     <tr class="table-row-3d {% if 'pl_eur' in holding and holding['pl_eur'] != 0 %}{% if holding['pl_eur'] > 0 %}holding-row-pos{% elif holding['pl_eur'] < 0 %}holding-row-neg{% else %}holding-row-neu{% endif %}{% else %}holding-row-neu{% endif %}"
                         data-holding-type="{{ htype|e }}"
-                        x-show="hFilter === 'all' || hFilter === {{ htype|tojson }}">
+                        x-show="isRowVisible({{ htype|tojson }})">
                         <!-- Activo -->
                         <td class="px-3 sm:px-4 py-3 whitespace-nowrap align-top">
                             <div class="holdings-asset-pill">
@@ -1250,13 +1261,18 @@ document.addEventListener('DOMContentLoaded', function() {
         const bgNeg = 'rgba(244, 63, 94, 0.88)';
         const brPos = 'rgb(6, 95, 80)';
         const brNeg = 'rgb(90, 24, 34)';
+        function pctNum(yr) {
+            var v = yr && yr.return_pct;
+            var n = typeof v === 'number' && !Number.isNaN(v) ? v : parseFloat(String(v).replace(',', '.'));
+            return Number.isFinite(n) ? n : 0;
+        }
         const yearlyData = {
             labels: reversedData.map(yr => yr.year + (yr.is_ytd ? ' (YTD)' : '')),
             datasets: [{
-                label: 'Rentabilidad (%)',
-                data: reversedData.map(yr => yr.return_pct),
-                backgroundColor: reversedData.map(yr => (yr.return_pct >= 0 ? bgPos : bgNeg)),
-                borderColor: reversedData.map(yr => (yr.return_pct >= 0 ? brPos : brNeg)),
+                label: 'Rentabilidad anual (%)',
+                data: reversedData.map(yr => pctNum(yr)),
+                backgroundColor: reversedData.map(yr => (pctNum(yr) >= 0 ? bgPos : bgNeg)),
+                borderColor: reversedData.map(yr => (pctNum(yr) >= 0 ? brPos : brNeg)),
                 borderWidth: 1,
                 borderRadius: 6,
                 borderSkipped: false,
@@ -1274,14 +1290,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 layout: { padding: { top: 4, right: 2, left: 2, bottom: 0 } },
                 plugins: {
                     legend: { display: false },
+                    title: {
+                        display: true,
+                        text: 'Rentabilidad anual (%)',
+                        color: '#475569',
+                        font: { size: 12, weight: '600' },
+                        padding: { bottom: 6, top: 0 }
+                    },
                     tooltip: {
                         callbacks: {
                             label: function(context) {
                                 const value = context.parsed.y;
                                 const index = context.dataIndex;
-                                const absoluteGain = reversedData[index].absolute_gain;
-                                return 'Rentabilidad: ' + value.toFixed(2) + '% | Ganancia: ' + 
-                                       (absoluteGain >= 0 ? '+' : '') + absoluteGain.toFixed(2) + ' EUR';
+                                const g = reversedData[index].absolute_gain;
+                                const gNum = typeof g === 'number' ? g : parseFloat(String(g).replace(',', '.')) || 0;
+                                return 'Rentabilidad: ' + value.toFixed(2) + '%  ·  ' +
+                                       (gNum >= 0 ? '+' : '') + gNum.toFixed(0) + ' €';
                             }
                         }
                     }
@@ -1289,6 +1313,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 scales: {
                     y: {
                         grace: '8%',
+                        title: {
+                            display: true,
+                            text: 'Rentabilidad (%)',
+                            color: '#64748b',
+                            font: { size: 11, weight: '500' }
+                        },
                         ticks: {
                             callback: function(value) {
                                 return value.toFixed(1) + '%';
