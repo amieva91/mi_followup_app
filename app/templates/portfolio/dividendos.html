@@ -142,7 +142,7 @@
                         <h4 class="text-sm font-semibold text-slate-900">Últimos 12 meses</h4>
                         <button type="button" class="text-sm rounded-lg px-3 py-1.5 bg-slate-700 text-white font-semibold" @click="divInfo = null; document.body.style.overflow = ''">Cerrar</button>
                     </div>
-                    <div class="p-4 text-sm text-slate-700">Barras <strong>mensuales</strong> con el total de dividendos en € en cada mes. El tooltip indica el número de movimientos de dividendo de ese mes. Gráfico con relieve 3D suave y paleta alineada al resto de portfolio.</div>
+                    <div class="p-4 text-sm text-slate-700">Barras <strong>mensuales</strong> con el total de dividendos en € en cada mes. El tooltip indica el número de movimientos de dividendo de ese mes. El relieve 3D es solo estético; todas las barras usan el mismo color.</div>
                 </div>
             </template>
             <template x-if="divInfo === 'yoy'">
@@ -151,7 +151,7 @@
                         <h4 class="text-sm font-semibold text-slate-900">Año a año</h4>
                         <button type="button" class="text-sm rounded-lg px-3 py-1.5 bg-slate-700 text-white font-semibold" @click="divInfo = null; document.body.style.overflow = ''">Cerrar</button>
                     </div>
-                    <div class="p-4 text-sm text-slate-700">Acumulado de dividendos <strong>por año calendario</strong> desde el inicio. El último año puede mostrarse como <strong>YTD</strong> si aplica. Misma lógica visual que otras gráficos de barras del módulo.</div>
+                    <div class="p-4 text-sm text-slate-700">Acumulado de dividendos <strong>por año calendario</strong> desde el inicio. El último año puede mostrarse como <strong>YTD</strong> si aplica. Todas las barras comparten el mismo color; el relieve 3D es solo estético.</div>
                 </div>
             </template>
             <template x-if="divInfo === 'kpi'">
@@ -208,8 +208,8 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
 
-    const teal = { bg: 'rgba(13, 148, 136, 0.88)', br: 'rgb(6, 95, 80)' };
-    const jade = { bg: 'rgba(20, 110, 100, 0.82)', br: 'rgb(5, 80, 72)' };
+    const barFill = 'rgba(13, 148, 136, 0.88)';
+    const barStroke = 'rgb(5, 80, 72)';
 
     {% if monthly_dividends and monthly_dividends|length > 0 %}
     const monthlyDividendsCtx = document.getElementById('monthlyDividendsChart');
@@ -227,8 +227,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 datasets: [{
                     label: 'Dividendos (€)',
                     data: reversedData.map(d => d.dividends_eur),
-                    backgroundColor: reversedData.map((_, i) => i % 2 === 0 ? teal.bg : jade.bg),
-                    borderColor: reversedData.map((_, i) => i % 2 === 0 ? teal.br : jade.br),
+                    backgroundColor: barFill,
+                    borderColor: barStroke,
                     borderWidth: 1,
                     borderRadius: 6,
                     borderSkipped: false,
@@ -271,8 +271,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 datasets: [{
                     label: 'Dividendos (€)',
                     data: rev.map(d => d.dividends_eur),
-                    backgroundColor: rev.map((_, i) => i % 2 === 0 ? 'rgba(13, 148, 136, 0.78)' : 'rgba(15, 118, 110, 0.75)'),
-                    borderColor: rev.map((_, i) => i % 2 === 0 ? 'rgb(4, 90, 80)' : 'rgb(3, 75, 68)'),
+                    backgroundColor: barFill,
+                    borderColor: barStroke,
                     borderWidth: 1,
                     borderRadius: 6,
                     borderSkipped: false,
