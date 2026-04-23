@@ -11,7 +11,34 @@ from app.services.currency_service import convert_to_eur
 from app.services.metrics import BasicMetrics
 from app.services.delisting_reconciliation_service import get_delisted_asset_ids
 
-@portfolio_bp.route('/')
+
+def _holding_filter_type(raw):
+    """
+    Clave estable para el filtro de posiciones: debe coincidir exactamente entre
+    el valor de cada fila y los chips. Normaliza mayúsculas/alias frecuentes
+    (p. ej. 'crypto' -> 'Crypto') para evitar desajustes con checkboxes.
+    """
+    if raw is None:
+        return "Otro"
+    s = str(raw).strip()
+    if not s:
+        return "Otro"
+    k = s.lower()
+    aliases = {
+        "stock": "Stock",
+        "stocks": "Stock",
+        "etf": "ETF",
+        "crypto": "Crypto",
+        "cryptocurrency": "Crypto",
+        "adr": "ADR",
+        "commodity": "Commodity",
+        "commodities": "Commodity",
+        "bond": "Bond",
+    }
+    return aliases.get(k, s)
+
+
+@portfolio_bp.route("/")
 @login_required
 def dashboard():
     """Dashboard del portfolio con holdings unificados"""
@@ -148,6 +175,14 @@ def dashboard():
             h['weight_pct'] = 0
         asset = h.get('asset')
         h['needs_yahoo_fix'] = not (asset and getattr(asset, 'yahoo_ticker', None)) if asset else True
+        h["filter_type"] = _holding_filter_type(
+            getattr(asset, "asset_type", None) if asset else None
+        )
+    
+    holding_filter_types = sorted(
+        {h["filter_type"] for h in holdings_unified},
+        key=lambda x: (x.lower(), x),
+    )
     
     # Calcular distribuciones: países, sectores, assets, industrias, brokers, tipos
     country_distribution = defaultdict(float)
@@ -261,9 +296,10 @@ def dashboard():
     yearly_dividends = DividendMetrics.get_yearly_dividends_from_start(current_user.id)
     
     return render_template(
-        'portfolio/dashboard.html',
+        "portfolio/dashboard.html",
         accounts=accounts,
         holdings=holdings_unified,
+        holding_filter_types=holding_filter_types,
         total_value=total_value,
         total_cost=total_cost,
         total_pl=total_pl,

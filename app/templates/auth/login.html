@@ -9,7 +9,7 @@
 <style>
   .auth-page {
     font-family: 'Source Sans 3', sans-serif;
-    background: linear-gradient(165deg, #0f172a 0%, #1e293b 40%, #0f172a 100%);
+    background: linear-gradient(165deg, #243843 0%, #2f4858 42%, #3f5f73 100%);
     min-height: 100vh;
     position: relative;
     display: flex;
@@ -22,8 +22,8 @@
     content: '';
     position: absolute;
     inset: 0;
-    background: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(71, 85, 105, 0.4), transparent),
-                radial-gradient(ellipse 60% 40% at 80% 60%, rgba(30, 41, 59, 0.6), transparent);
+    background: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(113, 157, 168, 0.35), transparent),
+                radial-gradient(ellipse 60% 40% at 80% 60%, rgba(47, 72, 88, 0.52), transparent);
     pointer-events: none;
   }
   .auth-page::after {
@@ -34,17 +34,17 @@
       225deg,
       transparent 0%,
       transparent 25%,
-      rgba(148, 163, 184, 0.04) 35%,
-      rgba(203, 213, 225, 0.07) 50%,
-      rgba(148, 163, 184, 0.04) 65%,
+      rgba(148, 163, 184, 0.03) 35%,
+      rgba(226, 232, 240, 0.06) 50%,
+      rgba(148, 163, 184, 0.03) 65%,
       transparent 75%,
       transparent 100%
     );
     pointer-events: none;
   }
   .auth-card {
-    background: rgba(30, 41, 59, 0.5);
-    border: 1px solid rgba(71, 85, 105, 0.4);
+    background: rgba(31, 46, 57, 0.52);
+    border: 1px solid rgba(118, 157, 163, 0.34);
     backdrop-filter: blur(12px);
   }
   .auth-title {
@@ -95,7 +95,7 @@
       </div>
 
       <div>
-        {{ form.submit(class="w-full py-3 px-4 bg-slate-50 text-slate-900 font-medium rounded-sm hover:bg-white transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-slate-900") }}
+        {{ form.submit(class="w-full py-3 px-4 bg-teal-50 text-slate-900 font-medium rounded-sm hover:bg-white transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-teal-300 focus:ring-offset-2 focus:ring-offset-slate-900") }}
       </div>
     </form>
 

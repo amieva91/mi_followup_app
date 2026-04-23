@@ -1,20 +1,35 @@
 {% extends "base/layout.html" %}
 
 {% block content %}
-<div class="max-w-[92%] mx-auto">
-    <!-- Header -->
-    <div class="flex justify-between items-center mb-6">
+<style>
+    #portfolio-import-csv .portfolio-title {
+        display: inline-flex; align-items: center; gap: 0.45rem;
+        font-weight: 700; color: #1f2937;
+    }
+    #portfolio-import-csv .portfolio-card {
+        background: linear-gradient(145deg, #f8fbfc 0%, #f1f7f8 100%);
+        border: 1px solid rgba(63, 95, 115, 0.14);
+        border-radius: 16px;
+        box-shadow: 0 14px 30px rgba(15,23,42,0.1), inset 0 1px 0 rgba(255,255,255,0.85);
+    }
+    #portfolio-import-csv .portfolio-touch-btn {
+        transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease;
+    }
+    #portfolio-import-csv .portfolio-touch-btn:active { transform: scale(0.98); filter: brightness(0.96); }
+</style>
+<div id="portfolio-import-csv" class="max-w-[92%] mx-auto py-6">
+    <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
         <div>
-            <h1 class="text-3xl font-bold text-gray-900">📥 Importar CSV</h1>
-            <p class="text-gray-600 mt-1">Sube tu reporte de actividad de IBKR, DeGiro o Revolut X</p>
+            <h1 class="portfolio-title text-2xl sm:text-3xl">📥 Importar CSV</h1>
+            <p class="text-slate-600 mt-1 text-sm sm:text-base">Sube reportes de IBKR, DeGiro o Revolut X</p>
         </div>
-        <a href="{{ url_for('portfolio.dashboard') }}" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg">
-            ← Volver
-        </a>
+        <a href="{{ url_for('portfolio.dashboard') }}"
+           class="portfolio-touch-btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-slate-200 border border-slate-300 hover:bg-slate-300 text-slate-800 text-sm font-semibold shrink-0 w-full sm:w-auto"
+           onclick="if (window.history.length > 1) { event.preventDefault(); history.back(); }">← Volver</a>
     </div>
 
     <!-- Banner de resultado (se muestra si hay query params) -->
-    <div id="resultBanner" class="hidden bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+    <div id="resultBanner" class="hidden portfolio-card border border-emerald-200/80 bg-emerald-50/90 p-4 mb-6">
         <div class="flex items-start">
             <span class="text-2xl mr-3">✅</span>
             <div class="flex-1">
@@ -25,7 +40,7 @@
     </div>
 
     <!-- Banner de error (se muestra si hay errores) -->
-    <div id="errorBanner" class="hidden bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+    <div id="errorBanner" class="hidden portfolio-card border border-rose-200/80 bg-rose-50/90 p-4 mb-6">
         <div class="flex items-start">
             <span class="text-2xl mr-3">❌</span>
             <div class="flex-1">
@@ -39,9 +54,9 @@
     </div>
 
     <!-- Instrucciones -->
-    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-        <h3 class="font-semibold text-blue-900 mb-2">📌 Instrucciones Generales</h3>
-        <div class="text-sm text-blue-800 space-y-2">
+    <div class="portfolio-card p-4 sm:p-5 mb-6 border-l-4 border-teal-500/70">
+        <h3 class="font-semibold text-slate-900 mb-2">📌 Instrucciones generales</h3>
+        <div class="text-sm text-slate-700 space-y-2">
             <p>✅ <strong>Auto-detección:</strong> El sistema detecta automáticamente el broker (IBKR, DeGiro o Revolut X) y crea las cuentas si no existen.</p>
             <p>✅ <strong>Multi-archivo:</strong> Puedes subir múltiples CSVs mezclados (IBKR + DeGiro + Revolut X) en una sola vez.</p>
             <p>✅ <strong>Duplicados:</strong> El sistema evita transacciones duplicadas automáticamente.</p>
@@ -55,11 +70,11 @@
     </div>
 
     <!-- Barra de Progreso (oculta inicialmente) -->
-    <div id="progressContainer" class="bg-white rounded-lg shadow-md p-6 mb-6 hidden">
-        <h3 class="text-lg font-semibold mb-4">📊 Importando archivos...</h3>
+    <div id="progressContainer" class="portfolio-card p-6 mb-6 hidden">
+        <h3 class="text-lg font-semibold text-slate-900 mb-4">📊 Importando archivos…</h3>
         
         <!-- Información de archivos -->
-        <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 text-sm">
+        <div class="rounded-xl border border-slate-200/80 bg-slate-50/80 p-3 mb-4 text-sm">
             <div class="grid grid-cols-3 gap-4">
                 <div>
                     <p class="text-gray-600 font-medium mb-1">📁 Procesando:</p>
@@ -82,8 +97,8 @@
                 <span id="progressMessage">Iniciando importación...</span>
                 <span id="progressPercentage">0%</span>
             </div>
-            <div class="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
-                <div id="progressBar" class="bg-blue-600 h-4 transition-all duration-300" style="width: 0%"></div>
+            <div class="w-full bg-slate-200 rounded-full h-3 overflow-hidden">
+                <div id="progressBar" class="bg-teal-600 h-3 transition-all duration-300" style="width: 0%"></div>
             </div>
         </div>
         
@@ -93,17 +108,17 @@
     </div>
 
     <!-- Formulario -->
-    <div class="bg-white rounded-lg shadow-md p-6 mb-6" id="importForm">
+    <div class="portfolio-card p-6 mb-6" id="importForm">
         <form id="csvForm" action="{{ url_for('portfolio.import_csv_process') }}" method="POST" enctype="multipart/form-data">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
             
             <!-- Selector de archivos (múltiples) -->
             <div class="mb-6">
-                <label class="block text-sm font-medium text-gray-700 mb-2">
+                <label class="block text-sm font-medium text-slate-700 mb-2">
                     📄 Archivos CSV (puedes seleccionar múltiples)
                 </label>
                 <div class="flex items-center justify-center w-full">
-                    <label for="csv_files" class="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
+                    <label for="csv_files" class="flex flex-col items-center justify-center w-full h-32 border-2 border-slate-300/80 border-dashed rounded-xl cursor-pointer bg-white/60 hover:bg-teal-50/50">
                         <div class="flex flex-col items-center justify-center pt-5 pb-6">
                             <svg class="w-10 h-10 mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
@@ -118,18 +133,18 @@
             </div>
             
             <!-- Botón de importar -->
-            <button type="submit" id="importButton" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-200">
-                📤 Importar Archivos
+            <button type="submit" id="importButton" class="portfolio-touch-btn w-full bg-teal-600 hover:bg-teal-700 text-white font-semibold py-3 px-6 rounded-xl transition duration-200 shadow-[0_10px_20px_rgba(13,148,136,0.25)]">
+                📤 Importar archivos
             </button>
         </form>
     </div>
     
     <!-- Guías lado a lado con logos -->
     <div class="mb-6">
-        <h2 class="text-xl font-bold text-gray-900 mb-4">📋 Guías de Obtención de Archivos CSV</h2>
+        <h2 class="text-xl font-bold text-slate-900 mb-4">📋 Guías para obtener el CSV</h2>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <!-- Guía DeGiro -->
-            <div id="guideDeGiro" class="bg-gradient-to-r from-orange-50 to-yellow-50 border-l-4 border-orange-500 rounded-lg p-6">
+            <div id="guideDeGiro" class="portfolio-card p-6 border-l-4 border-amber-500/80">
                 <h3 class="text-lg font-bold text-orange-800 mb-4 flex items-center gap-3">
                     <span class="text-3xl">🟠</span>
                     <span>DeGiro</span>
@@ -166,7 +181,7 @@
                 </div>
                 
             <!-- Guía IBKR -->
-            <div id="guideIBKR" class="bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-600 rounded-lg p-6">
+            <div id="guideIBKR" class="portfolio-card p-6 border-l-4 border-sky-600/80">
                 <h3 class="text-lg font-bold text-blue-800 mb-4 flex items-center gap-3">
                     <span class="text-3xl">🔵</span>
                     <span>Interactive Brokers (IBKR)</span>
@@ -201,7 +216,7 @@
                 </div>
 
             <!-- Guía Revolut X -->
-            <div id="guideRevolutX" class="bg-gradient-to-r from-purple-50 to-violet-50 border-l-4 border-purple-600 rounded-lg p-6">
+            <div id="guideRevolutX" class="portfolio-card p-6 border-l-4 border-violet-500/80">
                 <h3 class="text-lg font-bold text-purple-800 mb-4 flex items-center gap-3">
                     <span class="text-3xl">🟣</span>
                     <span>Revolut X</span>
@@ -231,16 +246,16 @@
     </div>
 
     <!-- Info adicional -->
-    <div class="mt-6 bg-gray-50 rounded-lg p-4">
-        <h4 class="font-semibold text-gray-900 mb-2">ℹ️  ¿Qué se importa?</h4>
-        <ul class="text-sm text-gray-700 space-y-1 list-disc list-inside">
+    <div class="mt-6 portfolio-card p-4 sm:p-5">
+        <h4 class="font-semibold text-slate-900 mb-2">ℹ️ ¿Qué se importa?</h4>
+        <ul class="text-sm text-slate-700 space-y-1 list-disc list-inside">
             <li>Transacciones de compra y venta</li>
             <li>Dividendos recibidos</li>
             <li>Comisiones y tarifas</li>
             <li>Holdings/Posiciones actuales (calculadas automáticamente)</li>
         </ul>
-        <p class="text-xs text-gray-500 mt-3">
-            ⚠️  Las transacciones duplicadas se omiten automáticamente. Puedes importar el mismo archivo múltiples veces sin preocuparte.
+        <p class="text-xs text-slate-500 mt-3">
+            ⚠️ Las transacciones duplicadas se omiten automáticamente. Puedes importar el mismo archivo varias veces sin acumular duplicados.
         </p>
     </div>
 </div>

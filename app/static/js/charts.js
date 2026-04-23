@@ -101,6 +101,7 @@ function createPortfolioValueChart(ctx, data) {
             },
             plugins: {
                 ...commonChartOptions.plugins,
+                legend: { display: false },
                 tooltip: {
                     ...commonChartOptions.plugins.tooltip,
                     callbacks: {
@@ -167,6 +168,7 @@ function createReturnsChart(ctx, data) {
             },
             plugins: {
                 ...commonChartOptions.plugins,
+                legend: { display: false },
                 tooltip: {
                     ...commonChartOptions.plugins.tooltip,
                     callbacks: {
@@ -238,6 +240,7 @@ function createLeverageChart(ctx, data) {
             },
             plugins: {
                 ...commonChartOptions.plugins,
+                legend: { display: false },
                 tooltip: {
                     ...commonChartOptions.plugins.tooltip,
                     callbacks: {
@@ -296,6 +299,7 @@ function createCashFlowsChart(ctx, data) {
             },
             plugins: {
                 ...commonChartOptions.plugins,
+                legend: { display: false },
                 tooltip: {
                     ...commonChartOptions.plugins.tooltip,
                     callbacks: {
@@ -364,6 +368,7 @@ function createPLChart(ctx, data) {
             },
             plugins: {
                 ...commonChartOptions.plugins,
+                legend: { display: false },
                 tooltip: {
                     ...commonChartOptions.plugins.tooltip,
                     callbacks: {
@@ -374,6 +379,39 @@ function createPLChart(ctx, data) {
                     }
                 }
             }
+        }
+    });
+}
+
+/**
+ * Toggles bajo el gráfico 1: Valor real / Capital invertido (sin leyenda Chart.js)
+ */
+function initPerformanceValueToggles() {
+    const chart = window.portfolioValueChart;
+    const container = document.getElementById('performanceValueToggles');
+    if (!chart || !container) return;
+    if (!container.dataset.pvBound) {
+        container.dataset.pvBound = '1';
+        container.addEventListener('change', function (e) {
+            const t = e.target;
+            if (!t || t.type !== 'checkbox' || !t.hasAttribute('data-dataset-idx')) return;
+            const idx = parseInt(t.getAttribute('data-dataset-idx'), 10);
+            if (Number.isNaN(idx)) return;
+            const c = window.portfolioValueChart;
+            if (!c) return;
+            const m = c.getDatasetMeta(idx);
+            if (m) {
+                m.hidden = !t.checked;
+                c.update();
+            }
+        });
+    }
+    container.querySelectorAll('input[type="checkbox"][data-dataset-idx]').forEach((input) => {
+        const idx = parseInt(input.getAttribute('data-dataset-idx'), 10);
+        if (Number.isNaN(idx)) return;
+        const meta = chart.getDatasetMeta(idx);
+        if (meta) {
+            input.checked = !meta.hidden;
         }
     });
 }
@@ -426,17 +464,20 @@ let benchmarksPollTimer = null;
 let lastEvolutionCachedAt = null;
 let lastBenchmarksCachedAt = null;
 let stalenessInterval = null;
+/** Frecuencia activa de los gráficos de /portfolio/performance (sync con UI y polling) */
+let evolutionFrequency = 'monthly';
 
-async function loadCharts(frequency = 'weekly', opts = {}) {
+async function loadCharts(frequency, opts = {}) {
     try {
         const isPoll = !!opts.poll;
+        const freq = (typeof frequency === 'string' && frequency.length) ? frequency : evolutionFrequency;
         const loadingIndicator = document.getElementById('loadingIndicator');
         if (!isPoll && loadingIndicator) {
             loadingIndicator.classList.remove('hidden');
         }
         
         // Fetch data
-        const response = await fetch(`/portfolio/api/evolution?frequency=${frequency}`);
+        const response = await fetch(`/portfolio/api/evolution?frequency=${encodeURIComponent(freq)}`);
         const data = await response.json();
         
         if (data.error) {
@@ -490,6 +531,8 @@ async function loadCharts(frequency = 'weekly', opts = {}) {
         const ctx5 = document.getElementById('plChart').getContext('2d');
         window.plChart = createPLChart(ctx5, data);
 
+        initPerformanceValueToggles();
+
         // Indicadores HIST/NOW y staleness (performance)
         if (data.meta) {
             updateSyncType('performanceSyncType', data.meta.sync_type);
@@ -499,6 +542,8 @@ async function loadCharts(frequency = 'weekly', opts = {}) {
             }
         }
         startStalenessTimer();
+
+        evolutionFrequency = freq;
         
     } catch (error) {
         console.error('Error loading charts:', error);
@@ -507,6 +552,37 @@ async function loadCharts(frequency = 'weekly', opts = {}) {
         document.getElementById('errorMessage').classList.remove('hidden');
         document.getElementById('errorMessage').textContent = 
             'Error al cargar los gráficos: ' + error.message;
+    }
+}
+
+/**
+ * Mismo criterio que "Periodo" (1A / 3A / …) en Evolución del Patrimonio (app/templates/dashboard.html)
+ */
+function initPerformanceFrequencyBar() {
+    const bar = document.getElementById('performanceFrequencyBar');
+    if (!bar) return;
+    const buttons = bar.querySelectorAll('.period-btn');
+    function setActive(activeEl) {
+        buttons.forEach((b) => {
+            b.classList.remove('bg-white', 'shadow', 'text-indigo-600');
+            b.classList.add('text-gray-600');
+        });
+        if (activeEl) {
+            activeEl.classList.remove('text-gray-600');
+            activeEl.classList.add('bg-white', 'shadow', 'text-indigo-600');
+        }
+    }
+    buttons.forEach((btn) => {
+        btn.addEventListener('click', function () {
+            const f = this.getAttribute('data-frequency');
+            if (!f) return;
+            setActive(this);
+            loadCharts(f);
+        });
+    });
+    const current = bar.querySelector('[data-frequency="' + evolutionFrequency + '"]') || bar.querySelector('[data-frequency="monthly"]');
+    if (current) {
+        setActive(current);
     }
 }
 
@@ -523,14 +599,14 @@ function createBenchmarkChart(ctx, data) {
         'Hang Seng': 'rgb(244, 114, 182)'   // Rosa (HK)
     };
     
-    // Datasets: Portfolio primero (más destacado)
+    // Datasets: Portfolio primero (más destacado; familia paleta B)
     const datasets = [
         {
             label: '📊 Tu Portfolio',
             data: data.datasets.portfolio,
-            borderColor: 'rgb(239, 68, 68)',  // Rojo para destacar
-            backgroundColor: 'rgba(239, 68, 68, 0.1)',
-            borderWidth: 4,
+            borderColor: 'rgb(13, 148, 136)',
+            backgroundColor: 'rgba(13, 148, 136, 0.08)',
+            borderWidth: 3,
             fill: false,
             tension: 0.4,
             pointRadius: 0,
@@ -569,18 +645,7 @@ function createBenchmarkChart(ctx, data) {
             animation: false,
             plugins: {
                 ...commonChartOptions.plugins,
-                legend: {
-                    display: true,
-                    position: 'top',
-                    onClick: function(e, legendItem) {
-                        // Toggle visibility al hacer click (comportamiento estándar)
-                        const index = legendItem.datasetIndex;
-                        const chart = this.chart;
-                        const meta = chart.getDatasetMeta(index);
-                        meta.hidden = meta.hidden === null ? !chart.data.datasets[index].hidden : null;
-                        chart.update();
-                    }
-                },
+                legend: { display: false },
                 tooltip: {
                     ...commonChartOptions.plugins.tooltip,
                     callbacks: {
@@ -624,6 +689,62 @@ function createBenchmarkChart(ctx, data) {
 }
 
 /**
+ * Toggles estilo evo-toggle bajo el gráfico de index-comparison (sin leyenda Chart)
+ */
+function initBenchmarkChartToggles() {
+    const chart = window.benchmarkChart;
+    const container = document.getElementById('benchmarkChartToggles');
+    if (!chart || !container) return;
+
+    if (!container.dataset.benchBound) {
+        container.dataset.benchBound = '1';
+        container.addEventListener('change', function (e) {
+            const t = e.target;
+            if (!t || t.type !== 'checkbox' || !t.hasAttribute('data-ds')) return;
+            const idx = parseInt(t.getAttribute('data-ds'), 10);
+            if (Number.isNaN(idx)) return;
+            const c = window.benchmarkChart;
+            if (!c) return;
+            const m = c.getDatasetMeta(idx);
+            if (m) {
+                m.hidden = !t.checked;
+                c.update();
+            }
+        });
+    }
+
+    container.innerHTML = '';
+    const wrap = document.createElement('div');
+    wrap.className = 'holdings-evo-wrap flex flex-wrap items-center gap-1.5';
+    const span = document.createElement('span');
+    span.className = 'text-xs text-gray-500 font-medium';
+    span.textContent = 'Mostrar:';
+    wrap.appendChild(span);
+
+    chart.data.datasets.forEach((ds, i) => {
+        const lab = document.createElement('label');
+        lab.className = 'evo-toggle cursor-pointer';
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.className = 'sr-only';
+        input.setAttribute('data-ds', String(i));
+        const meta = chart.getDatasetMeta(i);
+        input.checked = !meta || !meta.hidden;
+        const check = document.createElement('span');
+        check.className = 'evo-toggle-check';
+        check.textContent = '✓';
+        const txt = document.createElement('span');
+        txt.className = 'text-xs text-slate-800';
+        txt.textContent = ds.label != null && String(ds.label) !== '' ? String(ds.label) : ('Serie ' + (i + 1));
+        lab.appendChild(input);
+        lab.appendChild(check);
+        lab.appendChild(txt);
+        wrap.appendChild(lab);
+    });
+    container.appendChild(wrap);
+}
+
+/**
  * Renderizar tabla comparativa anual
  */
 function renderBenchmarkTable(annualData) {
@@ -638,111 +759,113 @@ function renderBenchmarkTable(annualData) {
     // Añadir filas anuales
     annualData.annual.forEach(yearData => {
         const row = document.createElement('tr');
-        row.className = 'border-b border-gray-200 hover:bg-gray-50';
-        
-        // Año
+        row.className = 'border-b border-slate-200/80 hover:bg-teal-50/25 transition-colors';
+
         const yearCell = document.createElement('td');
-        yearCell.className = 'px-4 py-3 font-medium text-gray-900';
+        yearCell.className = 'px-3 sm:px-4 py-2.5 sm:py-3 font-bold text-slate-900 text-sm tabular-nums align-top';
         yearCell.textContent = yearData.year;
         row.appendChild(yearCell);
-        
-        // Portfolio
+
         const portfolioCell = document.createElement('td');
-        portfolioCell.className = 'px-4 py-3 text-gray-900 font-semibold';
+        portfolioCell.className = 'px-3 sm:px-4 py-2.5 sm:py-3 text-slate-900 font-semibold text-sm tabular-nums text-right align-top';
         portfolioCell.textContent = formatEuropeanNumber(yearData.portfolio, 2) + '%';
         row.appendChild(portfolioCell);
-        
-        // Benchmarks y diferencias
+
         for (const benchmarkName of FOLLOWUP_BENCHMARK_ORDER) {
             const benchmarkCell = document.createElement('td');
-            benchmarkCell.className = 'px-4 py-3';
-            
+            benchmarkCell.className = 'px-3 sm:px-4 py-2.5 sm:py-3 align-top';
+
             if (benchmarkName in yearData.benchmarks) {
                 const benchReturn = yearData.benchmarks[benchmarkName];
                 const diff = yearData.differences[benchmarkName] || 0;
-                
+
                 const container = document.createElement('div');
-                container.className = 'space-y-1';
-                
-                // Rentabilidad del benchmark
+                container.className = 'space-y-1 text-right min-w-[5.5rem]';
+
                 const benchSpan = document.createElement('div');
-                benchSpan.className = 'text-gray-700';
+                benchSpan.className = 'text-slate-700 text-sm font-medium tabular-nums';
                 benchSpan.textContent = formatEuropeanNumber(benchReturn, 2) + '%';
                 container.appendChild(benchSpan);
-                
-                // Diferencia (portfolio - benchmark)
+
                 const diffSpan = document.createElement('div');
-                diffSpan.className = diff >= 0 ? 'text-green-600 text-sm font-medium' : 'text-red-600 text-sm font-medium';
+                diffSpan.className = diff >= 0
+                    ? 'text-emerald-700 text-xs font-semibold tabular-nums'
+                    : 'text-rose-600 text-xs font-semibold tabular-nums';
                 const diffSign = diff >= 0 ? '+' : '';
-                diffSpan.textContent = diffSign + formatEuropeanNumber(diff, 2) + '%';
+                diffSpan.textContent = 'Δ ' + diffSign + formatEuropeanNumber(diff, 2) + '%';
+                diffSpan.setAttribute('title', 'Diferencia vs tu portfolio (anual)');
                 container.appendChild(diffSpan);
-                
+
                 benchmarkCell.appendChild(container);
             } else {
-                benchmarkCell.textContent = '-';
-                benchmarkCell.className += ' text-gray-400';
+                benchmarkCell.className += ' text-slate-400 text-sm text-right';
+                benchmarkCell.textContent = '—';
             }
-            
+
             row.appendChild(benchmarkCell);
         }
-        
+
         tableBody.appendChild(row);
     });
-    
-    // Añadir fila de total
+
     const totalRow = document.createElement('tr');
-    totalRow.className = 'border-t-2 border-gray-400 bg-gray-50 font-semibold';
-    
+    totalRow.className =
+        'bg-gradient-to-r from-slate-100/95 via-teal-50/40 to-slate-100/90 border-t-2 border-teal-300/50 font-semibold';
+
     const totalLabelCell = document.createElement('td');
-    totalLabelCell.className = 'px-4 py-3 text-gray-900';
+    totalLabelCell.className = 'px-3 sm:px-4 py-3 text-slate-900 text-sm';
     totalLabelCell.textContent = 'Total';
     totalRow.appendChild(totalLabelCell);
-    
+
     const totalPortfolioCell = document.createElement('td');
-    totalPortfolioCell.className = 'px-4 py-3 text-gray-900';
+    totalPortfolioCell.className = 'px-3 sm:px-4 py-3 text-slate-900 text-sm font-bold tabular-nums text-right';
     totalPortfolioCell.textContent = formatEuropeanNumber(annualData.total.portfolio, 2) + '%';
     totalRow.appendChild(totalPortfolioCell);
-    
+
     for (const benchmarkName of FOLLOWUP_BENCHMARK_ORDER) {
         const totalCell = document.createElement('td');
-        totalCell.className = 'px-4 py-3';
-        
+        totalCell.className = 'px-3 sm:px-4 py-3';
+
         if (benchmarkName in annualData.total.benchmarks) {
             const benchReturn = annualData.total.benchmarks[benchmarkName];
             const diff = annualData.total.differences[benchmarkName] || 0;
-            
+
             const container = document.createElement('div');
-            container.className = 'space-y-1';
-            
+            container.className = 'space-y-1 text-right min-w-[5.5rem]';
+
             const benchSpan = document.createElement('div');
-            benchSpan.className = 'text-gray-700';
+            benchSpan.className = 'text-slate-800 text-sm font-bold tabular-nums';
             benchSpan.textContent = formatEuropeanNumber(benchReturn, 2) + '%';
             container.appendChild(benchSpan);
-            
+
             const diffSpan = document.createElement('div');
-            diffSpan.className = diff >= 0 ? 'text-green-600 text-sm font-medium' : 'text-red-600 text-sm font-medium';
+            diffSpan.className = diff >= 0
+                ? 'text-emerald-800 text-xs font-bold tabular-nums'
+                : 'text-rose-700 text-xs font-bold tabular-nums';
             const diffSign = diff >= 0 ? '+' : '';
-            diffSpan.textContent = diffSign + formatEuropeanNumber(diff, 2) + '%';
+            diffSpan.textContent = 'Δ ' + diffSign + formatEuropeanNumber(diff, 2) + '%';
             container.appendChild(diffSpan);
-            
+
             totalCell.appendChild(container);
         } else {
-            totalCell.textContent = '-';
-            totalCell.className += ' text-gray-400';
+            totalCell.className += ' text-slate-400 text-sm text-right';
+            totalCell.textContent = '—';
         }
-        
+
         totalRow.appendChild(totalCell);
     }
-    
+
     tableBody.appendChild(totalRow);
 }
 
 // Inicializar al cargar la página (condicional: performance tiene evolution, index-comparison solo benchmarks)
 document.addEventListener('DOMContentLoaded', function() {
     if (document.getElementById('portfolioValueChart')) {
+        evolutionFrequency = 'monthly';
+        initPerformanceFrequencyBar();
         loadCharts('monthly');
         if (!evolutionPollTimer) {
-            evolutionPollTimer = setInterval(() => loadCharts('monthly', { poll: true }), 30000);
+            evolutionPollTimer = setInterval(() => loadCharts(evolutionFrequency, { poll: true }), 30000);
         }
     }
     if (document.getElementById('benchmarkChart')) {
@@ -761,6 +884,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 window.benchmarkChart.destroy();
             }
             window.benchmarkChart = createBenchmarkChart(ctx, data);
+            initBenchmarkChartToggles();
             renderBenchmarkTable(data.annual_returns);
 
             if (data.meta && data.meta._now_cached_at) {

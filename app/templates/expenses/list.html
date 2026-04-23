@@ -3,21 +3,146 @@
 {% block title %}Gastos{% endblock %}
 
 {% block content %}
+<style>
+    .expense-card {
+        background: linear-gradient(145deg, #f8fbfc 0%, #f1f7f8 100%);
+        border: 1px solid rgba(63, 95, 115, 0.14);
+        border-radius: 16px;
+        box-shadow: 0 14px 30px rgba(15,23,42,0.1), inset 0 1px 0 rgba(255,255,255,0.85);
+    }
+    .expense-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-weight: 700;
+        color: #1f2937;
+    }
+    .expense-kpi {
+        background: linear-gradient(145deg, rgba(248,251,252,0.98), rgba(241,247,248,0.92));
+        border-radius: 14px;
+        box-shadow: inset 0 0 0 1px rgba(148,163,184,0.16), 0 10px 24px rgba(15,23,42,0.08);
+    }
+    .expense-chip {
+        border-radius: 9999px;
+        border: 1px solid rgba(248,113,113,0.22);
+        background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(254,242,242,0.82));
+        box-shadow: 0 5px 12px rgba(127,29,29,0.09);
+    }
+    .expense-table-row {
+        background: linear-gradient(145deg, rgba(248,251,252,0.96), rgba(241,247,248,0.9));
+    }
+    .expense-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        padding: 0.32rem 0.62rem;
+        border-radius: 9999px;
+        border: 1px solid rgba(239,68,68,0.2);
+        background: rgba(255, 255, 255, 0.9);
+        cursor: pointer;
+        transition: all 0.18s ease;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+    }
+    .expense-toggle:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 14px rgba(15, 23, 42, 0.14);
+    }
+    .expense-toggle-check {
+        width: 0.95rem;
+        height: 0.95rem;
+        border-radius: 9999px;
+        border: 1px solid #fecaca;
+        background: #fee2e2;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.65rem;
+        font-weight: 700;
+        color: transparent;
+        transition: all 0.2s ease;
+    }
+    .expense-toggle input:checked + .expense-toggle-check {
+        background: linear-gradient(180deg, #ef4444, #dc2626);
+        border-color: #dc2626;
+        color: #fff;
+        box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
+    }
+    .table-action-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2rem;
+        height: 2rem;
+        border-radius: 0.6rem;
+        font-size: 1rem;
+        line-height: 1;
+        transition: all 0.18s ease;
+    }
+    .table-action-icon:hover {
+        transform: translateY(-1px);
+        background: rgba(148, 163, 184, 0.14);
+    }
+    .table-action-icon:active {
+        transform: translateY(0) scale(0.96);
+        background: rgba(100, 116, 139, 0.22);
+    }
+    .modal-touch-btn {
+        transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease;
+    }
+    .modal-touch-btn:active {
+        transform: scale(0.97);
+        filter: brightness(0.96);
+    }
+    .table-actions-col {
+        width: 11rem;
+        min-width: 11rem;
+    }
+    @media (max-width: 1024px) {
+        .table-actions-col {
+            width: 8.5rem;
+            min-width: 8.5rem;
+        }
+    }
+    @media (max-width: 640px) {
+        .responsive-data-table th,
+        .responsive-data-table td {
+            padding-left: 0.75rem;
+            padding-right: 0.75rem;
+        }
+    }
+    @media (max-width: 480px) {
+        .table-actions-col {
+            width: 6.5rem;
+            min-width: 6.5rem;
+        }
+        .table-action-icon {
+            width: 2.2rem;
+            height: 2.2rem;
+            font-size: 0.95rem;
+        }
+    }
+    @media (pointer: coarse) {
+        .table-action-icon {
+            width: 2.3rem;
+            height: 2.3rem;
+        }
+    }
+</style>
 <div class="max-w-[92%] mx-auto px-4 py-8">
     <!-- Header -->
     <div class="flex justify-between items-center mb-6">
-        <h1 class="text-3xl font-bold text-gray-800">💸 Mis Gastos</h1>
+        <h1 class="expense-title text-3xl">💸 Mis Gastos</h1>
         <div class="flex space-x-3">
             <a href="{{ url_for('expenses.categories') }}" 
-               class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition">
+               class="rounded-xl bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 transition shadow-[0_8px_18px_rgba(15,23,42,0.22)]">
                 📂 Categorías
             </a>
             <a href="{{ url_for('debts.new', next='expenses') }}" 
-               class="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg transition">
+               class="rounded-xl bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 transition shadow-[0_8px_18px_rgba(180,83,9,0.26)]">
                 📋 Pagar a plazos
             </a>
             <a href="{{ url_for('expenses.new') }}" 
-               class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition">
+               class="rounded-xl bg-teal-600 hover:bg-teal-700 text-white px-6 py-2 transition shadow-[0_10px_20px_rgba(13,148,136,0.3)]">
                 + Nuevo Gasto
             </a>
         </div>
@@ -26,42 +151,43 @@
     <!-- Fase 6: Cuadros de resumen -->
     {% if summary_metrics %}
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-red-500">
-            <p class="text-sm text-gray-500 uppercase tracking-wide">Media mensual</p>
-            <p class="text-xl font-bold text-red-600">-{{ '%.2f'|format(summary_metrics.media_mensual) }} €</p>
+        <div class="expense-kpi p-4 border-l-4 border-rose-500">
+            <p class="text-gray-600 text-sm font-medium">Media mensual</p>
+            <p class="text-2xl font-bold text-rose-700">-{{ '%.2f'|format(summary_metrics.media_mensual) }} €</p>
         </div>
-        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-red-600">
-            <p class="text-sm text-gray-500 uppercase tracking-wide">Total período</p>
-            <p class="text-xl font-bold text-red-700">-{{ '%.2f'|format(summary_metrics.total_periodo) }} €</p>
+        <div class="expense-kpi p-4 border-l-4 border-rose-600">
+            <p class="text-gray-600 text-sm font-medium">Total período</p>
+            <p class="text-2xl font-bold text-rose-800">-{{ '%.2f'|format(summary_metrics.total_periodo) }} €</p>
         </div>
-        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-red-400">
-            <p class="text-sm text-gray-500 uppercase tracking-wide">Mes con más gastos</p>
+        <div class="expense-kpi p-4 border-l-4 border-rose-400">
+            <p class="text-gray-600 text-sm font-medium">Mes con más gastos</p>
             <p class="text-lg font-semibold text-gray-800">{{ summary_metrics.mes_max.label }}</p>
-            <p class="text-sm text-red-600">-{{ '%.2f'|format(summary_metrics.mes_max.amount) }} €</p>
+            <p class="text-sm text-rose-700">-{{ '%.2f'|format(summary_metrics.mes_max.amount) }} €</p>
         </div>
-        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-gray-400">
-            <p class="text-sm text-gray-500 uppercase tracking-wide">Meses con datos</p>
-            <p class="text-xl font-bold text-gray-700">{{ summary_metrics.meses_con_datos }}/12</p>
+        <div class="expense-kpi p-4 border-l-4 border-slate-400">
+            <p class="text-gray-600 text-sm font-medium">Meses con datos</p>
+            <p class="text-2xl font-bold text-gray-700">{{ summary_metrics.meses_con_datos }}/12</p>
         </div>
-        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-blue-400">
-            <p class="text-sm text-gray-500 uppercase tracking-wide">Tendencia</p>
+        <div class="expense-kpi p-4 border-l-4 border-sky-400">
+            <p class="text-gray-600 text-sm font-medium">Tendencia</p>
             <p class="text-2xl font-bold" title="Último mes vs media">
                 {% if summary_metrics.tendencia == '↑' %}📈{% elif summary_metrics.tendencia == '↓' %}📉{% else %}➡️{% endif %}
             </p>
+            <p class="text-xs text-gray-500">Último mes vs media 12m</p>
         </div>
     </div>
     {% endif %}
 
     <!-- Resumen por categoría (12 meses) -->
     {% if category_summary %}
-    <div class="bg-white rounded-lg shadow p-4 mb-6">
-        <h2 class="text-lg font-bold text-gray-800 mb-3">📊 Resumen por categoría (últimos 12 meses)</h2>
+    <div class="expense-card p-4 mb-6">
+        <h2 class="expense-title text-lg mb-3">📊 Resumen por categoría (últimos 12 meses)</h2>
         <div class="flex flex-wrap gap-3">
             {% for parent in category_summary %}
             {% if parent.children %}
             {% for child in parent.children %}
             <a href="{{ url_for('expenses.list', category=child.id) }}"
-               class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 hover:bg-red-50 hover:border-red-300 transition">
+               class="expense-chip inline-flex items-center gap-2 px-4 py-2 hover:border-red-300 transition">
                 <span class="text-xl">{{ child.icon }}</span>
                 <span class="font-medium text-gray-800">{{ child.name }}</span>
                 <span class="text-red-600 font-semibold">-{{ '%.2f'|format(child.average) }} €/mes ({{ '%.2f'|format(child.total) }} €)</span>
@@ -69,14 +195,14 @@
             {% endfor %}
             {% else %}
             {% if parent.name == 'Ajustes' %}
-            <span class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 bg-gray-50" title="Ajuste de cierre calculado a partir de saldos bancarios (solo lectura)">
+            <span class="expense-chip inline-flex items-center gap-2 px-4 py-2 border-gray-200 bg-gray-50" title="Ajuste de cierre calculado a partir de saldos bancarios (solo lectura)">
                 <span class="text-xl">{{ parent.icon }}</span>
                 <span class="font-medium text-gray-800">{{ parent.name }}</span>
                 <span class="text-red-600 font-semibold">-{{ '%.2f'|format(parent.average) }} €/mes ({{ '%.2f'|format(parent.total) }} €)</span>
             </span>
             {% else %}
             <a href="{{ url_for('expenses.list', category=parent.id) }}"
-               class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 hover:bg-red-50 hover:border-red-300 transition">
+               class="expense-chip inline-flex items-center gap-2 px-4 py-2 hover:border-red-300 transition">
                 <span class="text-xl">{{ parent.icon }}</span>
                 <span class="font-medium text-gray-800">{{ parent.name }}</span>
                 <span class="text-red-600 font-semibold">-{{ '%.2f'|format(parent.average) }} €/mes ({{ '%.2f'|format(parent.total) }} €)</span>
@@ -90,17 +216,18 @@
 
     <!-- Gráfico: Gastos últimos 12 meses -->
     {% if monthly_totals %}
-    <div class="bg-white rounded-lg shadow p-4 mb-6">
-        <h2 class="text-lg font-bold text-gray-800 mb-3">📈 Gastos por mes (últimos 12 meses)</h2>
-        <div class="h-64">
+    <div class="expense-card p-4 mb-6">
+        <h2 class="expense-title text-lg mb-3">📈 Gastos por mes (últimos 12 meses)</h2>
+        <div class="h-64 rounded-2xl border border-slate-200/70 bg-gradient-to-b from-white to-slate-50 p-3 shadow-inner">
             <canvas id="monthlyExpensesChart"></canvas>
         </div>
+        <div id="expensesChartLegend" class="flex flex-wrap items-center gap-2.5 mt-3 pt-3 border-t"></div>
     </div>
     {% endif %}
 
     <!-- Filtro por categoría -->
     {% if categories %}
-        <div class="bg-white rounded-lg shadow-md p-4 mb-6">
+        <div class="expense-card p-4 mb-6">
             <form method="GET" action="{{ url_for('expenses.list') }}" class="flex items-center space-x-3">
                 <label class="font-semibold text-gray-700">Filtrar por categoría:</label>
                 <select name="category" onchange="this.form.submit()" 
@@ -124,8 +251,8 @@
 
     {% if expenses.items %}
         <!-- Tabla de Gastos -->
-        <div class="bg-white rounded-lg shadow-md overflow-hidden">
-            <table class="min-w-full divide-y divide-gray-200">
+        <div class="expense-card overflow-x-auto overflow-y-hidden">
+            <table class="responsive-data-table min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -140,7 +267,7 @@
                         <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Monto
                         </th>
-                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th class="table-actions-col px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Acciones
                         </th>
                     </tr>
@@ -161,7 +288,7 @@
                         {% if synthetic_entries and (current_year, current_month) in synthetic_entries %}
                             {% set syn = synthetic_entries[(current_year, current_month)] %}
                             {% if syn.stock_market > 0 %}
-                        <tr class="hover:bg-gray-50" title="Depósitos a broker IBKR/DeGiro en este mes (calculado automáticamente)">
+                        <tr class="expense-table-row hover:bg-gray-50" title="Depósitos a broker IBKR/DeGiro en este mes (calculado automáticamente)">
                             <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-500 italic">—</td>
                             <td class="px-6 py-3 whitespace-nowrap">
                                 <span class="inline-flex items-center space-x-2">
@@ -176,7 +303,7 @@
                         </tr>
                             {% endif %}
                             {% if syn.ajuste > 0 %}
-                        <tr class="bg-gray-50 hover:bg-gray-100" title="Ajuste de reconciliación: diferencia entre saldo bancario real y gastos/ingresos registrados">
+                        <tr class="expense-table-row bg-gray-50 hover:bg-gray-100" title="Ajuste de reconciliación: diferencia entre saldo bancario real y gastos/ingresos registrados">
                             <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-500 italic">—</td>
                             <td class="px-6 py-3 whitespace-nowrap">
                                 <span class="inline-flex items-center space-x-2">
@@ -196,7 +323,7 @@
                             {% endif %}
                         {% endif %}
                         {% endif %}
-                        <tr class="hover:bg-gray-50">
+                        <tr class="expense-table-row hover:bg-gray-50">
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                                 {{ expense.date.strftime('%d/%m/%Y') }}
                             </td>
@@ -220,18 +347,18 @@
                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-semibold text-red-600">
                                 -€{{ '%.2f'|format(expense.amount) }}
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-center text-sm">
+                            <td class="table-actions-col px-6 py-4 whitespace-nowrap text-center text-sm">
                                 <div class="flex justify-center space-x-2" x-data="{ showDeleteModal: false, showEditScopeModal: false, showTerminateModal: false, expenseId: {{ expense.id }}, isRecurring: {{ 'true' if expense.is_recurring and expense.recurrence_group_id and not expense.debt_plan_id else 'false' }}, isDebtInstallment: {{ 'true' if expense.debt_plan_id else 'false' }}, debtPlanId: {{ expense.debt_plan_id or 0 }} }">
                                     {% if expense.debt_plan_id %}
                                     <a href="{{ url_for('debts.edit', id=expense.debt_plan_id, next='expenses') }}" 
-                                       class="text-blue-600 hover:text-blue-800" title="Editar plan de deuda">
+                                       class="table-action-icon text-teal-700 hover:text-teal-800" title="Editar plan de deuda">
                                         ✏️
                                     </a>
                                     {% else %}
                                     {% if expense.is_recurring and expense.recurrence_group_id %}
                                     <button type="button"
                                             @click="showEditScopeModal = true"
-                                            class="text-blue-600 hover:text-blue-800 p-0 border-0 bg-transparent cursor-pointer"
+                                            class="table-action-icon text-teal-700 hover:text-teal-800 p-0 border-0 bg-transparent cursor-pointer"
                                             title="Editar">
                                         ✏️
                                     </button>
@@ -240,23 +367,23 @@
                                     {% include 'includes/recurrence_edit_scope_modal.html' %}
                                     {% else %}
                                     <a href="{{ url_for('expenses.edit', id=expense.id) }}"
-                                       class="text-blue-600 hover:text-blue-800" title="Editar">
+                                       class="table-action-icon text-teal-700 hover:text-teal-800" title="Editar">
                                         ✏️
                                     </a>
                                     {% endif %}
                                     {% if expense.is_recurring and expense.recurrence_group_id and not expense.debt_plan_id %}
                                     <button type="button"
                                             @click="showTerminateModal = true"
-                                            class="text-amber-600 hover:text-amber-800 p-0 border-0 bg-transparent cursor-pointer"
+                                            class="table-action-icon text-amber-600 hover:text-amber-800 p-0 border-0 bg-transparent cursor-pointer"
                                             title="Terminar contrato (eliminar cuotas futuras)">🛑</button>
                                     <template x-teleport="body">
                                     <div x-show="showTerminateModal"
                                          x-cloak
-                                         class="fixed inset-0 z-[56] flex items-center justify-center bg-black/50 p-4 sm:p-6 overflow-y-auto overflow-x-hidden"
+                                         class="fixed inset-0 z-[56] flex items-center justify-center bg-black/55 p-4 sm:p-6 overflow-y-auto overflow-x-hidden"
                                          style="display: none;">
                                         <div @click.away="showTerminateModal = false"
-                                             class="bg-white rounded-xl shadow-xl border border-gray-200 w-full max-w-lg min-w-0 mx-auto my-auto p-6 sm:p-7 box-border">
-                                            <h3 class="text-lg font-semibold text-gray-900 mb-3">Terminar contrato</h3>
+                                             class="w-full max-w-lg min-w-0 mx-auto my-auto rounded-2xl border border-slate-200 bg-gradient-to-br from-[#f8fbfc] to-[#f1f7f8] p-6 sm:p-7 shadow-[0_20px_45px_rgba(15,23,42,0.28)] box-border">
+                                            <h3 class="text-lg font-semibold text-gray-900 mb-3">🛑 Terminar contrato</h3>
                                             <p class="text-sm text-gray-600 mb-6 leading-relaxed break-words [overflow-wrap:anywhere]">
                                                 ¿Terminar contrato? Se eliminarán las cuotas con fecha posterior a
                                                 <strong class="font-semibold text-gray-800">{{ expense.date.strftime('%d/%m/%Y') }}</strong>.
@@ -264,7 +391,7 @@
                                             <div class="flex flex-wrap justify-end gap-3">
                                                 <button type="button"
                                                         @click="showTerminateModal = false"
-                                                        class="px-4 py-2.5 rounded-full text-sm font-medium bg-slate-700 text-white hover:bg-slate-800 transition shrink-0">
+                                                        class="modal-touch-btn px-4 py-2.5 rounded-full text-sm font-medium bg-slate-700 text-white hover:bg-slate-800 transition shrink-0">
                                                     Cancelar
                                                 </button>
                                                 <form method="POST"
@@ -272,8 +399,8 @@
                                                       class="inline shrink-0">
                                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                                     <button type="submit"
-                                                            class="px-5 py-2.5 rounded-full text-sm font-medium bg-indigo-100 text-indigo-900 hover:bg-indigo-200 border border-indigo-200 transition">
-                                                        Aceptar
+                                                            class="modal-touch-btn px-5 py-2.5 rounded-full text-sm font-medium border border-amber-300 bg-amber-100 text-amber-900 hover:bg-amber-200 transition">
+                                                        Terminar
                                                     </button>
                                                 </form>
                                             </div>
@@ -282,14 +409,14 @@
                                     </template>
                                     {% endif %}
                                     {% endif %}
-                                    <button @click="showDeleteModal = true" class="text-red-600 hover:text-red-800" title="Eliminar">
+                                    <button @click="showDeleteModal = true" class="table-action-icon text-red-600 hover:text-red-800" title="Eliminar">
                                         🗑️
                                     </button>
                                     
                                     <!-- Modal de confirmación -->
-                                    <div x-show="showDeleteModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" style="display: none;">
-                                        <div @click.away="showDeleteModal = false" class="bg-white rounded-lg shadow-xl p-6 max-w-md">
-                                            <h3 class="text-lg font-bold mb-4">🗑️ Confirmar Eliminación</h3>
+                                    <div x-show="showDeleteModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4" style="display: none;">
+                                        <div @click.away="showDeleteModal = false" class="w-full max-w-md rounded-2xl border border-slate-200 bg-gradient-to-br from-[#f8fbfc] to-[#f1f7f8] p-6 shadow-[0_20px_45px_rgba(15,23,42,0.28)]">
+                                            <h3 class="text-lg font-semibold mb-3 text-gray-900">🗑️ Confirmar eliminación</h3>
                                             
                                             {% if expense.debt_plan_id %}
                                             <template x-if="isDebtInstallment">
@@ -302,7 +429,7 @@
                                                             <input type="hidden" name="delete_future_only" value="true">
                                                             <input type="hidden" name="from_expense_id" value="{{ expense.id }}">
                                                             <input type="hidden" name="next" value="expenses">
-                                                            <button type="submit" class="w-full bg-amber-500 hover:bg-amber-600 text-white px-4 py-3 rounded-lg transition">
+                                                            <button type="submit" class="modal-touch-btn w-full border border-amber-300 bg-amber-100 hover:bg-amber-200 text-amber-900 px-4 py-3 rounded-xl transition font-medium">
                                                                 ⏹ Eliminar entradas futuras
                                                             </button>
                                                         </form>
@@ -311,7 +438,7 @@
                                                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                                             <input type="hidden" name="delete_future_only" value="false">
                                                             <input type="hidden" name="next" value="expenses">
-                                                            <button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-lg transition">
+                                                            <button type="submit" class="modal-touch-btn w-full border border-rose-300 bg-rose-100 hover:bg-rose-200 text-rose-900 px-4 py-3 rounded-xl transition font-medium">
                                                                 🔥 Eliminar toda la serie
                                                             </button>
                                                         </form>
@@ -328,7 +455,7 @@
                                                         <form method="POST" action="{{ url_for('expenses.delete', id=expense.id) }}">
                                                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                                             <input type="hidden" name="delete_series" value="false">
-                                                            <button type="submit" class="w-full bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-3 rounded-lg transition">
+                                                            <button type="submit" class="modal-touch-btn w-full border border-amber-300 bg-amber-100 hover:bg-amber-200 text-amber-900 px-4 py-3 rounded-xl transition font-medium">
                                                                 📌 Eliminar solo esta entrada
                                                             </button>
                                                         </form>
@@ -336,7 +463,7 @@
                                                         <form method="POST" action="{{ url_for('expenses.delete', id=expense.id) }}">
                                                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                                             <input type="hidden" name="delete_series" value="true">
-                                                            <button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-lg transition">
+                                                            <button type="submit" class="modal-touch-btn w-full border border-rose-300 bg-rose-100 hover:bg-rose-200 text-rose-900 px-4 py-3 rounded-xl transition font-medium">
                                                                 🔥 Eliminar toda la serie
                                                             </button>
                                                         </form>
@@ -349,14 +476,14 @@
                                                     <p class="text-gray-700 mb-4">¿Estás seguro de que deseas eliminar este gasto?</p>
                                                     <form method="POST" action="{{ url_for('expenses.delete', id=expense.id) }}">
                                                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                                        <button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-lg transition">
+                                                        <button type="submit" class="modal-touch-btn w-full border border-rose-300 bg-rose-100 hover:bg-rose-200 text-rose-900 px-4 py-3 rounded-xl transition font-medium">
                                                             Sí, eliminar
                                                         </button>
                                                     </form>
                                                 </div>
                                             </template>
                                             
-                                            <button @click="showDeleteModal = false" class="w-full mt-3 bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-lg transition">
+                                            <button @click="showDeleteModal = false" class="modal-touch-btn w-full mt-3 bg-slate-700 hover:bg-slate-800 text-white px-4 py-2.5 rounded-full transition font-medium">
                                                 Cancelar
                                             </button>
                                         </div>
@@ -375,7 +502,7 @@
                             </td>
                         </tr>
                         {% if orphan.stock_market > 0 %}
-                        <tr class="hover:bg-gray-50" title="Depósitos a broker IBKR/DeGiro en este mes (calculado automáticamente)">
+                        <tr class="expense-table-row hover:bg-gray-50" title="Depósitos a broker IBKR/DeGiro en este mes (calculado automáticamente)">
                             <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-500 italic">—</td>
                             <td class="px-6 py-3 whitespace-nowrap">
                                 <span class="inline-flex items-center space-x-2">
@@ -390,7 +517,7 @@
                         </tr>
                         {% endif %}
                         {% if orphan.ajuste > 0 %}
-                        <tr class="bg-gray-50 hover:bg-gray-100" title="Ajuste de reconciliación: diferencia entre saldo bancario real y gastos/ingresos registrados">
+                        <tr class="expense-table-row bg-gray-50 hover:bg-gray-100" title="Ajuste de reconciliación: diferencia entre saldo bancario real y gastos/ingresos registrados">
                             <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-500 italic">—</td>
                             <td class="px-6 py-3 whitespace-nowrap">
                                 <span class="inline-flex items-center space-x-2">
@@ -430,18 +557,18 @@
             <div class="mt-6 flex justify-center space-x-2">
                 {% if expenses.has_prev %}
                     <a href="{{ url_for('expenses.list', page=expenses.prev_num, category=selected_category) }}" 
-                       class="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded transition">
+                       class="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-xl transition">
                         ← Anterior
                     </a>
                 {% endif %}
                 
-                <span class="px-4 py-2 bg-blue-600 text-white rounded">
+                <span class="px-4 py-2 bg-teal-600 text-white rounded-xl shadow-[0_8px_18px_rgba(13,148,136,0.26)]">
                     Página {{ expenses.page }} de {{ expenses.pages }}
                 </span>
                 
                 {% if expenses.has_next %}
                     <a href="{{ url_for('expenses.list', page=expenses.next_num, category=selected_category) }}" 
-                       class="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded transition">
+                       class="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-xl transition">
                         Siguiente →
                     </a>
                 {% endif %}
@@ -449,7 +576,7 @@
         {% endif %}
     {% else %}
         <!-- Empty State -->
-        <div class="bg-blue-50 border border-blue-200 rounded-lg p-8 text-center">
+        <div class="expense-card bg-blue-50/80 border-blue-200 p-8 text-center">
             <p class="text-xl text-blue-800 mb-4">📝 No tienes gastos registrados aún</p>
             <p class="text-gray-600 mb-6">
                 {% if selected_category %}
@@ -482,7 +609,7 @@
     if (!ctx) return;
     const labels = monthlyTotals.map(m => m.month_label);
     const data = monthlyTotals.map(m => m.total);
-    new Chart(ctx, {
+    const expensesChart = new Chart(ctx, {
         type: 'bar',
         data: {
             labels: labels,
@@ -518,6 +645,23 @@
             }
         }
     });
+    const legendRoot = document.getElementById('expensesChartLegend');
+    if (!legendRoot) return;
+    legendRoot.innerHTML = `
+        <span class="text-xs text-gray-500">Mostrar:</span>
+        <label class="expense-toggle">
+            <input id="toggleExpensesSeries" type="checkbox" class="sr-only" checked>
+            <span class="expense-toggle-check">✓</span>
+            <span class="text-xs font-semibold text-red-700">Gastos (€)</span>
+        </label>
+    `;
+    const toggle = document.getElementById('toggleExpensesSeries');
+    if (toggle) {
+        toggle.addEventListener('change', function() {
+            expensesChart.setDatasetVisibility(0, this.checked);
+            expensesChart.update();
+        });
+    }
 })();
 </script>
 {% endif %}

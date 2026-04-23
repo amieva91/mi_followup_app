@@ -3,185 +3,352 @@
 {% block title %}Diversificación - Portfolio - FollowUp{% endblock %}
 
 {% block content %}
-<div class="max-w-[92%] mx-auto">
-    <!-- Header -->
-    <div class="flex justify-between items-center mb-8">
+<style>
+    #portfolio-divers .portfolio-card {
+        background: linear-gradient(145deg, #f8fbfc 0%, #f1f7f8 100%);
+        border: 1px solid rgba(63, 95, 115, 0.14);
+        border-radius: 16px;
+        box-shadow: 0 14px 30px rgba(15,23,42,0.1), inset 0 1px 0 rgba(255,255,255,0.85);
+    }
+    #portfolio-divers .portfolio-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-weight: 700;
+        color: #1f2937;
+    }
+    #portfolio-divers .portfolio-touch-btn {
+        transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease;
+    }
+    #portfolio-divers .portfolio-touch-btn:active {
+        transform: scale(0.98);
+        filter: brightness(0.96);
+    }
+    #portfolio-divers .chart-surface-divers {
+        border-radius: 1rem;
+        border: 1px solid rgba(63, 95, 115, 0.12);
+        background:
+            radial-gradient(circle at 24% -6%, rgba(20, 184, 166, 0.09), transparent 44%),
+            linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(241, 247, 248, 0.95) 100%);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92), 0 8px 24px rgba(15, 23, 42, 0.05);
+        padding: 0.6rem 0.45rem 0.4rem;
+    }
+    #portfolio-divers .pf-info {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.375rem;
+        height: 1.375rem;
+        border-radius: 9999px;
+        border: 1px solid rgb(204 251 241);
+        background: rgb(240 253 250);
+        color: rgb(15 118 110);
+        font-size: 0.65rem;
+        font-weight: 700;
+        line-height: 1;
+        cursor: pointer;
+        flex-shrink: 0;
+        padding: 0;
+    }
+    #portfolio-divers .pf-info:focus { outline: 2px solid rgba(20, 184, 166, 0.5); outline-offset: 1px; }
+</style>
+<div id="portfolio-divers" class="max-w-[92%] mx-auto px-4 py-8" x-data="{ diversInfo: null }" @keydown.escape.window="if (diversInfo) { diversInfo = null; document.body.style.overflow = '' }">
+    <div class="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-8">
         <div>
-            <h1 class="text-3xl font-bold text-gray-900">📊 Diversificación</h1>
-            <p class="text-gray-600 mt-1">Distribución del portfolio por países, sectores, activos y más</p>
+            <h1 class="portfolio-title text-3xl">📊 Diversificación</h1>
+            <p class="text-slate-600 mt-1 text-sm sm:text-base">Peso de tu cartera por país, sector, activos e industria (valor de mercado en EUR)</p>
         </div>
-        <a href="{{ url_for('portfolio.dashboard') }}" class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm font-medium text-gray-700">
-            ← Volver al Dashboard
+        <a href="{{ url_for('portfolio.dashboard') }}" class="portfolio-touch-btn inline-flex items-center justify-center px-4 py-2 bg-slate-200 border border-slate-300 rounded-xl hover:bg-slate-300 text-slate-800 text-sm font-semibold shrink-0">
+            Dashboard
         </a>
     </div>
 
     {% if country_distribution or sector_distribution or asset_distribution or industry_distribution or broker_distribution or asset_type_distribution %}
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         {% if country_distribution %}
-        <div class="bg-white rounded-xl shadow-sm p-6">
-            <h3 class="text-lg font-semibold text-gray-900 mb-4">🌍 Distribución por País</h3>
-            <div class="relative" style="height: 300px;">
+        <div class="portfolio-card p-5 sm:p-6">
+            <div class="flex items-start justify-between gap-2 mb-3">
+                <h3 class="portfolio-title text-lg">🌍 Por país</h3>
+                <button type="button" class="pf-info mt-0.5 shrink-0" @click="diversInfo = 'country'; document.body.style.overflow = 'hidden'" title="Información" aria-label="Información gráfico país">i</button>
+            </div>
+            <div class="chart-surface-divers" style="position: relative; height: 300px;">
                 <canvas id="countryChart"></canvas>
             </div>
         </div>
         {% endif %}
         
         {% if sector_distribution %}
-        <div class="bg-white rounded-xl shadow-sm p-6">
-            <h3 class="text-lg font-semibold text-gray-900 mb-4">🏭 Distribución por Sector</h3>
-            <div class="relative" style="height: 300px;">
+        <div class="portfolio-card p-5 sm:p-6">
+            <div class="flex items-start justify-between gap-2 mb-3">
+                <h3 class="portfolio-title text-lg">🏭 Por sector</h3>
+                <button type="button" class="pf-info mt-0.5 shrink-0" @click="diversInfo = 'sector'; document.body.style.overflow = 'hidden'" title="Información" aria-label="Información gráfico sector">i</button>
+            </div>
+            <div class="chart-surface-divers" style="position: relative; height: 300px;">
                 <canvas id="sectorChart"></canvas>
             </div>
         </div>
         {% endif %}
         
         {% if asset_distribution %}
-        <div class="bg-white rounded-xl shadow-sm p-6">
-            <h3 class="text-lg font-semibold text-gray-900 mb-4">📈 Distribución por Asset (Top 10)</h3>
-            <div class="relative" style="height: 300px;">
+        <div class="portfolio-card p-5 sm:p-6">
+            <div class="flex items-start justify-between gap-2 mb-3">
+                <h3 class="portfolio-title text-lg">📈 Top 10 activos</h3>
+                <button type="button" class="pf-info mt-0.5 shrink-0" @click="diversInfo = 'asset'; document.body.style.overflow = 'hidden'" title="Información" aria-label="Información gráfico activos">i</button>
+            </div>
+            <div class="chart-surface-divers" style="position: relative; height: 300px;">
                 <canvas id="assetChart"></canvas>
             </div>
         </div>
         {% endif %}
         
         {% if industry_distribution %}
-        <div class="bg-white rounded-xl shadow-sm p-6">
-            <h3 class="text-lg font-semibold text-gray-900 mb-4">🏷️ Distribución por Industria</h3>
-            <div class="relative" style="height: 300px;">
+        <div class="portfolio-card p-5 sm:p-6">
+            <div class="flex items-start justify-between gap-2 mb-3">
+                <h3 class="portfolio-title text-lg">🏷️ Por industria</h3>
+                <button type="button" class="pf-info mt-0.5 shrink-0" @click="diversInfo = 'industry'; document.body.style.overflow = 'hidden'" title="Información" aria-label="Información gráfico industria">i</button>
+            </div>
+            <div class="chart-surface-divers" style="position: relative; height: 300px;">
                 <canvas id="industryChart"></canvas>
             </div>
         </div>
         {% endif %}
         
         {% if broker_distribution %}
-        <div class="bg-white rounded-xl shadow-sm p-6">
-            <h3 class="text-lg font-semibold text-gray-900 mb-4">🏦 Distribución por Broker</h3>
-            <div class="relative" style="height: 300px;">
+        <div class="portfolio-card p-5 sm:p-6">
+            <div class="flex items-start justify-between gap-2 mb-3">
+                <h3 class="portfolio-title text-lg">🏦 Por broker</h3>
+                <button type="button" class="pf-info mt-0.5 shrink-0" @click="diversInfo = 'broker'; document.body.style.overflow = 'hidden'" title="Información" aria-label="Información gráfico broker">i</button>
+            </div>
+            <div class="chart-surface-divers" style="position: relative; height: 300px;">
                 <canvas id="brokerChart"></canvas>
             </div>
         </div>
         {% endif %}
         
         {% if asset_type_distribution %}
-        <div class="bg-white rounded-xl shadow-sm p-6">
-            <h3 class="text-lg font-semibold text-gray-900 mb-4">📦 Distribución por Tipo</h3>
-            <div class="relative" style="height: 300px;">
+        <div class="portfolio-card p-5 sm:p-6">
+            <div class="flex items-start justify-between gap-2 mb-3">
+                <h3 class="portfolio-title text-lg">📦 Por tipo de activo</h3>
+                <button type="button" class="pf-info mt-0.5 shrink-0" @click="diversInfo = 'type'; document.body.style.overflow = 'hidden'" title="Información" aria-label="Información gráfico tipo">i</button>
+            </div>
+            <div class="chart-surface-divers" style="position: relative; height: 300px;">
                 <canvas id="assetTypeChart"></canvas>
             </div>
         </div>
         {% endif %}
     </div>
     {% else %}
-    <div class="bg-gray-50 rounded-xl p-12 text-center text-gray-600">
-        <p class="text-lg">No hay datos de diversificación disponibles.</p>
-        <p class="text-sm mt-2">Asegúrate de tener posiciones abiertas con información de país, sector, etc.</p>
+    <div class="portfolio-card p-12 text-center text-slate-600">
+        <p class="text-lg font-medium text-slate-800">No hay datos de diversificación todavía</p>
+        <p class="text-sm mt-2">Con posiciones abiertas y metadatos (país, sector, etc.) verás la distribución aquí.</p>
     </div>
     {% endif %}
+
+    <div x-show="diversInfo" x-cloak class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55" @click="diversInfo = null; document.body.style.overflow = ''" role="dialog" aria-modal="true">
+        <div @click.stop class="relative w-full max-w-md max-h-[min(88vh,22rem)] flex flex-col rounded-2xl border border-slate-200/80 bg-gradient-to-br from-[#f8fbfc] to-[#f1f7f8] shadow-[0_20px_45px_rgba(15,23,42,0.28)]" x-show="diversInfo">
+            <template x-if="diversInfo === 'country'">
+                <div>
+                    <div class="px-4 py-3 border-b border-slate-200/80 flex justify-between items-center">
+                        <h4 class="text-sm font-semibold text-slate-900">Por país</h4>
+                        <button type="button" class="text-sm rounded-lg px-3 py-1.5 bg-slate-700 text-white font-semibold" @click="diversInfo = null; document.body.style.overflow = ''">Cerrar</button>
+                    </div>
+                    <div class="p-4 text-sm text-slate-700">Cada porción es el <strong>peso en EUR</strong> de posiciones cuyo país de cotización o emisor coincide con la etiqueta. Los colores son <strong>distintos entre sí</strong> para leer la leyenda: no implican orden ni “mejor/peor”.</div>
+                </div>
+            </template>
+            <template x-if="diversInfo === 'sector'">
+                <div>
+                    <div class="px-4 py-3 border-b border-slate-200/80 flex justify-between items-center">
+                        <h4 class="text-sm font-semibold text-slate-900">Por sector</h4>
+                        <button type="button" class="text-sm rounded-lg px-3 py-1.5 bg-slate-700 text-white font-semibold" @click="diversInfo = null; document.body.style.overflow = ''">Cerrar</button>
+                    </div>
+                    <div class="p-4 text-sm text-slate-700">Clasificación <strong>sectorial</strong> (GICS o equivalente) ponderada por valor de mercado. “Otros” agrupa lo que no encaja en sectores estándar.</div>
+                </div>
+            </template>
+            <template x-if="diversInfo === 'asset'">
+                <div>
+                    <div class="px-4 py-3 border-b border-slate-200/80 flex justify-between items-center">
+                        <h4 class="text-sm font-semibold text-slate-900">Top 10 activos</h4>
+                        <button type="button" class="text-sm rounded-lg px-3 py-1.5 bg-slate-700 text-white font-semibold" @click="diversInfo = null; document.body.style.overflow = ''">Cerrar</button>
+                    </div>
+                    <div class="p-4 text-sm text-slate-700">Los <strong>diez activos</strong> con mayor exposición en valor de mercado. El resto se agrupa implícitamente en el cálculo global del portfolio.</div>
+                </div>
+            </template>
+            <template x-if="diversInfo === 'industry'">
+                <div>
+                    <div class="px-4 py-3 border-b border-slate-200/80 flex justify-between items-center">
+                        <h4 class="text-sm font-semibold text-slate-900">Por industria</h4>
+                        <button type="button" class="text-sm rounded-lg px-3 py-1.5 bg-slate-700 text-white font-semibold" @click="diversInfo = null; document.body.style.overflow = ''">Cerrar</button>
+                    </div>
+                    <div class="p-4 text-sm text-slate-700">Desglose más fino que el sector: <strong>industria GICS</strong> o etiqueta interna, ponderada en EUR.</div>
+                </div>
+            </template>
+            <template x-if="diversInfo === 'broker'">
+                <div>
+                    <div class="px-4 py-3 border-b border-slate-200/80 flex justify-between items-center">
+                        <h4 class="text-sm font-semibold text-slate-900">Por broker</h4>
+                        <button type="button" class="text-sm rounded-lg px-3 py-1.5 bg-slate-700 text-white font-semibold" @click="diversInfo = null; document.body.style.overflow = ''">Cerrar</button>
+                    </div>
+                    <div class="p-4 text-sm text-slate-700">Distribución del patrimonio según el <strong>broker o custodio</strong> de cada posición.</div>
+                </div>
+            </template>
+            <template x-if="diversInfo === 'type'">
+                <div>
+                    <div class="px-4 py-3 border-b border-slate-200/80 flex justify-between items-center">
+                        <h4 class="text-sm font-semibold text-slate-900">Por tipo de activo</h4>
+                        <button type="button" class="text-sm rounded-lg px-3 py-1.5 bg-slate-700 text-white font-semibold" @click="diversInfo = null; document.body.style.overflow = ''">Cerrar</button>
+                    </div>
+                    <div class="p-4 text-sm text-slate-700">Clasificación por <strong>instrumento</strong> (acción, fondo, ETF, cripto, etc.) según los datos de FollowUp.</div>
+                </div>
+            </template>
+        </div>
+    </div>
 </div>
 
 {% if country_distribution or sector_distribution or asset_distribution or industry_distribution or broker_distribution or asset_type_distribution %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const colors = [
-        '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
-        '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1',
-        '#14B8A6', '#A855F7', '#F43F5E', '#0EA5E9', '#22C55E'
+    // Paleta amplia, tonos suaves y bien diferenciados (se repite por índice si hay muchas porciones)
+    const SLICE_PALETTE = [
+        'rgba(13, 148, 136, 0.9)', 'rgba(14, 165, 233, 0.9)', 'rgba(99, 102, 241, 0.88)', 'rgba(168, 85, 247, 0.88)',
+        'rgba(236, 72, 153, 0.86)', 'rgba(244, 63, 94, 0.86)', 'rgba(249, 115, 22, 0.88)', 'rgba(234, 179, 8, 0.9)',
+        'rgba(132, 204, 22, 0.88)', 'rgba(5, 150, 105, 0.9)', 'rgba(6, 182, 212, 0.88)', 'rgba(37, 99, 235, 0.86)',
+        'rgba(79, 70, 229, 0.86)', 'rgba(192, 38, 211, 0.84)', 'rgba(190, 18, 60, 0.82)', 'rgba(180, 83, 9, 0.86)',
+        'rgba(5, 122, 85, 0.88)', 'rgba(2, 132, 199, 0.88)', 'rgba(67, 56, 202, 0.86)', 'rgba(109, 40, 217, 0.85)',
+        'rgba(219, 39, 119, 0.84)', 'rgba(12, 74, 110, 0.85)', 'rgba(21, 128, 61, 0.88)', 'rgba(30, 64, 175, 0.85)',
+        'rgba(100, 116, 139, 0.88)', 'rgba(20, 184, 166, 0.88)', 'rgba(45, 212, 191, 0.85)', 'rgba(56, 189, 248, 0.86)',
+        'rgba(96, 165, 250, 0.86)', 'rgba(129, 140, 248, 0.86)', 'rgba(167, 139, 250, 0.85)', 'rgba(196, 181, 253, 0.88)'
     ];
-    const pieOptions = {
+    function colorsForSlices(n) {
+        var out = [];
+        for (var i = 0; i < n; i++) {
+            out.push(SLICE_PALETTE[i % SLICE_PALETTE.length]);
+        }
+        return out;
+    }
+    function makeDataset(dataArr) {
+        return {
+            data: dataArr,
+            backgroundColor: colorsForSlices(dataArr.length),
+            borderWidth: 2,
+            borderColor: 'rgba(248, 250, 252, 0.95)'
+        };
+    }
+    const doughnutOptions = {
         responsive: true,
         maintainAspectRatio: false,
+        cutout: '56%',
+        layout: { padding: { top: 4, right: 4, bottom: 2, left: 4 } },
         plugins: {
-            legend: { position: 'right', labels: { padding: 15, font: { size: 12 } } },
+            legend: {
+                position: 'right',
+                labels: {
+                    padding: 10,
+                    font: { size: 11, family: 'ui-sans-serif, system-ui, sans-serif' },
+                    color: '#334155',
+                    usePointStyle: true,
+                    pointStyle: 'circle',
+                    boxWidth: 8,
+                    boxHeight: 8
+                }
+            },
             tooltip: {
                 callbacks: {
                     label: function(context) {
-                        const value = context.parsed || 0;
-                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                        const pct = ((value / total) * 100).toFixed(1);
-                        return (context.label || '') + ': ' + value.toLocaleString('es-ES', {style: 'currency', currency: 'EUR', maximumFractionDigits: 0}) + ' (' + pct + '%)';
+                        var value = context.parsed;
+                        if (value && typeof value === 'object' && 'x' in value) value = value.x;
+                        var data = context.dataset.data;
+                        var total = data.reduce(function(a, b) { return a + b; }, 0);
+                        var pct = total ? ((Number(value) / total) * 100).toFixed(1) : '0.0';
+                        return (context.label || '') + ': ' + Number(value).toLocaleString('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }) + ' (' + pct + '%)';
                     }
                 }
             }
         }
     };
     {% if country_distribution %}
-    const countryCtx = document.getElementById('countryChart');
-    if (countryCtx) {
-        new Chart(countryCtx, {
-            type: 'pie',
+    (function() {
+        var el = document.getElementById('countryChart');
+        if (!el) return;
+        new Chart(el, {
+            type: 'doughnut',
             data: {
-                labels: [{% for c, v in country_distribution %}'{{ c }}'{% if not loop.last %},{% endif %}{% endfor %}],
-                datasets: [{ data: [{% for c, v in country_distribution %}{{ v }}{% if not loop.last %},{% endif %}{% endfor %}], backgroundColor: colors.slice(0, {{ country_distribution|length }}), borderWidth: 2, borderColor: '#fff' }]
+                labels: [{% for c, v in country_distribution %}{{ c|tojson }}{% if not loop.last %},{% endif %}{% endfor %}],
+                datasets: [makeDataset([{% for c, v in country_distribution %}{{ v }}{% if not loop.last %},{% endif %}{% endfor %}])]
             },
-            options: pieOptions
+            options: doughnutOptions
         });
-    }
+    })();
     {% endif %}
     {% if sector_distribution %}
-    const sectorCtx = document.getElementById('sectorChart');
-    if (sectorCtx) {
-        new Chart(sectorCtx, {
-            type: 'pie',
+    (function() {
+        var el = document.getElementById('sectorChart');
+        if (!el) return;
+        new Chart(el, {
+            type: 'doughnut',
             data: {
-                labels: [{% for s, v in sector_distribution %}'{{ s }}'{% if not loop.last %},{% endif %}{% endfor %}],
-                datasets: [{ data: [{% for s, v in sector_distribution %}{{ v }}{% if not loop.last %},{% endif %}{% endfor %}], backgroundColor: colors.slice(0, {{ sector_distribution|length }}), borderWidth: 2, borderColor: '#fff' }]
+                labels: [{% for s, v in sector_distribution %}{{ s|tojson }}{% if not loop.last %},{% endif %}{% endfor %}],
+                datasets: [makeDataset([{% for s, v in sector_distribution %}{{ v }}{% if not loop.last %},{% endif %}{% endfor %}])]
             },
-            options: pieOptions
+            options: doughnutOptions
         });
-    }
+    })();
     {% endif %}
     {% if asset_distribution %}
-    const assetCtx = document.getElementById('assetChart');
-    if (assetCtx) {
-        new Chart(assetCtx, {
-            type: 'pie',
+    (function() {
+        var el = document.getElementById('assetChart');
+        if (!el) return;
+        new Chart(el, {
+            type: 'doughnut',
             data: {
-                labels: [{% for a, v in asset_distribution %}'{{ a }}'{% if not loop.last %},{% endif %}{% endfor %}],
-                datasets: [{ data: [{% for a, v in asset_distribution %}{{ v }}{% if not loop.last %},{% endif %}{% endfor %}], backgroundColor: colors.slice(0, {{ asset_distribution|length }}), borderWidth: 2, borderColor: '#fff' }]
+                labels: [{% for a, v in asset_distribution %}{{ a|tojson }}{% if not loop.last %},{% endif %}{% endfor %}],
+                datasets: [makeDataset([{% for a, v in asset_distribution %}{{ v }}{% if not loop.last %},{% endif %}{% endfor %}])]
             },
-            options: pieOptions
+            options: doughnutOptions
         });
-    }
+    })();
     {% endif %}
     {% if industry_distribution %}
-    const industryCtx = document.getElementById('industryChart');
-    if (industryCtx) {
-        new Chart(industryCtx, {
-            type: 'pie',
+    (function() {
+        var el = document.getElementById('industryChart');
+        if (!el) return;
+        new Chart(el, {
+            type: 'doughnut',
             data: {
-                labels: [{% for i, v in industry_distribution %}'{{ i }}'{% if not loop.last %},{% endif %}{% endfor %}],
-                datasets: [{ data: [{% for i, v in industry_distribution %}{{ v }}{% if not loop.last %},{% endif %}{% endfor %}], backgroundColor: colors.slice(0, {{ industry_distribution|length }}), borderWidth: 2, borderColor: '#fff' }]
+                labels: [{% for ind, v in industry_distribution %}{{ ind|tojson }}{% if not loop.last %},{% endif %}{% endfor %}],
+                datasets: [makeDataset([{% for ind, v in industry_distribution %}{{ v }}{% if not loop.last %},{% endif %}{% endfor %}])]
             },
-            options: pieOptions
+            options: doughnutOptions
         });
-    }
+    })();
     {% endif %}
     {% if broker_distribution %}
-    const brokerCtx = document.getElementById('brokerChart');
-    if (brokerCtx) {
-        new Chart(brokerCtx, {
-            type: 'pie',
+    (function() {
+        var el = document.getElementById('brokerChart');
+        if (!el) return;
+        new Chart(el, {
+            type: 'doughnut',
             data: {
-                labels: [{% for b, v in broker_distribution %}'{{ b }}'{% if not loop.last %},{% endif %}{% endfor %}],
-                datasets: [{ data: [{% for b, v in broker_distribution %}{{ v }}{% if not loop.last %},{% endif %}{% endfor %}], backgroundColor: colors.slice(0, {{ broker_distribution|length }}), borderWidth: 2, borderColor: '#fff' }]
+                labels: [{% for b, v in broker_distribution %}{{ b|tojson }}{% if not loop.last %},{% endif %}{% endfor %}],
+                datasets: [makeDataset([{% for b, v in broker_distribution %}{{ v }}{% if not loop.last %},{% endif %}{% endfor %}])]
             },
-            options: pieOptions
+            options: doughnutOptions
         });
-    }
+    })();
     {% endif %}
     {% if asset_type_distribution %}
-    const assetTypeCtx = document.getElementById('assetTypeChart');
-    if (assetTypeCtx) {
-        new Chart(assetTypeCtx, {
-            type: 'pie',
+    (function() {
+        var el = document.getElementById('assetTypeChart');
+        if (!el) return;
+        new Chart(el, {
+            type: 'doughnut',
             data: {
-                labels: [{% for t, v in asset_type_distribution %}'{{ t }}'{% if not loop.last %},{% endif %}{% endfor %}],
-                datasets: [{ data: [{% for t, v in asset_type_distribution %}{{ v }}{% if not loop.last %},{% endif %}{% endfor %}], backgroundColor: colors.slice(0, {{ asset_type_distribution|length }}), borderWidth: 2, borderColor: '#fff' }]
+                labels: [{% for t, v in asset_type_distribution %}{{ t|tojson }}{% if not loop.last %},{% endif %}{% endfor %}],
+                datasets: [makeDataset([{% for t, v in asset_type_distribution %}{{ v }}{% if not loop.last %},{% endif %}{% endfor %}])]
             },
-            options: pieOptions
+            options: doughnutOptions
         });
-    }
+    })();
     {% endif %}
 });
 </script>

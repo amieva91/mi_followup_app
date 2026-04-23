@@ -23,6 +23,7 @@ from app.models.real_estate import RealEstateProperty, PropertyValuation, PROPER
 from app.models.bank import Bank, BankBalance
 from app.models.dashboard_config import UserDashboardConfig, DEFAULT_WIDGETS
 from app.models.dashboard_layout import UserDashboardLayout
+from app.models.dashboard_onboarding_state import DashboardOnboardingState
 from app.models.api_call_log import ApiCallLog
 from app.models.user_login_log import UserLoginLog
 from app.models.price_polling_state import PricePollingState
@@ -61,6 +62,7 @@ __all__ = [
     'Bank', 'BankBalance',
     'UserDashboardConfig', 'DEFAULT_WIDGETS',
     'UserDashboardLayout',
+    'DashboardOnboardingState',
     'ApiCallLog',
     'UserLoginLog',
     'PricePollingState',

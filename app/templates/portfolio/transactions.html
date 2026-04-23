@@ -5,20 +5,47 @@
 <!-- Template actualizada: 2025-10-12 14:30 - Symbol condicional (solo si != name y < 15 chars) -->
 
 {% block content %}
-<div class="max-w-[92%] mx-auto">
-    <!-- Header -->
-    <div class="flex justify-between items-center mb-8">
+<style>
+    #portfolio-tx .portfolio-title { display: inline-flex; align-items: center; gap: 0.45rem; font-weight: 700; color: #1f2937; }
+    #portfolio-tx .portfolio-card {
+        background: linear-gradient(145deg, #f8fbfc 0%, #f1f7f8 100%);
+        border: 1px solid rgba(63, 95, 115, 0.14);
+        border-radius: 16px;
+        box-shadow: 0 14px 30px rgba(15,23,42,0.1), inset 0 1px 0 rgba(255,255,255,0.85);
+    }
+    #portfolio-tx .portfolio-touch-btn { transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease; }
+    #portfolio-tx .portfolio-touch-btn:active { transform: scale(0.98); filter: brightness(0.96); }
+    #portfolio-tx .tx-table-wrap {
+        border-radius: 0.85rem; border: 1px solid rgba(63, 95, 115, 0.14);
+        overflow: hidden;
+        background: linear-gradient(180deg, rgba(255,255,255,0.55) 0%, rgba(248,250,252,0.92) 100%);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.8);
+    }
+    #portfolio-tx .tx-thead th {
+        background: linear-gradient(180deg, #f1f5f9 0%, #e2e8f0 100%);
+        color: #334155; font-size: 0.7rem; letter-spacing: 0.04em;
+    }
+    #txDeleteModalDesc { color: #0f172a; }
+</style>
+<div id="portfolio-tx" class="max-w-[92%] mx-auto py-6">
+    <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
         <div>
-            <h1 class="text-3xl font-bold text-gray-900">📝 Mis Transacciones</h1>
-            <p class="text-gray-600 mt-1">Historial completo de operaciones</p>
+            <h1 class="portfolio-title text-2xl sm:text-3xl">📝 Transacciones</h1>
+            <p class="text-slate-600 mt-1 text-sm sm:text-base">Historial de operaciones</p>
         </div>
-        <a href="{{ url_for('portfolio.transaction_new') }}" class="btn-primary">
-            ➕ Nueva Transacción
-        </a>
+        <div class="flex flex-col sm:flex-row sm:items-stretch sm:justify-end gap-2 w-full sm:w-auto shrink-0">
+            <a href="{{ url_for('portfolio.transaction_new') }}"
+               class="portfolio-touch-btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold shadow-[0_10px_20px_rgba(13,148,136,0.28)] w-full sm:w-auto order-1 sm:order-1">
+                ➕ Nueva transacción
+            </a>
+            <a href="{{ url_for('portfolio.dashboard') }}"
+               class="portfolio-touch-btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-slate-200 border border-slate-300 hover:bg-slate-300 text-slate-800 text-sm font-semibold w-full sm:w-auto order-2 sm:order-2"
+               onclick="if (window.history.length > 1) { event.preventDefault(); history.back(); }">← Volver</a>
+        </div>
     </div>
 
     <!-- Filtros de búsqueda -->
-    <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
+    <div class="portfolio-card p-6 mb-6">
         <form method="GET" action="{{ url_for('portfolio.transactions_list') }}" class="space-y-4">
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <!-- Filtro por símbolo -->
@@ -29,7 +56,7 @@
                     <input type="text" id="symbol" name="symbol" 
                            value="{{ request.args.get('symbol', '') }}"
                            placeholder="Ej: AAPL, US0378331005, Apple..."
-                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                           class="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
                 </div>
 
                 <!-- Filtro por tipo -->
@@ -37,7 +64,7 @@
                     <label for="type" class="block text-sm font-medium text-gray-700 mb-1">
                         💱 Tipo de operación
                     </label>
-                    <select id="type" name="type" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 auto-submit">
+                    <select id="type" name="type" class="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 auto-submit">
                         <option value="">Todos</option>
                         <option value="BUY" {% if request.args.get('type') == 'BUY' %}selected{% endif %}>Compra</option>
                         <option value="SELL" {% if request.args.get('type') == 'SELL' %}selected{% endif %}>Venta</option>
@@ -53,7 +80,7 @@
                     <label for="account" class="block text-sm font-medium text-gray-700 mb-1">
                         🏦 Cuenta
                     </label>
-                    <select id="account" name="account" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 auto-submit">
+                    <select id="account" name="account" class="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 auto-submit">
                         <option value="">Todas las cuentas</option>
                         {% for account in accounts %}
                         <option value="{{ account.id }}" {% if request.args.get('account')|int == account.id %}selected{% endif %}>
@@ -68,7 +95,7 @@
                     <label for="asset_type" class="block text-sm font-medium text-gray-700 mb-1">
                         📊 Tipo de activo
                     </label>
-                    <select id="asset_type" name="asset_type" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 auto-submit">
+                    <select id="asset_type" name="asset_type" class="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 auto-submit">
                         <option value="">Todos</option>
                         <option value="Stock" {% if request.args.get('asset_type') == 'Stock' %}selected{% endif %}>Acciones</option>
                         <option value="ETF" {% if request.args.get('asset_type') == 'ETF' %}selected{% endif %}>ETF</option>
@@ -84,7 +111,7 @@
                     </label>
                     <input type="date" id="date_from" name="date_from" 
                            value="{{ request.args.get('date_from', '') }}"
-                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 auto-submit">
+                           class="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 auto-submit">
                 </div>
 
                 <!-- Filtro por fecha hasta -->
@@ -94,7 +121,7 @@
                     </label>
                     <input type="date" id="date_to" name="date_to" 
                            value="{{ request.args.get('date_to', '') }}"
-                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 auto-submit">
+                           class="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 auto-submit">
                 </div>
                 
                 <!-- Filtro: A revisar -->
@@ -102,10 +129,10 @@
                     <label class="block text-sm font-medium text-gray-700 mb-1">
                         ⚠️ Estado
                     </label>
-                    <label class="flex items-center px-4 py-2 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
+                    <label class="flex items-center px-4 py-2 border border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50/80">
                         <input type="checkbox" name="dividends_review" value="1" 
                                {% if request.args.get('dividends_review') %}checked{% endif %}
-                               class="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded auto-submit">
+                               class="mr-2 h-4 w-4 text-teal-600 focus:ring-teal-500 border-slate-300 rounded auto-submit">
                         <span class="text-sm text-gray-700">Dividendos a revisar</span>
                     </label>
                     
@@ -119,29 +146,29 @@
             </div>
 
             <!-- Botones de acción -->
-            <div class="flex gap-3">
-                <a href="{{ url_for('portfolio.transactions_list') }}" class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition font-medium text-gray-700">
+            <div class="flex flex-wrap gap-3">
+                <a href="{{ url_for('portfolio.transactions_list') }}" class="portfolio-touch-btn px-4 py-2 border border-slate-300 rounded-xl hover:bg-slate-100/80 transition font-medium text-slate-700">
                     ✖️ Limpiar filtros
                 </a>
-                <span class="px-4 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium">
+                <span id="transactionsCountBadge" class="inline-flex items-center px-4 py-2 rounded-xl text-sm font-medium border border-teal-200/80 bg-teal-50 text-teal-800">
                     {{ transactions|length }} transacción/es
                 </span>
             </div>
         </form>
     </div>
     
-    <!-- Acceso a Registro Global -->
-    <div class="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6">
-        <div class="flex items-center justify-between">
+    <!-- Acceso a registro global -->
+    <div class="portfolio-card p-4 sm:p-5 mb-6 border-l-4 border-teal-500/80">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
-                <h3 class="font-semibold text-purple-900">🗄️ Registro Global de Assets</h3>
-                <p class="text-sm text-purple-700 mt-1">
-                    Gestiona la base de datos compartida de mapeos ISIN → Symbol, Exchange, MIC
+                <h3 class="font-semibold text-slate-900">🗄️ Registro global de activos</h3>
+                <p class="text-sm text-slate-600 mt-1">
+                    Mapeos ISIN → símbolo, exchange, MIC
                 </p>
             </div>
             <a href="{{ url_for('portfolio.asset_registry') }}" 
-               class="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium transition whitespace-nowrap">
-                📊 Ver Registro Global →
+               class="portfolio-touch-btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold whitespace-nowrap shadow-[0_8px_18px_rgba(13,148,136,0.22)] border border-teal-500/30">
+                📊 Abrir registro
             </a>
         </div>
     </div>
@@ -158,8 +185,8 @@
         document.addEventListener('DOMContentLoaded', function() {
             const symbolInput = document.getElementById('symbol');
             const form = symbolInput ? symbolInput.closest('form') : null;
-            const tableContainer = document.querySelector('.bg-white.rounded-xl.shadow-sm.overflow-hidden');
-            const transactionsCount = document.querySelector('.bg-blue-50.text-blue-700');
+            const tableContainer = document.getElementById('transactionsTableBlock');
+            const transactionsCount = document.getElementById('transactionsCountBadge');
             
             if (symbolInput && form) {
                 let searchTimeout;
@@ -225,8 +252,8 @@
                         tempDiv.innerHTML = html;
                         
                         // Extraer solo la tabla y paginación (fragmento)
-                        const newTableContainer = tempDiv.querySelector('.bg-white.rounded-xl.shadow-sm.overflow-hidden');
-                        const newPagination = tempDiv.querySelector('.mt-6.flex.items-center.justify-between');
+                        const newTableContainer = tempDiv.querySelector('#transactionsTableBlock');
+                        const newPagination = tempDiv.querySelector('#transactionsPagination');
                         
                         if (newTableContainer && tableContainer) {
                             // Reemplazar solo el contenido de la tabla
@@ -240,7 +267,7 @@
                         }
                         
                         // Actualizar paginación si existe
-                        const paginationContainer = document.querySelector('.mt-6.flex.items-center.justify-between');
+                        const paginationContainer = document.getElementById('transactionsPagination');
                         if (newPagination && paginationContainer) {
                             paginationContainer.innerHTML = newPagination.innerHTML;
                         } else if (newPagination && !paginationContainer) {
@@ -283,13 +310,13 @@
     </script>
 
     {% if transactions %}
-    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+    <div id="transactionsTableBlock" class="tx-table-wrap overflow-hidden">
         <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
+            <table class="min-w-full divide-y divide-slate-200/80">
+                <thead class="tx-thead">
                     <tr>
                         {% macro sortable_header(label, field) %}
-                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">
                             <a href="?{{ request.query_string.decode() | replace('sort_by=' + request.args.get('sort_by', ''), '') | replace('sort_order=' + request.args.get('sort_order', ''), '') | replace('&&', '&') | replace('?&', '?') }}&sort_by={{ field }}&sort_order={% if request.args.get('sort_by') == field and request.args.get('sort_order') == 'asc' %}desc{% else %}asc{% endif %}" 
                                class="flex items-center hover:text-gray-700 transition">
                                 {{ label }}
@@ -300,36 +327,36 @@
                         </th>
                         {% endmacro %}
                         
-                        <th onclick="sortTableTransactions(0, 'date')" class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                        <th onclick="sortTableTransactions(0, 'date')" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600 cursor-pointer hover:bg-slate-200/50">
                             Fecha <span class="sort-arrow">⇅</span>
                         </th>
-                        <th onclick="sortTableTransactions(1, 'text')" class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                        <th onclick="sortTableTransactions(1, 'text')" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600 cursor-pointer hover:bg-slate-200/50">
                             Tipo <span class="sort-arrow">⇅</span>
                         </th>
-                        <th onclick="sortTableTransactions(2, 'text')" class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                        <th onclick="sortTableTransactions(2, 'text')" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600 cursor-pointer hover:bg-slate-200/50">
                             Activo <span class="sort-arrow">⇅</span>
                         </th>
-                        <th onclick="sortTableTransactions(3, 'text')" class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                        <th onclick="sortTableTransactions(3, 'text')" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600 cursor-pointer hover:bg-slate-200/50">
                             Cuenta <span class="sort-arrow">⇅</span>
                         </th>
-                        <th onclick="sortTableTransactions(4, 'number')" class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                        <th onclick="sortTableTransactions(4, 'number')" class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-600 cursor-pointer hover:bg-slate-200/50">
                             Cantidad <span class="sort-arrow">⇅</span>
                         </th>
-                        <th onclick="sortTableTransactions(5, 'number')" class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                        <th onclick="sortTableTransactions(5, 'number')" class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-600 cursor-pointer hover:bg-slate-200/50">
                             Precio <span class="sort-arrow">⇅</span>
                         </th>
-                        <th onclick="sortTableTransactions(6, 'number')" class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                        <th onclick="sortTableTransactions(6, 'number')" class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-600 cursor-pointer hover:bg-slate-200/50">
                             Total <span class="sort-arrow">⇅</span>
                         </th>
-                        <th onclick="sortTableTransactions(7, 'number')" class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                        <th onclick="sortTableTransactions(7, 'number')" class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-600 cursor-pointer hover:bg-slate-200/50">
                             P&L <span class="sort-arrow">⇅</span>
                         </th>
-                        <th class="px-6 py-4 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
+                        <th class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-slate-600">Acciones</th>
                     </tr>
                 </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
+                <tbody class="bg-white/90 divide-y divide-slate-200/70">
                     {% for txn in transactions %}
-                    <tr class="hover:bg-gray-50 transition">
+                    <tr class="hover:bg-slate-50/90 transition">
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="text-sm text-gray-900">{{ txn.transaction_date.strftime('%d/%m/%Y') }}</div>
                             <div class="text-xs text-gray-500">{{ txn.transaction_date.strftime('%H:%M') }}</div>
@@ -418,11 +445,14 @@
                         <td class="px-6 py-4 whitespace-nowrap text-center">
                             <div class="flex items-center justify-center gap-2">
                                 <a href="{{ url_for('portfolio.transaction_edit', id=txn.id) }}" 
-                                   class="inline-flex items-center px-3 py-1 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition text-sm font-medium">
+                                   class="inline-flex items-center px-3 py-1.5 bg-teal-50 text-teal-800 rounded-lg hover:bg-teal-100/80 transition text-sm font-medium border border-teal-100/80">
                                     ✏️ Editar
                                 </a>
-                                <button onclick="confirmDelete({{ txn.id }}, '{{ txn.asset.symbol if txn.asset else txn.transaction_type }}')"
-                                        class="inline-flex items-center px-3 py-1 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition text-sm font-medium">
+                                <button type="button"
+                                        data-tx-id="{{ txn.id }}"
+                                        data-tx-label="{{ (txn.asset.symbol if txn.asset and txn.asset.symbol else (txn.asset.name if txn.asset else (txn.description[:40] if txn.description else txn.transaction_type)))|e }}"
+                                        onclick="openTxDeleteModal(this)"
+                                        class="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium border-2 border-rose-200/90 bg-rose-50 text-rose-900 shadow-sm hover:bg-rose-100 hover:border-rose-300 transition">
                                     🗑️ Eliminar
                                 </button>
                             </div>
@@ -436,7 +466,7 @@
 
     <!-- Paginación -->
     {% if pagination.pages > 1 %}
-    <div class="mt-6 flex items-center justify-between">
+    <div id="transactionsPagination" class="mt-6 flex items-center justify-between flex-wrap gap-3">
         <div class="text-sm text-gray-700">
             Mostrando <span class="font-medium">{{ pagination.per_page * (pagination.page - 1) + 1 }}</span> - 
             <span class="font-medium">{{ pagination.per_page * (pagination.page - 1) + pagination.items|length }}</span> 
@@ -465,7 +495,7 @@
             {% endif %}
             
             <!-- Página actual -->
-            <span class="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-blue-600 rounded-lg">
+            <span class="px-4 py-2 text-sm font-medium text-white bg-teal-600 border border-teal-600 rounded-xl shadow-sm">
                 {{ pagination.page }}
             </span>
             
@@ -490,23 +520,39 @@
             {% endif %}
         </nav>
     </div>
-    {% else %}
-    <div class="mt-6">
-        <a href="{{ url_for('portfolio.dashboard') }}" class="text-blue-600 hover:text-blue-700 text-sm font-medium">
-            ← Volver al Dashboard
-        </a>
-    </div>
     {% endif %}
     {% else %}
-    <div class="bg-white rounded-xl shadow-sm p-12 text-center">
+    <div class="portfolio-card p-12 text-center">
         <div class="text-6xl mb-4">📝</div>
-        <h3 class="text-lg font-medium text-gray-900 mb-2">No hay transacciones registradas</h3>
-        <p class="text-gray-600 mb-6">Registra tu primera operación para empezar el seguimiento</p>
-        <a href="{{ url_for('portfolio.transaction_new') }}" class="btn-primary inline-block">
-            ➕ Registrar Primera Transacción
+        <h3 class="text-lg font-medium text-slate-900 mb-2">No hay transacciones</h3>
+        <p class="text-slate-600 mb-6">Registra tu primera operación para empezar el seguimiento</p>
+        <a href="{{ url_for('portfolio.transaction_new') }}" class="portfolio-touch-btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold">
+            ➕ Registrar primera transacción
         </a>
     </div>
     {% endif %}
+</div>
+
+<!-- Modal eliminar transacción -->
+<div id="txDeleteModal" class="hidden fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55 overflow-y-auto" onclick="if (event.target === this) closeTxDeleteModal()">
+    <div class="followup-modal-surface w-full max-w-md p-5 sm:p-6 my-4 relative z-10" onclick="event.stopPropagation()" role="dialog" aria-modal="true" aria-labelledby="txDeleteModalTitle">
+        <div class="flex items-center justify-center h-11 w-11 rounded-full bg-rose-100 border border-rose-200/80 mx-auto ring-2 ring-white/50">
+            <span class="text-xl" aria-hidden="true">🗑️</span>
+        </div>
+        <h3 id="txDeleteModalTitle" class="text-lg font-semibold text-slate-900 text-center mt-4">Eliminar transacción</h3>
+        <div class="mt-3 rounded-xl border border-slate-200/80 bg-white/90 px-3 py-2.5 shadow-inner">
+            <p class="text-sm text-center font-medium text-slate-800 leading-snug" id="txDeleteModalDesc"></p>
+        </div>
+        <form id="txDeleteForm" method="POST" class="mt-5 space-y-2">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <button type="submit" class="portfolio-touch-btn w-full px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold shadow-md">
+                Sí, eliminar
+            </button>
+            <button type="button" onclick="closeTxDeleteModal()" class="portfolio-touch-btn w-full px-4 py-2.5 rounded-xl bg-slate-200 text-slate-800 text-sm font-semibold hover:bg-slate-300 border border-slate-300/80">
+                Cancelar
+            </button>
+        </form>
+    </div>
 </div>
 
 <script>
@@ -585,28 +631,23 @@ function sortTableTransactions(columnIndex, type) {
     }
 }
 
-// Función para confirmar y eliminar una transacción
-function confirmDelete(transactionId, assetName) {
-    if (confirm(`¿Estás seguro de eliminar esta transacción de ${assetName}?\n\nEsta acción no se puede deshacer.`)) {
-        // Crear formulario para enviar DELETE request
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = `/portfolio/transactions/${transactionId}/delete`;
-        
-        // Añadir CSRF token
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-        if (csrfToken) {
-            const csrfInput = document.createElement('input');
-            csrfInput.type = 'hidden';
-            csrfInput.name = 'csrf_token';
-            csrfInput.value = csrfToken;
-            form.appendChild(csrfInput);
-        }
-        
-        // Enviar formulario
-        document.body.appendChild(form);
-        form.submit();
-    }
+function openTxDeleteModal(btn) {
+    const id = btn.getAttribute('data-tx-id');
+    const label = btn.getAttribute('data-tx-label') || '';
+    const form = document.getElementById('txDeleteForm');
+    const desc = document.getElementById('txDeleteModalDesc');
+    const modal = document.getElementById('txDeleteModal');
+    if (!form || !desc || !modal || !id) return;
+    form.action = '/portfolio/transactions/' + id + '/delete';
+    desc.textContent = '¿Eliminar la operación de «' + label + '»? No se puede deshacer.';
+    modal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeTxDeleteModal() {
+    const modal = document.getElementById('txDeleteModal');
+    if (modal) modal.classList.add('hidden');
+    document.body.style.overflow = '';
 }
 </script>
 {% endblock %}

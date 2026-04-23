@@ -1,22 +1,38 @@
 {% extends "base/layout.html" %}
 
 {% block content %}
-<div class="max-w-[92%] mx-auto">
-    <div class="flex justify-between items-center mb-8">
+<style>
+    #portfolio-data-io .portfolio-title {
+        display: inline-flex; align-items: center; gap: 0.45rem;
+        font-weight: 700; color: #1f2937;
+    }
+    #portfolio-data-io .portfolio-card {
+        background: linear-gradient(145deg, #f8fbfc 0%, #f1f7f8 100%);
+        border: 1px solid rgba(63, 95, 115, 0.14);
+        border-radius: 16px;
+        box-shadow: 0 14px 30px rgba(15,23,42,0.1), inset 0 1px 0 rgba(255,255,255,0.85);
+    }
+    #portfolio-data-io .portfolio-touch-btn {
+        transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease;
+    }
+    #portfolio-data-io .portfolio-touch-btn:active { transform: scale(0.98); filter: brightness(0.96); }
+</style>
+<div id="portfolio-data-io" class="max-w-[92%] mx-auto py-6">
+    <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
         <div>
-            <h1 class="text-3xl font-bold text-gray-900">📦 Import/Export</h1>
-            <p class="text-gray-600 mt-1">Copia de seguridad y restauración de todos tus datos</p>
+            <h1 class="portfolio-title text-2xl sm:text-3xl">📦 Importar / exportar datos</h1>
+            <p class="text-slate-600 mt-1 text-sm sm:text-base">Copia de seguridad y restauración (.xlsx)</p>
         </div>
-        <a href="{{ url_for('portfolio.dashboard') }}" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg">
-            ← Volver
-        </a>
+        <a href="{{ url_for('portfolio.dashboard') }}"
+           class="portfolio-touch-btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-slate-200 border border-slate-300 hover:bg-slate-300 text-slate-800 text-sm font-semibold shrink-0 w-full sm:w-auto"
+           onclick="if (window.history.length > 1) { event.preventDefault(); history.back(); }">← Volver</a>
     </div>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
     <div class="space-y-2 mb-6">
         {% for category, message in messages %}
-        <div class="rounded-lg p-4 {% if category == 'success' %}bg-green-50 border border-green-200 text-green-800{% else %}bg-red-50 border border-red-200 text-red-800{% endif %}">
+        <div class="portfolio-card p-4 border {% if category == 'success' %}border-emerald-200/80 bg-emerald-50/90 text-emerald-900{% else %}border-rose-200/80 bg-rose-50/90 text-rose-900{% endif %}">
             {{ message }}
         </div>
         {% endfor %}
@@ -24,46 +40,43 @@
     {% endif %}
     {% endwith %}
 
-    <div class="grid md:grid-cols-2 gap-8">
-        <!-- Exportar -->
-        <div class="bg-white rounded-xl shadow-md p-6 border border-gray-100">
-            <h2 class="text-xl font-bold text-gray-900 mb-2">📤 Exportar (Backup)</h2>
-            <p class="text-gray-600 text-sm mb-4">Descarga un archivo .xlsx con todos tus datos como copia de seguridad.</p>
-            <p class="text-gray-500 text-xs mb-4">Incluye: Transacciones, Ingresos, Gastos, Deudas, Bancos, Inmuebles y Watchlist.</p>
-            <a href="{{ url_for('portfolio.data_export_download') }}" class="inline-flex items-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition">
+    <div class="grid md:grid-cols-2 gap-6">
+        <div class="portfolio-card p-6">
+            <h2 class="text-lg font-bold text-slate-900 mb-2">📤 Exportar (backup)</h2>
+            <p class="text-slate-600 text-sm mb-3">Descarga un .xlsx con tus datos como copia de seguridad.</p>
+            <p class="text-slate-500 text-xs mb-5">Incluye: transacciones, ingresos, gastos, deudas, bancos, inmuebles y watchlist.</p>
+            <a href="{{ url_for('portfolio.data_export_download') }}" class="portfolio-touch-btn inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold shadow-[0_10px_20px_rgba(13,148,136,0.25)]">
                 <span>Descargar .xlsx</span>
             </a>
         </div>
 
-        <!-- Importar -->
-        <div class="bg-white rounded-xl shadow-md p-6 border border-gray-100">
-            <h2 class="text-xl font-bold text-gray-900 mb-2">📥 Importar (Restaurar)</h2>
-            <p class="text-gray-600 text-sm mb-4">Sube un archivo .xlsx previamente exportado para restaurar tus datos.</p>
-            <p class="text-gray-500 text-xs mb-4">⚠️ La importación <strong>añade</strong> registros sin eliminar los existentes. Evita duplicar datos importando el mismo archivo varias veces.</p>
+        <div class="portfolio-card p-6">
+            <h2 class="text-lg font-bold text-slate-900 mb-2">📥 Importar (restaurar)</h2>
+            <p class="text-slate-600 text-sm mb-3">Sube un .xlsx exportado previamente.</p>
+            <p class="text-slate-500 text-xs mb-5">La importación <strong>añade</strong> registros sin borrar los existentes. Evita duplicar datos importando el mismo archivo varias veces.</p>
             <form method="POST" action="{{ url_for('portfolio.data_import_submit') }}" enctype="multipart/form-data" class="space-y-4">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Archivo .xlsx</label>
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Archivo .xlsx</label>
                     <input type="file" name="file" accept=".xlsx" required
-                           class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                           class="block w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-medium file:bg-teal-50 file:text-teal-800 hover:file:bg-teal-100/80">
                 </div>
-                <button type="submit" class="inline-flex items-center gap-2 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition">
+                <button type="submit" class="portfolio-touch-btn inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold">
                     Importar datos
                 </button>
             </form>
         </div>
     </div>
 
-    <div class="mt-8 bg-gray-50 rounded-xl p-6 border border-gray-200">
-        <h3 class="font-semibold text-gray-900 mb-3">Estructura del archivo de exportación</h3>
-        <ul class="text-sm text-gray-700 space-y-2">
-            <li><strong>Transacciones:</strong> Acciones, ETFs, metales y criptomonedas (con depósitos/retiradas de efectivo)</li>
-            <li><strong>Ingresos:</strong> Categorías e ingresos</li>
-            <li><strong>Gastos:</strong> Categorías y gastos</li>
-            <li><strong>Deudas:</strong> Planes de deuda e hipotecas</li>
-            <li><strong>Bancos:</strong> Entidades y saldos mensuales</li>
-            <li><strong>Inmuebles:</strong> Propiedades y tasaciones anuales</li>
-            <li><strong>Watchlist:</strong> Listas de seguimiento (símbolo, métricas manuales)</li>
+    <div class="mt-8 portfolio-card p-5 sm:p-6 border-l-4 border-sky-500/60">
+        <h3 class="font-semibold text-slate-900 mb-3">Estructura del archivo</h3>
+        <ul class="text-sm text-slate-700 space-y-2 list-disc list-inside">
+            <li><strong>Transacciones:</strong> acciones, ETFs, metales y cripto (incl. depósitos/retiradas de efectivo)</li>
+            <li><strong>Ingresos y gastos:</strong> categorías y movimientos</li>
+            <li><strong>Deudas:</strong> planes e hipotecas</li>
+            <li><strong>Bancos:</strong> entidades y saldos mensuales</li>
+            <li><strong>Inmuebles:</strong> propiedades y tasaciones</li>
+            <li><strong>Watchlist:</strong> listas y métricas manuales</li>
         </ul>
     </div>
 </div>

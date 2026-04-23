@@ -3,173 +3,298 @@
 {% block title %}Dividendos - Portfolio - FollowUp{% endblock %}
 
 {% block content %}
-<div class="max-w-[92%] mx-auto">
-    <!-- Header -->
-    <div class="flex justify-between items-center mb-8">
+<style>
+    #portfolio-dividends .portfolio-card {
+        background: linear-gradient(145deg, #f8fbfc 0%, #f1f7f8 100%);
+        border: 1px solid rgba(63, 95, 115, 0.14);
+        border-radius: 16px;
+        box-shadow: 0 14px 30px rgba(15,23,42,0.1), inset 0 1px 0 rgba(255,255,255,0.85);
+    }
+    #portfolio-dividends .portfolio-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-weight: 700;
+        color: #1f2937;
+    }
+    #portfolio-dividends .portfolio-touch-btn {
+        transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease;
+    }
+    #portfolio-dividends .portfolio-touch-btn:active {
+        transform: scale(0.98);
+        filter: brightness(0.96);
+    }
+    #portfolio-dividends .chart-surface-div {
+        border-radius: 1rem;
+        border: 1px solid rgba(63, 95, 115, 0.12);
+        background:
+            radial-gradient(circle at 28% -8%, rgba(20, 184, 166, 0.09), transparent 44%),
+            linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(241, 247, 248, 0.95) 100%);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92), inset 0 -10px 22px rgba(20, 184, 166, 0.04);
+        padding: 0.5rem 0.4rem 0.4rem;
+    }
+    #portfolio-dividends .pf-info {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.375rem;
+        height: 1.375rem;
+        border-radius: 9999px;
+        border: 1px solid rgb(204 251 241);
+        background: rgb(240 253 250);
+        color: rgb(15 118 110);
+        font-size: 0.65rem;
+        font-weight: 700;
+        line-height: 1;
+        cursor: pointer;
+        flex-shrink: 0;
+        padding: 0;
+    }
+    #portfolio-dividends .pf-info:focus { outline: 2px solid rgba(20, 184, 166, 0.5); outline-offset: 1px; }
+    #portfolio-dividends .kpi-tile {
+        border-radius: 0.85rem;
+        border: 1px solid rgba(63, 95, 115, 0.12);
+        background: linear-gradient(145deg, rgba(255,255,255,0.95), rgba(241,247,248,0.88));
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.88);
+    }
+</style>
+<div id="portfolio-dividends" class="max-w-[92%] mx-auto px-4 py-8" x-data="{ divInfo: null }" @keydown.escape.window="if (divInfo) { divInfo = null; document.body.style.overflow = '' }">
+    <div class="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-8">
         <div>
-            <h1 class="text-3xl font-bold text-gray-900">💰 Dividendos</h1>
-            <p class="text-gray-600 mt-1">Últimos 12 meses (mes a mes) y proyección anualizada desde el inicio</p>
+            <h1 class="portfolio-title text-3xl">💰 Dividendos</h1>
+            <p class="text-slate-600 mt-1 text-sm sm:text-base">Histórico de dividendos y métricas anualizadas</p>
         </div>
-        <a href="{{ url_for('portfolio.dashboard') }}" class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm font-medium text-gray-700">
-            ← Volver al Dashboard
+        <a href="{{ url_for('portfolio.dashboard') }}" class="portfolio-touch-btn inline-flex items-center justify-center px-4 py-2 bg-slate-200 border border-slate-300 rounded-xl hover:bg-slate-300 text-slate-800 text-sm font-semibold shrink-0">
+            Dashboard
         </a>
     </div>
 
-    {% if monthly_dividends or annualized_dividends %}
-    <div class="bg-white rounded-xl shadow-sm p-6 mb-8 border border-gray-200">
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <!-- Últimos 12 meses -->
+    {% if monthly_dividends or annualized_dividends or yearly_dividends %}
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        {% if (monthly_dividends and monthly_dividends|length > 0) or (yearly_dividends and yearly_dividends|length > 0) %}
+        <div class="portfolio-card p-5 sm:p-6">
             {% if monthly_dividends and monthly_dividends|length > 0 %}
-            <div>
-                <h3 class="text-md font-semibold text-gray-800 mb-4">📅 Últimos 12 Meses</h3>
-                <div class="relative" style="height: 300px;">
-                    <canvas id="monthlyDividendsChart"></canvas>
-                </div>
-                <div class="mt-4 text-xs text-gray-600">
-                    <div class="flex justify-between items-center mb-1">
-                        <span>Total últimos 12 meses:</span>
-                        <span class="font-semibold">{{ monthly_dividends | sum(attribute='dividends_eur') | decimal_eu(2) }} EUR</span>
-                    </div>
-                </div>
-                
-                <!-- Gráfico año a año desde el inicio -->
-                {% if yearly_dividends and yearly_dividends|length > 0 %}
-                <div class="mt-8">
-                    <h3 class="text-md font-semibold text-gray-800 mb-4">📊 Año a Año (Desde el Inicio)</h3>
-                    <div class="relative" style="height: 300px;">
-                        <canvas id="yearlyDividendsChart"></canvas>
-                    </div>
-                </div>
-                {% endif %}
+            <div class="flex items-start justify-between gap-2 mb-3">
+                <h2 class="portfolio-title text-lg sm:text-xl">📅 Últimos 12 meses</h2>
+                <button type="button" class="pf-info mt-0.5 shrink-0" @click="divInfo = 'm12'; document.body.style.overflow = 'hidden'" title="Información" aria-label="Información gráfico mensual">i</button>
+            </div>
+            <div class="chart-surface-div" style="position: relative; height: 300px;">
+                <canvas id="monthlyDividendsChart"></canvas>
+            </div>
+            <div class="mt-4 flex justify-between items-baseline text-sm text-slate-600 border-t border-slate-200/80 pt-3">
+                <span>Total 12 m.</span>
+                <span class="font-bold text-slate-900 tabular-nums">{{ monthly_dividends | sum(attribute='dividends_eur') | decimal_eu(2) }} €</span>
             </div>
             {% endif %}
-            
-            <!-- Métricas anualizadas -->
-            {% if annualized_dividends %}
-            <div>
-                <h3 class="text-md font-semibold text-gray-800 mb-4">📊 Métricas Anualizadas</h3>
-                <div class="space-y-4">
-                    <div class="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                        <div class="text-sm text-gray-600 mb-1">YTD (Año Actual)</div>
-                        <div class="text-2xl font-bold text-blue-700">
-                            {{ annualized_dividends.total_dividends_ytd|decimal_eu(2) }} EUR
-                        </div>
-                        <div class="text-xs text-gray-500 mt-1">
-                            {{ annualized_dividends.ytd_days }} días transcurridos
-                        </div>
-                    </div>
-                    
-                    <div class="p-4 bg-purple-50 rounded-lg border border-purple-200">
-                        <div class="text-sm text-gray-600 mb-1">Total Histórico</div>
-                        <div class="text-2xl font-bold text-purple-700">
-                            {{ annualized_dividends.total_dividends_all_time|decimal_eu(2) }} EUR
-                        </div>
-                        <div class="text-xs text-gray-500 mt-1">
-                            Desde {{ annualized_dividends.first_transaction_date.strftime('%d/%m/%Y') if annualized_dividends.first_transaction_date else 'N/A' }}
-                        </div>
-                    </div>
-                    
-                    <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                        <div class="text-sm text-gray-600 mb-1">Promedio Anual Histórico</div>
-                        <div class="text-2xl font-bold text-gray-700">
-                            {{ annualized_dividends.average_annual_dividends|decimal_eu(2) }} EUR
-                        </div>
-                        <div class="text-xs text-gray-500 mt-1">
-                            {{ annualized_dividends.years_investing|decimal_eu(1) }} años de inversión
-                        </div>
-                    </div>
+
+            {% if yearly_dividends and yearly_dividends|length > 0 %}
+            <div class="{% if monthly_dividends and monthly_dividends|length > 0 %}mt-8 pt-6 border-t border-slate-200/80{% else %}pt-0{% endif %}">
+                <div class="flex items-start justify-between gap-2 mb-3">
+                    <h2 class="portfolio-title text-lg sm:text-xl">📊 Año a año (desde el inicio)</h2>
+                    <button type="button" class="pf-info mt-0.5 shrink-0" @click="divInfo = 'yoy'; document.body.style.overflow = 'hidden'" title="Información" aria-label="Información gráfico anual">i</button>
+                </div>
+                <div class="chart-surface-div" style="position: relative; height: 300px;">
+                    <canvas id="yearlyDividendsChart"></canvas>
                 </div>
             </div>
             {% endif %}
         </div>
+        {% endif %}
+
+        {% if annualized_dividends %}
+        <div class="portfolio-card p-5 sm:p-6">
+            <div class="flex items-start justify-between gap-2 mb-4">
+                <h2 class="portfolio-title text-lg sm:text-xl">📊 Métricas anualizadas</h2>
+                <button type="button" class="pf-info mt-0.5 shrink-0" @click="divInfo = 'kpi'; document.body.style.overflow = 'hidden'" title="Información" aria-label="Información métricas">i</button>
+            </div>
+            <div class="space-y-3">
+                <div class="kpi-tile p-4 border-l-4 border-sky-400/70">
+                    <div class="text-xs font-medium text-slate-600">YTD (año en curso)</div>
+                    <div class="text-2xl font-bold text-slate-900 tabular-nums mt-0.5">{{ annualized_dividends.total_dividends_ytd|decimal_eu(2) }} €</div>
+                    <div class="text-xs text-slate-500 mt-1">{{ annualized_dividends.ytd_days }} días transcurridos</div>
+                </div>
+                <div class="kpi-tile p-4 border-l-4 border-teal-500/70">
+                    <div class="text-xs font-medium text-slate-600">Total histórico</div>
+                    <div class="text-2xl font-bold text-teal-900 tabular-nums mt-0.5">{{ annualized_dividends.total_dividends_all_time|decimal_eu(2) }} €</div>
+                    <div class="text-xs text-slate-500 mt-1">Desde {{ annualized_dividends.first_transaction_date.strftime('%d/%m/%Y') if annualized_dividends.first_transaction_date else 'N/A' }}</div>
+                </div>
+                <div class="kpi-tile p-4 border-l-4 border-slate-400/60">
+                    <div class="text-xs font-medium text-slate-600">Promedio anual (histórico)</div>
+                    <div class="text-2xl font-bold text-slate-800 tabular-nums mt-0.5">{{ annualized_dividends.average_annual_dividends|decimal_eu(2) }} €</div>
+                    <div class="text-xs text-slate-500 mt-1">{{ annualized_dividends.years_investing|decimal_eu(1) }} años de inversión</div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
     </div>
     {% else %}
-    <div class="bg-gray-50 rounded-xl p-12 text-center text-gray-600">
-        <p class="text-lg">No hay datos de dividendos disponibles.</p>
-        <p class="text-sm mt-2">Registra transacciones de dividendos para ver esta información.</p>
+    <div class="portfolio-card p-12 text-center text-slate-600">
+        <p class="text-lg font-medium text-slate-800">No hay datos de dividendos aún</p>
+        <p class="text-sm mt-2">Registra transacciones de dividendos para ver gráficos y totales.</p>
     </div>
     {% endif %}
+
+    <div x-show="divInfo" x-cloak class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55" @click="divInfo = null; document.body.style.overflow = ''" role="dialog" aria-modal="true">
+        <div @click.stop class="relative w-full max-w-md max-h-[min(88vh,26rem)] flex flex-col rounded-2xl border border-slate-200/80 bg-gradient-to-br from-[#f8fbfc] to-[#f1f7f8] shadow-[0_20px_45px_rgba(15,23,42,0.28)]" x-show="divInfo">
+            <template x-if="divInfo === 'm12'">
+                <div>
+                    <div class="px-4 py-3 border-b border-slate-200/80 flex justify-between items-center">
+                        <h4 class="text-sm font-semibold text-slate-900">Últimos 12 meses</h4>
+                        <button type="button" class="text-sm rounded-lg px-3 py-1.5 bg-slate-700 text-white font-semibold" @click="divInfo = null; document.body.style.overflow = ''">Cerrar</button>
+                    </div>
+                    <div class="p-4 text-sm text-slate-700">Barras <strong>mensuales</strong> con el total de dividendos en € en cada mes. El tooltip indica el número de movimientos de dividendo de ese mes. El relieve 3D es solo estético; todas las barras usan el mismo color.</div>
+                </div>
+            </template>
+            <template x-if="divInfo === 'yoy'">
+                <div>
+                    <div class="px-4 py-3 border-b border-slate-200/80 flex justify-between items-center">
+                        <h4 class="text-sm font-semibold text-slate-900">Año a año</h4>
+                        <button type="button" class="text-sm rounded-lg px-3 py-1.5 bg-slate-700 text-white font-semibold" @click="divInfo = null; document.body.style.overflow = ''">Cerrar</button>
+                    </div>
+                    <div class="p-4 text-sm text-slate-700">Acumulado de dividendos <strong>por año calendario</strong> desde el inicio. El último año puede mostrarse como <strong>YTD</strong> si aplica. Todas las barras comparten el mismo color; el relieve 3D es solo estético.</div>
+                </div>
+            </template>
+            <template x-if="divInfo === 'kpi'">
+                <div>
+                    <div class="px-4 py-3 border-b border-slate-200/80 flex justify-between items-center">
+                        <h4 class="text-sm font-semibold text-slate-900">Métricas anualizadas</h4>
+                        <button type="button" class="text-sm rounded-lg px-3 py-1.5 bg-slate-700 text-white font-semibold" @click="divInfo = null; document.body.style.overflow = ''">Cerrar</button>
+                    </div>
+                    <div class="p-4 text-sm text-slate-700 space-y-2">
+                        <p><strong>YTD</strong>: total percibido en el año en curso hasta la fecha, y días transcurridos del ejercicio.</p>
+                        <p><strong>Total histórico</strong>: suma de todos los dividendos registrados; la primera fecha de referencia es la de la transacción más antigua usada en el cálculo.</p>
+                        <p><strong>Promedio anual</strong>: aproximación del promedio anual histórico en función de los años con actividad.</p>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
 </div>
 
 {% if monthly_dividends or yearly_dividends %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const bar3dPlugin = {
+        id: 'divBar3dEdges',
+        afterDatasetsDraw: function(chart) {
+            if (chart.config.type !== 'bar') return;
+            const ctx = chart.ctx;
+            const meta = chart.getDatasetMeta(0);
+            if (!meta || !meta.data) return;
+            ctx.save();
+            meta.data.forEach(function(bar) {
+                if (!bar || bar.skip) return;
+                var x = bar.x, y = bar.y, base = bar.base, w = bar.width;
+                if (x == null || y == null || base == null) return;
+                w = Math.abs(w || 0);
+                var left = x - w / 2, right = x + w / 2;
+                var topY = Math.min(y, base);
+                var botY = Math.max(y, base);
+                ctx.beginPath();
+                ctx.strokeStyle = 'rgba(15, 23, 42, 0.18)';
+                ctx.lineWidth = 1.25;
+                ctx.moveTo(right, botY);
+                ctx.lineTo(right, topY);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+                ctx.lineWidth = 0.8;
+                ctx.moveTo(left, topY);
+                ctx.lineTo(right, topY);
+                ctx.stroke();
+            });
+            ctx.restore();
+        }
+    };
+
+    const barFill = 'rgba(13, 148, 136, 0.88)';
+    const barStroke = 'rgb(5, 80, 72)';
+
     {% if monthly_dividends and monthly_dividends|length > 0 %}
     const monthlyDividendsCtx = document.getElementById('monthlyDividendsChart');
     if (monthlyDividendsCtx) {
         const monthlyData = {{ monthly_dividends | tojson }};
         const reversedData = [...monthlyData].reverse();
-        const chartData = {
-            labels: reversedData.map(d => {
-                const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-                return monthNames[d.month - 1] + ' ' + d.year;
-            }),
-            datasets: [{
-                label: 'Dividendos (EUR)',
-                data: reversedData.map(d => d.dividends_eur),
-                backgroundColor: 'rgba(59, 130, 246, 0.7)',
-                borderColor: 'rgba(59, 130, 246, 1)',
-                borderWidth: 2
-            }]
-        };
         new Chart(monthlyDividendsCtx, {
             type: 'bar',
-            data: chartData,
+            plugins: [bar3dPlugin],
+            data: {
+                labels: reversedData.map(function(d) {
+                    const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+                    return monthNames[d.month - 1] + ' ' + d.year;
+                }),
+                datasets: [{
+                    label: 'Dividendos (€)',
+                    data: reversedData.map(d => d.dividends_eur),
+                    backgroundColor: barFill,
+                    borderColor: barStroke,
+                    borderWidth: 1,
+                    borderRadius: 6,
+                    borderSkipped: false,
+                    maxBarThickness: 48
+                }]
+            },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                layout: { padding: { top: 2, right: 2, left: 2, bottom: 0 } },
                 plugins: { legend: { display: false } },
                 tooltip: {
                     callbacks: {
-                        label: function(context) {
-                            const idx = context.dataIndex;
-                            const count = reversedData[idx].dividends_count;
-                            return context.parsed.y.toFixed(2) + ' EUR (' + count + ' dividendo' + (count !== 1 ? 's' : '') + ')';
+                        label: function(ctx) {
+                            const idx = ctx.dataIndex;
+                            const c = reversedData[idx].dividends_count;
+                            return ctx.parsed.y.toFixed(2) + ' € (' + c + ' dividendo' + (c !== 1 ? 's' : '') + ')';
                         }
                     }
                 },
                 scales: {
-                    y: { beginAtZero: true, ticks: { callback: v => v.toFixed(0) + ' EUR' } },
+                    y: { beginAtZero: true, ticks: { callback: v => v.toFixed(0) + ' €' }, grid: { color: 'rgba(148, 163, 184, 0.22)' } },
                     x: { grid: { display: false } }
                 }
             }
         });
     }
     {% endif %}
-    
+
     {% if yearly_dividends and yearly_dividends|length > 0 %}
     const yearlyDividendsCtx = document.getElementById('yearlyDividendsChart');
     if (yearlyDividendsCtx) {
         const yearlyDivData = {{ yearly_dividends | tojson }};
-        const reversedYearlyDivData = [...yearlyDivData].reverse();
+        const rev = [...yearlyDivData].reverse();
         new Chart(yearlyDividendsCtx, {
             type: 'bar',
+            plugins: [bar3dPlugin],
             data: {
-                labels: reversedYearlyDivData.map(d => d.year + (d.is_ytd ? ' (YTD)' : '')),
+                labels: rev.map(d => d.year + (d.is_ytd ? ' (YTD)' : '')),
                 datasets: [{
-                    label: 'Dividendos (EUR)',
-                    data: reversedYearlyDivData.map(d => d.dividends_eur),
-                    backgroundColor: 'rgba(139, 92, 246, 0.7)',
-                    borderColor: 'rgba(139, 92, 246, 1)',
-                    borderWidth: 2
+                    label: 'Dividendos (€)',
+                    data: rev.map(d => d.dividends_eur),
+                    backgroundColor: barFill,
+                    borderColor: barStroke,
+                    borderWidth: 1,
+                    borderRadius: 6,
+                    borderSkipped: false,
+                    maxBarThickness: 44
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                layout: { padding: { top: 2, right: 2, left: 2, bottom: 0 } },
                 plugins: { legend: { display: false } },
                 tooltip: {
                     callbacks: {
-                        label: function(context) {
-                            const idx = context.dataIndex;
-                            const count = reversedYearlyDivData[idx].dividends_count;
-                            return context.parsed.y.toFixed(2) + ' EUR (' + count + ' dividendo' + (count !== 1 ? 's' : '') + ')';
+                        label: function(ctx) {
+                            const idx = ctx.dataIndex;
+                            const c = rev[idx].dividends_count;
+                            return ctx.parsed.y.toFixed(2) + ' € (' + c + ' dividendo' + (c !== 1 ? 's' : '') + ')';
                         }
                     }
                 },
                 scales: {
-                    y: { beginAtZero: true, ticks: { callback: v => v.toFixed(0) + ' EUR' } },
+                    y: { beginAtZero: true, ticks: { callback: v => v.toFixed(0) + ' €' }, grid: { color: 'rgba(148, 163, 184, 0.22)' } },
                     x: { grid: { display: false } }
                 }
             }

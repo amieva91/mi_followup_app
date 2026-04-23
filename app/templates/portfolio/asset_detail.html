@@ -10,7 +10,7 @@
     margin-top: 1.25em;
     margin-bottom: 0.5em;
     line-height: 1.3;
-    color: #1e3a8a;
+    color: #0f172a;
 }
 .report-markdown h1 { font-size: 1.5rem; border-bottom: 2px solid #e5e7eb; padding-bottom: 0.25em; }
 .report-markdown h2 { font-size: 1.25rem; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.2em; }
@@ -37,14 +37,14 @@
     text-align: left;
 }
 .report-markdown th {
-    background: #1e3a8a;
+    background: #0f766e;
     color: white;
     font-weight: 600;
 }
 .report-markdown tr:nth-child(even) { background: #f9fafb; }
 .report-markdown tr:hover { background: #f3f4f6; }
 .report-markdown blockquote {
-    border-left: 4px solid #1e3a8a;
+    border-left: 4px solid #0d9488;
     margin: 1em 0;
     padding: 0.5em 1em;
     background: #f0f4ff;
@@ -53,20 +53,59 @@
 }
 .report-markdown hr { border: none; border-top: 1px solid #e5e7eb; margin: 1.5em 0; }
 .report-markdown code { background: #f3f4f6; padding: 0.15em 0.4em; border-radius: 4px; font-size: 0.9em; }
+
+/* Portfolio activo: alineado con /portfolio (3D suave, KPI con borde lateral) */
+#portfolio-asset-detail .portfolio-card {
+    background: linear-gradient(145deg, #f8fbfc 0%, #f1f7f8 100%);
+    border: 1px solid rgba(63, 95, 115, 0.14);
+    border-radius: 16px;
+    box-shadow: 0 14px 30px rgba(15,23,42,0.1), inset 0 1px 0 rgba(255,255,255,0.85);
+}
+#portfolio-asset-detail .portfolio-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-weight: 700;
+    color: #1f2937;
+}
+#portfolio-asset-detail .portfolio-metric-card {
+    background: linear-gradient(145deg, #f7fbfc 0%, #edf4f6 100%);
+    border-top: 1px solid rgba(63, 95, 115, 0.16);
+    border-right: 1px solid rgba(63, 95, 115, 0.16);
+    border-bottom: 1px solid rgba(63, 95, 115, 0.16);
+    box-shadow: 0 14px 30px rgba(15,23,42,0.11), inset 0 1px 0 rgba(255,255,255,0.9);
+    border-radius: 0.75rem;
+}
+#portfolio-asset-detail .asset-inner-panel,
+#reportTemplatesModal .asset-inner-panel {
+    background: linear-gradient(145deg, rgba(248,251,252,0.96), rgba(241,247,248,0.9));
+    border: 1px solid rgba(63, 95, 115, 0.13);
+    border-radius: 0.75rem;
+}
+#portfolio-asset-detail .portfolio-touch-btn,
+#reportTemplatesModal .portfolio-touch-btn {
+    transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease;
+}
+#portfolio-asset-detail .portfolio-touch-btn:active,
+#reportTemplatesModal .portfolio-touch-btn:active {
+    transform: scale(0.98);
+    filter: brightness(0.96);
+}
+#portfolio-asset-detail .table-row-3d:hover { background-color: #f8fafc; }
 </style>
 {% endblock %}
 
 {% block content %}
 <div id="toastContainer" class="fixed top-4 right-4 z-50 space-y-2"></div>
-<div class="max-w-[92%] mx-auto">
+<div id="portfolio-asset-detail" class="max-w-[92%] mx-auto px-4 py-8">
     <!-- Header con navegación -->
     <div class="mb-6">
-        <a href="{{ url_for('portfolio.dashboard') }}" onclick="if (window.history.length > 1) { event.preventDefault(); history.back(); }" class="text-blue-600 hover:text-blue-700 text-sm font-medium inline-flex items-center gap-1 mb-2">
-            ← Volver
+        <a href="{{ url_for('portfolio.dashboard') }}" onclick="if (window.history.length > 1) { event.preventDefault(); history.back(); }" class="text-teal-700 hover:text-teal-800 text-sm font-medium inline-flex items-center gap-1 mb-2 portfolio-touch-btn">
+            ← Volver al portfolio
         </a>
-        <div class="flex justify-between items-start">
+        <div class="flex justify-between items-start gap-4 flex-wrap">
             <div>
-                <h1 class="text-3xl font-bold text-gray-900">{{ asset.name }}</h1>
+                <h1 class="portfolio-title text-2xl sm:text-3xl">{{ asset.name }}</h1>
                 <p class="text-gray-600 mt-1">
                     {{ asset.symbol or 'Sin símbolo' }} 
                     {% if asset.exchange %} • {{ asset.exchange }}{% endif %}
@@ -75,7 +114,7 @@
                 </p>
             </div>
             <div class="text-right flex flex-col items-end gap-2">
-                <button onclick="openReportTemplatesModal()" class="text-sm text-gray-500 hover:text-blue-600 flex items-center gap-1">
+                <button type="button" onclick="openReportTemplatesModal()" class="portfolio-touch-btn text-sm text-slate-600 hover:text-teal-700 flex items-center gap-1 rounded-lg px-2 py-1 border border-transparent hover:border-slate-200 hover:bg-slate-50/80">
                     ⚙️ Ajustes de informes
                 </button>
                 <div>
@@ -89,14 +128,14 @@
     <!-- Grid de métricas principales -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <!-- Card: Precio Actual -->
-        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-blue-500">
+        <div class="rounded-xl p-6 border-l-4 border-sky-500 portfolio-metric-card">
             <div class="text-sm text-gray-600 mb-1">Precio Actual</div>
             {% if asset.current_price %}
                 <div class="text-3xl font-bold text-gray-900">
                     {{ asset.current_price|decimal_eu(2) }} {{ asset.currency }}
                 </div>
                 {% if asset.day_change_percent %}
-                    <div class="text-sm mt-2 {% if asset.day_change_percent > 0 %}text-green-600{% elif asset.day_change_percent < 0 %}text-red-600{% else %}text-gray-500{% endif %}">
+                    <div class="text-sm mt-2 {% if asset.day_change_percent > 0 %}text-emerald-600{% elif asset.day_change_percent < 0 %}text-rose-600{% else %}text-slate-500{% endif %}">
                         {% if asset.day_change_percent > 0 %}↑{% elif asset.day_change_percent < 0 %}↓{% else %}→{% endif %} {{ asset.day_change_percent|decimal_eu(2) }}% hoy
                     </div>
                 {% endif %}
@@ -112,7 +151,7 @@
         </div>
 
         <!-- Card: Tus Holdings -->
-        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-green-500">
+        <div class="rounded-xl p-6 border-l-4 border-emerald-500 portfolio-metric-card">
             <div class="text-sm text-gray-600 mb-1">Tus Holdings</div>
             <div class="text-3xl font-bold text-gray-900">
                 {{ total_quantity|number_eu }}
@@ -126,13 +165,13 @@
         </div>
 
         <!-- Card: P&L No Realizado -->
-        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if unrealized_pl and unrealized_pl >= 0 %}border-green-600{% else %}border-red-600{% endif %}">
+        <div class="rounded-xl p-6 border-l-4 {% if unrealized_pl and unrealized_pl >= 0 %}border-emerald-600{% else %}border-rose-500{% endif %} portfolio-metric-card">
             <div class="text-sm text-gray-600 mb-1">P&L No Realizado</div>
             {% if unrealized_pl is not none %}
-                <div class="text-3xl font-bold {% if unrealized_pl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                <div class="text-3xl font-bold {% if unrealized_pl >= 0 %}text-emerald-600{% else %}text-rose-600{% endif %}">
                     {% if unrealized_pl >= 0 %}+{% endif %}{{ unrealized_pl|decimal_eu(2) }} {{ asset.currency }}
                 </div>
-                <div class="text-sm mt-2 {% if unrealized_pl_pct >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                <div class="text-sm mt-2 {% if unrealized_pl_pct >= 0 %}text-emerald-600{% else %}text-rose-600{% endif %}">
                     {% if unrealized_pl_pct >= 0 %}+{% endif %}{{ unrealized_pl_pct|decimal_eu(2) }}%
                 </div>
                 {% if current_value %}
@@ -148,38 +187,38 @@
     </div>
 
     <!-- Tabs de información -->
-    <div class="bg-white rounded-xl shadow-sm" x-data="{ activeTab: 'metrics' }">
+    <div class="portfolio-card overflow-hidden" x-data="{ activeTab: 'metrics' }">
         <!-- Tab Headers -->
-        <div class="border-b border-gray-200">
-            <nav class="flex -mb-px">
-                <button @click="activeTab = 'metrics'" 
-                        :class="activeTab === 'metrics' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
-                        class="px-6 py-4 text-sm font-medium border-b-2">
+        <div class="border-b border-slate-200/80 bg-slate-50/40">
+            <nav class="flex flex-wrap -mb-px">
+                <button type="button" @click="activeTab = 'metrics'" 
+                        :class="activeTab === 'metrics' ? 'border-teal-500 text-teal-800' : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'"
+                        class="px-4 sm:px-6 py-3 sm:py-4 text-sm font-medium border-b-2 portfolio-touch-btn">
                     📊 Overview
                 </button>
-                <button @click="activeTab = 'valuation'" 
-                        :class="activeTab === 'valuation' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
-                        class="px-6 py-4 text-sm font-medium border-b-2">
+                <button type="button" @click="activeTab = 'valuation'" 
+                        :class="activeTab === 'valuation' ? 'border-teal-500 text-teal-800' : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'"
+                        class="px-4 sm:px-6 py-3 sm:py-4 text-sm font-medium border-b-2 portfolio-touch-btn">
                     💰 Valoración
                 </button>
-                <button @click="activeTab = 'risk'" 
-                        :class="activeTab === 'risk' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
-                        class="px-6 py-4 text-sm font-medium border-b-2">
+                <button type="button" @click="activeTab = 'risk'" 
+                        :class="activeTab === 'risk' ? 'border-teal-500 text-teal-800' : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'"
+                        class="px-4 sm:px-6 py-3 sm:py-4 text-sm font-medium border-b-2 portfolio-touch-btn">
                     📈 Riesgo y Dividendos
                 </button>
-                <button @click="activeTab = 'analysis'" 
-                        :class="activeTab === 'analysis' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
-                        class="px-6 py-4 text-sm font-medium border-b-2">
+                <button type="button" @click="activeTab = 'analysis'" 
+                        :class="activeTab === 'analysis' ? 'border-teal-500 text-teal-800' : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'"
+                        class="px-4 sm:px-6 py-3 sm:py-4 text-sm font-medium border-b-2 portfolio-touch-btn">
                     🎯 Análisis
                 </button>
-                <button @click="activeTab = 'reports'; setTimeout(loadReports, 100)" 
-                        :class="activeTab === 'reports' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
-                        class="px-6 py-4 text-sm font-medium border-b-2">
+                <button type="button" @click="activeTab = 'reports'; setTimeout(loadReports, 100)" 
+                        :class="activeTab === 'reports' ? 'border-teal-500 text-teal-800' : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'"
+                        class="px-4 sm:px-6 py-3 sm:py-4 text-sm font-medium border-b-2 portfolio-touch-btn">
                     📄 Informes
                 </button>
-                <button @click="activeTab = 'transactions'" 
-                        :class="activeTab === 'transactions' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
-                        class="px-6 py-4 text-sm font-medium border-b-2">
+                <button type="button" @click="activeTab = 'transactions'" 
+                        :class="activeTab === 'transactions' ? 'border-teal-500 text-teal-800' : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'"
+                        class="px-4 sm:px-6 py-3 sm:py-4 text-sm font-medium border-b-2 portfolio-touch-btn">
                     📜 Transacciones
                 </button>
             </nav>
@@ -190,19 +229,19 @@
             <!-- Tab: Overview -->
             <div x-show="activeTab === 'metrics'" x-cloak>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div class="border border-gray-200 rounded-lg p-4">
+                    <div class="asset-inner-panel p-4">
                         <div class="text-sm text-gray-600 mb-1">País</div>
                         <div class="text-lg font-semibold text-gray-900">
                             {{ asset.country or '—' }}
                         </div>
                     </div>
-                    <div class="border border-gray-200 rounded-lg p-4">
+                    <div class="asset-inner-panel p-4">
                         <div class="text-sm text-gray-600 mb-1">Sector</div>
                         <div class="text-lg font-semibold text-gray-900">
                             {{ asset.sector or '—' }}
                         </div>
                     </div>
-                    <div class="border border-gray-200 rounded-lg p-4">
+                    <div class="asset-inner-panel p-4">
                         <div class="text-sm text-gray-600 mb-1">Industria</div>
                         <div class="text-lg font-semibold text-gray-900">
                             {{ asset.industry or '—' }}
@@ -210,12 +249,12 @@
                     </div>
                 </div>
                 <!-- About the Company -->
-                <div class="mt-8 border border-gray-200 rounded-lg p-4">
+                <div class="mt-8 asset-inner-panel p-4">
                     <div class="flex justify-between items-center mb-3">
                         <div class="text-sm font-medium text-gray-700">About the Company</div>
                         {% if gemini_available %}
-                        <button id="btnGenerateAbout" onclick="generateAboutSummary()" 
-                                class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <button type="button" id="btnGenerateAbout" onclick="generateAboutSummary()" 
+                                class="portfolio-touch-btn px-3 py-1.5 bg-teal-600 text-white text-sm rounded-xl hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_8px_16px_rgba(13,148,136,0.25)]">
                             Generar resumen
                         </button>
                         {% else %}
@@ -227,14 +266,14 @@
                         <span class="text-gray-400">Pulsa "Generar resumen" para obtener una descripción breve de la compañía.</span>
                         {% endif %}
                     </div>
-                    <div id="aboutSummaryLoading" class="hidden text-sm text-blue-600">Generando...</div>
+                    <div id="aboutSummaryLoading" class="hidden text-sm text-teal-600">Generando...</div>
                 </div>
             </div>
 
             <!-- Tab: Valoración -->
             <div x-show="activeTab === 'valuation'" x-cloak>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div class="border border-gray-200 rounded-lg p-4">
+                    <div class="asset-inner-panel p-4">
                         <div class="text-sm text-gray-600 mb-1">Capitalización de Mercado</div>
                         <div class="text-lg font-semibold text-gray-900">
                             {{ asset.market_cap_formatted or '—' }}
@@ -245,19 +284,19 @@
                             </div>
                         {% endif %}
                     </div>
-                    <div class="border border-gray-200 rounded-lg p-4">
+                    <div class="asset-inner-panel p-4">
                         <div class="text-sm text-gray-600 mb-1">P/E Ratio (Trailing)</div>
                         <div class="text-lg font-semibold text-gray-900">
                             {{ asset.trailing_pe|decimal_eu(2) if asset.trailing_pe else '—' }}
                         </div>
                     </div>
-                    <div class="border border-gray-200 rounded-lg p-4">
+                    <div class="asset-inner-panel p-4">
                         <div class="text-sm text-gray-600 mb-1">P/E Ratio (Forward)</div>
                         <div class="text-lg font-semibold text-gray-900">
                             {{ asset.forward_pe|decimal_eu(2) if asset.forward_pe else '—' }}
                         </div>
                     </div>
-                    <div class="border border-gray-200 rounded-lg p-4">
+                    <div class="asset-inner-panel p-4">
                         <div class="text-sm text-gray-600 mb-1">Moneda Base</div>
                         <div class="text-lg font-semibold text-gray-900">
                             {{ asset.currency }}
@@ -269,7 +308,7 @@
             <!-- Tab: Riesgo y Dividendos -->
             <div x-show="activeTab === 'risk'" x-cloak>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div class="border border-gray-200 rounded-lg p-4">
+                    <div class="asset-inner-panel p-4">
                         <div class="text-sm text-gray-600 mb-1">Beta</div>
                         <div class="text-lg font-semibold text-gray-900">
                             {{ asset.beta|decimal_eu(2) if asset.beta else '—' }}
@@ -278,13 +317,13 @@
                             Volatilidad vs. mercado
                         </div>
                     </div>
-                    <div class="border border-gray-200 rounded-lg p-4">
+                    <div class="asset-inner-panel p-4">
                         <div class="text-sm text-gray-600 mb-1">Dividendo Anual</div>
                         <div class="text-lg font-semibold text-gray-900">
                             {{ asset.dividend_rate|decimal_eu(2) if asset.dividend_rate else '—' }} {{ asset.currency if asset.dividend_rate else '' }}
                         </div>
                     </div>
-                    <div class="border border-gray-200 rounded-lg p-4">
+                    <div class="asset-inner-panel p-4">
                         <div class="text-sm text-gray-600 mb-1">Rentabilidad por Dividendo</div>
                         <div class="text-lg font-semibold text-gray-900">
                             {{ asset.dividend_yield|decimal_eu(2) if asset.dividend_yield else '—' }}{% if asset.dividend_yield %}%{% endif %}
@@ -296,7 +335,7 @@
             <!-- Tab: Análisis -->
             <div x-show="activeTab === 'analysis'" x-cloak>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div class="border border-gray-200 rounded-lg p-4">
+                    <div class="asset-inner-panel p-4">
                         <div class="text-sm text-gray-600 mb-1">Recomendación de Analistas</div>
                         <div class="text-lg font-semibold text-gray-900">
                             {% if asset.recommendation_key %}
@@ -314,20 +353,20 @@
                             {% endif %}
                         </div>
                     </div>
-                    <div class="border border-gray-200 rounded-lg p-4">
+                    <div class="asset-inner-panel p-4">
                         <div class="text-sm text-gray-600 mb-1">Número de Analistas</div>
                         <div class="text-lg font-semibold text-gray-900">
                             {{ asset.number_of_analyst_opinions if asset.number_of_analyst_opinions else '—' }}
                         </div>
                     </div>
-                    <div class="border border-gray-200 rounded-lg p-4 md:col-span-2">
+                    <div class="asset-inner-panel p-4 md:col-span-2">
                         <div class="text-sm text-gray-600 mb-1">Precio Objetivo Medio</div>
                         <div class="text-lg font-semibold text-gray-900">
                             {{ asset.target_mean_price|decimal_eu(2) if asset.target_mean_price else '—' }} {{ asset.currency if asset.target_mean_price else '' }}
                         </div>
                         {% if asset.current_price and asset.target_mean_price %}
                             {% set potential = ((asset.target_mean_price - asset.current_price) / asset.current_price * 100) %}
-                            <div class="text-sm mt-1 {% if potential > 0 %}text-green-600{% elif potential < 0 %}text-red-600{% else %}text-gray-500{% endif %}">
+                            <div class="text-sm mt-1 {% if potential > 0 %}text-emerald-600{% elif potential < 0 %}text-rose-600{% else %}text-slate-500{% endif %}">
                                 Potencial: {% if potential > 0 %}+{% endif %}{{ potential|decimal_eu(2) }}%
                             </div>
                         {% endif %}
@@ -341,42 +380,42 @@
                     <h3 class="text-lg font-medium text-gray-900">Informes de investigación</h3>
                     {% if gemini_available and has_valid_templates %}
                     <div class="flex gap-2">
-                        <select id="reportTemplateSelect" class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                        <select id="reportTemplateSelect" class="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
                             {% for t in report_templates %}
                             {% if t.has_valid_description() %}
                             <option value="{{ t.id }}">{{ t.title }}</option>
                             {% endif %}
                             {% endfor %}
                         </select>
-                        <button onclick="generateReport()" id="btnGenerateReport" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        <button type="button" onclick="generateReport()" id="btnGenerateReport" class="portfolio-touch-btn px-4 py-2 bg-teal-600 text-white rounded-xl hover:bg-teal-700 shadow-[0_8px_16px_rgba(13,148,136,0.25)]">
                             Generar informe
                         </button>
                     </div>
                     {% elif gemini_available %}
-                    <button disabled title="Crea al menos una plantilla en Ajustes de informes" class="px-4 py-2 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed">
+                    <button type="button" disabled title="Crea al menos una plantilla en Ajustes de informes" class="px-4 py-2 bg-slate-200 text-slate-500 rounded-xl cursor-not-allowed border border-slate-300">
                         Generar informe
                     </button>
                     {% else %}
                     <span class="text-sm text-gray-400">GEMINI_API_KEY no configurada</span>
                     {% endif %}
                 </div>
-                <div id="reportGenerateLoading" class="hidden mb-4 p-3 bg-blue-50 text-blue-700 rounded-lg text-sm">
+                <div id="reportGenerateLoading" class="hidden mb-4 p-3 bg-sky-50/90 text-sky-900 border border-sky-200/80 rounded-xl text-sm">
                     Generando informe... Puede tardar varios minutos.
                 </div>
                 <div id="reportsList" class="space-y-3">
                     <!-- Se carga vía JS -->
                 </div>
-                <div id="reportDetail" class="hidden mt-4 p-4 border border-gray-200 rounded-lg bg-gray-50">
+                <div id="reportDetail" class="hidden mt-4 p-4 asset-inner-panel">
                     <div class="flex justify-between items-center mb-2">
                         <span class="text-sm text-gray-500" id="reportDetailDate"></span>
                         <button onclick="closeReportDetail()" class="text-gray-500 hover:text-gray-700 text-sm">Cerrar</button>
                     </div>
                     <div id="reportDetailActions" class="flex flex-wrap gap-2 mb-3">
-                        <button onclick="sendReportEmail()" id="btnSendReportEmail" class="hidden px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">Enviar por correo</button>
-                        <button onclick="generateReportAudio()" id="btnGenerateAudio" class="hidden px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm">Generar audio resumen</button>
-                        <button onclick="retryReportAudio()" id="btnRetryAudio" class="hidden px-3 py-1.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-sm">Reintentar audio</button>
-                        <span id="reportAudioStatus" class="hidden px-3 py-1.5 rounded-lg text-sm"></span>
-                        <a id="btnDownloadAudio" href="#" class="hidden px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm no-underline" download>Descargar audio</a>
+                        <button type="button" onclick="sendReportEmail()" id="btnSendReportEmail" class="hidden portfolio-touch-btn px-3 py-1.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 text-sm">Enviar por correo</button>
+                        <button type="button" onclick="generateReportAudio()" id="btnGenerateAudio" class="hidden portfolio-touch-btn px-3 py-1.5 bg-slate-600 text-white rounded-xl hover:bg-slate-700 text-sm">Generar audio resumen</button>
+                        <button type="button" onclick="retryReportAudio()" id="btnRetryAudio" class="hidden portfolio-touch-btn px-3 py-1.5 bg-amber-500 text-white rounded-xl hover:bg-amber-600 text-sm">Reintentar audio</button>
+                        <span id="reportAudioStatus" class="hidden px-3 py-1.5 rounded-xl text-sm"></span>
+                        <a id="btnDownloadAudio" href="#" class="hidden portfolio-touch-btn px-3 py-1.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 text-sm no-underline" download>Descargar audio</a>
                     </div>
                     <div id="reportAudioPlayer" class="hidden mb-3">
                         <p class="text-sm text-gray-600 mb-1">Escuchar audio resumen:</p>
@@ -389,21 +428,21 @@
             <!-- Tab: Transacciones -->
             <div x-show="activeTab === 'transactions'" x-cloak>
                 {% if transactions %}
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
+                    <div class="overflow-x-auto rounded-xl border border-slate-200/60 overflow-hidden">
+                        <table class="min-w-full divide-y divide-slate-200">
+                            <thead class="bg-slate-50/90">
                                 <tr>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
-                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Cantidad</th>
-                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Precio</th>
-                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cuenta</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wide">Fecha</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wide">Tipo</th>
+                                    <th class="px-4 py-3 text-right text-xs font-medium text-slate-600 uppercase tracking-wide">Cantidad</th>
+                                    <th class="px-4 py-3 text-right text-xs font-medium text-slate-600 uppercase tracking-wide">Precio</th>
+                                    <th class="px-4 py-3 text-right text-xs font-medium text-slate-600 uppercase tracking-wide">Total</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wide">Cuenta</th>
                                 </tr>
                             </thead>
-                            <tbody class="bg-white divide-y divide-gray-200">
+                            <tbody class="bg-white/90 divide-y divide-slate-200">
                                 {% for txn in transactions %}
-                                <tr class="hover:bg-gray-50">
+                                <tr class="table-row-3d">
                                     <td class="px-4 py-3 text-sm text-gray-900">
                                         {{ txn.transaction_date.strftime('%d/%m/%Y') }}
                                     </td>
@@ -411,7 +450,7 @@
                                         <span class="px-2 py-1 rounded text-xs font-medium
                                             {% if txn.transaction_type == 'BUY' %}bg-green-100 text-green-800
                                             {% elif txn.transaction_type == 'SELL' %}bg-red-100 text-red-800
-                                            {% elif txn.transaction_type == 'DIVIDEND' %}bg-blue-100 text-blue-800
+                                            {% elif txn.transaction_type == 'DIVIDEND' %}bg-sky-100 text-sky-800
                                             {% else %}bg-gray-100 text-gray-800{% endif %}">
                                             {{ txn.transaction_type }}
                                         </span>
@@ -435,7 +474,7 @@
                     </div>
                     <div class="mt-4">
                         <a href="{{ url_for('portfolio.transactions_list', symbol=asset.symbol if asset.symbol else asset.isin) }}" 
-                           class="text-blue-600 hover:text-blue-700 text-sm font-medium">
+                           class="portfolio-touch-btn inline-flex text-teal-700 hover:text-teal-900 text-sm font-medium mt-1">
                             Ver todas las transacciones →
                         </a>
                     </div>
@@ -450,41 +489,41 @@
 </div>
 
 <!-- Modal Plantillas de informes -->
-<div id="reportTemplatesModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-    <div class="relative top-20 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-lg bg-white">
-        <h3 class="text-lg font-medium text-gray-900 mb-4">⚙️ Plantillas de informes</h3>
-        <p class="text-sm text-gray-600 mb-4">Define plantillas con título, descripción y puntos. Al generar, selecciona la plantilla que quieras usar.</p>
+<div id="reportTemplatesModal" class="hidden fixed inset-0 z-50 overflow-y-auto bg-black/55 p-4">
+    <div class="relative top-12 sm:top-20 mx-auto p-5 sm:p-6 w-full max-w-2xl rounded-2xl border border-slate-200/80 bg-gradient-to-br from-[#f8fbfc] to-[#f1f7f8] shadow-[0_20px_45px_rgba(15,23,42,0.28)]">
+        <h3 class="text-lg font-semibold text-slate-900 mb-2">⚙️ Plantillas de informes</h3>
+        <p class="text-sm text-slate-600 mb-4">Define plantillas con título, descripción y puntos. Al generar, selecciona la plantilla que quieras usar.</p>
         <div id="templatesList" class="mb-4 space-y-3">
             <!-- Lista de plantillas, cada una expandible para editar -->
         </div>
-        <button type="button" onclick="openAddTemplateForm()" class="mb-4 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm">
+        <button type="button" onclick="openAddTemplateForm()" class="portfolio-touch-btn mb-4 px-4 py-2 bg-slate-200 border border-slate-300 text-slate-800 rounded-xl hover:bg-slate-300 text-sm font-semibold">
             + Nueva plantilla
         </button>
-        <div id="templateFormContainer" class="hidden border-t pt-4">
+        <div id="templateFormContainer" class="hidden border-t border-slate-200/80 pt-4">
             <form id="templateForm">
                 <input type="hidden" id="templateId" name="template_id" value="">
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Título de la plantilla *</label>
-                    <input type="text" id="templateTitle" class="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="Ej: Análisis competitivo" required>
+                    <input type="text" id="templateTitle" class="w-full border border-slate-300 rounded-xl px-3 py-2 focus:ring-2 focus:ring-teal-500" placeholder="Ej: Análisis competitivo" required>
                 </div>
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Descripción de la investigación *</label>
-                    <textarea id="templateDescription" rows="4" class="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    <textarea id="templateDescription" rows="4" class="w-full border border-slate-300 rounded-xl px-3 py-2 focus:ring-2 focus:ring-teal-500"
                         placeholder="Ej: Analiza la situación competitiva de la empresa..."></textarea>
                 </div>
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Puntos/preguntas (opcional)</label>
                     <div id="templatePointsContainer" class="space-y-2"></div>
-                    <button type="button" onclick="addTemplatePoint()" class="mt-2 text-sm text-blue-600 hover:text-blue-700">+ Añadir punto</button>
+                    <button type="button" onclick="addTemplatePoint()" class="mt-2 text-sm text-teal-700 hover:text-teal-900 font-medium">+ Añadir punto</button>
                 </div>
-                <div class="flex justify-end gap-2">
-                    <button type="button" onclick="cancelTemplateForm()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancelar</button>
-                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Guardar</button>
+                <div class="flex justify-end gap-2 flex-wrap">
+                    <button type="button" onclick="cancelTemplateForm()" class="portfolio-touch-btn px-4 py-2 border border-slate-300 rounded-xl text-slate-800 bg-slate-100 hover:bg-slate-200 font-semibold">Cancelar</button>
+                    <button type="submit" class="portfolio-touch-btn px-4 py-2 bg-teal-600 text-white rounded-xl hover:bg-teal-700 font-semibold shadow-[0_8px_16px_rgba(13,148,136,0.25)]">Guardar</button>
                 </div>
             </form>
         </div>
         <div class="flex justify-end mt-4">
-            <button type="button" onclick="closeReportTemplatesModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cerrar</button>
+            <button type="button" onclick="closeReportTemplatesModal()" class="portfolio-touch-btn px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-800 text-white font-semibold">Cerrar</button>
         </div>
     </div>
 </div>
@@ -540,17 +579,17 @@ function loadReportTemplates() {
             if (!container) return;
             const templates = data.templates || [];
             container.innerHTML = templates.map(t => `
-                <div class="border border-gray-200 rounded-lg p-3 flex justify-between items-start">
+                <div class="asset-inner-panel p-3 flex justify-between items-start gap-2">
                     <div>
-                        <span class="font-medium text-gray-900">${(t.title || '').replace(/</g, '&lt;')}</span>
-                        <p class="text-xs text-gray-500 mt-1">${(t.description || '').substring(0, 80).replace(/</g, '&lt;')}${(t.description || '').length > 80 ? '...' : ''}</p>
+                        <span class="font-medium text-slate-900">${(t.title || '').replace(/</g, '&lt;')}</span>
+                        <p class="text-xs text-slate-500 mt-1">${(t.description || '').substring(0, 80).replace(/</g, '&lt;')}${(t.description || '').length > 80 ? '...' : ''}</p>
                     </div>
-                    <div class="flex gap-1">
-                        <button onclick="editTemplate(${t.id})" class="text-blue-600 hover:text-blue-800 text-sm">✏️</button>
-                        <button onclick="deleteTemplate(${t.id})" class="text-red-600 hover:text-red-800 text-sm">🗑️</button>
+                    <div class="flex gap-1 shrink-0">
+                        <button type="button" onclick="editTemplate(${t.id})" class="text-teal-700 hover:text-teal-900 text-sm portfolio-touch-btn">✏️</button>
+                        <button type="button" onclick="deleteTemplate(${t.id})" class="text-rose-600 hover:text-rose-800 text-sm portfolio-touch-btn">🗑️</button>
                     </div>
                 </div>
-            `).join('') || '<p class="text-sm text-gray-500">No hay plantillas. Crea una nueva.</p>';
+            `).join('') || '<p class="text-sm text-slate-500">No hay plantillas. Crea una nueva.</p>';
             const sel = document.getElementById('reportTemplateSelect');
             if (sel) {
                 const valid = (data.templates || []).filter(t => (t.description || '').trim());
@@ -603,7 +642,7 @@ function addTemplatePointInput(container, value, idx) {
     const div = document.createElement('div');
     div.className = 'flex gap-2';
     div.innerHTML = `
-        <input type="text" value="${(value || '').replace(/"/g, '&quot;')}" class="flex-1 border border-gray-300 rounded-lg px-3 py-2" placeholder="Punto o pregunta">
+        <input type="text" value="${(value || '').replace(/"/g, '&quot;')}" class="flex-1 border border-slate-300 rounded-xl px-3 py-2 focus:ring-2 focus:ring-teal-500" placeholder="Punto o pregunta">
         <button type="button" onclick="this.parentElement.remove()" class="text-red-500 hover:text-red-700">✕</button>
     `;
     container.appendChild(div);
@@ -752,7 +791,7 @@ function loadReports() {
                 const name = r.template_title || ('Informe ' + r.id);
                 const audioBadge = r.audio_status === 'completed' ? ' <span class="text-green-600" title="Audio disponible">🔊</span>' : r.audio_status === 'processing' ? ' <span class="text-yellow-600" title="Generando audio...">⏳</span>' : '';
                 return `
-                    <div class="p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer" onclick="loadReportDetail(${r.id})">
+                    <div class="p-3 asset-inner-panel hover:bg-slate-50/80 cursor-pointer transition-colors" onclick="loadReportDetail(${r.id})">
                         <div class="flex justify-between items-center">
                             <span class="text-sm font-medium">${(name || '').replace(/</g, '&lt;')}${audioBadge}</span>
                             <span class="px-2 py-0.5 rounded text-xs ${statusBadge}">${r.status}</span>

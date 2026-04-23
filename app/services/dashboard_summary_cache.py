@@ -280,6 +280,23 @@ class DashboardSummaryCacheService:
         data["currency_exposure"] = nws.get_currency_exposure(user_id)
         data["year_comparison"] = nws.get_year_comparison(user_id)
         data["health_score"] = nws.get_financial_health_score(user_id)
+        try:
+            from app.services.recommendation_service import RecommendationService
+            data["recommendations"] = RecommendationService.build_for_dashboard(
+                user_id, health_score=data["health_score"]
+            )
+        except Exception:
+            data["recommendations"] = data.get("recommendations") or []
+        from app.services.income_expense_aggregator import (
+            get_expense_category_summary_with_adjustment,
+            get_income_category_summary_with_adjustment,
+        )
+        data["expense_category_summary"] = get_expense_category_summary_with_adjustment(
+            user_id, months=12
+        )
+        data["income_category_summary"] = get_income_category_summary_with_adjustment(
+            user_id, months=12
+        )
         data["top_movers"] = nws.get_top_movers_for_user(user_id, limit=5)
         from app.services.portfolio_benchmarks_cache import get_market_indices_snapshot
 

@@ -3,181 +3,177 @@
 {% block title %}Mis Cuentas - FollowUp{% endblock %}
 
 {% block content %}
-<div class="max-w-5xl mx-auto">
-    <!-- Header -->
-    <div class="flex justify-between items-center mb-8">
+<style>
+    #portfolio-accounts .portfolio-title {
+        display: inline-flex; align-items: center; gap: 0.45rem;
+        font-weight: 700; color: #1f2937;
+    }
+    #portfolio-accounts .portfolio-card {
+        background: linear-gradient(145deg, #f8fbfc 0%, #f1f7f8 100%);
+        border: 1px solid rgba(63, 95, 115, 0.14);
+        border-radius: 16px;
+        box-shadow: 0 14px 30px rgba(15,23,42,0.1), inset 0 1px 0 rgba(255,255,255,0.85);
+    }
+    #portfolio-accounts .portfolio-touch-btn {
+        transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease;
+    }
+    #portfolio-accounts .portfolio-touch-btn:active { transform: scale(0.98); filter: brightness(0.96); }
+    #portfolio-accounts .acct-modal-surface {
+        box-sizing: border-box;
+        border-radius: 1rem;
+        border: 1px solid rgba(63, 95, 115, 0.18);
+        background-color: #f0f5f6;
+        background-image: linear-gradient(145deg, #f8fbfc 0%, #e6eff1 100%);
+        box-shadow: 0 20px 45px rgba(15, 23, 42, 0.28);
+    }
+</style>
+<div id="portfolio-accounts" class="max-w-5xl mx-auto py-6 px-1 sm:px-0">
+    <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
         <div>
-            <h1 class="text-3xl font-bold text-gray-900">🏦 Mis Cuentas</h1>
-            <p class="text-gray-600 mt-1">Gestiona tus cuentas de broker</p>
+            <h1 class="portfolio-title text-2xl sm:text-3xl">🏦 Cuentas</h1>
+            <p class="text-slate-600 mt-1 text-sm sm:text-base">Brokers y cuentas vinculadas</p>
         </div>
-        <a href="{{ url_for('portfolio.account_new') }}" class="btn-primary">
-            ➕ Nueva Cuenta
-        </a>
+        <div class="flex flex-col sm:flex-row sm:items-stretch sm:justify-end gap-2 w-full sm:w-auto shrink-0">
+            <a href="{{ url_for('portfolio.account_new') }}"
+               class="portfolio-touch-btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold shadow-[0_10px_20px_rgba(13,148,136,0.28)] w-full sm:w-auto">
+                ➕ Nueva cuenta
+            </a>
+            <a href="{{ url_for('portfolio.dashboard') }}"
+               class="portfolio-touch-btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-slate-200 border border-slate-300 hover:bg-slate-300 text-slate-800 text-sm font-semibold w-full sm:w-auto"
+               onclick="if (window.history.length > 1) { event.preventDefault(); history.back(); }">← Volver</a>
+        </div>
     </div>
 
     {% if accounts %}
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         {% for account in accounts %}
-        <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
-            <div class="flex items-start justify-between mb-4">
+        <div class="portfolio-card p-5 sm:p-6">
+            <div class="flex items-start justify-between gap-2 mb-4">
                 <div>
-                    <h3 class="text-lg font-semibold text-gray-900">{{ account.account_name }}</h3>
-                    <div class="text-sm text-gray-500 mt-1">{{ account.broker.full_name }}</div>
+                    <h3 class="text-lg font-semibold text-slate-900">{{ account.account_name }}</h3>
+                    <div class="text-sm text-slate-500 mt-1">{{ account.broker.full_name }}</div>
                 </div>
-                <div class="text-xs font-medium px-3 py-1 rounded-full bg-gray-100 text-gray-700">
+                <div class="text-xs font-medium px-3 py-1 rounded-full border border-slate-200/80 bg-slate-100/80 text-slate-700">
                     {{ account.base_currency }}
                 </div>
             </div>
 
-            <div class="text-xs text-gray-400 mb-4">
+            <div class="text-xs text-slate-400 mb-4">
                 Creada: {{ account.created_at.strftime('%d/%m/%Y') }}
             </div>
 
-            <div class="grid grid-cols-2 gap-2 pt-4 border-t border-gray-100">
-                <a href="{{ url_for('portfolio.account_edit', id=account.id) }}" 
-                   class="text-center px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 text-sm font-medium transition">
+            <div class="grid grid-cols-2 gap-2 pt-4 border-t border-slate-200/70">
+                <a href="{{ url_for('portfolio.account_edit', id=account.id) }}"
+                   class="portfolio-touch-btn text-center px-3 py-2.5 border border-teal-200/80 bg-teal-50/80 text-teal-800 rounded-xl hover:bg-teal-100/80 text-sm font-medium">
                     ✏️ Editar
                 </a>
-                <a href="{{ url_for('portfolio.holdings_list') }}?account={{ account.id }}" 
-                   class="text-center px-3 py-2 bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 text-sm font-medium transition">
+                <a href="{{ url_for('portfolio.holdings_list') }}?account={{ account.id }}"
+                   class="portfolio-touch-btn text-center px-3 py-2.5 border border-slate-200/80 bg-slate-100/80 text-slate-800 rounded-xl hover:bg-slate-200/80 text-sm font-medium">
                     📊 Posiciones
                 </a>
-                <button onclick="confirmClear{{ account.id }}()" 
-                        class="text-center px-3 py-2 bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100 text-sm font-medium transition">
+                <button type="button" onclick="openAcctClearModal({{ account.id }})"
+                        class="portfolio-touch-btn text-center px-3 py-2.5 border border-amber-200/80 bg-amber-50/90 text-amber-900 rounded-xl hover:bg-amber-100/80 text-sm font-medium">
                     🧹 Vaciar
                 </button>
-                <button onclick="confirmDelete{{ account.id }}()" 
-                        class="text-center px-3 py-2 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 text-sm font-medium transition">
+                <button type="button" onclick="openAcctDeleteModal({{ account.id }})"
+                        class="portfolio-touch-btn text-center px-3 py-2.5 border border-rose-200/80 bg-rose-50/90 text-rose-900 rounded-xl hover:bg-rose-100/80 text-sm font-medium">
                     🗑️ Eliminar
                 </button>
             </div>
-            
-            <!-- Modal de Confirmación para Vaciar -->
-            <div id="clearModal{{ account.id }}" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50" onclick="if(event.target==this) closeClearModal{{ account.id }}()">
-                <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-                    <div class="mt-3 text-center">
-                        <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-orange-100">
-                            <svg class="h-6 w-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                            </svg>
-                        </div>
-                        <h3 class="text-lg leading-6 font-medium text-gray-900 mt-5">🧹 Vaciar Cuenta</h3>
-                        <div class="mt-2 px-7 py-3">
-                            <p class="text-sm text-gray-500 mb-3">
-                                ¿Estás seguro de que quieres vaciar la cuenta <strong>"{{ account.account_name }}"</strong>?
-                            </p>
-                            <div class="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-3 text-left">
-                                <p class="text-sm text-orange-800 font-semibold mb-2">⚠️ Se eliminarán TODOS los datos</p>
-                                <p class="text-xs text-orange-700">Se borrarán:</p>
-                                <ul class="text-xs text-orange-700 list-disc list-inside mt-1">
-                                    <li>Todas las transacciones</li>
-                                    <li>Todas las posiciones (holdings)</li>
-                                    <li>Todo el histórico de operaciones</li>
-                                    <li>Todas las métricas asociadas</li>
-                                </ul>
-                                <p class="text-xs text-orange-800 font-semibold mt-2">
-                                    ✅ La cuenta NO se eliminará, solo su contenido
-                                </p>
-                            </div>
-                            <p class="text-xs text-gray-600">
-                                Podrás volver a importar CSVs en esta cuenta después de vaciarla.
-                            </p>
-                        </div>
-                        <div class="items-center px-4 py-3">
-                            <form method="POST" action="{{ url_for('portfolio.account_clear', id=account.id) }}" class="inline">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                                <button type="submit"
-                                        class="px-4 py-2 bg-orange-600 text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-300">
-                                    Sí, vaciar cuenta
-                                </button>
-                            </form>
-                            <button onclick="closeClearModal{{ account.id }}()"
-                                    class="mt-3 px-4 py-2 bg-white text-gray-700 text-base font-medium rounded-md w-full shadow-sm border border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300">
-                                Cancelar
-                            </button>
-                        </div>
+
+            <div id="clearModal{{ account.id }}" class="hidden fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55 overflow-y-auto" onclick="if(event.target===this) closeAcctClearModal({{ account.id }})">
+                <div class="acct-modal-surface w-full max-w-md p-5 sm:p-6 my-4" onclick="event.stopPropagation()">
+                    <div class="flex items-center justify-center h-12 w-12 rounded-full bg-amber-100/90 mx-auto">
+                        <svg class="h-6 w-6 text-amber-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
                     </div>
+                    <h3 class="text-lg font-semibold text-slate-900 text-center mt-4">Vaciar cuenta</h3>
+                    <p class="text-sm text-slate-600 text-center mt-2">
+                        ¿Vaciar <strong>«{{ account.account_name }}»</strong>?
+                    </p>
+                    <div class="mt-4 rounded-xl border border-amber-200/80 bg-amber-50/80 p-3 text-left text-sm text-amber-950 space-y-2">
+                        <p class="font-semibold">Se eliminan todos los datos de la cuenta</p>
+                        <ul class="text-xs list-disc list-inside space-y-0.5 text-amber-900/90">
+                            <li>Transacciones y posiciones</li>
+                            <li>Histórico de operaciones y métricas vinculadas</li>
+                        </ul>
+                        <p class="text-xs font-medium">La cuenta en sí no se borra; podrás volver a importar CSVs.</p>
+                    </div>
+                    <form method="POST" action="{{ url_for('portfolio.account_clear', id=account.id) }}" class="mt-5 space-y-2">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <button type="submit" class="portfolio-touch-btn w-full px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold">
+                            Sí, vaciar
+                        </button>
+                        <button type="button" onclick="closeAcctClearModal({{ account.id }})" class="portfolio-touch-btn w-full px-4 py-2.5 rounded-xl bg-slate-200 text-slate-800 text-sm font-semibold hover:bg-slate-300">
+                            Cancelar
+                        </button>
+                    </form>
                 </div>
             </div>
-            
-            <!-- Modal de Confirmación de Borrado -->
-            <div id="deleteModal{{ account.id }}" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50" onclick="if(event.target==this) closeDeleteModal{{ account.id }}()">
-                <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-                    <div class="mt-3 text-center">
-                        <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
-                            <svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                            </svg>
-                        </div>
-                        <h3 class="text-lg leading-6 font-medium text-gray-900 mt-5">⚠️ Eliminar Cuenta</h3>
-                        <div class="mt-2 px-7 py-3">
-                            <p class="text-sm text-gray-500 mb-3">
-                                ¿Estás seguro de que quieres eliminar la cuenta <strong>"{{ account.account_name }}"</strong>?
-                            </p>
-                            <div class="bg-red-50 border border-red-200 rounded-lg p-3 mb-3 text-left">
-                                <p class="text-sm text-red-800 font-semibold mb-2">⚠️ Esta acción es PERMANENTE e IRREVERSIBLE</p>
-                                <p class="text-xs text-red-700">Se eliminarán:</p>
-                                <ul class="text-xs text-red-700 list-disc list-inside mt-1">
-                                    <li>Todas las transacciones</li>
-                                    <li>Todas las posiciones (holdings)</li>
-                                    <li>Todo el histórico de operaciones</li>
-                                    <li>Todas las métricas asociadas</li>
-                                </ul>
-                            </div>
-                            <p class="text-xs text-gray-600">
-                                No podrás recuperar estos datos una vez eliminados.
-                            </p>
-                        </div>
-                        <div class="items-center px-4 py-3">
-                            <form method="POST" action="{{ url_for('portfolio.account_delete', id=account.id) }}" class="inline">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                                <button type="submit"
-                                        class="px-4 py-2 bg-red-600 text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-300">
-                                    Sí, eliminar permanentemente
-                                </button>
-                            </form>
-                            <button onclick="closeDeleteModal{{ account.id }}()"
-                                    class="mt-3 px-4 py-2 bg-white text-gray-700 text-base font-medium rounded-md w-full shadow-sm border border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300">
-                                Cancelar
-                            </button>
-                        </div>
+
+            <div id="deleteModal{{ account.id }}" class="hidden fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55 overflow-y-auto" onclick="if(event.target===this) closeAcctDeleteModal({{ account.id }})">
+                <div class="acct-modal-surface w-full max-w-md p-5 sm:p-6 my-4" onclick="event.stopPropagation()">
+                    <div class="flex items-center justify-center h-12 w-12 rounded-full bg-rose-100/90 mx-auto">
+                        <svg class="h-6 w-6 text-rose-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                        </svg>
                     </div>
+                    <h3 class="text-lg font-semibold text-slate-900 text-center mt-4">Eliminar cuenta</h3>
+                    <p class="text-sm text-slate-600 text-center mt-2">
+                        ¿Eliminar permanentemente <strong>«{{ account.account_name }}»</strong>?
+                    </p>
+                    <div class="mt-4 rounded-xl border border-rose-200/80 bg-rose-50/80 p-3 text-left text-sm text-rose-950 space-y-2">
+                        <p class="font-semibold">Acción irreversible</p>
+                        <ul class="text-xs list-disc list-inside space-y-0.5 text-rose-900/90">
+                            <li>Transacciones y posiciones</li>
+                            <li>Historial y métricas asociadas</li>
+                        </ul>
+                    </div>
+                    <form method="POST" action="{{ url_for('portfolio.account_delete', id=account.id) }}" class="mt-5 space-y-2">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <button type="submit" class="portfolio-touch-btn w-full px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold">
+                            Sí, eliminar
+                        </button>
+                        <button type="button" onclick="closeAcctDeleteModal({{ account.id }})" class="portfolio-touch-btn w-full px-4 py-2.5 rounded-xl bg-slate-200 text-slate-800 text-sm font-semibold hover:bg-slate-300">
+                            Cancelar
+                        </button>
+                    </form>
                 </div>
             </div>
-            
-            <script>
-                function confirmClear{{ account.id }}() {
-                    document.getElementById('clearModal{{ account.id }}').classList.remove('hidden');
-                }
-                function closeClearModal{{ account.id }}() {
-                    document.getElementById('clearModal{{ account.id }}').classList.add('hidden');
-                }
-                function confirmDelete{{ account.id }}() {
-                    document.getElementById('deleteModal{{ account.id }}').classList.remove('hidden');
-                }
-                function closeDeleteModal{{ account.id }}() {
-                    document.getElementById('deleteModal{{ account.id }}').classList.add('hidden');
-                }
-            </script>
         </div>
         {% endfor %}
     </div>
     {% else %}
-    <div class="bg-white rounded-xl shadow-sm p-12 text-center">
+    <div class="portfolio-card p-12 text-center">
         <div class="text-6xl mb-4">🏦</div>
-        <h3 class="text-lg font-medium text-gray-900 mb-2">No tienes cuentas registradas</h3>
-        <p class="text-gray-600 mb-6">Crea tu primera cuenta de broker para empezar a gestionar tu portfolio</p>
-        <a href="{{ url_for('portfolio.account_new') }}" class="btn-primary inline-block">
-            ➕ Crear Primera Cuenta
+        <h3 class="text-lg font-medium text-slate-900 mb-2">No hay cuentas</h3>
+        <p class="text-slate-600 mb-6">Crea tu primera cuenta de broker para empezar</p>
+        <a href="{{ url_for('portfolio.account_new') }}" class="portfolio-touch-btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold">
+            ➕ Crear primera cuenta
         </a>
     </div>
     {% endif %}
-
-    <div class="mt-6">
-        <a href="{{ url_for('portfolio.dashboard') }}" class="text-blue-600 hover:text-blue-700 text-sm font-medium">
-            ← Volver al Dashboard
-        </a>
-    </div>
 </div>
-{% endblock %}
 
+<script>
+function openAcctClearModal(id) {
+    const el = document.getElementById('clearModal' + id);
+    if (el) { el.classList.remove('hidden'); document.body.style.overflow = 'hidden'; }
+}
+function closeAcctClearModal(id) {
+    const el = document.getElementById('clearModal' + id);
+    if (el) el.classList.add('hidden');
+    document.body.style.overflow = '';
+}
+function openAcctDeleteModal(id) {
+    const el = document.getElementById('deleteModal' + id);
+    if (el) { el.classList.remove('hidden'); document.body.style.overflow = 'hidden'; }
+}
+function closeAcctDeleteModal(id) {
+    const el = document.getElementById('deleteModal' + id);
+    if (el) el.classList.add('hidden');
+    document.body.style.overflow = '';
+}
+</script>
+{% endblock %}

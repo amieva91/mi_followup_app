@@ -122,7 +122,7 @@ def must_change_password():
 def logout():
     """Cerrar sesión"""
     logout_user()
-    flash('Has cerrado sesión exitosamente.', 'info')
+    flash('Sesión cerrada. Hasta luego.', 'info')
     return redirect(url_for('main.index'))
 
 

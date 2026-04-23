@@ -3,18 +3,78 @@
 {% block title %}Watchlist - FollowUp{% endblock %}
 
 {% block content %}
-<div class="max-w-[98%] mx-auto">
+<style>
+    /* Los modales viven FUERA del cierre de #portfolio-watch; hace falta regla global para el panel opaco */
+    .watchlist-modal-surface {
+        box-sizing: border-box;
+        border-radius: 1rem;
+        border: 1px solid rgba(63, 95, 115, 0.18);
+        background-color: #f0f5f6;
+        background-image: linear-gradient(145deg, #f8fbfc 0%, #e6eff1 100%);
+        box-shadow: 0 20px 45px rgba(15, 23, 42, 0.28);
+    }
+    #portfolio-watch .portfolio-title {
+        display: inline-flex; align-items: center; gap: 0.45rem;
+        font-weight: 700; color: #1f2937;
+    }
+    #portfolio-watch .portfolio-touch-btn {
+        transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease;
+    }
+    #portfolio-watch .portfolio-touch-btn:active { transform: scale(0.98); filter: brightness(0.96); }
+    #portfolio-watch .watchlist-table-wrap {
+        border-radius: 0.85rem;
+        border: 1px solid rgba(63, 95, 115, 0.14);
+        overflow: hidden;
+        background: linear-gradient(180deg, rgba(255,255,255,0.55) 0%, rgba(248,250,252,0.92) 100%);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.8);
+    }
+    #portfolio-watch .watchlist-thead th {
+        background: linear-gradient(180deg, #f1f5f9 0%, #e2e8f0 100%);
+        color: #334155; font-size: 0.65rem; letter-spacing: 0.04em;
+    }
+    #portfolio-watch .portfolio-card {
+        background: linear-gradient(145deg, #f8fbfc 0%, #f1f7f8 100%);
+        border: 1px solid rgba(63, 95, 115, 0.14);
+        border-radius: 16px;
+        box-shadow: 0 14px 30px rgba(15,23,42,0.1), inset 0 1px 0 rgba(255,255,255,0.85);
+    }
+    #portfolio-watch .pf-info {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.375rem;
+        height: 1.375rem;
+        border-radius: 9999px;
+        border: 1px solid rgb(204 251 241);
+        background: rgb(240 253 250);
+        color: rgb(15 118 110);
+        font-size: 0.65rem;
+        font-weight: 700;
+        line-height: 1;
+        cursor: pointer;
+        flex-shrink: 0;
+        padding: 0;
+    }
+    #portfolio-watch .pf-info:focus { outline: 2px solid rgba(20, 184, 166, 0.5); outline-offset: 1px; }
+    #settingsModal .settings-section-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 0.5rem;
+    }
+</style>
+<div id="portfolio-watch" class="max-w-[98%] mx-auto px-3 sm:px-4 py-8">
     <!-- Toast Notification Container -->
-    <div id="toastContainer" class="fixed top-4 right-4 z-50 space-y-2"></div>
+    <div id="toastContainer" class="fixed top-4 right-4 z-[70] space-y-2 max-w-sm"></div>
     
     <!-- Header -->
-    <div class="flex justify-between items-center mb-6">
+    <div class="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-4 mb-6">
         <div>
-            <h1 class="text-3xl font-bold text-gray-900">📋 Watchlist</h1>
-            <p class="text-gray-600 mt-1">Gestión de assets en cartera y en seguimiento</p>
+            <h1 class="portfolio-title text-2xl sm:text-3xl">📋 Watchlist</h1>
+            <p class="text-slate-600 mt-1 text-sm sm:text-base">Cartera y activos en seguimiento (Stock/ETF)</p>
         </div>
-        <div class="flex gap-3">
-            <button onclick="openSettingsModal()" class="btn-secondary flex items-center gap-2">
+        <div class="flex flex-col sm:flex-row flex-wrap gap-2 sm:gap-3">
+            <button type="button" onclick="openSettingsModal()" class="portfolio-touch-btn flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-200 border border-slate-300 hover:bg-slate-300 text-slate-800 text-sm font-semibold w-full sm:w-auto">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
@@ -27,7 +87,7 @@
                 </svg>
                 Actualizar Precios
             </button>
-            <button onclick="openAddAssetModal()" class="btn-primary flex items-center gap-2">
+            <button type="button" onclick="openAddAssetModal()" class="portfolio-touch-btn flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold shadow-[0_10px_20px_rgba(13,148,136,0.28)] w-full sm:w-auto">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
                 </svg>
@@ -38,90 +98,90 @@
 
     {% if table_data %}
     <!-- Tabla combinada (Portfolio + Watchlist) -->
-    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
-        <!-- Contenedor con altura máxima y scroll vertical -->
+    <div class="portfolio-card p-0 overflow-hidden">
+        <div class="watchlist-table-wrap m-3 sm:m-4">
         <div class="overflow-x-auto" style="max-height: 80vh; overflow-y: auto;">
-            <table class="min-w-full divide-y divide-gray-200">
+            <table class="min-w-full">
                 <!-- Sticky Header -->
-                <thead class="bg-gray-50" style="position: sticky; top: 0; z-index: 10;">
+                <thead class="watchlist-thead" style="position: sticky; top: 0; z-index: 10;">
                     <tr>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTable(0, 'text')">
+                        <th class="px-4 py-3 text-left font-semibold uppercase cursor-pointer hover:bg-slate-200/60" onclick="sortTable(0, 'text')">
                             Nombre <span class="sort-arrow">⇅</span>
                         </th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTable(1, 'date')">
+                        <th class="px-4 py-3 text-left font-semibold uppercase cursor-pointer hover:bg-slate-200/60" onclick="sortTable(1, 'date')">
                             <span class="flex items-center gap-1">
                                 Fecha próximos resultados
                                 <span class="cursor-help text-gray-400" title="Manual: Fecha de presentación de resultados. Colores: Verde (futuro), Amarillo (pasado reciente, días configurables en Ajustes), Rojo (pasado lejano)">ⓘ</span>
                                 <span class="sort-arrow">⇅</span>
                             </span>
                         </th>
-                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th class="px-4 py-3 text-center font-semibold uppercase">
                             <span class="flex items-center justify-center gap-1">
                                 Indicador operativa
                                 <span class="cursor-help text-gray-400" title="Calculado: INCREASE/HOLD/REDUCE (basado en Tier y cantidad a aumentar/reducir) + señales globales BUY/SELL basadas en Valoración 12m y Rentabilidad Anual. BUY/SELL prevalecen sobre el resto.">ⓘ</span>
                             </span>
                         </th>
-                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th class="px-4 py-3 text-center font-semibold uppercase">
                             <span class="flex items-center justify-center gap-1">
                                 Tier
                                 <span class="cursor-help text-gray-400" title="Calculado: Tier 1-5 según Valoración actual 12 meses (%). Colores configurables en Ajustes: Verde (dentro umbral configurado), Amarillo (fuera umbral pero dentro umbral amarillo), Rojo (fuera umbral amarillo)">ⓘ</span>
                             </span>
                         </th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th class="px-4 py-3 text-right font-semibold uppercase">
                             <span class="flex items-center justify-end gap-1">
                                 Cantidad a aumentar/reducir
                                 <span class="cursor-help text-gray-400" title="Calculado: Diferencia entre cantidad invertida actual y cantidad del Tier (EUR). Positivo = comprar, Negativo = vender. Colores iguales que Tier según desviación porcentual (configurable en Ajustes)">ⓘ</span>
                             </span>
                         </th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th class="px-4 py-3 text-right font-semibold uppercase">
                             <span class="flex items-center justify-end gap-1">
                                 Rent. 5 años (%)
                                 <span class="cursor-help text-gray-400" title="Calculado: (Target Price - Precio actual) / Precio actual * 100 + (Dividend Yield * 5 años). Basado en Target Price (5 yr)">ⓘ</span>
                             </span>
                         </th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th class="px-4 py-3 text-right font-semibold uppercase">
                             <span class="flex items-center justify-end gap-1">
                                 Valoración 12m (%)
                                 <span class="cursor-help text-gray-400" title="Calculado (PEGY Ratio): -((PER / (CAGR% + Dividend Yield%)) - 1) * 100. Positivo = infravalorado (bueno), Negativo = sobrevalorado (malo). Colores: Verde ≥ 10% (infravalorado), Amarillo 0-10%, Rojo < 0% (sobrevalorado)">ⓘ</span>
                             </span>
                         </th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th class="px-4 py-3 text-right font-semibold uppercase">
                             <span class="flex items-center justify-end gap-1">
                                 Rent. Anual (%)
                                 <span class="cursor-help text-gray-400" title="Calculado: Rentabilidad anualizada a 5 años + Dividend Yield anual. Basado en Target Price (5 yr)">ⓘ</span>
                             </span>
                         </th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th class="px-4 py-3 text-right font-semibold uppercase">
                             <span class="flex items-center justify-end gap-1">
                                 Target Price (5 yr)
                                 <span class="cursor-help text-gray-400" title="Calculado: EPS * (1 + CAGR Revenue YoY%)^5 * PER">ⓘ</span>
                             </span>
                         </th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th class="px-4 py-3 text-right font-semibold uppercase">
                             <span class="flex items-center justify-end gap-1">
                                 Precio actual
                                 <span class="cursor-help text-gray-400" title="Actualizado desde Yahoo Finance. Colores según proximidad a Target Price (5 yr): Verde (cerca), Amarillo (medio), Rojo (lejos)">ⓘ</span>
                             </span>
                         </th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th class="px-4 py-3 text-right font-semibold uppercase">
                             <span class="flex items-center justify-end gap-1">
                                 Peso en cartera (%)
                                 <span class="cursor-help text-gray-400" title="Calculado: (Valor actual del asset / Valor total del portfolio) * 100. Colores: Verde (< umbral+10%), Amarillo (umbral+10% a umbral+25%), Rojo (≥ umbral+25%)">ⓘ</span>
                             </span>
                         </th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th class="px-4 py-3 text-right font-semibold uppercase">
                             PER o NTM P/E
                         </th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th class="px-4 py-3 text-right font-semibold uppercase">
                             NTM Div. Yield (%)
                         </th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th class="px-4 py-3 text-right font-semibold uppercase">
                             EPS
                         </th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th class="px-4 py-3 text-right font-semibold uppercase">
                             CAGR Revenue YoY (%)
                         </th>
-                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th class="px-4 py-3 text-center font-semibold uppercase">
                             Acciones
                         </th>
                     </tr>
@@ -131,7 +191,7 @@
                     {% set asset = item.asset %}
                     {% set watchlist_item = item.watchlist_item %}
                     {% set holding = item.holding %}
-                    <tr class="hover:bg-gray-50 transition">
+                    <tr class="hover:bg-teal-50/45 transition-colors">
                         <!-- Nombre (con icono, symbol y país) -->
                         <td class="px-4 py-3">
                             <div class="text-sm font-medium text-gray-900 flex items-center gap-2">
@@ -140,7 +200,7 @@
                                 {% else %}
                                     <span title="En seguimiento">👁️</span>
                                 {% endif %}
-                                <a href="{{ url_for('portfolio.asset_detail', id=asset.id) }}" class="hover:text-blue-600">
+                                <a href="{{ url_for('portfolio.asset_detail', id=asset.id) }}" class="text-teal-800 hover:underline font-medium">
                                     {{ asset.name or asset.symbol or '—' }}
                                 </a>
                             </div>
@@ -465,11 +525,12 @@
                 </tbody>
             </table>
         </div>
+        </div>
     </div>
     {% else %}
-    <div class="bg-white rounded-xl shadow-sm p-12 text-center">
-        <p class="text-gray-600 mb-4">No hay assets en watchlist</p>
-        <button onclick="openAddAssetModal()" class="btn-primary">
+    <div class="portfolio-card p-12 text-center text-slate-600">
+        <p class="mb-4 text-slate-700">No hay assets en la lista todavía.</p>
+        <button type="button" onclick="openAddAssetModal()" class="portfolio-touch-btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold">
             ➕ Añadir primer asset
         </button>
     </div>
@@ -477,72 +538,60 @@
 </div>
 
 <!-- Modal para seleccionar plantilla al generar informe -->
-<div id="generateReportModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-    <div class="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
-        <h3 class="text-lg font-medium text-gray-900 mb-4">Generar informe</h3>
-        <p class="text-sm text-gray-600 mb-4">Selecciona la plantilla que quieras usar:</p>
-        <select id="watchlistTemplateSelect" class="w-full border border-gray-300 rounded-lg px-3 py-2 mb-4">
+<div id="generateReportModal" class="hidden fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55 overflow-y-auto" onclick="if(event.target===this) closeGenerateReportModal()">
+    <div class="watchlist-modal-surface w-full max-w-md p-5 sm:p-6" onclick="event.stopPropagation()">
+        <h3 class="text-lg font-semibold text-slate-900 mb-2">Generar informe</h3>
+        <p class="text-sm text-slate-600 mb-4">Selecciona la plantilla que quieras usar:</p>
+        <select id="watchlistTemplateSelect" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 mb-4 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white">
             {% for t in report_templates %}
             {% if t.has_valid_description() %}
             <option value="{{ t.id }}">{{ t.title }}</option>
             {% endif %}
             {% endfor %}
         </select>
-        <div class="flex justify-end gap-2">
-            <button onclick="closeGenerateReportModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancelar</button>
-            <button onclick="confirmGenerateReportFromWatchlist()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Generar</button>
+        <div class="flex flex-col-reverse sm:flex-row justify-end gap-2">
+            <button type="button" onclick="closeGenerateReportModal()" class="portfolio-touch-btn px-4 py-2 rounded-xl bg-slate-200 text-slate-800 font-semibold hover:bg-slate-300 w-full sm:w-auto">Cancelar</button>
+            <button type="button" onclick="confirmGenerateReportFromWatchlist()" class="portfolio-touch-btn px-4 py-2 rounded-xl bg-teal-600 text-white font-semibold hover:bg-teal-700 w-full sm:w-auto">Generar</button>
         </div>
     </div>
 </div>
 
 <!-- Modal para añadir asset -->
-<div id="addAssetModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-    <div class="relative top-20 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
-        <div class="mt-3">
-            <h3 class="text-lg font-medium text-gray-900 mb-4">➕ Añadir Asset a Watchlist</h3>
+<div id="addAssetModal" class="hidden fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55 overflow-y-auto" onclick="if(event.target===this) closeAddAssetModal()">
+    <div class="watchlist-modal-surface w-full max-w-2xl p-5 sm:p-6 my-4" onclick="event.stopPropagation()">
+        <div>
+            <h3 class="text-lg font-semibold text-slate-900 mb-4">➕ Añadir a la watchlist</h3>
             
             <!-- Tabs: URL Yahoo o Búsqueda -->
-            <div class="border-b border-gray-200 mb-4">
-                <nav class="-mb-px flex space-x-8">
-                    <button onclick="switchAddMode('yahoo')" id="tabYahoo" class="px-4 py-2 text-sm font-medium text-blue-600 border-b-2 border-blue-600">
+            <div class="border-b border-slate-200/80 mb-4">
+                <nav class="-mb-px flex flex-wrap gap-2 sm:gap-8">
+                    <button type="button" onclick="switchAddMode('yahoo')" id="tabYahoo" class="px-3 py-2 text-sm font-semibold text-teal-700 border-b-2 border-teal-600">
                         URL Yahoo Finance
                     </button>
-                    <button onclick="switchAddMode('search')" id="tabSearch" class="px-4 py-2 text-sm font-medium text-gray-500 border-b-2 border-transparent hover:text-gray-700 hover:border-gray-300">
+                    <button type="button" onclick="switchAddMode('search')" id="tabSearch" class="px-3 py-2 text-sm font-medium text-slate-500 border-b-2 border-transparent hover:text-slate-800">
                         Búsqueda AssetRegistry
                     </button>
                 </nav>
             </div>
             
-            <!-- Opción 1: URL Yahoo -->
             <div id="yahooForm" class="add-form-section">
-                <p class="text-sm text-gray-600 mb-4">
-                    Pega la URL completa del asset desde Yahoo Finance:
-                </p>
+                <p class="text-sm text-slate-600 mb-4">Pega la URL de la ficha en Yahoo Finance:</p>
                 <input type="text" id="yahooUrlInput" placeholder="https://finance.yahoo.com/quote/AAPL/" 
-                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 mb-4">
-                <div class="flex justify-end gap-2">
-                    <button onclick="closeAddAssetModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">
-                        Cancelar
-                    </button>
-                    <button onclick="addAssetFromYahoo()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                        Añadir
-                    </button>
+                       class="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 mb-4 text-sm" autocomplete="off">
+                <div class="flex flex-col-reverse sm:flex-row justify-end gap-2">
+                    <button type="button" onclick="closeAddAssetModal()" class="portfolio-touch-btn px-4 py-2 rounded-xl bg-slate-200 text-slate-800 font-semibold hover:bg-slate-300 w-full sm:w-auto">Cancelar</button>
+                    <button type="button" onclick="addAssetFromYahoo()" class="portfolio-touch-btn px-4 py-2 rounded-xl bg-teal-600 text-white font-semibold hover:bg-teal-700 w-full sm:w-auto">Añadir</button>
                 </div>
             </div>
             
-            <!-- Opción 2: Búsqueda AssetRegistry -->
             <div id="searchForm" class="add-form-section hidden">
-                <p class="text-sm text-gray-600 mb-4">
-                    Busca un asset en AssetRegistry:
-                </p>
-                <input type="text" id="assetSearchInput" placeholder="Escribe nombre, símbolo o ISIN..." 
-                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 mb-4"
-                       onkeyup="searchAssets(this.value)">
-                <div id="assetSearchResults" class="max-h-60 overflow-y-auto border border-gray-200 rounded-lg mb-4"></div>
-                <div class="flex justify-end gap-2">
-                    <button onclick="closeAddAssetModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">
-                        Cancelar
-                    </button>
+                <p class="text-sm text-slate-600 mb-4">Busca en el registro de activos:</p>
+                <input type="text" id="assetSearchInput" placeholder="Nombre, símbolo o ISIN…" 
+                       class="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 mb-4 text-sm"
+                       onkeyup="searchAssets(this.value)" autocomplete="off">
+                <div id="assetSearchResults" class="max-h-60 overflow-y-auto border border-slate-200/80 rounded-xl mb-4 bg-white/80"></div>
+                <div class="flex justify-end">
+                    <button type="button" onclick="closeAddAssetModal()" class="portfolio-touch-btn px-4 py-2 rounded-xl bg-slate-200 text-slate-800 font-semibold hover:bg-slate-300 w-full sm:w-auto">Cerrar</button>
                 </div>
             </div>
         </div>
@@ -550,23 +599,28 @@
 </div>
 
 <!-- Modal de Ajustes -->
-<div id="settingsModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-    <div class="relative top-10 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
-        <div class="mt-3">
-            <h3 class="text-lg font-medium text-gray-900 mb-4">⚙️ Ajustes de Watchlist</h3>
+<div id="settingsModal" class="hidden fixed inset-0 z-[60] flex items-start justify-center p-3 sm:p-4 pt-6 sm:pt-10 bg-black/55 overflow-y-auto" onclick="if(event.target===this) closeSettingsModal()">
+    <div class="watchlist-modal-surface w-full max-w-2xl p-5 sm:p-6 my-2 max-h-[min(92vh,52rem)] overflow-y-auto" onclick="event.stopPropagation()">
+        <div>
+            <h3 class="text-lg font-semibold text-slate-900 mb-4">⚙️ Ajustes de watchlist</h3>
             <form id="settingsForm">
                 <input type="hidden" id="settingsUserId" value="{{ current_user.id }}">
                 
                 <!-- Umbral máximo peso en cartera -->
                 <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Umbral máximo peso en cartera (%)</label>
+                    <div class="settings-section-head mb-1">
+                        <label class="block text-sm font-medium text-gray-700">Umbral máximo peso en cartera (%)</label>
+                        <button type="button" class="pf-info" onclick="openSettingsHelp('maxWeight')" title="Ayuda" aria-label="Ayuda umbral peso">i</button>
+                    </div>
                     <input type="number" step="0.1" id="settingsMaxWeightThreshold" class="w-full px-3 py-2 border border-gray-300 rounded-lg" value="{{ max_weight_threshold }}">
-                    <p class="text-xs text-gray-500 mt-1">Umbral base para calcular colores del peso en cartera</p>
                 </div>
                 
                 <!-- Umbrales de colores: Valoración 12m -->
                 <div class="mb-4 p-4 bg-gray-50 rounded-lg">
-                    <h4 class="text-sm font-semibold text-gray-700 mb-3">Valoración actual 12 meses (%)</h4>
+                    <div class="settings-section-head mb-3">
+                        <h4 class="text-sm font-semibold text-gray-700">Valoración actual 12 meses (%)</h4>
+                        <button type="button" class="pf-info" onclick="openSettingsHelp('valoracion')" title="Ayuda" aria-label="Ayuda valoración 12m">i</button>
+                    </div>
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs text-gray-600 mb-1">Verde (≥)</label>
@@ -577,22 +631,26 @@
                             <input type="number" step="0.1" id="settingsValoracionYellowMin" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
                         </div>
                     </div>
-                    <p class="text-xs text-gray-500 mt-2">Verde: ≥ valor verde, Amarillo: ≥ valor amarillo y &lt; valor verde, Rojo: &lt; valor amarillo</p>
                 </div>
                 
                 <!-- Umbrales de colores: Fecha resultados -->
                 <div class="mb-4 p-4 bg-gray-50 rounded-lg">
-                    <h4 class="text-sm font-semibold text-gray-700 mb-3">Fecha próximos resultados</h4>
+                    <div class="settings-section-head mb-3">
+                        <h4 class="text-sm font-semibold text-gray-700">Fecha próximos resultados</h4>
+                        <button type="button" class="pf-info" onclick="openSettingsHelp('fechaResultados')" title="Ayuda" aria-label="Ayuda fecha resultados">i</button>
+                    </div>
                     <div>
                         <label class="block text-xs text-gray-600 mb-1">Días para amarillo (después de pasar)</label>
                         <input type="number" step="1" id="settingsFechaResultadosYellowDays" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
-                        <p class="text-xs text-gray-500 mt-1">Verde (futuro), Amarillo (pasado ≤ X días), Rojo (pasado > X días)</p>
                     </div>
                 </div>
                 
                 <!-- Umbrales de colores: Peso en cartera -->
                 <div class="mb-4 p-4 bg-gray-50 rounded-lg">
-                    <h4 class="text-sm font-semibold text-gray-700 mb-3">Peso en cartera (%)</h4>
+                    <div class="settings-section-head mb-3">
+                        <h4 class="text-sm font-semibold text-gray-700">Peso en cartera (%)</h4>
+                        <button type="button" class="pf-info" onclick="openSettingsHelp('pesoCartera')" title="Ayuda" aria-label="Ayuda peso en cartera">i</button>
+                    </div>
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs text-gray-600 mb-1">Verde (máx % sobre umbral)</label>
@@ -603,12 +661,14 @@
                             <input type="number" step="0.1" id="settingsPesoCarteraYellowMax" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
                         </div>
                     </div>
-                    <p class="text-xs text-gray-500 mt-2">Verde: &lt; umbral + verde_max%, Amarillo: umbral + verde_max% a amarillo_max%, Rojo: ≥ umbral + amarillo_max%</p>
                 </div>
                 
                 <!-- Umbrales de colores: Tier -->
                 <div class="mb-4 p-4 bg-gray-50 rounded-lg">
-                    <h4 class="text-sm font-semibold text-gray-700 mb-3">Tier (desviación del valor del Tier)</h4>
+                    <div class="settings-section-head mb-3">
+                        <h4 class="text-sm font-semibold text-gray-700">Tier (desviación del valor del Tier)</h4>
+                        <button type="button" class="pf-info" onclick="openSettingsHelp('tierDev')" title="Ayuda" aria-label="Ayuda desviación tier">i</button>
+                    </div>
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs text-gray-600 mb-1">Verde (dentro %)</label>
@@ -619,13 +679,14 @@
                             <input type="number" step="0.1" id="settingsTierYellowPct" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
                         </div>
                     </div>
-                    <p class="text-xs text-gray-500 mt-2">Verde: dentro ±green_pct%, Amarillo: fuera ±green_pct% pero dentro ±yellow_pct%, Rojo: fuera ±yellow_pct%</p>
                 </div>
                 
                 <!-- Configuración de rangos de Tier -->
                 <div class="mb-4 p-4 bg-green-50 rounded-lg border border-green-200">
-                    <h4 class="text-sm font-semibold text-gray-700 mb-3">Rangos de Tier (según Valoración 12m %)</h4>
-                    <p class="text-xs text-gray-600 mb-3">Define el valor mínimo de Valoración 12m (%) para cada Tier (2-5). Tier 1 se calcula automáticamente como todos los valores &lt; Tier 2.</p>
+                    <div class="settings-section-head mb-3">
+                        <h4 class="text-sm font-semibold text-gray-700">Rangos de Tier (según Valoración 12m %)</h4>
+                        <button type="button" class="pf-info" onclick="openSettingsHelp('tierRangos')" title="Ayuda" aria-label="Ayuda rangos de tier">i</button>
+                    </div>
                     <div class="space-y-2">
                         <div class="grid grid-cols-4 gap-2 text-xs">
                             <div>
@@ -658,13 +719,14 @@
                             </p>
                         </div>
                     </div>
-                    <p class="text-xs text-gray-500 mt-3">Los rangos se construyen así: Tier 5 ≥ valor_tier5, Tier 4 ≥ valor_tier4 y &lt; valor_tier5, Tier 3 ≥ valor_tier3 y &lt; valor_tier4, Tier 2 ≥ valor_tier2 y &lt; valor_tier3, Tier 1 &lt; valor_tier2 (automático)</p>
-                    <p class="text-xs text-gray-600 mt-1 font-medium">Tier 5: mayor posición (muy infravalorado), Tier 1: menor posición (sobrevalorado)</p>
                 </div>
                 
                 <!-- Umbrales de colores: Rentabilidad 5 años -->
                 <div class="mb-4 p-4 bg-gray-50 rounded-lg">
-                    <h4 class="text-sm font-semibold text-gray-700 mb-3">Rentabilidad a 5 años (%)</h4>
+                    <div class="settings-section-head mb-3">
+                        <h4 class="text-sm font-semibold text-gray-700">Rentabilidad a 5 años (%)</h4>
+                        <button type="button" class="pf-info" onclick="openSettingsHelp('rent5')" title="Ayuda" aria-label="Ayuda rentabilidad 5 años">i</button>
+                    </div>
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs text-gray-600 mb-1">Verde (≥)</label>
@@ -675,12 +737,14 @@
                             <input type="number" step="0.1" id="settingsRentabilidad5yrYellowMin" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
                         </div>
                     </div>
-                    <p class="text-xs text-gray-500 mt-2">Verde: ≥ valor verde, Amarillo: ≥ valor amarillo y &lt; valor verde, Rojo: &lt; valor amarillo</p>
                 </div>
                 
                 <!-- Umbrales de colores: Rentabilidad Anual -->
                 <div class="mb-4 p-4 bg-gray-50 rounded-lg">
-                    <h4 class="text-sm font-semibold text-gray-700 mb-3">Rentabilidad Anual (%)</h4>
+                    <div class="settings-section-head mb-3">
+                        <h4 class="text-sm font-semibold text-gray-700">Rentabilidad Anual (%)</h4>
+                        <button type="button" class="pf-info" onclick="openSettingsHelp('rentAnual')" title="Ayuda" aria-label="Ayuda rentabilidad anual">i</button>
+                    </div>
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs text-gray-600 mb-1">Verde (≥)</label>
@@ -691,17 +755,14 @@
                             <input type="number" step="0.1" id="settingsRentabilidadAnualYellowMin" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
                         </div>
                     </div>
-                    <p class="text-xs text-gray-500 mt-2">Verde: ≥ valor verde, Amarillo: ≥ valor amarillo y &lt; valor verde, Rojo: &lt; valor amarillo</p>
                 </div>
                 
                 <!-- Reglas de Indicador Operativa (BUY/SELL globales) -->
                 <div class="mb-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
-                    <h4 class="text-sm font-semibold text-gray-700 mb-3">Indicador operativa (BUY/SELL global)</h4>
-                    <p class="text-xs text-gray-600 mb-3">
-                        Configura las reglas para señales fuertes de compra (BUY) y venta (SELL) basadas en
-                        <span class="font-semibold">Valoración 12m (%)</span> y <span class="font-semibold">Rentabilidad Anual (%)</span>.
-                        Estas señales prevalecen sobre INCREASE/HOLD/REDUCE.
-                    </p>
+                    <div class="settings-section-head mb-3">
+                        <h4 class="text-sm font-semibold text-gray-700">Indicador operativa (BUY/SELL global)</h4>
+                        <button type="button" class="pf-info" onclick="openSettingsHelp('operativa')" title="Ayuda" aria-label="Ayuda operativa BUY/SELL">i</button>
+                    </div>
                     
                     <!-- Reglas BUY (solo assets en watchlist sin posición) -->
                     <div class="mb-3 p-3 bg-white rounded border border-purple-100">
@@ -736,7 +797,9 @@
                                     <option value="AND">Ambas (AND)</option>
                                     <option value="OR">Al menos una (OR)</option>
                                 </select>
-                                <span class="text-[11px] text-gray-500">Por defecto: Rent. Anual ≥ 60% AND Valoración 12m &gt; -12.5%</span>
+                                <div class="flex items-center justify-end">
+                                    <button type="button" class="pf-info" onclick="openSettingsHelp('buyDefaults')" title="Valores por defecto" aria-label="Valores por defecto BUY">i</button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -775,7 +838,9 @@
                                     <option value="AND">Ambas (AND)</option>
                                     <option value="OR">Al menos una (OR)</option>
                                 </select>
-                                <span class="text-[11px] text-gray-500">Por defecto sin reglas activas (no se dispara SELL hasta que configures condiciones).</span>
+                                <div class="flex items-center justify-end">
+                                    <button type="button" class="pf-info" onclick="openSettingsHelp('sellDefaults')" title="Comportamiento por defecto SELL" aria-label="Ayuda SELL por defecto">i</button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -783,8 +848,10 @@
                 
                 <!-- Configuración de cantidades por Tier -->
                 <div class="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <h4 class="text-sm font-semibold text-gray-700 mb-3">Cantidades por Tier (EUR)</h4>
-                    <p class="text-xs text-gray-600 mb-3">Define las cantidades absolutas en EUR para cada Tier de inversión</p>
+                    <div class="settings-section-head mb-3">
+                        <h4 class="text-sm font-semibold text-gray-700">Cantidades por Tier (EUR)</h4>
+                        <button type="button" class="pf-info" onclick="openSettingsHelp('tierAmounts')" title="Ayuda" aria-label="Ayuda cantidades por tier">i</button>
+                    </div>
                     <div class="grid grid-cols-5 gap-2">
                         <div>
                             <label class="block text-xs text-gray-600 mb-1">Tier 1 (EUR)</label>
@@ -809,12 +876,12 @@
                     </div>
                 </div>
                 
-                <div class="flex justify-end gap-2 mt-6">
-                    <button type="button" onclick="closeSettingsModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">
+                <div class="flex flex-col-reverse sm:flex-row justify-end gap-2 mt-6">
+                    <button type="button" onclick="closeSettingsModal()" class="portfolio-touch-btn px-4 py-2.5 rounded-xl bg-slate-200 text-slate-800 font-semibold hover:bg-slate-300 w-full sm:w-auto">
                         Cancelar
                     </button>
-                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                        Guardar Ajustes
+                    <button type="submit" class="portfolio-touch-btn px-4 py-2.5 rounded-xl bg-teal-600 text-white font-semibold hover:bg-teal-700 w-full sm:w-auto">
+                        Guardar ajustes
                     </button>
                 </div>
             </form>
@@ -822,11 +889,20 @@
     </div>
 </div>
 
+<!-- Ayuda contextual (Ajustes watchlist); z-index por encima del modal de ajustes -->
+<div id="settingsHelpModal" class="hidden fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55 overflow-y-auto" onclick="if(event.target===this) closeSettingsHelpModal()">
+    <div class="watchlist-modal-surface w-full max-w-md p-5 sm:p-6 my-4" onclick="event.stopPropagation()">
+        <h3 id="settingsHelpTitle" class="text-lg font-semibold text-slate-900 mb-3"></h3>
+        <div id="settingsHelpBody" class="text-sm text-slate-600 space-y-2"></div>
+        <button type="button" onclick="closeSettingsHelpModal()" class="portfolio-touch-btn mt-5 w-full px-4 py-2.5 rounded-xl bg-teal-600 text-white font-semibold hover:bg-teal-700">Entendido</button>
+    </div>
+</div>
+
 <!-- Modal para editar watchlist item -->
-<div id="editWatchlistModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-    <div class="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
-        <div class="mt-3">
-            <h3 class="text-lg font-medium text-gray-900 mb-4">✏️ Editar Métricas</h3>
+<div id="editWatchlistModal" class="hidden fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55 overflow-y-auto" onclick="if(event.target===this) closeEditWatchlistModal()">
+    <div class="watchlist-modal-surface w-full max-w-md p-5 sm:p-6" onclick="event.stopPropagation()">
+        <div>
+            <h3 class="text-lg font-semibold text-slate-900 mb-4">✏️ Editar métricas</h3>
             <form id="editWatchlistForm">
                 <input type="hidden" id="editWatchlistId">
                 <input type="hidden" id="editAssetId">
@@ -834,31 +910,31 @@
                 <div class="space-y-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Fecha próximos resultados</label>
-                        <input type="date" id="editNextEarningsDate" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                        <input type="date" id="editNextEarningsDate" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">PER o NTM P/E</label>
-                        <input type="number" step="0.01" id="editPerNtm" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">PER o NTM P/E</label>
+                        <input type="number" step="0.01" id="editPerNtm" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">NTM Dividend Yield (%)</label>
-                        <input type="number" step="0.01" id="editNtmDividendYield" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">NTM Dividend Yield (%)</label>
+                        <input type="number" step="0.01" id="editNtmDividendYield" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">EPS</label>
-                        <input type="number" step="0.01" id="editEps" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">EPS</label>
+                        <input type="number" step="0.01" id="editEps" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">CAGR Revenue YoY (%)</label>
-                        <input type="number" step="0.01" id="editCagrRevenueYoy" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">CAGR Revenue YoY (%)</label>
+                        <input type="number" step="0.01" id="editCagrRevenueYoy" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500">
                     </div>
                 </div>
                 
-                <div class="flex justify-end gap-2 mt-6">
-                    <button type="button" onclick="closeEditWatchlistModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">
+                <div class="flex flex-col-reverse sm:flex-row justify-end gap-2 mt-6">
+                    <button type="button" onclick="closeEditWatchlistModal()" class="portfolio-touch-btn px-4 py-2.5 rounded-xl bg-slate-200 text-slate-800 font-semibold hover:bg-slate-300 w-full sm:w-auto">
                         Cancelar
                     </button>
-                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    <button type="submit" class="portfolio-touch-btn px-4 py-2.5 rounded-xl bg-teal-600 text-white font-semibold hover:bg-teal-700 w-full sm:w-auto">
                         Guardar
                     </button>
                 </div>
@@ -868,19 +944,13 @@
 </div>
 
 <!-- Modal de Confirmación -->
-<div id="confirmModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-    <div class="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
-        <div class="mt-3">
-            <h3 class="text-lg font-medium text-gray-900 mb-4" id="confirmModalTitle">Confirmar acción</h3>
-            <p class="text-sm text-gray-600 mb-6" id="confirmModalMessage">¿Estás seguro de que quieres realizar esta acción?</p>
-            <div class="flex justify-end gap-2">
-                <button type="button" onclick="closeConfirmModal(false)" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">
-                    Cancelar
-                </button>
-                <button type="button" onclick="closeConfirmModal(true)" id="confirmModalOk" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
-                    Confirmar
-                </button>
-            </div>
+<div id="confirmModal" class="hidden fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55" onclick="if(event.target===this) closeConfirmModal(false)">
+    <div class="watchlist-modal-surface w-full max-w-md p-5 sm:p-6" onclick="event.stopPropagation()">
+        <h3 class="text-lg font-semibold text-slate-900 mb-2" id="confirmModalTitle">Confirmar acción</h3>
+        <p class="text-sm text-slate-600 mb-6" id="confirmModalMessage">¿Estás seguro de que quieres realizar esta acción?</p>
+        <div class="flex flex-col-reverse sm:flex-row justify-end gap-2">
+            <button type="button" onclick="closeConfirmModal(false)" class="portfolio-touch-btn px-4 py-2.5 rounded-xl bg-slate-200 text-slate-800 font-semibold hover:bg-slate-300 w-full sm:w-auto">Cancelar</button>
+            <button type="button" onclick="closeConfirmModal(true)" id="confirmModalOk" class="portfolio-touch-btn px-4 py-2.5 rounded-xl bg-rose-600 text-white font-semibold hover:bg-rose-700 w-full sm:w-auto">Confirmar</button>
         </div>
     </div>
 </div>
@@ -901,10 +971,10 @@ function showToast(message, type = 'success') {
     
     const toast = document.createElement('div');
     
-    const bgColor = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500';
+    const bgColor = type === 'success' ? 'bg-emerald-600' : type === 'error' ? 'bg-rose-600' : 'bg-slate-700';
     const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️';
     
-    toast.className = `${bgColor} text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 min-w-[300px] transform transition-all duration-300 translate-x-full opacity-0`;
+    toast.className = `${bgColor} text-white px-4 py-3 rounded-xl border border-white/10 shadow-[0_16px_40px_rgba(15,23,42,0.25)] flex items-center gap-2 min-w-[260px] max-w-sm transform transition-all duration-300 translate-x-full opacity-0`;
     toast.innerHTML = `
         <span class="text-lg">${icon}</span>
         <span class="flex-1">${message}</span>
@@ -932,11 +1002,13 @@ function showToast(message, type = 'success') {
 // Funciones para modal de añadir asset
 function openAddAssetModal() {
     document.getElementById('addAssetModal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
     switchAddMode('yahoo');
 }
 
 function closeAddAssetModal() {
     document.getElementById('addAssetModal').classList.add('hidden');
+    document.body.style.overflow = '';
     document.getElementById('yahooUrlInput').value = '';
     document.getElementById('assetSearchInput').value = '';
     document.getElementById('assetSearchResults').innerHTML = '';
@@ -947,13 +1019,13 @@ function switchAddMode(mode) {
     if (mode === 'yahoo') {
         document.getElementById('yahooForm').classList.remove('hidden');
         document.getElementById('searchForm').classList.add('hidden');
-        document.getElementById('tabYahoo').className = 'px-4 py-2 text-sm font-medium text-blue-600 border-b-2 border-blue-600';
-        document.getElementById('tabSearch').className = 'px-4 py-2 text-sm font-medium text-gray-500 border-b-2 border-transparent hover:text-gray-700 hover:border-gray-300';
+        document.getElementById('tabYahoo').className = 'px-3 py-2 text-sm font-semibold text-teal-700 border-b-2 border-teal-600';
+        document.getElementById('tabSearch').className = 'px-3 py-2 text-sm font-medium text-slate-500 border-b-2 border-transparent hover:text-slate-800';
     } else {
         document.getElementById('yahooForm').classList.add('hidden');
         document.getElementById('searchForm').classList.remove('hidden');
-        document.getElementById('tabYahoo').className = 'px-4 py-2 text-sm font-medium text-gray-500 border-b-2 border-transparent hover:text-gray-700 hover:border-gray-300';
-        document.getElementById('tabSearch').className = 'px-4 py-2 text-sm font-medium text-blue-600 border-b-2 border-blue-600';
+        document.getElementById('tabYahoo').className = 'px-3 py-2 text-sm font-medium text-slate-500 border-b-2 border-transparent hover:text-slate-800';
+        document.getElementById('tabSearch').className = 'px-3 py-2 text-sm font-semibold text-teal-700 border-b-2 border-teal-600';
     }
 }
 
@@ -1002,7 +1074,7 @@ async function searchAssets(query) {
                 let html = '';
                 data.results.forEach(asset => {
                     html += `
-                        <div class="p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100" onclick="selectAssetFromSearch(${asset.id})">
+                        <div class="p-3 hover:bg-teal-50/70 cursor-pointer border-b border-slate-100" onclick="selectAssetFromSearch(${asset.id})">
                             <div class="font-medium text-gray-900">${asset.symbol || '—'} - ${asset.name || '—'}</div>
                             <div class="text-xs text-gray-500">${asset.exchange || ''} • ${asset.currency || ''}</div>
                         </div>
@@ -1113,10 +1185,12 @@ async function editWatchlistItem(watchlistId, assetId) {
     }
     
     document.getElementById('editWatchlistModal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
 }
 
 function closeEditWatchlistModal() {
     document.getElementById('editWatchlistModal').classList.add('hidden');
+    document.body.style.overflow = '';
 }
 
 // Funciones de confirmación personalizada
@@ -1125,10 +1199,12 @@ function showConfirmModal(title, message, callback) {
     document.getElementById('confirmModalMessage').textContent = message;
     confirmCallback = callback;
     document.getElementById('confirmModal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
 }
 
 function closeConfirmModal(confirmed) {
     document.getElementById('confirmModal').classList.add('hidden');
+    document.body.style.overflow = '';
     if (confirmed && confirmCallback) {
         confirmCallback();
     }
@@ -1335,6 +1411,77 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+const SETTINGS_HELP_CONTENT = {
+    maxWeight: {
+        title: 'Umbral máximo peso en cartera',
+        html: '<p>Umbral base para calcular los <strong>colores del peso en cartera</strong> en la tabla (verde / amarillo / rojo según lo que configures en el bloque «Peso en cartera»).</p>'
+    },
+    valoracion: {
+        title: 'Valoración actual 12 meses',
+        html: '<p><strong>Verde:</strong> ≥ umbral verde.</p><p><strong>Amarillo:</strong> ≥ umbral amarillo y &lt; verde.</p><p><strong>Rojo:</strong> &lt; umbral amarillo.</p>'
+    },
+    fechaResultados: {
+        title: 'Fecha próximos resultados',
+        html: '<p><strong>Verde:</strong> fecha futura.</p><p><strong>Amarillo:</strong> ya pasó la fecha, pero hace ≤ X días (X = valor que indicas).</p><p><strong>Rojo:</strong> pasó hace más de X días.</p>'
+    },
+    pesoCartera: {
+        title: 'Peso en cartera',
+        html: '<p>Compara el peso del activo con el <strong>umbral máximo</strong> del primer bloque.</p><p><strong>Verde:</strong> por debajo de umbral + tramo verde.</p><p><strong>Amarillo:</strong> entre tramo verde y amarillo.</p><p><strong>Rojo:</strong> por encima de umbral + tramo amarillo.</p>'
+    },
+    tierDev: {
+        title: 'Desviación del Tier',
+        html: '<p>Colores respecto a la <strong>cantidad objetivo del tier</strong> (EUR).</p><p><strong>Verde:</strong> dentro de ±% verde.</p><p><strong>Amarillo:</strong> fuera del verde pero dentro de ±% amarillo.</p><p><strong>Rojo:</strong> fuera del tramo amarillo.</p>'
+    },
+    tierRangos: {
+        title: 'Rangos de Tier',
+        html: '<p>Define el valor mínimo de <strong>Valoración 12m (%)</strong> para cada Tier 2–5. <strong>Tier 1</strong> se calcula automáticamente: todos los valores &lt; Tier 2.</p><p>Construcción: Tier 5 ≥ valor tier5; Tier 4 ≥ tier4 y &lt; tier5; análogo hacia abajo; Tier 1 &lt; tier2.</p><p><strong>Tier 5</strong> = mayor posición (muy infravalorado), <strong>Tier 1</strong> = menor (sobrevalorado).</p>'
+    },
+    rent5: {
+        title: 'Rentabilidad a 5 años',
+        html: '<p><strong>Verde:</strong> ≥ umbral verde.</p><p><strong>Amarillo:</strong> ≥ amarillo y &lt; verde.</p><p><strong>Rojo:</strong> &lt; amarillo.</p>'
+    },
+    rentAnual: {
+        title: 'Rentabilidad anual',
+        html: '<p><strong>Verde:</strong> ≥ umbral verde.</p><p><strong>Amarillo:</strong> ≥ amarillo y &lt; verde.</p><p><strong>Rojo:</strong> &lt; amarillo.</p>'
+    },
+    operativa: {
+        title: 'Indicador operativa (BUY / SELL)',
+        html: '<p>Configura señales <strong>BUY</strong> y <strong>SELL</strong> con <strong>Valoración 12m</strong> y <strong>Rentabilidad anual</strong>. Estas señales <strong>prevalecen</strong> sobre INCREASE / HOLD / REDUCE.</p><p>BUY: activos en seguimiento sin posición. SELL: activos con posición en cartera.</p>'
+    },
+    buyDefaults: {
+        title: 'Valores por defecto (BUY)',
+        html: '<p>Por defecto se suele usar <strong>Rent. Anual ≥ 60&nbsp;%</strong> y <strong>Valoración 12m &gt; -12,5&nbsp;%</strong> (con combinación AND), según lo que tengas guardado en el servidor.</p>'
+    },
+    sellDefaults: {
+        title: 'Comportamiento por defecto (SELL)',
+        html: '<p>Sin reglas de condición activas, <strong>no se dispara SELL</strong> hasta que configures al menos un criterio.</p>'
+    },
+    tierAmounts: {
+        title: 'Cantidades por Tier (EUR)',
+        html: '<p>Define la <strong>cantidad en euros</strong> objetivo de cada Tier. El sistema compara con tu inversión actual para sugerir compras o ventas.</p>'
+    }
+};
+
+function openSettingsHelp(key) {
+    const d = SETTINGS_HELP_CONTENT[key];
+    if (!d) return;
+    const t = document.getElementById('settingsHelpTitle');
+    const b = document.getElementById('settingsHelpBody');
+    if (t) t.textContent = d.title;
+    if (b) b.innerHTML = d.html;
+    const m = document.getElementById('settingsHelpModal');
+    if (m) {
+        m.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+function closeSettingsHelpModal() {
+    const m = document.getElementById('settingsHelpModal');
+    if (m) m.classList.add('hidden');
+    document.body.style.overflow = '';
+}
+
 // Funciones para modal de ajustes
 function openSettingsModal() {
     // Cargar configuración actual
@@ -1462,10 +1609,12 @@ function openSettingsModal() {
         });
     
     document.getElementById('settingsModal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
 }
 
 function closeSettingsModal() {
     document.getElementById('settingsModal').classList.add('hidden');
+    document.body.style.overflow = '';
 }
 
 // Generar informe desde watchlist: mostrar modal para seleccionar plantilla
@@ -1473,9 +1622,11 @@ let generateReportAssetId = null;
 function showGenerateReportModal(assetId) {
     generateReportAssetId = assetId;
     document.getElementById('generateReportModal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
 }
 function closeGenerateReportModal() {
     document.getElementById('generateReportModal').classList.add('hidden');
+    document.body.style.overflow = '';
     generateReportAssetId = null;
 }
 async function confirmGenerateReportFromWatchlist() {

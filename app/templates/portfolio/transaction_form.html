@@ -3,34 +3,84 @@
 {% block title %}{{ title }} - FollowUp{% endblock %}
 
 {% block content %}
-<div class="max-w-4xl mx-auto">
-    <!-- Header -->
-    <div class="mb-8">
-        <a href="{{ url_for('portfolio.transactions_list') }}" class="text-blue-600 hover:text-blue-700 text-sm font-medium mb-4 inline-block">
-            ← Volver a transacciones
-        </a>
-        <h1 class="text-3xl font-bold text-gray-900">{{ title }}</h1>
-        <p class="text-gray-600 mt-1">Registra una compra o venta con todos los detalles</p>
+<style>
+    #portfolio-tx-form .pf-tx-shell {
+        background: linear-gradient(145deg, #f8fbfc 0%, #f1f7f8 100%);
+        border: 1px solid rgba(63, 95, 115, 0.14);
+        border-radius: 1rem;
+        box-shadow: 0 14px 30px rgba(15,23,42,0.1), inset 0 1px 0 rgba(255,255,255,0.85);
+        padding: 2rem;
+    }
+    #portfolio-tx-form .pf-tx-section {
+        background: linear-gradient(145deg, rgba(248,251,252,0.96), rgba(241,247,248,0.9));
+        border: 1px solid rgba(63, 95, 115, 0.13);
+        border-radius: 0.875rem;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.65);
+    }
+    #portfolio-tx-form .pf-tx-section--sell {
+        border-left: 4px solid rgba(13, 148, 136, 0.45);
+    }
+    #portfolio-tx-form .btn-primary {
+        border-radius: 0.75rem;
+        font-weight: 600;
+        border: none;
+        padding: 0.625rem 1.5rem;
+        background: #0d9488;
+        color: #fff;
+        box-shadow: 0 10px 20px rgba(13,148,136,0.28);
+        transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease;
+    }
+    #portfolio-tx-form .btn-primary:hover {
+        background: #0f766e;
+    }
+    #portfolio-tx-form .btn-primary:active {
+        transform: scale(0.98);
+        filter: brightness(0.96);
+    }
+    #portfolio-tx-form .form-touch-btn {
+        transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease;
+    }
+    #portfolio-tx-form .form-touch-btn:active {
+        transform: scale(0.98);
+        filter: brightness(0.96);
+    }
+    #portfolio-tx-form .portfolio-touch-btn {
+        transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease;
+    }
+    #portfolio-tx-form .portfolio-touch-btn:active { transform: scale(0.98); filter: brightness(0.96); }
+    #portfolio-tx-form .portfolio-title { display: inline-flex; align-items: center; gap: 0.45rem; font-weight: 700; color: #0f172a; }
+</style>
+<div id="portfolio-tx-form" class="max-w-5xl mx-auto px-4 py-8">
+    <!-- Cabecera alineada al resto de portfolio: título a la izquierda, Volver a la derecha -->
+    <div class="mb-8 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div>
+            <h1 class="portfolio-title text-2xl sm:text-3xl">💹 {{ title }}</h1>
+            <p class="text-slate-600 mt-1 text-sm sm:text-base">Registra una compra o venta con todos los detalles</p>
+        </div>
+        <a href="{{ url_for('portfolio.transactions_list') }}" id="tx-form-back"
+           class="portfolio-touch-btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-slate-200 border border-slate-300 hover:bg-slate-300 text-slate-800 text-sm font-semibold shrink-0 w-full sm:w-auto">← Volver</a>
     </div>
 
     <!-- Formulario -->
-    <div class="bg-white rounded-xl shadow-sm p-8">
+    <div class="pf-tx-shell">
         <form method="POST" action="">
             {{ form.hidden_tag() }}
             
             <!-- Cuenta y Tipo -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div>
-                    {{ form.account_id.label(class="block text-sm font-medium text-gray-700 mb-2") }}
-                    {{ form.account_id(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent") }}
+                    {{ form.account_id.label(class="block text-sm font-medium text-slate-600 mb-1.5") }}
+                    {{ form.account_id(class="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500/40") }}
                     {% if form.account_id.errors %}
                         <div class="mt-1 text-sm text-red-600">{{ form.account_id.errors[0] }}</div>
                     {% endif %}
                 </div>
 
                 <div>
-                    {{ form.transaction_type.label(class="block text-sm font-medium text-gray-700 mb-2") }}
-                    {{ form.transaction_type(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent", id="transaction_type") }}
+                    {{ form.transaction_type.label(class="block text-sm font-medium text-slate-600 mb-1.5") }}
+                    {{ form.transaction_type(class="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500/40", id="transaction_type") }}
                     {% if form.transaction_type.errors %}
                         <div class="mt-1 text-sm text-red-600">{{ form.transaction_type.errors[0] }}</div>
                     {% endif %}
@@ -38,53 +88,53 @@
             </div>
 
             <!-- Auto-selección SELL (solo visible si tipo = SELL) -->
-            <div id="sellSelector" class="bg-orange-50 border border-orange-200 rounded-lg p-6 mb-6" style="display: none;">
-                <h3 class="font-semibold text-orange-900 mb-2">📦 Seleccionar de Mis Posiciones</h3>
-                <p class="text-xs text-orange-700 mb-4">Elige qué activo quieres vender de tu cartera actual</p>
+            <div id="sellSelector" class="pf-tx-section pf-tx-section--sell" style="display: none;">
+                <h3 class="font-semibold text-slate-900 mb-2">📦 Seleccionar de Mis Posiciones</h3>
+                <p class="text-xs text-slate-600 mb-4">Elige qué activo quieres vender de tu cartera actual</p>
                 
                 <div>
-                    <label for="holdingSelector" class="block text-sm font-medium text-gray-700 mb-2">Posición a vender</label>
-                    <select id="holdingSelector" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent">
+                    <label for="holdingSelector" class="block text-sm font-medium text-slate-600 mb-1.5">Posición a vender</label>
+                    <select id="holdingSelector" class="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500/40">
                         <option value="">-- Selecciona una posición --</option>
                     </select>
-                    <div id="holdingInfo" class="mt-3 text-sm text-gray-600" style="display: none;">
+                    <div id="holdingInfo" class="mt-3 text-sm text-slate-600" style="display: none;">
                         <div class="grid grid-cols-2 gap-2">
-                            <div><strong>Cantidad disponible:</strong> <span id="maxQty" class="text-green-600 font-medium"></span></div>
-                            <div><strong>Precio actual:</strong> <span id="currentPrice" class="text-blue-600 font-medium"></span></div>
+                            <div><strong>Cantidad disponible:</strong> <span id="maxQty" class="text-emerald-700 font-medium tabular-nums"></span></div>
+                            <div><strong>Precio actual:</strong> <span id="currentPrice" class="text-slate-800 font-medium tabular-nums"></span></div>
                         </div>
-                        <div class="mt-2"><strong>Valor estimado:</strong> <span id="estimatedValue" class="text-purple-600 font-medium text-lg"></span></div>
+                        <div class="mt-2"><strong>Valor estimado:</strong> <span id="estimatedValue" class="text-teal-800 font-semibold text-lg tabular-nums"></span></div>
                     </div>
                 </div>
             </div>
 
             <!-- Información del Activo -->
-            <div class="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
-                <h3 class="font-semibold text-blue-900 mb-4">📊 Información del Activo</h3>
+            <div class="pf-tx-section">
+                <h3 class="font-semibold text-slate-900 mb-4">📊 Información del Activo</h3>
                 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                     <div class="relative">
-                        {{ form.symbol.label(class="block text-sm font-medium text-gray-700 mb-2") }}
-                        {{ form.symbol(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent", placeholder="Ej: AAPL", id="symbol_input", autocomplete="off") }}
+                        {{ form.symbol.label(class="block text-sm font-medium text-slate-600 mb-1.5") }}
+                        {{ form.symbol(class="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500/40", placeholder="Ej: AAPL", id="symbol_input", autocomplete="off") }}
                         {% if form.symbol.errors %}
                             <div class="mt-1 text-sm text-red-600">{{ form.symbol.errors[0] }}</div>
                         {% endif %}
                         <!-- Dropdown de autocompletado -->
-                        <div id="autocompleteDropdown" class="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto" style="display: none;">
+                        <div id="autocompleteDropdown" class="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-60 overflow-y-auto" style="display: none;">
                             <!-- Las sugerencias se insertan aquí -->
                         </div>
                     </div>
 
                     <div>
-                        {{ form.isin.label(class="block text-sm font-medium text-gray-700 mb-2") }}
-                        {{ form.isin(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent", placeholder="Opcional") }}
+                        {{ form.isin.label(class="block text-sm font-medium text-slate-600 mb-1.5") }}
+                        {{ form.isin(class="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500/40", placeholder="Opcional") }}
                         {% if form.isin.errors %}
                             <div class="mt-1 text-sm text-red-600">{{ form.isin.errors[0] }}</div>
                         {% endif %}
                     </div>
 
                     <div>
-                        {{ form.currency.label(class="block text-sm font-medium text-gray-700 mb-2") }}
-                        {{ form.currency(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent") }}
+                        {{ form.currency.label(class="block text-sm font-medium text-slate-600 mb-1.5") }}
+                        {{ form.currency(class="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500/40") }}
                         {% if form.currency.errors %}
                             <div class="mt-1 text-sm text-red-600">{{ form.currency.errors[0] }}</div>
                         {% endif %}
@@ -93,16 +143,16 @@
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        {{ form.asset_name.label(class="block text-sm font-medium text-gray-700 mb-2") }}
-                        {{ form.asset_name(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent", placeholder="Ej: Apple Inc.") }}
+                        {{ form.asset_name.label(class="block text-sm font-medium text-slate-600 mb-1.5") }}
+                        {{ form.asset_name(class="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500/40", placeholder="Ej: Apple Inc.") }}
                         {% if form.asset_name.errors %}
                             <div class="mt-1 text-sm text-red-600">{{ form.asset_name.errors[0] }}</div>
                         {% endif %}
                     </div>
 
                     <div>
-                        {{ form.asset_type.label(class="block text-sm font-medium text-gray-700 mb-2") }}
-                        {{ form.asset_type(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent") }}
+                        {{ form.asset_type.label(class="block text-sm font-medium text-slate-600 mb-1.5") }}
+                        {{ form.asset_type(class="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500/40") }}
                         {% if form.asset_type.errors %}
                             <div class="mt-1 text-sm text-red-600">{{ form.asset_type.errors[0] }}</div>
                         {% endif %}
@@ -111,33 +161,33 @@
             </div>
 
             <!-- Identificadores de Mercado -->
-            <div class="bg-purple-50 border border-purple-200 rounded-lg p-6 mb-6">
-                <h3 class="font-semibold text-purple-900 mb-2">🌐 Identificadores de Mercado</h3>
-                <p class="text-xs text-purple-700 mb-4">Opcionales - Se autocompletarán al importar CSVs o enriquecer con OpenFIGI</p>
+            <div class="pf-tx-section">
+                <h3 class="font-semibold text-slate-900 mb-2">🌐 Identificadores de Mercado</h3>
+                <p class="text-xs text-slate-600 mb-4">Opcionales. Se autocompletarán al importar CSVs o al enriquecer con OpenFIGI</p>
                 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                        {{ form.exchange.label(class="block text-sm font-medium text-gray-700 mb-2") }}
-                        {{ form.exchange(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent", placeholder="Ej: NASDAQ, BM") }}
-                        <p class="mt-1 text-xs text-gray-500">Formato IBKR</p>
+                        {{ form.exchange.label(class="block text-sm font-medium text-slate-600 mb-1.5") }}
+                        {{ form.exchange(class="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500/40", placeholder="Ej: NASDAQ, BM") }}
+                        <p class="mt-1 text-xs text-slate-500">Formato IBKR</p>
                         {% if form.exchange.errors %}
                             <div class="mt-1 text-sm text-red-600">{{ form.exchange.errors[0] }}</div>
                         {% endif %}
                     </div>
 
                     <div>
-                        {{ form.mic.label(class="block text-sm font-medium text-gray-700 mb-2") }}
-                        {{ form.mic(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent", placeholder="Ej: XMAD, XNAS", maxlength="4") }}
-                        <p class="mt-1 text-xs text-gray-500">4 caracteres</p>
+                        {{ form.mic.label(class="block text-sm font-medium text-slate-600 mb-1.5") }}
+                        {{ form.mic(class="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500/40", placeholder="Ej: XMAD, XNAS", maxlength="4") }}
+                        <p class="mt-1 text-xs text-slate-500">4 caracteres</p>
                         {% if form.mic.errors %}
                             <div class="mt-1 text-sm text-red-600">{{ form.mic.errors[0] }}</div>
                         {% endif %}
                     </div>
 
                     <div>
-                        {{ form.yahoo_suffix.label(class="block text-sm font-medium text-gray-700 mb-2") }}
-                        {{ form.yahoo_suffix(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent", placeholder="Ej: .MC, .L (vacío si US)") }}
-                        <p class="mt-1 text-xs text-gray-500">Para Yahoo Finance</p>
+                        {{ form.yahoo_suffix.label(class="block text-sm font-medium text-slate-600 mb-1.5") }}
+                        {{ form.yahoo_suffix(class="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500/40", placeholder="Ej: .MC, .L (vacío si US)") }}
+                        <p class="mt-1 text-xs text-slate-500">Para Yahoo Finance</p>
                         {% if form.yahoo_suffix.errors %}
                             <div class="mt-1 text-sm text-red-600">{{ form.yahoo_suffix.errors[0] }}</div>
                         {% endif %}
@@ -145,22 +195,22 @@
                 </div>
                 
                 <!-- Botones de Enriquecimiento Manual -->
-                <div class="mt-4 pt-4 border-t border-purple-300">
-                    <p class="text-xs text-purple-700 mb-3">🔍 Si faltan datos, puedes completarlos manualmente:</p>
+                <div class="mt-4 pt-4 border-t border-slate-200/80">
+                    <p class="text-xs text-slate-600 mb-3">🔍 Si faltan datos, puedes completarlos manualmente</p>
                     
                     <!-- Botón OpenFIGI -->
                     <div class="mb-4">
-                        <button type="button" id="enrichOpenFIGI" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm w-full" {% if action != 'edit' %}disabled title="Solo disponible al editar transacciones existentes"{% endif %}>
+                        <button type="button" id="enrichOpenFIGI" class="px-4 py-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 text-sm font-semibold w-full form-touch-btn disabled:opacity-50 disabled:cursor-not-allowed" {% if action != 'edit' %}disabled title="Solo disponible al editar transacciones existentes"{% endif %}>
                             🤖 Enriquecer con OpenFIGI
                         </button>
                         {% if action != 'edit' %}
-                        <p class="text-xs text-gray-500 mt-1">Este botón solo funciona al editar transacciones existentes</p>
+                        <p class="text-xs text-slate-500 mt-1">Este botón solo funciona al editar transacciones existentes</p>
                         {% endif %}
                     </div>
                     
                     <!-- Campo + Botón Yahoo (siempre disponible) -->
                     <div class="space-y-2">
-                        <label for="yahooUrlInput" class="block text-xs font-medium text-gray-700">
+                        <label for="yahooUrlInput" class="block text-xs font-medium text-slate-600">
                             🌐 URL de Yahoo Finance (opcional)
                         </label>
                         <div class="flex gap-2">
@@ -168,13 +218,13 @@
                                 type="url" 
                                 id="yahooUrlInput" 
                                 placeholder="https://finance.yahoo.com/quote/AAPL/" 
-                                class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                                class="flex-1 px-3 py-2.5 border border-slate-300 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500/40"
                             />
-                            <button type="button" id="enrichYahoo" class="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm whitespace-nowrap">
+                            <button type="button" id="enrichYahoo" class="px-4 py-2.5 bg-slate-200 text-slate-800 border border-slate-300 rounded-xl hover:bg-slate-300 text-sm font-semibold whitespace-nowrap form-touch-btn">
                                 Enriquecer
                             </button>
                         </div>
-                        <p class="text-xs text-gray-500">Busca el asset en Yahoo Finance y pega la URL completa aquí</p>
+                        <p class="text-xs text-slate-500">Busca el asset en Yahoo Finance y pega la URL completa aquí</p>
                     </div>
                     
                     <div id="enrichmentResult" class="mt-3"></div>
@@ -182,23 +232,23 @@
             </div>
 
             <!-- Detalles de la Transacción -->
-            <div class="bg-green-50 border border-green-200 rounded-lg p-6 mb-6">
-                <h3 class="font-semibold text-green-900 mb-4">💰 Detalles de la Transacción</h3>
+            <div class="pf-tx-section">
+                <h3 class="font-semibold text-slate-900 mb-4">💰 Detalles de la Transacción</h3>
                 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                     <div>
-                        {{ form.transaction_date.label(class="block text-sm font-medium text-gray-700 mb-2") }}
-                        {{ form.transaction_date(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent", type="date") }}
+                        {{ form.transaction_date.label(class="block text-sm font-medium text-slate-600 mb-1.5") }}
+                        {{ form.transaction_date(class="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500/40", type="date") }}
                         {% if form.transaction_date.errors %}
                             <div class="mt-1 text-sm text-red-600">{{ form.transaction_date.errors[0] }}</div>
                         {% endif %}
                     </div>
 
                     <div>
-                        {{ form.quantity.label(class="block text-sm font-medium text-gray-700 mb-2") }}
+                        {{ form.quantity.label(class="block text-sm font-medium text-slate-600 mb-1.5") }}
                         <div class="flex gap-2">
-                            {{ form.quantity(class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent", placeholder="Ej: 10", type="number", step="0.0001", id="quantity_input") }}
-                            <button type="button" id="maxButton" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium whitespace-nowrap" style="display: none;">
+                            {{ form.quantity(class="flex-1 px-4 py-2.5 border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500/40", placeholder="Ej: 10", type="number", step="0.0001", id="quantity_input") }}
+                            <button type="button" id="maxButton" class="px-4 py-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition text-sm font-semibold whitespace-nowrap form-touch-btn" style="display: none;">
                                 Máximo
                             </button>
                         </div>
@@ -208,8 +258,8 @@
                     </div>
 
                     <div>
-                        {{ form.price.label(class="block text-sm font-medium text-gray-700 mb-2") }}
-                        {{ form.price(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent", placeholder="Ej: 150.50 (o 0 para quiebras)", type="number", step="0.01", min="0") }}
+                        {{ form.price.label(class="block text-sm font-medium text-slate-600 mb-1.5") }}
+                        {{ form.price(class="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500/40", placeholder="Ej: 150.50 (o 0 para quiebras)", type="number", step="0.01", min="0") }}
                         {% if form.price.errors %}
                             <div class="mt-1 text-sm text-red-600">{{ form.price.errors[0] }}</div>
                         {% endif %}
@@ -218,27 +268,27 @@
 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                        {{ form.commission.label(class="block text-sm font-medium text-gray-700 mb-2") }}
-                        {{ form.commission(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent", placeholder="0.00", type="number", step="0.01") }}
-                        <p class="mt-1 text-xs text-gray-500">Comisión del broker</p>
+                        {{ form.commission.label(class="block text-sm font-medium text-slate-600 mb-1.5") }}
+                        {{ form.commission(class="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500/40", placeholder="0.00", type="number", step="0.01") }}
+                        <p class="mt-1 text-xs text-slate-500">Comisión del broker</p>
                         {% if form.commission.errors %}
                             <div class="mt-1 text-sm text-red-600">{{ form.commission.errors[0] }}</div>
                         {% endif %}
                     </div>
 
                     <div>
-                        {{ form.fees.label(class="block text-sm font-medium text-gray-700 mb-2") }}
-                        {{ form.fees(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent", placeholder="0.00", type="number", step="0.01") }}
-                        <p class="mt-1 text-xs text-gray-500">Otros gastos</p>
+                        {{ form.fees.label(class="block text-sm font-medium text-slate-600 mb-1.5") }}
+                        {{ form.fees(class="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500/40", placeholder="0.00", type="number", step="0.01") }}
+                        <p class="mt-1 text-xs text-slate-500">Otros gastos</p>
                         {% if form.fees.errors %}
                             <div class="mt-1 text-sm text-red-600">{{ form.fees.errors[0] }}</div>
                         {% endif %}
                     </div>
 
                     <div>
-                        {{ form.tax.label(class="block text-sm font-medium text-gray-700 mb-2") }}
-                        {{ form.tax(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent", placeholder="0.00", type="number", step="0.01") }}
-                        <p class="mt-1 text-xs text-gray-500">Impuestos/retención</p>
+                        {{ form.tax.label(class="block text-sm font-medium text-slate-600 mb-1.5") }}
+                        {{ form.tax(class="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500/40", placeholder="0.00", type="number", step="0.01") }}
+                        <p class="mt-1 text-xs text-slate-500">Impuestos/retención</p>
                         {% if form.tax.errors %}
                             <div class="mt-1 text-sm text-red-600">{{ form.tax.errors[0] }}</div>
                         {% endif %}
@@ -248,16 +298,16 @@
 
             <!-- Notas -->
             <div class="mb-6">
-                {{ form.notes.label(class="block text-sm font-medium text-gray-700 mb-2") }}
-                {{ form.notes(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent", rows="3", placeholder="Notas adicionales (opcional)") }}
+                {{ form.notes.label(class="block text-sm font-medium text-slate-600 mb-1.5") }}
+                {{ form.notes(class="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500/40", rows="3", placeholder="Notas adicionales (opcional)") }}
                 {% if form.notes.errors %}
                     <div class="mt-1 text-sm text-red-600">{{ form.notes.errors[0] }}</div>
                 {% endif %}
             </div>
 
             <!-- Botones -->
-            <div class="flex justify-between items-center pt-6 border-t border-gray-200">
-                <a href="{{ url_for('portfolio.transactions_list') }}" class="text-gray-600 hover:text-gray-700 font-medium">
+            <div class="flex justify-between items-center pt-6 border-t border-slate-200">
+                <a href="{{ url_for('portfolio.transactions_list') }}" class="text-slate-600 hover:text-slate-900 font-medium text-sm transition-colors">
                     Cancelar
                 </a>
                 {{ form.submit(class="btn-primary cursor-pointer") }}
@@ -303,7 +353,7 @@
         document.getElementById('enrichOpenFIGI').addEventListener('click', async function() {
             this.disabled = true;
             this.textContent = '⏳ Consultando OpenFIGI...';
-            enrichResult.innerHTML = '<p class="text-sm text-gray-600">Consultando OpenFIGI...</p>';
+            enrichResult.innerHTML = '<p class="text-sm text-slate-600">Consultando OpenFIGI...</p>';
             
             try {
                 // Obtener CSRF token del formulario
@@ -334,9 +384,9 @@
                     
                     // Mostrar resultado detallado
                     enrichResult.innerHTML = `
-                        <div class="bg-green-100 border border-green-300 rounded-lg p-3">
-                            <p class="text-sm font-semibold text-green-800 mb-1">✅ Asset enriquecido correctamente</p>
-                            <ul class="text-xs text-green-700 space-y-1">
+                        <div class="bg-emerald-50 border border-emerald-200/80 rounded-xl p-3">
+                            <p class="text-sm font-semibold text-emerald-900 mb-1">✅ Asset enriquecido correctamente</p>
+                            <ul class="text-xs text-emerald-800 space-y-1">
                                 <li><strong>Symbol:</strong> ${data.symbol || '-'}</li>
                                 <li><strong>Exchange:</strong> ${data.exchange || '-'}</li>
                                 <li><strong>MIC:</strong> ${data.mic || '-'}</li>
@@ -368,7 +418,7 @@
             
             this.disabled = true;
             this.textContent = '⏳ Procesando...';
-            enrichResult.innerHTML = '<p class="text-sm text-gray-600">Extrayendo datos...</p>';
+            enrichResult.innerHTML = '<p class="text-sm text-slate-600">Extrayendo datos...</p>';
             
             try {
                 // Parsear URL de Yahoo Finance
@@ -393,7 +443,7 @@
                 if (yahooField) yahooField.value = yahooSuffix;
                 
                 enrichResult.innerHTML = `
-                    <div class="text-sm text-green-600">
+                    <div class="text-sm text-emerald-800">
                         ✅ Datos extraídos:
                         <ul class="ml-4 mt-1 list-disc">
                             <li><strong>Symbol:</strong> ${symbol}</li>
@@ -430,7 +480,7 @@
                     if (micField && data.mic) micField.value = data.mic;
                     
                     enrichResult.innerHTML += `
-                        <div class="mt-2 text-sm text-blue-600">
+                        <div class="mt-2 text-sm text-teal-800">
                             💾 También actualizado en base de datos
                         </div>
                     `;
@@ -643,10 +693,10 @@
                     
                     data.results.forEach(asset => {
                         const item = document.createElement('div');
-                        item.className = 'px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0';
+                        item.className = 'px-4 py-3 hover:bg-teal-50/80 cursor-pointer border-b border-slate-100 last:border-b-0';
                         item.innerHTML = `
-                            <div class="font-medium text-gray-900">${asset.symbol} - ${asset.name}</div>
-                            <div class="text-xs text-gray-500">${asset.isin || 'Sin ISIN'} • ${asset.asset_type}</div>
+                            <div class="font-medium text-slate-900">${asset.symbol} - ${asset.name}</div>
+                            <div class="text-xs text-slate-500">${asset.isin || 'Sin ISIN'} • ${asset.asset_type}</div>
                         `;
                         
                         item.addEventListener('click', () => {
@@ -696,6 +746,17 @@
                 autocompleteDropdown.style.display = 'none';
             }
         });
+        (function () {
+            var el = document.getElementById('tx-form-back');
+            if (el) {
+                el.addEventListener('click', function (e) {
+                    if (window.history.length > 1) {
+                        e.preventDefault();
+                        window.history.back();
+                    }
+                });
+            }
+        })();
     </script>
 </div>
 {% endblock %}

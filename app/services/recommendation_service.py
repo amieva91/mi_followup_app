@@ -15,6 +15,7 @@ from app.models import (
     Income,
     Expense,
     Bank,
+    BankBalance,
     DebtPlan,
     Transaction,
     PortfolioHolding,
@@ -53,9 +54,15 @@ class RecommendationService:
             return True
         if Expense.query.filter_by(user_id=user_id).first() is not None:
             return True
-        if Bank.query.filter_by(user_id=user_id).first() is not None:
-            return True
         if DebtPlan.query.filter_by(user_id=user_id).first() is not None:
+            return True
+        if (
+            BankBalance.query.filter(
+                BankBalance.user_id == user_id,
+                BankBalance.amount != 0
+            ).first()
+            is not None
+        ):
             return True
         return False
 
@@ -84,7 +91,8 @@ class RecommendationService:
         recs: list[Recommendation] = []
 
         # ---- Salud financiera: tips + alertas, solo si hay registros de finanzas ----
-        if health_score and RecommendationService._has_any_finance_records(user_id):
+        active_months = int((health_score or {}).get("summary", {}).get("active_months") or 0)
+        if health_score and RecommendationService._has_any_finance_records(user_id) and active_months >= 2:
             tips = health_score.get("tips") or []
             for t in tips:
                 if not isinstance(t, dict):

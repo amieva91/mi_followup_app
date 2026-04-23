@@ -51,10 +51,10 @@
         .dashboard-lane--tail .dashboard-card { width: 100%; }
     }
     .dashboard-card {
-        background: linear-gradient(145deg, #ffffff 0%, #fafbfc 100%);
+        background: linear-gradient(145deg, #f8fbfc 0%, #f1f7f8 100%);
         border-radius: var(--card-radius);
         box-shadow: var(--card-shadow);
-        border: 1px solid rgba(0,0,0,0.04);
+        border: 1px solid rgba(63, 95, 115, 0.14);
         overflow-y: auto;
         overflow-x: hidden;
         transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -92,34 +92,131 @@
         pointer-events: auto;
         margin: auto;
     }
+    .card-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-weight: 700;
+        color: #1f2937;
+        letter-spacing: 0.01em;
+    }
+    .evo-chart-surface {
+        background:
+            radial-gradient(circle at 30% -10%, rgba(20, 184, 166, 0.08), transparent 42%),
+            linear-gradient(180deg, rgba(255, 255, 255, 0.97) 0%, rgba(247, 250, 252, 0.94) 100%);
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.92),
+            inset 0 -16px 28px rgba(148, 163, 184, 0.05),
+            0 14px 30px rgba(30, 41, 59, 0.12);
+    }
+    .evo-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        padding: 0.32rem 0.62rem;
+        border-radius: 9999px;
+        border: 1px solid rgba(15, 118, 110, 0.18);
+        background: rgba(255, 255, 255, 0.88);
+        cursor: pointer;
+        transition: all 0.18s ease;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+    }
+    .evo-toggle:hover { transform: translateY(-1px); box-shadow: 0 6px 14px rgba(15, 23, 42, 0.14); }
+    .evo-toggle-check {
+        width: 0.95rem;
+        height: 0.95rem;
+        border-radius: 9999px;
+        border: 1px solid #99f6e4;
+        background: #ccfbf1;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.65rem;
+        font-weight: 700;
+        color: transparent;
+        transition: all 0.2s ease;
+    }
+    .evo-toggle input:checked + .evo-toggle-check {
+        background: linear-gradient(180deg, #14b8a6, #0f766e);
+        border-color: #0f766e;
+        color: #fff;
+        box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.2);
+    }
+    .card-surface-3d {
+        background: linear-gradient(180deg, rgba(252, 255, 255, 0.95), rgba(240, 249, 250, 0.92));
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 14px;
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.9),
+            0 10px 22px rgba(15, 23, 42, 0.12);
+    }
+    .card-row-3d {
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(240, 249, 250, 0.9));
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        border-radius: 12px;
+        box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+    }
+    .metric-tile-3d {
+        border-radius: 14px;
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.85),
+            0 10px 24px rgba(15, 23, 42, 0.1);
+    }
+    .dashboard-touch-btn {
+        transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease;
+    }
+    .dashboard-touch-btn:active {
+        transform: scale(0.98);
+        filter: brightness(0.96);
+    }
+    .onboarding-guide-card {
+        background: linear-gradient(145deg, #f8fbfc 0%, #f1f7f8 100%);
+        border: 1px solid rgba(63, 95, 115, 0.14);
+        border-radius: 20px;
+        box-shadow: 0 14px 30px rgba(15,23,42,0.1), inset 0 1px 0 rgba(255,255,255,0.85);
+    }
+    .onboarding-popup-surface {
+        background: linear-gradient(145deg, #f8fbfc 0%, #f1f7f8 100%);
+        border: 1px solid rgba(63, 95, 115, 0.14);
+        border-radius: 20px;
+        box-shadow: 0 20px 44px rgba(15,23,42,0.2), inset 0 1px 0 rgba(255,255,255,0.88);
+    }
 </style>
+    {% set onboarding = onboarding or {} %}
+    {% set onboarding_initial = onboarding.show_initial_onboarding|default(false) %}
+    {% set onboarding_popup = onboarding.show_next_step_popup|default(false) %}
+    {% set onboarding_has_data = onboarding.has_economic_data|default(false) %}
+    {% set onboarding_new_keys = (onboarding.newly_completed_milestones|default([]) | map(attribute='key') | list) %}
     <div class="w-full px-4 sm:px-5 lg:px-6 py-6" x-data="dashboardConfig()" x-init="initSortable()">
     
+    {% if onboarding_has_data %}
     <!-- Header Patrimonio -->
-    <div class="bg-gradient-to-br from-indigo-600 via-indigo-700 to-violet-700 rounded-[20px] shadow-xl p-8 mb-8 text-white overflow-hidden relative">
-        <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-start lg:items-center gap-6">
+    <div class="bg-gradient-to-br from-[#2f4858] via-[#36586a] to-[#3f5f73] rounded-[22px] shadow-[0_20px_45px_rgba(30,41,59,0.35)] p-8 mb-8 text-white overflow-hidden relative border border-white/20 before:content-[''] before:absolute before:inset-0 before:bg-[radial-gradient(circle_at_20%_-10%,rgba(255,255,255,0.22),transparent_40%)] before:pointer-events-none">
+        <div class="grid grid-cols-1 {% if not onboarding_initial %}lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]{% endif %} items-start lg:items-center gap-6">
             <div class="min-w-0">
-                <p class="text-indigo-200 text-sm font-medium uppercase tracking-wide">Patrimonio Neto Total</p>
+                <p class="text-teal-100 text-sm font-medium uppercase tracking-wide">Patrimonio Neto Total</p>
                 <div class="mt-1 flex flex-wrap items-center gap-4">
                     <h1 id="net-worth-value" class="text-4xl md:text-5xl font-bold">{{ "%.2f"|format(summary.net_worth) }} €</h1>
-                    {% if summary.health_score %}
-                    <div class="w-28 h-28 ml-36 rounded-full bg-white/10 backdrop-blur border border-white/25 shadow-[0_10px_24px_rgba(0,0,0,0.2)] flex flex-col items-center justify-center text-center px-2 shrink-0 cursor-help" title="Health Score: {{ summary.health_score.score }}/100">
+                    {% if summary.health_score and not onboarding_initial %}
+                    <div class="w-28 h-28 ml-36 rounded-full bg-teal-100/10 backdrop-blur border border-white/30 shadow-[0_10px_24px_rgba(0,0,0,0.2)] flex flex-col items-center justify-center text-center px-2 shrink-0 cursor-help" title="Health Score: {{ summary.health_score.score }}/100">
                         <span class="text-lg leading-none">{{ summary.health_score.emoji }}</span>
-                        <span class="text-2xl font-bold text-white tabular-nums leading-tight mt-1">{{ summary.health_score.score }}</span>
+                        <span id="health-score-animated" data-target="{{ summary.health_score.score }}" class="text-2xl font-bold text-white tabular-nums leading-tight mt-1">0</span>
                         <span class="text-xs font-semibold text-white/95 leading-tight mt-0.5 truncate max-w-full">{{ summary.health_score.level }}</span>
                     </div>
                     {% endif %}
                 </div>
                 <div class="flex items-center gap-4 mt-2 text-sm">
                     {% if summary.changes.month >= 0 %}
-                    <span id="month-change" class="bg-green-500/30 px-2 py-1 rounded">+{{ "%.2f"|format(summary.changes.month) }} € Month</span>
+                    <span id="month-change" class="bg-emerald-500/30 px-2 py-1 rounded">+{{ "%.2f"|format(summary.changes.month) }} € Month</span>
                     {% else %}
                     <span id="month-change" class="bg-red-500/30 px-2 py-1 rounded">{{ "%.2f"|format(summary.changes.month) }} € Month</span>
                     {% endif %}
-                    <span id="ytd-change" class="bg-white/20 px-2 py-1 rounded">{{ summary.changes.ytd_pct }}% YTD</span>
+                    <span id="ytd-change" class="bg-teal-100/20 px-2 py-1 rounded">{{ summary.changes.ytd_pct }}% YTD</span>
                     {% set day_pct = summary.changes.get('day_pct') if summary.changes else none %}
                     {% set day_eur = summary.changes.get('day_eur') if summary.changes else none %}
-                    <span id="day-change" class="bg-white/20 px-2 py-1 rounded {% if day_pct is none %}hidden{% endif %}" title="Variación del día (precio actual vs. cierre previo): cuenta de acciones en broker + cripto + metales. No incluye efectivo en bancos ni inmuebles.">
+                    <span id="day-change" class="bg-teal-100/20 px-2 py-1 rounded {% if day_pct is none %}hidden{% endif %}" title="Variación del día (precio actual vs. cierre previo): cuenta de acciones en broker + cripto + metales. No incluye efectivo en bancos ni inmuebles.">
                         {% if day_pct is not none and day_eur is not none %}
                             {% if day_eur >= 0 %}+{% endif %}{{ day_eur|decimal_eu(2) }} € · {% if day_pct >= 0 %}+{% endif %}{{ day_pct|decimal_eu(2) }}% Day
                         {% elif day_pct is not none %}
@@ -127,19 +224,20 @@
                         {% endif %}
                     </span>
                 </div>
-                <div class="mt-1 text-xs text-indigo-200">
+                <div class="mt-1 text-xs text-teal-100/90">
                     <span id="dashboard-staleness">Actualizado hace 0 min</span>
                 </div>
             </div>
+            {% if not onboarding_initial %}
             <div class="flex flex-wrap items-stretch justify-end gap-4 shrink-0 lg:justify-self-end">
                 {% if summary.get('commodities') %}
-                <div class="bg-white/10 backdrop-blur rounded-xl p-4 min-w-[240px] max-w-[340px]" id="commodities-block">
-                    <h4 class="text-xs font-semibold text-indigo-200 uppercase tracking-wide mb-2">Commodities</h4>
+                <div class="bg-slate-100/10 backdrop-blur rounded-xl p-4 min-w-[240px] max-w-[340px] border border-white/10" id="commodities-block">
+                    <h4 class="text-xs font-semibold text-teal-100 uppercase tracking-wide mb-2">Commodities</h4>
                     <div id="commodities-list" class="space-y-1.5">
                         {% for c in summary.commodities %}
                         <div class="grid grid-cols-[1fr_92px_64px] items-center gap-2 text-sm price-cell" data-asset-id="{{ c.asset_id }}">
                             <span class="font-medium truncate">{{ c.name }}</span>
-                            <span class="text-center shrink-0 text-indigo-50/90 tabular-nums">
+                            <span class="text-center shrink-0 text-slate-100/90 tabular-nums">
                                 {{ "$%.2f"|format(c.price or 0) }}
                             </span>
                             {% if c.day_change_percent is not none %}
@@ -147,7 +245,7 @@
                                 {{ "%+.1f"|format(c.day_change_percent) }}%
                             </span>
                             {% else %}
-                            <span class="text-right text-indigo-200/70 font-semibold shrink-0">—</span>
+                            <span class="text-right text-teal-100/70 font-semibold shrink-0">—</span>
                             {% endif %}
                         </div>
                         {% endfor %}
@@ -155,8 +253,8 @@
                 </div>
                 {% endif %}
                 {% if summary.get('market_indices') %}
-                <div class="bg-white/10 backdrop-blur rounded-xl p-4 min-w-[200px] max-w-[280px]" id="market-indices-block">
-                    <h4 class="text-xs font-semibold text-indigo-200 uppercase tracking-wide mb-2">Índices (día)</h4>
+                <div class="bg-slate-100/10 backdrop-blur rounded-xl p-4 min-w-[200px] max-w-[280px] border border-white/10" id="market-indices-block">
+                    <h4 class="text-xs font-semibold text-teal-100 uppercase tracking-wide mb-2">Índices (día)</h4>
                     <div id="market-indices-list" class="space-y-1.5">
                         {% for ix in summary.market_indices %}
                         <div class="flex items-center justify-between text-sm">
@@ -166,7 +264,7 @@
                                 {{ "%+.1f"|format(ix.day_change_percent) }}%
                             </span>
                             {% else %}
-                            <span class="text-indigo-200/70 font-semibold shrink-0">—</span>
+                            <span class="text-teal-100/70 font-semibold shrink-0">—</span>
                             {% endif %}
                         </div>
                         {% endfor %}
@@ -174,8 +272,8 @@
                 </div>
                 {% endif %}
                 {% if summary.get('top_movers') %}
-                <div class="bg-white/10 backdrop-blur rounded-xl p-4 min-w-[200px] max-w-[280px]" id="top-movers-block">
-                    <h4 class="text-xs font-semibold text-indigo-200 uppercase tracking-wide mb-2">Top Movers (día)</h4>
+                <div class="bg-slate-100/10 backdrop-blur rounded-xl p-4 min-w-[200px] max-w-[280px] border border-white/10" id="top-movers-block">
+                    <h4 class="text-xs font-semibold text-teal-100 uppercase tracking-wide mb-2">Top Movers (día)</h4>
                     <div id="top-movers-list" class="space-y-1.5">
                         {% for m in summary.top_movers[:5] %}
                         <div class="flex items-center justify-between text-sm price-cell" data-asset-id="{{ m.asset_id }}">
@@ -189,8 +287,167 @@
                 </div>
                 {% endif %}
             </div>
+            {% endif %}
         </div>
     </div>
+    {% endif %}
+
+    {% if onboarding_initial %}
+    <div class="onboarding-guide-card p-8 mb-8">
+        <div class="max-w-5xl mx-auto">
+            <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+                <div>
+                    <h2 class="text-2xl font-bold text-gray-900">Bienvenido a tu dashboard</h2>
+                    <p class="text-sm text-gray-600 mt-1">Tu mapa financiero está listo para cobrar vida. Registra tu primer dato y verás cómo se revela, paso a paso.</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-xs uppercase tracking-wide text-gray-500 font-semibold">Progreso inicial</p>
+                    <p class="text-2xl font-bold text-indigo-700">{{ onboarding.progress_percent|default(0) }}%</p>
+                </div>
+            </div>
+
+            {% if onboarding.initial_guide_milestones %}
+            {% set finance_steps = onboarding.initial_guide_milestones | selectattr('module_key', 'equalto', 'finance') | list %}
+            {% set investment_steps = onboarding.initial_guide_milestones | rejectattr('module_key', 'equalto', 'finance') | list %}
+
+            <div class="mt-6 space-y-6">
+                {% if finance_steps %}
+                <div>
+                    <h3 class="text-sm font-bold text-gray-800 uppercase tracking-wide mb-3">Finanzas</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                        {% for step in finance_steps %}
+                        <a href="{% if step.locked or step.completed %}javascript:void(0){% else %}{{ step.url }}{% endif %}"
+                           title="{% if step.locked %}{{ step.lock_reason }}{% elif step.completed %}Completado{% else %}{% endif %}"
+                           class="dashboard-touch-btn flex items-center justify-between gap-3 p-4 rounded-xl border transition {% if step.completed %}border-emerald-200 bg-emerald-50 text-emerald-700 cursor-default{% elif step.locked %}border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed opacity-80{% else %}border-indigo-100 bg-indigo-50 hover:bg-indigo-100/80{% endif %}">
+                            <div class="flex items-center gap-3 min-w-0">
+                                <span class="text-2xl shrink-0">{{ step.icon|default('📌') }}</span>
+                                <p class="text-sm font-semibold {% if step.completed %}text-emerald-800{% else %}text-gray-800{% endif %} truncate">{{ step.label }}</p>
+                            </div>
+                            <span class="font-bold {% if step.completed %}text-emerald-600{% elif step.locked %}text-gray-400{% else %}text-indigo-600{% endif %}">{% if step.completed %}✅{% elif step.locked %}🔒{% else %}→{% endif %}</span>
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if investment_steps %}
+                <div>
+                    <h3 class="text-sm font-bold text-gray-800 uppercase tracking-wide mb-3">Inversiones</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                        {% for step in investment_steps %}
+                        <a href="{% if step.locked or step.completed %}javascript:void(0){% else %}{{ step.url }}{% endif %}"
+                           title="{% if step.locked %}{{ step.lock_reason }}{% elif step.completed %}Completado{% else %}{% endif %}"
+                           class="dashboard-touch-btn flex items-center justify-between gap-3 p-4 rounded-xl border transition {% if step.completed %}border-emerald-200 bg-emerald-50 text-emerald-700 cursor-default{% elif step.locked %}border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed opacity-80{% else %}border-violet-100 bg-violet-50 hover:bg-violet-100/80{% endif %}">
+                            <div class="flex items-center gap-3 min-w-0">
+                                <span class="text-2xl shrink-0">{{ step.icon|default('📌') }}</span>
+                                <p class="text-sm font-semibold {% if step.completed %}text-emerald-800{% else %}text-gray-800{% endif %} truncate">{{ step.label }}</p>
+                            </div>
+                            <span class="font-bold {% if step.completed %}text-emerald-600{% elif step.locked %}text-gray-400{% else %}text-violet-600{% endif %}">{% if step.completed %}✅{% elif step.locked %}🔒{% else %}→{% endif %}</span>
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% else %}
+            <div class="mt-6 rounded-xl border border-emerald-100 bg-emerald-50 p-4">
+                <p class="text-sm font-semibold text-emerald-800">No hay hitos configurados para los módulos activos de esta cuenta.</p>
+            </div>
+            {% endif %}
+
+            {% if modules %}
+            <div class="mt-8 pt-6 border-t border-gray-100">
+                <h3 class="text-sm font-bold text-gray-800 uppercase tracking-wide mb-3">Activar o desactivar módulos</h3>
+                <p class="text-sm text-gray-600 mb-4">Si activas o desactivas módulos, esta guía se ajustará automáticamente a lo que tengas habilitado.</p>
+                <form method="POST" action="{{ url_for('main.dashboard_onboarding_modules') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                        {% for key, label in modules.items() %}
+                        <label class="dashboard-touch-btn flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer">
+                            <input type="checkbox"
+                                   name="module_{{ key }}"
+                                   value="on"
+                                   class="w-4 h-4 text-indigo-600 rounded border-gray-300"
+                                   onchange="this.form.requestSubmit()"
+                                   {% if enabled_module_keys and key in enabled_module_keys %}checked{% endif %}>
+                            <span class="text-sm font-medium text-gray-700">{{ label }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if onboarding_popup and not onboarding_initial %}
+    <div x-data="{
+            open: true,
+            closing: false,
+            closeOnboardingPopup() {
+                if (this.closing || !this.open) return;
+                this.closing = true;
+                fetch('{{ url_for('main.dashboard_onboarding_ack') }}', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify({ milestones: {{ onboarding_new_keys | tojson | forceescape }} })
+                }).catch(() => {}).finally(() => {
+                    this.open = false;
+                    this.closing = false;
+                });
+            }
+        }">
+        <template x-teleport="body">
+            <div x-show="open" x-transition x-cloak
+                 class="expand-modal"
+                 @click.self="closeOnboardingPopup()"
+                 @keydown.escape.window="if(open) closeOnboardingPopup()"
+                 style="display: none;">
+                <div class="expand-modal-inner onboarding-popup-surface w-[92vw] max-w-2xl" @click.stop>
+                    <div class="flex items-start justify-between gap-3 mb-4">
+                        <div>
+                            <h3 class="text-lg font-bold text-gray-800">Siguiente paso recomendado</h3>
+                            <p class="text-sm text-gray-600">Has avanzado en tu configuración. Te proponemos lo siguiente para completar tu dashboard.</p>
+                        </div>
+                        <button type="button" class="dashboard-touch-btn px-2 py-1 rounded-lg text-gray-400 hover:text-gray-600 cursor-pointer" @click="closeOnboardingPopup()">✕</button>
+                    </div>
+
+                    <div class="rounded-xl bg-teal-50 border border-teal-100 p-4 mb-4">
+                        <p class="text-xs font-semibold text-teal-700 uppercase tracking-wide">Progreso onboarding</p>
+                        <p class="text-2xl font-bold text-teal-900 mt-1">{{ onboarding.progress_percent|default(0) }}%</p>
+                        <p class="text-sm text-teal-800 mt-1">{{ onboarding.completed_count|default(0) }} de {{ onboarding.total_count|default(0) }} hitos completados</p>
+                    </div>
+
+                    {% if onboarding.pending_milestones %}
+                    <div class="space-y-2 mb-4">
+                        {% for step in onboarding.pending_milestones[:4] %}
+                        <a href="{% if step.locked %}javascript:void(0){% else %}{{ step.url }}{% endif %}"
+                           title="{{ step.lock_reason if step.locked else '' }}"
+                           class="dashboard-touch-btn flex items-center justify-between gap-3 p-3 rounded-lg border transition {% if step.locked %}border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed opacity-80{% else %}border-gray-200 hover:bg-gray-50{% endif %}">
+                            <span class="text-sm font-medium text-gray-800">{{ step.label }}</span>
+                            <span class="font-bold {% if step.locked %}text-gray-400{% else %}text-indigo-600{% endif %}">{% if step.locked %}🔒{% else %}→{% endif %}</span>
+                        </a>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <div class="flex justify-end">
+                        <button type="button"
+                                class="dashboard-touch-btn px-4 py-2 rounded-lg bg-teal-600 text-white font-semibold hover:bg-teal-700"
+                                @click="closeOnboardingPopup()">
+                            Omitir
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </template>
+    </div>
+    {% endif %}
 
     <!-- Modal detalle Salud Financiera (clic fuera para cerrar; sin botones) -->
     <template x-teleport="body">
@@ -212,6 +469,7 @@
         </div>
     </template>
 
+    {% if not onboarding_initial %}
     <!-- Dashboard (2 carriles): WIDE izquierda, normales derecha -->
     <div class="dashboard-lanes">
       <div class="dashboard-lane--wide-col">
@@ -219,9 +477,11 @@
         <!-- Evolución Patrimonio (wide) -->
         <div id="dashboard-evolution-wrap" class="dashboard-card dashboard-card--wide p-6" data-card-id="evolution_chart" x-data="{ expanded: false }">
             <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
-                <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
-                <h3 class="text-sm font-bold text-gray-800">Evolución del Patrimonio</h3>
                 <div class="flex items-center gap-2">
+                    <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
+                    <h3 class="card-title text-sm">📈 Evolución del Patrimonio</h3>
+                </div>
+                <div class="flex items-center gap-2 ml-auto">
                     <button @click="expanded = true; document.body.style.overflow = 'hidden'; $nextTick(() => openEvolutionModal())" class="expand-btn px-2 py-1 text-indigo-600 hover:bg-indigo-50 rounded cursor-pointer" title="Ampliar gráfico">⊞ Ampliar</button>
                     <span class="text-xs text-gray-500">Periodo:</span>
                     <div class="flex bg-gray-100 rounded-lg p-1" id="periodButtons">
@@ -232,35 +492,40 @@
                     </div>
                 </div>
             </div>
-            <div class="h-[340px] flex-1 min-h-0"><canvas id="evolutionChart"></canvas></div>
-            <div class="flex flex-wrap items-center gap-3 mt-3 pt-3 border-t">
+            <div class="h-[340px] flex-1 min-h-0 evo-chart-surface rounded-2xl p-3"><canvas id="evolutionChart"></canvas></div>
+            <div class="flex flex-wrap items-center gap-2.5 mt-3 pt-3 border-t">
                 <span class="text-xs text-gray-500">Mostrar:</span>
-                <label class="flex items-center gap-1.5 cursor-pointer">
-                    <input type="checkbox" checked onchange="toggleChartDataset(0, this.checked)" class="w-3.5 h-3.5 text-indigo-600 rounded">
-                    <span class="text-xs text-indigo-600 font-medium">Patrimonio Neto</span>
+                <label class="evo-toggle">
+                    <input type="checkbox" checked onchange="toggleChartDataset(0, this.checked)" class="sr-only">
+                    <span class="evo-toggle-check">✓</span>
+                    <span class="text-xs text-indigo-700 font-semibold">Patrimonio Neto</span>
                 </label>
-                <label class="flex items-center gap-1.5 cursor-pointer">
-                    <input type="checkbox" onchange="toggleChartDataset(1, this.checked)" class="w-3.5 h-3.5 text-emerald-600 rounded">
-                    <span class="text-xs text-emerald-600">Cash</span>
+                <label class="evo-toggle">
+                    <input type="checkbox" onchange="toggleChartDataset(1, this.checked)" class="sr-only">
+                    <span class="evo-toggle-check">✓</span>
+                    <span class="text-xs text-emerald-700">Cash</span>
                 </label>
-                <label class="flex items-center gap-1.5 cursor-pointer">
-                    <input type="checkbox" onchange="toggleChartDataset(2, this.checked)" class="w-3.5 h-3.5 text-blue-600 rounded">
-                    <span class="text-xs text-blue-600">Broker</span>
+                <label class="evo-toggle">
+                    <input type="checkbox" onchange="toggleChartDataset(2, this.checked)" class="sr-only">
+                    <span class="evo-toggle-check">✓</span>
+                    <span class="text-xs text-blue-700">Broker</span>
                 </label>
-                <label class="flex items-center gap-1.5 cursor-pointer">
-                    <input type="checkbox" onchange="toggleChartDataset(3, this.checked)" class="w-3.5 h-3.5 text-amber-500 rounded">
-                    <span class="text-xs text-amber-500">Crypto</span>
+                <label class="evo-toggle">
+                    <input type="checkbox" onchange="toggleChartDataset(3, this.checked)" class="sr-only">
+                    <span class="evo-toggle-check">✓</span>
+                    <span class="text-xs text-amber-600">Crypto</span>
                 </label>
-                <label class="flex items-center gap-1.5 cursor-pointer">
-                    <input type="checkbox" onchange="toggleChartDataset(4, this.checked)" class="w-3.5 h-3.5 text-yellow-500 rounded">
-                    <span class="text-xs text-yellow-500">Metales</span>
+                <label class="evo-toggle">
+                    <input type="checkbox" onchange="toggleChartDataset(4, this.checked)" class="sr-only">
+                    <span class="evo-toggle-check">✓</span>
+                    <span class="text-xs text-yellow-600">Metales</span>
                 </label>
-                <label class="flex items-center gap-1.5 cursor-pointer">
-                    <input type="checkbox" onchange="toggleChartDataset(5, this.checked)" class="w-3.5 h-3.5 text-teal-600 rounded">
-                    <span class="text-xs text-teal-600">Inmuebles</span>
+                <label class="evo-toggle">
+                    <input type="checkbox" onchange="toggleChartDataset(5, this.checked)" class="sr-only">
+                    <span class="evo-toggle-check">✓</span>
+                    <span class="text-xs text-teal-700">Inmuebles</span>
                 </label>
             </div>
-            <p class="text-xs text-gray-400 mt-2 italic">Patrimonio = Cash + Broker + Crypto + Metales + Inmuebles</p>
             <!-- Modal emergente - clic en fondo para cerrar -->
             <template x-teleport="body">
             <div x-show="expanded" x-transition x-cloak
@@ -270,7 +535,7 @@
                  style="display: none;">
                 <div class="expand-modal-inner w-[90vw] max-w-4xl" @click.stop>
                     <div class="flex justify-between items-center mb-3">
-                        <h3 class="font-bold text-gray-800">Evolución del Patrimonio</h3>
+                        <h3 class="card-title">📈 Evolución del Patrimonio</h3>
                         <button @click="expanded = false; closeEvolutionModal(); document.body.style.overflow = ''" class="text-gray-500 hover:text-gray-700 cursor-pointer">✕ Cerrar</button>
                     </div>
                     <div class="flex bg-gray-100 rounded-lg p-1 mb-3">
@@ -289,14 +554,31 @@
         {% if any_assets %}
         {% endif %}
 
+        {% set has_income_expense_data = (summary.savings.total_income|default(0) + summary.savings.total_expense|default(0)) > 0 %}
+        {% if has_income_expense_data %}
         <!-- Ingresos vs Gastos (wide) -->
         <div class="dashboard-card dashboard-card--wide p-6" data-card-id="income_expense" x-data="{ expanded: false }">
             <div class="flex items-center justify-between mb-2">
-                <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
-                <h3 class="text-sm font-bold text-gray-800">Ingresos vs Gastos (12 meses)</h3>
-                <button @click="expanded = true; document.body.style.overflow = 'hidden'; $nextTick(() => openIncomeExpenseModal())" class="expand-btn px-2 py-1 text-indigo-600 hover:bg-indigo-50 rounded cursor-pointer" title="Ampliar gráfico">⊞ Ampliar</button>
+                <div class="flex items-center gap-2">
+                    <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
+                    <h3 class="card-title text-sm">📊 Ingresos vs Gastos (12 meses)</h3>
+                </div>
+                <button @click="expanded = true; document.body.style.overflow = 'hidden'; $nextTick(() => openIncomeExpenseModal())" class="expand-btn px-2 py-1 text-indigo-600 hover:bg-indigo-50 rounded cursor-pointer ml-auto" title="Ampliar gráfico">⊞ Ampliar</button>
             </div>
-            <div class="h-[340px] flex-1 min-h-0"><canvas id="incomeExpenseChart"></canvas></div>
+            <div class="h-[340px] flex-1 min-h-0 card-surface-3d p-3"><canvas id="incomeExpenseChart"></canvas></div>
+            <div class="flex flex-wrap items-center gap-2.5 mt-3 pt-3 border-t">
+                <span class="text-xs text-gray-500">Mostrar:</span>
+                <label class="evo-toggle">
+                    <input type="checkbox" checked onchange="toggleIncomeExpenseDataset(0, this.checked)" class="sr-only">
+                    <span class="evo-toggle-check">✓</span>
+                    <span class="text-xs text-emerald-700 font-semibold">Ingresos</span>
+                </label>
+                <label class="evo-toggle">
+                    <input type="checkbox" checked onchange="toggleIncomeExpenseDataset(1, this.checked)" class="sr-only">
+                    <span class="evo-toggle-check">✓</span>
+                    <span class="text-xs text-red-700 font-semibold">Gastos</span>
+                </label>
+            </div>
             <!-- Modal emergente - clic en fondo para cerrar -->
             <template x-teleport="body">
             <div x-show="expanded" x-transition x-cloak class="expand-modal"
@@ -305,7 +587,7 @@
                  style="display: none;">
                 <div class="expand-modal-inner w-[90vw] max-w-4xl" @click.stop>
                     <div class="flex justify-between items-center mb-3">
-                        <h3 class="font-bold text-gray-800">Ingresos vs Gastos (12 meses)</h3>
+                        <h3 class="card-title">📊 Ingresos vs Gastos (12 meses)</h3>
                         <button @click="expanded = false; closeIncomeExpenseModal(); document.body.style.overflow = ''" class="text-gray-500 hover:text-gray-700 cursor-pointer">✕ Cerrar</button>
                     </div>
                     <div style="width: 100%; height: 400px;"><canvas id="incomeExpenseChartModal"></canvas></div>
@@ -313,28 +595,27 @@
             </div>
             </template>
         </div>
+        {% endif %}
 
         <!-- Deudas (solo si hay planes activos) -->
         {% if summary.debt_details and summary.debt_details.plans_count and summary.debt_details.plans_count > 0 %}
         <div class="dashboard-card dashboard-card--wide p-6 border-l-4 border-red-400" data-card-id="debt_payments">
             <div class="flex items-center justify-between mb-4">
-                <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
-                <a href="{{ url_for('debts.dashboard') }}" class="flex items-center gap-2 group">
-                    <h3 class="text-sm font-bold text-gray-800">Deudas</h3>
-                    <span class="text-xs text-gray-500">({{ summary.debt_details.plans_count }})</span>
-                    <span class="text-gray-400 group-hover:text-indigo-500">→</span>
-                </a>
+                <div class="flex items-center gap-2">
+                    <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
+                    <h3 class="card-title text-sm">📉 Deudas</h3>
+                </div>
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <!-- Izquierda: resumen + planes próximos a expirar -->
                 <div class="min-w-0">
                     <div class="grid grid-cols-2 gap-4">
-                        <div class="bg-red-50 rounded-xl p-4 border border-red-100">
+                        <div class="metric-tile-3d bg-red-50 rounded-xl p-4 border border-red-100">
                             <p class="text-xs text-gray-600">Total pendiente</p>
                             <p class="text-xl font-bold text-red-700">-{{ "%.2f"|format(summary.debt_details.total_debt) }} €</p>
                         </div>
-                        <div class="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                        <div class="metric-tile-3d bg-slate-50 rounded-xl p-4 border border-slate-100">
                             <p class="text-xs text-gray-600">Cuota mensual</p>
                             <p class="text-xl font-bold text-gray-900">{{ "%.2f"|format(summary.debt_details.total_monthly) }} €</p>
                         </div>
@@ -347,7 +628,7 @@
                         </div>
                         <div class="space-y-2">
                             {% for plan in summary.debt_details.expiring_plans %}
-                            <div class="flex items-center justify-between text-sm">
+                            <div class="card-row-3d px-3 py-2 flex items-center justify-between text-sm">
                                 <div class="min-w-0">
                                     <p class="text-gray-700 truncate">{{ plan.name }}</p>
                                     {% if plan.end_date %}<p class="text-xs text-gray-400">última cuota: {{ plan.end_date }}</p>{% endif %}
@@ -381,7 +662,7 @@
                         </div>
                         {% endif %}
                     </div>
-                    <div class="h-[220px] bg-white rounded-xl border border-gray-100 p-3">
+                    <div class="h-[220px] card-surface-3d p-3">
                         <canvas id="debtMiniChart"></canvas>
                     </div>
                 </div>
@@ -391,13 +672,14 @@
 
         <!-- Salud Financiera 1: Score + Métricas componentes -->
         <div class="dashboard-card dashboard-card--wide p-6 bg-gradient-to-br from-slate-50/80 to-indigo-50/50 border-indigo-100/50" data-card-id="health_score">
-            <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2 mb-4">
                 <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
-                <h3 class="text-lg font-bold text-gray-800">{{ summary.health_score.emoji }} Salud Financiera</h3>
+                <h3 class="card-title text-lg">{{ summary.health_score.emoji }} Salud Financiera</h3>
             </div>
-            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+            {% set health_component_count = summary.health_score.components | length %}
+            <div class="grid {% if health_component_count <= 2 %}grid-cols-1 md:grid-cols-2{% elif health_component_count <= 4 %}grid-cols-1 md:grid-cols-2 lg:grid-cols-4{% else %}grid-cols-2 md:grid-cols-4 lg:grid-cols-7{% endif %} gap-4">
                 {% for key, comp in summary.health_score.components.items() %}
-                <div class="bg-white rounded-lg p-4 shadow-sm cursor-pointer hover:shadow-md transition"
+                <div class="card-surface-3d bg-white rounded-lg p-4 shadow-sm cursor-pointer hover:shadow-md transition"
                      role="button" tabindex="0"
                      @click="openHealthModal('{{ key }}')"
                      @keydown.enter.prevent="openHealthModal('{{ key }}')"
@@ -427,9 +709,9 @@
         {% if any_assets %}
         <!-- Activos: tarjeta simple (rosco + leyenda) -->
         <div class="dashboard-card p-5" data-card-id="assets_distribution">
-            <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2 mb-3">
                 <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
-                <h3 class="text-sm font-bold text-gray-800">Activos</h3>
+                <h3 class="card-title text-sm">🧩 Activos</h3>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-[236px_1fr] gap-7 items-center">
                 <div class="w-[236px] h-[236px] mx-auto sm:mx-0">
@@ -442,37 +724,44 @@
         </div>
         {% endif %}
 
+        {% set projection_values = summary.projections.projection_chart | default([]) | map(attribute='value') | list %}
+        {% set has_projection_series = (projection_values|length) > 1 %}
+        {% if has_projection_series %}
+            {% set has_projection_series = (projection_values|max) != (projection_values|min) %}
+        {% endif %}
+        {% if has_projection_series %}
         <!-- Proyecciones -->
         <div class="dashboard-card p-5" data-card-id="projection">
-            <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-2 mb-2">
                 <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
-                <h3 class="text-sm font-bold text-gray-800">Previsión Patrimonio</h3>
+                <h3 class="card-title text-sm">🔮 Previsión Patrimonio</h3>
             </div>
             <p class="text-sm text-gray-500 mb-4">Ahorro mensual: <span class="font-semibold text-green-600">+{{ "%.2f"|format(summary.projections.avg_monthly_savings) }} EUR</span></p>
             <div class="grid grid-cols-3 gap-3 mb-4">
                 {% for key, proj in summary.projections.projections.items() %}
-                <div class="border-l-4 border-indigo-400 pl-3">
+                <div class="metric-tile-3d border-l-4 border-indigo-400 pl-3 py-2 pr-2">
                     <p class="text-xs text-gray-500">{{ proj.years }} {% if proj.years == 1 %}año{% else %}años{% endif %}</p>
                     <p class="text-lg font-bold text-gray-800">{{ "%.0f"|format(proj.projected_value) }}€</p>
                     <p class="text-xs {% if proj.growth >= 0 %}text-green-600{% else %}text-red-600{% endif %}">{{ proj.growth_pct }}%</p>
                 </div>
                 {% endfor %}
             </div>
-            <div class="h-48 mt-2 flex-1 min-h-0">
+            <div class="h-48 mt-2 flex-1 min-h-0 card-surface-3d p-2">
                 <canvas id="projectionChart"></canvas>
             </div>
         </div>
+        {% endif %}
 
         <!-- Últimos Movimientos -->
         {% if summary.recent_transactions and summary.recent_transactions|length > 0 %}
         <div class="dashboard-card p-6 border-l-4 border-indigo-300" data-card-id="recent_movements">
-            <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2 mb-4">
                 <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
-                <h3 class="text-sm font-bold text-gray-800">🔄 Últimos Movimientos</h3>
+                <h3 class="card-title text-sm">🔄 Últimos Movimientos</h3>
             </div>
             <div class="space-y-3">
                 {% for tx in summary.recent_transactions %}
-                <div class="flex items-center justify-between">
+                <div class="card-row-3d px-3 py-2 flex items-center justify-between">
                     <div class="flex items-center gap-2">
                         <span>{{ tx.icon }}</span>
                         <div>
@@ -495,10 +784,9 @@
         {% if expense_cats or income_cats %}
         <div class="dashboard-card p-5" data-card-id="expense_by_category">
             <div class="flex items-center justify-between mb-2">
-                <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
-                <div class="flex items-center justify-between flex-1">
-                <h3 class="text-sm font-bold text-gray-800">📋 Medias por categoría</h3>
-                <span class="text-gray-300"> </span>
+                <div class="flex items-center gap-2">
+                    <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
+                    <h3 class="card-title text-sm">📋 Medias por categoría</h3>
                 </div>
             </div>
             <p class="text-xs text-gray-500 mb-4">Últimos 12 meses</p>
@@ -507,11 +795,10 @@
                 <div>
                     <a href="{{ url_for('expenses.list') }}" class="flex items-center justify-between mb-3 group">
                         <h4 class="text-sm font-bold text-gray-800">Gastos medios</h4>
-                        <span class="text-gray-400 group-hover:text-indigo-500">→</span>
                     </a>
                     <div class="space-y-3">
                         {% for cat in expense_cats %}
-                        <div class="flex items-center justify-between">
+                        <div class="card-row-3d px-3 py-2 flex items-center justify-between">
                             <div class="flex items-center gap-2 min-w-0">
                                 <span class="shrink-0">{{ cat.icon|default('💰') }}</span>
                                 <span class="text-sm text-gray-700 truncate">{{ cat.name }}</span>
@@ -527,11 +814,10 @@
                 <div>
                     <a href="{{ url_for('incomes.list') }}" class="flex items-center justify-between mb-3 group">
                         <h4 class="text-sm font-bold text-gray-800">Ingresos medios</h4>
-                        <span class="text-gray-400 group-hover:text-indigo-500">→</span>
                     </a>
                     <div class="space-y-3">
                         {% for cat in income_cats %}
-                        <div class="flex items-center justify-between">
+                        <div class="card-row-3d px-3 py-2 flex items-center justify-between">
                             <div class="flex items-center gap-2 min-w-0">
                                 <span class="shrink-0">{{ cat.icon|default('💵') }}</span>
                                 <span class="text-sm text-gray-700 truncate">{{ cat.category|default(cat.name) }}</span>
@@ -548,12 +834,14 @@
 
         <!-- Recomendaciones (unificadas; solo si hay datos) -->
         {% set recs = summary.recommendations | default([]) %}
-        {% if recs and recs|length > 0 %}
+        {% set recommendation_data_ready = (summary.health_score.summary.active_months | default(0)) >= 2 %}
+        {% if (recs and recs|length > 0) or not recommendation_data_ready %}
         <div class="dashboard-card p-6 bg-white border border-gray-100" data-card-id="health_tips">
-            <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2 mb-4">
                 <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
-                <h3 class="text-lg font-bold text-gray-800">💡 Recomendaciones Personalizadas</h3>
+                <h3 class="card-title text-lg">💡 Recomendaciones Personalizadas</h3>
             </div>
+            {% if recs and recs|length > 0 %}
             {% set tips_count = recs|length %}
             <div class="space-y-3 {% if tips_count > 5 %}max-h-[18rem] overflow-y-auto pr-1{% endif %}">
                 {% for tip in recs %}
@@ -569,52 +857,61 @@
                 </div>
                 {% endfor %}
             </div>
+            {% else %}
+            <div class="rounded-xl border border-indigo-100 bg-indigo-50 p-4">
+                <p class="text-sm font-semibold text-indigo-800">Aun no hay datos suficientes para recomendaciones personalizadas.</p>
+                <p class="text-sm text-indigo-700 mt-1">Anade 1-2 meses de ingresos y gastos para desbloquear sugerencias mas precisas.</p>
+            </div>
+            {% endif %}
         </div>
         {% endif %}
 
       </div>
     </div>
     </div><!-- Fin dashboard-lanes -->
+    {% endif %}
 
     {# Empty state: evitar sensación de vacío para usuarios nuevos #}
     {% set has_finance = (summary.savings.total_income|default(0) + summary.savings.total_expense|default(0)) > 0 %}
     {% set has_assets_any = (summary.breakdown.cash|default(0) + summary.breakdown.portfolio|default(0) + summary.breakdown.crypto|default(0) + summary.breakdown.metales|default(0) + summary.breakdown.real_estate|default(0)) > 0 %}
     {% set has_any_content = has_finance or has_assets_any or (summary.debt_details.plans_count|default(0) > 0) or (summary.recent_transactions and summary.recent_transactions|length > 0) %}
-    {% if not has_any_content %}
+    {% if not onboarding_initial and not has_any_content %}
     <div class="mt-10 bg-white rounded-[20px] border border-gray-100 shadow-sm p-6">
         <h3 class="text-lg font-bold text-gray-800">Tu dashboard irá tomando forma</h3>
         <p class="text-sm text-gray-600 mt-1">A medida que añadas datos, aparecerán tarjetas con gráficos, métricas y recomendaciones.</p>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-5">
             {% if current_user|user_has_module('finance') %}
-            <a href="{{ url_for('banks.new') }}" class="px-4 py-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-100 text-sm font-semibold text-emerald-800">🏦 Añadir banco</a>
-            <a href="{{ url_for('incomes.new') }}" class="px-4 py-3 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-100 text-sm font-semibold text-blue-800">💵 Nuevo ingreso</a>
-            <a href="{{ url_for('expenses.new') }}" class="px-4 py-3 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-100 text-sm font-semibold text-rose-800">💸 Nuevo gasto</a>
-            <a href="{{ url_for('debts.new', next='debts') }}" class="px-4 py-3 rounded-xl bg-violet-50 hover:bg-violet-100 border border-violet-100 text-sm font-semibold text-violet-800">📋 Añadir deuda</a>
+            <a href="{{ url_for('banks.new') }}" class="dashboard-touch-btn px-4 py-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-100 text-sm font-semibold text-emerald-800">🏦 Añadir banco</a>
+            <a href="{{ url_for('incomes.new') }}" class="dashboard-touch-btn px-4 py-3 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-100 text-sm font-semibold text-blue-800">💵 Nuevo ingreso</a>
+            <a href="{{ url_for('expenses.new') }}" class="dashboard-touch-btn px-4 py-3 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-100 text-sm font-semibold text-rose-800">💸 Nuevo gasto</a>
+            <a href="{{ url_for('debts.new', next='debts') }}" class="dashboard-touch-btn px-4 py-3 rounded-xl bg-violet-50 hover:bg-violet-100 border border-violet-100 text-sm font-semibold text-violet-800">📋 Añadir deuda</a>
             {% endif %}
             {% if current_user|user_has_module('stock') %}
-            <a href="{{ url_for('portfolio.import_csv') }}" class="px-4 py-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-100 text-sm font-semibold text-slate-800">📥 Importar portfolio</a>
+            <a href="{{ url_for('portfolio.import_csv') }}" class="dashboard-touch-btn px-4 py-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-100 text-sm font-semibold text-slate-800">📥 Importar portfolio</a>
             {% endif %}
         </div>
     </div>
     {% endif %}
 
     <!-- FAB acciones rápidas -->
+    {% if not onboarding_initial %}
     <div class="fixed bottom-6 left-6 z-[9998]" id="fab-root">
         <div id="fab-menu" class="hidden mb-3 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden w-60">
             <div class="p-2 space-y-1">
-                <a href="{{ url_for('incomes.new') }}" class="block px-3 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium text-gray-800">💵 Nuevo ingreso</a>
-                <a href="{{ url_for('expenses.new') }}" class="block px-3 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium text-gray-800">💸 Nuevo gasto</a>
-                <a href="{{ url_for('incomes.list') }}" class="block px-3 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium text-gray-800">📋 Ver ingresos</a>
-                <a href="{{ url_for('expenses.list') }}" class="block px-3 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium text-gray-800">📋 Ver gastos</a>
+                <a href="{{ url_for('incomes.new') }}" class="dashboard-touch-btn block px-3 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium text-gray-800">💵 Nuevo ingreso</a>
+                <a href="{{ url_for('expenses.new') }}" class="dashboard-touch-btn block px-3 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium text-gray-800">💸 Nuevo gasto</a>
+                <a href="{{ url_for('incomes.list') }}" class="dashboard-touch-btn block px-3 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium text-gray-800">📋 Ver ingresos</a>
+                <a href="{{ url_for('expenses.list') }}" class="dashboard-touch-btn block px-3 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium text-gray-800">📋 Ver gastos</a>
             </div>
         </div>
         <button type="button"
                 id="fab-toggle"
-                class="w-14 h-14 rounded-full shadow-xl bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center text-2xl"
+                class="dashboard-touch-btn w-14 h-14 rounded-full shadow-xl bg-teal-600 hover:bg-teal-700 text-white flex items-center justify-center text-2xl"
                 aria-label="Acciones rápidas">
             <span id="fab-toggle-icon">+</span>
         </button>
     </div>
+    {% endif %}
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -657,16 +954,61 @@ let currentChartPeriod = 12;
 let lastPolledEvolutionLastNw = (fullHistory.length && fullHistory[fullHistory.length - 1].net_worth != null)
     ? Number(fullHistory[fullHistory.length - 1].net_worth) : null;
 
+const evolutionDepthPlugin = {
+    id: 'evolutionDepth',
+    beforeDatasetsDraw(chart) {
+        const area = chart.chartArea;
+        if (!area) return;
+        const { ctx } = chart;
+        ctx.save();
+        const floor = ctx.createLinearGradient(0, area.top + area.height * 0.45, 0, area.bottom);
+        floor.addColorStop(0, 'rgba(99, 102, 241, 0.03)');
+        floor.addColorStop(1, 'rgba(30, 41, 59, 0.11)');
+        ctx.fillStyle = floor;
+        ctx.fillRect(area.left, area.top + area.height * 0.45, area.width, area.height * 0.55);
+        ctx.restore();
+    },
+    beforeDatasetDraw(chart, args) {
+        const dataset = chart.data.datasets?.[args.index];
+        if (!dataset) return;
+        const { ctx } = chart;
+        ctx.save();
+        if (args.index === 0) {
+            ctx.shadowColor = 'rgba(99, 102, 241, 0.35)';
+            ctx.shadowBlur = 16;
+            ctx.shadowOffsetY = 6;
+        } else if (!dataset.hidden) {
+            ctx.shadowColor = 'rgba(15, 23, 42, 0.16)';
+            ctx.shadowBlur = 8;
+            ctx.shadowOffsetY = 3;
+        }
+    },
+    afterDatasetDraw(chart) {
+        chart.ctx.restore();
+    }
+};
+
+function makeEvolutionGradient(canvas) {
+    const ctx = canvas.getContext('2d');
+    const h = canvas.clientHeight || 340;
+    const gradient = ctx.createLinearGradient(0, 0, 0, h);
+    gradient.addColorStop(0, 'rgba(99, 102, 241, 0.35)');
+    gradient.addColorStop(0.6, 'rgba(99, 102, 241, 0.11)');
+    gradient.addColorStop(1, 'rgba(99, 102, 241, 0.02)');
+    return gradient;
+}
+
 function openEvolutionModal() {
     const ctx = document.getElementById('evolutionChartModal');
     if (!ctx || evolutionModalChart) return;
     let filtered = currentChartPeriod > 0 ? fullHistory.slice(-currentChartPeriod) : fullHistory;
+    const modalFill = makeEvolutionGradient(ctx);
     evolutionModalChart = new Chart(ctx, {
         type: 'line',
         data: {
             labels: filtered.map(h => h.month_label),
             datasets: [
-                { label: 'Patrimonio Neto', data: filtered.map(h => h.net_worth), borderColor: 'rgb(99, 102, 241)', backgroundColor: 'rgba(99, 102, 241, 0.1)', borderWidth: 3, fill: true, tension: 0.3, hidden: false },
+                { label: 'Patrimonio Neto', data: filtered.map(h => h.net_worth), borderColor: 'rgb(99, 102, 241)', backgroundColor: modalFill, borderWidth: 3, fill: true, tension: 0.3, hidden: false, pointRadius: 2.5, pointHoverRadius: 5 },
                 { label: 'Cash', data: filtered.map(h => h.cash), borderColor: 'rgb(16, 185, 129)', borderWidth: 2, fill: false, tension: 0.3, hidden: true },
                 { label: 'Broker', data: filtered.map(h => h.broker_total), borderColor: 'rgb(59, 130, 246)', borderWidth: 2, fill: false, tension: 0.3, hidden: true },
                 { label: 'Crypto', data: filtered.map(h => h.crypto), borderColor: 'rgb(245, 158, 11)', borderWidth: 2, fill: false, tension: 0.3, hidden: true },
@@ -675,7 +1017,8 @@ function openEvolutionModal() {
             ]
         },
         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } },
-            scales: { y: { beginAtZero: true, ticks: { callback: v => (v/1000).toFixed(0) + 'k' } } } }
+            scales: { y: { beginAtZero: true, ticks: { callback: v => (v/1000).toFixed(0) + 'k' } } } },
+        plugins: [evolutionDepthPlugin]
     });
 }
 function closeEvolutionModal() {
@@ -722,6 +1065,12 @@ function toggleChartDataset(index, show) {
     evolutionChart.update();
 }
 
+function toggleIncomeExpenseDataset(index, show) {
+    if (!incomeExpenseMainChart || !incomeExpenseMainChart.data || !incomeExpenseMainChart.data.datasets[index]) return;
+    incomeExpenseMainChart.data.datasets[index].hidden = !show;
+    incomeExpenseMainChart.update();
+}
+
 // Función global para actualizar periodo
 function selectPeriod(months, btn) {
     if (!evolutionChart) return;
@@ -757,6 +1106,7 @@ function dashboardConfig() {
         widgets: { {% for widget in default_widgets %}'{{ widget.id }}': {% if widget.id.startswith('health_detail_') %}true{% else %}{{ 'true' if (widget_config.get(widget.id) or {'enabled': True}).get('enabled', True) else 'false' }}{% endif %},{% endfor %} },
         _didAutoBalance: false,
         _hasServerLayout: false,
+        _serverLayoutIds: new Set(),
         _layoutEndpoint: '{{ url_for("main.dashboard_layout") }}',
         healthModalOpen: false,
         healthModalKey: null,
@@ -833,6 +1183,7 @@ function dashboardConfig() {
                 this.applyOrder(wide, layout.wide);
                 this.applyOrder(tail, layout.tail);
                 this.applyOrder(normal, layout.normal);
+                this._serverLayoutIds = new Set([...(layout.wide || []), ...(layout.normal || []), ...(layout.tail || [])]);
                 this._hasServerLayout = true;
                 return true;
             } catch (e) {
@@ -850,16 +1201,36 @@ function dashboardConfig() {
             const normal = document.getElementById('sortable-widgets-normal');
             if (!wide || !tail || !normal) return;
 
+            // Si la tarjeta de recomendaciones aparece por primera vez, ubicarla arriba del carril simple.
+            // A partir de ahí queda persistida y el usuario manda con drag&drop.
+            const recCard = normal.querySelector('[data-card-id="health_tips"]');
+            if (recCard) {
+                const parseSaved = (k) => {
+                    try { return JSON.parse(localStorage.getItem(k) || '[]'); } catch (e) { return []; }
+                };
+                const localWide = parseSaved('dashboard_card_order_wide');
+                const localTail = parseSaved('dashboard_card_order_tail');
+                const localNormal = parseSaved('dashboard_card_order_normal');
+                const localHasRecommendations = [...localWide, ...localTail, ...localNormal].includes('health_tips');
+                const serverHasRecommendations = this._serverLayoutIds && this._serverLayoutIds.has('health_tips');
+                if (!localHasRecommendations && !serverHasRecommendations && normal.firstElementChild !== recCard) {
+                    normal.prepend(recCard);
+                    try { await this.saveWidgetOrder(); } catch (e) { /* ignore */ }
+                }
+            }
+
             if (typeof Sortable === 'undefined') return;
 
             const common = {
                 animation: 150,
-                handle: '.card-drag-handle',
                 ghostClass: 'sortable-ghost',
                 chosenClass: 'sortable-chosen',
                 emptyInsertThreshold: 120,
                 invertSwap: true,
                 swapThreshold: 0.65,
+                // Permite arrastrar desde el fondo de la tarjeta, pero respeta controles interactivos.
+                filter: 'a,button,input,textarea,select,option,label,[role="button"],[contenteditable="true"],canvas,.no-drag',
+                preventOnFilter: false,
                 onEnd: () => this.saveWidgetOrder()
             };
 
@@ -1123,6 +1494,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (evoCtx) {
         // Por defecto mostrar últimos 12 meses
         const initialHistory = fullHistory.slice(-12);
+        const evoFill = makeEvolutionGradient(evoCtx);
         
         evolutionChart = new Chart(evoCtx, {
             type: 'line',
@@ -1133,10 +1505,12 @@ document.addEventListener('DOMContentLoaded', function() {
                         label: 'Patrimonio Neto',
                         data: initialHistory.map(h => h.net_worth),
                         borderColor: 'rgb(99, 102, 241)',
-                        backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                        backgroundColor: evoFill,
                         borderWidth: 3,
                         fill: true,
                         tension: 0.3,
+                        pointRadius: 2.5,
+                        pointHoverRadius: 5,
                         order: 0,
                         hidden: false
                     },
@@ -1217,7 +1591,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         ticks: { callback: v => (v/1000).toFixed(0) + 'k' } 
                     } 
                 }
-            }
+            },
+            plugins: [evolutionDepthPlugin]
         });
     }
 
@@ -1287,6 +1662,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const debtMiniCtx = document.getElementById('debtMiniChart');
     if (debtMiniCtx) {
         const mini = {{ (summary.debt_details.mini_schedule if summary.debt_details is defined and summary.debt_details and summary.debt_details.mini_schedule is defined else []) | tojson }};
+        const miniPlanIds = {{ (summary.debt_details.mini_plan_ids if summary.debt_details is defined and summary.debt_details and summary.debt_details.mini_plan_ids is defined else []) | tojson }};
+        const miniPlanColors = {{ (summary.debt_details.mini_plan_colors if summary.debt_details is defined and summary.debt_details and summary.debt_details.mini_plan_colors is defined else {}) | tojson }};
+        const miniPlanNames = {{ (summary.debt_details.mini_plan_names if summary.debt_details is defined and summary.debt_details and summary.debt_details.mini_plan_names is defined else {}) | tojson }};
         const li = {{ (summary.debt_details.limit_info if summary.debt_details is defined and summary.debt_details and summary.debt_details.limit_info is defined else {}) | tojson }};
         const maxMonthly = (li && typeof li.max_monthly_debt === 'number') ? li.max_monthly_debt : null;
         const labels = (mini || []).map(m => m.month_label || m.month_key || '');
@@ -1295,11 +1673,27 @@ document.addEventListener('DOMContentLoaded', function() {
         const maxData = Math.max(0, ...(values || []), maxMonthly != null ? maxMonthly : 0);
         const yMax = maxData > 0 ? (maxData * 1.12) : 100;
 
+        const planDatasets = (Array.isArray(miniPlanIds) ? miniPlanIds : []).map((planId) => {
+            const key = String(planId);
+            const base = miniPlanColors[key] || 'rgba(99, 102, 241, 0.75)';
+            const border = base.replace('0.8', '1').replace('0.75', '1');
+            return {
+                type: 'bar',
+                label: miniPlanNames[key] || `Deuda ${key}`,
+                data: (mini || []).map(m => Number((m.by_plan && m.by_plan[key]) || 0)),
+                backgroundColor: base,
+                borderColor: border,
+                borderWidth: 1,
+                borderRadius: 8,
+                stack: 'plans'
+            };
+        });
+
         new Chart(debtMiniCtx, {
             data: {
                 labels,
                 datasets: [
-                    {
+                    ...(planDatasets.length > 0 ? planDatasets : [{
                         type: 'bar',
                         label: 'Pagos',
                         data: values,
@@ -1307,7 +1701,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         borderColor: 'rgb(239, 68, 68)',
                         borderWidth: 1,
                         borderRadius: 8
-                    },
+                    }]),
                     ...(maxMonthly != null ? [{
                         type: 'line',
                         label: 'Límite',
@@ -1336,6 +1730,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 scales: {
                     x: { ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 6 } },
                     y: {
+                        stacked: planDatasets.length > 1,
                         beginAtZero: true,
                         suggestedMax: yMax,
                         ticks: {
@@ -1379,7 +1774,7 @@ document.addEventListener('DOMContentLoaded', function() {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { position: 'top' } },
+                plugins: { legend: { display: false } },
                 scales: { y: { beginAtZero: true, ticks: { callback: v => v.toLocaleString('es-ES') + ' EUR' } } }
             }
         });
@@ -1390,6 +1785,11 @@ document.addEventListener('DOMContentLoaded', function() {
     if (projCtx) {
         const projData = {{ summary.projections.projection_chart | tojson }};
         const currentValue = {{ summary.projections.current }};
+        const projValues = projData.map(d => Number(d.value || 0));
+        const projMax = Math.max(0, currentValue, ...projValues);
+        const projMin = Math.min(0, currentValue, ...projValues);
+        const projRange = projMax - projMin;
+        const projPad = projRange === 0 ? Math.max(100, Math.abs(projMax) * 0.15) : projRange * 0.12;
         projectionMainChart = new Chart(projCtx, {
             type: 'line',
             data: {
@@ -1430,8 +1830,15 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                     },
                     y: { 
-                        beginAtZero: false, 
-                        ticks: { callback: v => (v/1000).toFixed(0) + 'k' } 
+                        min: projMin - projPad,
+                        max: projMax + projPad,
+                        ticks: {
+                            maxTicksLimit: 6,
+                            callback: v => Number(v).toLocaleString('es-ES', {
+                                minimumFractionDigits: 0,
+                                maximumFractionDigits: 0
+                            }) + '€'
+                        }
                     } 
                 }
             }
@@ -1439,12 +1846,45 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+function animateHealthScoreCounter() {
+    const scoreEl = document.getElementById('health-score-animated');
+    if (!scoreEl) return;
+    const target = Number(scoreEl.dataset.target || 0);
+    if (!Number.isFinite(target) || target <= 0) {
+        scoreEl.textContent = '0';
+        return;
+    }
+    const durationMs = 1500;
+    const start = performance.now();
+    const easeInOut = (t) => {
+        if (t < 0.5) return 4 * t * t * t;
+        return 1 - Math.pow(-2 * t + 2, 3) / 2;
+    };
+    const tick = (now) => {
+        const elapsed = now - start;
+        const progress = Math.min(1, elapsed / durationMs);
+        const eased = easeInOut(progress);
+        const value = Math.round(target * eased);
+        scoreEl.textContent = String(value);
+        if (progress < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    animateHealthScoreCounter();
+}, { once: true });
+
 // --- Actualización ligera desde /dashboard/state (sin recargar toda la página) ---
 
 function updateDashboardStaleness(cachedAtIso) {
     const stalenessEl = document.getElementById('dashboard-staleness');
     if (!stalenessEl || !cachedAtIso) return;
     const cachedAt = new Date(cachedAtIso);
+    if (!Number.isFinite(cachedAt.getTime())) {
+        stalenessEl.textContent = 'Actualizado recientemente';
+        return;
+    }
     const now = new Date();
     const diffMin = Math.max(0, Math.round((now - cachedAt) / 60000));
     stalenessEl.textContent = diffMin === 0
@@ -1629,10 +2069,17 @@ function applyDashboardUpdate(summary) {
         const proj = summary.projections;
         const projData = proj.projection_chart || [];
         const currentValue = proj.current != null ? proj.current : summary.net_worth;
+        const projValues = projData.map(d => Number(d.value || 0));
+        const projMax = Math.max(0, currentValue, ...projValues);
+        const projMin = Math.min(0, currentValue, ...projValues);
+        const projRange = projMax - projMin;
+        const projPad = projRange === 0 ? Math.max(100, Math.abs(projMax) * 0.15) : projRange * 0.12;
         projectionMainChart.data.labels = projData.map(d => d.year + 'a');
         projectionMainChart.data.datasets[0].data = projData.map(d => d.value);
         projectionMainChart.data.datasets[0].pointRadius = projData.map(d => d.label ? 4 : 0);
         projectionMainChart.data.datasets[1].data = projData.map(() => currentValue);
+        projectionMainChart.options.scales.y.min = projMin - projPad;
+        projectionMainChart.options.scales.y.max = projMax + projPad;
         projectionMainChart.update('active');
     }
 }

@@ -3,11 +3,140 @@
 {% block title %}Deudas - FollowUp{% endblock %}
 
 {% block content %}
+<style>
+    .debt-card {
+        background: linear-gradient(145deg, #f8fbfc 0%, #f1f7f8 100%);
+        border: 1px solid rgba(63, 95, 115, 0.14);
+        border-radius: 16px;
+        box-shadow: 0 14px 30px rgba(15,23,42,0.1), inset 0 1px 0 rgba(255,255,255,0.85);
+    }
+    .debt-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-weight: 700;
+        color: #1f2937;
+    }
+    .debt-kpi {
+        background: linear-gradient(145deg, rgba(248,251,252,0.98), rgba(241,247,248,0.92));
+        border-radius: 14px;
+        box-shadow:
+            inset 0 0 0 1px rgba(148,163,184,0.16),
+            0 10px 24px rgba(15,23,42,0.08);
+    }
+    .debt-table-row {
+        background: linear-gradient(145deg, rgba(248,251,252,0.96), rgba(241,247,248,0.9));
+    }
+    .debt-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        padding: 0.32rem 0.62rem;
+        border-radius: 9999px;
+        border: 1px solid rgba(13, 148, 136, 0.2);
+        background: rgba(255, 255, 255, 0.9);
+        cursor: pointer;
+        transition: all 0.18s ease;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+    }
+    .debt-toggle:hover { transform: translateY(-1px); box-shadow: 0 6px 14px rgba(15, 23, 42, 0.14); }
+    .debt-toggle-check {
+        width: 0.95rem;
+        height: 0.95rem;
+        border-radius: 9999px;
+        border: 1px solid #99f6e4;
+        background: #ccfbf1;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.65rem;
+        font-weight: 700;
+        color: transparent;
+        transition: all 0.2s ease;
+    }
+    .debt-toggle input:checked + .debt-toggle-check {
+        background: linear-gradient(180deg, #14b8a6, #0f766e);
+        border-color: #0f766e;
+        color: #fff;
+        box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.2);
+    }
+    .table-action-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        font-size: 0.8rem;
+        font-weight: 600;
+        line-height: 1.2;
+        padding: 0.2rem 0.15rem;
+        transition: all 0.18s ease;
+    }
+    .table-action-link:hover {
+        transform: translateY(-1px);
+    }
+    .table-action-link:active {
+        transform: translateY(0) scale(0.96);
+        background: rgba(100, 116, 139, 0.16);
+        border-radius: 0.5rem;
+    }
+    .modal-touch-btn {
+        transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease;
+    }
+    .modal-touch-btn:active {
+        transform: scale(0.97);
+        filter: brightness(0.96);
+    }
+    .table-action-emoji {
+        line-height: 1;
+        display: inline-flex;
+    }
+    .table-action-label {
+        line-height: 1.2;
+    }
+    .table-actions-col {
+        width: 15rem;
+        min-width: 15rem;
+    }
+    @media (max-width: 1024px) {
+        .table-actions-col {
+            width: 12rem;
+            min-width: 12rem;
+        }
+    }
+    @media (max-width: 640px) {
+        .responsive-data-table th,
+        .responsive-data-table td {
+            padding-left: 0.75rem;
+            padding-right: 0.75rem;
+        }
+    }
+    @media (max-width: 480px) {
+        .table-actions-col {
+            width: 4.5rem;
+            min-width: 4.5rem;
+        }
+        .table-action-link {
+            width: 2.2rem;
+            height: 2.2rem;
+            justify-content: center;
+            gap: 0;
+            padding: 0;
+        }
+        .table-action-label {
+            display: none;
+        }
+    }
+    @media (pointer: coarse) {
+        .table-action-link {
+            width: 2.35rem;
+            height: 2.35rem;
+        }
+    }
+</style>
 <div class="max-w-[92%] mx-auto px-4 py-8">
     <!-- Header -->
     <div class="flex justify-between items-center mb-6">
-        <h1 class="text-3xl font-bold text-gray-800">📋 Mis Deudas</h1>
-        <a href="{{ url_for('debts.new', next='debts') }}" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition font-medium">
+        <h1 class="debt-title text-3xl">📋 Mis Deudas</h1>
+        <a href="{{ url_for('debts.new', next='debts') }}" class="rounded-xl bg-teal-600 hover:bg-teal-700 text-white px-6 py-2 transition font-medium shadow-[0_10px_20px_rgba(13,148,136,0.3)]">
             + Nueva deuda
         </a>
     </div>
@@ -22,22 +151,22 @@
 
     <!-- Resumen y Límite -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-red-500">
+        <div class="debt-kpi bg-white rounded-lg shadow p-4 border-l-4 border-rose-500">
             <p class="text-gray-600 text-sm font-medium">Total deuda pendiente</p>
             <p class="text-2xl font-bold text-gray-900">{{ total_debt|decimal_eu(2) }} €</p>
         </div>
-        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-blue-500">
+        <div class="debt-kpi bg-white rounded-lg shadow p-4 border-l-4 border-sky-500">
             <p class="text-gray-600 text-sm font-medium">Ingresos medios (12m)</p>
             <p class="text-2xl font-bold text-gray-900">{{ limit_info.avg_monthly_income|decimal_eu(2) }} €</p>
         </div>
-        <div class="bg-white rounded-lg shadow p-4 border-l-4 {% if limit_info.margin >= 0 %}border-green-500{% else %}border-red-500{% endif %}">
+        <div class="debt-kpi bg-white rounded-lg shadow p-4 border-l-4 {% if limit_info.margin >= 0 %}border-emerald-500{% else %}border-rose-500{% endif %}">
             <p class="text-gray-600 text-sm font-medium">Margen disponible</p>
-            <p class="text-2xl font-bold {% if limit_info.margin >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+            <p class="text-2xl font-bold {% if limit_info.margin >= 0 %}text-emerald-700{% else %}text-rose-700{% endif %}">
                 {{ limit_info.margin|decimal_eu(2) }} €
             </p>
             <p class="text-xs text-gray-500">Según límite {{ limit_info.debt_limit_percent|decimal_eu(0) }}%</p>
         </div>
-        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-gray-500">
+        <div class="debt-kpi bg-white rounded-lg shadow p-4 border-l-4 border-slate-500">
             <p class="text-gray-600 text-sm font-medium">Límite máximo mensual</p>
             <p class="text-2xl font-bold text-gray-900">{{ limit_info.max_monthly_debt|decimal_eu(2) }} €</p>
             <p class="text-xs text-gray-500">{{ limit_info.max_yearly_debt|decimal_eu(2) }} €/año</p>
@@ -45,17 +174,17 @@
     </div>
 
     <!-- Configurar límite -->
-    <div class="bg-white rounded-lg shadow p-4 mb-6">
-        <h2 class="text-lg font-bold text-gray-800 mb-3">⚙️ Límite de endeudamiento</h2>
+    <div class="debt-card bg-white rounded-lg shadow p-4 mb-6">
+        <h2 class="debt-title text-lg mb-3">⚙️ Límite de endeudamiento</h2>
         <form method="POST" action="{{ url_for('debts.update_limit') }}" class="flex items-end gap-3">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="flex-1 max-w-xs">
                 <label class="block text-sm font-medium text-gray-700 mb-1">Máximo % de ingresos para deuda</label>
                 <input type="number" name="debt_limit_percent" value="{{ limit_info.debt_limit_percent }}"
                        min="5" max="100" step="0.5"
-                       class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                       class="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
             </div>
-            <button type="submit" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg">
+            <button type="submit" class="rounded-full bg-slate-700 hover:bg-slate-800 text-white px-5 py-2.5 transition font-medium">
                 Guardar límite
             </button>
         </form>
@@ -63,19 +192,20 @@
     </div>
 
     <!-- Gráfico de barras -->
-    <div class="bg-white rounded-lg shadow p-6 mb-6">
-        <h2 class="text-xl font-bold text-gray-800 mb-4">📊 Pagos por mes (histórico y próximos 12 meses)</h2>
+    <div class="debt-card bg-white rounded-lg shadow p-6 mb-6">
+        <h2 class="debt-title text-xl mb-4">📊 Pagos por mes (histórico y próximos 12 meses)</h2>
         <p class="text-sm text-gray-600 mb-4">La línea roja marca tu límite máximo mensual. Pasa el cursor sobre una fila para resaltar su plan en el gráfico.</p>
-        <div style="position: relative; height: 400px;">
+        <div class="rounded-2xl border border-slate-300/70 bg-gradient-to-b from-[#f8fbfc] to-[#f1f7f8] p-3 shadow-inner" style="position: relative; height: 400px;">
             <canvas id="debtChart"></canvas>
         </div>
+        <div id="debtChartLegend" class="flex flex-wrap items-center gap-2.5 mt-3 pt-3 border-t"></div>
     </div>
 
     <!-- Lista de planes activos -->
-    <div class="bg-white rounded-lg shadow overflow-hidden">
-        <h2 class="text-xl font-bold text-gray-800 p-4 border-b">Planes activos</h2>
+    <div class="debt-card bg-white rounded-lg shadow overflow-x-auto overflow-y-hidden">
+        <h2 class="debt-title text-xl p-4 border-b">📋 Planes activos</h2>
         {% if plans %}
-        <table class="min-w-full divide-y divide-gray-200">
+        <table class="responsive-data-table min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nombre</th>
@@ -84,79 +214,77 @@
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Meses</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Inicio</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Categoría</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                    <th class="table-actions-col px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acciones</th>
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
                 {% for plan in plans %}
-                <tr class="hover:bg-gray-50 cursor-pointer transition" data-plan-id="{{ plan.id }}" onmouseenter="window.debtChartHighlightPlan&&window.debtChartHighlightPlan({{ plan.id }})" onmouseleave="window.debtChartUnhighlight&&window.debtChartUnhighlight()" x-data="{ showPayOffModal: false, showCancelFutureModal: false }">
+                <tr class="debt-table-row hover:bg-gray-50 cursor-pointer transition" data-plan-id="{{ plan.id }}" onmouseenter="window.debtChartHighlightPlan&&window.debtChartHighlightPlan({{ plan.id }})" onmouseleave="window.debtChartUnhighlight&&window.debtChartUnhighlight()" x-data="{ showPayOffModal: false, showCancelFutureModal: false }">
                     <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ plan.name }}</td>
                     <td class="px-6 py-4 text-sm text-gray-700">{{ plan.total_amount|decimal_eu(2) }} €</td>
                     <td class="px-6 py-4 text-sm text-gray-700">{{ plan.monthly_payment|decimal_eu(2) }} €</td>
                     <td class="px-6 py-4 text-sm text-gray-700">{{ get_months_paid(plan.id) }}/{{ plan.months }}</td>
                     <td class="px-6 py-4 text-sm text-gray-700">{{ plan.start_date.strftime('%d/%m/%Y') }}</td>
                     <td class="px-6 py-4 text-sm text-gray-700">{{ plan.category.icon }} {{ plan.category.name }}</td>
-                    <td class="px-6 py-4 text-right space-x-2">
-                        <a href="{{ url_for('debts.edit', id=plan.id) }}" class="text-blue-600 hover:text-blue-800 text-sm font-medium">
-                            ✏️ Editar
+                    <td class="table-actions-col px-6 py-4">
+                        <div class="flex justify-end items-center flex-wrap gap-x-3 gap-y-1">
+                        <a href="{{ url_for('debts.edit', id=plan.id) }}" class="table-action-link text-teal-700 hover:text-teal-800" title="Editar">
+                            <span class="table-action-emoji">✏️</span><span class="table-action-label">Editar</span>
                         </a>
-                        <span class="text-gray-300">|</span>
-                        <a href="{{ url_for('debts.restructure', id=plan.id) }}" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
-                            🔄 Reestructurar
+                        <a href="{{ url_for('debts.restructure', id=plan.id) }}" class="table-action-link text-sky-700 hover:text-sky-800" title="Reestructurar">
+                            <span class="table-action-emoji">🔄</span><span class="table-action-label">Reestructurar</span>
                         </a>
-                        <span class="text-gray-300">|</span>
-                        <button type="button" @click="showPayOffModal = true" class="text-green-600 hover:text-green-800 text-sm font-medium">
-                            ✓ Pagar anticipado
+                        <button type="button" @click="showPayOffModal = true" class="table-action-link text-emerald-700 hover:text-emerald-800" title="Pagar anticipado">
+                            <span class="table-action-emoji">✓</span><span class="table-action-label">Pagar anticipado</span>
                         </button>
                         <!-- Modal Pagar anticipado -->
-                        <div x-show="showPayOffModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" style="display: none;">
-                            <div @click.away="showPayOffModal = false" class="bg-white rounded-lg shadow-xl p-6 max-w-md mx-4">
-                                <h3 class="text-lg font-bold mb-4">✓ Marcar como pagado</h3>
+                        <div x-show="showPayOffModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4" style="display: none;">
+                            <div @click.away="showPayOffModal = false" class="w-full max-w-md rounded-2xl border border-slate-200 bg-gradient-to-br from-[#f8fbfc] to-[#f1f7f8] p-6 shadow-[0_20px_45px_rgba(15,23,42,0.28)]">
+                                <h3 class="text-lg font-semibold text-gray-900 mb-3">✓ Marcar como pagado</h3>
                                 <p class="text-gray-700 mb-4">¿Marcar como pagado? Se eliminarán las cuotas futuras.</p>
                                 <form method="POST" action="{{ url_for('debts.pay_off', id=plan.id) }}" class="space-y-2">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <div class="flex gap-2">
-                                        <button type="submit" class="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition">
+                                        <button type="submit" class="modal-touch-btn flex-1 rounded-full bg-teal-600 hover:bg-teal-700 text-white px-4 py-2.5 transition font-medium">
                                             Sí, marcar como pagado
                                         </button>
-                                        <button type="button" @click="showPayOffModal = false" class="bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-lg transition">
+                                        <button type="button" @click="showPayOffModal = false" class="modal-touch-btn rounded-full bg-slate-700 hover:bg-slate-800 text-white px-4 py-2.5 transition font-medium">
                                             Cancelar
                                         </button>
                                     </div>
                                 </form>
                             </div>
                         </div>
-                        <span class="text-gray-300">|</span>
-                        <button type="button" @click="showCancelFutureModal = true" class="text-amber-600 hover:text-amber-800 text-sm font-medium">
-                            ⏹ Solo futuras
+                        <button type="button" @click="showCancelFutureModal = true" class="table-action-link text-amber-600 hover:text-amber-800" title="Solo futuras">
+                            <span class="table-action-emoji">⏹</span><span class="table-action-label">Solo futuras</span>
                         </button>
                         <!-- Modal Solo futuras -->
-                        <div x-show="showCancelFutureModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" style="display: none;">
-                            <div @click.away="showCancelFutureModal = false" class="bg-white rounded-lg shadow-xl p-6 max-w-md mx-4">
-                                <h3 class="text-lg font-bold mb-4">⏹ Cancelar cuotas futuras</h3>
+                        <div x-show="showCancelFutureModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4" style="display: none;">
+                            <div @click.away="showCancelFutureModal = false" class="w-full max-w-md rounded-2xl border border-slate-200 bg-gradient-to-br from-[#f8fbfc] to-[#f1f7f8] p-6 shadow-[0_20px_45px_rgba(15,23,42,0.28)]">
+                                <h3 class="text-lg font-semibold text-gray-900 mb-3">⏹ Cancelar cuotas futuras</h3>
                                 <p class="text-gray-700 mb-4">¿Cancelar solo cuotas futuras?</p>
                                 <form method="POST" action="{{ url_for('debts.cancel', id=plan.id) }}" class="space-y-2">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <input type="hidden" name="delete_future_only" value="true">
                                     <div class="flex gap-2">
-                                        <button type="submit" class="flex-1 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg transition">
+                                        <button type="submit" class="modal-touch-btn flex-1 rounded-full border border-amber-300 bg-amber-100 hover:bg-amber-200 text-amber-900 px-4 py-2.5 transition font-medium">
                                             Sí, cancelar futuras
                                         </button>
-                                        <button type="button" @click="showCancelFutureModal = false" class="bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-lg transition">
+                                        <button type="button" @click="showCancelFutureModal = false" class="modal-touch-btn rounded-full bg-slate-700 hover:bg-slate-800 text-white px-4 py-2.5 transition font-medium">
                                             Cancelar
                                         </button>
                                     </div>
                                 </form>
                             </div>
                         </div>
-                        <span class="text-gray-300">|</span>
                         <form method="POST" action="{{ url_for('debts.cancel', id=plan.id) }}" class="inline">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <input type="hidden" name="delete_future_only" value="false">
-                            <button type="submit" class="text-red-600 hover:text-red-800 text-sm font-medium">
-                                🗑 Eliminar todo
+                            <button type="submit" class="table-action-link text-red-600 hover:text-red-800" title="Eliminar todo">
+                                <span class="table-action-emoji">🗑</span><span class="table-action-label">Eliminar todo</span>
                             </button>
                         </form>
+                        </div>
                     </td>
                 </tr>
                 {% endfor %}
@@ -165,16 +293,16 @@
         {% else %}
         <div class="p-8 text-center text-gray-500">
             <p class="text-lg">No tienes planes de deuda activos.</p>
-            <a href="{{ url_for('debts.new', next='debts') }}" class="text-blue-600 hover:underline mt-2 inline-block">Crear primera deuda</a>
+            <a href="{{ url_for('debts.new', next='debts') }}" class="text-teal-700 hover:underline mt-2 inline-block">Crear primera deuda</a>
         </div>
         {% endif %}
     </div>
 
     <!-- Planes no activos (PAID_OFF / CANCELLED) -->
     {% if inactive_plans %}
-    <div class="bg-white rounded-lg shadow overflow-hidden mt-6">
-        <h2 class="text-xl font-bold text-gray-800 p-4 border-b">📂 Histórico (pagados / cancelados)</h2>
-        <table class="min-w-full divide-y divide-gray-200">
+    <div class="debt-card bg-white rounded-lg shadow overflow-x-auto overflow-y-hidden mt-6">
+        <h2 class="debt-title text-xl p-4 border-b">📂 Histórico (pagados / cancelados)</h2>
+        <table class="responsive-data-table min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nombre</th>
@@ -184,12 +312,12 @@
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Inicio</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Categoría</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                    <th class="table-actions-col px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acciones</th>
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
                 {% for plan in inactive_plans %}
-                <tr class="hover:bg-gray-50">
+                <tr class="debt-table-row hover:bg-gray-50">
                     <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ plan.name }}</td>
                     <td class="px-6 py-4 text-sm text-gray-700">{{ plan.total_amount|decimal_eu(2) }} €</td>
                     <td class="px-6 py-4 text-sm text-gray-700">{{ plan.monthly_payment|decimal_eu(2) }} €</td>
@@ -203,18 +331,19 @@
                     </td>
                     <td class="px-6 py-4 text-sm text-gray-700">{{ plan.start_date.strftime('%d/%m/%Y') }}</td>
                     <td class="px-6 py-4 text-sm text-gray-700">{{ plan.category.icon }} {{ plan.category.name }}</td>
-                    <td class="px-6 py-4 text-right space-x-2">
-                        <a href="{{ url_for('debts.edit', id=plan.id) }}" class="text-blue-600 hover:text-blue-800 text-sm font-medium">
-                            ✏️ Editar
+                    <td class="table-actions-col px-6 py-4">
+                        <div class="flex justify-end items-center flex-wrap gap-x-3 gap-y-1">
+                        <a href="{{ url_for('debts.edit', id=plan.id) }}" class="table-action-link text-teal-700 hover:text-teal-800" title="Editar">
+                            <span class="table-action-emoji">✏️</span><span class="table-action-label">Editar</span>
                         </a>
-                        <span class="text-gray-300">|</span>
                         <form method="POST" action="{{ url_for('debts.cancel', id=plan.id) }}" class="inline">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <input type="hidden" name="delete_future_only" value="false">
-                            <button type="submit" class="text-red-600 hover:text-red-800 text-sm font-medium">
-                                🗑 Eliminar
+                            <button type="submit" class="table-action-link text-red-600 hover:text-red-800" title="Eliminar">
+                                <span class="table-action-emoji">🗑</span><span class="table-action-label">Eliminar</span>
                             </button>
                         </form>
+                        </div>
                     </td>
                 </tr>
                 {% endfor %}
@@ -311,7 +440,7 @@
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { display: true, position: 'top' },
+                legend: { display: false },
                 tooltip: {
                     callbacks: {
                         label: function(ctx) {
@@ -337,6 +466,38 @@
     });
 
     window.debtChartInstance = debtChart;
+    const legendRoot = document.getElementById('debtChartLegend');
+    const renderLegend = () => {
+        if (!legendRoot || !debtChart) return;
+        const datasets = debtChart.data.datasets || [];
+        legendRoot.innerHTML = '<span class="text-xs text-gray-500">Mostrar:</span>';
+        datasets.forEach((ds, idx) => {
+            const color = (typeof ds.borderColor === 'string' && ds.borderColor) || 'rgb(79,70,229)';
+            const checked = !debtChart.getDatasetMeta(idx).hidden;
+            const item = document.createElement('label');
+            item.className = 'debt-toggle';
+            item.innerHTML = `
+                <input type="checkbox" class="sr-only" ${checked ? 'checked' : ''}>
+                <span class="debt-toggle-check">✓</span>
+                <span class="text-xs font-semibold" style="color:${color}">${ds.label || 'Serie'}</span>
+            `;
+            const input = item.querySelector('input');
+            input.addEventListener('change', (e) => {
+                debtChart.setDatasetVisibility(idx, e.target.checked);
+                debtChart.update();
+            });
+            legendRoot.appendChild(item);
+        });
+    };
+    const syncLegendChecks = () => {
+        if (!legendRoot || !debtChart) return;
+        const inputs = legendRoot.querySelectorAll('input[type="checkbox"]');
+        inputs.forEach((input, idx) => {
+            input.checked = !debtChart.getDatasetMeta(idx).hidden;
+        });
+    };
+    renderLegend();
+
     window.debtChartHighlightPlan = function(planId) {
         if (!debtChart) return;
         const idx = debtChart.data.datasets.findIndex(ds => ds.planId === planId);
@@ -345,6 +506,7 @@
             if (ds.planId && ds.planId !== planId) debtChart.setDatasetVisibility(i, false);
         });
         debtChart.update('none');
+        syncLegendChecks();
     };
     window.debtChartUnhighlight = function() {
         if (!debtChart) return;
@@ -352,6 +514,7 @@
             if (ds.planId) debtChart.setDatasetVisibility(i, true);
         });
         debtChart.update('none');
+        syncLegendChecks();
     };
 })();
 </script>
