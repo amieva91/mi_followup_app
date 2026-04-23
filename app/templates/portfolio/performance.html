@@ -4,40 +4,51 @@
 
 {% block content %}
 <style>
-    .portfolio-card {
+    #portfolio-performance .portfolio-card {
         background: linear-gradient(145deg, #f8fbfc 0%, #f1f7f8 100%);
         border: 1px solid rgba(63, 95, 115, 0.14);
         border-radius: 16px;
         box-shadow: 0 14px 30px rgba(15,23,42,0.1), inset 0 1px 0 rgba(255,255,255,0.85);
     }
-    .portfolio-title {
+    #portfolio-performance .portfolio-title {
         display: inline-flex;
         align-items: center;
         gap: 0.45rem;
         font-weight: 700;
         color: #1f2937;
     }
-    .portfolio-touch-btn {
+    #portfolio-performance .portfolio-touch-btn {
         transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease;
     }
-    .portfolio-touch-btn:active {
+    #portfolio-performance .portfolio-touch-btn:active {
         transform: scale(0.98);
         filter: brightness(0.96);
     }
+    #portfolio-performance .chart-surface {
+        border-radius: 1rem;
+        border: 1px solid rgba(148, 163, 184, 0.28);
+        background: linear-gradient(to bottom, #ffffff, #f8fafc);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.9);
+        padding: 0.75rem;
+    }
+    #portfolio-performance .info-rail {
+        background: linear-gradient(145deg, rgba(240, 253, 250, 0.5) 0%, rgba(241, 247, 248, 0.95) 100%);
+        border: 1px solid rgba(45, 106, 101, 0.18);
+    }
 </style>
-<div class="max-w-[92%] mx-auto px-4 py-8">
+<div id="portfolio-performance" class="max-w-[92%] mx-auto px-4 py-8">
     <!-- Header -->
-    <div class="flex justify-between items-center mb-8">
+    <div class="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center mb-8">
         <div>
             <h1 class="portfolio-title text-3xl">📊 Análisis de Performance</h1>
-            <p class="text-gray-600 mt-1">Evolución histórica de tu portfolio</p>
+            <p class="text-slate-600 mt-1 text-sm sm:text-base">Evolución histórica de tu portfolio</p>
         </div>
-        <div class="flex items-center gap-4 flex-wrap justify-end">
-            <div id="performanceSyncIndicator" class="flex items-center gap-3 text-xs">
-                <span id="performanceSyncType" class="px-2 py-1 rounded-full font-medium bg-blue-100 text-blue-800 border border-blue-200" title="HIST+NOW: reconstrucción completa | NOW: solo último punto">—</span>
-                <span id="performanceStaleness" class="text-blue-600">Actualizado hace —</span>
+        <div class="flex items-center gap-3 sm:gap-4 flex-wrap sm:justify-end">
+            <div id="performanceSyncIndicator" class="flex items-center gap-2 sm:gap-3 text-xs">
+                <span id="performanceSyncType" class="px-2.5 py-1 rounded-full font-medium bg-teal-50 text-teal-900 border border-teal-200/80" title="HIST+NOW: reconstrucción completa | NOW: solo último punto">—</span>
+                <span id="performanceStaleness" class="text-slate-600">Actualizado hace —</span>
             </div>
-            <a href="{{ url_for('portfolio.dashboard') }}" class="portfolio-touch-btn inline-flex items-center px-4 py-2 bg-slate-200 border border-slate-300 rounded-xl hover:bg-slate-300 transition text-sm font-semibold text-slate-700">
+            <a href="{{ url_for('portfolio.dashboard') }}" class="portfolio-touch-btn inline-flex items-center px-4 py-2 bg-slate-200 border border-slate-300 rounded-xl hover:bg-slate-300 transition text-sm font-semibold text-slate-800">
                 Dashboard
             </a>
         </div>
@@ -45,13 +56,13 @@
 
     <!-- Loading Indicator -->
     <div id="loadingIndicator" class="portfolio-card p-12 text-center">
-        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
-        <p class="text-gray-600">Cargando gráficos...</p>
+        <div class="animate-spin rounded-full h-12 w-12 border-2 border-slate-200 border-t-teal-600 mx-auto mb-4"></div>
+        <p class="text-slate-600">Cargando gráficos…</p>
     </div>
 
     <!-- Error Message -->
-    <div id="errorMessage" class="hidden bg-red-50 border border-red-200 rounded-xl p-6 text-center">
-        <p class="text-red-800 font-medium">Error al cargar los gráficos</p>
+    <div id="errorMessage" class="hidden bg-rose-50 border border-rose-200 rounded-xl p-6 text-center">
+        <p class="text-rose-900 font-medium">Error al cargar los gráficos</p>
     </div>
 
     <!-- Charts Container -->
@@ -60,11 +71,11 @@
         <div class="portfolio-card p-6">  
             <div class="mb-4">
                 <h2 class="portfolio-title text-xl">📈 Evolución del Valor Real de la Cuenta</h2>
-                <p class="text-sm text-gray-600 mt-1">
+                <p class="text-sm text-slate-600 mt-1">
                     Valor de las posiciones (sin apalancamiento) vs capital invertido neto
                 </p>
             </div>
-            <div class="rounded-2xl border border-slate-200/70 bg-gradient-to-b from-white to-slate-50 p-3" style="position: relative; height: 400px;">
+            <div class="chart-surface" style="position: relative; height: 400px;">
                 <canvas id="portfolioValueChart"></canvas>
             </div>
         </div>
@@ -73,11 +84,11 @@
         <div class="portfolio-card p-6">  
             <div class="mb-4">
                 <h2 class="portfolio-title text-xl">💎 Rentabilidad Acumulada (Modified Dietz)</h2>
-                <p class="text-sm text-gray-600 mt-1">
+                <p class="text-sm text-slate-600 mt-1">
                     Rentabilidad % calculada según el método Modified Dietz (estándar GIPS)
                 </p>
             </div>
-            <div class="rounded-2xl border border-slate-200/70 bg-gradient-to-b from-white to-slate-50 p-3" style="position: relative; height: 400px;">
+            <div class="chart-surface" style="position: relative; height: 400px;">
                 <canvas id="returnsChart"></canvas>
             </div>
         </div>
@@ -86,11 +97,11 @@
         <div class="portfolio-card p-6">  
             <div class="mb-4">
                 <h2 class="portfolio-title text-xl">⚡ Apalancamiento / 💵 Cash Histórico</h2>
-                <p class="text-sm text-gray-600 mt-1">
+                <p class="text-sm text-slate-600 mt-1">
                     Dinero prestado por el broker (positivo) o cash disponible sin invertir (negativo)
                 </p>
             </div>
-            <div class="rounded-2xl border border-slate-200/70 bg-gradient-to-b from-white to-slate-50 p-3" style="position: relative; height: 400px;">
+            <div class="chart-surface" style="position: relative; height: 400px;">
                 <canvas id="leverageChart"></canvas>
             </div>
         </div>
@@ -99,11 +110,11 @@
         <div class="portfolio-card p-6">  
             <div class="mb-4">
                 <h2 class="portfolio-title text-xl">💰 Flujos de Caja Acumulados</h2>
-                <p class="text-sm text-gray-600 mt-1">
+                <p class="text-sm text-slate-600 mt-1">
                     Suma neta de depósitos y retiradas a lo largo del tiempo
                 </p>
             </div>
-            <div class="rounded-2xl border border-slate-200/70 bg-gradient-to-b from-white to-slate-50 p-3" style="position: relative; height: 400px;">
+            <div class="chart-surface" style="position: relative; height: 400px;">
                 <canvas id="cashFlowsChart"></canvas>
             </div>
         </div>
@@ -112,29 +123,29 @@
         <div class="portfolio-card p-6">  
             <div class="mb-4">
                 <h2 class="portfolio-title text-xl">📊 P&L Total Acumulado</h2>
-                <p class="text-sm text-gray-600 mt-1">
+                <p class="text-sm text-slate-600 mt-1">
                     Ganancias/Pérdidas totales históricas (Realizado + No Realizado + Dividendos - Comisiones)
                 </p>
             </div>
-            <div class="rounded-2xl border border-slate-200/70 bg-gradient-to-b from-white to-slate-50 p-3" style="position: relative; height: 400px;">
+            <div class="chart-surface" style="position: relative; height: 400px;">
                 <canvas id="plChart"></canvas>
             </div>
         </div>
 
         <!-- Info Footer -->
-        <div class="bg-blue-50 border border-blue-200 rounded-xl p-6">
-            <div class="flex items-start">
-                <div class="flex-shrink-0">
-                    <svg class="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div class="info-rail rounded-xl p-6">
+            <div class="flex items-start gap-3">
+                <div class="flex-shrink-0 mt-0.5">
+                    <svg class="h-6 w-6 text-teal-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                 </div>
-                <div class="ml-3 flex-1">
-                    <h3 class="text-sm font-medium text-blue-900">ℹ️ Sobre estos gráficos</h3>
-                    <div class="mt-2 text-sm text-blue-800 space-y-1">
-                        <p><strong>📈 Valor del Portfolio:</strong> Incluye el valor actual de todas tus posiciones abiertas a precio de mercado.</p>
-                        <p><strong>💰 Capital Invertido:</strong> Depósitos totales menos retiradas (no incluye ganancias ni pérdidas).</p>
-                        <p><strong>💎 Rentabilidad Acumulada:</strong> Calculada con el método Modified Dietz, estándar de la industria financiera (GIPS). Pondera los cash flows por tiempo.</p>
+                <div class="flex-1 min-w-0">
+                    <h3 class="text-sm font-semibold text-slate-900">ℹ️ Sobre estos gráficos</h3>
+                    <div class="mt-2 text-sm text-slate-700 space-y-1.5">
+                        <p><strong>📈 Valor del portfolio:</strong> Incluye el valor actual de todas tus posiciones abiertas a precio de mercado.</p>
+                        <p><strong>💰 Capital invertido:</strong> Depósitos totales menos retiradas (no incluye ganancias ni pérdidas).</p>
+                        <p><strong>💎 Rentabilidad acumulada:</strong> Calculada con el método Modified Dietz, estándar de la industria financiera (GIPS). Pondera los flujos de caja en el tiempo.</p>
                     </div>
                 </div>
             </div>
@@ -148,4 +159,3 @@
 <!-- Custom Charts Script -->
 <script src="{{ url_for('static', filename='js/charts.js') }}"></script>
 {% endblock %}
-
