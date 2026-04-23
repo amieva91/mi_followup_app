@@ -8,9 +8,9 @@
         filter: brightness(0.96);
     }
 </style>
-<div x-data="categoryModalExpense('{{ url_for('expenses.quick_create_category') }}', '{{ category_select_id }}')" x-cloak>
-    <button type="button" @click="show = true; error = ''" class="modal-touch-btn ml-2 px-3 py-2 text-sm rounded-xl bg-slate-700 hover:bg-slate-800 text-white transition" title="Crear categoría rápida">+</button>
-    <div x-show="show" x-transition class="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4" style="display: none;">
+<div x-data="categoryModalExpense('{{ url_for('expenses.quick_create_category') }}', '{{ category_select_id }}')">
+    <button type="button" @click="show = true; error = ''" class="modal-touch-btn ml-2 shrink-0 inline-flex items-center justify-center min-w-[2.5rem] px-3 py-2 text-sm rounded-xl bg-slate-700 hover:bg-slate-800 text-white transition" title="Crear categoría rápida">+</button>
+    <div x-show="show" x-cloak x-transition class="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4" style="display: none;">
         <div class="w-full max-w-sm rounded-2xl border border-slate-200 bg-gradient-to-br from-[#f8fbfc] to-[#f1f7f8] p-6 shadow-[0_20px_45px_rgba(15,23,42,0.28)]" @click.away="show=false">
             <h3 class="text-lg font-bold mb-4 text-gray-900">Nueva categoría de gasto</h3>
             <div class="mb-3">
