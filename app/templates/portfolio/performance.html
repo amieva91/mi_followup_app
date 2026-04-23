@@ -78,6 +78,14 @@
             <div class="chart-surface" style="position: relative; height: 400px;">
                 <canvas id="portfolioValueChart"></canvas>
             </div>
+            <div class="mt-3 pt-3 border-t border-slate-200/80 flex flex-wrap items-center gap-2">
+                <span class="text-xs text-gray-500">Frecuencia:</span>
+                <div class="flex bg-gray-100 rounded-lg p-1" id="performanceFrequencyBar" role="group" aria-label="Frecuencia de los datos mostrados en los gráficos">
+                    <button type="button" class="perf-freq-btn px-3 py-1 text-xs font-medium rounded-md transition text-gray-600" data-frequency="daily">Diaria</button>
+                    <button type="button" class="perf-freq-btn px-3 py-1 text-xs font-medium rounded-md transition text-gray-600" data-frequency="weekly">Semanal</button>
+                    <button type="button" class="perf-freq-btn px-3 py-1 text-xs font-medium rounded-md transition bg-white shadow text-indigo-600" data-frequency="monthly">Mensual</button>
+                </div>
+            </div>
         </div>
 
         <!-- Gráfico 2: Rentabilidad Acumulada -->

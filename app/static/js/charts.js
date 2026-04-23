@@ -426,17 +426,20 @@ let benchmarksPollTimer = null;
 let lastEvolutionCachedAt = null;
 let lastBenchmarksCachedAt = null;
 let stalenessInterval = null;
+/** Frecuencia activa de los gráficos de /portfolio/performance (sync con UI y polling) */
+let evolutionFrequency = 'monthly';
 
-async function loadCharts(frequency = 'weekly', opts = {}) {
+async function loadCharts(frequency, opts = {}) {
     try {
         const isPoll = !!opts.poll;
+        const freq = (typeof frequency === 'string' && frequency.length) ? frequency : evolutionFrequency;
         const loadingIndicator = document.getElementById('loadingIndicator');
         if (!isPoll && loadingIndicator) {
             loadingIndicator.classList.remove('hidden');
         }
         
         // Fetch data
-        const response = await fetch(`/portfolio/api/evolution?frequency=${frequency}`);
+        const response = await fetch(`/portfolio/api/evolution?frequency=${encodeURIComponent(freq)}`);
         const data = await response.json();
         
         if (data.error) {
@@ -499,6 +502,8 @@ async function loadCharts(frequency = 'weekly', opts = {}) {
             }
         }
         startStalenessTimer();
+
+        evolutionFrequency = freq;
         
     } catch (error) {
         console.error('Error loading charts:', error);
@@ -508,6 +513,33 @@ async function loadCharts(frequency = 'weekly', opts = {}) {
         document.getElementById('errorMessage').textContent = 
             'Error al cargar los gráficos: ' + error.message;
     }
+}
+
+/**
+ * Misma idea visual que "Periodo" (1A / 3A / …) en Evolución del Patrimonio (dashboard principal)
+ */
+function initPerformanceFrequencyBar() {
+    const bar = document.getElementById('performanceFrequencyBar');
+    if (!bar) return;
+    const buttons = bar.querySelectorAll('.perf-freq-btn');
+    function setActive(activeFreq) {
+        buttons.forEach((b) => {
+            const on = b.getAttribute('data-frequency') === activeFreq;
+            b.classList.toggle('bg-white', on);
+            b.classList.toggle('shadow', on);
+            b.classList.toggle('text-indigo-600', on);
+            b.classList.toggle('text-gray-600', !on);
+        });
+    }
+    buttons.forEach((btn) => {
+        btn.addEventListener('click', function () {
+            const f = this.getAttribute('data-frequency');
+            if (!f) return;
+            setActive(f);
+            loadCharts(f);
+        });
+    });
+    setActive(evolutionFrequency);
 }
 
 /**
@@ -740,9 +772,11 @@ function renderBenchmarkTable(annualData) {
 // Inicializar al cargar la página (condicional: performance tiene evolution, index-comparison solo benchmarks)
 document.addEventListener('DOMContentLoaded', function() {
     if (document.getElementById('portfolioValueChart')) {
+        evolutionFrequency = 'monthly';
+        initPerformanceFrequencyBar();
         loadCharts('monthly');
         if (!evolutionPollTimer) {
-            evolutionPollTimer = setInterval(() => loadCharts('monthly', { poll: true }), 30000);
+            evolutionPollTimer = setInterval(() => loadCharts(evolutionFrequency, { poll: true }), 30000);
         }
     }
     if (document.getElementById('benchmarkChart')) {
