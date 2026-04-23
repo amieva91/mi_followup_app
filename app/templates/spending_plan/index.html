@@ -17,6 +17,24 @@
     }
     #sp-planning .sp-btn { transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease; }
     #sp-planning .sp-btn:active { transform: scale(0.98); filter: brightness(0.96); }
+    #sp-planning .pf-info {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.375rem;
+        height: 1.375rem;
+        border-radius: 9999px;
+        border: 1px solid rgb(204 251 241);
+        background: rgb(240 253 250);
+        color: rgb(15 118 110);
+        font-size: 0.65rem;
+        font-weight: 700;
+        line-height: 1;
+        cursor: pointer;
+        flex-shrink: 0;
+        padding: 0;
+    }
+    #sp-planning .pf-info:focus { outline: 2px solid rgba(20, 184, 166, 0.5); outline-offset: 1px; }
 </style>
 <script>
 function spendingPlanGoals(cfg) {
@@ -41,6 +59,7 @@ function spendingPlanGoals(cfg) {
         editTargetDate: '',
         editInstallmentMonths: '',
         editDateFixed: false,
+        planningContextInfoOpen: false,
         init() {
             if (this.openEditId != null) {
                 const oid = this.openEditId;
@@ -160,8 +179,11 @@ function spendingPlanGoals(cfg) {
     {% endif %}
     <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
         <div>
-            <h1 class="sp-plan-title text-2xl sm:text-3xl">📅 Planificación de gastos</h1>
-            <p class="text-slate-600 mt-1 text-sm sm:text-base">Motor de planificación a <strong>{{ plan_window_months }}</strong> meses (5 años) con prioridades, DSR y saldo no negativo. Tabla: hasta {{ settings.horizon_months }} meses.</p>
+            <div class="flex flex-wrap items-start gap-2">
+                <h1 class="sp-plan-title text-2xl sm:text-3xl">📅 Planificación de gastos</h1>
+                <button type="button" class="pf-info mt-1 sm:mt-1.5" @click="openPlanningContextInfo()" title="Cómo funciona la planificación" aria-label="Información planificación de gastos">i</button>
+            </div>
+            <p class="text-slate-600 mt-1 text-sm sm:text-base">DSR, horizonte, categorías fijas y objetivos. Pulsa <span class="font-medium text-slate-700">i</span> para el detalle y el simulador de vivienda.</p>
         </div>
         <div class="flex flex-wrap gap-2 shrink-0">
             <a href="{{ url_for('spending_plan.mortgage_simulator') }}" class="sp-btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold shadow-[0_10px_20px_rgba(13,148,136,0.25)]">🏠 Simulador vivienda</a>
@@ -213,8 +235,8 @@ function spendingPlanGoals(cfg) {
                        class="w-full border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"/>
                 <p class="text-xs text-slate-500 mt-1">Máx. 60 (el algoritmo siempre usa 5 años).</p>
             </div>
-            <div class="flex items-end">
-                <button type="submit" class="sp-btn w-full md:w-auto px-5 py-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 font-semibold shadow-[0_10px_20px_rgba(13,148,136,0.25)]">
+            <div class="flex h-full min-h-0 w-full self-stretch flex-col justify-end">
+                <button type="submit" class="sp-btn w-full px-5 py-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 font-semibold shadow-[0_10px_20px_rgba(13,148,136,0.25)]">
                     Guardar configuración
                 </button>
             </div>
@@ -514,6 +536,25 @@ function spendingPlanGoals(cfg) {
         Columna Cuota: cuotas hipoteca + entradas en el mes + cuotas genéricas planificadas. Superávit de liquidez = ingreso − fijos − entradas hipotecarias del mes (cuotas y genéricos compiten por cupo DSR y no descuentan del saldo salvo la entrada).
         Margen DSR = cuota máxima permitida − cuota hipoteca − objetivos genéricos del mes (todo lo que compite por el cupo). La columna “Pagos” marca con puntos los objetivos con cargo en ese mes.
     </p>
+
+    <template x-teleport="body">
+        <div x-show="planningContextInfoOpen" x-cloak x-transition
+             class="fixed inset-0 z-[70] flex items-center justify-center p-4"
+             style="display: none;">
+            <div class="absolute inset-0 bg-black/55" @click="closePlanningContextInfo()" aria-hidden="true"></div>
+            <div class="followup-modal-surface relative z-10 max-w-lg w-full max-h-[min(90vh,32rem)] overflow-y-auto p-6" role="dialog" aria-modal="true" aria-labelledby="sp-planning-context-title" @click.stop>
+                <h3 id="sp-planning-context-title" class="text-lg font-semibold text-slate-900 mb-3">Planificación de gastos</h3>
+                <div class="space-y-3 text-sm text-slate-700 leading-relaxed">
+                    <p>Motor de planificación a {{ plan_window_months }} meses (5 años) con prioridades, DSR y saldo no negativo. Tabla: hasta {{ settings.horizon_months }} meses.</p>
+                    <p>Prioridad 1 = más alta. Los objetivos genéricos (ahorro, compras, cuotas de préstamo no hipotecarios) se reparten en pago único o cuotas sin dejar el saldo acumulado en negativo, respetando el DSR en hipotecas y una ventana de cinco años. La compra de vivienda con hipoteca solo se registra desde el simulador, donde podrás indicar la primera cuota y la fecha de compra.</p>
+                    <p>Precio, ahorros, gastos e hipoteca: calcula LTV, cuota y añade el objetivo al plan.</p>
+                </div>
+                <div class="flex justify-end mt-5">
+                    <button type="button" @click="closePlanningContextInfo()" class="sp-btn px-4 py-2.5 rounded-xl bg-teal-600 text-white text-sm font-semibold hover:bg-teal-700 shadow-[0_8px_18px_rgba(13,148,136,0.22)]">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </template>
 
     <template x-teleport="body">
         <div x-show="infoModalOpen" x-cloak x-transition
