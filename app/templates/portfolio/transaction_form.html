@@ -46,15 +46,21 @@
         transform: scale(0.98);
         filter: brightness(0.96);
     }
+    #portfolio-tx-form .portfolio-touch-btn {
+        transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease;
+    }
+    #portfolio-tx-form .portfolio-touch-btn:active { transform: scale(0.98); filter: brightness(0.96); }
+    #portfolio-tx-form .portfolio-title { display: inline-flex; align-items: center; gap: 0.45rem; font-weight: 700; color: #0f172a; }
 </style>
 <div id="portfolio-tx-form" class="max-w-5xl mx-auto px-4 py-8">
-    <!-- Header -->
-    <div class="mb-8">
-        <a href="{{ url_for('portfolio.transactions_list') }}" id="tx-form-back" class="text-teal-700 hover:text-teal-900 text-sm font-medium mb-4 inline-block transition-colors">
-            ← Volver
-        </a>
-        <h1 class="text-3xl font-bold text-slate-900">💹 {{ title }}</h1>
-        <p class="text-slate-600 mt-1 text-sm sm:text-base">Registra una compra o venta con todos los detalles</p>
+    <!-- Cabecera alineada al resto de portfolio: título a la izquierda, Volver a la derecha -->
+    <div class="mb-8 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div>
+            <h1 class="portfolio-title text-2xl sm:text-3xl">💹 {{ title }}</h1>
+            <p class="text-slate-600 mt-1 text-sm sm:text-base">Registra una compra o venta con todos los detalles</p>
+        </div>
+        <a href="{{ url_for('portfolio.transactions_list') }}" id="tx-form-back"
+           class="portfolio-touch-btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-slate-200 border border-slate-300 hover:bg-slate-300 text-slate-800 text-sm font-semibold shrink-0 w-full sm:w-auto">← Volver</a>
     </div>
 
     <!-- Formulario -->

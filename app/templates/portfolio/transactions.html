@@ -25,20 +25,28 @@
         background: linear-gradient(180deg, #f1f5f9 0%, #e2e8f0 100%);
         color: #334155; font-size: 0.7rem; letter-spacing: 0.04em;
     }
+    #portfolio-tx .tx-modal-surface {
+        box-sizing: border-box; border-radius: 1rem;
+        border: 1px solid rgba(63, 95, 115, 0.18);
+        background-image: linear-gradient(145deg, #f8fbfc 0%, #e6eff1 100%);
+        box-shadow: 0 20px 45px rgba(15, 23, 42, 0.28);
+    }
 </style>
 <div id="portfolio-tx" class="max-w-[92%] mx-auto py-6">
-    <div class="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-4 mb-8">
+    <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
         <div>
-            <a href="{{ url_for('portfolio.dashboard') }}"
-               class="portfolio-touch-btn inline-flex items-center justify-center px-3 py-2 rounded-xl bg-slate-200 border border-slate-300 hover:bg-slate-300 text-slate-800 text-sm font-semibold mb-2"
-               onclick="if (window.history.length > 1) { event.preventDefault(); history.back(); }">← Volver</a>
             <h1 class="portfolio-title text-2xl sm:text-3xl">📝 Transacciones</h1>
             <p class="text-slate-600 mt-1 text-sm sm:text-base">Historial de operaciones</p>
         </div>
-        <a href="{{ url_for('portfolio.transaction_new') }}"
-           class="portfolio-touch-btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold shadow-[0_10px_20px_rgba(13,148,136,0.28)] w-full sm:w-auto shrink-0">
-            ➕ Nueva transacción
-        </a>
+        <div class="flex flex-col sm:flex-row sm:items-stretch sm:justify-end gap-2 w-full sm:w-auto shrink-0">
+            <a href="{{ url_for('portfolio.transaction_new') }}"
+               class="portfolio-touch-btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold shadow-[0_10px_20px_rgba(13,148,136,0.28)] w-full sm:w-auto order-1 sm:order-1">
+                ➕ Nueva transacción
+            </a>
+            <a href="{{ url_for('portfolio.dashboard') }}"
+               class="portfolio-touch-btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-slate-200 border border-slate-300 hover:bg-slate-300 text-slate-800 text-sm font-semibold w-full sm:w-auto order-2 sm:order-2"
+               onclick="if (window.history.length > 1) { event.preventDefault(); history.back(); }">← Volver</a>
+        </div>
     </div>
 
     <!-- Filtros de búsqueda -->
@@ -154,8 +162,8 @@
         </form>
     </div>
     
-    <!-- Acceso a Registro Global -->
-    <div class="portfolio-card p-4 sm:p-5 mb-6 border-l-4 border-violet-500/70">
+    <!-- Acceso a registro global -->
+    <div class="portfolio-card p-4 sm:p-5 mb-6 border-l-4 border-teal-500/80">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
                 <h3 class="font-semibold text-slate-900">🗄️ Registro global de activos</h3>
@@ -164,7 +172,7 @@
                 </p>
             </div>
             <a href="{{ url_for('portfolio.asset_registry') }}" 
-               class="portfolio-touch-btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold whitespace-nowrap">
+               class="portfolio-touch-btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold whitespace-nowrap shadow-[0_8px_18px_rgba(13,148,136,0.22)] border border-teal-500/30">
                 📊 Abrir registro
             </a>
         </div>
@@ -445,7 +453,10 @@
                                    class="inline-flex items-center px-3 py-1.5 bg-teal-50 text-teal-800 rounded-lg hover:bg-teal-100/80 transition text-sm font-medium border border-teal-100/80">
                                     ✏️ Editar
                                 </a>
-                                <button onclick="confirmDelete({{ txn.id }}, '{{ txn.asset.symbol if txn.asset else txn.transaction_type }}')"
+                                <button type="button"
+                                        data-tx-id="{{ txn.id }}"
+                                        data-tx-label="{{ (txn.asset.symbol if txn.asset and txn.asset.symbol else (txn.asset.name if txn.asset else (txn.description[:40] if txn.description else txn.transaction_type)))|e }}"
+                                        onclick="openTxDeleteModal(this)"
                                         class="inline-flex items-center px-3 py-1.5 bg-rose-50 text-rose-800 rounded-lg hover:bg-rose-100/80 transition text-sm font-medium border border-rose-100/80">
                                     🗑️ Eliminar
                                 </button>
@@ -514,12 +525,6 @@
             {% endif %}
         </nav>
     </div>
-    {% else %}
-    <div id="transactionsPagination" class="mt-6">
-        <a href="{{ url_for('portfolio.dashboard') }}"
-           class="portfolio-touch-btn inline-flex items-center px-4 py-2.5 rounded-xl bg-slate-200 border border-slate-300 hover:bg-slate-300 text-slate-800 text-sm font-semibold"
-           onclick="if (window.history.length > 1) { event.preventDefault(); history.back(); }">← Volver</a>
-    </div>
     {% endif %}
     {% else %}
     <div class="portfolio-card p-12 text-center">
@@ -531,6 +536,26 @@
         </a>
     </div>
     {% endif %}
+</div>
+
+<!-- Modal eliminar transacción -->
+<div id="txDeleteModal" class="hidden fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55 overflow-y-auto" onclick="if (event.target === this) closeTxDeleteModal()">
+    <div class="tx-modal-surface w-full max-w-md p-5 sm:p-6 my-4" onclick="event.stopPropagation()">
+        <div class="flex items-center justify-center h-12 w-12 rounded-full bg-rose-100/90 mx-auto">
+            <span class="text-2xl" aria-hidden="true">🗑️</span>
+        </div>
+        <h3 class="text-lg font-semibold text-slate-900 text-center mt-4">Eliminar transacción</h3>
+        <p class="text-sm text-slate-600 text-center mt-2" id="txDeleteModalDesc"></p>
+        <form id="txDeleteForm" method="POST" class="mt-5 space-y-2">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <button type="submit" class="portfolio-touch-btn w-full px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold">
+                Sí, eliminar
+            </button>
+            <button type="button" onclick="closeTxDeleteModal()" class="portfolio-touch-btn w-full px-4 py-2.5 rounded-xl bg-slate-200 text-slate-800 text-sm font-semibold hover:bg-slate-300">
+                Cancelar
+            </button>
+        </form>
+    </div>
 </div>
 
 <script>
@@ -609,28 +634,23 @@ function sortTableTransactions(columnIndex, type) {
     }
 }
 
-// Función para confirmar y eliminar una transacción
-function confirmDelete(transactionId, assetName) {
-    if (confirm(`¿Estás seguro de eliminar esta transacción de ${assetName}?\n\nEsta acción no se puede deshacer.`)) {
-        // Crear formulario para enviar DELETE request
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = `/portfolio/transactions/${transactionId}/delete`;
-        
-        // Añadir CSRF token
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-        if (csrfToken) {
-            const csrfInput = document.createElement('input');
-            csrfInput.type = 'hidden';
-            csrfInput.name = 'csrf_token';
-            csrfInput.value = csrfToken;
-            form.appendChild(csrfInput);
-        }
-        
-        // Enviar formulario
-        document.body.appendChild(form);
-        form.submit();
-    }
+function openTxDeleteModal(btn) {
+    const id = btn.getAttribute('data-tx-id');
+    const label = btn.getAttribute('data-tx-label') || '';
+    const form = document.getElementById('txDeleteForm');
+    const desc = document.getElementById('txDeleteModalDesc');
+    const modal = document.getElementById('txDeleteModal');
+    if (!form || !desc || !modal || !id) return;
+    form.action = '/portfolio/transactions/' + id + '/delete';
+    desc.textContent = '¿Eliminar la operación de «' + label + '»? No se puede deshacer.';
+    modal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeTxDeleteModal() {
+    const modal = document.getElementById('txDeleteModal');
+    if (modal) modal.classList.add('hidden');
+    document.body.style.overflow = '';
 }
 </script>
 {% endblock %}

@@ -3,158 +3,170 @@
 {% block title %}Perfil / Cuenta{% endblock %}
 
 {% block content %}
-<div class="container mx-auto px-4 py-8 max-w-2xl">
-    <h1 class="text-2xl font-bold text-gray-900 mb-6">Perfil y cuenta</h1>
+<style>
+    #auth-profile .portfolio-title { display: inline-flex; align-items: center; gap: 0.45rem; font-weight: 700; color: #0f172a; }
+    #auth-profile .pf-card {
+        background: linear-gradient(145deg, #f8fbfc 0%, #f1f7f8 100%);
+        border: 1px solid rgba(63, 95, 115, 0.14);
+        border-radius: 16px;
+        box-shadow: 0 14px 30px rgba(15,23,42,0.1), inset 0 1px 0 rgba(255,255,255,0.85);
+    }
+    #auth-profile .pf-btn {
+        transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease;
+    }
+    #auth-profile .pf-btn:active { transform: scale(0.98); filter: brightness(0.96); }
+</style>
+<div id="auth-profile" class="max-w-2xl mx-auto py-6 px-4 sm:px-0">
+    <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
+        <div>
+            <h1 class="portfolio-title text-2xl sm:text-3xl">👤 Perfil y cuenta</h1>
+            <p class="text-slate-600 mt-1 text-sm sm:text-base">Avatar, datos y módulos visibles en la app</p>
+        </div>
+        <a href="{{ url_for('main.dashboard') }}"
+           class="pf-btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-slate-200 border border-slate-300 hover:bg-slate-300 text-slate-800 text-sm font-semibold shrink-0 w-full sm:w-auto"
+           onclick="if (window.history.length > 1) { event.preventDefault(); history.back(); }">← Volver</a>
+    </div>
 
     <form method="POST" action="{{ url_for('auth.profile') }}">
         {{ form.hidden_tag() }}
-        <!-- Avatar -->
-        <div class="bg-white rounded-lg shadow p-6 mb-6">
-            <h2 class="text-lg font-semibold text-gray-800 mb-4">Avatar</h2>
+        <div class="pf-card p-5 sm:p-6 mb-6">
+            <h2 class="text-lg font-semibold text-slate-900 mb-4">Avatar</h2>
             <div class="flex flex-wrap gap-4 items-center">
                 <label class="flex flex-col items-center cursor-pointer">
                     <input type="radio" name="avatar_id" value="0" class="sr-only peer"
                            {% if not current_user.avatar_id %}checked{% endif %}>
-                    <span class="w-14 h-14 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm peer-checked:ring-2 peer-checked:ring-blue-500">
+                    <span class="w-14 h-14 rounded-full bg-teal-600 text-white flex items-center justify-center font-bold text-sm peer-checked:ring-2 peer-checked:ring-teal-500 peer-checked:ring-offset-2">
                         {{ current_user.get_initials() }}
                     </span>
-                    <span class="text-xs mt-1">Iniciales</span>
+                    <span class="text-xs mt-1 text-slate-600">Iniciales</span>
                 </label>
                 {% for aid, path in avatars.items() %}
                 <label class="flex flex-col items-center cursor-pointer">
                     <input type="radio" name="avatar_id" value="{{ aid }}" class="sr-only peer"
                            {% if current_user.avatar_id == aid %}checked{% endif %}>
                     <img src="{{ url_for('static', filename=path) }}" alt="Avatar {{ aid }}"
-                         class="w-14 h-14 rounded-full object-cover peer-checked:ring-2 peer-checked:ring-blue-500">
+                         class="w-14 h-14 rounded-full object-cover peer-checked:ring-2 peer-checked:ring-teal-500 peer-checked:ring-offset-2">
                 </label>
                 {% endfor %}
             </div>
-            <p class="text-sm text-gray-500 mt-3">Selecciona uno y pulsa <strong>Guardar cambios</strong>.</p>
-            <div class="mt-3">
-                {{ form.submit(class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer") }}
+            <p class="text-sm text-slate-500 mt-3">Elige una opción y pulsa <strong>Guardar cambios</strong>.</p>
+            <div class="mt-4">
+                {{ form.submit(class="pf-btn inline-flex px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold border-0 cursor-pointer shadow-[0_8px_18px_rgba(13,148,136,0.22)]") }}
             </div>
         </div>
 
-        <!-- Datos personales -->
-        <div class="bg-white rounded-lg shadow p-6 mb-6">
-            <h2 class="text-lg font-semibold text-gray-800 mb-4">Datos personales</h2>
+        <div class="pf-card p-5 sm:p-6 mb-6">
+            <h2 class="text-lg font-semibold text-slate-900 mb-4">Datos personales</h2>
             <div class="space-y-4">
                 <div>
-                    {{ form.username.label(class="block text-sm font-medium text-gray-700 mb-1") }}
-                    {{ form.username(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500") }}
+                    {{ form.username.label(class="block text-sm font-medium text-slate-700 mb-1") }}
+                    {{ form.username(class="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500") }}
                     {% if form.username.errors %}
-                        <p class="mt-1 text-sm text-red-600">{{ form.username.errors[0] }}</p>
+                        <p class="mt-1 text-sm text-rose-600">{{ form.username.errors[0] }}</p>
                     {% endif %}
                 </div>
                 <div>
-                    {{ form.email.label(class="block text-sm font-medium text-gray-700 mb-1") }}
-                    {{ form.email(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500") }}
+                    {{ form.email.label(class="block text-sm font-medium text-slate-700 mb-1") }}
+                    {{ form.email(class="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500") }}
                     {% if form.email.errors %}
-                        <p class="mt-1 text-sm text-red-600">{{ form.email.errors[0] }}</p>
+                        <p class="mt-1 text-sm text-rose-600">{{ form.email.errors[0] }}</p>
                     {% endif %}
                 </div>
                 <div>
-                    {{ form.birth_year.label(class="block text-sm font-medium text-gray-700 mb-1") }}
-                    {{ form.birth_year(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500") }}
+                    {{ form.birth_year.label(class="block text-sm font-medium text-slate-700 mb-1") }}
+                    {{ form.birth_year(class="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500") }}
                     {% if form.birth_year.errors %}
-                        <p class="mt-1 text-sm text-red-600">{{ form.birth_year.errors[0] }}</p>
+                        <p class="mt-1 text-sm text-rose-600">{{ form.birth_year.errors[0] }}</p>
                     {% endif %}
                 </div>
             </div>
-            <p class="text-sm text-gray-500 mt-4">Los cambios se guardan al pulsar <strong>Guardar cambios</strong>.</p>
+            <p class="text-sm text-slate-500 mt-4">Se guardan con <strong>Guardar cambios</strong>.</p>
             <div class="mt-3">
-                {{ form.submit(class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer") }}
+                {{ form.submit(class="pf-btn inline-flex px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold border-0 cursor-pointer shadow-[0_8px_18px_rgba(13,148,136,0.22)]") }}
             </div>
         </div>
 
-        <!-- Módulos de interés -->
-    <div class="bg-white rounded-lg shadow p-6 mb-6">
-        <h2 class="text-lg font-semibold text-gray-800 mb-2">Áreas de interés</h2>
-        <p class="text-sm text-gray-600 mb-4">Activa o desactiva los módulos que quieres ver en la barra de navegación.</p>
-        <div class="space-y-3">
-            {% for key, label in modules.items() %}
-            <label class="flex items-center gap-3 cursor-pointer">
-                <input type="checkbox" name="module_{{ key }}" value="on"
-                       class="h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
-                       {% if current_user|user_has_module(key) %}checked{% endif %}>
-                <span class="text-gray-700">{{ label }}</span>
-            </label>
-            {% endfor %}
-        </div>
+        <div class="pf-card p-5 sm:p-6 mb-6">
+            <h2 class="text-lg font-semibold text-slate-900 mb-2">Áreas de interés</h2>
+            <p class="text-sm text-slate-600 mb-4">Activa o desactiva los módulos en la barra de navegación.</p>
+            <div class="space-y-3">
+                {% for key, label in modules.items() %}
+                <label class="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" name="module_{{ key }}" value="on"
+                           class="h-4 w-4 text-teal-600 rounded border-slate-300 focus:ring-teal-500"
+                           {% if current_user|user_has_module(key) %}checked{% endif %}>
+                    <span class="text-slate-700 text-sm sm:text-base">{{ label }}</span>
+                </label>
+                {% endfor %}
+            </div>
             <div class="mt-4">
-                {{ form.submit(class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer") }}
+                {{ form.submit(class="pf-btn inline-flex px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold border-0 cursor-pointer shadow-[0_8px_18px_rgba(13,148,136,0.22)]") }}
             </div>
         </div>
     </form>
 
-    <!-- Cambiar contraseña -->
-    <div class="bg-white rounded-lg shadow p-6">
-        <h2 class="text-lg font-semibold text-gray-800 mb-4">Cambiar contraseña</h2>
+    <div class="pf-card p-5 sm:p-6 mb-6">
+        <h2 class="text-lg font-semibold text-slate-900 mb-4">Cambiar contraseña</h2>
         <form method="POST" action="{{ url_for('auth.change_password') }}">
             {{ password_form.hidden_tag() }}
             <div class="space-y-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Contraseña actual</label>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Contraseña actual</label>
                     <input type="password" name="current_password" required
-                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                           placeholder="••••••••">
+                           class="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500"
+                           placeholder="••••••••" autocomplete="current-password">
                     {% if password_form and password_form.current_password.errors %}
-                        <p class="mt-1 text-sm text-red-600">{{ password_form.current_password.errors[0] }}</p>
+                        <p class="mt-1 text-sm text-rose-600">{{ password_form.current_password.errors[0] }}</p>
                     {% endif %}
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Nueva contraseña</label>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Nueva contraseña</label>
                     <input type="password" name="password" required minlength="6"
-                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                           placeholder="••••••••">
+                           class="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500"
+                           placeholder="••••••••" autocomplete="new-password">
                     {% if password_form and password_form.password.errors %}
-                        <p class="mt-1 text-sm text-red-600">{{ password_form.password.errors[0] }}</p>
+                        <p class="mt-1 text-sm text-rose-600">{{ password_form.password.errors[0] }}</p>
                     {% endif %}
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Confirmar nueva contraseña</label>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Confirmar nueva contraseña</label>
                     <input type="password" name="confirm_password" required
-                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                           placeholder="••••••••">
+                           class="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500"
+                           placeholder="••••••••" autocomplete="new-password">
                     {% if password_form and password_form.confirm_password.errors %}
-                        <p class="mt-1 text-sm text-red-600">{{ password_form.confirm_password.errors[0] }}</p>
+                        <p class="mt-1 text-sm text-rose-600">{{ password_form.confirm_password.errors[0] }}</p>
                     {% endif %}
                 </div>
             </div>
             <div class="mt-4">
-                <button type="submit" class="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 cursor-pointer">
-                    Cambiar contraseña
-                </button>
+                <button type="submit" class="pf-btn inline-flex px-4 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold border-0 cursor-pointer">Cambiar contraseña</button>
             </div>
         </form>
     </div>
 
-    <!-- Eliminar cuenta -->
-    <div class="bg-white rounded-lg shadow p-6 mt-6 border border-red-200">
-        <h2 class="text-lg font-semibold text-red-800 mb-2">Zona de peligro</h2>
-        <p class="text-sm text-gray-600 mb-4">Eliminar tu cuenta borrará todos tus datos de forma permanente. Esta acción no se puede deshacer.</p>
-        <form method="POST" action="{{ url_for('auth.delete_account') }}" onsubmit="return confirm('¿Estás seguro? Se eliminarán TODOS tus datos (gastos, ingresos, portfolio, etc.). Esta acción es irreversible.');">
+    <div class="pf-card p-5 sm:p-6 border-l-4 border-rose-400/80">
+        <h2 class="text-lg font-semibold text-rose-900 mb-2">Zona de peligro</h2>
+        <p class="text-sm text-slate-600 mb-4">Eliminar la cuenta borra todos los datos de forma permanente. No se puede deshacer.</p>
+        <form method="POST" action="{{ url_for('auth.delete_account') }}" onsubmit="return confirm('¿Seguro? Se eliminarán todos tus datos. Esta acción es irreversible.');">
             {{ delete_account_form.hidden_tag() }}
             <div class="space-y-4 max-w-md">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Contraseña para confirmar</label>
-                    {{ delete_account_form.password(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500") }}
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Contraseña</label>
+                    {{ delete_account_form.password(class="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-rose-500", autocomplete="current-password") }}
                     {% if delete_account_form.password.errors %}
-                        <p class="mt-1 text-sm text-red-600">{{ delete_account_form.password.errors[0] }}</p>
+                        <p class="mt-1 text-sm text-rose-600">{{ delete_account_form.password.errors[0] }}</p>
                     {% endif %}
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Escribe BORRAR para confirmar</label>
-                    {{ delete_account_form.confirm_text(class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500") }}
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Escribe BORRAR para confirmar</label>
+                    {{ delete_account_form.confirm_text(class="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-rose-500") }}
                     {% if delete_account_form.confirm_text.errors %}
-                        <p class="mt-1 text-sm text-red-600">{{ delete_account_form.confirm_text.errors[0] }}</p>
+                        <p class="mt-1 text-sm text-rose-600">{{ delete_account_form.confirm_text.errors[0] }}</p>
                     {% endif %}
                 </div>
             </div>
             <div class="mt-4">
-                <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 cursor-pointer">
-                    Eliminar mi cuenta definitivamente
-                </button>
+                <button type="submit" class="pf-btn inline-flex px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold border-0 cursor-pointer">Eliminar mi cuenta</button>
             </div>
         </form>
     </div>

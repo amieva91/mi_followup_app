@@ -28,18 +28,20 @@
     }
 </style>
 <div id="portfolio-accounts" class="max-w-5xl mx-auto py-6 px-1 sm:px-0">
-    <div class="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-4 mb-8">
+    <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
         <div>
-            <a href="{{ url_for('portfolio.dashboard') }}"
-               class="portfolio-touch-btn inline-flex items-center justify-center px-3 py-2 rounded-xl bg-slate-200 border border-slate-300 hover:bg-slate-300 text-slate-800 text-sm font-semibold mb-2"
-               onclick="if (window.history.length > 1) { event.preventDefault(); history.back(); }">← Volver</a>
             <h1 class="portfolio-title text-2xl sm:text-3xl">🏦 Cuentas</h1>
             <p class="text-slate-600 mt-1 text-sm sm:text-base">Brokers y cuentas vinculadas</p>
         </div>
-        <a href="{{ url_for('portfolio.account_new') }}"
-           class="portfolio-touch-btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold shadow-[0_10px_20px_rgba(13,148,136,0.28)] w-full sm:w-auto shrink-0">
-            ➕ Nueva cuenta
-        </a>
+        <div class="flex flex-col sm:flex-row sm:items-stretch sm:justify-end gap-2 w-full sm:w-auto shrink-0">
+            <a href="{{ url_for('portfolio.account_new') }}"
+               class="portfolio-touch-btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold shadow-[0_10px_20px_rgba(13,148,136,0.28)] w-full sm:w-auto">
+                ➕ Nueva cuenta
+            </a>
+            <a href="{{ url_for('portfolio.dashboard') }}"
+               class="portfolio-touch-btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-slate-200 border border-slate-300 hover:bg-slate-300 text-slate-800 text-sm font-semibold w-full sm:w-auto"
+               onclick="if (window.history.length > 1) { event.preventDefault(); history.back(); }">← Volver</a>
+        </div>
     </div>
 
     {% if accounts %}
