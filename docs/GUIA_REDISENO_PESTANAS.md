@@ -9,6 +9,8 @@ Este documento sirve como referencia viva para mantener consistencia visual y fu
 - Evitar regresiones de usabilidad (interacciones, filtros, modales, formularios).
 - Documentar decisiones para que se apliquen en nuevas pantanas.
 
+Este documento concentra **principios, paleta, checklist y bitácora**: las reglas concretas (títulos `emoji + título`, `portfolio-card`, `pf-info`, superficies `chart-surface*`, `evo-toggle`, modales con overlay `bg-black/55`, toasts, tablas con cabecera slate, botones `teal` / `slate`, etc.) deben alinearse aquí al rediseñar cualquier pestaña. Si añades un patrón nuevo, amplía una viñeta bajo **Principios** o **Bitácora** para que el inventario siga completo.
+
 ## Principios de diseno acordados
 
 - Estilo general `3D suave`: superficies elevadas, sombras sutiles, gradientes ligeros.
@@ -43,6 +45,7 @@ Este documento sirve como referencia viva para mantener consistencia visual y fu
 - Tooltips claros con formato monetario local (`es-ES`).
 - Escalas legibles y coherentes con el dato representado.
 - En pestañas redisenadas, mantener acabado visual `3D suave` en las graficas (superficie con relieve sutil, sin saturar el color de fondo), alineada a la familia de tarjetas (degradado teal-slate, sin parches blancos sueltos en el contenedor del canvas).
+- **Gráficos de reparto** (doughnut/pie, varias porciones en un solo lienzo): usar **paleta amplia y distinguible** (tonos agradables, armónicos entre sí) para leer la leyenda; si se repite el patrón de color al superar *N* porciones, explicar en el modal **i** que el color **no** implica prioridad, solo distinción. No usar una franja casi monocromática si dificulta asociar leyenda ↔ porción.
 
 ## Reglas para tablas y listados
 
@@ -180,6 +183,8 @@ Marcar cada ítem al cerrar el redisño. Sirve para homogeneizar con el resto de
 - Portfolio index comparison (`/portfolio/index-comparison`)
 - Portfolio diversificacion (`/portfolio/diversificacion`)
 - Portfolio currencies (`/portfolio/currencies`)
+- Portfolio cartera / holdings (`/portfolio/holdings`)
+- Portfolio watchlist (`/portfolio/watchlist`)
 - Portfolio ficha de activo (`/portfolio/asset/<id>`)
 - Portfolio P&L por activo (`/portfolio/pl-by-asset`)
 
@@ -223,4 +228,7 @@ Marcar cada ítem al cerrar el redisño. Sirve para homogeneizar con el resto de
 - `Portfolio` P&L por activo (`/portfolio/pl-by-asset`): redisño a `portfolio-card`, tabla slate/teal, tipografía y KPIs resumen alineados a la guía.
 - Formulario nueva/editar transacción (`/portfolio/transactions/new` y edición): contenedor `max-w-5xl`, tarjeta principal y secciones internas con gradiente paleta B, inputs `rounded-xl` y anillo de foco `teal`, bloque venta con acento lateral teal, botones de enriquecimiento y envío alineados a primario teal / secundario slate; sin cambiar IDs/names usados por JS.
 - `Portfolio` análisis de performance (`/portfolio/performance`): cabecera y badges de sync en familia teal-slate, lienzo de cada gráfico con `chart-surface` coherente con el dashboard, pie informativo en rail degradado teal/slate y mensaje de error en `rose` suave.
+- `Portfolio` diversificación: doughnut con paleta multicolor armónica (leyenda legible), superficie `chart-surface-divers`, modales `pf-info` por gráfico.
+- `Portfolio` holdings: KPIs en rizado semántico (sky/teal/rose/emerald), tabla con envoltorio tipo listados portfolio, enlace a ficha en teal, modal corregir Yahoo al patrón de modales (sin `alert` nativo; toast embebido), primarios `teal`.
+- `Portfolio` watchlist: cabecera y tabla alineados a `portfolio-card` + `watchlist-thead`, modales (ajustes, añadir, informe, editar, confirmar) con `pf-modal` / overlay unificado, tabs y CTAs en `teal`, toasts en `emerald/rose/slate`, cierre con scroll bloqueado en `body` al abrir modal.
 - Formulario transacción: **Volver** con `history.back()` + fallback; performance: frecuencia con segmentos como «Evolución del Patrimonio», toggles `evo-toggle` para valor real / capital invertido, leyendas Chart desactivadas en series únicas, textos metodológicos en `pf-info`; **Mi Portfolio** — bloque rentabilidades año a año: tarjeta y contenedor del gráfico de barras con degradado teal-slate (sin caja blanca suelta).

@@ -152,7 +152,7 @@
                         <h4 class="text-sm font-semibold text-slate-900">Por país</h4>
                         <button type="button" class="text-sm rounded-lg px-3 py-1.5 bg-slate-700 text-white font-semibold" @click="diversInfo = null; document.body.style.overflow = ''">Cerrar</button>
                     </div>
-                    <div class="p-4 text-sm text-slate-700">Cada porción es el <strong>peso en EUR</strong> de posiciones cuyo país de cotización o emisor coincide con la etiqueta. Los colores solo sirven para distinguir categorías, no un ranking.</div>
+                    <div class="p-4 text-sm text-slate-700">Cada porción es el <strong>peso en EUR</strong> de posiciones cuyo país de cotización o emisor coincide con la etiqueta. Los colores son <strong>distintos entre sí</strong> para leer la leyenda: no implican orden ni “mejor/peor”.</div>
                 </div>
             </template>
             <template x-if="diversInfo === 'sector'">
@@ -208,21 +208,28 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const sliceColors = (function() {
-        var n = 24, out = [];
-        for (var k = 0; k < n; k++) {
-            var t = k / (n - 1 || 1);
-            var r = Math.round(6 + t * 58);
-            var g = Math.round(100 + t * 88);
-            var b = Math.round(92 + t * 60);
-            out.push('rgba(' + r + ', ' + g + ', ' + b + ', 0.9)');
+    // Paleta amplia, tonos suaves y bien diferenciados (se repite por índice si hay muchas porciones)
+    const SLICE_PALETTE = [
+        'rgba(13, 148, 136, 0.9)', 'rgba(14, 165, 233, 0.9)', 'rgba(99, 102, 241, 0.88)', 'rgba(168, 85, 247, 0.88)',
+        'rgba(236, 72, 153, 0.86)', 'rgba(244, 63, 94, 0.86)', 'rgba(249, 115, 22, 0.88)', 'rgba(234, 179, 8, 0.9)',
+        'rgba(132, 204, 22, 0.88)', 'rgba(5, 150, 105, 0.9)', 'rgba(6, 182, 212, 0.88)', 'rgba(37, 99, 235, 0.86)',
+        'rgba(79, 70, 229, 0.86)', 'rgba(192, 38, 211, 0.84)', 'rgba(190, 18, 60, 0.82)', 'rgba(180, 83, 9, 0.86)',
+        'rgba(5, 122, 85, 0.88)', 'rgba(2, 132, 199, 0.88)', 'rgba(67, 56, 202, 0.86)', 'rgba(109, 40, 217, 0.85)',
+        'rgba(219, 39, 119, 0.84)', 'rgba(12, 74, 110, 0.85)', 'rgba(21, 128, 61, 0.88)', 'rgba(30, 64, 175, 0.85)',
+        'rgba(100, 116, 139, 0.88)', 'rgba(20, 184, 166, 0.88)', 'rgba(45, 212, 191, 0.85)', 'rgba(56, 189, 248, 0.86)',
+        'rgba(96, 165, 250, 0.86)', 'rgba(129, 140, 248, 0.86)', 'rgba(167, 139, 250, 0.85)', 'rgba(196, 181, 253, 0.88)'
+    ];
+    function colorsForSlices(n) {
+        var out = [];
+        for (var i = 0; i < n; i++) {
+            out.push(SLICE_PALETTE[i % SLICE_PALETTE.length]);
         }
         return out;
-    })();
+    }
     function makeDataset(dataArr) {
         return {
             data: dataArr,
-            backgroundColor: sliceColors.slice(0, dataArr.length),
+            backgroundColor: colorsForSlices(dataArr.length),
             borderWidth: 2,
             borderColor: 'rgba(248, 250, 252, 0.95)'
         };

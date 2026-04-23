@@ -2,51 +2,115 @@
 
 {% block title %}Cartera de Acciones - FollowUp{% endblock %}
 
-<!-- Template actualizada: 2025-10-12 14:30 - Symbol condicional (solo si != name y < 15 chars) -->
-
 {% block content %}
-<div class="max-w-[92%] mx-auto">  <!-- Ancho unificado con el resto de páginas -->
-    <!-- Header -->
-    <div class="flex justify-between items-center mb-8">
+<style>
+    #portfolio-holdings .portfolio-card {
+        background: linear-gradient(145deg, #f8fbfc 0%, #f1f7f8 100%);
+        border: 1px solid rgba(63, 95, 115, 0.14);
+        border-radius: 16px;
+        box-shadow: 0 14px 30px rgba(15,23,42,0.1), inset 0 1px 0 rgba(255,255,255,0.85);
+    }
+    #portfolio-holdings .portfolio-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-weight: 700;
+        color: #1f2937;
+    }
+    #portfolio-holdings .portfolio-touch-btn {
+        transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease;
+    }
+    #portfolio-holdings .portfolio-touch-btn:active {
+        transform: scale(0.98);
+        filter: brightness(0.96);
+    }
+    #portfolio-holdings .kpi-tile {
+        border-radius: 0.85rem;
+        border: 1px solid rgba(63, 95, 115, 0.12);
+        background: linear-gradient(145deg, rgba(255,255,255,0.95), rgba(241,247,248,0.88));
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.88);
+    }
+    #portfolio-holdings .holdings-table-wrap {
+        border-radius: 0.85rem;
+        border: 1px solid rgba(63, 95, 115, 0.14);
+        overflow: hidden;
+        background: linear-gradient(180deg, rgba(255,255,255,0.55) 0%, rgba(248,250,252,0.92) 100%);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.8);
+    }
+    #portfolio-holdings .holdings-thead th {
+        background: linear-gradient(180deg, #f1f5f9 0%, #e2e8f0 100%);
+        color: #334155;
+        font-size: 0.65rem;
+        letter-spacing: 0.04em;
+    }
+    #portfolio-holdings .pf-info {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.375rem;
+        height: 1.375rem;
+        border-radius: 9999px;
+        border: 1px solid rgb(204 251 241);
+        background: rgb(240 253 250);
+        color: rgb(15 118 110);
+        font-size: 0.65rem;
+        font-weight: 700;
+        line-height: 1;
+        cursor: pointer;
+        flex-shrink: 0;
+        padding: 0;
+    }
+    #portfolio-holdings .modal-surface {
+        border-radius: 1rem;
+        border: 1px solid rgba(63, 95, 115, 0.14);
+        background: linear-gradient(145deg, #f8fbfc 0%, #f1f7f8 100%);
+        box-shadow: 0 20px 45px rgba(15, 23, 42, 0.28);
+    }
+</style>
+<div id="portfolio-holdings" class="max-w-[92%] mx-auto px-4 py-8">
+    <div class="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-4 mb-8">
         <div>
-            <h1 class="text-3xl font-bold text-gray-900">📈 Cartera</h1>
-            <p class="text-gray-600 mt-1">Posiciones actuales en acciones y ETFs</p>
+            <h1 class="portfolio-title text-3xl">📈 Cartera</h1>
+            <p class="text-slate-600 mt-1 text-sm sm:text-base">Posiciones en acciones y ETFs (Stock/ETF)</p>
         </div>
-        <a href="{{ url_for('portfolio.transaction_new') }}" class="btn-primary">
-            📝 Nueva Transacción
-        </a>
+        <div class="flex flex-col sm:flex-row gap-3 shrink-0">
+            <a href="{{ url_for('portfolio.transaction_new') }}" class="portfolio-touch-btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold shadow-[0_10px_20px_rgba(13,148,136,0.28)] w-full sm:w-auto">
+                📝 Nueva transacción
+            </a>
+            <a href="{{ url_for('portfolio.dashboard') }}" class="portfolio-touch-btn inline-flex items-center justify-center px-4 py-2.5 bg-slate-200 border border-slate-300 rounded-xl hover:bg-slate-300 text-slate-800 text-sm font-semibold w-full sm:w-auto">
+                Dashboard
+            </a>
+        </div>
     </div>
 
-    <!-- Indicadores Stock+ETF (Dinero en Cuenta, Apalancamiento, B/P) -->
     {% if metrics %}
     <div class="mb-8">
-        <h2 class="text-lg font-semibold text-gray-700 mb-4">📊 Indicadores de la Cartera</h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <!-- Valor Total Cartera -->
-            <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-blue-500">
-                <div class="text-sm text-gray-600 mb-1">💰 Valor Cartera</div>
-                <div class="text-xl font-bold text-gray-900">{{ total_value|decimal_eu(2) }} EUR</div>
+        <div class="flex items-start justify-between gap-2 mb-4">
+            <h2 class="portfolio-title text-lg">Indicadores de la cartera</h2>
+            <button type="button" class="pf-info" onclick="document.getElementById('holdingsKpiInfo').classList.remove('hidden'); document.body.style.overflow='hidden'" title="Información" aria-label="Información indicadores">i</button>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            <div class="kpi-tile p-4 border-l-4 border-sky-500/70">
+                <div class="text-sm font-medium text-slate-600">Valor cartera</div>
+                <div class="text-xl font-bold text-slate-900 tabular-nums mt-0.5">{{ total_value|decimal_eu(2) }} EUR</div>
             </div>
-            <!-- Dinero en Cuenta / Cash / Apalancamiento -->
-            <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 {% if metrics.leverage.broker_money > 0 %}border-red-500{% else %}border-cyan-500{% endif %}">
-                <div class="text-sm text-gray-600 mb-1">
-                    {% if metrics.leverage.broker_money > 0 %}⚡ Dinero Prestado{% else %}💵 Cash en Cuenta{% endif %}
+            <div class="kpi-tile p-4 border-l-4 {% if metrics.leverage.broker_money > 0 %}border-rose-500/70{% else %}border-cyan-500/70{% endif %}">
+                <div class="text-sm font-medium text-slate-600">
+                    {% if metrics.leverage.broker_money > 0 %}Dinero prestado (apalancamiento){% else %}Cash en cuenta{% endif %}
                 </div>
-                <div class="text-xl font-bold {% if metrics.leverage.broker_money > 0 %}text-red-600{% else %}text-cyan-600{% endif %}">
+                <div class="text-xl font-bold tabular-nums mt-0.5 {% if metrics.leverage.broker_money > 0 %}text-rose-800{% else %}text-cyan-800{% endif %}">
                     {% if metrics.leverage.broker_money >= 0 %}+{% endif %}{{ metrics.leverage.broker_money|decimal_eu(2) }} EUR
                 </div>
             </div>
-            <!-- Dinero Usuario -->
-            <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-indigo-500">
-                <div class="text-sm text-gray-600 mb-1">💼 Dinero Usuario</div>
-                <div class="text-xl font-bold text-indigo-600">{{ metrics.total_account.total_account_value|decimal_eu(2) }} EUR</div>
+            <div class="kpi-tile p-4 border-l-4 border-indigo-500/70">
+                <div class="text-sm font-medium text-slate-600">Dinero usuario</div>
+                <div class="text-xl font-bold text-indigo-900 tabular-nums mt-0.5">{{ metrics.total_account.total_account_value|decimal_eu(2) }} EUR</div>
             </div>
-            <!-- B/P Total -->
-            <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 {% if metrics.total_pl.total_pl >= 0 %}border-green-600{% else %}border-red-600{% endif %}">
-                <div class="text-sm text-gray-600 mb-1">📈 B/P Total</div>
-                <div class="text-xl font-bold {% if metrics.total_pl.total_pl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+            <div class="kpi-tile p-4 border-l-4 {% if metrics.total_pl.total_pl >= 0 %}border-emerald-500/70{% else %}border-rose-500/70{% endif %}">
+                <div class="text-sm font-medium text-slate-600">B/P total</div>
+                <div class="text-xl font-bold tabular-nums mt-0.5 {% if metrics.total_pl.total_pl >= 0 %}text-emerald-800{% else %}text-rose-800{% endif %}">
                     {% if metrics.total_pl.total_pl >= 0 %}+{% endif %}{{ metrics.total_pl.total_pl|decimal_eu(2) }} EUR
-                    <span class="text-sm font-normal">({{ metrics.total_pl.total_pl_pct|decimal_eu(2) }}%)</span>
+                    <span class="text-sm font-semibold">({{ metrics.total_pl.total_pl_pct|decimal_eu(2) }}%)</span>
                 </div>
             </div>
         </div>
@@ -54,295 +118,252 @@
     {% endif %}
 
     {% if holdings %}
-    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTableHoldings(0, 'text')">
-                            Activo <span class="sort-arrow">⇅</span>
-                        </th>
-                        {% if unified %}
-                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTableHoldings(1, 'text')">
-                            Cuentas <span class="sort-arrow">⇅</span>
-                        </th>
-                        {% else %}
-                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTableHoldings(1, 'text')">
-                            Cuenta <span class="sort-arrow">⇅</span>
-                        </th>
-                        {% endif %}
-                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTableHoldings(2, 'number')">
-                            Cantidad <span class="sort-arrow">⇅</span>
-                        </th>
-                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTableHoldings(3, 'number')">
-                            Precio Medio Compra <span class="sort-arrow">⇅</span>
-                        </th>
-                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTableHoldings(4, 'number')">
-                            Precio Actual <span class="sort-arrow">⇅</span>
-                        </th>
-                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTableHoldings(5, 'number')">
-                            Valor Actual <span class="sort-arrow">⇅</span>
-                        </th>
-                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTableHoldings(6, 'number')">
-                            P&L <span class="sort-arrow">⇅</span>
-                        </th>
-                        <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTableHoldings(7, 'number')">
-                            Peso % <span class="sort-arrow">⇅</span>
-                        </th>
-                    </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
-                    {% for holding in holdings %}
-                    <tr class="hover:bg-gray-50 transition">
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="flex items-center gap-1">
-                                <div>
-                                    <div class="text-sm font-bold text-gray-900 flex items-center gap-1">
-                                        {% if holding.get('needs_yahoo_fix') %}
-                                        <button type="button" class="fix-yahoo-btn text-amber-600 hover:text-amber-700 font-bold cursor-pointer" title="Corregir ticker con URL de Yahoo" data-asset-id="{{ holding['asset'].id }}" data-asset-name="{{ (holding['asset'].name or holding['asset'].symbol or '')|e }}" data-asset-currency="{{ holding['asset'].currency or 'EUR' }}">!</button>
-                                        {% endif %}
-                                        <a href="{{ url_for('portfolio.asset_detail', id=holding['asset'].id) }}" class="hover:text-blue-600">
-                                            {{ holding['asset'].name if holding['asset'].name else holding['asset'].symbol }}
-                                        </a>
-                                    </div>
-                                    <div class="text-xs text-gray-400">
-                                        {% if holding['asset'].asset_type %}{{ holding['asset'].asset_type }}{% endif %}
-                                        {% if holding['asset'].symbol %} • {{ holding['asset'].symbol }}{% endif %}
-                                        {% if holding['asset'].exchange %} • {{ holding['asset'].exchange }}{% endif %}
-                                        {% if holding['asset'].currency %} • {{ holding['asset'].currency }}{% endif %}
-                                        {% if holding['asset'].isin %} • {{ holding['asset'].isin }}{% endif %}
+    <div class="portfolio-card p-0 overflow-hidden">
+        <div class="holdings-table-wrap m-4 sm:m-5">
+            <div class="overflow-x-auto">
+                <table id="holdingsDataTable" class="min-w-full">
+                    <thead class="holdings-thead">
+                        <tr>
+                            <th class="px-4 py-3.5 text-left font-semibold uppercase cursor-pointer hover:bg-slate-200/60 select-none" onclick="sortTableHoldings(0, 'text')">
+                                Activo <span class="sort-arrow">⇅</span>
+                            </th>
+                            {% if unified %}
+                            <th class="px-4 py-3.5 text-left font-semibold uppercase cursor-pointer hover:bg-slate-200/60" onclick="sortTableHoldings(1, 'text')">
+                                Cuentas <span class="sort-arrow">⇅</span>
+                            </th>
+                            {% else %}
+                            <th class="px-4 py-3.5 text-left font-semibold uppercase cursor-pointer hover:bg-slate-200/60" onclick="sortTableHoldings(1, 'text')">
+                                Cuenta <span class="sort-arrow">⇅</span>
+                            </th>
+                            {% endif %}
+                            <th class="px-4 py-3.5 text-right font-semibold uppercase cursor-pointer hover:bg-slate-200/60" onclick="sortTableHoldings(2, 'number')">Cantidad <span class="sort-arrow">⇅</span></th>
+                            <th class="px-4 py-3.5 text-right font-semibold uppercase cursor-pointer hover:bg-slate-200/60" onclick="sortTableHoldings(3, 'number')">PM compra <span class="sort-arrow">⇅</span></th>
+                            <th class="px-4 py-3.5 text-right font-semibold uppercase cursor-pointer hover:bg-slate-200/60" onclick="sortTableHoldings(4, 'number')">Precio <span class="sort-arrow">⇅</span></th>
+                            <th class="px-4 py-3.5 text-right font-semibold uppercase cursor-pointer hover:bg-slate-200/60" onclick="sortTableHoldings(5, 'number')">Valor <span class="sort-arrow">⇅</span></th>
+                            <th class="px-4 py-3.5 text-right font-semibold uppercase cursor-pointer hover:bg-slate-200/60" onclick="sortTableHoldings(6, 'number')">P&L <span class="sort-arrow">⇅</span></th>
+                            <th class="px-4 py-3.5 text-right font-semibold uppercase cursor-pointer hover:bg-slate-200/60" onclick="sortTableHoldings(7, 'number')">Peso % <span class="sort-arrow">⇅</span></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-200/80">
+                        {% for holding in holdings %}
+                        <tr class="hover:bg-teal-50/40 transition-colors">
+                            <td class="px-4 py-3.5 whitespace-nowrap">
+                                <div class="flex items-center gap-1">
+                                    <div>
+                                        <div class="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                                            {% if holding.get('needs_yahoo_fix') %}
+                                            <button type="button" class="fix-yahoo-btn portfolio-touch-btn text-amber-700 hover:text-amber-900 font-bold min-w-[1.5rem] rounded-md px-1" title="Corregir ticker con URL de Yahoo" data-asset-id="{{ holding['asset'].id }}" data-asset-name="{{ (holding['asset'].name or holding['asset'].symbol or '')|e }}" data-asset-currency="{{ holding['asset'].currency or 'EUR' }}">!</button>
+                                            {% endif %}
+                                            <a href="{{ url_for('portfolio.asset_detail', id=holding['asset'].id) }}" class="text-teal-800 hover:underline">
+                                                {{ holding['asset'].name if holding['asset'].name else holding['asset'].symbol }}
+                                            </a>
+                                        </div>
+                                        <div class="text-xs text-slate-500">
+                                            {% if holding['asset'].asset_type %}{{ holding['asset'].asset_type }}{% endif %}
+                                            {% if holding['asset'].symbol %} • {{ holding['asset'].symbol }}{% endif %}
+                                            {% if holding['asset'].exchange %} • {{ holding['asset'].exchange }}{% endif %}
+                                            {% if holding['asset'].currency %} • {{ holding['asset'].currency }}{% endif %}
+                                            {% if holding['asset'].isin %} • {{ holding['asset'].isin }}{% endif %}
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm font-medium text-gray-900">
+                            </td>
+                            <td class="px-4 py-3.5 whitespace-nowrap text-sm text-slate-800">
                                 {% set brokers_list = holding.get('brokers', []) %}
                                 {% if brokers_list|length == 1 %}
                                     {{ brokers_list[0] }}
                                 {% elif brokers_list|length > 1 %}
                                     {{ brokers_list|length }} cuentas
                                 {% else %}
-                                    <span class="text-xs text-gray-400">-</span>
+                                    <span class="text-xs text-slate-400">-</span>
                                 {% endif %}
-                            </div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900">
-                            {{ holding['total_quantity']|decimal_eu(0) }}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-right">
-                            {% if holding['average_buy_price'] and holding['average_buy_price'] > 0 %}
-                            <div class="text-sm text-gray-900">{{ holding['average_buy_price']|decimal_eu(2) }} {{ holding['asset'].currency }}</div>
-                            {% else %}
-                            <span class="text-xs text-gray-400">-</span>
-                            {% endif %}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-right price-cell" data-asset-id="{{ holding['asset'].id }}" data-field="price">
-                            {% if holding['asset'].current_price %}
-                            <div class="text-sm text-gray-900">{{ holding['asset'].current_price|decimal_eu(2) }} {{ holding['asset'].currency }}</div>
-                            {% else %}
-                            <span class="text-xs text-gray-400">Sin precio</span>
-                            {% endif %}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-right price-cell" data-asset-id="{{ holding['asset'].id }}" data-field="value">
-                            {% if 'current_value_eur' in holding %}
-                            <div class="text-sm font-medium text-gray-900">
-                                {{ holding['current_value_eur']|decimal_eu(2) }} EUR
-                            </div>
-                            {% if 'local_currency' in holding and holding['local_currency'] != 'EUR' %}
-                            <div class="text-xs text-gray-500">
-                                ({{ holding['current_value_local']|decimal_eu(2) }} {{ holding['local_currency'] }})
-                            </div>
-                            {% endif %}
-                            {% else %}
-                            <span class="text-xs text-gray-400">-</span>
-                            {% endif %}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-right price-cell" data-asset-id="{{ holding['asset'].id }}" data-field="pl">
-                            {% if 'pl_eur' in holding and holding['pl_eur'] != 0 %}
-                            <span class="text-sm font-medium {% if holding['pl_eur'] >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
-                                {% if holding['pl_eur'] >= 0 %}+{% endif %}{{ holding['pl_eur']|decimal_eu(2) }} EUR
-                            </span>
-                            {% else %}
-                            <span class="text-xs text-gray-400">-</span>
-                            {% endif %}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-500">
-                            {{ holding.get('weight_pct', 0)|decimal_eu(2) }}%
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <div class="mt-6 flex items-center justify-between">
-        <a href="{{ url_for('portfolio.dashboard') }}" class="text-blue-600 hover:text-blue-700 text-sm font-medium">
-            ← Volver al Dashboard
-        </a>
-        <div class="text-sm text-gray-500">
-            Total: {{ holdings|length }} posicion{{ 'es' if holdings|length != 1 else '' }}
-        </div>
-    </div>
-    {% else %}
-    <div class="bg-white rounded-xl shadow-sm p-12 text-center">
-        <div class="text-6xl mb-4">📊</div>
-        <h3 class="text-lg font-medium text-gray-900 mb-2">No tienes posiciones todavía</h3>
-        <p class="text-gray-600 mb-6">Registra tu primera transacción para empezar a gestionar tu portfolio</p>
-        <a href="{{ url_for('portfolio.transaction_new') }}" class="btn-primary">
-            📝 Registrar Primera Transacción
-        </a>
-    </div>
-    {% endif %}
-    
-    <!-- Modal para corregir con Yahoo URL -->
-    <div id="fixYahooModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-        <div class="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
-            <div class="mt-3">
-                <h3 class="text-lg font-medium text-gray-900 mb-4">
-                    🔧 Corregir Ticker con URL de Yahoo
-                </h3>
-                <p class="text-sm text-gray-600 mb-4">
-                    Busca el asset en <a href="https://finance.yahoo.com" target="_blank" class="text-blue-600 underline">Yahoo Finance</a> y pega la URL completa aquí:
-                </p>
-                <input type="text" id="yahooUrlInput" placeholder="https://finance.yahoo.com/quote/AAPL/" 
-                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 mb-4">
-                <div class="flex justify-end gap-2">
-                    <button id="cancelFixBtn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">
-                        Cancelar
-                    </button>
-                    <button id="confirmFixBtn" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                        Aplicar
-                    </button>
-                </div>
+                            </td>
+                            <td class="px-4 py-3.5 whitespace-nowrap text-right text-sm text-slate-900 tabular-nums">
+                                {{ holding['total_quantity']|decimal_eu(0) }}
+                            </td>
+                            <td class="px-4 py-3.5 whitespace-nowrap text-right">
+                                {% if holding['average_buy_price'] and holding['average_buy_price'] > 0 %}
+                                <div class="text-sm text-slate-900 tabular-nums">{{ holding['average_buy_price']|decimal_eu(2) }} {{ holding['asset'].currency }}</div>
+                                {% else %}
+                                <span class="text-xs text-slate-400">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3.5 whitespace-nowrap text-right price-cell" data-asset-id="{{ holding['asset'].id }}" data-field="price">
+                                {% if holding['asset'].current_price %}
+                                <div class="text-sm text-slate-900 tabular-nums">{{ holding['asset'].current_price|decimal_eu(2) }} {{ holding['asset'].currency }}</div>
+                                {% else %}
+                                <span class="text-xs text-slate-400">Sin precio</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3.5 whitespace-nowrap text-right price-cell" data-asset-id="{{ holding['asset'].id }}" data-field="value">
+                                {% if 'current_value_eur' in holding %}
+                                <div class="text-sm font-medium text-slate-900 tabular-nums">
+                                    {{ holding['current_value_eur']|decimal_eu(2) }} EUR
+                                </div>
+                                {% if 'local_currency' in holding and holding['local_currency'] != 'EUR' %}
+                                <div class="text-xs text-slate-500 tabular-nums">({{ holding['current_value_local']|decimal_eu(2) }} {{ holding['local_currency'] }})</div>
+                                {% endif %}
+                                {% else %}
+                                <span class="text-xs text-slate-400">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3.5 whitespace-nowrap text-right price-cell" data-asset-id="{{ holding['asset'].id }}" data-field="pl">
+                                {% if 'pl_eur' in holding and holding['pl_eur'] != 0 %}
+                                <span class="text-sm font-medium tabular-nums {% if holding['pl_eur'] >= 0 %}text-emerald-700{% else %}text-rose-700{% endif %}">
+                                    {% if holding['pl_eur'] >= 0 %}+{% endif %}{{ holding['pl_eur']|decimal_eu(2) }} EUR
+                                </span>
+                                {% else %}
+                                <span class="text-xs text-slate-400">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3.5 whitespace-nowrap text-right text-sm text-slate-600 tabular-nums">
+                                {{ holding.get('weight_pct', 0)|decimal_eu(2) }}%
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
-    
+
+    <p class="mt-4 text-sm text-slate-600 text-right tabular-nums">Total: <strong class="text-slate-900">{{ holdings|length }}</strong> posición{{ 'es' if holdings|length != 1 else '' }}</p>
+    {% else %}
+    <div class="portfolio-card p-12 text-center text-slate-600">
+        <div class="text-6xl mb-4" aria-hidden="true">📊</div>
+        <h3 class="text-lg font-semibold text-slate-900 mb-2">Aún no tienes posiciones</h3>
+        <p class="text-sm mb-6 max-w-md mx-auto">Registra una transacción de compra para ver aquí tu cartera (Stock/ETF).</p>
+        <a href="{{ url_for('portfolio.transaction_new') }}" class="portfolio-touch-btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold shadow-[0_10px_20px_rgba(13,148,136,0.28)]">📝 Primera transacción</a>
+    </div>
+    {% endif %}
+
+    <div id="holdingsKpiInfo" class="hidden fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55" onclick="this.classList.add('hidden'); document.body.style.overflow=''" role="dialog" aria-modal="true">
+        <div class="modal-surface w-full max-w-md p-0 max-h-[min(90vh,22rem)] flex flex-col" onclick="event.stopPropagation()">
+            <div class="px-4 py-3 border-b border-slate-200/80 flex justify-between items-center">
+                <h4 class="text-sm font-semibold text-slate-900">Indicadores</h4>
+                <button type="button" class="text-sm rounded-lg px-3 py-1.5 bg-slate-700 text-white font-semibold" onclick="document.getElementById('holdingsKpiInfo').classList.add('hidden'); document.body.style.overflow=''">Cerrar</button>
+            </div>
+            <div class="p-4 text-sm text-slate-700 space-y-2 overflow-y-auto">
+                <p><strong>Valor cartera</strong>: suma en EUR de posiciones (Stock/ETF) con precio de mercado.</p>
+                <p><strong>Cash / dinero prestado</strong>: saldo de cash en el broker a nivel agregado, o cifra de apalancamiento si aplica.</p>
+                <p><strong>Dinero usuario</strong>: patrimonio aportado en la cuenta (según cálculo de métricas de la app).</p>
+                <p><strong>B/P total</strong>: beneficio o pérdida no realizado + realizado (según la métrica del portfolio).</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="holdingsToast" class="hidden fixed bottom-4 right-4 z-[70] max-w-sm rounded-xl border border-slate-200/80 bg-white shadow-[0_16px_40px_rgba(15,23,42,0.2)] px-4 py-3 text-sm" role="status"></div>
+
+    <div id="fixYahooModal" class="hidden fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55" onclick="if(event.target===this){closeFixYahoo();}">
+        <div class="modal-surface w-full max-w-md p-5" onclick="event.stopPropagation()">
+            <h3 class="text-lg font-semibold text-slate-900 mb-1">Corregir ticker (Yahoo)</h3>
+            <p class="text-sm text-slate-600 mb-4">Abre <a href="https://finance.yahoo.com" target="_blank" rel="noopener noreferrer" class="text-teal-700 font-medium hover:underline">Yahoo Finance</a> y pega la URL de la ficha del activo.</p>
+            <input type="text" id="yahooUrlInput" placeholder="https://finance.yahoo.com/quote/…" class="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 mb-4 text-sm" autocomplete="off">
+            <div class="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3">
+                <button type="button" id="cancelFixBtn" class="portfolio-touch-btn w-full sm:w-auto px-4 py-2 rounded-xl bg-slate-200 text-slate-800 font-semibold hover:bg-slate-300">Cancelar</button>
+                <button type="button" id="confirmFixBtn" class="portfolio-touch-btn w-full sm:w-auto px-4 py-2 rounded-xl bg-teal-600 text-white font-semibold hover:bg-teal-700">Aplicar</button>
+            </div>
+        </div>
+    </div>
+
     <script>
-    // Modal logic
+    const holdingsToastEl = document.getElementById('holdingsToast');
+    function showHoldingsToast(message, isError) {
+        if (!holdingsToastEl) return;
+        holdingsToastEl.textContent = message;
+        holdingsToastEl.className = 'fixed bottom-4 right-4 z-[70] max-w-sm rounded-xl border px-4 py-3 text-sm shadow-[0_16px_40px_rgba(15,23,42,0.2)]' +
+            (isError ? ' border-rose-200 bg-rose-50 text-rose-900' : ' border-emerald-200 bg-emerald-50 text-emerald-900');
+        holdingsToastEl.classList.remove('hidden');
+        setTimeout(function() { holdingsToastEl.classList.add('hidden'); }, 5000);
+    }
     const modal = document.getElementById('fixYahooModal');
     const urlInput = document.getElementById('yahooUrlInput');
     const confirmBtn = document.getElementById('confirmFixBtn');
     const cancelBtn = document.getElementById('cancelFixBtn');
     let currentAssetId = null;
-    
-    // Abrir modal
-    document.querySelectorAll('.fix-yahoo-btn').forEach(btn => {
+    function openFixYahoo() {
+        if (modal) { modal.classList.remove('hidden'); document.body.style.overflow = 'hidden'; if (urlInput) urlInput.focus(); }
+    }
+    function closeFixYahoo() {
+        if (modal) { modal.classList.add('hidden'); document.body.style.overflow = ''; if (urlInput) urlInput.value = ''; }
+    }
+    document.querySelectorAll('.fix-yahoo-btn').forEach(function(btn) {
         btn.addEventListener('click', function() {
             currentAssetId = this.dataset.assetId;
-            const assetName = this.dataset.assetName;
-            modal.classList.remove('hidden');
-            urlInput.focus();
+            openFixYahoo();
         });
     });
-    
-    // Cerrar modal
-    cancelBtn.addEventListener('click', () => {
-        modal.classList.add('hidden');
-        urlInput.value = '';
-    });
-    
-    // Aplicar corrección
-    confirmBtn.addEventListener('click', async () => {
-        const url = urlInput.value.trim();
-        if (!url) {
-            alert('Por favor ingresa una URL');
-            return;
-        }
-        
+    if (cancelBtn) cancelBtn.addEventListener('click', closeFixYahoo);
+    if (confirmBtn) confirmBtn.addEventListener('click', async function() {
+        const url = urlInput && urlInput.value.trim();
+        if (!url) { showHoldingsToast('Indica una URL de Yahoo Finance.', true); return; }
         try {
             confirmBtn.disabled = true;
             confirmBtn.textContent = 'Procesando...';
-            
-            const response = await fetch(`/portfolio/asset/${currentAssetId}/fix-yahoo`, {
+            const response = await fetch('/portfolio/asset/' + currentAssetId + '/fix-yahoo', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: `yahoo_url=${encodeURIComponent(url)}`
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'yahoo_url=' + encodeURIComponent(url)
             });
-            
             const data = await response.json();
-            
             if (data.success) {
-                alert(`✅ Asset actualizado:\nSymbol: ${data.symbol}\nYahoo Ticker: ${data.yahoo_ticker}`);
-                location.reload();
+                showHoldingsToast('Actualizado: ' + (data.symbol || '') + ' · ' + (data.yahoo_ticker || ''), false);
+                closeFixYahoo();
+                setTimeout(function() { location.reload(); }, 800);
             } else {
-                alert(`❌ Error: ${data.error}`);
+                showHoldingsToast(data.error || 'Error al corregir', true);
             }
         } catch (error) {
-            alert(`❌ Error de conexión: ${error.message}`);
+            showHoldingsToast('Error de conexión: ' + error.message, true);
         } finally {
             confirmBtn.disabled = false;
             confirmBtn.textContent = 'Aplicar';
         }
     });
-    
-    // Cerrar con ESC
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && !modal.classList.contains('hidden')) {        
-            modal.classList.add('hidden');
-            urlInput.value = '';
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && modal && !modal.classList.contains('hidden')) {
+            closeFixYahoo();
         }
     });
-    
-    // Ordenar tabla de holdings
-    let sortDirectionHoldings = {}; // Guardar dirección de ordenamiento por columna
-    
     function sortTableHoldings(columnIndex, type) {
-        const table = document.querySelector('.min-w-full');
+        const table = document.getElementById('holdingsDataTable');
+        if (!table) return;
         const tbody = table.querySelector('tbody');
         const rows = Array.from(tbody.querySelectorAll('tr'));
-        
-        // Alternar dirección
-        if (!sortDirectionHoldings[columnIndex]) {
-            sortDirectionHoldings[columnIndex] = 'asc';
+        if (!window.sortDirectionHoldings) window.sortDirectionHoldings = {};
+        if (!window.sortDirectionHoldings[columnIndex]) {
+            window.sortDirectionHoldings[columnIndex] = 'asc';
         } else {
-            sortDirectionHoldings[columnIndex] = sortDirectionHoldings[columnIndex] === 'asc' ? 'desc' : 'asc';
+            window.sortDirectionHoldings[columnIndex] = window.sortDirectionHoldings[columnIndex] === 'asc' ? 'desc' : 'asc';
         }
-        
-        const direction = sortDirectionHoldings[columnIndex];
-        
-        // Ordenar filas
-        rows.sort((a, b) => {
+        const direction = window.sortDirectionHoldings[columnIndex];
+        rows.sort(function(a, b) {
             const cellA = a.querySelectorAll('td')[columnIndex];
             const cellB = b.querySelectorAll('td')[columnIndex];
-            
-            let valueA, valueB;
-            
+            var valueA, valueB;
             if (type === 'number') {
-                // Extraer número con formato europeo (1.234,56)
-                let textA = cellA.textContent.trim().replace(/[^\d.,-]/g, '');
-                let textB = cellB.textContent.trim().replace(/[^\d.,-]/g, '');
-                
-                // Convertir formato europeo a estándar (eliminar puntos de miles, coma a punto)
+                var textA = cellA.textContent.trim().replace(/[^\d.,-]/g, '');
+                var textB = cellB.textContent.trim().replace(/[^\d.,-]/g, '');
                 textA = textA.replace(/\./g, '').replace(',', '.');
                 textB = textB.replace(/\./g, '').replace(',', '.');
-                
                 valueA = parseFloat(textA) || 0;
                 valueB = parseFloat(textB) || 0;
             } else {
-                // Texto
                 valueA = cellA.textContent.trim().toLowerCase();
                 valueB = cellB.textContent.trim().toLowerCase();
             }
-            
             if (direction === 'asc') {
                 return valueA > valueB ? 1 : valueA < valueB ? -1 : 0;
-            } else {
-                return valueA < valueB ? 1 : valueA > valueB ? -1 : 0;
             }
+            return valueA < valueB ? 1 : valueA > valueB ? -1 : 0;
         });
-        
-        // Reordenar filas en el DOM
-        rows.forEach(row => tbody.appendChild(row));
-        
-        // Actualizar flechas
-        document.querySelectorAll('.sort-arrow').forEach(arrow => arrow.textContent = '⇅');
-        const currentArrow = table.querySelectorAll('th')[columnIndex].querySelector('.sort-arrow');
-        currentArrow.textContent = direction === 'asc' ? '↑' : '↓';
+        rows.forEach(function(row) { tbody.appendChild(row); });
+        table.querySelectorAll('.sort-arrow').forEach(function(arrow) { arrow.textContent = '⇅'; });
+        const ths = table.querySelectorAll('thead th');
+        if (ths[columnIndex]) {
+            var ar = ths[columnIndex].querySelector('.sort-arrow');
+            if (ar) ar.textContent = direction === 'asc' ? '↑' : '↓';
+        }
     }
     </script>
 </div>
@@ -353,4 +374,3 @@
 <script>window.__priceUpdatesView = "holdings";</script>
 <script src="{{ url_for('static', filename='js/price_flash_poll.js') }}" defer></script>
 {% endblock %}
-
