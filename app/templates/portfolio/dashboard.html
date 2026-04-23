@@ -50,9 +50,22 @@ document.addEventListener('alpine:init', () => {
     Alpine.data('holdingsTypeFilter', () => ({
         /** Vacío = mostrar todos. Si hay entradas, se combinan con OR. */
         selected: [],
+        setFilter(t, on) {
+            const key = String(t || '').trim();
+            if (on) {
+                if (!this.selected.includes(key)) {
+                    this.selected = [...this.selected, key];
+                }
+            } else {
+                this.selected = this.selected.filter((x) => x !== key);
+            }
+        },
         isRowVisible(ht) {
-            if (!this.selected || this.selected.length === 0) return true;
-            return this.selected.includes(ht);
+            const key = String(ht || '').trim();
+            if (!this.selected || this.selected.length === 0) {
+                return true;
+            }
+            return this.selected.includes(key);
         },
         clearAll() {
             this.selected = [];
@@ -397,8 +410,6 @@ document.addEventListener('alpine:init', () => {
             </div>
             <div class="flex flex-col min-w-0">
                 <h3 class="text-md font-semibold text-gray-800 mb-2">📈 Gráfico de Rentabilidades</h3>
-                <p class="text-xs text-slate-500 mb-1">Cada <strong>barra</strong> = rentabilidad del año en <strong>porcentaje</strong> (eje Y). Pasa el cursor para ver también el importe en €.</p>
-                <p class="text-[0.65rem] text-slate-400 mb-2">Eje: % (Modified Dietz anual / YTD). No es el importe en euros.</p>
                 <div class="chart-surface-3d flex-1 min-h-[300px] relative" style="min-height: 300px;">
                     <canvas id="yearlyReturnsChart"></canvas>
                 </div>
@@ -535,13 +546,6 @@ document.addEventListener('alpine:init', () => {
     
     <!-- Holdings actuales -->
     {% if holdings %}
-    {% set ns_types = namespace(types=[]) %}
-    {% for h in holdings %}
-        {% set _t = (h['asset'].asset_type.strip() if h['asset'].asset_type else '') or 'Otro' %}
-        {% if _t not in ns_types.types %}
-            {% set _ = ns_types.types.append(_t) %}
-        {% endif %}
-    {% endfor %}
     <div class="holdings-surface mb-8" x-data="holdingsTypeFilter()">
         <div class="px-4 sm:px-6 py-4 border-b border-slate-200/80 bg-slate-50/50 flex flex-col gap-3">
             <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
@@ -549,6 +553,7 @@ document.addEventListener('alpine:init', () => {
                     <h2 class="text-lg sm:text-xl font-bold text-slate-900">💼 Posiciones en cartera</h2>
                     <p class="text-xs sm:text-sm text-slate-500 mt-0.5">{{ holdings|length }} posición{{ 'es' if holdings|length != 1 else '' }} · resumen con peso y P&amp;L</p>
                     <p class="text-[0.7rem] text-slate-500 mt-1.5 leading-snug max-w-xl">Punto junto al nombre: <span class="text-emerald-600 font-medium">verde</span> = beneficio (P&amp;L &gt; 0), <span class="text-rose-600 font-medium">rojo</span> = pérdida (P&amp;L &lt; 0), <span class="text-slate-500 font-medium">gris</span> = sin P&amp;L o cero. El borde izquierdo de la fila usa el mismo criterio.</p>
+                    <p class="text-[0.65rem] text-slate-400 mt-1 max-w-xl">Filtro por tipo: solo aparecen los que tienes en cartera (p. ej. <span class="font-medium">Commodity</span> = metales u otros metálicos). Puedes marcar varios a la vez.</p>
                 </div>
                 <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 shrink-0">
                     <div class="holdings-evo-wrap flex flex-wrap items-center gap-1.5 max-w-full">
@@ -557,11 +562,11 @@ document.addEventListener('alpine:init', () => {
                                 class="evo-toggle text-xs font-semibold text-slate-800"
                                 :class="selected.length === 0 ? 'eo-on' : ''"
                                 @click="clearAll()">Todos</button>
-                        {% for t in ns_types.types|sort %}
+                        {% for t in holding_filter_types %}
                         <label class="evo-toggle cursor-pointer" :class="selected.indexOf({{ t|tojson }}) &gt;= 0 ? 'eo-on' : ''">
-                            <input type="checkbox" class="sr-only" value={{ t|tojson }} x-model="selected">
+                            <input type="checkbox" class="sr-only" :checked="selected.includes({{ t|tojson }})" @change="setFilter({{ t|tojson }}, $event.target.checked)">
                             <span class="evo-toggle-check" x-text="selected.indexOf({{ t|tojson }}) &gt;= 0 ? '✓' : ' '">✓</span>
-                            <span class="text-xs text-slate-800">{{ t }}</span>
+                            <span class="text-xs text-slate-800">{% if t == 'Commodity' %}Metales (Commodity){% else %}{{ t }}{% endif %}</span>
                         </label>
                         {% endfor %}
                     </div>
@@ -604,10 +609,9 @@ document.addEventListener('alpine:init', () => {
                 </thead>
                 <tbody class="bg-white/60 divide-y divide-slate-100">
                     {% for holding in holdings %}
-                    {% set htype = (holding['asset'].asset_type.strip() if holding['asset'].asset_type else '') or 'Otro' %}
                     <tr class="table-row-3d {% if 'pl_eur' in holding and holding['pl_eur'] != 0 %}{% if holding['pl_eur'] > 0 %}holding-row-pos{% elif holding['pl_eur'] < 0 %}holding-row-neg{% else %}holding-row-neu{% endif %}{% else %}holding-row-neu{% endif %}"
-                        data-holding-type="{{ htype|e }}"
-                        x-show="isRowVisible({{ htype|tojson }})">
+                        data-holding-type="{{ holding['filter_type']|e }}"
+                        x-show="isRowVisible({{ holding['filter_type']|tojson }})">
                         <!-- Activo -->
                         <td class="px-3 sm:px-4 py-3 whitespace-nowrap align-top">
                             <div class="holdings-asset-pill">
@@ -1261,7 +1265,13 @@ document.addEventListener('DOMContentLoaded', function() {
         const bgNeg = 'rgba(244, 63, 94, 0.88)';
         const brPos = 'rgb(6, 95, 80)';
         const brNeg = 'rgb(90, 24, 34)';
-        function pctNum(yr) {
+        const eurFmt = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 });
+        function eurValue(yr) {
+            var g = yr && yr.absolute_gain;
+            var n = typeof g === 'number' && !Number.isNaN(g) ? g : parseFloat(String(g).replace(/\s/g, '').replace(/\./g, '').replace(',', '.'));
+            return Number.isFinite(n) ? n : 0;
+        }
+        function pctValue(yr) {
             var v = yr && yr.return_pct;
             var n = typeof v === 'number' && !Number.isNaN(v) ? v : parseFloat(String(v).replace(',', '.'));
             return Number.isFinite(n) ? n : 0;
@@ -1269,10 +1279,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const yearlyData = {
             labels: reversedData.map(yr => yr.year + (yr.is_ytd ? ' (YTD)' : '')),
             datasets: [{
-                label: 'Rentabilidad anual (%)',
-                data: reversedData.map(yr => pctNum(yr)),
-                backgroundColor: reversedData.map(yr => (pctNum(yr) >= 0 ? bgPos : bgNeg)),
-                borderColor: reversedData.map(yr => (pctNum(yr) >= 0 ? brPos : brNeg)),
+                label: 'Ganancia / pérdida (€)',
+                data: reversedData.map(yr => eurValue(yr)),
+                backgroundColor: reversedData.map(yr => (eurValue(yr) >= 0 ? bgPos : bgNeg)),
+                borderColor: reversedData.map(yr => (eurValue(yr) >= 0 ? brPos : brNeg)),
                 borderWidth: 1,
                 borderRadius: 6,
                 borderSkipped: false,
@@ -1292,7 +1302,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     legend: { display: false },
                     title: {
                         display: true,
-                        text: 'Rentabilidad anual (%)',
+                        text: 'Ganancia o pérdida anual (€)',
                         color: '#475569',
                         font: { size: 12, weight: '600' },
                         padding: { bottom: 6, top: 0 }
@@ -1300,12 +1310,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     tooltip: {
                         callbacks: {
                             label: function(context) {
-                                const value = context.parsed.y;
                                 const index = context.dataIndex;
-                                const g = reversedData[index].absolute_gain;
-                                const gNum = typeof g === 'number' ? g : parseFloat(String(g).replace(',', '.')) || 0;
-                                return 'Rentabilidad: ' + value.toFixed(2) + '%  ·  ' +
-                                       (gNum >= 0 ? '+' : '') + gNum.toFixed(0) + ' €';
+                                const eur = eurValue(reversedData[index]);
+                                const pct = pctValue(reversedData[index]);
+                                return (eur >= 0 ? '+' : '') + eurFmt.format(eur) + ' €  ·  ' +
+                                    (pct >= 0 ? '+' : '') + pct.toFixed(2) + ' %';
                             }
                         }
                     }
@@ -1315,13 +1324,21 @@ document.addEventListener('DOMContentLoaded', function() {
                         grace: '8%',
                         title: {
                             display: true,
-                            text: 'Rentabilidad (%)',
+                            text: 'Importe (€)',
                             color: '#64748b',
                             font: { size: 11, weight: '500' }
                         },
                         ticks: {
                             callback: function(value) {
-                                return value.toFixed(1) + '%';
+                                if (value === 0) return '0 €';
+                                var abs = Math.abs(value);
+                                if (abs >= 1e6) {
+                                    return (value < 0 ? '−' : '') + (abs / 1e6).toFixed(1).replace('.', ',') + 'M €';
+                                }
+                                if (abs >= 1e3) {
+                                    return (value < 0 ? '−' : '') + (abs / 1e3).toFixed(0) + 'k €';
+                                }
+                                return (value < 0 ? '−' : '') + eurFmt.format(Math.abs(value)) + ' €';
                             }
                         },
                         grid: { color: 'rgba(148, 163, 184, 0.25)' }
