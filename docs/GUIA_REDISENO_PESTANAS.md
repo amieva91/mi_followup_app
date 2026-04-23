@@ -99,17 +99,61 @@ Este documento sirve como referencia viva para mantener consistencia visual y fu
   - `≈` en rango intermedio.
 - En gastos, `↑` implica que el ultimo mes fue superior a la media del periodo.
 
-## Checklist rapido antes de dar por cerrada una pestana
+## Checklist unificada (usar en cada pestaña que se rediseñe)
 
-- [ ] Titulo en formato `emoji + titulo`.
-- [ ] KPIs con estilo unificado.
-- [ ] Grafica con filtros custom debajo.
-- [ ] Leyenda antigua eliminada si aplica.
-- [ ] Tabla/lista con estilo unificado y hover.
-- [ ] Empty state con CTA.
-- [ ] Formularios compactos y proporcionados.
-- [ ] Modales integrados visualmente.
-- [ ] Revisado en desktop y en resolucion intermedia.
+Marcar cada ítem al cerrar el redisño. Sirve para homogeneizar con el resto del producto (Deudas, Gastos, Ingresos, Bancos, Portfolio, dashboard, auth).
+
+### Estructura y jerarquía
+- [ ] Título principal: `emoji + título`, peso y tamaño coherentes con otras pestañas del mismo módulo.
+- [ ] Subtítulos y textos de ayuda (`text-sm` / `text-xs`, `text-slate-500/600`) sin ruido innecesario.
+- [ ] Contenedor de página: `max-w-*` y márgenes laterales alineados con el resto del sitio.
+
+### Superficies y tarjetas (3D suave)
+- [ ] Tarjetas/KPIs: gradiente suave, borde sutil, radio generoso, sombra + brillo interior según reglas de paleta B.
+- [ ] KPIs con borde lateral de color semántico (emerald/rose/slate/sky) sin que el CSS genérico pise `border-l-*`.
+- [ ] Gráficas: superficie tipo `chart-surface` o equivalente; sin saturar el fondo.
+
+### Color y tipografía
+- [ ] Paleta B (teal-slate) en barras, primarios y fondos; reservar rojo/verde fuerte solo a semántica (P&L, error/éxito).
+- [ ] Importes y porcentajes: `tabular-nums` donde aplique; formato monetario EU coherente.
+
+### Tablas y listados
+- [ ] Cabecera `slate`, cuerpo con hover de fila; `overflow-x-auto` en contenedor.
+- [ ] Columna de acciones con ancho estable; en móvil, iconos o textos según reglas responsive del documento.
+- [ ] Estados vacíos con mensaje claro y CTA (teal).
+
+### Formularios
+- [ ] Inputs `rounded-xl`, `border-slate-300`, `focus:ring-teal-500`.
+- [ ] Acciones: primario `teal-600`, secundario `slate-200/300`; bloque `flex-col sm:flex-row` y botones `w-full sm:w-auto` en móvil.
+
+### Botones, iconos de ayuda y feedback táctil
+- [ ] Botones con `portfolio-touch-btn` / `bank-touch-btn` / `modal-touch-btn` o patrón equivalente del módulo.
+- [ ] Icono de información tipo Bancos: círculo `teal` con `i` (clase `pf-info` en Portfolio, o equivalente documentado).
+- [ ] Estado `:active` visible en controles principales.
+
+### Modales y ventanas emergentes
+- [ ] Overlay `bg-black/55` o similar; panel con gradiente 3D, `rounded-2xl`, sombra profunda.
+- [ ] CTA primario y secundario distinguibles; cierre con botón, Escape y clic fuera si aplica.
+- [ ] Sin `alert`/`confirm` nativos para flujos de producto (sustituir por modales del sistema).
+
+### Comportamiento y datos
+- [ ] Desplegables filas de KPIs sincronizados si el diseño lo pide (una fila = un estado compartido).
+- [ ] Listas largas: compactar o modal con scroll en lugar de páginas interminables.
+
+### Gráficos
+- [ ] Chart.js: leyenda duplicada eliminada si hay filtro custom; tooltips legibles.
+- [ ] “3D fuerte” = relieve simulado (gradiente en barras + bordes/highlight), no motor 3D real, salvo que se acuerde lo contrario.
+
+### Otros dispositivos y pruebas
+- [ ] Revisión en ancho intermedio y móvil (tablas, modales a pantalla completa abajo).
+- [ ] **Validación visual**: contraste, solapamientos, scroll horizontal no bloqueante.
+- [ ] **Regresión funcional**: envíos de formularios, ordenación de tablas, enlaces, modales que escriben en API.
+
+## Checklist rapido (resumen)
+
+- [ ] Título `emoji + título`, KPIs y tablas alineados a esta guía.
+- [ ] Gráfica con filtros debajo; modales y formularios al patrón del sistema.
+- [ ] Revisado en desktop y en resolución intermedia/móvil.
 
 ## Pestanas ya tocadas (iteracion actual)
 
@@ -132,6 +176,7 @@ Este documento sirve como referencia viva para mantener consistencia visual y fu
 - Portfolio diversificacion (`/portfolio/diversificacion`)
 - Portfolio currencies (`/portfolio/currencies`)
 - Portfolio ficha de activo (`/portfolio/asset/<id>`)
+- Portfolio P&L por activo (`/portfolio/pl-by-asset`)
 
 ## Bitacora de cambios (ir ampliando)
 
@@ -169,3 +214,5 @@ Este documento sirve como referencia viva para mantener consistencia visual y fu
 - Ajuste fino en `Portfolio dashboard`: KPIs de "Métricas Globales e Históricas" y sus desgloses internos pasan a superficie 3D más marcada para evitar apariencia de fondo blanco plano.
 - `Portfolio dashboard` KPIs (globales y "Portfolio Actual"): el selector CSS de tarjetas blancas (`border` en shorthand) pisaba el `border-l-4` de Tailwind; se acota la regla a `:not(.portfolio-metric-card)` y en `.portfolio-metric-card` solo bordes superior/derecho/inferior para conservar el rizado lateral de color.
 - Ficha de activo del portfolio: superficie 3D en KPIs y bloque de pestañas, acentos `teal/slate`, tablas y modal de plantillas de informes alineados al resto de `Portfolio`; informes Markdown con cabeceras/tablas en familia teal en lugar de azul intenso.
+- `Portfolio` dashboard: desglose de KPIs por fila sincronizado (Alpine `globalMetricsOpen` / `currentMetricsOpen`); cuatro métricas “Portfolio actual” en una fila en `xl`; icono `i` unificado (`pf-info` como en Bancos); posiciones en cartera con cabecera y filas más legibles (banda lateral por P&L); rentabilidades año a año compactas + modal con scroll para años antiguos; gráfico de barras con gradiente y trazo de relieve (3D simulado); checklist ampliada en esta guía.
+- `Portfolio` P&L por activo (`/portfolio/pl-by-asset`): redisño a `portfolio-card`, tabla slate/teal, tipografía y KPIs resumen alineados a la guía.

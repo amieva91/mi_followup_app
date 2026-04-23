@@ -75,6 +75,67 @@
         border-radius: 0.65rem;
         background: linear-gradient(145deg, rgba(255,255,255,0.74), rgba(241,247,248,0.92));
     }
+    /* Alineado con pestaña Bancos: círculo "i" pequeño (ajustar --pf: w/h en rem) */
+    #portfolio-dashboard .pf-info {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: var(--pf-info-size, 1.375rem);
+        height: var(--pf-info-size, 1.375rem);
+        border-radius: 9999px;
+        border: 1px solid rgb(204 251 241);
+        background: rgb(240 253 250);
+        color: rgb(15 118 110);
+        font-size: 0.65rem;
+        font-weight: 700;
+        line-height: 1;
+        cursor: help;
+        flex-shrink: 0;
+    }
+    #portfolio-dashboard .holdings-surface {
+        background: linear-gradient(145deg, #f8fbfc 0%, #f1f7f8 100%);
+        border: 1px solid rgba(63, 95, 115, 0.14);
+        border-radius: 1rem;
+        box-shadow: 0 14px 30px rgba(15,23,42,0.1), inset 0 1px 0 rgba(255,255,255,0.85);
+        overflow: hidden;
+    }
+    #portfolio-dashboard .holdings-asset-pill {
+        display: inline-flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.2rem;
+        max-width: 18rem;
+    }
+    #portfolio-dashboard .holdings-asset-name {
+        font-size: 0.875rem;
+        font-weight: 700;
+        color: #0f172a;
+        line-height: 1.3;
+    }
+    #portfolio-dashboard .holdings-meta {
+        font-size: 0.7rem;
+        line-height: 1.3;
+        color: #64748b;
+    }
+    #portfolio-dashboard tr.holding-row-pos { border-left: 4px solid rgb(16 185 129); }
+    #portfolio-dashboard tr.holding-row-neg { border-left: 4px solid rgb(244 63 94); }
+    #portfolio-dashboard tr.holding-row-neu { border-left: 4px solid rgb(100 116 139); }
+    #portfolio-dashboard .year-tile {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        padding: 0.4rem 0.6rem;
+        border-radius: 0.5rem;
+        font-size: 0.8rem;
+    }
+    #portfolio-dashboard .chart-surface-3d {
+        border-radius: 1rem;
+        border: 1px solid rgba(148,163,184,0.28);
+        background: linear-gradient(165deg, #ffffff 0%, #e2e8f0 38%, #cbd5e1 100%);
+        box-shadow: inset 0 2px 0 rgba(255,255,255,0.9), 0 12px 28px rgba(15,23,42,0.12);
+        padding: 0.5rem 0.35rem 0.35rem;
+    }
 </style>
 <div id="portfolio-dashboard" class="max-w-[92%] mx-auto px-4 py-8">
     <!-- Header -->
@@ -117,22 +178,22 @@
             <p class="text-xs text-gray-500">Incluyen todo el histórico (posiciones actuales + cerradas + cash)</p>
         </div>
         {% if metrics.get('_from_cache') %}
-        <div class="text-xs text-gray-500 bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
-            ⚡ Cache (cargado en <200ms)
+        <div class="text-xs text-slate-600 bg-sky-50/90 px-3 py-1 rounded-full border border-sky-200/80">
+            ⚡ Cache (cargado en &lt;200ms)
         </div>
         {% endif %}
     </div>
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8" x-data="{ globalMetricsOpen: false }">
         <!-- Valor Real Cuenta de Inversión -->
-        <div class="rounded-xl p-6 border-l-4 border-indigo-500 portfolio-metric-card" x-data="{ showDetails: false }">
+        <div class="rounded-xl p-6 border-l-4 border-indigo-500 portfolio-metric-card">
             <div class="flex items-center justify-between mb-2">
                 <div class="text-sm text-gray-600">🏦 Valor Real Cuenta</div>
                 <div class="flex items-center gap-2">
-                    <button @click="showDetails = !showDetails" class="text-xs text-blue-600 hover:text-blue-800 font-medium">
-                        <span x-show="!showDetails">▼ Ver desglose</span>
-                        <span x-show="showDetails">▲ Ocultar</span>
+                    <button type="button" @click="globalMetricsOpen = !globalMetricsOpen" class="text-xs text-teal-700 hover:text-teal-900 font-medium">
+                        <span x-show="!globalMetricsOpen">▼ Ver desglose</span>
+                        <span x-show="globalMetricsOpen">▲ Ocultar</span>
                     </button>
-                    <span class="text-xs text-gray-400 cursor-help" title="Dinero real que tendría el usuario si liquidara todas las posiciones: Depósitos - Retiradas + P&L Realizado + P&L No Realizado + Dividendos - Comisiones">ⓘ</span>
+                    <span class="pf-info" title="Dinero real que tendría el usuario si liquidara todas las posiciones: Depósitos - Retiradas + P&L Realizado + P&L No Realizado + Dividendos - Comisiones">i</span>
                 </div>
             </div>
             <div class="text-2xl font-bold text-indigo-600">
@@ -140,7 +201,7 @@
             </div>
             
             <!-- Desglose detallado -->
-            <div x-show="showDetails" x-cloak class="text-xs text-gray-500 space-y-1 portfolio-metric-breakdown">
+            <div x-show="globalMetricsOpen" x-cloak class="text-xs text-gray-500 space-y-1 portfolio-metric-breakdown">
                 <div class="flex justify-between">
                     <span>• Depósitos:</span>
                     <span>+{{ metrics.total_account.deposits|decimal_eu(2) }}</span>
@@ -190,15 +251,15 @@
         </div>
         
         <!-- P&L Total (UNIFICADO) -->
-        <div class="rounded-xl p-6 border-l-4 {% if metrics.total_pl.total_pl >= 0 %}border-green-600{% else %}border-red-600{% endif %} portfolio-metric-card" x-data="{ showDetails: false }">
+        <div class="rounded-xl p-6 border-l-4 {% if metrics.total_pl.total_pl >= 0 %}border-green-600{% else %}border-red-600{% endif %} portfolio-metric-card">
             <div class="flex items-center justify-between mb-2">
                 <div class="text-sm text-gray-600">📊 P&L Total</div>
                 <div class="flex items-center gap-2">
-                    <button @click="showDetails = !showDetails" class="text-xs text-blue-600 hover:text-blue-800 font-medium">
-                        <span x-show="!showDetails">▼ Ver desglose</span>
-                        <span x-show="showDetails">▲ Ocultar</span>
+                    <button type="button" @click="globalMetricsOpen = !globalMetricsOpen" class="text-xs text-teal-700 hover:text-teal-900 font-medium">
+                        <span x-show="!globalMetricsOpen">▼ Ver desglose</span>
+                        <span x-show="globalMetricsOpen">▲ Ocultar</span>
                     </button>
-                    <span class="text-xs text-gray-400 cursor-help" title="Ganancia/pérdida TOTAL histórica: P&L Realizado + P&L No Realizado + Dividendos - Comisiones">ⓘ</span>
+                    <span class="pf-info" title="Ganancia/pérdida TOTAL histórica: P&L Realizado + P&L No Realizado + Dividendos - Comisiones">i</span>
                 </div>
             </div>
             <div class="text-2xl font-bold {% if metrics.total_pl.total_pl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
@@ -206,7 +267,7 @@
             </div>
             
             <!-- Desglose detallado -->
-            <div x-show="showDetails" x-cloak class="text-xs text-gray-500 space-y-1 portfolio-metric-breakdown">
+            <div x-show="globalMetricsOpen" x-cloak class="text-xs text-gray-500 space-y-1 portfolio-metric-breakdown">
                 <div class="flex justify-between">
                     <span>• P&L Realizado:</span>
                     <span>{% if metrics.total_pl.pl_realized >= 0 %}+{% endif %}{{ metrics.total_pl.pl_realized|decimal_eu(2) }}</span>
@@ -226,22 +287,22 @@
             </div>
             
             <div class="mt-3">
-                <a href="{{ url_for('portfolio.pl_by_asset') }}" class="text-xs text-green-600 hover:text-green-800 font-medium">
+                <a href="{{ url_for('portfolio.pl_by_asset') }}" class="text-xs text-teal-700 hover:text-teal-900 font-medium">
                     Ver detalle por asset →
                 </a>
             </div>
         </div>
         
         <!-- ROI -->
-        <div class="rounded-xl p-6 border-l-4 {% if metrics.roi.roi >= 0 %}border-blue-500{% else %}border-red-500{% endif %} portfolio-metric-card" x-data="{ showDetails: false }">
+        <div class="rounded-xl p-6 border-l-4 {% if metrics.roi.roi >= 0 %}border-blue-500{% else %}border-red-500{% endif %} portfolio-metric-card">
             <div class="flex items-center justify-between mb-2">
                 <div class="text-sm text-gray-600">📈 ROI</div>
                 <div class="flex items-center gap-2">
-                    <button @click="showDetails = !showDetails" class="text-xs text-blue-600 hover:text-blue-800 font-medium">
-                        <span x-show="!showDetails">▼ Ver desglose</span>
-                        <span x-show="showDetails">▲ Ocultar</span>
+                    <button type="button" @click="globalMetricsOpen = !globalMetricsOpen" class="text-xs text-teal-700 hover:text-teal-900 font-medium">
+                        <span x-show="!globalMetricsOpen">▼ Ver desglose</span>
+                        <span x-show="globalMetricsOpen">▲ Ocultar</span>
                     </button>
-                    <span class="text-xs text-gray-400 cursor-help" title="Return on Investment: rentabilidad total sobre el capital aportado. Fórmula: (Valor Actual + Retiradas - Depósitos) / Depósitos × 100">ⓘ</span>
+                    <span class="pf-info" title="Return on Investment: rentabilidad total sobre el capital aportado. Fórmula: (Valor Actual + Retiradas - Depósitos) / Depósitos × 100">i</span>
                 </div>
             </div>
             <div class="text-2xl font-bold {% if metrics.roi.roi >= 0 %}text-blue-600{% else %}text-red-600{% endif %}">
@@ -249,7 +310,7 @@
             </div>
             
             <!-- Desglose detallado -->
-            <div x-show="showDetails" x-cloak class="text-xs text-gray-500 space-y-1 portfolio-metric-breakdown">
+            <div x-show="globalMetricsOpen" x-cloak class="text-xs text-gray-500 space-y-1 portfolio-metric-breakdown">
                 <div class="flex justify-between">
                     <span>• Valor Actual:</span>
                     <span>{{ total_value|decimal_eu(2) }}</span>
@@ -270,15 +331,15 @@
         </div>
         
         <!-- Modified Dietz (Rentabilidad) -->
-        <div class="rounded-xl p-6 border-l-4 {% if metrics.modified_dietz.total.return_pct >= 0 %}border-purple-500{% else %}border-red-500{% endif %} portfolio-metric-card" x-data="{ showDetails: false }">
+        <div class="rounded-xl p-6 border-l-4 {% if metrics.modified_dietz.total.return_pct >= 0 %}border-purple-500{% else %}border-red-500{% endif %} portfolio-metric-card">
             <div class="flex items-center justify-between mb-2">
                 <div class="text-sm text-gray-600">💎 Rentabilidad (Modified Dietz)</div>
                 <div class="flex items-center gap-2">
-                    <button @click="showDetails = !showDetails" class="text-xs text-blue-600 hover:text-blue-800 font-medium">
-                        <span x-show="!showDetails">▼ Ver desglose</span>
-                        <span x-show="showDetails">▲ Ocultar</span>
+                    <button type="button" @click="globalMetricsOpen = !globalMetricsOpen" class="text-xs text-teal-700 hover:text-teal-900 font-medium">
+                        <span x-show="!globalMetricsOpen">▼ Ver desglose</span>
+                        <span x-show="globalMetricsOpen">▲ Ocultar</span>
                     </button>
-                    <span class="text-xs text-gray-400 cursor-help" title="Rentabilidad usando Modified Dietz Method (estándar GIPS). Elimina el efecto de los flujos de caja (deposits/withdrawals) para medir la performance real de tu estrategia.">ⓘ</span>
+                    <span class="pf-info" title="Rentabilidad usando Modified Dietz Method (estándar GIPS). Elimina el efecto de los flujos de caja (deposits/withdrawals) para medir la performance real de tu estrategia.">i</span>
                 </div>
             </div>
             <div class="text-2xl font-bold {% if metrics.modified_dietz.annualized.return_pct >= 0 %}text-purple-600{% else %}text-red-600{% endif %}">
@@ -287,7 +348,7 @@
             <div class="text-xs text-gray-500">Anualizada ({{ metrics.modified_dietz.annualized.years }} años)</div>
             
             <!-- Métricas adicionales -->
-            <div x-show="showDetails" x-cloak class="text-xs text-gray-500 space-y-1 portfolio-metric-breakdown">
+            <div x-show="globalMetricsOpen" x-cloak class="text-xs text-gray-500 space-y-1 portfolio-metric-breakdown">
                 <div class="flex justify-between">
                     <span>📅 Año Actual (YTD):</span>
                     <span class="font-medium {% if metrics.modified_dietz.ytd.return_pct >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
@@ -324,70 +385,76 @@
         <h2 class="text-lg font-semibold text-gray-700">📅 Rentabilidades Año a Año</h2>
         <p class="text-xs text-gray-500">Rentabilidad anual calculada con Modified Dietz (el último año es YTD)</p>
     </div>
-    <div class="bg-white rounded-xl shadow-sm p-6 mb-8">
+    <div class="bg-white rounded-xl shadow-sm p-4 sm:p-6 mb-8" x-data="{ olderYearsOpen: false }">
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <!-- Lista de rentabilidades -->
-            <div x-data="{ showAll: false }">
-                <h3 class="text-md font-semibold text-gray-800 mb-4">📊 Resumen por Año</h3>
-                <div class="space-y-3">
+            <!-- Lista de rentabilidades (compacta) -->
+            <div>
+                <h3 class="text-md font-semibold text-gray-800 mb-3">📊 Resumen por Año</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[min(52vh,22rem)] overflow-y-auto pr-1">
                     {% set recent_years = yearly_returns[:5] %}
                     {% set older_years = yearly_returns[5:] %}
                     
                     {% for yr in recent_years %}
-                    <div class="flex items-center justify-between p-3 rounded-lg {% if yr.return_pct >= 0 %}bg-green-50 border border-green-200{% else %}bg-red-50 border border-red-200{% endif %}">
-                        <div class="flex items-center gap-3">
-                            <div class="text-lg font-bold {% if yr.return_pct >= 0 %}text-green-700{% else %}text-red-700{% endif %}">
-                                {{ yr.year }}{% if yr.is_ytd %} <span class="text-xs font-normal">(YTD)</span>{% endif %}
+                    <div class="year-tile {% if yr.return_pct >= 0 %}bg-emerald-50/90 border border-emerald-200/80{% else %}bg-rose-50/90 border border-rose-200/80{% endif %}">
+                        <div class="font-bold {% if yr.return_pct >= 0 %}text-emerald-800{% else %}text-rose-800{% endif %} min-w-0">
+                            {{ yr.year }}{% if yr.is_ytd %}<span class="text-[0.65rem] font-medium text-slate-500"> (YTD)</span>{% endif %}
+                        </div>
+                        <div class="text-right shrink-0">
+                            <div class="font-bold tabular-nums {% if yr.return_pct >= 0 %}text-emerald-800{% else %}text-rose-800{% endif %}">
+                                {% if yr.return_pct >= 0 %}+{% endif %}{{ yr.return_pct|decimal_eu(1) }}%
+                            </div>
+                            <div class="text-[0.7rem] text-slate-600 tabular-nums">
+                                {% if yr.absolute_gain >= 0 %}+{% endif %}{{ yr.absolute_gain|decimal_eu(0) }} €
                             </div>
                         </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% if older_years|length > 0 %}
+                <button type="button" @click="olderYearsOpen = true" class="w-full mt-3 p-2 text-sm font-semibold text-teal-800 bg-teal-50 hover:bg-teal-100 rounded-xl border border-teal-200/80 transition-colors">
+                    Abrir listado: {{ older_years|length }} año{{ 's' if older_years|length != 1 else '' }} anterior{{ 'es' if older_years|length != 1 else '' }} (scroll) →
+                </button>
+                {% endif %}
+            </div>
+            
+            <!-- Gráfico de barras (relieve 3D simulado) -->
+            <div>
+                <h3 class="text-md font-semibold text-gray-800 mb-2">📈 Gráfico de Rentabilidades</h3>
+                <p class="text-xs text-slate-500 mb-2">Barras con gradiente y relieve (3D suave, no 3D real de escena)</p>
+                <div class="chart-surface-3d" style="height: 300px;">
+                    <canvas id="yearlyReturnsChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        {% if older_years|length > 0 %}
+        <div x-show="olderYearsOpen" x-cloak x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" class="fixed inset-0 z-[55] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55" @keydown.escape.window="olderYearsOpen = false" role="dialog" aria-modal="true">
+            <div class="absolute inset-0" @click="olderYearsOpen = false" aria-hidden="true"></div>
+            <div @click.stop class="relative w-full max-w-md max-h-[min(80vh,28rem)] flex flex-col rounded-2xl border border-slate-200/80 bg-gradient-to-br from-[#f8fbfc] to-[#f1f7f8] shadow-[0_20px_45px_rgba(15,23,42,0.28)]">
+                <div class="px-4 py-3 border-b border-slate-200/80 flex items-center justify-between">
+                    <h4 class="text-sm font-semibold text-slate-900">Años anteriores ({{ older_years|length }})</h4>
+                    <button type="button" @click="olderYearsOpen = false" class="modal-touch-btn text-sm rounded-lg px-3 py-1.5 bg-slate-700 text-white font-semibold hover:bg-slate-800">Cerrar</button>
+                </div>
+                <div class="p-3 overflow-y-auto space-y-2">
+                    {% for yr in older_years %}
+                    <div class="year-tile {% if yr.return_pct >= 0 %}bg-emerald-50/90 border border-emerald-200/80{% else %}bg-rose-50/90 border border-rose-200/80{% endif %}">
+                        <div class="font-bold {% if yr.return_pct >= 0 %}text-emerald-800{% else %}text-rose-800{% endif %}">
+                            {{ yr.year }}{% if yr.is_ytd %} <span class="text-xs font-normal">(YTD)</span>{% endif %}
+                        </div>
                         <div class="text-right">
-                            <div class="text-lg font-bold {% if yr.return_pct >= 0 %}text-green-700{% else %}text-red-700{% endif %}">
+                            <div class="text-sm font-bold tabular-nums {% if yr.return_pct >= 0 %}text-emerald-800{% else %}text-rose-800{% endif %}">
                                 {% if yr.return_pct >= 0 %}+{% endif %}{{ yr.return_pct|decimal_eu(2) }}%
                             </div>
-                            <div class="text-xs text-gray-600">
+                            <div class="text-xs text-slate-600 tabular-nums">
                                 {% if yr.absolute_gain >= 0 %}+{% endif %}{{ yr.absolute_gain|decimal_eu(2) }} EUR
                             </div>
                         </div>
                     </div>
                     {% endfor %}
-                    
-                    {% if older_years|length > 0 %}
-                    <div x-show="showAll" x-transition class="space-y-3">
-                        {% for yr in older_years %}
-                        <div class="flex items-center justify-between p-3 rounded-lg {% if yr.return_pct >= 0 %}bg-green-50 border border-green-200{% else %}bg-red-50 border border-red-200{% endif %}">
-                            <div class="flex items-center gap-3">
-                                <div class="text-lg font-bold {% if yr.return_pct >= 0 %}text-green-700{% else %}text-red-700{% endif %}">
-                                    {{ yr.year }}{% if yr.is_ytd %} <span class="text-xs font-normal">(YTD)</span>{% endif %}
-                                </div>
-                            </div>
-                            <div class="text-right">
-                                <div class="text-lg font-bold {% if yr.return_pct >= 0 %}text-green-700{% else %}text-red-700{% endif %}">
-                                    {% if yr.return_pct >= 0 %}+{% endif %}{{ yr.return_pct|decimal_eu(2) }}%
-                                </div>
-                                <div class="text-xs text-gray-600">
-                                    {% if yr.absolute_gain >= 0 %}+{% endif %}{{ yr.absolute_gain|decimal_eu(2) }} EUR
-                                </div>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </div>
-                    
-                    <button @click="showAll = !showAll" class="w-full mt-3 p-2 text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg border border-blue-200 transition-colors">
-                        <span x-show="!showAll">▼ Ver {{ older_years|length }} año{{ 's' if older_years|length != 1 else '' }} anterior{{ 'es' if older_years|length != 1 else '' }}</span>
-                        <span x-show="showAll">▲ Ocultar años anteriores</span>
-                    </button>
-                    {% endif %}
-                </div>
-            </div>
-            
-            <!-- Gráfico de barras -->
-            <div>
-                <h3 class="text-md font-semibold text-gray-800 mb-4">📈 Gráfico de Rentabilidades</h3>
-                <div class="relative chart-surface" style="height: 300px;">
-                    <canvas id="yearlyReturnsChart"></canvas>
                 </div>
             </div>
         </div>
+        {% endif %}
     </div>
     {% endif %}
     
@@ -398,17 +465,17 @@
         <h2 class="text-lg font-semibold text-gray-700">📊 Métricas del Portfolio Actual</h2>
         <p class="text-xs text-gray-500">Basadas solo en las posiciones abiertas actuales</p>
     </div>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 lg:gap-6 mb-4" x-data="{ currentMetricsOpen: false }">
         <!-- Valor Total Cartera (CON COSTE TOTAL DENTRO) -->
-        <div class="rounded-xl p-6 border-l-4 border-blue-500 portfolio-metric-card" x-data="{ showDetails: false }">
+        <div class="rounded-xl p-6 border-l-4 border-blue-500 portfolio-metric-card">
             <div class="flex items-center justify-between mb-1">
                 <div class="text-sm text-gray-600">💰 Valor Total Cartera</div>
                 <div class="flex items-center gap-2">
-                    <button @click="showDetails = !showDetails" class="text-xs text-blue-600 hover:text-blue-800 font-medium">
-                        <span x-show="!showDetails">▼ Ver desglose</span>
-                        <span x-show="showDetails">▲ Ocultar</span>
+                    <button type="button" @click="currentMetricsOpen = !currentMetricsOpen" class="text-xs text-teal-700 hover:text-teal-900 font-medium">
+                        <span x-show="!currentMetricsOpen">▼ Ver desglose</span>
+                        <span x-show="currentMetricsOpen">▲ Ocultar</span>
                     </button>
-                    <span class="text-xs text-gray-400 cursor-help" title="Valor actual de todas las posiciones abiertas. Se calcula sumando (cantidad × precio actual) para cada activo.">ⓘ</span>
+                    <span class="pf-info" title="Valor actual de todas las posiciones abiertas. Se calcula sumando (cantidad × precio actual) para cada activo.">i</span>
                 </div>
             </div>
             <div class="text-2xl font-bold text-gray-900">
@@ -416,7 +483,7 @@
             </div>
             
             <!-- Desglose detallado -->
-            <div x-show="showDetails" x-cloak class="text-xs text-gray-500 space-y-1 portfolio-metric-breakdown">
+            <div x-show="currentMetricsOpen" x-cloak class="text-xs text-gray-500 space-y-1 portfolio-metric-breakdown">
                 <div class="flex justify-between">
                     <span>📊 Posiciones abiertas:</span>
                     <span class="font-medium">{{ holdings|length if holdings else 0 }}</span>
@@ -429,29 +496,47 @@
         </div>
         
         <!-- P&L No Realizado -->
-        <div class="rounded-xl p-6 border-l-4 {% if total_pl >= 0 %}border-green-600{% else %}border-red-600{% endif %} portfolio-metric-card">
+        <div class="rounded-xl p-6 border-l-4 {% if total_pl >= 0 %}border-emerald-600{% else %}border-rose-500{% endif %} portfolio-metric-card">
             <div class="flex items-center justify-between mb-1">
                 <div class="text-sm text-gray-600">📈 P&L No Realizado</div>
-                <span class="text-xs text-gray-400 cursor-help" title="Ganancia/pérdida de posiciones abiertas: Valor Actual - Coste Total. No incluye posiciones cerradas.">ⓘ</span>
+                <div class="flex items-center gap-2">
+                    <button type="button" @click="currentMetricsOpen = !currentMetricsOpen" class="text-xs text-teal-700 hover:text-teal-900 font-medium">
+                        <span x-show="!currentMetricsOpen">▼ Ver desglose</span>
+                        <span x-show="currentMetricsOpen">▲ Ocultar</span>
+                    </button>
+                    <span class="pf-info" title="Ganancia/pérdida de posiciones abiertas: Valor Actual - Coste Total. No incluye posiciones cerradas.">i</span>
+                </div>
             </div>
-            <div class="text-2xl font-bold {% if total_pl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+            <div class="text-2xl font-bold {% if total_pl >= 0 %}text-emerald-600{% else %}text-rose-600{% endif %}">
                 {% if total_pl >= 0 %}+{% endif %}{{ total_pl|decimal_eu(2) }} EUR
+            </div>
+            <div x-show="currentMetricsOpen" x-cloak class="text-xs text-slate-600 portfolio-metric-breakdown mt-2">
+                <p class="leading-snug">Diferencia entre el valor de mercado actual y el coste de adquisición de las <strong>posiciones abiertas</strong> (excluye ya vendido).</p>
             </div>
         </div>
         
         <!-- Retorno % -->
-        <div class="rounded-xl p-6 border-l-4 {% if total_pl_pct >= 0 %}border-green-600{% else %}border-red-600{% endif %} portfolio-metric-card">
+        <div class="rounded-xl p-6 border-l-4 {% if total_pl_pct >= 0 %}border-emerald-600{% else %}border-rose-500{% endif %} portfolio-metric-card">
             <div class="flex items-center justify-between mb-1">
                 <div class="text-sm text-gray-600">📊 Retorno</div>
-                <span class="text-xs text-gray-400 cursor-help" title="Porcentaje de retorno sobre el coste de las posiciones actuales: (P&L No Realizado / Coste Total) × 100">ⓘ</span>
+                <div class="flex items-center gap-2">
+                    <button type="button" @click="currentMetricsOpen = !currentMetricsOpen" class="text-xs text-teal-700 hover:text-teal-900 font-medium">
+                        <span x-show="!currentMetricsOpen">▼ Ver desglose</span>
+                        <span x-show="currentMetricsOpen">▲ Ocultar</span>
+                    </button>
+                    <span class="pf-info" title="Porcentaje de retorno sobre el coste de las posiciones actuales: (P&L No Realizado / Coste Total) × 100">i</span>
+                </div>
             </div>
-            <div class="text-2xl font-bold {% if total_pl_pct >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+            <div class="text-2xl font-bold {% if total_pl_pct >= 0 %}text-emerald-600{% else %}text-rose-600{% endif %}">
                 {% if total_pl_pct >= 0 %}+{% endif %}{{ total_pl_pct|decimal_eu(2) }}%
+            </div>
+            <div x-show="currentMetricsOpen" x-cloak class="text-xs text-slate-600 portfolio-metric-breakdown mt-2">
+                <p class="leading-snug">Rentabilidad no realizada vs. coste: <span class="font-mono">P&amp;L no realizado / coste total</span> de lo que sigue en cartera.</p>
             </div>
         </div>
         
         <!-- Leverage / Dinero Prestado o Cash -->
-        <div class="rounded-xl p-6 border-l-4 {% if metrics.leverage.broker_money > 0 %}border-red-500{% else %}border-cyan-500{% endif %} portfolio-metric-card" x-data="{ showDetails: false }">
+        <div class="rounded-xl p-6 border-l-4 {% if metrics.leverage.broker_money > 0 %}border-red-500{% else %}border-cyan-500{% endif %} portfolio-metric-card">
             <div class="flex items-center justify-between mb-2">
                 <div class="text-sm text-gray-600">
                     {% if metrics.leverage.broker_money > 0 %}
@@ -461,11 +546,11 @@
                     {% endif %}
                 </div>
                 <div class="flex items-center gap-2">
-                    <button @click="showDetails = !showDetails" class="text-xs text-blue-600 hover:text-blue-800 font-medium">
-                        <span x-show="!showDetails">▼ Ver desglose</span>
-                        <span x-show="showDetails">▲ Ocultar</span>
+                    <button type="button" @click="currentMetricsOpen = !currentMetricsOpen" class="text-xs text-teal-700 hover:text-teal-900 font-medium">
+                        <span x-show="!currentMetricsOpen">▼ Ver desglose</span>
+                        <span x-show="currentMetricsOpen">▲ Ocultar</span>
                     </button>
-                    <span class="text-xs text-gray-400 cursor-help" title="Apalancamiento (solo Stock+ETF): Coste - Dinero Usuario. Crypto excluido: Revolut X CSV no incluye depósitos. Positivo = broker presta. Negativo = cash disponible.">ⓘ</span>
+                    <span class="pf-info" title="Apalancamiento (solo Stock+ETF): Coste - Dinero Usuario. Crypto excluido: Revolut X CSV no incluye depósitos. Positivo = broker presta. Negativo = cash disponible.">i</span>
                 </div>
             </div>
             <div class="text-2xl font-bold {% if metrics.leverage.broker_money > 0 %}text-red-600{% else %}text-cyan-600{% endif %}">
@@ -473,7 +558,7 @@
             </div>
             
             <!-- Desglose detallado (solo Stock+ETF: crypto excluido por falta de depósitos en CSV Revolut) -->
-            <div x-show="showDetails" x-cloak class="text-xs text-gray-500 space-y-1 portfolio-metric-breakdown">
+            <div x-show="currentMetricsOpen" x-cloak class="text-xs text-gray-500 space-y-1 portfolio-metric-breakdown">
                 <div class="flex justify-between mb-1">
                     <span>💼 Coste Total (Stock+ETF):</span>
                     <span class="font-medium">{{ leverage_cost|default(total_cost)|decimal_eu(2) }} EUR</span>
@@ -546,134 +631,135 @@
     
     <!-- Holdings actuales -->
     {% if holdings %}
-    <div class="bg-white rounded-xl shadow-sm overflow-hidden mb-8">
-        <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-            <h2 class="text-xl font-semibold text-gray-900">💼 Posiciones Actuales <span class="text-lg font-normal text-gray-600">({{ holdings|length }})</span></h2>
-            <a href="{{ url_for('portfolio.holdings_list') }}" class="text-sm text-blue-600 hover:text-blue-800 font-medium">
-                Ver todas →
+    <div class="holdings-surface mb-8">
+        <div class="px-4 sm:px-6 py-4 border-b border-slate-200/80 bg-slate-50/50 flex flex-wrap justify-between items-center gap-3">
+            <div>
+                <h2 class="text-lg sm:text-xl font-bold text-slate-900">💼 Posiciones en cartera</h2>
+                <p class="text-xs sm:text-sm text-slate-500 mt-0.5">{{ holdings|length }} posición{{ 'es' if holdings|length != 1 else '' }} · resumen con peso y P&L</p>
+            </div>
+            <a href="{{ url_for('portfolio.holdings_list') }}" class="text-sm font-semibold text-teal-700 hover:text-teal-900 rounded-xl border border-teal-200/80 bg-teal-50/80 px-3 py-1.5 hover:bg-teal-100/80 transition">
+                Ver listado completo →
             </a>
         </div>
         
-        <!-- Tabla de holdings (versión dashboard) -->
         <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
+            <table class="min-w-full divide-y divide-slate-200/80">
+                <thead class="bg-slate-50/90">
                     <tr>
-                        <th onclick="sortTableHoldings(0, 'text')" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                        <th onclick="sortTableHoldings(0, 'text')" class="px-3 sm:px-4 py-2.5 text-left text-[0.7rem] font-semibold text-slate-600 uppercase tracking-wide cursor-pointer hover:bg-slate-100/90 sticky left-0 z-10 bg-slate-50/95">
                             Activo <span class="sort-arrow">⇅</span>
                         </th>
-                        <th onclick="sortTableHoldings(1, 'text')" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                        <th onclick="sortTableHoldings(1, 'text')" class="px-3 sm:px-4 py-2.5 text-left text-[0.7rem] font-semibold text-slate-600 uppercase tracking-wide cursor-pointer hover:bg-slate-100/90">
                             Cuenta <span class="sort-arrow">⇅</span>
                         </th>
-                        <th onclick="sortTableHoldings(2, 'number')" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
-                            Cantidad <span class="sort-arrow">⇅</span>
+                        <th onclick="sortTableHoldings(2, 'number')" class="px-3 sm:px-4 py-2.5 text-right text-[0.7rem] font-semibold text-slate-600 uppercase tracking-wide cursor-pointer hover:bg-slate-100/90">
+                            Cant. <span class="sort-arrow">⇅</span>
                         </th>
-                        <th onclick="sortTableHoldings(3, 'number')" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
-                            Precio Medio Compra <span class="sort-arrow">⇅</span>
+                        <th onclick="sortTableHoldings(3, 'number')" class="px-3 sm:px-4 py-2.5 text-right text-[0.7rem] font-semibold text-slate-600 uppercase tracking-wide cursor-pointer hover:bg-slate-100/90">
+                            P. medio <span class="sort-arrow">⇅</span>
                         </th>
-                        <th onclick="sortTableHoldings(4, 'number')" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
-                            Precio Actual <span class="sort-arrow">⇅</span>
+                        <th onclick="sortTableHoldings(4, 'number')" class="px-3 sm:px-4 py-2.5 text-right text-[0.7rem] font-semibold text-slate-600 uppercase tracking-wide cursor-pointer hover:bg-slate-100/90">
+                            Precio <span class="sort-arrow">⇅</span>
                         </th>
-                        <th onclick="sortTableHoldings(5, 'number')" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
-                            Valor Actual <span class="sort-arrow">⇅</span>
+                        <th onclick="sortTableHoldings(5, 'number')" class="px-3 sm:px-4 py-2.5 text-right text-[0.7rem] font-semibold text-slate-600 uppercase tracking-wide cursor-pointer hover:bg-slate-100/90">
+                            Valor <span class="sort-arrow">⇅</span>
                         </th>
-                        <th onclick="sortTableHoldings(6, 'number')" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                        <th onclick="sortTableHoldings(6, 'number')" class="px-3 sm:px-4 py-2.5 text-right text-[0.7rem] font-semibold text-slate-600 uppercase tracking-wide cursor-pointer hover:bg-slate-100/90">
                             P&L <span class="sort-arrow">⇅</span>
                         </th>
-                        <th onclick="sortTableHoldings(7, 'number')" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
-                            Peso % <span class="sort-arrow">⇅</span>
+                        <th onclick="sortTableHoldings(7, 'number')" class="px-3 sm:px-4 py-2.5 text-right text-[0.7rem] font-semibold text-slate-600 uppercase tracking-wide cursor-pointer hover:bg-slate-100/90">
+                            Peso <span class="sort-arrow">⇅</span>
                         </th>
                     </tr>
                 </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
+                <tbody class="bg-white/60 divide-y divide-slate-100">
                     {% for holding in holdings %}
-                    <tr class="table-row-3d">
+                    <tr class="table-row-3d {% if 'pl_eur' in holding and holding['pl_eur'] != 0 %}{% if holding['pl_eur'] > 0 %}holding-row-pos{% elif holding['pl_eur'] < 0 %}holding-row-neg{% else %}holding-row-neu{% endif %}{% else %}holding-row-neu{% endif %}">
                         <!-- Activo -->
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="flex items-center gap-1">
-                                <div>
-                                    <div class="text-sm font-bold text-gray-900 flex items-center gap-1">
+                        <td class="px-3 sm:px-4 py-3 whitespace-nowrap align-top">
+                            <div class="holdings-asset-pill">
+                                <div class="flex items-start gap-2 flex-wrap">
+                                    <span class="inline-flex h-2 w-2 rounded-full mt-1.5 shrink-0 {% if 'pl_eur' in holding and holding['pl_eur'] > 0 %}bg-emerald-500{% elif 'pl_eur' in holding and holding['pl_eur'] < 0 %}bg-rose-500{% else %}bg-slate-300{% endif %}" aria-hidden="true"></span>
+                                    <div>
+                                        <div class="holdings-asset-name flex items-center gap-1 flex-wrap">
                                         {% if holding.get('needs_yahoo_fix') %}
                                         <button type="button" class="fix-yahoo-btn text-amber-600 hover:text-amber-700 font-bold cursor-pointer" title="Corregir ticker con URL de Yahoo" data-asset-id="{{ holding['asset'].id }}" data-asset-name="{{ (holding['asset'].name or holding['asset'].symbol or '')|e }}" data-asset-currency="{{ holding['asset'].currency or 'EUR' }}">!</button>
                                         {% endif %}
-                                        <a href="{{ url_for('portfolio.asset_detail', id=holding['asset'].id) }}" class="hover:text-blue-600">
+                                        <a href="{{ url_for('portfolio.asset_detail', id=holding['asset'].id) }}" class="hover:text-teal-700 text-teal-800">
                                             {{ holding['asset'].name if holding['asset'].name else holding['asset'].symbol }}
                                         </a>
-                                    </div>
-                                    <div class="text-xs text-gray-400">
+                                        </div>
+                                        <div class="holdings-meta">
                                         {% if holding['asset'].asset_type %}{{ holding['asset'].asset_type }}{% endif %}
-                                        {% if holding['asset'].symbol %} • {{ holding['asset'].symbol }}{% endif %}
-                                        {% if holding['asset'].exchange %} • {{ holding['asset'].exchange }}{% endif %}
-                                        {% if holding['asset'].currency %} • {{ holding['asset'].currency }}{% endif %}
-                                        {% if holding['asset'].isin %} • {{ holding['asset'].isin }}{% endif %}
+                                        {% if holding['asset'].symbol %} · {{ holding['asset'].symbol }}{% endif %}
+                                        {% if holding['asset'].exchange %} · {{ holding['asset'].exchange }}{% endif %}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </td>
                         
                         <!-- Cuenta -->
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm font-medium text-gray-900">
-                                {% if holding['brokers']|length == 1 %}
-                                    {{ holding['brokers'][0] }}
-                                {% else %}
-                                    {{ holding['brokers']|length }} cuentas
-                                {% endif %}
-                            </div>
+                        <td class="px-3 sm:px-4 py-3 whitespace-nowrap text-sm text-slate-800">
+                            {% if holding['brokers']|length == 1 %}
+                                {{ holding['brokers'][0] }}
+                            {% else %}
+                                {{ holding['brokers']|length }} cuentas
+                            {% endif %}
                         </td>
                         
                         <!-- Cantidad -->
-                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900">
+                        <td class="px-3 sm:px-4 py-3 whitespace-nowrap text-right text-sm text-slate-800 tabular-nums">
                             {{ holding['total_quantity']|decimal_eu(0) }}
                         </td>
                         
                         <!-- Precio Medio Compra -->
-                        <td class="px-6 py-4 whitespace-nowrap text-right">
+                        <td class="px-3 sm:px-4 py-3 whitespace-nowrap text-right">
                             {% if holding['average_buy_price'] and holding['average_buy_price'] > 0 %}
-                            <div class="text-sm text-gray-900">{{ holding['average_buy_price']|decimal_eu(2) }} {{ holding['asset'].currency }}</div>
+                            <div class="text-sm text-slate-800 tabular-nums">{{ holding['average_buy_price']|decimal_eu(2) }} {{ holding['asset'].currency }}</div>
                             {% else %}
-                            <span class="text-xs text-gray-400">-</span>
+                            <span class="text-xs text-slate-400">-</span>
                             {% endif %}
                         </td>
                         
                         <!-- Precio Actual -->
-                        <td class="px-6 py-4 whitespace-nowrap text-right price-cell" data-asset-id="{{ holding['asset'].id }}" data-field="price">
+                        <td class="px-3 sm:px-4 py-3 whitespace-nowrap text-right price-cell" data-asset-id="{{ holding['asset'].id }}" data-field="price">
                             {% if holding['asset'].current_price %}
-                            <div class="text-sm text-gray-900">{{ holding['asset'].current_price|decimal_eu(2) }} {{ holding['asset'].currency }}</div>
+                            <div class="text-sm text-slate-800 tabular-nums">{{ holding['asset'].current_price|decimal_eu(2) }} {{ holding['asset'].currency }}</div>
                             {% else %}
-                            <span class="text-xs text-gray-400">Sin precio</span>
+                            <span class="text-xs text-slate-400">Sin precio</span>
                             {% endif %}
                         </td>
                         
                         <!-- Valor Actual (EUR + local currency) -->
-                        <td class="px-6 py-4 whitespace-nowrap text-right price-cell" data-asset-id="{{ holding['asset'].id }}" data-field="value">
+                        <td class="px-3 sm:px-4 py-3 whitespace-nowrap text-right price-cell" data-asset-id="{{ holding['asset'].id }}" data-field="value">
                             {% if 'current_value_eur' in holding %}
-                            <div class="text-sm font-medium text-gray-900">
-                                {{ holding['current_value_eur']|decimal_eu(2) }} EUR
+                            <div class="text-sm font-semibold text-slate-900 tabular-nums">
+                                {{ holding['current_value_eur']|decimal_eu(2) }} €
                             </div>
                             {% if 'local_currency' in holding and holding['local_currency'] != 'EUR' %}
-                            <div class="text-xs text-gray-500">
+                            <div class="text-xs text-slate-500 tabular-nums">
                                 ({{ holding['current_value_local']|decimal_eu(2) }} {{ holding['local_currency'] }})
                             </div>
                             {% endif %}
                             {% else %}
-                            <span class="text-xs text-gray-400">-</span>
+                            <span class="text-xs text-slate-400">-</span>
                             {% endif %}
                         </td>
                         
                         <!-- P&L -->
-                        <td class="px-6 py-4 whitespace-nowrap text-right price-cell" data-asset-id="{{ holding['asset'].id }}" data-field="pl">
+                        <td class="px-3 sm:px-4 py-3 whitespace-nowrap text-right price-cell" data-asset-id="{{ holding['asset'].id }}" data-field="pl">
                             {% if 'pl_eur' in holding and holding['pl_eur'] != 0 %}
-                            <span class="text-sm font-medium {% if holding['pl_eur'] >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
-                                {% if holding['pl_eur'] >= 0 %}+{% endif %}{{ holding['pl_eur']|decimal_eu(2) }} EUR
+                            <span class="text-sm font-semibold tabular-nums {% if holding['pl_eur'] >= 0 %}text-emerald-700{% else %}text-rose-600{% endif %}">
+                                {% if holding['pl_eur'] >= 0 %}+{% endif %}{{ holding['pl_eur']|decimal_eu(2) }} €
                             </span>
                             {% else %}
-                            <span class="text-xs text-gray-400">-</span>
+                            <span class="text-xs text-slate-400">-</span>
                             {% endif %}
                         </td>
                         
                         <!-- Peso % -->
-                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-500">
+                        <td class="px-3 sm:px-4 py-3 whitespace-nowrap text-right text-sm text-slate-600 tabular-nums">
                             {{ holding['weight_pct']|decimal_eu(2) }}%
                         </td>
                     </tr>
@@ -1017,27 +1103,88 @@ document.addEventListener('DOMContentLoaded', function() {
         const yearData = {{ yearly_returns | tojson }};
         const reversedData = [...yearData].reverse();
         
+        function yearlyBarGradient(chart, v) {
+            if (v === null || v === undefined || !chart.scales || !chart.scales.y) {
+                return v >= 0 ? 'rgb(20, 184, 166)' : 'rgb(244, 63, 94)';
+            }
+            var yScale = chart.scales.y;
+            var y0 = yScale.getPixelForValue(0);
+            var yv = yScale.getPixelForValue(v);
+            var top = Math.min(yv, y0);
+            var bot = Math.max(yv, y0);
+            var g = chart.ctx.createLinearGradient(0, bot, 0, top);
+            if (v >= 0) {
+                g.addColorStop(0, 'rgb(10, 70, 65)');
+                g.addColorStop(0.45, 'rgb(20, 184, 166)');
+                g.addColorStop(1, 'rgb(204, 251, 241)');
+            } else {
+                g.addColorStop(0, 'rgb(100, 25, 40)');
+                g.addColorStop(0.45, 'rgb(244, 63, 94)');
+                g.addColorStop(1, 'rgb(254, 215, 220)');
+            }
+            return g;
+        }
+        const yearlyBar3dEdgePlugin = {
+            id: 'yearlyBar3dEdges',
+            afterDatasetsDraw: function(chart) {
+                const ctx = chart.ctx;
+                const meta = chart.getDatasetMeta(0);
+                if (!meta || !meta.data) return;
+                ctx.save();
+                meta.data.forEach(function(bar) {
+                    if (!bar || bar.skip) return;
+                    var x = bar.x, y = bar.y, base = bar.base, w = bar.width;
+                    if (x == null || y == null || base == null) return;
+                    w = Math.abs(w || 0);
+                    var left = x - w / 2, right = x + w / 2;
+                    var topY = Math.min(y, base);
+                    var botY = Math.max(y, base);
+                    ctx.beginPath();
+                    ctx.strokeStyle = 'rgba(15, 23, 42, 0.22)';
+                    ctx.lineWidth = 1.5;
+                    ctx.moveTo(right, botY);
+                    ctx.lineTo(right, topY);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+                    ctx.lineWidth = 1;
+                    ctx.moveTo(left, topY);
+                    ctx.lineTo(right, topY);
+                    ctx.stroke();
+                });
+                ctx.restore();
+            }
+        };
         const yearlyData = {
             labels: reversedData.map(yr => yr.year + (yr.is_ytd ? ' (YTD)' : '')),
             datasets: [{
                 label: 'Rentabilidad (%)',
                 data: reversedData.map(yr => yr.return_pct),
-                backgroundColor: reversedData.map(yr => yr.return_pct >= 0 ? 'rgba(34, 197, 94, 0.7)' : 'rgba(239, 68, 68, 0.7)'),
-                borderColor: reversedData.map(yr => yr.return_pct >= 0 ? 'rgba(34, 197, 94, 1)' : 'rgba(239, 68, 68, 1)'),
-                borderWidth: 2
+                backgroundColor: function(ctx) {
+                    var v = (ctx.parsed && ctx.parsed.y !== undefined) ? ctx.parsed.y : ctx.raw;
+                    return yearlyBarGradient(ctx.chart, v);
+                },
+                borderColor: function(ctx) {
+                    var v = (ctx.parsed && ctx.parsed.y !== undefined) ? ctx.parsed.y : ctx.raw;
+                    return v >= 0 ? 'rgb(6, 60, 55)' : 'rgb(90, 24, 34)';
+                },
+                borderWidth: 1,
+                borderRadius: 6,
+                borderSkipped: false,
+                maxBarThickness: 52
             }]
         };
         
         new Chart(yearlyReturnsCtx, {
             type: 'bar',
             data: yearlyData,
+            plugins: [yearlyBar3dEdgePlugin],
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                layout: { padding: { top: 4, right: 2, left: 2, bottom: 0 } },
                 plugins: {
-                    legend: {
-                        display: false
-                    },
+                    legend: { display: false },
                     tooltip: {
                         callbacks: {
                             label: function(context) {
@@ -1058,14 +1205,11 @@ document.addEventListener('DOMContentLoaded', function() {
                                 return value.toFixed(1) + '%';
                             }
                         },
-                        grid: {
-                            color: 'rgba(0, 0, 0, 0.1)'
-                        }
+                        grid: { color: 'rgba(148, 163, 184, 0.25)' }
                     },
                     x: {
-                        grid: {
-                            display: false
-                        }
+                        grid: { display: false },
+                        ticks: { maxRotation: 45, minRotation: 0, font: { size: 10 } }
                     }
                 }
             }
