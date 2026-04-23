@@ -17,13 +17,50 @@
     }
     #mortgage-sim-page .mg-btn { transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease; }
     #mortgage-sim-page .mg-btn:active { transform: scale(0.98); filter: brightness(0.96); }
+    #mortgage-sim-page .pf-info {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.375rem;
+        height: 1.375rem;
+        border-radius: 9999px;
+        border: 1px solid rgb(204 251 241);
+        background: rgb(240 253 250);
+        color: rgb(15 118 110);
+        font-size: 0.65rem;
+        font-weight: 700;
+        line-height: 1;
+        cursor: pointer;
+        flex-shrink: 0;
+        padding: 0;
+    }
+    #mortgage-sim-page .pf-info:focus { outline: 2px solid rgba(20, 184, 166, 0.5); outline-offset: 1px; }
 </style>
+<script>
+function mortgageSimPage() {
+    return {
+        simContextInfoOpen: false,
+        openSimContextInfo() {
+            this.simContextInfoOpen = true;
+            try { document.body.style.overflow = 'hidden'; } catch (e) {}
+        },
+        closeSimContextInfo() {
+            this.simContextInfoOpen = false;
+            try { document.body.style.overflow = ''; } catch (e) {}
+        },
+    };
+}
+</script>
 <div class="w-full max-w-5xl mx-auto px-1 sm:px-0 py-6" id="mortgage-sim-page"
-     data-ltv-max="{{ ltv_ratio_max }}">
+     data-ltv-max="{{ ltv_ratio_max }}"
+     x-data="mortgageSimPage()">
     <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
         <div>
-            <h1 class="mg-plan-title text-2xl sm:text-3xl">🏠 Simulador compra vivienda</h1>
-            <p class="text-slate-600 mt-1 text-sm">Precio, ahorros, gastos e hipoteca: calcula LTV, cuota y añade el objetivo al plan.</p>
+            <div class="flex flex-wrap items-center gap-2">
+                <h1 class="mg-plan-title text-2xl sm:text-3xl">🏠 Simulador compra vivienda</h1>
+                <button type="button" class="pf-info mt-0.5 shrink-0" @click="openSimContextInfo()" title="Cómo funciona el simulador" aria-label="Información simulador compra vivienda">i</button>
+            </div>
+            <p class="text-slate-600 mt-1 text-sm">LTV, cuota, gastos de formalización y guardar en el plan — el detalle está en <span class="font-medium text-slate-700">i</span>.</p>
         </div>
         <div class="flex flex-wrap gap-2 shrink-0 text-sm">
             <a href="{{ url_for('spending_plan.index') }}" class="mg-btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold shadow-[0_10px_20px_rgba(13,148,136,0.25)]">← Planificación</a>
@@ -293,6 +330,25 @@
         </div>
     </div>
     {% endif %}
+
+    <template x-teleport="body">
+        <div x-show="simContextInfoOpen" x-cloak x-transition
+             class="fixed inset-0 z-[70] flex items-center justify-center p-4"
+             style="display: none;">
+            <div class="absolute inset-0 bg-black/55" @click="closeSimContextInfo()" aria-hidden="true"></div>
+            <div class="followup-modal-surface relative z-10 max-w-lg w-full max-h-[min(90vh,34rem)] overflow-y-auto p-6" role="dialog" aria-modal="true" aria-labelledby="mg-sim-context-title" @click.stop>
+                <h2 id="mg-sim-context-title" class="text-lg font-semibold text-slate-900 mb-3">Simulador compra vivienda</h2>
+                <div class="space-y-3 text-sm text-slate-700 leading-relaxed">
+                    <p>Precio, ahorros, gastos e hipoteca: calcula LTV, cuota y añade el objetivo al plan.</p>
+                    <p>El bloque de <strong>contexto de tipos</strong> (Euribor) y el apartado de <strong>negociación orientativa</strong> del tipo fijo son referencias: en el cálculo prevalece el <strong>tipo fijo</strong> y los datos del formulario (precio, ahorros, ITP, gastos, plazo, etc.).</p>
+                    <p>Tras <strong>Calcular</strong>, el resultado desglosa costes, préstamo y cuota. Puedes <strong>guardar el objetivo hipoteca</strong> en la planificación: se valida contra DSR, saldo no negativo y efectivo en la ventana del plan (60 meses de comprobación), igual que al volver desde Planificación.</p>
+                </div>
+                <div class="mt-5 flex justify-end">
+                    <button type="button" @click="closeSimContextInfo()" class="mg-btn rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(13,148,136,0.22)] hover:bg-teal-700">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </template>
 </div>
 <template id="mortgage-info-modal-template">
   <div class="fixed inset-0 z-[70] flex items-center justify-center p-4">
