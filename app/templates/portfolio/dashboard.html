@@ -47,30 +47,6 @@ document.addEventListener('alpine:init', () => {
             this.mainN = Math.min(this.years.length, Math.max(2, rows * 2));
         },
     }));
-    Alpine.data('holdingsTypeFilter', () => ({
-        /** Vacío = mostrar todos. Si hay entradas, se combinan con OR. */
-        selected: [],
-        setFilter(t, on) {
-            const key = String(t || '').trim();
-            if (on) {
-                if (!this.selected.includes(key)) {
-                    this.selected = [...this.selected, key];
-                }
-            } else {
-                this.selected = this.selected.filter((x) => x !== key);
-            }
-        },
-        isRowVisible(ht) {
-            const key = String(ht || '').trim();
-            if (!this.selected || this.selected.length === 0) {
-                return true;
-            }
-            return this.selected.includes(key);
-        },
-        clearAll() {
-            this.selected = [];
-        },
-    }));
 });
 </script>
 <style>
@@ -226,6 +202,7 @@ document.addEventListener('alpine:init', () => {
     #portfolio-dashboard tr.holding-row-pos { border-left: 4px solid rgb(16 185 129); }
     #portfolio-dashboard tr.holding-row-neg { border-left: 4px solid rgb(244 63 94); }
     #portfolio-dashboard tr.holding-row-neu { border-left: 4px solid rgb(100 116 139); }
+    #portfolio-dashboard #holdingsTable tbody tr.holdings-row-filtered-out { display: none !important; }
     #portfolio-dashboard .year-tile {
         display: flex;
         align-items: center;
@@ -278,10 +255,10 @@ document.addEventListener('alpine:init', () => {
     <!-- MÉTRICAS GLOBALES E HISTÓRICAS (PRIMERO)    -->
     <!-- ============================================ -->
     {% if metrics %}
-    <div class="mb-2 flex justify-between items-center">
-        <div>
+    <div class="mb-2 flex justify-between items-center gap-3">
+        <div class="flex items-center gap-2 min-w-0">
             <h2 class="text-lg font-semibold text-gray-700">🌍 Métricas Globales e Históricas</h2>
-            <p class="text-xs text-gray-500">Incluyen todo el histórico (posiciones actuales + cerradas + cash)</p>
+            <button type="button" class="pf-info shrink-0" @click="openKpi('info_global')" title="Qué incluyen estas métricas" aria-label="Información métricas globales">i</button>
         </div>
         {% if metrics.get('_from_cache') %}
         <div class="text-xs text-slate-600 bg-sky-50/90 px-3 py-1 rounded-full border border-sky-200/80">
@@ -376,9 +353,9 @@ document.addEventListener('alpine:init', () => {
     <!-- ============================================ -->
     {% if yearly_returns and yearly_returns|length > 0 %}
     <script type="application/json" id="yearly-returns-data">{{ yearly_returns|tojson }}</script>
-    <div class="mb-2 mt-8">
+    <div class="mb-2 mt-8 flex items-center gap-2 flex-wrap">
         <h2 class="text-lg font-semibold text-gray-700">📅 Rentabilidades Año a Año</h2>
-        <p class="text-xs text-gray-500">Rentabilidad anual calculada con Modified Dietz (el último año es YTD). El resumen rellena la altura del gráfico; el resto y el listado completo están en el modal.</p>
+        <button type="button" class="pf-info shrink-0" @click="openKpi('info_yearly')" title="Cómo se calcula y el resumen" aria-label="Información rentabilidades año a año">i</button>
     </div>
     <div class="bg-white rounded-xl shadow-sm p-4 sm:p-6 mb-8" x-data="yearlyReturnsBlock()">
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
@@ -451,9 +428,9 @@ document.addEventListener('alpine:init', () => {
     <!-- ============================================ -->
     <!-- MÉTRICAS DEL PORTFOLIO ACTUAL (SEGUNDO)     -->
     <!-- ============================================ -->
-    <div class="mb-2">
+    <div class="mb-2 flex items-center gap-2">
         <h2 class="text-lg font-semibold text-gray-700">📊 Métricas del Portfolio Actual</h2>
-        <p class="text-xs text-gray-500">Basadas solo en las posiciones abiertas actuales</p>
+        <button type="button" class="pf-info shrink-0" @click="openKpi('info_current')" title="Qué incluyen estas métricas" aria-label="Información métricas del portfolio actual">i</button>
     </div>
     <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 lg:gap-6 mb-4">
         <!-- Valor Total Cartera (CON COSTE TOTAL DENTRO) -->
@@ -546,26 +523,21 @@ document.addEventListener('alpine:init', () => {
     
     <!-- Holdings actuales -->
     {% if holdings %}
-    <div class="holdings-surface mb-8" x-data="holdingsTypeFilter()">
+    <div class="holdings-surface mb-8">
         <div class="px-4 sm:px-6 py-4 border-b border-slate-200/80 bg-slate-50/50 flex flex-col gap-3">
             <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                 <div class="min-w-0">
                     <h2 class="text-lg sm:text-xl font-bold text-slate-900">💼 Posiciones en cartera</h2>
                     <p class="text-xs sm:text-sm text-slate-500 mt-0.5">{{ holdings|length }} posición{{ 'es' if holdings|length != 1 else '' }} · resumen con peso y P&amp;L</p>
-                    <p class="text-[0.7rem] text-slate-500 mt-1.5 leading-snug max-w-xl">Punto junto al nombre: <span class="text-emerald-600 font-medium">verde</span> = beneficio (P&amp;L &gt; 0), <span class="text-rose-600 font-medium">rojo</span> = pérdida (P&amp;L &lt; 0), <span class="text-slate-500 font-medium">gris</span> = sin P&amp;L o cero. El borde izquierdo de la fila usa el mismo criterio.</p>
-                    <p class="text-[0.65rem] text-slate-400 mt-1 max-w-xl">Filtro por tipo: solo aparecen los que tienes en cartera (p. ej. <span class="font-medium">Commodity</span> = metales u otros metálicos). Puedes marcar varios a la vez.</p>
                 </div>
                 <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 shrink-0">
-                    <div class="holdings-evo-wrap flex flex-wrap items-center gap-1.5 max-w-full">
+                    <div id="holdingsTypeFilterBar" class="holdings-evo-wrap flex flex-wrap items-center gap-1.5 max-w-full">
                         <span class="text-xs text-slate-500 font-medium shrink-0">Tipo:</span>
-                        <button type="button"
-                                class="evo-toggle text-xs font-semibold text-slate-800"
-                                :class="selected.length === 0 ? 'eo-on' : ''"
-                                @click="clearAll()">Todos</button>
+                        <button type="button" id="holdingsFilterAll" class="evo-toggle text-xs font-semibold text-slate-800 eo-on">Todos</button>
                         {% for t in holding_filter_types %}
-                        <label class="evo-toggle cursor-pointer" :class="selected.indexOf({{ t|tojson }}) &gt;= 0 ? 'eo-on' : ''">
-                            <input type="checkbox" class="sr-only" :checked="selected.includes({{ t|tojson }})" @change="setFilter({{ t|tojson }}, $event.target.checked)">
-                            <span class="evo-toggle-check" x-text="selected.indexOf({{ t|tojson }}) &gt;= 0 ? '✓' : ' '">✓</span>
+                        <label class="evo-toggle cursor-pointer holdings-filter-label">
+                            <input type="checkbox" class="sr-only holdings-filter-cb" value={{ t|tojson }}>
+                            <span class="evo-toggle-check">✓</span>
                             <span class="text-xs text-slate-800">{% if t == 'Commodity' %}Metales (Commodity){% else %}{{ t }}{% endif %}</span>
                         </label>
                         {% endfor %}
@@ -610,8 +582,7 @@ document.addEventListener('alpine:init', () => {
                 <tbody class="bg-white/60 divide-y divide-slate-100">
                     {% for holding in holdings %}
                     <tr class="table-row-3d {% if 'pl_eur' in holding and holding['pl_eur'] != 0 %}{% if holding['pl_eur'] > 0 %}holding-row-pos{% elif holding['pl_eur'] < 0 %}holding-row-neg{% else %}holding-row-neu{% endif %}{% else %}holding-row-neu{% endif %}"
-                        data-holding-type="{{ holding['filter_type']|e }}"
-                        x-show="isRowVisible({{ holding['filter_type']|tojson }})">
+                        data-holding-type="{{ holding['filter_type']|e }}">
                         <!-- Activo -->
                         <td class="px-3 sm:px-4 py-3 whitespace-nowrap align-top">
                             <div class="holdings-asset-pill">
@@ -722,6 +693,49 @@ document.addEventListener('alpine:init', () => {
     {% endif %}
 
     {% if metrics %}
+    <!-- Informativos de sección (mismo patrón que desglose KPI) -->
+    <div x-show="kpiModal === 'info_global'" x-cloak x-transition
+         class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55"
+         @keydown.escape.window="closeKpi()" role="dialog" aria-modal="true">
+        <div class="absolute inset-0" @click="closeKpi()" aria-hidden="true"></div>
+        <div @click.stop class="relative w-full max-w-md max-h-[min(88vh,20rem)] flex flex-col rounded-2xl border border-slate-200/80 bg-gradient-to-br from-[#f8fbfc] to-[#f1f7f8] shadow-[0_20px_45px_rgba(15,23,42,0.28)]">
+            <div class="px-4 py-3 border-b border-slate-200/80 flex items-center justify-between gap-2">
+                <h4 class="text-sm font-semibold text-slate-900">🌍 Métricas globales e históricas</h4>
+                <button type="button" @click="closeKpi()" class="modal-touch-btn text-sm rounded-lg px-3 py-1.5 bg-slate-700 text-white font-semibold hover:bg-slate-800 shrink-0">Cerrar</button>
+            </div>
+            <div class="p-4 text-sm text-slate-700">Incluyen todo el histórico: posiciones actuales, cerradas y efectivo, según el cálculo de métricas unificado.</div>
+        </div>
+    </div>
+    <div x-show="kpiModal === 'info_current'" x-cloak x-transition
+         class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55"
+         @keydown.escape.window="closeKpi()" role="dialog" aria-modal="true">
+        <div class="absolute inset-0" @click="closeKpi()" aria-hidden="true"></div>
+        <div @click.stop class="relative w-full max-w-md max-h-[min(88vh,20rem)] flex flex-col rounded-2xl border border-slate-200/80 bg-gradient-to-br from-[#f8fbfc] to-[#f1f7f8] shadow-[0_20px_45px_rgba(15,23,42,0.28)]">
+            <div class="px-4 py-3 border-b border-slate-200/80 flex items-center justify-between gap-2">
+                <h4 class="text-sm font-semibold text-slate-900">📊 Métricas del portfolio actual</h4>
+                <button type="button" @click="closeKpi()" class="modal-touch-btn text-sm rounded-lg px-3 py-1.5 bg-slate-700 text-white font-semibold hover:bg-slate-800 shrink-0">Cerrar</button>
+            </div>
+            <div class="p-4 text-sm text-slate-700">Basadas solo en las posiciones abiertas a día de hoy (valor, P&amp;L no realizado, retorno y apalancamiento aprox. stock/ETF según el bloque de leverage).</div>
+        </div>
+    </div>
+    {% if yearly_returns and yearly_returns|length > 0 %}
+    <div x-show="kpiModal === 'info_yearly'" x-cloak x-transition
+         class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55"
+         @keydown.escape.window="closeKpi()" role="dialog" aria-modal="true">
+        <div class="absolute inset-0" @click="closeKpi()" aria-hidden="true"></div>
+        <div @click.stop class="relative w-full max-w-md max-h-[min(88vh,24rem)] flex flex-col rounded-2xl border border-slate-200/80 bg-gradient-to-br from-[#f8fbfc] to-[#f1f7f8] shadow-[0_20px_45px_rgba(15,23,42,0.28)]">
+            <div class="px-4 py-3 border-b border-slate-200/80 flex items-center justify-between gap-2">
+                <h4 class="text-sm font-semibold text-slate-900">📅 Rentabilidades año a año</h4>
+                <button type="button" @click="closeKpi()" class="modal-touch-btn text-sm rounded-lg px-3 py-1.5 bg-slate-700 text-white font-semibold hover:bg-slate-800 shrink-0">Cerrar</button>
+            </div>
+            <div class="p-4 text-sm text-slate-700 space-y-2">
+                <p>Rentabilidad anual calculada con <strong>Modified Dietz</strong> (el último año mostrado es <strong>YTD</strong> hasta hoy).</p>
+                <p class="text-xs text-slate-500">El resumen a la izquierda rellena el alto del bloque junto al gráfico; el resto de años y el listado completo están en el modal «Ver historial completo».</p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Modales desglose (botón i en tarjetas KPI) -->
     <div x-show="kpiModal === 'ga_acct'" x-cloak x-transition
          class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55"
@@ -971,6 +985,60 @@ document.addEventListener('alpine:init', () => {
 </div>
 
 <script>
+// Filtro por tipo de activo (vanilla: Alpine x-show en <tr> no es fiable en todos los casos)
+function initHoldingsTypeFilter() {
+    const table = document.getElementById('holdingsTable');
+    const bar = document.getElementById('holdingsTypeFilterBar');
+    if (!table || !bar) return;
+    const tbody = table.querySelector('tbody');
+    const btnAll = document.getElementById('holdingsFilterAll');
+    function cbs() {
+        return bar.querySelectorAll('input.holdings-filter-cb');
+    }
+    function getSelected() {
+        return Array.from(cbs())
+            .filter(function (i) { return i.checked; })
+            .map(function (i) { return (i.value || '').trim(); });
+    }
+    function apply() {
+        const sel = getSelected();
+        tbody.querySelectorAll('tr[data-holding-type]').forEach(function (tr) {
+            const t = (tr.getAttribute('data-holding-type') || '').trim();
+            if (sel.length === 0) {
+                tr.classList.remove('holdings-row-filtered-out');
+                return;
+            }
+            if (sel.indexOf(t) >= 0) {
+                tr.classList.remove('holdings-row-filtered-out');
+            } else {
+                tr.classList.add('holdings-row-filtered-out');
+            }
+        });
+        if (btnAll) {
+            btnAll.classList.toggle('eo-on', sel.length === 0);
+        }
+        bar.querySelectorAll('label.holdings-filter-label').forEach(function (lab) {
+            const input = lab.querySelector('input.holdings-filter-cb');
+            if (input) {
+                lab.classList.toggle('eo-on', input.checked);
+            }
+        });
+    }
+    bar.addEventListener('change', function (e) {
+        if (e.target && e.target.classList.contains('holdings-filter-cb')) {
+            apply();
+        }
+    });
+    if (btnAll) {
+        btnAll.addEventListener('click', function () {
+            cbs().forEach(function (i) { i.checked = false; });
+            apply();
+        });
+    }
+    apply();
+}
+document.addEventListener('DOMContentLoaded', initHoldingsTypeFilter);
+
 // ==================== ORDENACIÓN DE TABLA ====================
 // Ordenar tabla de holdings (con soporte para formato europeo)
 let sortDirectionHoldings = {};
@@ -1266,23 +1334,23 @@ document.addEventListener('DOMContentLoaded', function() {
         const brPos = 'rgb(6, 95, 80)';
         const brNeg = 'rgb(90, 24, 34)';
         const eurFmt = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 });
-        function eurValue(yr) {
-            var g = yr && yr.absolute_gain;
-            var n = typeof g === 'number' && !Number.isNaN(g) ? g : parseFloat(String(g).replace(/\s/g, '').replace(/\./g, '').replace(',', '.'));
-            return Number.isFinite(n) ? n : 0;
-        }
         function pctValue(yr) {
             var v = yr && yr.return_pct;
             var n = typeof v === 'number' && !Number.isNaN(v) ? v : parseFloat(String(v).replace(',', '.'));
             return Number.isFinite(n) ? n : 0;
         }
+        function eurValue(yr) {
+            var g = yr && yr.absolute_gain;
+            var n = typeof g === 'number' && !Number.isNaN(g) ? g : parseFloat(String(g).replace(/\s/g, '').replace(/\./g, '').replace(',', '.'));
+            return Number.isFinite(n) ? n : 0;
+        }
         const yearlyData = {
             labels: reversedData.map(yr => yr.year + (yr.is_ytd ? ' (YTD)' : '')),
             datasets: [{
-                label: 'Ganancia / pérdida (€)',
-                data: reversedData.map(yr => eurValue(yr)),
-                backgroundColor: reversedData.map(yr => (eurValue(yr) >= 0 ? bgPos : bgNeg)),
-                borderColor: reversedData.map(yr => (eurValue(yr) >= 0 ? brPos : brNeg)),
+                label: 'Rentabilidad anual (%)',
+                data: reversedData.map(yr => pctValue(yr)),
+                backgroundColor: reversedData.map(yr => (pctValue(yr) >= 0 ? bgPos : bgNeg)),
+                borderColor: reversedData.map(yr => (pctValue(yr) >= 0 ? brPos : brNeg)),
                 borderWidth: 1,
                 borderRadius: 6,
                 borderSkipped: false,
@@ -1302,7 +1370,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     legend: { display: false },
                     title: {
                         display: true,
-                        text: 'Ganancia o pérdida anual (€)',
+                        text: 'Rentabilidad anual (%)',
                         color: '#475569',
                         font: { size: 12, weight: '600' },
                         padding: { bottom: 6, top: 0 }
@@ -1310,11 +1378,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     tooltip: {
                         callbacks: {
                             label: function(context) {
+                                const value = context.parsed.y;
                                 const index = context.dataIndex;
                                 const eur = eurValue(reversedData[index]);
-                                const pct = pctValue(reversedData[index]);
-                                return (eur >= 0 ? '+' : '') + eurFmt.format(eur) + ' €  ·  ' +
-                                    (pct >= 0 ? '+' : '') + pct.toFixed(2) + ' %';
+                                return (value >= 0 ? '+' : '') + value.toFixed(2) + ' %  ·  ' +
+                                    (eur >= 0 ? '+' : '') + eurFmt.format(eur) + ' €';
                             }
                         }
                     }
@@ -1324,21 +1392,13 @@ document.addEventListener('DOMContentLoaded', function() {
                         grace: '8%',
                         title: {
                             display: true,
-                            text: 'Importe (€)',
+                            text: 'Rentabilidad (%)',
                             color: '#64748b',
                             font: { size: 11, weight: '500' }
                         },
                         ticks: {
                             callback: function(value) {
-                                if (value === 0) return '0 €';
-                                var abs = Math.abs(value);
-                                if (abs >= 1e6) {
-                                    return (value < 0 ? '−' : '') + (abs / 1e6).toFixed(1).replace('.', ',') + 'M €';
-                                }
-                                if (abs >= 1e3) {
-                                    return (value < 0 ? '−' : '') + (abs / 1e3).toFixed(0) + 'k €';
-                                }
-                                return (value < 0 ? '−' : '') + eurFmt.format(Math.abs(value)) + ' €';
+                                return value.toFixed(1) + '%';
                             }
                         },
                         grid: { color: 'rgba(148, 163, 184, 0.25)' }

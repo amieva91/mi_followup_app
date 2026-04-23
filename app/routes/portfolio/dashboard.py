@@ -19,10 +19,10 @@ def _holding_filter_type(raw):
     (p. ej. 'crypto' -> 'Crypto') para evitar desajustes con checkboxes.
     """
     if raw is None:
-        return "Stock"
+        return "Otro"
     s = str(raw).strip()
     if not s:
-        return "Stock"
+        return "Otro"
     k = s.lower()
     aliases = {
         "stock": "Stock",
