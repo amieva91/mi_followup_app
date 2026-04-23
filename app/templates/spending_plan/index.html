@@ -202,7 +202,6 @@ function spendingPlanGoals(cfg) {
                 <h1 class="sp-plan-title text-2xl sm:text-3xl">📅 Planificación de gastos</h1>
                 <button type="button" class="pf-info mt-1 sm:mt-1.5" @click="openPlanningContextInfo()" title="Cómo funciona la planificación" aria-label="Información planificación de gastos">i</button>
             </div>
-            <p class="text-slate-600 mt-1 text-sm sm:text-base">DSR, horizonte, categorías fijas y objetivos. Pulsa <span class="font-medium text-slate-700">i</span> para el detalle y el simulador de vivienda.</p>
         </div>
         <div class="flex flex-wrap gap-2 shrink-0">
             <a href="{{ url_for('spending_plan.mortgage_simulator') }}" class="sp-btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold shadow-[0_10px_20px_rgba(13,148,136,0.25)]">🏠 Simulador vivienda</a>
@@ -292,7 +291,6 @@ function spendingPlanGoals(cfg) {
                 Añadir hipoteca (Simulador)
             </a>
         </div>
-        <p class="text-sm text-slate-600 mb-3">Prioridad, reparto en cuotas, hipoteca y simulador vivienda: detalle en <span class="font-medium text-slate-700">i</span>.</p>
 
         <form id="add-generic-goal-form" @submit="submitAddGeneric" method="post" action="{{ url_for('spending_plan.add_goal') }}" class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end mb-6 pb-6 border-b border-slate-200/80">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
@@ -564,10 +562,9 @@ function spendingPlanGoals(cfg) {
             <div class="absolute inset-0 bg-black/55" @click="closePlanningContextInfo()" aria-hidden="true"></div>
             <div class="followup-modal-surface relative z-10 max-w-lg w-full max-h-[min(90vh,32rem)] overflow-y-auto p-6" role="dialog" aria-modal="true" aria-labelledby="sp-planning-context-title" @click.stop>
                 <h3 id="sp-planning-context-title" class="text-lg font-semibold text-slate-900 mb-3">Planificación de gastos</h3>
-                <div class="space-y-3 text-sm text-slate-700 leading-relaxed">
-                    <p>Motor de planificación a {{ plan_window_months }} meses (5 años) con prioridades, DSR y saldo no negativo. Tabla: hasta {{ settings.horizon_months }} meses.</p>
-                    <p>Prioridad 1 = más alta. Los objetivos genéricos (ahorro, compras, cuotas de préstamo no hipotecarios) se reparten en pago único o cuotas sin dejar el saldo acumulado en negativo, respetando el DSR en hipotecas y una ventana de cinco años. La compra de vivienda con hipoteca solo se registra desde el simulador, donde podrás indicar la primera cuota y la fecha de compra.</p>
-                    <p>Precio, ahorros, gastos e hipoteca: calcula LTV, cuota y añade el objetivo al plan.</p>
+                <div class="space-y-2.5 text-sm text-slate-700 leading-relaxed">
+                    <p>En esta pestaña fijas <strong>reglas</strong> (cupo de endeudamiento/ingresos, horizonte de la tabla) y qué <strong>gastos fijos</strong> alimentan el plan, a partir de medias. Con eso obtienes la proyección mes a mes, KPIs y avisos si algo no encaja.</p>
+                    <p><strong>Qué tener en cuenta:</strong> el DSR acota el margen de cuotas; el horizonte limita <em>la tabla</em> (el motor mira cinco años). No combines categoría padre e hija. Los compromisos puntuales, cuotas o hipoteca se cargan en <strong>Objetivos</strong> (botón <span class="font-medium">i</span> aparte) o en el <strong>Simulador vivienda</strong>.</p>
                 </div>
                 <div class="flex justify-end mt-5">
                     <button type="button" @click="closePlanningContextInfo()" class="sp-btn px-4 py-2.5 rounded-xl bg-teal-600 text-white text-sm font-semibold hover:bg-teal-700 shadow-[0_8px_18px_rgba(13,148,136,0.22)]">Cerrar</button>
@@ -583,9 +580,9 @@ function spendingPlanGoals(cfg) {
             <div class="absolute inset-0 bg-black/55" @click="closeObjectivesInfo()" aria-hidden="true"></div>
             <div class="followup-modal-surface relative z-10 max-w-lg w-full max-h-[min(90vh,32rem)] overflow-y-auto p-6" role="dialog" aria-modal="true" aria-labelledby="sp-objectives-info-title" @click.stop>
                 <h3 id="sp-objectives-info-title" class="text-lg font-semibold text-slate-900 mb-3">Objetivos planificados</h3>
-                <div class="space-y-3 text-sm text-slate-700 leading-relaxed">
-                    <p>Prioridad <strong>1</strong> = más alta. Los objetivos <strong>genéricos</strong> (ahorro, compras, cuotas de préstamo no hipotecarios) se reparten en pago único o cuotas sin dejar el saldo acumulado en negativo, respetando el DSR en hipotecas y una ventana de <strong>cinco años</strong>.</p>
-                    <p>La <strong>compra de vivienda con hipoteca</strong> solo se registra desde el simulador, donde podrás indicar la primera cuota y la fecha de compra. Usa <strong>«Añadir hipoteca»</strong> o edita un objetivo hipoteca desde la columna de acciones.</p>
+                <div class="space-y-2.5 text-sm text-slate-700 leading-relaxed">
+                    <p>Aquí defines <strong>qué</strong> pagar: prioridad 1 manda, importe, cuotas o fecha. El reparto procura no dejar el saldo en rojo y encajar con el DSR e hipoteca ya configurados en esta pantalla.</p>
+                    <p>La <strong>hipoteca de vivienda</strong> nace o se ajusta en <strong>Simulador vivienda</strong>; en la tabla la editas, la borras o añades metas <strong>genéricas</strong> (coche, reforma, etc.).</p>
                 </div>
                 <div class="flex justify-end mt-5">
                     <button type="button" @click="closeObjectivesInfo()" class="sp-btn px-4 py-2.5 rounded-xl bg-teal-600 text-white text-sm font-semibold hover:bg-teal-700 shadow-[0_8px_18px_rgba(13,148,136,0.22)]">Cerrar</button>
