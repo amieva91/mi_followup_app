@@ -264,6 +264,8 @@ Marcar cada ítem al cerrar el redisño. Sirve para homogeneizar con el resto de
 - Portfolio watchlist (`/portfolio/watchlist`)
 - Portfolio ficha de activo (`/portfolio/asset/<id>`)
 - Portfolio P&L por activo (`/portfolio/pl-by-asset`)
+- Planificación de gastos (`/planificacion/`)
+- Simulador vivienda (`/planificacion/vivienda`)
 
 ## Bitacora de cambios (ir ampliando)
 
@@ -312,3 +314,4 @@ Marcar cada ítem al cerrar el redisño. Sirve para homogeneizar con el resto de
 - Módulos **Crypto**, **Metales** e **Inmuebles** (listado, detalle, formularios, modales de precios / eliminar): superficies 3D suaves, tablas con cabecera slate, KPIs con rizado semántico, botones `teal`/`slate`, modales con `bg-black/55` y panel con `re-modal-panel` / `app-modal-panel` + `background-color` de respaldo.
 - Formulario transacción: **Volver** con `history.back()` + fallback; performance: frecuencia con segmentos como «Evolución del Patrimonio», toggles `evo-toggle` para valor real / capital invertido, leyendas Chart desactivadas en series únicas, textos metodológicos en `pf-info`; **Mi Portfolio** — bloque rentabilidades año a año: tarjeta y contenedor del gráfico de barras con degradado teal-slate (sin caja blanca suelta).
 - **Guía v1.1 (cierre plantilla):** índice navegable, sección *Cómo usar*, plantilla numerada para nuevas pestañas, tabla de **avisos / flash / toasts**, reglas explícitas de **modales globales** (`.followup-modal-surface`, anti-patrón CSS solo bajo `#id`); checklist ampliada con feedback y cierre con ruta en “Pestañas ya tocadas”.
+- **Planificación** (`/planificacion/`) y **simulador vivienda** (`/planificacion/vivienda`): cabecera `emoji + título`, tarjetas 3D locales (`sp-plan-card` / `mg-plan-card`), inputs `rounded-xl` + foco `teal`, tablas con cabecera tipo slate, KPIs con `border-l-4` semántico, primarios `teal` y secundarios `slate`, modales con overlay `bg-black/55` y panel **`.followup-modal-surface`**.

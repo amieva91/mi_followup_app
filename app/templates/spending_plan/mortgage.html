@@ -1,26 +1,44 @@
 {% extends "base/layout.html" %}
 {% block title %}Simulador vivienda{% endblock %}
 {% block content %}
-<div class="max-w-4xl mx-auto px-4 py-8" id="mortgage-sim-page"
+<style>
+    #mortgage-sim-page .mg-plan-card {
+        background: linear-gradient(145deg, #f8fbfc 0%, #f1f7f8 100%);
+        border: 1px solid rgba(63, 95, 115, 0.14);
+        border-radius: 16px;
+        box-shadow: 0 14px 30px rgba(15, 23, 42, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.85);
+    }
+    #mortgage-sim-page .mg-plan-title { display: inline-flex; align-items: center; gap: 0.45rem; font-weight: 700; color: #0f172a; }
+    #mortgage-sim-page .mg-thead th {
+        background: linear-gradient(180deg, #f1f5f9 0%, #e2e8f0 100%);
+        color: #334155;
+        font-size: 0.7rem;
+        letter-spacing: 0.04em;
+    }
+    #mortgage-sim-page .mg-btn { transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease; }
+    #mortgage-sim-page .mg-btn:active { transform: scale(0.98); filter: brightness(0.96); }
+</style>
+<div class="w-full max-w-5xl mx-auto px-1 sm:px-0 py-6" id="mortgage-sim-page"
      data-ltv-max="{{ ltv_ratio_max }}">
-    <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+    <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
         <div>
-            <h1 class="text-2xl font-bold text-gray-900">Simulador compra vivienda</h1>
+            <h1 class="mg-plan-title text-2xl sm:text-3xl">🏠 Simulador compra vivienda</h1>
+            <p class="text-slate-600 mt-1 text-sm">Precio, ahorros, gastos e hipoteca: calcula LTV, cuota y añade el objetivo al plan.</p>
         </div>
-        <div class="flex gap-3 text-sm">
-            <a href="{{ url_for('spending_plan.index') }}" class="text-indigo-600 hover:underline">← Planificación</a>
-            <a href="{{ url_for('main.dashboard') }}" class="text-gray-600 hover:underline">Dashboard</a>
+        <div class="flex flex-wrap gap-2 shrink-0 text-sm">
+            <a href="{{ url_for('spending_plan.index') }}" class="mg-btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold shadow-[0_10px_20px_rgba(13,148,136,0.25)]">← Planificación</a>
+            <a href="{{ url_for('main.dashboard') }}" class="mg-btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-slate-200 border border-slate-300 hover:bg-slate-300 text-slate-800 font-semibold">Dashboard</a>
         </div>
     </div>
 
     {% if edit_goal %}
-    <p class="mb-6 text-sm text-indigo-900 bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3">
+    <p class="mb-6 text-sm text-teal-900 bg-teal-50/90 border border-teal-200/80 rounded-xl px-4 py-3">
         Editando el objetivo «{{ edit_goal.title }}». Modifica la simulación y pulsa <strong>Calcular</strong>; luego guarda para actualizar el plan.
     </p>
     {% endif %}
 
     {% if interest_context %}
-    <div class="mb-8 rounded-xl border border-slate-200 bg-slate-50/80 p-5 text-sm text-slate-800">
+    <div class="mb-8 mg-plan-card p-5 sm:p-6 text-sm text-slate-800">
         <div class="flex flex-wrap items-baseline justify-between gap-2 mb-3">
             <h2 class="text-base font-semibold text-slate-900">Contexto de tipos (referencia)</h2>
             <span class="text-xs text-slate-500 tabular-nums">Última actualización: {{ interest_context.fetched_at.strftime('%d/%m/%Y %H:%M') }} UTC</span>
@@ -47,14 +65,14 @@
         </p>
     </div>
     {% else %}
-    <div class="mb-8 rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-4 text-sm text-slate-600">
+    <div class="mb-8 mg-plan-card p-4 border-dashed border-slate-300/80 text-sm text-slate-600">
         Aún no hay una captura de contexto de tipos en base de datos. Ejecuta el job diario
         (<code class="text-xs bg-white px-1 rounded border border-slate-200">scripts/refresh_interest_rate_context_snapshot.py</code>)
         o espera al cron en servidor.
     </div>
     {% endif %}
 
-    <form method="post" class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-8 space-y-6" id="mortgage-sim-form">
+    <form method="post" class="mg-plan-card p-5 sm:p-6 mb-8 space-y-6" id="mortgage-sim-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <input type="hidden" name="action" value="simulate"/>
         {% if edit_goal %}
@@ -63,48 +81,48 @@
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Precio de compra (€)</label>
+                <label class="block text-sm font-medium text-slate-700 mb-1">Precio de compra (€)</label>
                 <input type="number" name="purchase_price" id="mp-purchase" min="0" step="1000" required
                        value="{{ sim_form.purchase_price }}"
-                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900"/>
+                       class="w-full border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"/>
             </div>
             <div class="md:col-span-2">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Ahorros a aportar (€)</label>
+                <label class="block text-sm font-medium text-slate-700 mb-1">Ahorros a aportar (€)</label>
                 <input type="number" name="savings" id="mp-savings" min="0" step="1" required
                        value="{{ sim_form.savings }}"
-                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900"/>
+                       class="w-full border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"/>
                 <p class="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mt-2" id="mp-savings-hint">
                     Indica el precio de compra para ver el mínimo de esta casilla.
                 </p>
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Años de préstamo</label>
+                <label class="block text-sm font-medium text-slate-700 mb-1">Años de préstamo</label>
                 <input type="number" name="years" id="mp-years" min="1" max="40" required
                        value="{{ sim_form.years }}"
-                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900"/>
+                       class="w-full border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"/>
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">LTV (% de Hipoteca)</label>
+                <label class="block text-sm font-medium text-slate-700 mb-1">LTV (% de Hipoteca)</label>
                 <input type="text" id="mp-ltv-display" readonly inputmode="decimal"
-                       class="w-full border border-dashed border-gray-300 rounded-lg px-3 py-2 text-gray-700 bg-gray-50 tabular-nums"
+                       class="w-full border border-dashed border-slate-300 rounded-xl px-3 py-2 text-slate-700 bg-slate-50/80 tabular-nums"
                        value="—"/>
-                <p class="text-xs text-gray-500 mt-1">Solo porcentaje (máx. {{ ltv_ratio_max }}%).</p>
+                <p class="text-xs text-slate-500 mt-1">Solo porcentaje (máx. {{ ltv_ratio_max }}%).</p>
             </div>
         </div>
 
-        <label class="inline-flex items-center gap-2 text-sm text-gray-800">
-            <input type="checkbox" name="first_home" id="mp-first" value="1" class="rounded border-gray-300"
+        <label class="inline-flex items-center gap-2 text-sm text-slate-800">
+            <input type="checkbox" name="first_home" id="mp-first" value="1" class="rounded border-slate-300 text-teal-600 focus:ring-teal-500"
                    {% if sim_form.first_home %}checked{% endif %}/>
             Primera vivienda (ITP 6%; si no, 8%)
         </label>
 
-        <div class="border-t border-gray-100 pt-4">
-            <p class="text-sm font-medium text-gray-800 mb-3">Tipo de interés nominal anual (fijo)</p>
+        <div class="border-t border-slate-200/80 pt-4">
+            <p class="text-sm font-medium text-slate-800 mb-3">Tipo de interés nominal anual (fijo)</p>
             <div class="max-w-xs">
-                <label class="block text-xs font-medium text-gray-600 mb-1">Tipo fijo (% anual)</label>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Tipo fijo (% anual)</label>
                 <input type="number" name="annual_interest_percent" id="mp-rate" step="0.01" min="0" max="15"
                        value="{{ sim_form.annual_interest_percent }}"
-                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
+                       class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-900 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"/>
             </div>
         </div>
 
@@ -118,31 +136,31 @@
         {% set tip_tab_col2 = "Oferta estándar bonificada = referencia de esa fila − 0,10%." %}
         {% set tip_tab_col3 = "Objetivo negociación (top) = entre referencia de fila − 0,70% y referencia − 0,50%." %}
 
-        <details class="mt-6 rounded-xl border border-indigo-100 bg-indigo-50/40 text-sm text-slate-800 group">
+        <details class="mt-6 rounded-xl border border-teal-200/70 bg-gradient-to-br from-teal-50/50 to-slate-50/40 text-sm text-slate-800 group">
             <summary class="cursor-pointer list-none p-5 pb-3 [&::-webkit-details-marker]:hidden flex flex-wrap items-center justify-between gap-2">
-                <span class="text-base font-semibold text-indigo-950">Negociación tipo fijo (orientativo)</span>
-                <span class="text-xs text-indigo-700 font-medium">Abrir para consultar</span>
+                <span class="text-base font-semibold text-slate-900">Negociación tipo fijo (orientativo)</span>
+                <span class="text-xs text-teal-800 font-medium">Abrir para consultar</span>
             </summary>
-            <div class="px-5 pb-5 pt-0 border-t border-indigo-100/80">
+            <div class="px-5 pb-5 pt-0 border-t border-teal-200/60">
             <p class="text-slate-700 mb-3 leading-relaxed pt-4">
                 Los bancos suelen fijar el coste del tipo fijo con referencias del <strong>Euribor a 12 meses</strong>.
             </p>
-            <p class="text-xs text-slate-600 mb-3 cursor-help border-l-2 border-indigo-200 pl-2" title="{{ tip_ref_usada }}">
+            <p class="text-xs text-slate-600 mb-3 cursor-help border-l-4 border-teal-400/80 pl-2" title="{{ tip_ref_usada }}">
                 <span class="font-medium text-slate-700">Referencia usada:</span>
-                <strong id="neg-ref-display" class="tabular-nums">{{ "%.2f"|format(negotiation_ref_e) }}&nbsp;%</strong>
+                <strong id="neg-ref-display" class="tabular-nums text-teal-900">{{ "%.2f"|format(negotiation_ref_e) }}&nbsp;%</strong>
             </p>
             <dl class="space-y-2 mb-4">
-                <div class="flex flex-wrap justify-between gap-2 border-b border-indigo-100/80 pb-2 cursor-help" title="{{ tip_f_std }}">
+                <div class="flex flex-wrap justify-between gap-2 border-b border-teal-100/80 pb-2 cursor-help" title="{{ tip_f_std }}">
                     <dt class="text-slate-600">Oferta estándar (con vinculación: nómina, seguros…)</dt>
-                    <dd id="neg-dd-std" class="font-medium tabular-nums text-indigo-950">{{ "%.2f"|format(negotiation_hints.oferta_estandar_bonificada) }}&nbsp;%</dd>
+                    <dd id="neg-dd-std" class="font-medium tabular-nums text-slate-900">{{ "%.2f"|format(negotiation_hints.oferta_estandar_bonificada) }}&nbsp;%</dd>
                 </div>
-                <div class="flex flex-wrap justify-between gap-2 border-b border-indigo-100/80 pb-2 cursor-help" title="{{ tip_f_base }}">
+                <div class="flex flex-wrap justify-between gap-2 border-b border-teal-100/80 pb-2 cursor-help" title="{{ tip_f_base }}">
                     <dt class="text-slate-600">Oferta base sin productos vinculados</dt>
-                    <dd id="neg-dd-base" class="font-medium tabular-nums text-indigo-950">{{ "%.2f"|format(negotiation_hints.oferta_base_sin_bonificar) }}&nbsp;%</dd>
+                    <dd id="neg-dd-base" class="font-medium tabular-nums text-slate-900">{{ "%.2f"|format(negotiation_hints.oferta_base_sin_bonificar) }}&nbsp;%</dd>
                 </div>
-                <div class="flex flex-wrap justify-between gap-2 border-b border-indigo-100/80 pb-2 cursor-help" title="{{ tip_f_band }}">
+                <div class="flex flex-wrap justify-between gap-2 border-b border-teal-100/80 pb-2 cursor-help" title="{{ tip_f_band }}">
                     <dt class="text-slate-600">Objetivo negociación (perfil fuerte: comparar bancos, ingresos sólidos…)</dt>
-                    <dd id="neg-dd-obj" class="font-medium tabular-nums text-indigo-950">
+                    <dd id="neg-dd-obj" class="font-medium tabular-nums text-slate-900">
                         {{ "%.2f"|format(negotiation_hints.objetivo_negociacion_min) }}&nbsp;% – {{ "%.2f"|format(negotiation_hints.objetivo_negociacion_max) }}&nbsp;%
                     </dd>
                 </div>
@@ -152,29 +170,29 @@
                 </div>
             </dl>
 
-            <h3 class="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-2 cursor-help" title="{{ tip_tab_escenarios }}">Tabla de escenarios</h3>
-            <div class="overflow-x-auto mb-4">
-                <table class="min-w-full text-xs border border-indigo-100 rounded-lg overflow-hidden">
-                    <thead class="bg-indigo-100/60 text-indigo-950">
+            <h3 class="text-xs font-semibold text-slate-700 tracking-wide mb-2 cursor-help" title="{{ tip_tab_escenarios }}">Tabla de escenarios</h3>
+            <div class="overflow-x-auto mb-4 rounded-xl border border-slate-200/80">
+                <table class="min-w-full text-xs">
+                    <thead class="mg-thead">
                         <tr>
-                            <th class="text-left px-3 py-2 cursor-help" title="{{ tip_tab_col1 }}">Referencia Euribor (proxy 12M)</th>
-                            <th class="text-left px-3 py-2 cursor-help" title="{{ tip_tab_col2 }}">Oferta estándar (−0,10%)</th>
-                            <th class="text-left px-3 py-2 cursor-help" title="{{ tip_tab_col3 }}">Objetivo top (−0,70% … −0,50%)</th>
+                            <th class="text-left px-3 py-2.5 cursor-help" title="{{ tip_tab_col1 }}">Referencia Euribor (proxy 12M)</th>
+                            <th class="text-left px-3 py-2.5 cursor-help" title="{{ tip_tab_col2 }}">Oferta estándar (−0,10%)</th>
+                            <th class="text-left px-3 py-2.5 cursor-help" title="{{ tip_tab_col3 }}">Objetivo top (−0,70% … −0,50%)</th>
                         </tr>
                     </thead>
-                    <tbody id="neg-band-body" class="bg-white divide-y divide-indigo-50">
+                    <tbody id="neg-band-body" class="bg-white/80 divide-y divide-slate-100">
                         {% for row in negotiation_ref_rows %}
-                        <tr class="neg-band-row {% if loop.index0 == 2 %}bg-indigo-50/90{% endif %}" data-band-index="{{ loop.index0 }}">
-                            <td class="px-3 py-2 tabular-nums font-medium cell-ref">{{ "%.2f"|format(row.euribor_12m) }}&nbsp;%{% if loop.index0 == 2 %} <span class="text-indigo-700 font-normal neg-casilla-label">(tu casilla)</span>{% endif %}</td>
-                            <td class="px-3 py-2 tabular-nums cell-std">{{ "%.2f"|format(row.oferta_estandar_bonificada) }}&nbsp;%</td>
-                            <td class="px-3 py-2 tabular-nums cell-obj">{{ "%.2f"|format(row.objetivo_negociacion_min) }}&nbsp;% – {{ "%.2f"|format(row.objetivo_negociacion_max) }}&nbsp;%</td>
+                        <tr class="neg-band-row {% if loop.index0 == 2 %}bg-teal-50/80{% endif %}" data-band-index="{{ loop.index0 }}">
+                            <td class="px-3 py-2 tabular-nums font-medium cell-ref text-slate-900">{{ "%.2f"|format(row.euribor_12m) }}&nbsp;%{% if loop.index0 == 2 %} <span class="text-teal-700 font-normal neg-casilla-label">(tu casilla)</span>{% endif %}</td>
+                            <td class="px-3 py-2 tabular-nums cell-std text-slate-800">{{ "%.2f"|format(row.oferta_estandar_bonificada) }}&nbsp;%</td>
+                            <td class="px-3 py-2 tabular-nums cell-obj text-slate-800">{{ "%.2f"|format(row.objetivo_negociacion_min) }}&nbsp;% – {{ "%.2f"|format(row.objetivo_negociacion_max) }}&nbsp;%</td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
 
-            <h3 class="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-2">Reglas prácticas</h3>
+            <h3 class="text-xs font-semibold text-slate-700 tracking-wide mb-2">Reglas prácticas</h3>
             <ul class="list-disc list-inside space-y-1 text-slate-700 mb-3">
                 <li><strong>Regla del 0,20%:</strong> valorar con cautela un tipo fijo bonificado por encima de Euribor + 0,20% (frente al Euribor que uses como referencia en la casilla).</li>
                 <li><strong>LTV y riesgo:</strong> cuanto mayor sea el endeudamiento respecto al valor de tasación (LTV alto), más puede limitarse el margen que el banco ofrece.</li>
@@ -191,56 +209,56 @@
             </div>
         </details>
 
-        <div class="border-t border-gray-100 pt-4">
-            <p class="text-sm font-medium text-gray-800 mb-2">Gastos de compra (editables)</p>
+        <div class="border-t border-slate-200/80 pt-4">
+            <p class="text-sm font-medium text-slate-800 mb-2">Gastos de compra (editables)</p>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                 <div>
-                    <label class="block text-xs text-gray-600 mb-1">Notaría</label>
-                    <input type="number" name="notary" id="mp-notary" min="0" step="10" value="{{ sim_form.notary }}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 mp-cost"/>
+                    <label class="block text-xs text-slate-600 mb-1">Notaría</label>
+                    <input type="number" name="notary" id="mp-notary" min="0" step="10" value="{{ sim_form.notary }}" class="w-full border border-slate-300 rounded-xl px-2 py-1.5 mp-cost focus:ring-2 focus:ring-teal-500 focus:border-teal-500"/>
                 </div>
                 <div>
-                    <label class="block text-xs text-gray-600 mb-1">Registro</label>
-                    <input type="number" name="registry" id="mp-registry" min="0" step="10" value="{{ sim_form.registry }}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 mp-cost"/>
+                    <label class="block text-xs text-slate-600 mb-1">Registro</label>
+                    <input type="number" name="registry" id="mp-registry" min="0" step="10" value="{{ sim_form.registry }}" class="w-full border border-slate-300 rounded-xl px-2 py-1.5 mp-cost focus:ring-2 focus:ring-teal-500 focus:border-teal-500"/>
                 </div>
                 <div>
-                    <label class="block text-xs text-gray-600 mb-1">Gestión</label>
-                    <input type="number" name="gestoria" id="mp-gestoria" min="0" step="10" value="{{ sim_form.gestoria }}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 mp-cost"/>
+                    <label class="block text-xs text-slate-600 mb-1">Gestión</label>
+                    <input type="number" name="gestoria" id="mp-gestoria" min="0" step="10" value="{{ sim_form.gestoria }}" class="w-full border border-slate-300 rounded-xl px-2 py-1.5 mp-cost focus:ring-2 focus:ring-teal-500 focus:border-teal-500"/>
                 </div>
                 <div>
-                    <label class="block text-xs text-gray-600 mb-1">Tasación (importe gasto)</label>
-                    <input type="number" name="tasacion" id="mp-tasacion" min="0" step="10" value="{{ sim_form.tasacion }}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 mp-cost"/>
+                    <label class="block text-xs text-slate-600 mb-1">Tasación (importe gasto)</label>
+                    <input type="number" name="tasacion" id="mp-tasacion" min="0" step="10" value="{{ sim_form.tasacion }}" class="w-full border border-slate-300 rounded-xl px-2 py-1.5 mp-cost focus:ring-2 focus:ring-teal-500 focus:border-teal-500"/>
                 </div>
             </div>
-            <p class="text-xs text-gray-500 mt-2">En el cálculo se suma el importe de tasación (gasto) a los ahorros en efectivo para la aportación total.</p>
+            <p class="text-xs text-slate-500 mt-2">En el cálculo se suma el importe de tasación (gasto) a los ahorros en efectivo para la aportación total.</p>
         </div>
 
-        <button type="submit" class="px-6 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">
+        <button type="submit" class="mg-btn px-6 py-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 font-semibold shadow-[0_10px_22px_rgba(13,148,136,0.25)]">
             Calcular
         </button>
     </form>
 
     {% if result %}
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-8">
-        <h2 class="text-lg font-bold text-gray-900 mb-4">Resultado</h2>
+    <div class="mg-plan-card p-5 sm:p-6 mb-8">
+        <h2 class="mg-plan-title text-lg sm:text-xl mb-4">📊 Resultado</h2>
         <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 text-sm">
-            <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600 cursor-help max-w-[min(100%,14rem)]" title="Precio de compra, ITP y gastos de formalización (notaría, registro, gestión e importe de tasación). No incluye intereses del préstamo.">Compra y gastos de formalización</dt><dd class="font-medium tabular-nums">{{ "%.2f"|format(result.total_cost) }} €</dd></div>
-            <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Ahorros indicados (efectivo)</dt><dd class="font-medium tabular-nums">{{ "%.2f"|format(result.savings_cash) }} €</dd></div>
-            <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600 cursor-help max-w-[min(100%,14rem)]" title="Se obtiene dividiendo el límite de préstamo (90% del precio + 90% del ITP) entre 0,80.">Valor tasación mínima</dt><dd class="font-medium tabular-nums">{{ "%.2f"|format(result.valor_tasacion_inmueble) }} €</dd></div>
-            <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600 cursor-help max-w-[min(100%,14rem)]" title="Suma del desembolso de compra (precio, ITP y gastos) y los intereses totales estimados del préstamo a tipo fijo en el plazo indicado.">Total estimado a pagar ({{ result.years }} años)</dt><dd class="font-semibold tabular-nums text-slate-900">{{ "%.2f"|format(result.total_cost + result.total_interest) }} €</dd></div>
-            <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Entrada efectiva (ahorros + gasto tasación)</dt><dd class="font-semibold tabular-nums text-indigo-900">{{ "%.2f"|format(result.effective_entry_total) }} €</dd></div>
-            <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Préstamo</dt><dd class="font-medium tabular-nums">{{ "%.2f"|format(result.loan_amount) }} €</dd></div>
-            <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">LTV (% de Hipoteca)</dt><dd class="font-medium tabular-nums text-indigo-800">{{ "%.2f"|format(result.ltv_percent) }}%</dd></div>
-            <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Tipo nominal anual</dt><dd class="font-medium tabular-nums">{{ "%.4f"|format(result.annual_interest_percent) }} %</dd></div>
-            <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Cuota mensual (francesa)</dt><dd class="font-bold text-lg tabular-nums text-emerald-800">{{ "%.2f"|format(result.monthly_payment) }} €</dd></div>
-            <div class="flex justify-between border-b border-gray-50 pb-2"><dt class="text-gray-600">Total intereses (aprox.)</dt><dd class="font-medium tabular-nums">{{ "%.2f"|format(result.total_interest) }} €</dd></div>
+            <div class="flex justify-between border-b border-slate-100 pb-2"><dt class="text-slate-600 cursor-help max-w-[min(100%,14rem)]" title="Precio de compra, ITP y gastos de formalización (notaría, registro, gestión e importe de tasación). No incluye intereses del préstamo.">Compra y gastos de formalización</dt><dd class="font-medium tabular-nums text-slate-900">{{ "%.2f"|format(result.total_cost) }} €</dd></div>
+            <div class="flex justify-between border-b border-slate-100 pb-2"><dt class="text-slate-600">Ahorros indicados (efectivo)</dt><dd class="font-medium tabular-nums text-slate-900">{{ "%.2f"|format(result.savings_cash) }} €</dd></div>
+            <div class="flex justify-between border-b border-slate-100 pb-2"><dt class="text-slate-600 cursor-help max-w-[min(100%,14rem)]" title="Se obtiene dividiendo el límite de préstamo (90% del precio + 90% del ITP) entre 0,80.">Valor tasación mínima</dt><dd class="font-medium tabular-nums text-slate-900">{{ "%.2f"|format(result.valor_tasacion_inmueble) }} €</dd></div>
+            <div class="flex justify-between border-b border-slate-100 pb-2"><dt class="text-slate-600 cursor-help max-w-[min(100%,14rem)]" title="Suma del desembolso de compra (precio, ITP y gastos) y los intereses totales estimados del préstamo a tipo fijo en el plazo indicado.">Total estimado a pagar ({{ result.years }} años)</dt><dd class="font-semibold tabular-nums text-slate-900">{{ "%.2f"|format(result.total_cost + result.total_interest) }} €</dd></div>
+            <div class="flex justify-between border-b border-slate-100 pb-2"><dt class="text-slate-600">Entrada efectiva (ahorros + gasto tasación)</dt><dd class="font-semibold tabular-nums text-teal-900">{{ "%.2f"|format(result.effective_entry_total) }} €</dd></div>
+            <div class="flex justify-between border-b border-slate-100 pb-2"><dt class="text-slate-600">Préstamo</dt><dd class="font-medium tabular-nums text-slate-900">{{ "%.2f"|format(result.loan_amount) }} €</dd></div>
+            <div class="flex justify-between border-b border-slate-100 pb-2"><dt class="text-slate-600">LTV (% de Hipoteca)</dt><dd class="font-medium tabular-nums text-teal-800">{{ "%.2f"|format(result.ltv_percent) }}%</dd></div>
+            <div class="flex justify-between border-b border-slate-100 pb-2"><dt class="text-slate-600">Tipo nominal anual</dt><dd class="font-medium tabular-nums text-slate-900">{{ "%.4f"|format(result.annual_interest_percent) }} %</dd></div>
+            <div class="flex justify-between border-b border-slate-100 pb-2"><dt class="text-slate-600">Cuota mensual (francesa)</dt><dd class="font-bold text-lg tabular-nums text-emerald-800">{{ "%.2f"|format(result.monthly_payment) }} €</dd></div>
+            <div class="flex justify-between border-b border-slate-100 pb-2"><dt class="text-slate-600">Total intereses (aprox.)</dt><dd class="font-medium tabular-nums text-slate-900">{{ "%.2f"|format(result.total_interest) }} €</dd></div>
         </dl>
-        <p class="text-xs text-gray-600 mt-4 p-3 bg-slate-50 rounded-lg border border-slate-100">
+        <p class="text-xs text-slate-600 mt-4 p-3 bg-slate-50/90 rounded-xl border border-slate-200/80">
             La <strong>entrada aportada</strong> ({{ "%.2f"|format(result.effective_entry_total) }} €) es la que se descuenta del efectivo en planificación si añades el objetivo hipoteca, además de la cuota mensual en DSR.
         </p>
 
-        <div class="mt-8 pt-6 border-t border-gray-100">
-            <h3 class="text-sm font-semibold text-gray-900 mb-3">{% if edit_goal %}Guardar objetivo hipoteca en el plan{% else %}Añadir a planificación como objetivo hipoteca{% endif %}</h3>
-            <p class="text-xs text-gray-500 mb-3">Solo desde aquí se registra una hipoteca de vivienda. Se valida contra el plan (5 años, DSR, saldo no negativo y entrada con efectivo disponible). La cuota del préstamo puede proyectarse más allá de 5 años; el planificador solo comprueba los primeros 60 meses.</p>
+        <div class="mt-8 pt-6 border-t border-slate-200/80">
+            <h3 class="text-sm font-semibold text-slate-900 mb-3">{% if edit_goal %}Guardar objetivo hipoteca en el plan{% else %}Añadir a planificación como objetivo hipoteca{% endif %}</h3>
+            <p class="text-xs text-slate-500 mb-3">Solo desde aquí se registra una hipoteca de vivienda. Se valida contra el plan (5 años, DSR, saldo no negativo y entrada con efectivo disponible). La cuota del préstamo puede proyectarse más allá de 5 años; el planificador solo comprueba los primeros 60 meses.</p>
             <form id="mortgage-save-form" method="post" action="{{ url_for('spending_plan.add_goal') }}" class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                 <input type="hidden" name="goal_type" value="mortgage"/>
@@ -250,24 +268,24 @@
                 <input type="hidden" name="update_goal_id" value="{{ edit_goal.id }}"/>
                 {% endif %}
                 <div class="md:col-span-4">
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Nombre del objetivo</label>
+                    <label class="block text-xs font-medium text-slate-600 mb-1">Nombre del objetivo</label>
                     <input type="text" name="title" required maxlength="200" value="{{ edit_goal.title if edit_goal else 'Hipoteca vivienda' }}"
-                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
+                           class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-900 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"/>
                 </div>
                 <div class="md:col-span-2">
-                    <label class="block text-xs font-medium text-gray-600 mb-1 whitespace-nowrap">Prioridad (1–5)</label>
+                    <label class="block text-xs font-medium text-slate-600 mb-1 whitespace-nowrap">Prioridad (1–5)</label>
                     <input type="number" name="priority" min="1" max="5" step="1" required
                            value="{{ edit_goal.priority if edit_goal else 3 }}"
-                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
+                           class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-900 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"/>
                 </div>
                 <div class="md:col-span-6">
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Fecha de compra (Entrada) y primera cuota</label>
+                    <label class="block text-xs font-medium text-slate-600 mb-1">Fecha de compra (Entrada) y primera cuota</label>
                     <input type="date" name="target_date"
                            value="{{ purchase_date_value or '' }}"
-                           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
+                           class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-900 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"/>
                 </div>
                 <div class="md:col-span-12 md:text-right">
-                    <button id="mortgage-save-btn" type="submit" class="w-full md:w-auto px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 text-sm font-medium">
+                    <button id="mortgage-save-btn" type="submit" class="mg-btn w-full md:w-auto px-6 py-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 text-sm font-semibold shadow-[0_10px_20px_rgba(13,148,136,0.22)]">
                         <span id="mortgage-save-btn-label">{% if edit_goal %}Guardar cambios y replanificar{% else %}Añadir objetivo hipoteca{% endif %}</span>
                     </button>
                 </div>
@@ -277,17 +295,17 @@
     {% endif %}
 </div>
 <template id="mortgage-info-modal-template">
-  <div class="fixed inset-0 z-[80] flex items-center justify-center p-4">
-    <div class="absolute inset-0 bg-gray-900/50" data-close="1" aria-hidden="true"></div>
-    <div class="relative bg-white rounded-xl shadow-xl border border-gray-200 max-w-lg w-full p-6">
-      <h3 class="text-lg font-semibold text-gray-900 mb-2" data-title></h3>
-      <p class="text-sm text-gray-700 mb-4 whitespace-pre-line" data-message></p>
+  <div class="fixed inset-0 z-[70] flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/55" data-close="1" aria-hidden="true"></div>
+    <div class="followup-modal-surface relative z-10 max-w-lg w-full p-6">
+      <h3 class="text-lg font-semibold text-slate-900 mb-2" data-title></h3>
+      <p class="text-sm text-slate-700 mb-4 whitespace-pre-line" data-message></p>
       <div data-suggestions-wrap style="display:none;">
-        <p class="text-xs font-medium text-gray-600 mb-2">Sugerencias</p>
+        <p class="text-xs font-medium text-slate-600 mb-2">Sugerencias</p>
         <div class="flex flex-col gap-2" data-suggestions></div>
       </div>
       <div class="flex justify-end mt-4">
-        <button type="button" class="px-4 py-2.5 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-800" data-close-btn>Aceptar</button>
+        <button type="button" class="mg-btn px-4 py-2.5 rounded-xl bg-teal-600 text-white text-sm font-semibold hover:bg-teal-700 shadow-[0_8px_18px_rgba(13,148,136,0.2)]" data-close-btn>Aceptar</button>
       </div>
     </div>
   </div>
@@ -373,13 +391,13 @@
       var td0 = tr.querySelector('.cell-ref');
       var td1 = tr.querySelector('.cell-std');
       var td2 = tr.querySelector('.cell-obj');
-      var casilla = i === 2 ? ' <span class="text-indigo-700 font-normal neg-casilla-label">(tu casilla)</span>' : '';
+      var casilla = i === 2 ? ' <span class="text-teal-700 font-normal neg-casilla-label">(tu casilla)</span>' : '';
       if (td0) td0.innerHTML = fmtPctHtml(ref) + casilla;
       if (td1) td1.innerHTML = fmtPctHtml(hr.oferta_estandar_bonificada);
       if (td2) {
         td2.innerHTML = fmtPctHtml(hr.objetivo_negociacion_min) + ' – ' + fmtPctHtml(hr.objetivo_negociacion_max);
       }
-      tr.classList.toggle('bg-indigo-50/90', i === 2);
+      tr.classList.toggle('bg-teal-50/80', i === 2);
     }
   }
 
@@ -491,7 +509,7 @@
       suggestions.forEach(function (s) {
         var b = document.createElement('button');
         b.type = 'button';
-        b.className = 'text-left px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-sm';
+        b.className = 'mg-btn text-left px-3 py-2.5 rounded-xl border border-slate-200/90 bg-white/60 hover:bg-teal-50/80 text-sm text-slate-800';
         b.textContent = s.label || 'Aplicar';
         b.addEventListener('click', function () {
           if (s.type === 'set_field' && s.field === 'target_date') {

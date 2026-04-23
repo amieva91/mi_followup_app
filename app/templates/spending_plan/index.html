@@ -1,6 +1,23 @@
 {% extends "base/layout.html" %}
 {% block title %}Planificación de gastos{% endblock %}
 {% block content %}
+<style>
+    #sp-planning .sp-plan-card {
+        background: linear-gradient(145deg, #f8fbfc 0%, #f1f7f8 100%);
+        border: 1px solid rgba(63, 95, 115, 0.14);
+        border-radius: 16px;
+        box-shadow: 0 14px 30px rgba(15, 23, 42, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.85);
+    }
+    #sp-planning .sp-plan-title { display: inline-flex; align-items: center; gap: 0.45rem; font-weight: 700; color: #0f172a; }
+    #sp-planning .sp-thead th {
+        background: linear-gradient(180deg, #f1f5f9 0%, #e2e8f0 100%);
+        color: #334155;
+        font-size: 0.7rem;
+        letter-spacing: 0.04em;
+    }
+    #sp-planning .sp-btn { transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease; }
+    #sp-planning .sp-btn:active { transform: scale(0.98); filter: brightness(0.96); }
+</style>
 <script>
 function spendingPlanGoals(cfg) {
     const base = cfg.basePath;
@@ -133,7 +150,7 @@ function spendingPlanGoals(cfg) {
     };
 }
 </script>
-<div class="max-w-6xl mx-auto px-4 py-8"
+<div id="sp-planning" class="max-w-[92%] mx-auto px-1 sm:px-0 py-6"
      x-data='spendingPlanGoals({ goals: {{ generic_goals_modal|tojson }}, openEditId: {{ open_edit_goal_id|tojson }}, basePath: {{ (url_for("spending_plan.index")|string).rstrip("/")|tojson }} })'>
     {% if plan_schedule and not plan_schedule.ok %}
     <div class="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
@@ -141,30 +158,30 @@ function spendingPlanGoals(cfg) {
         <p class="mt-1">{{ plan_schedule.error_message }}</p>
     </div>
     {% endif %}
-    <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+    <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
         <div>
-            <h1 class="text-2xl font-bold text-gray-900">Planificación de gastos</h1>
-            <p class="text-sm text-gray-500 mt-1">Motor de planificación a <strong>{{ plan_window_months }}</strong> meses (5 años) con prioridades, DSR y saldo no negativo. Tabla: hasta {{ settings.horizon_months }} meses.</p>
+            <h1 class="sp-plan-title text-2xl sm:text-3xl">📅 Planificación de gastos</h1>
+            <p class="text-slate-600 mt-1 text-sm sm:text-base">Motor de planificación a <strong>{{ plan_window_months }}</strong> meses (5 años) con prioridades, DSR y saldo no negativo. Tabla: hasta {{ settings.horizon_months }} meses.</p>
         </div>
-        <div class="flex flex-wrap gap-3 text-sm">
-            <a href="{{ url_for('spending_plan.mortgage_simulator') }}" class="text-indigo-600 hover:underline">Simulador vivienda</a>
-            <a href="{{ url_for('main.dashboard') }}" class="text-gray-600 hover:underline">← Dashboard</a>
+        <div class="flex flex-wrap gap-2 shrink-0">
+            <a href="{{ url_for('spending_plan.mortgage_simulator') }}" class="sp-btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold shadow-[0_10px_20px_rgba(13,148,136,0.25)]">🏠 Simulador vivienda</a>
+            <a href="{{ url_for('main.dashboard') }}" class="sp-btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-slate-200 border border-slate-300 hover:bg-slate-300 text-slate-800 text-sm font-semibold">← Dashboard</a>
         </div>
     </div>
 
-    <form method="post" action="{{ url_for('spending_plan.index') }}" class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-8">
+    <form method="post" action="{{ url_for('spending_plan.index') }}" class="sp-plan-card p-5 sm:p-6 mb-6">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Endeudamiento máximo (DSR) %</label>
+                <label class="block text-sm font-medium text-slate-700 mb-1">Endeudamiento máximo (DSR) %</label>
                 <input id="max-dsr-percent-input" type="number" name="max_dsr_percent" step="0.5" min="5" max="60"
                        value="{{ settings.max_dsr_percent }}"
-                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900"/>
-                <p class="text-xs text-gray-500 mt-1">Cupo máximo de cuotas / ingreso neto mensual (referencia).</p>
-                <p class="text-xs text-indigo-800 mt-1 tabular-nums" id="dsr-euro-hint">
+                       class="w-full border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"/>
+                <p class="text-xs text-slate-500 mt-1">Cupo máximo de cuotas / ingreso neto mensual (referencia).</p>
+                <p class="text-xs text-teal-800 mt-1 tabular-nums" id="dsr-euro-hint">
                     Referencia: <strong><span id="dsr-euro-value">—</span> €/mes</strong>
-                    <span class="text-gray-500 font-normal">(ingreso medio {{ "%.2f"|format(income_avg) }} € × %)</span>
+                    <span class="text-slate-500 font-normal">(ingreso medio {{ "%.2f"|format(income_avg) }} € × %)</span>
                 </p>
                 <script>
                 (function () {
@@ -190,90 +207,90 @@ function spendingPlanGoals(cfg) {
                 </script>
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Horizonte (meses)</label>
+                <label class="block text-sm font-medium text-slate-700 mb-1">Horizonte (meses)</label>
                 <input type="number" name="horizon_months" min="1" max="60"
                        value="{{ settings.horizon_months }}"
-                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900"/>
-                <p class="text-xs text-gray-500 mt-1">Máx. 60 (el algoritmo siempre usa 5 años).</p>
+                       class="w-full border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"/>
+                <p class="text-xs text-slate-500 mt-1">Máx. 60 (el algoritmo siempre usa 5 años).</p>
             </div>
             <div class="flex items-end">
-                <button type="submit" class="w-full md:w-auto px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">
+                <button type="submit" class="sp-btn w-full md:w-auto px-5 py-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 font-semibold shadow-[0_10px_20px_rgba(13,148,136,0.25)]">
                     Guardar configuración
                 </button>
             </div>
         </div>
 
         <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">Categorías de gasto fijas (media últimos 12 meses)</label>
+            <label class="block text-sm font-medium text-slate-700 mb-2">Categorías de gasto fijas (media últimos 12 meses)</label>
             <p class="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mb-2">
                 No marques a la vez una categoría padre y sus hijas: la media del padre ya incluye a las hijas.
             </p>
-            <div class="max-h-64 overflow-y-auto border border-gray-300 rounded-lg p-3 space-y-2 bg-gray-50/50">
+            <div class="max-h-64 overflow-y-auto border border-slate-200/90 rounded-xl p-3 space-y-2 bg-white/50">
                 {% for opt in category_options %}
-                <label class="flex items-start gap-3 cursor-pointer text-sm text-gray-800 hover:bg-white/80 rounded px-1 py-0.5">
+                <label class="flex items-start gap-3 cursor-pointer text-sm text-slate-800 hover:bg-teal-50/50 rounded-lg px-1 py-0.5">
                     <input type="checkbox" name="fixed_category_ids" value="{{ opt.id }}"
-                           class="mt-1 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                           class="mt-1 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
                            {% if opt.id in fixed_category_ids %}checked{% endif %}/>
                     <span class="font-mono leading-snug">{{ opt.label }}</span>
                 </label>
                 {% endfor %}
             </div>
-            <p class="text-xs text-gray-500 mt-1">Un clic marca o desmarca cada categoría.</p>
+            <p class="text-xs text-slate-500 mt-1">Un clic marca o desmarca cada categoría.</p>
         </div>
     </form>
 
     <!-- Objetivos -->
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-8">
+    <div class="sp-plan-card p-5 sm:p-6 mb-8">
         <div class="flex flex-wrap items-start justify-between gap-4 mb-4">
-            <h2 class="text-lg font-bold text-gray-900">Objetivos planificados</h2>
-            <a href="{{ url_for('spending_plan.mortgage_simulator') }}" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700">
+            <h2 class="sp-plan-title text-lg sm:text-xl">🎯 Objetivos planificados</h2>
+            <a href="{{ url_for('spending_plan.mortgage_simulator') }}" class="sp-btn inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-teal-600 text-white text-sm font-semibold hover:bg-teal-700 shadow-[0_10px_20px_rgba(13,148,136,0.25)]">
                 Añadir hipoteca (Simulador)
             </a>
         </div>
-        <p class="text-sm text-gray-600 mb-3">
+        <p class="text-sm text-slate-600 mb-3">
             Prioridad <strong>1</strong> = más alta. Los objetivos <strong>genéricos</strong> (ahorro, compras, cuotas de préstamo no hipotecarios) se reparten en pago único o cuotas sin dejar el saldo acumulado en negativo, respetando el DSR en hipotecas y una ventana de <strong>cinco años</strong>.
             La <strong>compra de vivienda con hipoteca</strong> solo se registra desde el simulador, donde podrás indicar la primera cuota y la fecha de compra.
         </p>
 
-        <form id="add-generic-goal-form" @submit="submitAddGeneric" method="post" action="{{ url_for('spending_plan.add_goal') }}" class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end mb-6 pb-6 border-b border-gray-100">
+        <form id="add-generic-goal-form" @submit="submitAddGeneric" method="post" action="{{ url_for('spending_plan.add_goal') }}" class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end mb-6 pb-6 border-b border-slate-200/80">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
             <input type="hidden" name="goal_type" value="generic"/>
             <div class="md:col-span-3" id="generic-title-wrap">
-                <label class="block text-xs font-medium text-gray-600 mb-1">Nombre</label>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Nombre</label>
                 <input type="text" name="title" required maxlength="200" placeholder="Ej. Coche, reforma, préstamo…"
-                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
+                       class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-900 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"/>
             </div>
             <div class="md:col-span-2" id="generic-amount-wrap">
-                <label class="block text-xs font-medium text-gray-600 mb-1 whitespace-nowrap">Importe total (€)</label>
+                <label class="block text-xs font-medium text-slate-600 mb-1 whitespace-nowrap">Importe total (€)</label>
                 <input id="generic-amount-input" type="number" name="amount_total" required min="0.01" step="0.01"
-                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
+                       class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-900 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"/>
             </div>
             <div class="md:col-span-1" id="generic-priority-wrap">
-                <label class="block text-xs font-medium text-gray-600 mb-1 whitespace-nowrap">Prioridad (1–5)</label>
+                <label class="block text-xs font-medium text-slate-600 mb-1 whitespace-nowrap">Prioridad (1–5)</label>
                 <input type="number" name="priority" min="1" max="5" value="3"
-                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
+                       class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-900 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"/>
             </div>
             <div class="md:col-span-3" id="generic-target-date-wrap">
-                <label class="block text-xs font-medium text-gray-600 mb-1">Fecha inicio <span class="text-gray-500 font-normal">(opcional)</span></label>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Fecha inicio <span class="text-slate-500 font-normal">(opcional)</span></label>
                 <input id="generic-target-date-input" type="date" name="target_date"
-                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
+                       class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-900 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"/>
             </div>
             <div class="md:col-span-1" id="date-fixed-create-wrap" style="display: none;">
-                <label class="block text-xs font-medium text-gray-600 mb-1">Fecha inamovible</label>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Fecha inamovible</label>
                 <div class="flex items-center h-[42px]">
                     <input id="date-fixed-create-input" type="checkbox" name="date_fixed" value="1"
-                           class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"/>
+                           class="rounded border-slate-300 text-teal-600 focus:ring-teal-500"/>
                 </div>
             </div>
             <div class="md:col-span-3" id="generic-installments-wrap">
-                <label class="block text-xs font-medium text-gray-600 mb-1 cursor-help" title="Vacío = el sistema elige el reparto; 1 = pago único; 2 o más = cuotas en ese número de meses (máx. 60).">N.º cuotas <span class="text-gray-500 font-normal">(opc.)</span></label>
+                <label class="block text-xs font-medium text-slate-600 mb-1 cursor-help" title="Vacío = el sistema elige el reparto; 1 = pago único; 2 o más = cuotas en ese número de meses (máx. 60).">N.º cuotas <span class="text-slate-500 font-normal">(opc.)</span></label>
                 <input id="generic-installments-input" type="number" name="installment_months" min="1" max="60" placeholder="—"
-                       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
+                       class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-900 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"/>
             </div>
             <div class="md:col-span-12 md:text-right">
                 <button type="submit" :disabled="addPlanning"
                         :class="addPlanning ? 'opacity-80 cursor-not-allowed' : ''"
-                        class="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 text-sm font-medium">
+                        class="sp-btn px-4 py-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 text-sm font-semibold shadow-[0_10px_20px_rgba(13,148,136,0.2)] w-full sm:w-auto">
                     <span x-show="!addPlanning">Añadir gasto sin entrada</span>
                     <span x-show="addPlanning" class="inline-flex items-center gap-2">
                         Planificando
@@ -332,26 +349,26 @@ function spendingPlanGoals(cfg) {
         {% endif %}
 
         {% if goal_lines %}
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto rounded-xl border border-slate-200/80">
             <table class="min-w-full text-sm">
-                <thead>
-                    <tr class="text-left text-gray-600 border-b border-gray-200">
-                        <th class="py-2 pr-4">Prior.</th>
-                        <th class="py-2 pr-4">Nombre</th>
-                        <th class="py-2 pr-4">Tipo</th>
-                        <th class="py-2 pr-4">Inicio</th>
-                        <th class="py-2 pr-4 text-right">N.º cuotas</th>
-                        <th class="py-2 pr-4 text-right">Total</th>
-                        <th class="py-2 pr-4 text-right">€/mes (efectivo)</th>
-                        <th class="py-2 pr-4 text-right">€/mes (DSR)</th>
-                        <th class="py-2 text-right">Acciones</th>
+                <thead class="sp-thead">
+                    <tr>
+                        <th class="px-3 py-2.5 pr-4 font-semibold">Prior.</th>
+                        <th class="px-0 py-2.5 pr-4 font-semibold">Nombre</th>
+                        <th class="px-0 py-2.5 pr-4 font-semibold">Tipo</th>
+                        <th class="px-0 py-2.5 pr-4 font-semibold">Inicio</th>
+                        <th class="px-0 py-2.5 pr-4 text-right font-semibold">N.º cuotas</th>
+                        <th class="px-0 py-2.5 pr-4 text-right font-semibold">Total</th>
+                        <th class="px-0 py-2.5 pr-4 text-right font-semibold">€/mes (efectivo)</th>
+                        <th class="px-0 py-2.5 pr-4 text-right font-semibold">€/mes (DSR)</th>
+                        <th class="px-3 py-2.5 text-right font-semibold">Acciones</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-100">
+                <tbody class="divide-y divide-slate-100">
                     {% for g in goal_lines %}
-                    <tr>
-                        <td class="py-2 pr-4 font-medium">{{ g.priority }}</td>
-                        <td class="py-2 pr-4">
+                    <tr class="hover:bg-teal-50/40 transition-colors">
+                        <td class="px-3 py-2.5 pr-4 font-medium text-slate-900">{{ g.priority }}</td>
+                        <td class="py-2.5 pr-4">
                             <span class="inline-flex items-center">
                                 <span class="inline-block w-2.5 h-2.5 rounded-full mr-2 shrink-0"
                                       style="background: {{ g.color or '#616161' }};"
@@ -359,28 +376,28 @@ function spendingPlanGoals(cfg) {
                                 <span>{{ g.title }}</span>
                             </span>
                         </td>
-                        <td class="py-2 pr-4 text-gray-600">{% if g.goal_type == 'mortgage' %}Hipoteca{% else %}Genérico{% endif %}</td>
-                        <td class="py-2 pr-4 text-gray-700">
+                        <td class="py-2.5 pr-4 text-slate-600">{% if g.goal_type == 'mortgage' %}Hipoteca{% else %}Genérico{% endif %}</td>
+                        <td class="py-2.5 pr-4 text-slate-800">
                             {% if g.start_month_label %}{{ g.start_month_label }}{% else %}—{% endif %}
-                            {% if g.date_fixed %}<span class="ml-2 inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-700">fija</span>{% endif %}
+                            {% if g.date_fixed %}<span class="ml-2 inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-700">fija</span>{% endif %}
                         </td>
-                        <td class="py-2 pr-4 text-right tabular-nums text-gray-700">{% if g.installments_planned %}{{ g.installments_planned }}{% else %}—{% endif %}</td>
-                        <td class="py-2 pr-4 text-right tabular-nums">{{ "%.2f"|format(g.amount_total) }}</td>
-                        <td class="py-2 pr-4 text-right tabular-nums">{{ "%.2f"|format(g.monthly_cash) }}</td>
-                        <td class="py-2 pr-4 text-right tabular-nums text-indigo-800">{{ "%.2f"|format(g.monthly_dsr) }}</td>
-                        <td class="py-2 text-right whitespace-nowrap">
+                        <td class="py-2.5 pr-4 text-right tabular-nums text-slate-700">{% if g.installments_planned %}{{ g.installments_planned }}{% else %}—{% endif %}</td>
+                        <td class="py-2.5 pr-4 text-right tabular-nums text-slate-900">{{ "%.2f"|format(g.amount_total) }}</td>
+                        <td class="py-2.5 pr-4 text-right tabular-nums text-slate-900">{{ "%.2f"|format(g.monthly_cash) }}</td>
+                        <td class="py-2.5 pr-4 text-right tabular-nums text-teal-800">{{ "%.2f"|format(g.monthly_dsr) }}</td>
+                        <td class="px-3 py-2.5 text-right whitespace-nowrap">
                             {% if g.goal_type == 'mortgage' %}
-                            <a href="{{ url_for('spending_plan.mortgage_simulator', edit=g.id) }}" class="text-indigo-600 hover:underline text-xs mr-3">Editar</a>
+                            <a href="{{ url_for('spending_plan.mortgage_simulator', edit=g.id) }}" class="text-teal-700 hover:text-teal-800 font-semibold text-xs mr-3 hover:underline">Editar</a>
                             {% else %}
                             <button type="button"
                                     @click='openEditModal(goals.find(function (x) { return x.id === {{ g.id }}; }))'
-                                    class="text-indigo-600 hover:underline text-xs mr-3 bg-transparent border-0 p-0 cursor-pointer font-inherit">
+                                    class="text-teal-700 hover:text-teal-800 font-semibold text-xs mr-3 bg-transparent border-0 p-0 cursor-pointer hover:underline">
                                 Editar
                             </button>
                             {% endif %}
                             <button type="button"
                                     @click='openDeleteModal({ id: {{ g.id }}, title: {{ g.title|tojson }} })'
-                                    class="text-red-600 hover:underline text-xs bg-transparent border-0 p-0 cursor-pointer font-inherit">
+                                    class="text-rose-600 hover:text-rose-700 font-semibold text-xs bg-transparent border-0 p-0 cursor-pointer hover:underline">
                                 Eliminar
                             </button>
                         </td>
@@ -390,23 +407,23 @@ function spendingPlanGoals(cfg) {
             </table>
         </div>
         {% else %}
-        <p class="text-sm text-gray-500">No hay objetivos. Añade uno para ver su impacto en la proyección.</p>
+        <p class="text-sm text-slate-500">No hay objetivos. Añade uno para ver su impacto en la proyección.</p>
         {% endif %}
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-8">
-        <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
-            <p class="text-xs font-medium text-indigo-800 uppercase">Ingreso mensual medio</p>
-            <p class="text-2xl font-bold text-indigo-900">{{ "%.2f"|format(income_avg) }} €</p>
+        <div class="rounded-xl border border-slate-200/80 bg-gradient-to-br from-sky-50/95 to-slate-50/90 p-4 shadow-[0_8px_22px_rgba(15,23,42,0.07)] border-l-4 border-sky-500">
+            <p class="text-sm font-medium text-slate-600">Ingreso mensual medio</p>
+            <p class="text-2xl font-bold text-slate-900 tabular-nums">{{ "%.2f"|format(income_avg) }} €</p>
         </div>
-        <div class="bg-rose-50 border border-rose-100 rounded-xl p-4">
-            <p class="text-xs font-medium text-rose-800 uppercase">Gastos fijos (suma medias)</p>
-            <p class="text-2xl font-bold text-rose-900">{{ "%.2f"|format(fixed_total) }} €</p>
+        <div class="rounded-xl border border-rose-200/60 bg-gradient-to-br from-rose-50/95 to-slate-50/90 p-4 shadow-[0_8px_22px_rgba(15,23,42,0.07)] border-l-4 border-rose-500">
+            <p class="text-sm font-medium text-rose-800">Gastos fijos (suma medias)</p>
+            <p class="text-2xl font-bold text-rose-950 tabular-nums">{{ "%.2f"|format(fixed_total) }} €</p>
         </div>
-        <div class="bg-amber-50 border border-amber-100 rounded-xl p-4">
-            <p class="text-xs font-medium text-amber-900 uppercase">Cuota Mensual Media (5 años)</p>
-            <p class="text-2xl font-bold text-amber-950">{{ "%.2f"|format(avg_quota_monthly_5y or 0) }} €</p>
-            <ul class="text-xs text-amber-800 mt-2 list-disc list-inside space-y-0.5">
+        <div class="rounded-xl border border-amber-200/60 bg-gradient-to-br from-amber-50/95 to-slate-50/90 p-4 shadow-[0_8px_22px_rgba(15,23,42,0.07)] border-l-4 border-amber-500">
+            <p class="text-sm font-medium text-amber-900">Cuota mensual media (5 años)</p>
+            <p class="text-2xl font-bold text-amber-950 tabular-nums">{{ "%.2f"|format(avg_quota_monthly_5y or 0) }} €</p>
+            <ul class="text-xs text-amber-800/95 mt-2 list-disc list-inside space-y-0.5">
                 {% if avg_dsr_used_pct_5y is not none %}
                 <li>DSR ocupado: <span class="tabular-nums font-medium">{{ "%.1f"|format(avg_dsr_used_pct_5y) }}%</span></li>
                 {% endif %}
@@ -415,16 +432,16 @@ function spendingPlanGoals(cfg) {
                 {% endif %}
             </ul>
         </div>
-        <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
-            <p class="text-xs font-medium text-emerald-800 uppercase">Saldo total acumulado (5 años)</p>
-            <p class="text-2xl font-bold text-emerald-900">
+        <div class="rounded-xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50/95 to-slate-50/90 p-4 shadow-[0_8px_22px_rgba(15,23,42,0.07)] border-l-4 border-emerald-500">
+            <p class="text-sm font-medium text-emerald-800">Saldo total acumulado (5 años)</p>
+            <p class="text-2xl font-bold text-emerald-950 tabular-nums">
                 {% if balance_end_5y is not none %}
                 {{ "%.2f"|format(balance_end_5y) }} €
                 {% else %}
                 —
                 {% endif %}
             </p>
-            <ul class="text-xs text-emerald-900 mt-2 list-disc list-inside space-y-0.5">
+            <ul class="text-xs text-emerald-900/95 mt-2 list-disc list-inside space-y-0.5">
                 <li>Saldo bancos: Actual: <span class="tabular-nums font-medium">{{ "%.2f"|format(bank_cash_gross) }} €</span></li>
                 {% if mortgage_entry_outlays_total and mortgage_entry_outlays_total > 0 %}
                 <li>Entradas hipoteca: <span class="tabular-nums font-medium">{{ "%.2f"|format(mortgage_entry_outlays_total) }} €</span></li>
@@ -437,11 +454,11 @@ function spendingPlanGoals(cfg) {
     </div>
 
     {% if fixed_lines %}
-    <details class="mb-6">
-        <summary class="cursor-pointer text-sm font-semibold text-gray-700">
+    <details class="mb-6 sp-plan-card p-4">
+        <summary class="cursor-pointer text-sm font-semibold text-slate-800">
             Desglose gastos fijos
         </summary>
-        <ul class="text-sm text-gray-600 space-y-1 mt-2">
+        <ul class="text-sm text-slate-600 space-y-1 mt-2">
             {% for line in fixed_lines %}
             <li class="flex justify-between max-w-md"><span>{{ line.name }}</span><span class="tabular-nums">{{ "%.2f"|format(line.average_monthly) }} €/mes</span></li>
             {% endfor %}
@@ -449,27 +466,27 @@ function spendingPlanGoals(cfg) {
     </details>
     {% endif %}
 
-    <h2 class="text-lg font-bold text-gray-900 mb-3">Proyección mensual</h2>
-    <div class="overflow-x-auto rounded-xl border border-gray-200">
+    <h2 class="sp-plan-title text-lg sm:text-xl mb-3">📈 Proyección mensual</h2>
+    <div class="overflow-x-auto rounded-xl border border-slate-200/80">
         <table class="min-w-full text-sm">
-            <thead class="bg-gray-50 text-left text-gray-600">
+            <thead class="sp-thead text-left">
                 <tr>
-                    <th class="px-4 py-3">Mes</th>
-                    <th class="px-4 py-3 text-right">Ingreso</th>
-                    <th class="px-4 py-3 text-right">Fijos</th>
-                    <th class="px-4 py-3 text-right">Cuota</th>
-                    <th class="px-4 py-3">Pagos</th>
-                    <th class="px-4 py-3 text-right">Superávit</th>
-                    <th class="px-4 py-3 text-right">Saldo acum.</th>
-                    <th class="px-4 py-3 text-right">Margen DSR</th>
+                    <th class="px-4 py-3 font-semibold">Mes</th>
+                    <th class="px-4 py-3 text-right font-semibold">Ingreso</th>
+                    <th class="px-4 py-3 text-right font-semibold">Fijos</th>
+                    <th class="px-4 py-3 text-right font-semibold">Cuota</th>
+                    <th class="px-4 py-3 font-semibold">Pagos</th>
+                    <th class="px-4 py-3 text-right font-semibold">Superávit</th>
+                    <th class="px-4 py-3 text-right font-semibold">Saldo acum.</th>
+                    <th class="px-4 py-3 text-right font-semibold">Margen DSR</th>
                 </tr>
             </thead>
-            <tbody class="divide-y divide-gray-100">
+            <tbody class="divide-y divide-slate-100">
                 {% for m in months %}
-                <tr class="hover:bg-gray-50/80">
-                    <td class="px-4 py-2 font-medium text-gray-900">{{ m.month_label }}</td>
-                    <td class="px-4 py-2 text-right tabular-nums">{{ "%.2f"|format(m.income) }}</td>
-                    <td class="px-4 py-2 text-right tabular-nums">{{ "%.2f"|format(m.fixed_expenses) }}</td>
+                <tr class="hover:bg-teal-50/35 transition-colors">
+                    <td class="px-4 py-2 font-medium text-slate-900">{{ m.month_label }}</td>
+                    <td class="px-4 py-2 text-right tabular-nums text-slate-800">{{ "%.2f"|format(m.income) }}</td>
+                    <td class="px-4 py-2 text-right tabular-nums text-slate-800">{{ "%.2f"|format(m.fixed_expenses) }}</td>
                     <td class="px-4 py-2 text-right tabular-nums text-amber-800">{{ "%.2f"|format(m.goals_monthly) }}</td>
                     <td class="px-4 py-2">
                         {% set mm = month_goal_marks[loop.index0] if month_goal_marks and loop.index0 < month_goal_marks|length else [] %}
@@ -482,18 +499,18 @@ function spendingPlanGoals(cfg) {
                             {% endfor %}
                         </div>
                         {% else %}
-                        <span class="text-xs text-gray-400">—</span>
+                        <span class="text-xs text-slate-400">—</span>
                         {% endif %}
                     </td>
-                    <td class="px-4 py-2 text-right tabular-nums {% if m.surplus >= 0 %}text-emerald-700{% else %}text-red-600{% endif %}">{{ "%.2f"|format(m.surplus) }}</td>
-                    <td class="px-4 py-2 text-right tabular-nums font-medium">{{ "%.2f"|format(m.ending_cash) }}</td>
-                    <td class="px-4 py-2 text-right tabular-nums text-indigo-700">{{ "%.2f"|format(m.dsr_margin) }}</td>
+                    <td class="px-4 py-2 text-right tabular-nums {% if m.surplus >= 0 %}text-emerald-700{% else %}text-rose-600{% endif %}">{{ "%.2f"|format(m.surplus) }}</td>
+                    <td class="px-4 py-2 text-right tabular-nums font-medium text-slate-900">{{ "%.2f"|format(m.ending_cash) }}</td>
+                    <td class="px-4 py-2 text-right tabular-nums text-sky-800">{{ "%.2f"|format(m.dsr_margin) }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
-    <p class="text-xs text-gray-500 mt-2">
+    <p class="text-xs text-slate-500 mt-2">
         Columna Cuota: cuotas hipoteca + entradas en el mes + cuotas genéricas planificadas. Superávit de liquidez = ingreso − fijos − entradas hipotecarias del mes (cuotas y genéricos compiten por cupo DSR y no descuentan del saldo salvo la entrada).
         Margen DSR = cuota máxima permitida − cuota hipoteca − objetivos genéricos del mes (todo lo que compite por el cupo). La columna “Pagos” marca con puntos los objetivos con cargo en ese mes.
     </p>
@@ -502,16 +519,16 @@ function spendingPlanGoals(cfg) {
         <div x-show="infoModalOpen" x-cloak x-transition
              class="fixed inset-0 z-[70] flex items-center justify-center p-4"
              style="display: none;">
-            <div class="absolute inset-0 bg-gray-900/50" @click="closeInfo()" aria-hidden="true"></div>
-            <div class="relative bg-white rounded-xl shadow-xl border border-gray-200 max-w-lg w-full p-6" role="dialog" aria-modal="true" @click.stop>
-                <h3 class="text-lg font-semibold text-gray-900 mb-2" x-text="infoModalTitle"></h3>
-                <p class="text-sm text-gray-700 mb-4 whitespace-pre-line" x-text="infoModalMessage"></p>
+            <div class="absolute inset-0 bg-black/55" @click="closeInfo()" aria-hidden="true"></div>
+            <div class="followup-modal-surface relative z-10 max-w-lg w-full p-6" role="dialog" aria-modal="true" @click.stop>
+                <h3 class="text-lg font-semibold text-slate-900 mb-2" x-text="infoModalTitle"></h3>
+                <p class="text-sm text-slate-700 mb-4 whitespace-pre-line" x-text="infoModalMessage"></p>
                 <div x-show="infoModalSuggestions && infoModalSuggestions.length" class="mb-4">
-                    <p class="text-xs font-medium text-gray-600 mb-2">Sugerencias</p>
+                    <p class="text-xs font-medium text-slate-600 mb-2">Sugerencias</p>
                     <div class="flex flex-col gap-2">
                         <template x-for="(s, idx) in infoModalSuggestions" :key="idx">
                             <button type="button"
-                                    class="text-left px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-sm"
+                                    class="sp-btn text-left px-3 py-2.5 rounded-xl border border-slate-200/90 bg-white/60 hover:bg-teal-50/80 text-sm text-slate-800"
                                     @click="applySuggestion(s)">
                                 <span class="font-medium" x-text="s.label || 'Aplicar'"></span>
                             </button>
@@ -519,7 +536,7 @@ function spendingPlanGoals(cfg) {
                     </div>
                 </div>
                 <div class="flex justify-end">
-                    <button type="button" @click="closeInfo()" class="px-4 py-2.5 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-800">Aceptar</button>
+                    <button type="button" @click="closeInfo()" class="sp-btn px-4 py-2.5 rounded-xl bg-teal-600 text-white text-sm font-semibold hover:bg-teal-700 shadow-[0_8px_18px_rgba(13,148,136,0.22)]">Aceptar</button>
                 </div>
             </div>
         </div>
@@ -527,22 +544,22 @@ function spendingPlanGoals(cfg) {
 
     <template x-teleport="body">
         <div x-show="deleteModalOpen" x-cloak x-transition
-             class="fixed inset-0 z-[60] flex items-center justify-center p-4"
+             class="fixed inset-0 z-[70] flex items-center justify-center p-4"
              style="display: none;">
-            <div class="absolute inset-0 bg-gray-900/50" @click="closeDelete()" aria-hidden="true"></div>
-            <div class="relative bg-white rounded-xl shadow-xl border border-gray-200 max-w-md w-full p-6" role="dialog" aria-modal="true" @click.stop>
-                <h3 class="text-lg font-semibold text-gray-900 mb-2">¿Eliminar este objetivo?</h3>
-                <p class="text-gray-600 text-sm mb-6 leading-relaxed">
-                    Se quitará del plan y de la proyección. <span class="font-medium text-gray-900" x-text="deleteTitle"></span>
+            <div class="absolute inset-0 bg-black/55" @click="closeDelete()" aria-hidden="true"></div>
+            <div class="followup-modal-surface relative z-10 max-w-md w-full p-6" role="dialog" aria-modal="true" @click.stop>
+                <h3 class="text-lg font-semibold text-slate-900 mb-2">¿Eliminar este objetivo?</h3>
+                <p class="text-slate-600 text-sm mb-6 leading-relaxed">
+                    Se quitará del plan y de la proyección. <span class="font-medium text-slate-900" x-text="deleteTitle"></span>
                 </p>
                 <div class="flex flex-wrap justify-end gap-3">
                     <button type="button" @click="closeDelete()"
-                            class="px-4 py-2.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-800 text-sm font-medium">
+                            class="sp-btn px-4 py-2.5 rounded-xl bg-slate-200 border border-slate-300 hover:bg-slate-300 text-slate-800 text-sm font-semibold">
                         Cancelar
                     </button>
                     <form :action="deleteUrl" method="post" class="inline">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                        <button type="submit" class="px-4 py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium">
+                        <button type="submit" class="sp-btn px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold shadow-[0_8px_18px_rgba(225,29,72,0.2)]">
                             Eliminar
                         </button>
                     </form>
@@ -553,57 +570,55 @@ function spendingPlanGoals(cfg) {
 
     <template x-teleport="body">
         <div x-show="editModalOpen" x-cloak x-transition
-             class="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6 overflow-y-auto"
+             class="fixed inset-0 z-[70] flex items-center justify-center p-4 sm:p-6 overflow-y-auto"
              style="display: none;">
-            <div class="absolute inset-0 bg-gray-900/50" @click="closeEdit()" aria-hidden="true"></div>
-            <div class="relative bg-white rounded-xl shadow-xl border border-gray-200 max-w-lg w-full p-6 my-8" role="dialog" aria-modal="true" @click.stop>
-                <h3 class="text-lg font-semibold text-gray-900 mb-1">Editar objetivo genérico</h3>
-                <p class="text-sm text-gray-500 mb-4">Los cambios se validan con el planificador de 5 años y se replanifican automáticamente.</p>
+            <div class="absolute inset-0 bg-black/55" @click="closeEdit()" aria-hidden="true"></div>
+            <div class="followup-modal-surface relative z-10 max-w-lg w-full p-6 my-8" role="dialog" aria-modal="true" @click.stop>
+                <h3 class="text-lg font-semibold text-slate-900 mb-1">Editar objetivo genérico</h3>
+                <p class="text-sm text-slate-500 mb-4">Los cambios se validan con el planificador de 5 años y se replanifican automáticamente.</p>
                 <form method="post" :action="editUrl" class="space-y-4" data-edit-generic-form="1" @submit="submitEditGeneric">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Nombre</label>
                         <input type="text" name="title" required maxlength="200" x-model="editTitle"
-                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
+                               class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-900 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"/>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Importe total (€)</label>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Importe total (€)</label>
                         <input type="number" name="amount_total" required min="0.01" step="0.01" x-model="editAmount"
-                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
+                               class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-900 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"/>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Prioridad (1–5)</label>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Prioridad (1–5)</label>
                         <input type="number" name="priority" min="1" max="5" x-model="editPriority"
-                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
+                               class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-900 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"/>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Fecha inicio <span class="text-gray-500 font-normal">(opcional)</span></label>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Fecha inicio <span class="text-slate-500 font-normal">(opcional)</span></label>
                         <input type="date" name="target_date" x-model="editTargetDate"
-                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
+                               class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-900 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"/>
                     </div>
                     <div x-show="!!editTargetDate" x-effect="if (!editTargetDate) editDateFixed = false" class="flex items-center gap-3">
-                        <label class="block text-sm font-medium text-gray-700">Fecha inamovible</label>
+                        <label class="block text-sm font-medium text-slate-700">Fecha inamovible</label>
                         <input type="checkbox" name="date_fixed" value="1" x-model="editDateFixed"
-                               class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"/>
+                               class="rounded border-slate-300 text-teal-600 focus:ring-teal-500"/>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1 cursor-help" title="Vacío = el sistema elige el reparto; 1 = pago único; 2 o más = cuotas en ese número de meses (máx. 60).">N.º cuotas <span class="text-gray-500 font-normal">(opc.)</span></label>
+                        <label class="block text-sm font-medium text-slate-700 mb-1 cursor-help" title="Vacío = el sistema elige el reparto; 1 = pago único; 2 o más = cuotas en ese número de meses (máx. 60).">N.º cuotas <span class="text-slate-500 font-normal">(opc.)</span></label>
                         <input type="number" name="installment_months" min="1" max="60" placeholder="—" x-model="editInstallmentMonths"
-                               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"/>
+                               class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-900 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"/>
                     </div>
-                    <div class="flex flex-wrap gap-3 pt-2">
+                    <div class="flex flex-col sm:flex-row flex-wrap gap-3 pt-2">
                         <button type="submit" :disabled="editPlanning"
                                 :class="editPlanning ? 'opacity-80 cursor-not-allowed' : ''"
-                                class="px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium">
+                                class="sp-btn px-5 py-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 text-sm font-semibold w-full sm:w-auto shadow-[0_10px_20px_rgba(13,148,136,0.22)] order-1 sm:order-none">
                             <span x-show="!editPlanning">Guardar y replanificar</span>
                             <span x-show="editPlanning" class="inline-flex items-center gap-2">
                                 Planificando
                                 <span class="inline-block w-4 h-4 border-2 border-white/70 border-t-transparent rounded-full animate-spin"></span>
                             </span>
                         </button>
-                        <button type="button" @click="closeEdit()" class="px-5 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">
-                            Cancelar
-                        </button>
+                        <button type="button" @click="closeEdit()" class="sp-btn px-5 py-2.5 border border-slate-300 bg-slate-200 rounded-xl text-sm text-slate-800 hover:bg-slate-300 w-full sm:w-auto">Cancelar</button>
                     </div>
                 </form>
             </div>
