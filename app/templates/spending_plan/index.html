@@ -60,6 +60,7 @@ function spendingPlanGoals(cfg) {
         editInstallmentMonths: '',
         editDateFixed: false,
         planningContextInfoOpen: false,
+        objectivesInfoOpen: false,
         init() {
             if (this.openEditId != null) {
                 const oid = this.openEditId;
@@ -94,6 +95,24 @@ function spendingPlanGoals(cfg) {
         closeDelete() { this.deleteModalOpen = false; },
         closeEdit() { this.editModalOpen = false; },
         closeInfo() { this.infoModalOpen = false; this.infoModalSuggestions = []; },
+        openPlanningContextInfo() {
+            this.planningContextInfoOpen = true;
+            this.objectivesInfoOpen = false;
+            try { document.body.style.overflow = 'hidden'; } catch (e) {}
+        },
+        closePlanningContextInfo() {
+            this.planningContextInfoOpen = false;
+            try { document.body.style.overflow = ''; } catch (e) {}
+        },
+        openObjectivesInfo() {
+            this.objectivesInfoOpen = true;
+            this.planningContextInfoOpen = false;
+            try { document.body.style.overflow = 'hidden'; } catch (e) {}
+        },
+        closeObjectivesInfo() {
+            this.objectivesInfoOpen = false;
+            try { document.body.style.overflow = ''; } catch (e) {}
+        },
         openInfo(payload) {
             this.infoModalTitle = (payload && payload.title) ? payload.title : 'No se puede replanificar';
             this.infoModalMessage = (payload && payload.message) ? payload.message : '';
@@ -265,15 +284,15 @@ function spendingPlanGoals(cfg) {
     <!-- Objetivos -->
     <div class="sp-plan-card p-5 sm:p-6 mb-8">
         <div class="flex flex-wrap items-start justify-between gap-4 mb-4">
-            <h2 class="sp-plan-title text-lg sm:text-xl">🎯 Objetivos planificados</h2>
+            <div class="flex min-w-0 flex-wrap items-center gap-2">
+                <h2 class="sp-plan-title text-lg sm:text-xl">🎯 Objetivos planificados</h2>
+                <button type="button" class="pf-info shrink-0" @click="openObjectivesInfo()" title="Cómo funcionan los objetivos" aria-label="Información sobre objetivos planificados">i</button>
+            </div>
             <a href="{{ url_for('spending_plan.mortgage_simulator') }}" class="sp-btn inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-teal-600 text-white text-sm font-semibold hover:bg-teal-700 shadow-[0_10px_20px_rgba(13,148,136,0.25)]">
                 Añadir hipoteca (Simulador)
             </a>
         </div>
-        <p class="text-sm text-slate-600 mb-3">
-            Prioridad <strong>1</strong> = más alta. Los objetivos <strong>genéricos</strong> (ahorro, compras, cuotas de préstamo no hipotecarios) se reparten en pago único o cuotas sin dejar el saldo acumulado en negativo, respetando el DSR en hipotecas y una ventana de <strong>cinco años</strong>.
-            La <strong>compra de vivienda con hipoteca</strong> solo se registra desde el simulador, donde podrás indicar la primera cuota y la fecha de compra.
-        </p>
+        <p class="text-sm text-slate-600 mb-3">Prioridad, reparto en cuotas, hipoteca y simulador vivienda: detalle en <span class="font-medium text-slate-700">i</span>.</p>
 
         <form id="add-generic-goal-form" @submit="submitAddGeneric" method="post" action="{{ url_for('spending_plan.add_goal') }}" class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end mb-6 pb-6 border-b border-slate-200/80">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
@@ -552,6 +571,24 @@ function spendingPlanGoals(cfg) {
                 </div>
                 <div class="flex justify-end mt-5">
                     <button type="button" @click="closePlanningContextInfo()" class="sp-btn px-4 py-2.5 rounded-xl bg-teal-600 text-white text-sm font-semibold hover:bg-teal-700 shadow-[0_8px_18px_rgba(13,148,136,0.22)]">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <template x-teleport="body">
+        <div x-show="objectivesInfoOpen" x-cloak x-transition
+             class="fixed inset-0 z-[70] flex items-center justify-center p-4"
+             style="display: none;">
+            <div class="absolute inset-0 bg-black/55" @click="closeObjectivesInfo()" aria-hidden="true"></div>
+            <div class="followup-modal-surface relative z-10 max-w-lg w-full max-h-[min(90vh,32rem)] overflow-y-auto p-6" role="dialog" aria-modal="true" aria-labelledby="sp-objectives-info-title" @click.stop>
+                <h3 id="sp-objectives-info-title" class="text-lg font-semibold text-slate-900 mb-3">Objetivos planificados</h3>
+                <div class="space-y-3 text-sm text-slate-700 leading-relaxed">
+                    <p>Prioridad <strong>1</strong> = más alta. Los objetivos <strong>genéricos</strong> (ahorro, compras, cuotas de préstamo no hipotecarios) se reparten en pago único o cuotas sin dejar el saldo acumulado en negativo, respetando el DSR en hipotecas y una ventana de <strong>cinco años</strong>.</p>
+                    <p>La <strong>compra de vivienda con hipoteca</strong> solo se registra desde el simulador, donde podrás indicar la primera cuota y la fecha de compra. Usa <strong>«Añadir hipoteca»</strong> o edita un objetivo hipoteca desde la columna de acciones.</p>
+                </div>
+                <div class="flex justify-end mt-5">
+                    <button type="button" @click="closeObjectivesInfo()" class="sp-btn px-4 py-2.5 rounded-xl bg-teal-600 text-white text-sm font-semibold hover:bg-teal-700 shadow-[0_8px_18px_rgba(13,148,136,0.22)]">Cerrar</button>
                 </div>
             </div>
         </div>
