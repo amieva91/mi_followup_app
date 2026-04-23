@@ -4,6 +4,51 @@
 {% block title %}Portfolio - FollowUp{% endblock %}
 
 {% block content %}
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('yearlyReturnsBlock', () => ({
+        years: [],
+        mainN: 12,
+        allModal: false,
+        init() {
+            const t = document.getElementById('yearly-returns-data');
+            try {
+                this.years = t ? JSON.parse(t.textContent) : [];
+            } catch (e) {
+                this.years = [];
+            }
+            this.$nextTick(() => {
+                this._fit();
+                setTimeout(() => this._fit(), 200);
+            });
+            const g = this.$refs.yrGrid;
+            if (g && typeof ResizeObserver !== 'undefined') {
+                new ResizeObserver(() => this._fit()).observe(g);
+            }
+            window.addEventListener('resize', () => this._fit());
+        },
+        _fit() {
+            const g = this.$refs.yrGrid;
+            if (!this.years.length) {
+                this.mainN = 0;
+                return;
+            }
+            if (!g) {
+                this.mainN = Math.min(14, this.years.length);
+                return;
+            }
+            const h = g.clientHeight;
+            if (!h || h < 24) {
+                this.mainN = Math.min(14, this.years.length);
+                return;
+            }
+            const rowH = 48;
+            const rows = Math.max(1, Math.floor((h - 4) / rowH));
+            this.mainN = Math.min(this.years.length, Math.max(2, rows * 2));
+        },
+    }));
+});
+</script>
 <style>
     #portfolio-dashboard .portfolio-title {
         display: inline-flex;
@@ -89,9 +134,46 @@
         font-size: 0.65rem;
         font-weight: 700;
         line-height: 1;
-        cursor: help;
+        cursor: pointer;
+        flex-shrink: 0;
+        padding: 0;
+    }
+    #portfolio-dashboard .pf-info:focus { outline: 2px solid rgba(20, 184, 166, 0.5); outline-offset: 1px; }
+    /* Filtro estilo “Evolución del Patrimonio” (dashboard) */
+    #portfolio-dashboard .holdings-evo-wrap .evo-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.28rem 0.55rem;
+        border-radius: 9999px;
+        border: 1px solid rgba(15, 118, 110, 0.18);
+        background: rgba(255, 255, 255, 0.92);
+        cursor: pointer;
+        transition: all 0.18s ease;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.07);
+    }
+    #portfolio-dashboard .holdings-evo-wrap .evo-toggle:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1); }
+    #portfolio-dashboard .holdings-evo-wrap .evo-toggle-check {
+        width: 0.95rem;
+        height: 0.95rem;
+        border-radius: 9999px;
+        border: 1px solid #99f6e4;
+        background: #ccfbf1;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.65rem;
+        font-weight: 700;
+        color: transparent;
         flex-shrink: 0;
     }
+    #portfolio-dashboard .holdings-evo-wrap .evo-toggle input:checked + .evo-toggle-check {
+        background: linear-gradient(180deg, #14b8a6, #0f766e);
+        border-color: #0f766e;
+        color: #fff;
+        box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.2);
+    }
+    #portfolio-dashboard .holdings-evo-wrap .eo-on { background: linear-gradient(180deg, #f0fdfa, #e6fffa) !important; border-color: rgba(13, 148, 136, 0.45) !important; }
     #portfolio-dashboard .holdings-surface {
         background: linear-gradient(145deg, #f8fbfc 0%, #f1f7f8 100%);
         border: 1px solid rgba(63, 95, 115, 0.14);
@@ -137,7 +219,7 @@
         padding: 0.5rem 0.35rem 0.35rem;
     }
 </style>
-<div id="portfolio-dashboard" class="max-w-[92%] mx-auto px-4 py-8">
+<div id="portfolio-dashboard" class="max-w-[92%] mx-auto px-4 py-8" x-data="{ kpiModal: null, openKpi(id) { this.kpiModal = id; document.body.style.overflow = 'hidden'; }, closeKpi() { this.kpiModal = null; document.body.style.overflow = ''; } }" @keydown.escape.window="if (kpiModal) closeKpi()">
     <!-- Header -->
     <div class="flex justify-between items-center gap-3 flex-wrap mb-8">
         <div>
@@ -183,55 +265,17 @@
         </div>
         {% endif %}
     </div>
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8" x-data="{ globalMetricsOpen: false }">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <!-- Valor Real Cuenta de Inversión -->
         <div class="rounded-xl p-6 border-l-4 border-indigo-500 portfolio-metric-card">
             <div class="flex items-center justify-between mb-2">
                 <div class="text-sm text-gray-600">🏦 Valor Real Cuenta</div>
                 <div class="flex items-center gap-2">
-                    <button type="button" @click="globalMetricsOpen = !globalMetricsOpen" class="text-xs text-teal-700 hover:text-teal-900 font-medium">
-                        <span x-show="!globalMetricsOpen">▼ Ver desglose</span>
-                        <span x-show="globalMetricsOpen">▲ Ocultar</span>
-                    </button>
-                    <span class="pf-info" title="Dinero real que tendría el usuario si liquidara todas las posiciones: Depósitos - Retiradas + P&L Realizado + P&L No Realizado + Dividendos - Comisiones">i</span>
+                    <button type="button" class="pf-info" @click="openKpi('ga_acct')" title="Desglose" aria-label="Desglose">i</button>
                 </div>
             </div>
             <div class="text-2xl font-bold text-indigo-600">
                 {{ metrics.total_account.total_account_value|decimal_eu(2) }} EUR
-            </div>
-            
-            <!-- Desglose detallado -->
-            <div x-show="globalMetricsOpen" x-cloak class="text-xs text-gray-500 space-y-1 portfolio-metric-breakdown">
-                <div class="flex justify-between">
-                    <span>• Depósitos:</span>
-                    <span>+{{ metrics.total_account.deposits|decimal_eu(2) }}</span>
-                </div>
-                <div class="flex justify-between">
-                    <span>• Retiradas:</span>
-                    <span>-{{ metrics.total_account.withdrawals|decimal_eu(2) }}</span>
-                </div>
-                <div class="flex justify-between">
-                    <span>• P&L Realizado:</span>
-                    <span>{% if metrics.total_account.pl_realized >= 0 %}+{% endif %}{{ metrics.total_account.pl_realized|decimal_eu(2) }}</span>
-                </div>
-                <div class="flex justify-between">
-                    <span>• P&L No Realizado:</span>
-                    <span>{% if metrics.total_account.pl_unrealized >= 0 %}+{% endif %}{{ metrics.total_account.pl_unrealized|decimal_eu(2) }}</span>
-                </div>
-                <div class="flex justify-between">
-                    <span>• Dividendos:</span>
-                    <span>+{{ metrics.total_account.dividends|decimal_eu(2) }}</span>
-                </div>
-                <div class="flex justify-between">
-                    <span>• Comisiones:</span>
-                    <span>-{{ metrics.total_account.fees|decimal_eu(2) }}</span>
-                </div>
-                {% if metrics.total_account.cash > 0 %}
-                <div class="flex justify-between">
-                    <span>• Cash disponible:</span>
-                    <span>+{{ metrics.total_account.cash|decimal_eu(2) }}</span>
-                </div>
-                {% endif %}
             </div>
             
             <!-- Indicador de Apalancamiento (solo si existe) -->
@@ -255,35 +299,11 @@
             <div class="flex items-center justify-between mb-2">
                 <div class="text-sm text-gray-600">📊 P&L Total</div>
                 <div class="flex items-center gap-2">
-                    <button type="button" @click="globalMetricsOpen = !globalMetricsOpen" class="text-xs text-teal-700 hover:text-teal-900 font-medium">
-                        <span x-show="!globalMetricsOpen">▼ Ver desglose</span>
-                        <span x-show="globalMetricsOpen">▲ Ocultar</span>
-                    </button>
-                    <span class="pf-info" title="Ganancia/pérdida TOTAL histórica: P&L Realizado + P&L No Realizado + Dividendos - Comisiones">i</span>
+                    <button type="button" class="pf-info" @click="openKpi('ga_pl')" title="Desglose" aria-label="Desglose P&amp;L total">i</button>
                 </div>
             </div>
             <div class="text-2xl font-bold {% if metrics.total_pl.total_pl >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
                 {% if metrics.total_pl.total_pl >= 0 %}+{% endif %}{{ metrics.total_pl.total_pl|decimal_eu(2) }} EUR
-            </div>
-            
-            <!-- Desglose detallado -->
-            <div x-show="globalMetricsOpen" x-cloak class="text-xs text-gray-500 space-y-1 portfolio-metric-breakdown">
-                <div class="flex justify-between">
-                    <span>• P&L Realizado:</span>
-                    <span>{% if metrics.total_pl.pl_realized >= 0 %}+{% endif %}{{ metrics.total_pl.pl_realized|decimal_eu(2) }}</span>
-                </div>
-                <div class="flex justify-between">
-                    <span>• P&L No Realizado:</span>
-                    <span>{% if metrics.total_pl.pl_unrealized >= 0 %}+{% endif %}{{ metrics.total_pl.pl_unrealized|decimal_eu(2) }}</span>
-                </div>
-                <div class="flex justify-between">
-                    <span>• Dividendos:</span>
-                    <span>+{{ metrics.total_pl.dividends|decimal_eu(2) }}</span>
-                </div>
-                <div class="flex justify-between">
-                    <span>• Comisiones:</span>
-                    <span>-{{ metrics.total_pl.fees|decimal_eu(2) }}</span>
-                </div>
             </div>
             
             <div class="mt-3">
@@ -298,35 +318,11 @@
             <div class="flex items-center justify-between mb-2">
                 <div class="text-sm text-gray-600">📈 ROI</div>
                 <div class="flex items-center gap-2">
-                    <button type="button" @click="globalMetricsOpen = !globalMetricsOpen" class="text-xs text-teal-700 hover:text-teal-900 font-medium">
-                        <span x-show="!globalMetricsOpen">▼ Ver desglose</span>
-                        <span x-show="globalMetricsOpen">▲ Ocultar</span>
-                    </button>
-                    <span class="pf-info" title="Return on Investment: rentabilidad total sobre el capital aportado. Fórmula: (Valor Actual + Retiradas - Depósitos) / Depósitos × 100">i</span>
+                    <button type="button" class="pf-info" @click="openKpi('ga_roi')" title="Desglose ROI" aria-label="Desglose ROI">i</button>
                 </div>
             </div>
             <div class="text-2xl font-bold {% if metrics.roi.roi >= 0 %}text-blue-600{% else %}text-red-600{% endif %}">
                 {% if metrics.roi.roi >= 0 %}+{% endif %}{{ metrics.roi.roi|decimal_eu(2) }}%
-            </div>
-            
-            <!-- Desglose detallado -->
-            <div x-show="globalMetricsOpen" x-cloak class="text-xs text-gray-500 space-y-1 portfolio-metric-breakdown">
-                <div class="flex justify-between">
-                    <span>• Valor Actual:</span>
-                    <span>{{ total_value|decimal_eu(2) }}</span>
-                </div>
-                <div class="flex justify-between">
-                    <span>• Retiradas:</span>
-                    <span>+{{ metrics.roi.total_withdrawals|decimal_eu(2) }}</span>
-                </div>
-                <div class="flex justify-between">
-                    <span>• Depósitos:</span>
-                    <span>-{{ metrics.roi.total_deposits|decimal_eu(2) }}</span>
-                </div>
-                <div class="flex justify-between font-medium">
-                    <span>= Retorno absoluto:</span>
-                    <span>{% if metrics.roi.absolute_return >= 0 %}+{% endif %}{{ metrics.roi.absolute_return|decimal_eu(2) }}</span>
-                </div>
             </div>
         </div>
         
@@ -335,39 +331,13 @@
             <div class="flex items-center justify-between mb-2">
                 <div class="text-sm text-gray-600">💎 Rentabilidad (Modified Dietz)</div>
                 <div class="flex items-center gap-2">
-                    <button type="button" @click="globalMetricsOpen = !globalMetricsOpen" class="text-xs text-teal-700 hover:text-teal-900 font-medium">
-                        <span x-show="!globalMetricsOpen">▼ Ver desglose</span>
-                        <span x-show="globalMetricsOpen">▲ Ocultar</span>
-                    </button>
-                    <span class="pf-info" title="Rentabilidad usando Modified Dietz Method (estándar GIPS). Elimina el efecto de los flujos de caja (deposits/withdrawals) para medir la performance real de tu estrategia.">i</span>
+                    <button type="button" class="pf-info" @click="openKpi('ga_dietz')" title="Desglose" aria-label="Desglose Modified Dietz">i</button>
                 </div>
             </div>
             <div class="text-2xl font-bold {% if metrics.modified_dietz.annualized.return_pct >= 0 %}text-purple-600{% else %}text-red-600{% endif %}">
                 {% if metrics.modified_dietz.annualized.return_pct >= 0 %}+{% endif %}{{ metrics.modified_dietz.annualized.return_pct|decimal_eu(2) }}%
             </div>
             <div class="text-xs text-gray-500">Anualizada ({{ metrics.modified_dietz.annualized.years }} años)</div>
-            
-            <!-- Métricas adicionales -->
-            <div x-show="globalMetricsOpen" x-cloak class="text-xs text-gray-500 space-y-1 portfolio-metric-breakdown">
-                <div class="flex justify-between">
-                    <span>📅 Año Actual (YTD):</span>
-                    <span class="font-medium {% if metrics.modified_dietz.ytd.return_pct >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
-                        {% if metrics.modified_dietz.ytd.return_pct >= 0 %}+{% endif %}{{ metrics.modified_dietz.ytd.return_pct|decimal_eu(2) }}%
-                    </span>
-                </div>
-                <div class="flex justify-between">
-                    <span>📊 Rentabilidad Total:</span>
-                    <span class="font-medium {% if metrics.modified_dietz.total.return_pct >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
-                        {% if metrics.modified_dietz.total.return_pct >= 0 %}+{% endif %}{{ metrics.modified_dietz.total.return_pct|decimal_eu(2) }}%
-                    </span>
-                </div>
-                <div class="flex justify-between border-t pt-1 mt-1">
-                    <span>💰 Ganancia absoluta:</span>
-                    <span class="font-medium {% if metrics.modified_dietz.total.absolute_gain >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
-                        {% if metrics.modified_dietz.total.absolute_gain >= 0 %}+{% endif %}{{ metrics.modified_dietz.total.absolute_gain|decimal_eu(2) }} EUR
-                    </span>
-                </div>
-            </div>
             
             <!-- Información adicional -->
             <div class="text-xs text-gray-400 mt-3 pt-2 border-t">
@@ -381,80 +351,77 @@
     <!-- RENTABILIDADES AÑO A AÑO                     -->
     <!-- ============================================ -->
     {% if yearly_returns and yearly_returns|length > 0 %}
+    <script type="application/json" id="yearly-returns-data">{{ yearly_returns|tojson }}</script>
     <div class="mb-2 mt-8">
         <h2 class="text-lg font-semibold text-gray-700">📅 Rentabilidades Año a Año</h2>
-        <p class="text-xs text-gray-500">Rentabilidad anual calculada con Modified Dietz (el último año es YTD)</p>
+        <p class="text-xs text-gray-500">Rentabilidad anual calculada con Modified Dietz (el último año es YTD). El resumen rellena la altura del gráfico; el resto y el listado completo están en el modal.</p>
     </div>
-    <div class="bg-white rounded-xl shadow-sm p-4 sm:p-6 mb-8" x-data="{ olderYearsOpen: false }">
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <!-- Lista de rentabilidades (compacta) -->
-            <div>
-                <h3 class="text-md font-semibold text-gray-800 mb-3">📊 Resumen por Año</h3>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[min(52vh,22rem)] overflow-y-auto pr-1">
-                    {% set recent_years = yearly_returns[:5] %}
-                    {% set older_years = yearly_returns[5:] %}
-                    
-                    {% for yr in recent_years %}
-                    <div class="year-tile {% if yr.return_pct >= 0 %}bg-emerald-50/90 border border-emerald-200/80{% else %}bg-rose-50/90 border border-rose-200/80{% endif %}">
-                        <div class="font-bold {% if yr.return_pct >= 0 %}text-emerald-800{% else %}text-rose-800{% endif %} min-w-0">
-                            {{ yr.year }}{% if yr.is_ytd %}<span class="text-[0.65rem] font-medium text-slate-500"> (YTD)</span>{% endif %}
-                        </div>
-                        <div class="text-right shrink-0">
-                            <div class="font-bold tabular-nums {% if yr.return_pct >= 0 %}text-emerald-800{% else %}text-rose-800{% endif %}">
-                                {% if yr.return_pct >= 0 %}+{% endif %}{{ yr.return_pct|decimal_eu(1) }}%
+    <div class="bg-white rounded-xl shadow-sm p-4 sm:p-6 mb-8" x-data="yearlyReturnsBlock()">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+            <div class="flex flex-col min-h-0" x-ref="yrCol">
+                <h3 class="text-md font-semibold text-gray-800 mb-2">📊 Resumen por Año</h3>
+                <div x-ref="yrGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-2 flex-1 min-h-[300px] content-start">
+                    <template x-for="(yr, idx) in years" :key="String(yr.year) + (yr.is_ytd ? 'y' : 'n')">
+                        <div x-show="idx &lt; mainN" x-cloak
+                             class="year-tile"
+                             :class="yr.return_pct &gt;= 0 ? 'bg-emerald-50/90 border border-emerald-200/80' : 'bg-rose-50/90 border border-rose-200/80'">
+                            <div class="font-bold min-w-0 tabular-nums" :class="yr.return_pct &gt;= 0 ? 'text-emerald-800' : 'text-rose-800'">
+                                <span x-text="yr.year"></span>
+                                <span x-show="yr.is_ytd" class="text-[0.65rem] font-medium text-slate-500">(YTD)</span>
                             </div>
-                            <div class="text-[0.7rem] text-slate-600 tabular-nums">
-                                {% if yr.absolute_gain >= 0 %}+{% endif %}{{ yr.absolute_gain|decimal_eu(0) }} €
+                            <div class="text-right shrink-0">
+                                <div class="font-bold tabular-nums" :class="yr.return_pct &gt;= 0 ? 'text-emerald-800' : 'text-rose-800'">
+                                    <span x-text="(yr.return_pct &gt;= 0 ? '+' : '') + Number(yr.return_pct).toFixed(1) + '%'"></span>
+                                </div>
+                                <div class="text-[0.7rem] text-slate-600 tabular-nums">
+                                    <span x-text="(yr.absolute_gain &gt;= 0 ? '+' : '') + new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 }).format(yr.absolute_gain) + ' €'"></span>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    {% endfor %}
+                    </template>
                 </div>
-                {% if older_years|length > 0 %}
-                <button type="button" @click="olderYearsOpen = true" class="w-full mt-3 p-2 text-sm font-semibold text-teal-800 bg-teal-50 hover:bg-teal-100 rounded-xl border border-teal-200/80 transition-colors">
-                    Abrir listado: {{ older_years|length }} año{{ 's' if older_years|length != 1 else '' }} anterior{{ 'es' if older_years|length != 1 else '' }} (scroll) →
+                <button type="button" @click="allModal = true" class="w-full mt-3 p-2 text-sm font-semibold text-teal-800 bg-teal-50 hover:bg-teal-100 rounded-xl border border-teal-200/80 transition-colors">
+                    Ver historial completo (todos los años) →
                 </button>
-                {% endif %}
             </div>
-            
-            <!-- Gráfico de barras (relieve 3D simulado) -->
-            <div>
+            <div class="flex flex-col min-w-0">
                 <h3 class="text-md font-semibold text-gray-800 mb-2">📈 Gráfico de Rentabilidades</h3>
-                <p class="text-xs text-slate-500 mb-2">Barras con gradiente y relieve (3D suave, no 3D real de escena)</p>
-                <div class="chart-surface-3d" style="height: 300px;">
+                <p class="text-xs text-slate-500 mb-2">Relieve 3D suave (barras con color sólido y sombreado de borde)</p>
+                <div class="chart-surface-3d flex-1 min-h-[300px] relative" style="min-height: 300px;">
                     <canvas id="yearlyReturnsChart"></canvas>
                 </div>
             </div>
         </div>
-        
-        {% if older_years|length > 0 %}
-        <div x-show="olderYearsOpen" x-cloak x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" class="fixed inset-0 z-[55] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55" @keydown.escape.window="olderYearsOpen = false" role="dialog" aria-modal="true">
-            <div class="absolute inset-0" @click="olderYearsOpen = false" aria-hidden="true"></div>
-            <div @click.stop class="relative w-full max-w-md max-h-[min(80vh,28rem)] flex flex-col rounded-2xl border border-slate-200/80 bg-gradient-to-br from-[#f8fbfc] to-[#f1f7f8] shadow-[0_20px_45px_rgba(15,23,42,0.28)]">
-                <div class="px-4 py-3 border-b border-slate-200/80 flex items-center justify-between">
-                    <h4 class="text-sm font-semibold text-slate-900">Años anteriores ({{ older_years|length }})</h4>
-                    <button type="button" @click="olderYearsOpen = false" class="modal-touch-btn text-sm rounded-lg px-3 py-1.5 bg-slate-700 text-white font-semibold hover:bg-slate-800">Cerrar</button>
+        <div x-show="allModal" x-cloak x-transition
+             class="fixed inset-0 z-[55] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55"
+             @keydown.escape.window="allModal = false" role="dialog" aria-modal="true">
+            <div class="absolute inset-0" @click="allModal = false" aria-hidden="true"></div>
+            <div @click.stop class="relative w-full max-w-md max-h-[min(85vh,32rem)] flex flex-col rounded-2xl border border-slate-200/80 bg-gradient-to-br from-[#f8fbfc] to-[#f1f7f8] shadow-[0_20px_45px_rgba(15,23,42,0.28)]">
+                <div class="px-4 py-3 border-b border-slate-200/80 flex items-center justify-between gap-2">
+                    <h4 class="text-sm font-semibold text-slate-900">Historial: todos los años (<span x-text="years.length"></span>)</h4>
+                    <button type="button" @click="allModal = false" class="modal-touch-btn text-sm rounded-lg px-3 py-1.5 bg-slate-700 text-white font-semibold hover:bg-slate-800 shrink-0">Cerrar</button>
                 </div>
-                <div class="p-3 overflow-y-auto space-y-2">
-                    {% for yr in older_years %}
-                    <div class="year-tile {% if yr.return_pct >= 0 %}bg-emerald-50/90 border border-emerald-200/80{% else %}bg-rose-50/90 border border-rose-200/80{% endif %}">
-                        <div class="font-bold {% if yr.return_pct >= 0 %}text-emerald-800{% else %}text-rose-800{% endif %}">
-                            {{ yr.year }}{% if yr.is_ytd %} <span class="text-xs font-normal">(YTD)</span>{% endif %}
-                        </div>
-                        <div class="text-right">
-                            <div class="text-sm font-bold tabular-nums {% if yr.return_pct >= 0 %}text-emerald-800{% else %}text-rose-800{% endif %}">
-                                {% if yr.return_pct >= 0 %}+{% endif %}{{ yr.return_pct|decimal_eu(2) }}%
+                <div class="p-3 overflow-y-auto space-y-2 flex-1 min-h-0">
+                    <template x-for="(yr, idx) in years" :key="'m' + idx + String(yr.year)">
+                        <div class="year-tile"
+                             :class="yr.return_pct &gt;= 0 ? 'bg-emerald-50/90 border border-emerald-200/80' : 'bg-rose-50/90 border border-rose-200/80'">
+                            <div class="font-bold" :class="yr.return_pct &gt;= 0 ? 'text-emerald-800' : 'text-rose-800'">
+                                <span x-text="yr.year"></span>
+                                <span x-show="yr.is_ytd" class="text-xs font-normal">(YTD)</span>
                             </div>
-                            <div class="text-xs text-slate-600 tabular-nums">
-                                {% if yr.absolute_gain >= 0 %}+{% endif %}{{ yr.absolute_gain|decimal_eu(2) }} EUR
+                            <div class="text-right">
+                                <div class="text-sm font-bold tabular-nums" :class="yr.return_pct &gt;= 0 ? 'text-emerald-800' : 'text-rose-800'">
+                                    <span x-text="(yr.return_pct &gt;= 0 ? '+' : '') + Number(yr.return_pct).toFixed(2) + '%'"></span>
+                                </div>
+                                <div class="text-xs text-slate-600 tabular-nums">
+                                    <span x-text="(yr.absolute_gain &gt;= 0 ? '+' : '') + new Intl.NumberFormat('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(yr.absolute_gain) + ' EUR'"></span>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    {% endfor %}
+                    </template>
                 </div>
             </div>
         </div>
-        {% endif %}
     </div>
     {% endif %}
     
@@ -465,33 +432,17 @@
         <h2 class="text-lg font-semibold text-gray-700">📊 Métricas del Portfolio Actual</h2>
         <p class="text-xs text-gray-500">Basadas solo en las posiciones abiertas actuales</p>
     </div>
-    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 lg:gap-6 mb-4" x-data="{ currentMetricsOpen: false }">
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 lg:gap-6 mb-4">
         <!-- Valor Total Cartera (CON COSTE TOTAL DENTRO) -->
         <div class="rounded-xl p-6 border-l-4 border-blue-500 portfolio-metric-card">
             <div class="flex items-center justify-between mb-1">
                 <div class="text-sm text-gray-600">💰 Valor Total Cartera</div>
                 <div class="flex items-center gap-2">
-                    <button type="button" @click="currentMetricsOpen = !currentMetricsOpen" class="text-xs text-teal-700 hover:text-teal-900 font-medium">
-                        <span x-show="!currentMetricsOpen">▼ Ver desglose</span>
-                        <span x-show="currentMetricsOpen">▲ Ocultar</span>
-                    </button>
-                    <span class="pf-info" title="Valor actual de todas las posiciones abiertas. Se calcula sumando (cantidad × precio actual) para cada activo.">i</span>
+                    <button type="button" class="pf-info" @click="openKpi('cur_cartera')" title="Desglose" aria-label="Desglose valor cartera">i</button>
                 </div>
             </div>
             <div class="text-2xl font-bold text-gray-900">
                 {{ total_value|decimal_eu(2) }} EUR
-            </div>
-            
-            <!-- Desglose detallado -->
-            <div x-show="currentMetricsOpen" x-cloak class="text-xs text-gray-500 space-y-1 portfolio-metric-breakdown">
-                <div class="flex justify-between">
-                    <span>📊 Posiciones abiertas:</span>
-                    <span class="font-medium">{{ holdings|length if holdings else 0 }}</span>
-                </div>
-                <div class="flex justify-between">
-                    <span>🏷️ Coste Total:</span>
-                    <span class="font-medium">{{ total_cost|decimal_eu(2) }} EUR</span>
-                </div>
             </div>
         </div>
         
@@ -500,18 +451,11 @@
             <div class="flex items-center justify-between mb-1">
                 <div class="text-sm text-gray-600">📈 P&L No Realizado</div>
                 <div class="flex items-center gap-2">
-                    <button type="button" @click="currentMetricsOpen = !currentMetricsOpen" class="text-xs text-teal-700 hover:text-teal-900 font-medium">
-                        <span x-show="!currentMetricsOpen">▼ Ver desglose</span>
-                        <span x-show="currentMetricsOpen">▲ Ocultar</span>
-                    </button>
-                    <span class="pf-info" title="Ganancia/pérdida de posiciones abiertas: Valor Actual - Coste Total. No incluye posiciones cerradas.">i</span>
+                    <button type="button" class="pf-info" @click="openKpi('cur_pl')" title="Desglose" aria-label="Desglose P&amp;L">i</button>
                 </div>
             </div>
             <div class="text-2xl font-bold {% if total_pl >= 0 %}text-emerald-600{% else %}text-rose-600{% endif %}">
                 {% if total_pl >= 0 %}+{% endif %}{{ total_pl|decimal_eu(2) }} EUR
-            </div>
-            <div x-show="currentMetricsOpen" x-cloak class="text-xs text-slate-600 portfolio-metric-breakdown mt-2">
-                <p class="leading-snug">Diferencia entre el valor de mercado actual y el coste de adquisición de las <strong>posiciones abiertas</strong> (excluye ya vendido).</p>
             </div>
         </div>
         
@@ -520,18 +464,11 @@
             <div class="flex items-center justify-between mb-1">
                 <div class="text-sm text-gray-600">📊 Retorno</div>
                 <div class="flex items-center gap-2">
-                    <button type="button" @click="currentMetricsOpen = !currentMetricsOpen" class="text-xs text-teal-700 hover:text-teal-900 font-medium">
-                        <span x-show="!currentMetricsOpen">▼ Ver desglose</span>
-                        <span x-show="currentMetricsOpen">▲ Ocultar</span>
-                    </button>
-                    <span class="pf-info" title="Porcentaje de retorno sobre el coste de las posiciones actuales: (P&L No Realizado / Coste Total) × 100">i</span>
+                    <button type="button" class="pf-info" @click="openKpi('cur_ret')" title="Desglose" aria-label="Desglose retorno">i</button>
                 </div>
             </div>
             <div class="text-2xl font-bold {% if total_pl_pct >= 0 %}text-emerald-600{% else %}text-rose-600{% endif %}">
                 {% if total_pl_pct >= 0 %}+{% endif %}{{ total_pl_pct|decimal_eu(2) }}%
-            </div>
-            <div x-show="currentMetricsOpen" x-cloak class="text-xs text-slate-600 portfolio-metric-breakdown mt-2">
-                <p class="leading-snug">Rentabilidad no realizada vs. coste: <span class="font-mono">P&amp;L no realizado / coste total</span> de lo que sigue en cartera.</p>
             </div>
         </div>
         
@@ -546,56 +483,11 @@
                     {% endif %}
                 </div>
                 <div class="flex items-center gap-2">
-                    <button type="button" @click="currentMetricsOpen = !currentMetricsOpen" class="text-xs text-teal-700 hover:text-teal-900 font-medium">
-                        <span x-show="!currentMetricsOpen">▼ Ver desglose</span>
-                        <span x-show="currentMetricsOpen">▲ Ocultar</span>
-                    </button>
-                    <span class="pf-info" title="Apalancamiento (solo Stock+ETF): Coste - Dinero Usuario. Crypto excluido: Revolut X CSV no incluye depósitos. Positivo = broker presta. Negativo = cash disponible.">i</span>
+                    <button type="button" class="pf-info" @click="openKpi('cur_lev')" title="Desglose" aria-label="Desglose apalancamiento">i</button>
                 </div>
             </div>
             <div class="text-2xl font-bold {% if metrics.leverage.broker_money > 0 %}text-red-600{% else %}text-cyan-600{% endif %}">
                 {% if metrics.leverage.broker_money >= 0 %}+{% endif %}{{ metrics.leverage.broker_money|decimal_eu(2) }} EUR
-            </div>
-            
-            <!-- Desglose detallado (solo Stock+ETF: crypto excluido por falta de depósitos en CSV Revolut) -->
-            <div x-show="currentMetricsOpen" x-cloak class="text-xs text-gray-500 space-y-1 portfolio-metric-breakdown">
-                <div class="flex justify-between mb-1">
-                    <span>💼 Coste Total (Stock+ETF):</span>
-                    <span class="font-medium">{{ leverage_cost|default(total_cost)|decimal_eu(2) }} EUR</span>
-                </div>
-                <div class="flex justify-between">
-                    <span>💰 Dinero usuario:</span>
-                    <span class="font-medium">{{ metrics.total_account.total_account_value|decimal_eu(2) }} EUR</span>
-                </div>
-                <div class="text-xs text-gray-500 italic mb-1 mt-1">
-                    <span>Fórmula: Depósitos - Retiradas + P&L Realizado + P&L No Realizado + Dividendos - Comisiones</span>
-                </div>
-                <div class="text-xs text-gray-400 ml-3 space-y-0.5">
-                    <div class="flex justify-between">
-                        <span>• Depósitos:</span>
-                        <span>+{{ metrics.total_account.deposits|decimal_eu(2) }}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span>• Retiradas:</span>
-                        <span>-{{ metrics.total_account.withdrawals|decimal_eu(2) }}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span>• P&L Realizado:</span>
-                        <span>{% if metrics.total_account.pl_realized >= 0 %}+{% endif %}{{ metrics.total_account.pl_realized|decimal_eu(2) }}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span>• P&L No Realizado:</span>
-                        <span>{% if metrics.total_account.pl_unrealized >= 0 %}+{% endif %}{{ metrics.total_account.pl_unrealized|decimal_eu(2) }}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span>• Dividendos:</span>
-                        <span>+{{ metrics.total_account.dividends|decimal_eu(2) }}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span>• Comisiones:</span>
-                        <span>-{{ metrics.total_account.fees|decimal_eu(2) }}</span>
-                    </div>
-                </div>
             </div>
             
             {% if metrics.leverage.broker_money > 0 %}
@@ -631,19 +523,46 @@
     
     <!-- Holdings actuales -->
     {% if holdings %}
-    <div class="holdings-surface mb-8">
-        <div class="px-4 sm:px-6 py-4 border-b border-slate-200/80 bg-slate-50/50 flex flex-wrap justify-between items-center gap-3">
-            <div>
-                <h2 class="text-lg sm:text-xl font-bold text-slate-900">💼 Posiciones en cartera</h2>
-                <p class="text-xs sm:text-sm text-slate-500 mt-0.5">{{ holdings|length }} posición{{ 'es' if holdings|length != 1 else '' }} · resumen con peso y P&L</p>
+    {% set ns_types = namespace(types=[]) %}
+    {% for h in holdings %}
+        {% set _t = h['asset'].asset_type or 'Otro' %}
+        {% if _t not in ns_types.types %}
+            {% set _ = ns_types.types.append(_t) %}
+        {% endif %}
+    {% endfor %}
+    <div class="holdings-surface mb-8" x-data="{ hFilter: 'all' }">
+        <div class="px-4 sm:px-6 py-4 border-b border-slate-200/80 bg-slate-50/50 flex flex-col gap-3">
+            <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                <div class="min-w-0">
+                    <h2 class="text-lg sm:text-xl font-bold text-slate-900">💼 Posiciones en cartera</h2>
+                    <p class="text-xs sm:text-sm text-slate-500 mt-0.5">{{ holdings|length }} posición{{ 'es' if holdings|length != 1 else '' }} · resumen con peso y P&amp;L</p>
+                    <p class="text-[0.7rem] text-slate-500 mt-1.5 leading-snug max-w-xl">Punto junto al nombre: <span class="text-emerald-600 font-medium">verde</span> = beneficio (P&amp;L &gt; 0), <span class="text-rose-600 font-medium">rojo</span> = pérdida (P&amp;L &lt; 0), <span class="text-slate-500 font-medium">gris</span> = sin P&amp;L o cero. El borde izquierdo de la fila usa el mismo criterio.</p>
+                </div>
+                <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 shrink-0">
+                    <div class="holdings-evo-wrap flex flex-wrap items-center gap-1.5">
+                        <span class="text-xs text-slate-500 font-medium">Tipo:</span>
+                        <label class="evo-toggle">
+                            <input type="radio" name="holdings-type-filter" class="sr-only" value="all" x-model="hFilter">
+                            <span class="evo-toggle-check">✓</span>
+                            <span class="text-xs text-slate-800 font-semibold">Todos</span>
+                        </label>
+                        {% for t in ns_types.types|sort %}
+                        <label class="evo-toggle">
+                            <input type="radio" name="holdings-type-filter" class="sr-only" value="{{ t|e }}" x-model="hFilter">
+                            <span class="evo-toggle-check">✓</span>
+                            <span class="text-xs text-slate-800">{{ t }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                    <a href="{{ url_for('portfolio.holdings_list') }}" class="text-sm font-semibold text-teal-700 hover:text-teal-900 rounded-xl border border-teal-200/80 bg-teal-50/80 px-3 py-1.5 hover:bg-teal-100/80 transition whitespace-nowrap text-center">
+                        Ver listado completo →
+                    </a>
+                </div>
             </div>
-            <a href="{{ url_for('portfolio.holdings_list') }}" class="text-sm font-semibold text-teal-700 hover:text-teal-900 rounded-xl border border-teal-200/80 bg-teal-50/80 px-3 py-1.5 hover:bg-teal-100/80 transition">
-                Ver listado completo →
-            </a>
         </div>
         
         <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-slate-200/80">
+            <table id="holdingsTable" class="min-w-full divide-y divide-slate-200/80">
                 <thead class="bg-slate-50/90">
                     <tr>
                         <th onclick="sortTableHoldings(0, 'text')" class="px-3 sm:px-4 py-2.5 text-left text-[0.7rem] font-semibold text-slate-600 uppercase tracking-wide cursor-pointer hover:bg-slate-100/90 sticky left-0 z-10 bg-slate-50/95">
@@ -674,7 +593,10 @@
                 </thead>
                 <tbody class="bg-white/60 divide-y divide-slate-100">
                     {% for holding in holdings %}
-                    <tr class="table-row-3d {% if 'pl_eur' in holding and holding['pl_eur'] != 0 %}{% if holding['pl_eur'] > 0 %}holding-row-pos{% elif holding['pl_eur'] < 0 %}holding-row-neg{% else %}holding-row-neu{% endif %}{% else %}holding-row-neu{% endif %}">
+                    {% set htype = holding['asset'].asset_type or 'Otro' %}
+                    <tr class="table-row-3d {% if 'pl_eur' in holding and holding['pl_eur'] != 0 %}{% if holding['pl_eur'] > 0 %}holding-row-pos{% elif holding['pl_eur'] < 0 %}holding-row-neg{% else %}holding-row-neu{% endif %}{% else %}holding-row-neu{% endif %}"
+                        data-holding-type="{{ htype|e }}"
+                        x-show="hFilter === 'all' || hFilter === {{ htype|tojson }}">
                         <!-- Activo -->
                         <td class="px-3 sm:px-4 py-3 whitespace-nowrap align-top">
                             <div class="holdings-asset-pill">
@@ -783,6 +705,195 @@
         </div>
     </div>
     {% endif %}
+
+    {% if metrics %}
+    <!-- Modales desglose (botón i en tarjetas KPI) -->
+    <div x-show="kpiModal === 'ga_acct'" x-cloak x-transition
+         class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55"
+         @keydown.escape.window="closeKpi()" role="dialog" aria-modal="true">
+        <div class="absolute inset-0" @click="closeKpi()" aria-hidden="true"></div>
+        <div @click.stop class="relative w-full max-w-md max-h-[min(88vh,32rem)] flex flex-col rounded-2xl border border-slate-200/80 bg-gradient-to-br from-[#f8fbfc] to-[#f1f7f8] shadow-[0_20px_45px_rgba(15,23,42,0.28)]">
+            <div class="px-4 py-3 border-b border-slate-200/80 flex items-center justify-between gap-2">
+                <h4 class="text-sm font-semibold text-slate-900">🏦 Valor real de la cuenta (desglose)</h4>
+                <button type="button" @click="closeKpi()" class="modal-touch-btn text-sm rounded-lg px-3 py-1.5 bg-slate-700 text-white font-semibold hover:bg-slate-800 shrink-0">Cerrar</button>
+            </div>
+            <div class="p-4 text-sm text-slate-700 overflow-y-auto space-y-2">
+                <p class="text-xs text-slate-500">Suma aproximada de lo aportado, rentabilidad realizada y no realizada, dividendos y comisiones (según cálculo interno; Stock/ETF si aplica).</p>
+                <ul class="space-y-1.5 text-sm">
+                    <li class="flex justify-between gap-2 border-b border-slate-100 pb-1"><span>Depósitos</span><span class="tabular-nums font-medium">{{ metrics.total_account.deposits|decimal_eu(2) }} €</span></li>
+                    <li class="flex justify-between gap-2 border-b border-slate-100 pb-1"><span>Retiradas</span><span class="tabular-nums font-medium">−{{ metrics.total_account.withdrawals|decimal_eu(2) }} €</span></li>
+                    <li class="flex justify-between gap-2 border-b border-slate-100 pb-1"><span>P&amp;L realizado</span><span class="tabular-nums font-medium">{% if metrics.total_account.pl_realized >= 0 %}+{% endif %}{{ metrics.total_account.pl_realized|decimal_eu(2) }} €</span></li>
+                    <li class="flex justify-between gap-2 border-b border-slate-100 pb-1"><span>P&amp;L no realizado (abierto)</span><span class="tabular-nums font-medium">{% if metrics.total_account.pl_unrealized >= 0 %}+{% endif %}{{ metrics.total_account.pl_unrealized|decimal_eu(2) }} €</span></li>
+                    <li class="flex justify-between gap-2 border-b border-slate-100 pb-1"><span>Dividendos</span><span class="tabular-nums font-medium">+{{ metrics.total_account.dividends|decimal_eu(2) }} €</span></li>
+                    <li class="flex justify-between gap-2 border-b border-slate-100 pb-1"><span>Comisiones</span><span class="tabular-nums font-medium">−{{ metrics.total_account.fees|decimal_eu(2) }} €</span></li>
+                    <li class="flex justify-between gap-2 border-b border-slate-100 pb-1"><span>Cash (no invertido, si aplica)</span><span class="tabular-nums font-medium">{{ metrics.total_account.cash|decimal_eu(2) }} €</span></li>
+                    {% if metrics.total_account.leverage > 0 %}
+                    <li class="flex justify-between gap-2 border-b border-slate-100 pb-1 text-rose-700"><span>Apalancamiento (no sumado al “valor” mostrado en tarjeta)</span><span class="tabular-nums font-medium">{{ metrics.total_account.leverage|decimal_eu(2) }} €</span></li>
+                    {% endif %}
+                    <li class="flex justify-between gap-2 pt-1 text-base font-bold text-indigo-800"><span>Total cuenta</span><span class="tabular-nums">{{ metrics.total_account.total_account_value|decimal_eu(2) }} €</span></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div x-show="kpiModal === 'ga_pl'" x-cloak x-transition
+         class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55"
+         @keydown.escape.window="closeKpi()" role="dialog" aria-modal="true">
+        <div class="absolute inset-0" @click="closeKpi()" aria-hidden="true"></div>
+        <div @click.stop class="relative w-full max-w-md max-h-[min(88vh,32rem)] flex flex-col rounded-2xl border border-slate-200/80 bg-gradient-to-br from-[#f8fbfc] to-[#f1f7f8] shadow-[0_20px_45px_rgba(15,23,42,0.28)]">
+            <div class="px-4 py-3 border-b border-slate-200/80 flex items-center justify-between gap-2">
+                <h4 class="text-sm font-semibold text-slate-900">📊 P&amp;L total (desglose)</h4>
+                <button type="button" @click="closeKpi()" class="modal-touch-btn text-sm rounded-lg px-3 py-1.5 bg-slate-700 text-white font-semibold hover:bg-slate-800 shrink-0">Cerrar</button>
+            </div>
+            <div class="p-4 text-sm text-slate-700 overflow-y-auto space-y-2">
+                <p class="text-xs text-slate-500">P&amp;L realizado + no realizado + dividendos − comisiones (histórico unificado).</p>
+                <ul class="space-y-1.5">
+                    <li class="flex justify-between gap-2 border-b border-slate-100 pb-1"><span>Realizado</span><span class="tabular-nums">{% if metrics.total_pl.pl_realized >= 0 %}+{% endif %}{{ metrics.total_pl.pl_realized|decimal_eu(2) }} €</span></li>
+                    <li class="flex justify-between gap-2 border-b border-slate-100 pb-1"><span>No realizado (abierto)</span><span class="tabular-nums">{% if metrics.total_pl.pl_unrealized >= 0 %}+{% endif %}{{ metrics.total_pl.pl_unrealized|decimal_eu(2) }} €</span></li>
+                    <li class="flex justify-between gap-2 border-b border-slate-100 pb-1"><span>Dividendos</span><span class="tabular-nums">+{{ metrics.total_pl.dividends|decimal_eu(2) }} €</span></li>
+                    <li class="flex justify-between gap-2 border-b border-slate-100 pb-1"><span>Comisiones</span><span class="tabular-nums">−{{ metrics.total_pl.fees|decimal_eu(2) }} €</span></li>
+                    <li class="flex justify-between gap-2 pt-1 text-base font-bold text-slate-900"><span>Total P&amp;L</span><span class="tabular-nums">{% if metrics.total_pl.total_pl >= 0 %}+{% endif %}{{ metrics.total_pl.total_pl|decimal_eu(2) }} € ({{ metrics.total_pl.total_pl_pct|decimal_eu(2) }}% sobre neto aportado)</span></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div x-show="kpiModal === 'ga_roi'" x-cloak x-transition
+         class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55"
+         @keydown.escape.window="closeKpi()" role="dialog" aria-modal="true">
+        <div class="absolute inset-0" @click="closeKpi()" aria-hidden="true"></div>
+        <div @click.stop class="relative w-full max-w-md max-h-[min(88vh,32rem)] flex flex-col rounded-2xl border border-slate-200/80 bg-gradient-to-br from-[#f8fbfc] to-[#f1f7f8] shadow-[0_20px_45px_rgba(15,23,42,0.28)]">
+            <div class="px-4 py-3 border-b border-slate-200/80 flex items-center justify-between gap-2">
+                <h4 class="text-sm font-semibold text-slate-900">📈 ROI (desglose)</h4>
+                <button type="button" @click="closeKpi()" class="modal-touch-btn text-sm rounded-lg px-3 py-1.5 bg-slate-700 text-white font-semibold hover:bg-slate-800 shrink-0">Cerrar</button>
+            </div>
+            <div class="p-4 text-sm text-slate-700 overflow-y-auto space-y-2">
+                <p class="text-xs text-slate-500">ROI = (Valor actual de cartera + retiradas − depósitos) / depósitos, expresado en porcentaje.</p>
+                <ul class="space-y-1.5">
+                    <li class="flex justify-between gap-2 border-b border-slate-100 pb-1"><span>Depósitos (histórico)</span><span class="tabular-nums">{{ metrics.roi.total_deposits|decimal_eu(2) }} €</span></li>
+                    <li class="flex justify-between gap-2 border-b border-slate-100 pb-1"><span>Retiradas</span><span class="tabular-nums">{{ metrics.roi.total_withdrawals|decimal_eu(2) }} €</span></li>
+                    <li class="flex justify-between gap-2 border-b border-slate-100 pb-1"><span>Capital neto aportado</span><span class="tabular-nums">{{ metrics.roi.net_invested|decimal_eu(2) }} €</span></li>
+                    <li class="flex justify-between gap-2 border-b border-slate-100 pb-1"><span>Retorno absoluto</span><span class="tabular-nums">{% if metrics.roi.absolute_return >= 0 %}+{% endif %}{{ metrics.roi.absolute_return|decimal_eu(2) }} €</span></li>
+                    <li class="flex justify-between gap-2 pt-1 text-base font-bold text-slate-900"><span>ROI</span><span class="tabular-nums">{% if metrics.roi.roi >= 0 %}+{% endif %}{{ metrics.roi.roi|decimal_eu(2) }} %</span></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div x-show="kpiModal === 'ga_dietz'" x-cloak x-transition
+         class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55"
+         @keydown.escape.window="closeKpi()" role="dialog" aria-modal="true">
+        <div class="absolute inset-0" @click="closeKpi()" aria-hidden="true"></div>
+        <div @click.stop class="relative w-full max-w-md max-h-[min(88vh,36rem)] flex flex-col rounded-2xl border border-slate-200/80 bg-gradient-to-br from-[#f8fbfc] to-[#f1f7f8] shadow-[0_20px_45px_rgba(15,23,42,0.28)]">
+            <div class="px-4 py-3 border-b border-slate-200/80 flex items-center justify-between gap-2">
+                <h4 class="text-sm font-semibold text-slate-900">💎 Modified Dietz (rentabilidad)</h4>
+                <button type="button" @click="closeKpi()" class="modal-touch-btn text-sm rounded-lg px-3 py-1.5 bg-slate-700 text-white font-semibold hover:bg-slate-800 shrink-0">Cerrar</button>
+            </div>
+            <div class="p-4 text-sm text-slate-700 overflow-y-auto space-y-3">
+                <p class="text-xs text-slate-500">Rentabilidad ponderada por flujos (TWR aproximada vía flujos de caja). La tarjeta principal muestra la tasa anualizada.</p>
+                <div>
+                    <p class="text-xs font-semibold text-slate-600 mb-1">Período completo (desde inicio)</p>
+                    <ul class="space-y-1 pl-0">
+                        <li class="flex justify-between gap-2"><span>% total</span><span class="tabular-nums">{% if metrics.modified_dietz.total.return_pct >= 0 %}+{% endif %}{{ metrics.modified_dietz.total.return_pct|decimal_eu(2) }} %</span></li>
+                        <li class="flex justify-between gap-2"><span>Ganancia absoluta</span><span class="tabular-nums">{% if metrics.modified_dietz.total.absolute_gain >= 0 %}+{% endif %}{{ metrics.modified_dietz.total.absolute_gain|decimal_eu(2) }} €</span></li>
+                        <li class="flex justify-between gap-2 text-xs text-slate-500"><span>Días</span><span>{{ metrics.modified_dietz.total.days }} d</span></li>
+                    </ul>
+                </div>
+                <div class="border-t border-slate-200/80 pt-2">
+                    <p class="text-xs font-semibold text-slate-600 mb-1">Anualizada</p>
+                    <p class="flex justify-between gap-2"><span>% anual (aprox.)</span><span class="tabular-nums font-medium">{% if metrics.modified_dietz.annualized.return_pct >= 0 %}+{% endif %}{{ metrics.modified_dietz.annualized.return_pct|decimal_eu(2) }} %</span></p>
+                    <p class="text-xs text-slate-500">≈ {{ metrics.modified_dietz.annualized.years|round(2) }} años de histórico</p>
+                </div>
+                <div class="border-t border-slate-200/80 pt-2">
+                    <p class="text-xs font-semibold text-slate-600 mb-1">Año en curso (YTD)</p>
+                    <ul class="space-y-1">
+                        <li class="flex justify-between gap-2"><span>% YTD</span><span class="tabular-nums">{% if metrics.modified_dietz.ytd.return_pct >= 0 %}+{% endif %}{{ metrics.modified_dietz.ytd.return_pct|decimal_eu(2) }} %</span></li>
+                        <li class="flex justify-between gap-2"><span>Ganancia YTD</span><span class="tabular-nums">{% if metrics.modified_dietz.ytd.absolute_gain >= 0 %}+{% endif %}{{ metrics.modified_dietz.ytd.absolute_gain|decimal_eu(2) }} €</span></li>
+                        <li class="flex justify-between gap-2 text-xs text-slate-500"><span>Días</span><span>{{ metrics.modified_dietz.ytd.days }} d</span></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div x-show="kpiModal === 'cur_cartera'" x-cloak x-transition
+         class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55"
+         @keydown.escape.window="closeKpi()" role="dialog" aria-modal="true">
+        <div class="absolute inset-0" @click="closeKpi()" aria-hidden="true"></div>
+        <div @click.stop class="relative w-full max-w-md max-h-[min(88vh,32rem)] flex flex-col rounded-2xl border border-slate-200/80 bg-gradient-to-br from-[#f8fbfc] to-[#f1f7f8] shadow-[0_20px_45px_rgba(15,23,42,0.28)]">
+            <div class="px-4 py-3 border-b border-slate-200/80 flex items-center justify-between gap-2">
+                <h4 class="text-sm font-semibold text-slate-900">💰 Valor total de la cartera (desglose)</h4>
+                <button type="button" @click="closeKpi()" class="modal-touch-btn text-sm rounded-lg px-3 py-1.5 bg-slate-700 text-white font-semibold hover:bg-slate-800 shrink-0">Cerrar</button>
+            </div>
+            <div class="p-4 text-sm text-slate-700 overflow-y-auto space-y-2">
+                <p class="text-xs text-slate-500">Solo posiciones <strong>abiertas</strong>: suma a valor de mercado (o coste aproximado si falta precio) en EUR.</p>
+                <ul class="space-y-1.5">
+                    <li class="flex justify-between gap-2 border-b border-slate-100 pb-1"><span>Valor de mercado (aprox.)</span><span class="tabular-nums font-semibold">{{ total_value|decimal_eu(2) }} €</span></li>
+                    <li class="flex justify-between gap-2 border-b border-slate-100 pb-1"><span>Coste de las posiciones</span><span class="tabular-nums">{{ total_cost|decimal_eu(2) }} €</span></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div x-show="kpiModal === 'cur_pl'" x-cloak x-transition
+         class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55"
+         @keydown.escape.window="closeKpi()" role="dialog" aria-modal="true">
+        <div class="absolute inset-0" @click="closeKpi()" aria-hidden="true"></div>
+        <div @click.stop class="relative w-full max-w-md max-h-[min(88vh,32rem)] flex flex-col rounded-2xl border border-slate-200/80 bg-gradient-to-br from-[#f8fbfc] to-[#f1f7f8] shadow-[0_20px_45px_rgba(15,23,42,0.28)]">
+            <div class="px-4 py-3 border-b border-slate-200/80 flex items-center justify-between gap-2">
+                <h4 class="text-sm font-semibold text-slate-900">📈 P&amp;L no realizado (desglose)</h4>
+                <button type="button" @click="closeKpi()" class="modal-touch-btn text-sm rounded-lg px-3 py-1.5 bg-slate-700 text-white font-semibold hover:bg-slate-800 shrink-0">Cerrar</button>
+            </div>
+            <div class="p-4 text-sm text-slate-700 overflow-y-auto space-y-2">
+                <p class="text-xs text-slate-500">Diferencia entre valor de mercado y coste de compra agregada (FIFO implícita en contabilidad de posición) de las <strong>posiciones abiertas</strong> únicamente.</p>
+                <p class="text-lg font-bold tabular-nums">{% if total_pl >= 0 %}+{% endif %}{{ total_pl|decimal_eu(2) }} €</p>
+            </div>
+        </div>
+    </div>
+
+    <div x-show="kpiModal === 'cur_ret'" x-cloak x-transition
+         class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55"
+         @keydown.escape.window="closeKpi()" role="dialog" aria-modal="true">
+        <div class="absolute inset-0" @click="closeKpi()" aria-hidden="true"></div>
+        <div @click.stop class="relative w-full max-w-md max-h-[min(88vh,32rem)] flex flex-col rounded-2xl border border-slate-200/80 bg-gradient-to-br from-[#f8fbfc] to-[#f1f7f8] shadow-[0_20px_45px_rgba(15,23,42,0.28)]">
+            <div class="px-4 py-3 border-b border-slate-200/80 flex items-center justify-between gap-2">
+                <h4 class="text-sm font-semibold text-slate-900">📊 Retorno % (cartera actual)</h4>
+                <button type="button" @click="closeKpi()" class="modal-touch-btn text-sm rounded-lg px-3 py-1.5 bg-slate-700 text-white font-semibold hover:bg-slate-800 shrink-0">Cerrar</button>
+            </div>
+            <div class="p-4 text-sm text-slate-700 overflow-y-auto space-y-2">
+                <p class="text-xs text-slate-500">(P&amp;L no realizado) / (coste de las posiciones abiertas) × 100.</p>
+                <ul class="space-y-1.5">
+                    <li class="flex justify-between gap-2"><span>P&amp;L no realizado</span><span class="tabular-nums">{% if total_pl >= 0 %}+{% endif %}{{ total_pl|decimal_eu(2) }} €</span></li>
+                    <li class="flex justify-between gap-2"><span>Coste</span><span class="tabular-nums">{{ total_cost|decimal_eu(2) }} €</span></li>
+                    <li class="flex justify-between gap-2 pt-2 text-base font-bold text-slate-900"><span>Retorno</span><span class="tabular-nums">{% if total_pl_pct >= 0 %}+{% endif %}{{ total_pl_pct|decimal_eu(2) }} %</span></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div x-show="kpiModal === 'cur_lev'" x-cloak x-transition
+         class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55"
+         @keydown.escape.window="closeKpi()" role="dialog" aria-modal="true">
+        <div class="absolute inset-0" @click="closeKpi()" aria-hidden="true"></div>
+        <div @click.stop class="relative w-full max-w-md max-h-[min(88vh,36rem)] flex flex-col rounded-2xl border border-slate-200/80 bg-gradient-to-br from-[#f8fbfc] to-[#f1f7f8] shadow-[0_20px_45px_rgba(15,23,42,0.28)]">
+            <div class="px-4 py-3 border-b border-slate-200/80 flex items-center justify-between gap-2">
+                <h4 class="text-sm font-semibold text-slate-900">⚡ Apalancamiento / cash (desglose)</h4>
+                <button type="button" @click="closeKpi()" class="modal-touch-btn text-sm rounded-lg px-3 py-1.5 bg-slate-700 text-white font-semibold hover:bg-slate-800 shrink-0">Cerrar</button>
+            </div>
+            <div class="p-4 text-sm text-slate-700 overflow-y-auto space-y-2">
+                <p class="text-xs text-slate-500">La tarjeta usa <strong>Stock+ETF</strong> (excluye cripto en Revolut) para aproximar dinero prestado por el broker. Positivo = apalancamiento; negativo o cash a favor según cálculo de coste frente a tu capital.</p>
+                <ul class="space-y-1.5">
+                    <li class="flex justify-between gap-2 border-b border-slate-100 pb-1"><span>Dinero del broker (apalancamiento)</span><span class="tabular-nums">{% if metrics.leverage.broker_money >= 0 %}+{% endif %}{{ metrics.leverage.broker_money|decimal_eu(2) }} €</span></li>
+                    <li class="flex justify-between gap-2 border-b border-slate-100 pb-1"><span>Capital tuyo (aprox. neto de flujos + realizado, etc.)</span><span class="tabular-nums">{{ metrics.leverage.user_money|decimal_eu(2) }} €</span></li>
+                    <li class="flex justify-between gap-2 border-b border-slate-100 pb-1 text-xs text-slate-500"><span>Depósitos / retiradas</span><span>{{ metrics.leverage.total_deposits|decimal_eu(2) }} / {{ metrics.leverage.total_withdrawals|decimal_eu(2) }} €</span></li>
+                    <li class="flex justify-between gap-2 border-b border-slate-100 pb-1 text-xs text-slate-500"><span>P&amp;L realizado / no realizado</span><span>{{ metrics.leverage.pl_realized|decimal_eu(2) }} / {{ metrics.leverage.pl_unrealized|decimal_eu(2) }} €</span></li>
+                    <li class="flex justify-between gap-2 border-b border-slate-100 pb-1 text-xs text-slate-500"><span>Dividendos / comisiones</span><span>+{{ metrics.leverage.total_dividends|decimal_eu(2) }} / −{{ metrics.leverage.total_fees|decimal_eu(2) }} €</span></li>
+                    <li class="flex justify-between gap-2 pt-1 text-base font-bold text-slate-900"><span>Ratio (si &gt; 0, hay apalancamiento)</span><span class="tabular-nums">{{ metrics.leverage.leverage_ratio|decimal_eu(2) }} %</span></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 </div>
 
 <!-- Modal de actualización de precios -->
@@ -850,7 +961,8 @@
 let sortDirectionHoldings = {};
 
 function sortTableHoldings(columnIndex, type) {
-    const table = document.querySelector('.min-w-full');
+    const table = document.getElementById('holdingsTable');
+    if (!table) return;
     const tbody = table.querySelector('tbody');
     const rows = Array.from(tbody.querySelectorAll('tr'));
     
@@ -1103,27 +1215,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const yearData = {{ yearly_returns | tojson }};
         const reversedData = [...yearData].reverse();
         
-        function yearlyBarGradient(chart, v) {
-            if (v === null || v === undefined || !chart.scales || !chart.scales.y) {
-                return v >= 0 ? 'rgb(20, 184, 166)' : 'rgb(244, 63, 94)';
-            }
-            var yScale = chart.scales.y;
-            var y0 = yScale.getPixelForValue(0);
-            var yv = yScale.getPixelForValue(v);
-            var top = Math.min(yv, y0);
-            var bot = Math.max(yv, y0);
-            var g = chart.ctx.createLinearGradient(0, bot, 0, top);
-            if (v >= 0) {
-                g.addColorStop(0, 'rgb(10, 70, 65)');
-                g.addColorStop(0.45, 'rgb(20, 184, 166)');
-                g.addColorStop(1, 'rgb(204, 251, 241)');
-            } else {
-                g.addColorStop(0, 'rgb(100, 25, 40)');
-                g.addColorStop(0.45, 'rgb(244, 63, 94)');
-                g.addColorStop(1, 'rgb(254, 215, 220)');
-            }
-            return g;
-        }
         const yearlyBar3dEdgePlugin = {
             id: 'yearlyBar3dEdges',
             afterDatasetsDraw: function(chart) {
@@ -1155,19 +1246,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 ctx.restore();
             }
         };
+        const bgPos = 'rgba(20, 184, 166, 0.9)';
+        const bgNeg = 'rgba(244, 63, 94, 0.88)';
+        const brPos = 'rgb(6, 95, 80)';
+        const brNeg = 'rgb(90, 24, 34)';
         const yearlyData = {
             labels: reversedData.map(yr => yr.year + (yr.is_ytd ? ' (YTD)' : '')),
             datasets: [{
                 label: 'Rentabilidad (%)',
                 data: reversedData.map(yr => yr.return_pct),
-                backgroundColor: function(ctx) {
-                    var v = (ctx.parsed && ctx.parsed.y !== undefined) ? ctx.parsed.y : ctx.raw;
-                    return yearlyBarGradient(ctx.chart, v);
-                },
-                borderColor: function(ctx) {
-                    var v = (ctx.parsed && ctx.parsed.y !== undefined) ? ctx.parsed.y : ctx.raw;
-                    return v >= 0 ? 'rgb(6, 60, 55)' : 'rgb(90, 24, 34)';
-                },
+                backgroundColor: reversedData.map(yr => (yr.return_pct >= 0 ? bgPos : bgNeg)),
+                borderColor: reversedData.map(yr => (yr.return_pct >= 0 ? brPos : brNeg)),
                 borderWidth: 1,
                 borderRadius: 6,
                 borderSkipped: false,
@@ -1199,7 +1288,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 },
                 scales: {
                     y: {
-                        beginAtZero: true,
+                        grace: '8%',
                         ticks: {
                             callback: function(value) {
                                 return value.toFixed(1) + '%';
