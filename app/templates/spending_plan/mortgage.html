@@ -335,11 +335,14 @@ function mortgageSimPage() {
              class="fixed inset-0 z-[70] flex items-center justify-center p-4"
              style="display: none;">
             <div class="absolute inset-0 bg-black/55" @click="closeSimContextInfo()" aria-hidden="true"></div>
-            <div class="followup-modal-surface relative z-10 max-w-lg w-full max-h-[min(90vh,34rem)] overflow-y-auto p-6" role="dialog" aria-modal="true" aria-labelledby="mg-sim-context-title" @click.stop>
-                <h2 id="mg-sim-context-title" class="text-lg font-semibold text-slate-900 mb-3">Simulador compra vivienda</h2>
-                <div class="space-y-2.5 text-sm text-slate-700 leading-relaxed">
-                    <p>Convierte <strong>precio, aportación, impuestos y costes de compra</strong> en préstamo, LTV, cuota y coste total, con el <strong>tipo fijo</strong> que indiques. El bloque de Euribor y la <strong>negociación</strong> del tipo son guías; manda el porcentaje del formulario.</p>
-                    <p>Con el resultado, si quieres, <strong>guardas</strong> la hipoteca como objetivo: en Planificación de gastos comprobará DSR, saldo y caja, igual que el resto de objetivos.</p>
+            <div class="followup-modal-surface relative z-10 w-full max-w-lg max-h-[min(90vh,40rem)] overflow-y-auto p-6" role="dialog" aria-modal="true" aria-labelledby="mg-sim-context-title" @click.stop>
+                <h2 id="mg-sim-context-title" class="text-lg font-semibold text-slate-900 mb-1">🏠 Simulador compra vivienda</h2>
+                <p class="text-xs text-slate-500 mb-3">Antes de firmar, ver números aproximados</p>
+                <div class="space-y-3 text-sm text-slate-700 leading-relaxed">
+                    <p>🧭 <strong>Qué simula</strong> — imaginas un precio de vivienda, el dinero que aportas, los años del préstamo, el <em>tipo fijo de interés</em> (el % al año) y notaría, ITP, tasación, etc. Con eso el sistema te dice, entre otras cosas: <strong>cuánto pides al banco</strong>, qué <strong>LTV</strong> sería (préstamo / valor) y <strong>cuota mensual</strong> aproximada, más el desglose de “cuánto cuesta toda la operación con intereses de ejemplo”.</p>
+                    <p>📊 <strong>LTV</strong> — “Loan to value” en jerga: % de la vivienda (y carga fiscal relevante) que cubre el préstamo. Sirve para leer riesgo o lo que pide el banco; aquí lo ves estimado, no validez bancaria.</p>
+                    <p>🌡️ <strong>Bloque Euribor y “negociación”</strong> — el Euribor del BCE y las tablas orientativas son <em>informativos</em>: “a qué se parece hoy el mercado”. <strong>Lo que pesa en el cálculo</strong> es el <u>tipo fijo</u> que tú pones en el formulario. No es asesoramiento de banco, solo un espejo.</p>
+                    <p>🧩 <strong>Después de Calcular</strong> — si te cuadra, con <strong>“Añadir / guardar objetivo”</strong> se crea o actualiza la <strong>hipoteca en la Planificación de gastos</strong>, donde el plan comprueba si, con el DSR y el saldo, cabe. Si el plan dice que no, te lo explicará (más ahorro, ajuste de fechas, etc.). Eso se valida al integrarse en la otra pestaña: no es viabilidad bancaria ni oferta de entidad, solo un modelo con tus datos.</p>
                 </div>
                 <div class="mt-5 flex justify-end">
                     <button type="button" @click="closeSimContextInfo()" class="mg-btn rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(13,148,136,0.22)] hover:bg-teal-700">Cerrar</button>

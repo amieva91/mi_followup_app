@@ -560,11 +560,18 @@ function spendingPlanGoals(cfg) {
              class="fixed inset-0 z-[70] flex items-center justify-center p-4"
              style="display: none;">
             <div class="absolute inset-0 bg-black/55" @click="closePlanningContextInfo()" aria-hidden="true"></div>
-            <div class="followup-modal-surface relative z-10 max-w-lg w-full max-h-[min(90vh,32rem)] overflow-y-auto p-6" role="dialog" aria-modal="true" aria-labelledby="sp-planning-context-title" @click.stop>
-                <h3 id="sp-planning-context-title" class="text-lg font-semibold text-slate-900 mb-3">Planificación de gastos</h3>
-                <div class="space-y-2.5 text-sm text-slate-700 leading-relaxed">
-                    <p>En esta pestaña fijas <strong>reglas</strong> (cupo de endeudamiento/ingresos, horizonte de la tabla) y qué <strong>gastos fijos</strong> alimentan el plan, a partir de medias. Con eso obtienes la proyección mes a mes, KPIs y avisos si algo no encaja.</p>
-                    <p><strong>Qué tener en cuenta:</strong> el DSR acota el margen de cuotas; el horizonte limita <em>la tabla</em> (el motor mira cinco años). No combines categoría padre e hija. Los compromisos puntuales, cuotas o hipoteca se cargan en <strong>Objetivos</strong> (botón <span class="font-medium">i</span> aparte) o en el <strong>Simulador vivienda</strong>.</p>
+            <div class="followup-modal-surface relative z-10 w-full max-w-lg max-h-[min(90vh,40rem)] overflow-y-auto p-6" role="dialog" aria-modal="true" aria-labelledby="sp-planning-context-title" @click.stop>
+                <h3 id="sp-planning-context-title" class="text-lg font-semibold text-slate-900 mb-1">📅 Planificación de gastos</h3>
+                <p class="text-xs text-slate-500 mb-3">Para quien empieza desde cero</p>
+                <div class="space-y-3 text-sm text-slate-700 leading-relaxed">
+                    <p>🧭 <strong>De qué va esto</strong> — es una hoja de ruta: mezcla lo que ganas, lo que te gastas fijo (luz, alquiler, lo que marques) y lo que añadas más abajo en <em>Objetivos</em> o en el <em>Simulador vivienda</em>. Así puedes ver si el banco o la caja aguantan, mes a mes, sin ir a números rojos de forma lógica.</p>
+                    <p>⚙️ <strong>Qué hace esta pestaña</strong></p>
+                    <ul class="ml-0 list-none space-y-1.5 pl-0 text-slate-700">
+                        <li>📆 Te deja fijar <strong>cuántos meses</strong> quieres ver en la <em>tabla</em> de abajo (el cálculo interno mira un horizonte largo; tú acotas lo que se muestra en pantalla).</li>
+                        <li>🎚️ <strong>Endeudamiento (DSR)</strong> — es un tope: “máxima parte de lo que ganas (neto) que el plan acepta dedicar a <u>cuotas</u> (hipoteca, préstamos, plazos de objetivos…)”. Un porcentaje más bajo = más ahorrador en la proyección.</li>
+                        <li>🧱 <strong>Categorías fijas</strong> — el sistema toma <em>medias de últimos 12 meses</em> de las categorías que elijas, como “gastos mínimos que ya vienen mes a mes”.</li>
+                    </ul>
+                    <p>✅ <strong>Cuidado</strong> — no marques a la vez una categoría <em>padre</em> y sus <em>subcategorías</em>: en la media, el padre ya incluye a las hijas; si las marcas las dos, estás contando doble. Los <strong>gastos puntuales o cuotas concretas</strong> (coche, reforma, etc.) y la <strong>hipoteca concreta de una casa</strong> se añaden en <strong>🎯 Objetivos</strong> o en <strong>🏠 Simulador vivienda</strong> (cada una tiene su botón <span class="font-medium">i</span>).</p>
                 </div>
                 <div class="flex justify-end mt-5">
                     <button type="button" @click="closePlanningContextInfo()" class="sp-btn px-4 py-2.5 rounded-xl bg-teal-600 text-white text-sm font-semibold hover:bg-teal-700 shadow-[0_8px_18px_rgba(13,148,136,0.22)]">Cerrar</button>
@@ -578,11 +585,14 @@ function spendingPlanGoals(cfg) {
              class="fixed inset-0 z-[70] flex items-center justify-center p-4"
              style="display: none;">
             <div class="absolute inset-0 bg-black/55" @click="closeObjectivesInfo()" aria-hidden="true"></div>
-            <div class="followup-modal-surface relative z-10 max-w-lg w-full max-h-[min(90vh,32rem)] overflow-y-auto p-6" role="dialog" aria-modal="true" aria-labelledby="sp-objectives-info-title" @click.stop>
-                <h3 id="sp-objectives-info-title" class="text-lg font-semibold text-slate-900 mb-3">Objetivos planificados</h3>
-                <div class="space-y-2.5 text-sm text-slate-700 leading-relaxed">
-                    <p>Aquí defines <strong>qué</strong> pagar: prioridad 1 manda, importe, cuotas o fecha. El reparto procura no dejar el saldo en rojo y encajar con el DSR e hipoteca ya configurados en esta pantalla.</p>
-                    <p>La <strong>hipoteca de vivienda</strong> nace o se ajusta en <strong>Simulador vivienda</strong>; en la tabla la editas, la borras o añades metas <strong>genéricas</strong> (coche, reforma, etc.).</p>
+            <div class="followup-modal-surface relative z-10 w-full max-w-lg max-h-[min(90vh,40rem)] overflow-y-auto p-6" role="dialog" aria-modal="true" aria-labelledby="sp-objectives-info-title" @click.stop>
+                <h3 id="sp-objectives-info-title" class="text-lg font-semibold text-slate-900 mb-1">🎯 Objetivos planificados</h3>
+                <p class="text-xs text-slate-500 mb-3">Diferencia entre “una meta de dinero” y “la compra con hipoteca”</p>
+                <div class="space-y-3 text-sm text-slate-700 leading-relaxed">
+                    <p>🧾 <strong>En pocas palabras</strong> — un <em>objetivo</em> es: “tengo que pagar <strong>X</strong> euros”, con o sin plazos (cuotas) o con una fecha de inicio. El motor va encajando esos pagos con lo que ganas, lo fijo y el límite de deuda (DSR) de la barra de arriba, sin forzar a que la cuenta baje de cero de forma razonable en la proyección.</p>
+                    <p>1️⃣ <strong>Prioridad</strong> — el número 1 gana: si hay poco aire, se atiende primero. Los números mayores (2, 3…) pasan a la cola.</p>
+                    <p>➕ <strong>“Añadir gasto”</strong> — sirve para metas <em>genéricas</em>: ahorro, coche, reforma, un préstamo no hipotecario, etc. Tú pones nombre, importe, prioridad y, si quieres, en cuántos meses o desde qué mes.</p>
+                    <p>🏠 <strong>Hipoteca de vivienda</strong> — <em>no</em> se crea a mano en esta tabla: hace falta <strong>Simulador vivienda</strong> (precio, ahorro, plazo, tipo, gastos de compra…). Tras <strong>Calcular y guardar</strong> allí, el objetivo aparece aquí si el plan lo acepta. El botón <strong>“Añadir hipoteca (Simulador)”</strong> te lleva. Una vez creada, en esta lista solo la <strong>editas o borras</strong>.</p>
                 </div>
                 <div class="flex justify-end mt-5">
                     <button type="button" @click="closeObjectivesInfo()" class="sp-btn px-4 py-2.5 rounded-xl bg-teal-600 text-white text-sm font-semibold hover:bg-teal-700 shadow-[0_8px_18px_rgba(13,148,136,0.22)]">Cerrar</button>
