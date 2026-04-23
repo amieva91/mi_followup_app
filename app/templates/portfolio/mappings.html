@@ -17,11 +17,6 @@
         background: linear-gradient(180deg, #f1f5f9 0%, #e2e8f0 100%);
         color: #334155; font-size: 0.7rem; letter-spacing: 0.04em;
     }
-    #portfolio-mappings .map-modal-surface {
-        border-radius: 1rem; border: 1px solid rgba(63, 95, 115, 0.18);
-        background: linear-gradient(145deg, #f8fbfc 0%, #e6eff1 100%);
-        box-shadow: 0 20px 45px rgba(15, 23, 42, 0.28);
-    }
 </style>
 <div id="portfolio-mappings" class="max-w-[92%] mx-auto px-1 sm:px-0 py-6">
     <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
@@ -216,10 +211,10 @@
 
 <!-- Modal: Nuevo Mapeo -->
 <div id="newModal" class="hidden fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55 overflow-y-auto" onclick="if (event.target === this) closeNewModal()">
-    <div class="map-modal-surface w-full max-w-2xl p-5 sm:p-6 my-4 max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+    <div class="followup-modal-surface w-full max-w-2xl p-5 sm:p-6 my-4 max-h-[90vh] overflow-y-auto relative z-10" onclick="event.stopPropagation()" role="dialog" aria-modal="true" aria-labelledby="newMapModalTitle">
         <div class="flex justify-between items-center mb-4">
-            <h3 class="text-xl font-bold text-slate-900">➕ Nuevo mapeo</h3>
-            <button type="button" onclick="closeNewModal()" class="text-slate-500 hover:text-slate-800 text-2xl leading-none">×</button>
+            <h3 id="newMapModalTitle" class="text-xl font-bold text-slate-900">➕ Nuevo mapeo</h3>
+            <button type="button" onclick="closeNewModal()" class="text-slate-500 hover:text-slate-800 text-2xl leading-none rounded-lg hover:bg-slate-100/80 w-9 h-9 flex items-center justify-center">×</button>
         </div>
         
         <form method="POST" action="{{ url_for('portfolio.mappings_new') }}" class="space-y-4">
@@ -277,10 +272,10 @@
 
 <!-- Modal: Editar Mapeo -->
 <div id="editModal" class="hidden fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55 overflow-y-auto" onclick="if (event.target === this) closeEditModal()">
-    <div class="map-modal-surface w-full max-w-2xl p-5 sm:p-6 my-4" onclick="event.stopPropagation()">
+    <div class="followup-modal-surface w-full max-w-2xl p-5 sm:p-6 my-4 relative z-10" onclick="event.stopPropagation()" role="dialog" aria-modal="true" aria-labelledby="editMapModalTitle">
         <div class="flex justify-between items-center mb-4">
-            <h3 class="text-xl font-bold text-slate-900">✏️ Editar mapeo</h3>
-            <button type="button" onclick="closeEditModal()" class="text-slate-500 hover:text-slate-800 text-2xl leading-none">×</button>
+            <h3 id="editMapModalTitle" class="text-xl font-bold text-slate-900">✏️ Editar mapeo</h3>
+            <button type="button" onclick="closeEditModal()" class="text-slate-500 hover:text-slate-800 text-2xl leading-none rounded-lg hover:bg-slate-100/80 w-9 h-9 flex items-center justify-center">×</button>
         </div>
         
         <form id="editForm" method="POST" class="space-y-4">
@@ -320,26 +315,36 @@
     </div>
 </div>
 
-<div id="mapDeleteModal" class="hidden fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55" onclick="if (event.target === this) closeMapDeleteModal()">
-    <div class="map-modal-surface w-full max-w-md p-5 sm:p-6" onclick="event.stopPropagation()">
-        <h3 class="text-lg font-semibold text-slate-900">Eliminar mapeo</h3>
-        <p class="text-sm text-slate-800 mt-2 font-medium" id="mapDeleteModalText"></p>
-        <form id="mapDeleteForm" method="POST" class="mt-4 space-y-2">
+<div id="mapDeleteModal" class="hidden fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55 overflow-y-auto" onclick="if (event.target === this) closeMapDeleteModal()">
+    <div class="followup-modal-surface w-full max-w-md p-5 sm:p-6 my-4 relative z-10" onclick="event.stopPropagation()" role="dialog" aria-modal="true" aria-labelledby="mapDeleteModalTitle">
+        <div class="flex items-center justify-center h-11 w-11 rounded-full bg-rose-100 border border-rose-200/80 mx-auto ring-2 ring-white/50">
+            <span class="text-xl" aria-hidden="true">🗑️</span>
+        </div>
+        <h3 id="mapDeleteModalTitle" class="text-lg font-semibold text-slate-900 text-center mt-4">Eliminar mapeo</h3>
+        <div class="mt-3 rounded-xl border border-slate-200/80 bg-white/90 px-3 py-2.5 shadow-inner">
+            <p class="text-sm text-center font-medium text-slate-800 leading-snug" id="mapDeleteModalText"></p>
+        </div>
+        <form id="mapDeleteForm" method="POST" class="mt-5 space-y-2">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-            <button type="submit" class="portfolio-touch-btn w-full py-2.5 rounded-xl bg-rose-600 text-white font-semibold hover:bg-rose-700">Sí, eliminar</button>
-            <button type="button" onclick="closeMapDeleteModal()" class="portfolio-touch-btn w-full py-2.5 rounded-xl bg-slate-200 text-slate-800 font-semibold">Cancelar</button>
+            <button type="submit" class="portfolio-touch-btn w-full px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold shadow-md">Sí, eliminar</button>
+            <button type="button" onclick="closeMapDeleteModal()" class="portfolio-touch-btn w-full px-4 py-2.5 rounded-xl bg-slate-200 text-slate-800 text-sm font-semibold hover:bg-slate-300 border border-slate-300/80">Cancelar</button>
         </form>
     </div>
 </div>
 
-<div id="mapToggleModal" class="hidden fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55" onclick="if (event.target === this) closeMapToggleModal()">
-    <div class="map-modal-surface w-full max-w-md p-5 sm:p-6" onclick="event.stopPropagation()">
-        <h3 class="text-lg font-semibold text-slate-900" id="mapToggleModalTitle">Mapeo</h3>
-        <p class="text-sm text-slate-800 mt-2 font-medium" id="mapToggleModalText"></p>
-        <form id="mapToggleForm" method="POST" class="mt-4 space-y-2">
+<div id="mapToggleModal" class="hidden fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55 overflow-y-auto" onclick="if (event.target === this) closeMapToggleModal()">
+    <div class="followup-modal-surface w-full max-w-md p-5 sm:p-6 my-4 relative z-10" onclick="event.stopPropagation()" role="dialog" aria-modal="true" aria-labelledby="mapToggleModalTitle">
+        <div class="flex items-center justify-center h-11 w-11 rounded-full bg-amber-100 border border-amber-200/80 mx-auto ring-2 ring-white/50">
+            <span class="text-xl" aria-hidden="true" id="mapToggleIconSpan">⏸️</span>
+        </div>
+        <h3 class="text-lg font-semibold text-slate-900 text-center mt-4" id="mapToggleModalTitle">Mapeo</h3>
+        <div class="mt-3 rounded-xl border border-slate-200/80 bg-white/90 px-3 py-2.5 shadow-inner">
+            <p class="text-sm text-center font-medium text-slate-800 leading-snug" id="mapToggleModalText"></p>
+        </div>
+        <form id="mapToggleForm" method="POST" class="mt-5 space-y-2">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-            <button type="submit" class="portfolio-touch-btn w-full py-2.5 rounded-xl bg-amber-600 text-white font-semibold hover:bg-amber-700" id="mapToggleSubmitBtn">Confirmar</button>
-            <button type="button" onclick="closeMapToggleModal()" class="portfolio-touch-btn w-full py-2.5 rounded-xl bg-slate-200 text-slate-800 font-semibold">Cancelar</button>
+            <button type="submit" class="portfolio-touch-btn w-full px-4 py-2.5 rounded-xl bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700 shadow-md" id="mapToggleSubmitBtn">Confirmar</button>
+            <button type="button" onclick="closeMapToggleModal()" class="portfolio-touch-btn w-full px-4 py-2.5 rounded-xl bg-slate-200 text-slate-800 text-sm font-semibold hover:bg-slate-300 border border-slate-300/80">Cancelar</button>
         </form>
     </div>
 </div>
@@ -396,6 +401,8 @@ function openMapToggleModal(el) {
     const action = active ? 'desactivar' : 'activar';
     const f = document.getElementById('mapToggleForm');
     document.getElementById('mapToggleModalTitle').textContent = active ? 'Desactivar mapeo' : 'Activar mapeo';
+    const icon = document.getElementById('mapToggleIconSpan');
+    if (icon) icon.textContent = active ? '⏸️' : '▶️';
     document.getElementById('mapToggleModalText').textContent = '¿' + action.charAt(0).toUpperCase() + action.slice(1) + ' «' + key + '»?';
     if (f) f.action = '/portfolio/mappings/' + id + '/toggle';
     document.getElementById('mapToggleModal').classList.remove('hidden');

@@ -25,13 +25,6 @@
         background: linear-gradient(180deg, #f1f5f9 0%, #e2e8f0 100%);
         color: #334155; font-size: 0.7rem; letter-spacing: 0.04em;
     }
-    #portfolio-tx .tx-modal-surface {
-        box-sizing: border-box; border-radius: 1rem;
-        border: 1px solid rgba(63, 95, 115, 0.22);
-        background-color: #f1f5f4;
-        background-image: linear-gradient(145deg, #fbfdfe 0%, #e8f0f1 100%);
-        box-shadow: 0 24px 50px rgba(15, 23, 42, 0.35);
-    }
     #txDeleteModalDesc { color: #0f172a; }
 </style>
 <div id="portfolio-tx" class="max-w-[92%] mx-auto py-6">
@@ -542,18 +535,20 @@
 
 <!-- Modal eliminar transacción -->
 <div id="txDeleteModal" class="hidden fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55 overflow-y-auto" onclick="if (event.target === this) closeTxDeleteModal()">
-    <div class="tx-modal-surface w-full max-w-md p-5 sm:p-6 my-4" onclick="event.stopPropagation()">
-        <div class="flex items-center justify-center h-12 w-12 rounded-full bg-rose-100/90 mx-auto">
-            <span class="text-2xl" aria-hidden="true">🗑️</span>
+    <div class="followup-modal-surface w-full max-w-md p-5 sm:p-6 my-4 relative z-10" onclick="event.stopPropagation()" role="dialog" aria-modal="true" aria-labelledby="txDeleteModalTitle">
+        <div class="flex items-center justify-center h-11 w-11 rounded-full bg-rose-100 border border-rose-200/80 mx-auto ring-2 ring-white/50">
+            <span class="text-xl" aria-hidden="true">🗑️</span>
         </div>
-        <h3 class="text-lg font-semibold text-slate-900 text-center mt-4">Eliminar transacción</h3>
-        <p class="text-sm text-center mt-2 px-1 font-medium" id="txDeleteModalDesc"></p>
+        <h3 id="txDeleteModalTitle" class="text-lg font-semibold text-slate-900 text-center mt-4">Eliminar transacción</h3>
+        <div class="mt-3 rounded-xl border border-slate-200/80 bg-white/90 px-3 py-2.5 shadow-inner">
+            <p class="text-sm text-center font-medium text-slate-800 leading-snug" id="txDeleteModalDesc"></p>
+        </div>
         <form id="txDeleteForm" method="POST" class="mt-5 space-y-2">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-            <button type="submit" class="portfolio-touch-btn w-full px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold">
+            <button type="submit" class="portfolio-touch-btn w-full px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold shadow-md">
                 Sí, eliminar
             </button>
-            <button type="button" onclick="closeTxDeleteModal()" class="portfolio-touch-btn w-full px-4 py-2.5 rounded-xl bg-slate-200 text-slate-800 text-sm font-semibold hover:bg-slate-300">
+            <button type="button" onclick="closeTxDeleteModal()" class="portfolio-touch-btn w-full px-4 py-2.5 rounded-xl bg-slate-200 text-slate-800 text-sm font-semibold hover:bg-slate-300 border border-slate-300/80">
                 Cancelar
             </button>
         </form>
