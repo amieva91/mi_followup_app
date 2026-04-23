@@ -131,6 +131,7 @@ Este documento sirve como referencia viva para mantener consistencia visual y fu
 - Portfolio index comparison (`/portfolio/index-comparison`)
 - Portfolio diversificacion (`/portfolio/diversificacion`)
 - Portfolio currencies (`/portfolio/currencies`)
+- Portfolio ficha de activo (`/portfolio/asset/<id>`)
 
 ## Bitacora de cambios (ir ampliando)
 
@@ -166,3 +167,5 @@ Este documento sirve como referencia viva para mantener consistencia visual y fu
 - Rediseño de `Portfolio` (dashboard/performance/dividendos/index-comparison/diversificacion/currencies): cards y contenedores migrados a superficie 3D suave, headers en formato `emoji + titulo`, tablas/chart-surface homogeneizadas y botones primarios/secundarios alineados a paleta teal-slate.
 - Modales y flujos de soporte en portfolio (actualización de precios + fix Yahoo URL) alineados al patrón visual CRUD/modales del sistema con overlay oscuro, panel 3D y acciones táctiles consistentes.
 - Ajuste fino en `Portfolio dashboard`: KPIs de "Métricas Globales e Históricas" y sus desgloses internos pasan a superficie 3D más marcada para evitar apariencia de fondo blanco plano.
+- `Portfolio dashboard` KPIs (globales y "Portfolio Actual"): el selector CSS de tarjetas blancas (`border` en shorthand) pisaba el `border-l-4` de Tailwind; se acota la regla a `:not(.portfolio-metric-card)` y en `.portfolio-metric-card` solo bordes superior/derecho/inferior para conservar el rizado lateral de color.
+- Ficha de activo del portfolio: superficie 3D en KPIs y bloque de pestañas, acentos `teal/slate`, tablas y modal de plantillas de informes alineados al resto de `Portfolio`; informes Markdown con cabeceras/tablas en familia teal en lugar de azul intenso.

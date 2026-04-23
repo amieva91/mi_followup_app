@@ -12,7 +12,8 @@
         font-weight: 700;
         color: #1f2937;
     }
-    #portfolio-dashboard .bg-white.rounded-xl.shadow-sm {
+    /* Nota: nunca usar `border: ...` con shorthand en .portfolio-metric-card: anularía border-l-4 (KPI) de Tailwind. */
+    #portfolio-dashboard .bg-white.rounded-xl.shadow-sm:not(.portfolio-metric-card) {
         background: linear-gradient(145deg, #f8fbfc 0%, #f1f7f8 100%);
         border: 1px solid rgba(63, 95, 115, 0.14);
         box-shadow: 0 14px 30px rgba(15,23,42,0.1), inset 0 1px 0 rgba(255,255,255,0.85);
@@ -59,7 +60,10 @@
     }
     #portfolio-dashboard .portfolio-metric-card {
         background: linear-gradient(145deg, #f7fbfc 0%, #edf4f6 100%);
-        border: 1px solid rgba(63,95,115,0.16);
+        border-top: 1px solid rgba(63, 95, 115, 0.16);
+        border-right: 1px solid rgba(63, 95, 115, 0.16);
+        border-bottom: 1px solid rgba(63, 95, 115, 0.16);
+        /* borde izquierdo: clases border-l-4 + border-* de Tailwind */
         box-shadow: 0 14px 30px rgba(15,23,42,0.11), inset 0 1px 0 rgba(255,255,255,0.9);
     }
     #portfolio-dashboard .portfolio-metric-breakdown {
@@ -120,7 +124,7 @@
     </div>
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <!-- Valor Real Cuenta de Inversión -->
-        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-indigo-500 portfolio-metric-card" x-data="{ showDetails: false }">
+        <div class="rounded-xl p-6 border-l-4 border-indigo-500 portfolio-metric-card" x-data="{ showDetails: false }">
             <div class="flex items-center justify-between mb-2">
                 <div class="text-sm text-gray-600">🏦 Valor Real Cuenta</div>
                 <div class="flex items-center gap-2">
@@ -186,7 +190,7 @@
         </div>
         
         <!-- P&L Total (UNIFICADO) -->
-        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if metrics.total_pl.total_pl >= 0 %}border-green-600{% else %}border-red-600{% endif %} portfolio-metric-card" x-data="{ showDetails: false }">
+        <div class="rounded-xl p-6 border-l-4 {% if metrics.total_pl.total_pl >= 0 %}border-green-600{% else %}border-red-600{% endif %} portfolio-metric-card" x-data="{ showDetails: false }">
             <div class="flex items-center justify-between mb-2">
                 <div class="text-sm text-gray-600">📊 P&L Total</div>
                 <div class="flex items-center gap-2">
@@ -229,7 +233,7 @@
         </div>
         
         <!-- ROI -->
-        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if metrics.roi.roi >= 0 %}border-blue-500{% else %}border-red-500{% endif %} portfolio-metric-card" x-data="{ showDetails: false }">
+        <div class="rounded-xl p-6 border-l-4 {% if metrics.roi.roi >= 0 %}border-blue-500{% else %}border-red-500{% endif %} portfolio-metric-card" x-data="{ showDetails: false }">
             <div class="flex items-center justify-between mb-2">
                 <div class="text-sm text-gray-600">📈 ROI</div>
                 <div class="flex items-center gap-2">
@@ -266,7 +270,7 @@
         </div>
         
         <!-- Modified Dietz (Rentabilidad) -->
-        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if metrics.modified_dietz.total.return_pct >= 0 %}border-purple-500{% else %}border-red-500{% endif %} portfolio-metric-card" x-data="{ showDetails: false }">
+        <div class="rounded-xl p-6 border-l-4 {% if metrics.modified_dietz.total.return_pct >= 0 %}border-purple-500{% else %}border-red-500{% endif %} portfolio-metric-card" x-data="{ showDetails: false }">
             <div class="flex items-center justify-between mb-2">
                 <div class="text-sm text-gray-600">💎 Rentabilidad (Modified Dietz)</div>
                 <div class="flex items-center gap-2">
@@ -396,7 +400,7 @@
     </div>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
         <!-- Valor Total Cartera (CON COSTE TOTAL DENTRO) -->
-        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-blue-500 portfolio-metric-card" x-data="{ showDetails: false }">
+        <div class="rounded-xl p-6 border-l-4 border-blue-500 portfolio-metric-card" x-data="{ showDetails: false }">
             <div class="flex items-center justify-between mb-1">
                 <div class="text-sm text-gray-600">💰 Valor Total Cartera</div>
                 <div class="flex items-center gap-2">
@@ -425,7 +429,7 @@
         </div>
         
         <!-- P&L No Realizado -->
-        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if total_pl >= 0 %}border-green-600{% else %}border-red-600{% endif %} portfolio-metric-card">
+        <div class="rounded-xl p-6 border-l-4 {% if total_pl >= 0 %}border-green-600{% else %}border-red-600{% endif %} portfolio-metric-card">
             <div class="flex items-center justify-between mb-1">
                 <div class="text-sm text-gray-600">📈 P&L No Realizado</div>
                 <span class="text-xs text-gray-400 cursor-help" title="Ganancia/pérdida de posiciones abiertas: Valor Actual - Coste Total. No incluye posiciones cerradas.">ⓘ</span>
@@ -436,7 +440,7 @@
         </div>
         
         <!-- Retorno % -->
-        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if total_pl_pct >= 0 %}border-green-600{% else %}border-red-600{% endif %} portfolio-metric-card">
+        <div class="rounded-xl p-6 border-l-4 {% if total_pl_pct >= 0 %}border-green-600{% else %}border-red-600{% endif %} portfolio-metric-card">
             <div class="flex items-center justify-between mb-1">
                 <div class="text-sm text-gray-600">📊 Retorno</div>
                 <span class="text-xs text-gray-400 cursor-help" title="Porcentaje de retorno sobre el coste de las posiciones actuales: (P&L No Realizado / Coste Total) × 100">ⓘ</span>
@@ -447,7 +451,7 @@
         </div>
         
         <!-- Leverage / Dinero Prestado o Cash -->
-        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 {% if metrics.leverage.broker_money > 0 %}border-red-500{% else %}border-cyan-500{% endif %} portfolio-metric-card" x-data="{ showDetails: false }">
+        <div class="rounded-xl p-6 border-l-4 {% if metrics.leverage.broker_money > 0 %}border-red-500{% else %}border-cyan-500{% endif %} portfolio-metric-card" x-data="{ showDetails: false }">
             <div class="flex items-center justify-between mb-2">
                 <div class="text-sm text-gray-600">
                     {% if metrics.leverage.broker_money > 0 %}
