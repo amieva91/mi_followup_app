@@ -8,6 +8,7 @@ from app import db
 from app.models import DebtPlan, Expense, ExpenseCategory, RealEstateProperty
 from app.forms import DebtPlanForm, DebtPlanEditForm, DebtRestructureForm
 from app.services.debt_service import DebtService
+from app.services.category_helpers import filter_editable_categories
 
 debts_bp = Blueprint('debts', __name__, url_prefix='/debts')
 
@@ -40,15 +41,18 @@ def new():
     """Crear nuevo plan de deuda"""
     form = DebtPlanForm()
 
-    categories = ExpenseCategory.query.filter_by(
+    raw_categories = ExpenseCategory.query.filter_by(
         user_id=current_user.id
     ).order_by(ExpenseCategory.name).all()
-
+    categories = filter_editable_categories(raw_categories)
+    form.category_id.choices = (
+        [(c.id, f"{c.icon} {c.full_name}") for c in categories] if categories else []
+    )
     if not categories:
-        flash('Primero debes crear al menos una categoría de gastos', 'warning')
-        return redirect(url_for('expenses.new_category'))
-
-    form.category_id.choices = [(c.id, f"{c.icon} {c.full_name}") for c in categories]
+        flash(
+            'Crea una categoría de gastos con el botón + junto a «Categoría», o en Gastos → Categorías.',
+            'info',
+        )
 
     # Propiedades disponibles para hipoteca (las que no tienen ya plan activo vinculado)
     available_props = RealEstateProperty.query.filter_by(user_id=current_user.id).all()

@@ -342,12 +342,14 @@ def new():
     categories = filter_editable_categories(
         ExpenseCategory.query.filter_by(user_id=current_user.id).order_by(ExpenseCategory.name).all()
     )
-    
+    form.category_id.choices = (
+        [(c.id, f"{c.icon} {c.full_name}") for c in categories] if categories else []
+    )
     if not categories:
-        flash('Primero debes crear al menos una categoría de gastos', 'warning')
-        return redirect(url_for('expenses.new_category'))
-    
-    form.category_id.choices = [(c.id, f"{c.icon} {c.full_name}") for c in categories]
+        flash(
+            'Crea tu primera categoría con el botón + junto a «Categoría», o en Gastos → Categorías.',
+            'info',
+        )
     
     if form.validate_on_submit():
         # Crear instancia base (sin guardar aún)
