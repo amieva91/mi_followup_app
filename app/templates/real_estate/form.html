@@ -3,46 +3,58 @@
 {% block title %}{{ title }}{% endblock %}
 
 {% block content %}
-<div class="max-w-[92%] mx-auto px-4 py-8">
-    <h1 class="text-3xl font-bold text-gray-800 mb-6">{{ title }}</h1>
+<style>
+    #re-form .tx-card {
+        background: linear-gradient(145deg, #f8fbfc 0%, #f1f7f8 100%);
+        border: 1px solid rgba(63, 95, 115, 0.14);
+        border-radius: 16px;
+        box-shadow: 0 14px 30px rgba(15,23,42,0.1), inset 0 1px 0 rgba(255,255,255,0.85);
+    }
+    #re-form .portfolio-title { font-weight: 700; color: #1f2937; }
+    #re-form .portfolio-touch-btn { transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease; }
+    #re-form .portfolio-touch-btn:active { transform: scale(0.98); filter: brightness(0.96); }
+</style>
+<div id="re-form" class="max-w-3xl mx-auto px-4 py-8">
+    <a href="{{ url_for('real_estate.detail', id=prop.id) if prop is defined else url_for('real_estate.dashboard') }}" class="text-teal-700 hover:underline text-sm font-medium inline-block mb-3">← Volver</a>
+    <h1 class="portfolio-title text-2xl sm:text-3xl mb-6">{{ title }}</h1>
 
-    <div class="bg-white rounded-lg shadow-md p-6 max-w-2xl">
+    <div class="tx-card p-6 sm:p-8">
         <form method="POST" action="">
             {{ form.hidden_tag() }}
 
             <div class="mb-4">
-                {{ form.property_type.label(class="block text-gray-700 font-semibold mb-2") }}
-                {{ form.property_type(class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500") }}
-                {% if form.property_type.errors %}<div class="text-red-600 text-sm mt-1">{% for e in form.property_type.errors %}{{ e }}{% endfor %}</div>{% endif %}
+                {{ form.property_type.label(class="block text-slate-700 font-medium mb-2 text-sm") }}
+                {{ form.property_type(class="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm") }}
+                {% if form.property_type.errors %}<div class="text-rose-600 text-sm mt-1">{% for e in form.property_type.errors %}{{ e }}{% endfor %}</div>{% endif %}
             </div>
 
             <div class="mb-4">
-                {{ form.address.label(class="block text-gray-700 font-semibold mb-2") }}
-                {{ form.address(class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500") }}
-                {% if form.address.errors %}<div class="text-red-600 text-sm mt-1">{% for e in form.address.errors %}{{ e }}{% endfor %}</div>{% endif %}
+                {{ form.address.label(class="block text-slate-700 font-medium mb-2 text-sm") }}
+                {{ form.address(class="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm") }}
+                {% if form.address.errors %}<div class="text-rose-600 text-sm mt-1">{% for e in form.address.errors %}{{ e }}{% endfor %}</div>{% endif %}
             </div>
 
-            <div class="grid grid-cols-2 gap-4 mb-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                 <div>
-                    {{ form.purchase_price.label(class="block text-gray-700 font-semibold mb-2") }}
-                    {{ form.purchase_price(class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500") }}
-                    {% if form.purchase_price.errors %}<div class="text-red-600 text-sm mt-1">{% for e in form.purchase_price.errors %}{{ e }}{% endfor %}</div>{% endif %}
+                    {{ form.purchase_price.label(class="block text-slate-700 font-medium mb-2 text-sm") }}
+                    {{ form.purchase_price(class="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 text-sm") }}
+                    {% if form.purchase_price.errors %}<div class="text-rose-600 text-sm mt-1">{% for e in form.purchase_price.errors %}{{ e }}{% endfor %}</div>{% endif %}
                 </div>
                 <div>
-                    {{ form.purchase_date.label(class="block text-gray-700 font-semibold mb-2") }}
-                    {{ form.purchase_date(class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500") }}
-                    {% if form.purchase_date.errors %}<div class="text-red-600 text-sm mt-1">{% for e in form.purchase_date.errors %}{{ e }}{% endfor %}</div>{% endif %}
+                    {{ form.purchase_date.label(class="block text-slate-700 font-medium mb-2 text-sm") }}
+                    {{ form.purchase_date(class="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 text-sm") }}
+                    {% if form.purchase_date.errors %}<div class="text-rose-600 text-sm mt-1">{% for e in form.purchase_date.errors %}{{ e }}{% endfor %}</div>{% endif %}
                 </div>
             </div>
 
             <div class="mb-6">
-                {{ form.notes.label(class="block text-gray-700 font-semibold mb-2") }}
-                {{ form.notes(class="w-full px-4 py-2 border rounded-lg") }}
+                {{ form.notes.label(class="block text-slate-700 font-medium mb-2 text-sm") }}
+                {{ form.notes(class="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 text-sm") }}
             </div>
 
-            <div class="flex gap-3">
-                <button type="submit" class="btn-primary">Guardar</button>
-                <a href="{{ url_for('real_estate.detail', id=prop.id) if prop is defined else url_for('real_estate.dashboard') }}" class="btn-secondary">Cancelar</a>
+            <div class="flex flex-col sm:flex-row gap-3">
+                <button type="submit" class="portfolio-touch-btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold w-full sm:w-auto">Guardar</button>
+                <a href="{{ url_for('real_estate.detail', id=prop.id) if prop is defined else url_for('real_estate.dashboard') }}" class="portfolio-touch-btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-slate-200 border border-slate-300 hover:bg-slate-300 text-slate-800 text-sm font-semibold w-full sm:w-auto">Cancelar</a>
             </div>
         </form>
     </div>
