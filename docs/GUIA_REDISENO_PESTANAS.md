@@ -1,6 +1,28 @@
 # Guia de rediseno de pestanas (FollowUp)
 
-Este documento sirve como referencia viva para mantener consistencia visual y funcional mientras se redisenan las pestanas del producto.
+> **Estado:** plantilla de referencia para nuevas pestañas, ampliaciones y patrones (modales, avisos, listados). **Versión:** 1.1 (abril 2026). Cualquier patrón nuevo debe reflejarse aquí o en la bitácora al final.
+
+Este documento sirve como **referencia única** para mantener consistencia visual y funcional al rediseñar pantallas o crear contenido nuevo dentro de la aplicación.
+
+## Indice
+
+1. [Objetivo](#objetivo) · [Cómo usar este documento](#cómo-usar-este-documento)
+2. [Principios de diseno acordados](#principios-de-diseno-acordados)
+3. [Plantilla: nueva pestaña o pantalla](#plantilla-nueva-pestaña-o-pantalla)
+4. [Avisos, notificaciones y feedback](#avisos-notificaciones-y-feedback)
+5. [Reglas de graficas y filtros](#reglas-de-graficas-y-filtros) · [tablas](#reglas-para-tablas-y-listados) · [navegacion](#reglas-para-navegacion)
+6. [Paleta visual](#paleta-visual-decision-actual) · [aplicacion de color](#reglas-de-aplicacion-de-color)
+7. [Modales (superficie global)](#reglas-para-modales-superficie-global) · [integracion / CRUD](#reglas-para-modales-de-integracionreconciliacion) (legado)
+8. [KPI Tendencia (gastos)](#significado-del-kpi-tendencia-en-gastos)
+9. [Checklist unificada](#checklist-unificada-usar-en-cada-pestaña-que-se-rediseñe) · [resumen rapido](#checklist-rapido-resumen)
+10. [Pestañas ya tocadas](#pestanas-ya-tocadas-iteracion-actual) · [Bitacora](#bitacora-de-cambios-ir-ampliando)
+
+## Cómo usar este documento
+
+- **Nueva pestaña o sección:** seguir [Plantilla: nueva pestaña o pantalla](#plantilla-nueva-pestaña-o-pantalla) y pasar la [checklist](#checklist-unificada-usar-en-cada-pestaña-que-se-rediseñe) antes de dar por cerrada la tarea.
+- **Cambio solo de copy o avisos:** revisar [Avisos, notificaciones y feedback](#avisos-notificaciones-y-feedback) (flash vs toast) y no introducir `alert`/`confirm` nativos en flujos de producto.
+- **Nuevo patrón visual** (p. ej. componente, clase CSS, variante de modal): documentar en **Bitácora** y, si es transversal, añadir viñeta bajo **Principios** o la sección de modales / feedback correspondiente.
+- **Coherencia con código:** la superficie de modal global es `.followup-modal-surface` (definida en `app/templates/base/layout.html`); no duplicar “superficies de modal” solo bajo un `#id` de página si el nodo del modal vive **fuera** de ese contenedor (los estilos no aplicarían).
 
 ## Objetivo
 
@@ -33,6 +55,45 @@ Este documento concentra **principios, paleta, checklist y bitácora**: las regl
   - grupos visuales por bloques,
   - botones de accion prominentes.
 - Modales integrados al sistema visual (no aspecto browser por defecto).
+
+## Plantilla: nueva pestaña o pantalla
+
+Checklist mínima al **añadir** una ruta o pantalla (no sustituye la [checklist detallada](#checklist-unificada-usar-en-cada-pestaña-que-se-rediseñe)):
+
+1. **Envoltorio de página**  
+   Contenedor con márgenes coherentes con el módulo (`max-w-[92%]` o `container` / `max-w-5xl` en formularios largos, según corresponda al resto del sitio).
+2. **Cabecera**  
+   `emoji + título` (mismo peso que pestañas hermanas del módulo), subtítulo opcional `text-slate-600` / `text-sm` o `text-base`.
+3. **Bloque de KPIs (si aplica)**  
+   Filas de tarjetas con `border-l-4` semántico, gradiente y sombra según [paleta y tarjetas](#reglas-de-aplicacion-de-color). Evitar reglas genéricas que pisen el borde izquierdo (caso `portfolio-metric-card` / `:not(.portfolio-metric-card)` en dashboard).
+4. **Filtros y gráficos**  
+   Criterios en [Reglas de gráficas y filtros](#reglas-de-graficas-y-filtros) (leyendas, `pf-info`, posición de filtros).
+5. **Tabla o listado**  
+   [Reglas para tablas](#reglas-para-tablas-y-listados), `overflow-x-auto`, acciones con prioridad cromática (teal = principal, `sky` = secundario, `amber` = advertencia, `rose` = destructivo).
+6. **Formularios**  
+   `rounded-xl`, `focus:ring-teal-500`, bloque de acciones `flex-col sm:flex-row`, `w-full` en móvil; **Volver** con `history.back()` + `href` de respaldo si aplica ([navegación](#reglas-para-navegacion)).
+7. **Modales**  
+   Overlay `bg-black/55`, panel con [`.followup-modal-surface`](#reglas-para-modales-superficie-global); cierre con cancelar, clic fuera y (opcional) Escape.
+8. **Feedback**  
+   Mensajes vía [flash o toast](#avisos-notificaciones-y-feedback), no `alert` para flujos de producto.
+9. **Vacío y carga**  
+   Empty state con mensaje + CTA `teal`; estados de error discretos (`rose` suave), no bloquear la cabecera con párrafos metodológicos largos (usar `i` + modal).
+10. **Cierre**  
+    Pasar [checklist unificada](#checklist-unificada-usar-en-cada-pestaña-que-se-rediseñe) y añadir la ruta en [Pestañas ya tocadas](#pestanas-ya-tocadas-iteracion-actual) cuando se mergee.
+
+**Notificaciones “de producto”** (recordatorios, difusiones, novedades): si no son flash de acción inmediata, preferir toasts o un bloque fijo bajo la barra con la misma familia cromática (no mezclar cinta neón aislada); documentar en bitácora si se introduce un canal nuevo (email, push, etc.).
+
+## Avisos, notificaciones y feedback
+
+| Mecanismo | Uso recomendado | Dónde / notas |
+|-----------|-----------------|----------------|
+| **Flash de Flask** (`get_flashed_messages`) | Resultado de POST (guardado, error de validación, borrado, logout informativo) | `base/layout.html`: contenedor `js-flash-message`; en portada (`main.index`) flotante `fixed` y z-index alto; en resto, bajo ancho de contenido. Categorías: `success` (esmeralda), `error` (rose), `warning` (ámbar), otras/`info` (recuadro con borde y **banda interior clara** para mensajes neutros). Cierre manual con ×; auto-cierre con transición. |
+| **Toast in-page (JS)** | Acciones en la misma pantalla sin recargar (API OK/KO, copiar, preview) | Patrón en watchlist: `#toastContainer` fijo `top-4 right-4`, `z-[70]`, cápsula con borde sutil; en otras plantillas (p. ej. ficha de activo) reutilizar el mismo criterio de posición y z-index. Evitar duplicar lógica con estilos completamente distintos. |
+| **Banners bajo el nav** | Poco frecuente; anuncios globales | Misma paleta B; no tapar el contenido principal en móvil. |
+
+- No usar `alert()` / `confirm()` del navegador para flujos que el usuario deba completar con contexto: sustituir por **modal** con [superficie global](#reglas-para-modales-superficie-global).
+- Tras acciones críticas, un flash **una sola frase** + icono/emoji coherente con el tono; evitar muros de texto en el flash.
+- **Accesibilidad mínima:** `role`/`aria-modal` en modales; botones con nombre visible; contraste de texto en toasts (texto claro sobre fondo `emerald/rose/slate` ya usados en el código).
 
 ## Reglas de graficas y filtros
 
@@ -90,7 +151,17 @@ Este documento concentra **principios, paleta, checklist y bitácora**: las regl
   - filtros bajo grafica,
   - color activo coherente con la paleta de cada modulo (evitar mezcla aleatoria de acentos).
 
+## Reglas para modales (superficie global)
+
+- Clase reutilizable **`.followup-modal-surface`**: gradiente, borde y sombra alineados a la guía (misma lógica que el panel de modales de watchlist; definición en `layout.html`).
+- El **nodo** del modal (overlay a pantalla completa) debe ser hijo de `body` o de un contenedor que no tenga `overflow: hidden` que recorte; el **panel** interior lleva además `relative z-10` frente al overlay para evitar solapamientos con la tabla.
+- **Anti-patrón:** no definir la superficie del modal **solo** con selectores del tipo `#mi-pestaña .mi-modal-surface` si el HTML del modal está **renderizado fuera** del `#mi-pestaña` (p. ej. al final de la plantilla). Los estilos no se aplican y el modal parece “transparente” o con botones sueltos; usar la clase **global** citada o duplicar la definición a nivel de utilidad, no bajo un id de página aislado.
+- Contenido: título; mensaje de confirmación o cuerpo en caja con fondo claro legible; acciones con `portfolio-touch-btn` o equivalente, primario + secundario; icono opcional en círculo (como en confirmar borrado de transacción).
+- Watchlist mantiene nombres propios de clase en su plantilla por histórico; el **criterio visual** es el mismo que `.followup-modal-surface`.
+
 ## Reglas para modales de integracion/reconciliacion
+
+(Integración, reconciliación, importación: además de lo anterior.)
 
 - Modal con estilo del sistema (borde + gradiente + sombra profunda).
 - Titulo explicito y contexto del impacto.
@@ -140,9 +211,14 @@ Marcar cada ítem al cerrar el redisño. Sirve para homogeneizar con el resto de
 - [ ] Estado `:active` visible en controles principales.
 
 ### Modales y ventanas emergentes
-- [ ] Overlay `bg-black/55` o similar; panel con gradiente 3D, `rounded-2xl`, sombra profunda.
+- [ ] Overlay `bg-black/55` o similar; panel con **`.followup-modal-surface`** (o equivalente documentado), no solo CSS scoped bajo `#id` si el modal está fuera de ese nodo.
 - [ ] CTA primario y secundario distinguibles; cierre con botón, Escape y clic fuera si aplica.
 - [ ] Sin `alert`/`confirm` nativos para flujos de producto (sustituir por modales del sistema).
+
+### Avisos y feedback
+- [ ] Resultados de POST: flash con categoría correcta (`success` / `error` / `warning` / info); en portada, flotante según layout.
+- [ ] Toasts en pantalla (si aplica): contenedor fijo coherente (`z-[70]` aprox.) y estilo alineado a watchlist, sin cajas ajenas a la paleta B.
+- [ ] No depender de `alert` para mensajes que deban leerse con contexto.
 
 ### Comportamiento y datos
 - [ ] Desplegables filas de KPIs sincronizados si el diseño lo pide (una fila = un estado compartido).
@@ -160,8 +236,9 @@ Marcar cada ítem al cerrar el redisño. Sirve para homogeneizar con el resto de
 ## Checklist rapido (resumen)
 
 - [ ] Título `emoji + título`, KPIs y tablas alineados a esta guía.
-- [ ] Gráfica con filtros debajo; modales y formularios al patrón del sistema.
+- [ ] Gráfica con filtros debajo; modales (`.followup-modal-surface`) y formularios al patrón del sistema; flash/toasts coherentes.
 - [ ] Revisado en desktop y en resolución intermedia/móvil.
+- [ ] Si es pantalla **nueva**: añadida a [Pestañas ya tocadas](#pestanas-ya-tocadas-iteracion-actual) y, si aplica, bitácora con el patrón introducido.
 
 ## Pestanas ya tocadas (iteracion actual)
 
@@ -234,3 +311,4 @@ Marcar cada ítem al cerrar el redisño. Sirve para homogeneizar con el resto de
 - `Watchlist` modales: los paneles están **fuera** del wrapper `#portfolio-watch`; la clase de superficie debe ser **global** (p. ej. `watchlist-modal-surface`) para que el fondo opaco y el gradiente se apliquen (evitar panel “transparente”).
 - Módulos **Crypto**, **Metales** e **Inmuebles** (listado, detalle, formularios, modales de precios / eliminar): superficies 3D suaves, tablas con cabecera slate, KPIs con rizado semántico, botones `teal`/`slate`, modales con `bg-black/55` y panel con `re-modal-panel` / `app-modal-panel` + `background-color` de respaldo.
 - Formulario transacción: **Volver** con `history.back()` + fallback; performance: frecuencia con segmentos como «Evolución del Patrimonio», toggles `evo-toggle` para valor real / capital invertido, leyendas Chart desactivadas en series únicas, textos metodológicos en `pf-info`; **Mi Portfolio** — bloque rentabilidades año a año: tarjeta y contenedor del gráfico de barras con degradado teal-slate (sin caja blanca suelta).
+- **Guía v1.1 (cierre plantilla):** índice navegable, sección *Cómo usar*, plantilla numerada para nuevas pestañas, tabla de **avisos / flash / toasts**, reglas explícitas de **modales globales** (`.followup-modal-surface`, anti-patrón CSS solo bajo `#id`); checklist ampliada con feedback y cierre con ruta en “Pestañas ya tocadas”.
