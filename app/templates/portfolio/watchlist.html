@@ -38,6 +38,30 @@
         border-radius: 16px;
         box-shadow: 0 14px 30px rgba(15,23,42,0.1), inset 0 1px 0 rgba(255,255,255,0.85);
     }
+    #portfolio-watch .pf-info {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.375rem;
+        height: 1.375rem;
+        border-radius: 9999px;
+        border: 1px solid rgb(204 251 241);
+        background: rgb(240 253 250);
+        color: rgb(15 118 110);
+        font-size: 0.65rem;
+        font-weight: 700;
+        line-height: 1;
+        cursor: pointer;
+        flex-shrink: 0;
+        padding: 0;
+    }
+    #portfolio-watch .pf-info:focus { outline: 2px solid rgba(20, 184, 166, 0.5); outline-offset: 1px; }
+    #settingsModal .settings-section-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 0.5rem;
+    }
 </style>
 <div id="portfolio-watch" class="max-w-[98%] mx-auto px-3 sm:px-4 py-8">
     <!-- Toast Notification Container -->
@@ -584,14 +608,19 @@
                 
                 <!-- Umbral máximo peso en cartera -->
                 <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Umbral máximo peso en cartera (%)</label>
+                    <div class="settings-section-head mb-1">
+                        <label class="block text-sm font-medium text-gray-700">Umbral máximo peso en cartera (%)</label>
+                        <button type="button" class="pf-info" onclick="openSettingsHelp('maxWeight')" title="Ayuda" aria-label="Ayuda umbral peso">i</button>
+                    </div>
                     <input type="number" step="0.1" id="settingsMaxWeightThreshold" class="w-full px-3 py-2 border border-gray-300 rounded-lg" value="{{ max_weight_threshold }}">
-                    <p class="text-xs text-gray-500 mt-1">Umbral base para calcular colores del peso en cartera</p>
                 </div>
                 
                 <!-- Umbrales de colores: Valoración 12m -->
                 <div class="mb-4 p-4 bg-gray-50 rounded-lg">
-                    <h4 class="text-sm font-semibold text-gray-700 mb-3">Valoración actual 12 meses (%)</h4>
+                    <div class="settings-section-head mb-3">
+                        <h4 class="text-sm font-semibold text-gray-700">Valoración actual 12 meses (%)</h4>
+                        <button type="button" class="pf-info" onclick="openSettingsHelp('valoracion')" title="Ayuda" aria-label="Ayuda valoración 12m">i</button>
+                    </div>
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs text-gray-600 mb-1">Verde (≥)</label>
@@ -602,22 +631,26 @@
                             <input type="number" step="0.1" id="settingsValoracionYellowMin" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
                         </div>
                     </div>
-                    <p class="text-xs text-gray-500 mt-2">Verde: ≥ valor verde, Amarillo: ≥ valor amarillo y &lt; valor verde, Rojo: &lt; valor amarillo</p>
                 </div>
                 
                 <!-- Umbrales de colores: Fecha resultados -->
                 <div class="mb-4 p-4 bg-gray-50 rounded-lg">
-                    <h4 class="text-sm font-semibold text-gray-700 mb-3">Fecha próximos resultados</h4>
+                    <div class="settings-section-head mb-3">
+                        <h4 class="text-sm font-semibold text-gray-700">Fecha próximos resultados</h4>
+                        <button type="button" class="pf-info" onclick="openSettingsHelp('fechaResultados')" title="Ayuda" aria-label="Ayuda fecha resultados">i</button>
+                    </div>
                     <div>
                         <label class="block text-xs text-gray-600 mb-1">Días para amarillo (después de pasar)</label>
                         <input type="number" step="1" id="settingsFechaResultadosYellowDays" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
-                        <p class="text-xs text-gray-500 mt-1">Verde (futuro), Amarillo (pasado ≤ X días), Rojo (pasado > X días)</p>
                     </div>
                 </div>
                 
                 <!-- Umbrales de colores: Peso en cartera -->
                 <div class="mb-4 p-4 bg-gray-50 rounded-lg">
-                    <h4 class="text-sm font-semibold text-gray-700 mb-3">Peso en cartera (%)</h4>
+                    <div class="settings-section-head mb-3">
+                        <h4 class="text-sm font-semibold text-gray-700">Peso en cartera (%)</h4>
+                        <button type="button" class="pf-info" onclick="openSettingsHelp('pesoCartera')" title="Ayuda" aria-label="Ayuda peso en cartera">i</button>
+                    </div>
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs text-gray-600 mb-1">Verde (máx % sobre umbral)</label>
@@ -628,12 +661,14 @@
                             <input type="number" step="0.1" id="settingsPesoCarteraYellowMax" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
                         </div>
                     </div>
-                    <p class="text-xs text-gray-500 mt-2">Verde: &lt; umbral + verde_max%, Amarillo: umbral + verde_max% a amarillo_max%, Rojo: ≥ umbral + amarillo_max%</p>
                 </div>
                 
                 <!-- Umbrales de colores: Tier -->
                 <div class="mb-4 p-4 bg-gray-50 rounded-lg">
-                    <h4 class="text-sm font-semibold text-gray-700 mb-3">Tier (desviación del valor del Tier)</h4>
+                    <div class="settings-section-head mb-3">
+                        <h4 class="text-sm font-semibold text-gray-700">Tier (desviación del valor del Tier)</h4>
+                        <button type="button" class="pf-info" onclick="openSettingsHelp('tierDev')" title="Ayuda" aria-label="Ayuda desviación tier">i</button>
+                    </div>
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs text-gray-600 mb-1">Verde (dentro %)</label>
@@ -644,13 +679,14 @@
                             <input type="number" step="0.1" id="settingsTierYellowPct" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
                         </div>
                     </div>
-                    <p class="text-xs text-gray-500 mt-2">Verde: dentro ±green_pct%, Amarillo: fuera ±green_pct% pero dentro ±yellow_pct%, Rojo: fuera ±yellow_pct%</p>
                 </div>
                 
                 <!-- Configuración de rangos de Tier -->
                 <div class="mb-4 p-4 bg-green-50 rounded-lg border border-green-200">
-                    <h4 class="text-sm font-semibold text-gray-700 mb-3">Rangos de Tier (según Valoración 12m %)</h4>
-                    <p class="text-xs text-gray-600 mb-3">Define el valor mínimo de Valoración 12m (%) para cada Tier (2-5). Tier 1 se calcula automáticamente como todos los valores &lt; Tier 2.</p>
+                    <div class="settings-section-head mb-3">
+                        <h4 class="text-sm font-semibold text-gray-700">Rangos de Tier (según Valoración 12m %)</h4>
+                        <button type="button" class="pf-info" onclick="openSettingsHelp('tierRangos')" title="Ayuda" aria-label="Ayuda rangos de tier">i</button>
+                    </div>
                     <div class="space-y-2">
                         <div class="grid grid-cols-4 gap-2 text-xs">
                             <div>
@@ -683,13 +719,14 @@
                             </p>
                         </div>
                     </div>
-                    <p class="text-xs text-gray-500 mt-3">Los rangos se construyen así: Tier 5 ≥ valor_tier5, Tier 4 ≥ valor_tier4 y &lt; valor_tier5, Tier 3 ≥ valor_tier3 y &lt; valor_tier4, Tier 2 ≥ valor_tier2 y &lt; valor_tier3, Tier 1 &lt; valor_tier2 (automático)</p>
-                    <p class="text-xs text-gray-600 mt-1 font-medium">Tier 5: mayor posición (muy infravalorado), Tier 1: menor posición (sobrevalorado)</p>
                 </div>
                 
                 <!-- Umbrales de colores: Rentabilidad 5 años -->
                 <div class="mb-4 p-4 bg-gray-50 rounded-lg">
-                    <h4 class="text-sm font-semibold text-gray-700 mb-3">Rentabilidad a 5 años (%)</h4>
+                    <div class="settings-section-head mb-3">
+                        <h4 class="text-sm font-semibold text-gray-700">Rentabilidad a 5 años (%)</h4>
+                        <button type="button" class="pf-info" onclick="openSettingsHelp('rent5')" title="Ayuda" aria-label="Ayuda rentabilidad 5 años">i</button>
+                    </div>
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs text-gray-600 mb-1">Verde (≥)</label>
@@ -700,12 +737,14 @@
                             <input type="number" step="0.1" id="settingsRentabilidad5yrYellowMin" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
                         </div>
                     </div>
-                    <p class="text-xs text-gray-500 mt-2">Verde: ≥ valor verde, Amarillo: ≥ valor amarillo y &lt; valor verde, Rojo: &lt; valor amarillo</p>
                 </div>
                 
                 <!-- Umbrales de colores: Rentabilidad Anual -->
                 <div class="mb-4 p-4 bg-gray-50 rounded-lg">
-                    <h4 class="text-sm font-semibold text-gray-700 mb-3">Rentabilidad Anual (%)</h4>
+                    <div class="settings-section-head mb-3">
+                        <h4 class="text-sm font-semibold text-gray-700">Rentabilidad Anual (%)</h4>
+                        <button type="button" class="pf-info" onclick="openSettingsHelp('rentAnual')" title="Ayuda" aria-label="Ayuda rentabilidad anual">i</button>
+                    </div>
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs text-gray-600 mb-1">Verde (≥)</label>
@@ -716,17 +755,14 @@
                             <input type="number" step="0.1" id="settingsRentabilidadAnualYellowMin" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
                         </div>
                     </div>
-                    <p class="text-xs text-gray-500 mt-2">Verde: ≥ valor verde, Amarillo: ≥ valor amarillo y &lt; valor verde, Rojo: &lt; valor amarillo</p>
                 </div>
                 
                 <!-- Reglas de Indicador Operativa (BUY/SELL globales) -->
                 <div class="mb-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
-                    <h4 class="text-sm font-semibold text-gray-700 mb-3">Indicador operativa (BUY/SELL global)</h4>
-                    <p class="text-xs text-gray-600 mb-3">
-                        Configura las reglas para señales fuertes de compra (BUY) y venta (SELL) basadas en
-                        <span class="font-semibold">Valoración 12m (%)</span> y <span class="font-semibold">Rentabilidad Anual (%)</span>.
-                        Estas señales prevalecen sobre INCREASE/HOLD/REDUCE.
-                    </p>
+                    <div class="settings-section-head mb-3">
+                        <h4 class="text-sm font-semibold text-gray-700">Indicador operativa (BUY/SELL global)</h4>
+                        <button type="button" class="pf-info" onclick="openSettingsHelp('operativa')" title="Ayuda" aria-label="Ayuda operativa BUY/SELL">i</button>
+                    </div>
                     
                     <!-- Reglas BUY (solo assets en watchlist sin posición) -->
                     <div class="mb-3 p-3 bg-white rounded border border-purple-100">
@@ -761,7 +797,9 @@
                                     <option value="AND">Ambas (AND)</option>
                                     <option value="OR">Al menos una (OR)</option>
                                 </select>
-                                <span class="text-[11px] text-gray-500">Por defecto: Rent. Anual ≥ 60% AND Valoración 12m &gt; -12.5%</span>
+                                <div class="flex items-center justify-end">
+                                    <button type="button" class="pf-info" onclick="openSettingsHelp('buyDefaults')" title="Valores por defecto" aria-label="Valores por defecto BUY">i</button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -800,7 +838,9 @@
                                     <option value="AND">Ambas (AND)</option>
                                     <option value="OR">Al menos una (OR)</option>
                                 </select>
-                                <span class="text-[11px] text-gray-500">Por defecto sin reglas activas (no se dispara SELL hasta que configures condiciones).</span>
+                                <div class="flex items-center justify-end">
+                                    <button type="button" class="pf-info" onclick="openSettingsHelp('sellDefaults')" title="Comportamiento por defecto SELL" aria-label="Ayuda SELL por defecto">i</button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -808,8 +848,10 @@
                 
                 <!-- Configuración de cantidades por Tier -->
                 <div class="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <h4 class="text-sm font-semibold text-gray-700 mb-3">Cantidades por Tier (EUR)</h4>
-                    <p class="text-xs text-gray-600 mb-3">Define las cantidades absolutas en EUR para cada Tier de inversión</p>
+                    <div class="settings-section-head mb-3">
+                        <h4 class="text-sm font-semibold text-gray-700">Cantidades por Tier (EUR)</h4>
+                        <button type="button" class="pf-info" onclick="openSettingsHelp('tierAmounts')" title="Ayuda" aria-label="Ayuda cantidades por tier">i</button>
+                    </div>
                     <div class="grid grid-cols-5 gap-2">
                         <div>
                             <label class="block text-xs text-gray-600 mb-1">Tier 1 (EUR)</label>
@@ -844,6 +886,15 @@
                 </div>
             </form>
         </div>
+    </div>
+</div>
+
+<!-- Ayuda contextual (Ajustes watchlist); z-index por encima del modal de ajustes -->
+<div id="settingsHelpModal" class="hidden fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55 overflow-y-auto" onclick="if(event.target===this) closeSettingsHelpModal()">
+    <div class="watchlist-modal-surface w-full max-w-md p-5 sm:p-6 my-4" onclick="event.stopPropagation()">
+        <h3 id="settingsHelpTitle" class="text-lg font-semibold text-slate-900 mb-3"></h3>
+        <div id="settingsHelpBody" class="text-sm text-slate-600 space-y-2"></div>
+        <button type="button" onclick="closeSettingsHelpModal()" class="portfolio-touch-btn mt-5 w-full px-4 py-2.5 rounded-xl bg-teal-600 text-white font-semibold hover:bg-teal-700">Entendido</button>
     </div>
 </div>
 
@@ -1359,6 +1410,77 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+const SETTINGS_HELP_CONTENT = {
+    maxWeight: {
+        title: 'Umbral máximo peso en cartera',
+        html: '<p>Umbral base para calcular los <strong>colores del peso en cartera</strong> en la tabla (verde / amarillo / rojo según lo que configures en el bloque «Peso en cartera»).</p>'
+    },
+    valoracion: {
+        title: 'Valoración actual 12 meses',
+        html: '<p><strong>Verde:</strong> ≥ umbral verde.</p><p><strong>Amarillo:</strong> ≥ umbral amarillo y &lt; verde.</p><p><strong>Rojo:</strong> &lt; umbral amarillo.</p>'
+    },
+    fechaResultados: {
+        title: 'Fecha próximos resultados',
+        html: '<p><strong>Verde:</strong> fecha futura.</p><p><strong>Amarillo:</strong> ya pasó la fecha, pero hace ≤ X días (X = valor que indicas).</p><p><strong>Rojo:</strong> pasó hace más de X días.</p>'
+    },
+    pesoCartera: {
+        title: 'Peso en cartera',
+        html: '<p>Compara el peso del activo con el <strong>umbral máximo</strong> del primer bloque.</p><p><strong>Verde:</strong> por debajo de umbral + tramo verde.</p><p><strong>Amarillo:</strong> entre tramo verde y amarillo.</p><p><strong>Rojo:</strong> por encima de umbral + tramo amarillo.</p>'
+    },
+    tierDev: {
+        title: 'Desviación del Tier',
+        html: '<p>Colores respecto a la <strong>cantidad objetivo del tier</strong> (EUR).</p><p><strong>Verde:</strong> dentro de ±% verde.</p><p><strong>Amarillo:</strong> fuera del verde pero dentro de ±% amarillo.</p><p><strong>Rojo:</strong> fuera del tramo amarillo.</p>'
+    },
+    tierRangos: {
+        title: 'Rangos de Tier',
+        html: '<p>Define el valor mínimo de <strong>Valoración 12m (%)</strong> para cada Tier 2–5. <strong>Tier 1</strong> se calcula automáticamente: todos los valores &lt; Tier 2.</p><p>Construcción: Tier 5 ≥ valor tier5; Tier 4 ≥ tier4 y &lt; tier5; análogo hacia abajo; Tier 1 &lt; tier2.</p><p><strong>Tier 5</strong> = mayor posición (muy infravalorado), <strong>Tier 1</strong> = menor (sobrevalorado).</p>'
+    },
+    rent5: {
+        title: 'Rentabilidad a 5 años',
+        html: '<p><strong>Verde:</strong> ≥ umbral verde.</p><p><strong>Amarillo:</strong> ≥ amarillo y &lt; verde.</p><p><strong>Rojo:</strong> &lt; amarillo.</p>'
+    },
+    rentAnual: {
+        title: 'Rentabilidad anual',
+        html: '<p><strong>Verde:</strong> ≥ umbral verde.</p><p><strong>Amarillo:</strong> ≥ amarillo y &lt; verde.</p><p><strong>Rojo:</strong> &lt; amarillo.</p>'
+    },
+    operativa: {
+        title: 'Indicador operativa (BUY / SELL)',
+        html: '<p>Configura señales <strong>BUY</strong> y <strong>SELL</strong> con <strong>Valoración 12m</strong> y <strong>Rentabilidad anual</strong>. Estas señales <strong>prevalecen</strong> sobre INCREASE / HOLD / REDUCE.</p><p>BUY: activos en seguimiento sin posición. SELL: activos con posición en cartera.</p>'
+    },
+    buyDefaults: {
+        title: 'Valores por defecto (BUY)',
+        html: '<p>Por defecto se suele usar <strong>Rent. Anual ≥ 60&nbsp;%</strong> y <strong>Valoración 12m &gt; -12,5&nbsp;%</strong> (con combinación AND), según lo que tengas guardado en el servidor.</p>'
+    },
+    sellDefaults: {
+        title: 'Comportamiento por defecto (SELL)',
+        html: '<p>Sin reglas de condición activas, <strong>no se dispara SELL</strong> hasta que configures al menos un criterio.</p>'
+    },
+    tierAmounts: {
+        title: 'Cantidades por Tier (EUR)',
+        html: '<p>Define la <strong>cantidad en euros</strong> objetivo de cada Tier. El sistema compara con tu inversión actual para sugerir compras o ventas.</p>'
+    }
+};
+
+function openSettingsHelp(key) {
+    const d = SETTINGS_HELP_CONTENT[key];
+    if (!d) return;
+    const t = document.getElementById('settingsHelpTitle');
+    const b = document.getElementById('settingsHelpBody');
+    if (t) t.textContent = d.title;
+    if (b) b.innerHTML = d.html;
+    const m = document.getElementById('settingsHelpModal');
+    if (m) {
+        m.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+function closeSettingsHelpModal() {
+    const m = document.getElementById('settingsHelpModal');
+    if (m) m.classList.add('hidden');
+    document.body.style.overflow = '';
+}
 
 // Funciones para modal de ajustes
 function openSettingsModal() {
