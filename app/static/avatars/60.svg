@@ -1,16 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-<defs>
-  <linearGradient id="bg60" x1="0" y1="0" x2="1" y2="1">
-    <stop offset="0%" stop-color="#1e3a5f"/>
-    <stop offset="100%" stop-color="#0f172a"/>
-  </linearGradient>
-  <linearGradient id="ac60" x1="0" y1="1" x2="1" y2="0">
-    <stop offset="0%" stop-color="#93c5fd" stop-opacity="0.85"/>
-    <stop offset="100%" stop-color="#1e3a5f" stop-opacity="0.25"/>
-  </linearGradient>
-</defs>
-<rect width="100" height="100" rx="20" fill="url(#bg60)"/>
-<path d="M12 50 L32 20 L50 50 L68 20 L88 50 L75 90 L25 90 Z" fill="url(#ac60)" opacity="0.5"/>
-<circle cx="50" cy="38" r="4" fill="#93c5fd"/>
-<rect x="38" y="55" width="24" height="18" rx="3" fill="#0f172a" opacity="0.4"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="#059669"/><polygon points="50.00,25.00 54.50,37.21 67.32,35.00 59.00,45.00 67.32,55.00 54.50,52.79 50.00,65.00 45.50,52.79 32.68,55.00 41.00,45.00 32.68,35.00 45.50,37.21" fill="#ffffff"/><circle cx="50" cy="50" r="5" fill="#059669"/></svg>

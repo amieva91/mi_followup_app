@@ -1,110 +1,135 @@
 #!/usr/bin/env python3
-"""Genera avatares abstractos 49–79 (sin retratos): formas geométricas, paleta teal/slate."""
+"""
+Genera avatares 49–79 al estilo de 1–48: círculo de color + motivos simples
+(figuras, símbolos, sin caras de retrato).
+"""
 from __future__ import annotations
 
+import math
 import os
 
 OUT = os.path.join(os.path.dirname(__file__), "..", "app", "static", "avatars")
 
-PALETTES: list[tuple[str, str, str]] = [
-    ("#0d9488", "#0f172a", "#5eead4"),
-    ("#3f5f73", "#1e293b", "#94a3b8"),
-    ("#0e7490", "#0c4a6e", "#22d3ee"),
-    ("#4f46e5", "#1e1b4b", "#a5b4fc"),
-    ("#0f766e", "#134e4a", "#2dd4bf"),
-    ("#475569", "#0f172a", "#cbd5e1"),
-    ("#155e75", "#164e63", "#a5f3fc"),
-    ("#0f766e", "#1c1917", "#34d399"),
-    ("#0369a1", "#0c4a6e", "#7dd3fc"),
-    ("#4c1d95", "#312e81", "#c4b5fd"),
-    ("#115e59", "#0f172a", "#5eead4"),
-    ("#1e3a5f", "#0f172a", "#93c5fd"),
+BGS = [
+    "#3b82f6", "#ec4899", "#f97316", "#22c55e", "#8b5cf6", "#14b8a6",
+    "#e11d48", "#0ea5e9", "#a855f7", "#d97706", "#4f46e5", "#059669",
+    "#db2777", "#2563eb", "#65a30d", "#7c3aed", "#0d9488", "#c026d3",
+    "#ca8a04", "#dc2626", "#1d4ed8", "#15803d", "#be185d", "#0369a1",
+    "#6d28d9", "#b45309", "#0f766e", "#9333ea", "#1e40af", "#9f1239", "#0e7490",
 ]
+WHITE = "#ffffff"
 
 
-def _rng(i: int) -> int:
-    s = (i * 1103515245 + 12345) & 0x7FFFFFFF
-    return s
+def _star(cx: float, cy: float, r: float, n: int, rot: float) -> str:
+    pts = []
+    for k in range(n * 2):
+        ang = rot + (k * math.pi / n) - math.pi / 2
+        rad = r if k % 2 == 0 else r * 0.45
+        pts.append(f"{cx + rad * math.cos(ang):.2f},{cy + rad * math.sin(ang):.2f}")
+    return f'<polygon points="{" ".join(pts)}" fill="{WHITE}"/>'
 
 
-def _pick(i: int, mod: int) -> int:
-    return _rng(i) % mod
+def build(n: int) -> str:
+    i = n - 49
+    bg = BGS[i % len(BGS)]
+    kind = i % 31
+    head = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+    base = f'<circle cx="50" cy="50" r="50" fill="{bg}"/>'
+    w = WHITE
 
-
-def build_svg(n: int) -> str:
-    c1, c2, c3 = PALETTES[(n - 49) % len(PALETTES)]
-    r = n * 7 + 13
-    a1 = n * 19 % 360
-    a2 = n * 23 % 360
-    s1 = 0.6 + (n % 7) * 0.05
-    pat = n % 7
-
-    head = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-<defs>
-  <linearGradient id="bg{n}" x1="0" y1="0" x2="1" y2="1">
-    <stop offset="0%" stop-color="{c1}"/>
-    <stop offset="100%" stop-color="{c2}"/>
-  </linearGradient>
-  <linearGradient id="ac{n}" x1="0" y1="1" x2="1" y2="0">
-    <stop offset="0%" stop-color="{c3}" stop-opacity="0.85"/>
-    <stop offset="100%" stop-color="{c1}" stop-opacity="0.25"/>
-  </linearGradient>
-</defs>
-<rect width="100" height="100" rx="20" fill="url(#bg{n})"/>"""
-
-    if pat == 0:
-        body = f"""
-<circle cx="50" cy="50" r="38" fill="none" stroke="url(#ac{n})" stroke-width="3" stroke-dasharray="6 8" transform="rotate({a1} 50 50)"/>
-<circle cx="50" cy="50" r="24" fill="none" stroke="{c3}" stroke-width="2.5" opacity="0.5" transform="rotate({-a2} 50 50)"/>
-<circle cx="50" cy="50" r="8" fill="url(#ac{n})" opacity="0.9"/>
-"""
-    elif pat == 1:
-        body = f"""
-<polygon points="50,8 92,75 8,75" fill="url(#ac{n})" opacity="0.4" transform="rotate({a1} 50 50)"/>
-<polygon points="50,20 80,80 20,80" fill="{c3}" opacity="0.35" transform="rotate({-a2} 50 50) scale(0.85) translate(0,2)"/>
-<rect x="32" y="32" width="36" height="36" rx="6" fill="none" stroke="{c3}" stroke-width="2" transform="rotate({a1} 50 50)"/>
-"""
-    elif pat == 2:
-        d = 10 + _pick(n, 15)
-        body = f"""
-<path d="M0,{50+d/2} Q25,{20+d%5} 50,{50} T100,{50-d/2} L100,100 L0,100 Z" fill="url(#ac{n})" opacity="0.5"/>
-<path d="M0,78 Q{30+r%20},{60+_pick(n,10)} 100,72 L100,100 L0,100 Z" fill="{c2}" opacity="0.45"/>
-<circle cx="70" cy="32" r="{6+n%4}" fill="{c3}" opacity="0.5"/>
-<circle cx="28" cy="40" r="{5+n%3}" fill="{c3}" opacity="0.35"/>
-"""
-    elif pat == 3:
-        body = f"""
-<g transform="translate(50 50) rotate({a1})">
-  <rect x="-35" y="-18" width="70" height="10" rx="3" fill="url(#ac{n})" opacity="0.8"/>
-  <rect x="-28" y="-2" width="56" height="8" rx="2" fill="{c3}" opacity="0.45" transform="rotate(45)"/>
-  <rect x="-20" y="14" width="40" height="7" rx="2" fill="{c3}" opacity="0.35" transform="rotate(-25)"/>
-</g>"""
-    elif pat == 4:
-        body = f"""
-<path d="M12 50 L32 20 L50 50 L68 20 L88 50 L75 90 L25 90 Z" fill="url(#ac{n})" opacity="0.5"/>
-<circle cx="50" cy="38" r="4" fill="{c3}"/>
-<rect x="38" y="55" width="24" height="18" rx="3" fill="{c2}" opacity="0.4"/>
-"""
-    elif pat == 5:
-        w = 12 + n % 8
-        body = f"""
-<g opacity="0.7">
-  <line x1="15" y1="20" x2="85" y2="20" stroke="url(#ac{n})" stroke-width="{w%5+2}" stroke-linecap="round"/>
-  <line x1="20" y1="45" x2="90" y2="50" stroke="{c3}" stroke-width="3" stroke-linecap="round" transform="rotate({a1%30-15} 50 45)"/>
-  <line x1="10" y1="70" x2="80" y2="75" stroke="url(#ac{n})" stroke-width="2" stroke-linecap="round"/>
-</g>
-<circle cx="50" cy="50" r="3" fill="{c3}"/>
-"""
+    if kind == 0:
+        body = _star(50, 48, 28, 5, 0.2) + f'<circle cx="50" cy="52" r="7" fill="{bg}"/>'
+    elif kind == 1:
+        body = f'<path d="M50 18 L80 50 L50 85 L20 50 Z" fill="{w}"/>'
+    elif kind == 2:
+        body = f'<rect x="22" y="22" width="56" height="56" rx="10" fill="{w}"/>'
+        body += f'<rect x="35" y="35" width="30" height="30" rx="4" fill="{bg}"/>'
+    elif kind == 3:
+        body = f'<path d="M20 60 Q50 20 80 60 L80 80 L20 80 Z" fill="{w}"/>'
+    elif kind == 4:
+        body = f'<rect x="18" y="40" width="20" height="12" rx="3" fill="{w}"/>'
+        body += f'<rect x="40" y="40" width="20" height="12" rx="3" fill="{w}"/>'
+        body += f'<rect x="62" y="40" width="20" height="12" rx="3" fill="{w}"/>'
+    elif kind == 5:
+        body = f'<rect x="28" y="28" width="44" height="44" fill="none" stroke="{w}" stroke-width="4"/>'
+        body += f'<line x1="28" y1="50" x2="72" y2="50" stroke="{w}" stroke-width="3"/>'
+    elif kind == 6:
+        body = f'<path d="M25 70 L50 25 L75 70 Z" fill="{w}"/>'
+        body += f'<rect x="44" y="42" width="12" height="28" fill="{bg}"/>'
+    elif kind == 7:
+        body = f'<path d="M32 50 L45 32 L55 32 L68 50 L50 75 Z" fill="{w}"/>'
+    elif kind == 8:
+        body = f'<rect x="26" y="36" width="48" height="36" rx="4" fill="{w}"/>'
+        body += f'<polygon points="40,32 50,20 60,32" fill="{w}"/>'
+    elif kind == 9:
+        body = f'<ellipse cx="50" cy="50" rx="34" ry="18" fill="{w}"/>'
+        body += f'<line x1="18" y1="50" x2="82" y2="50" stroke="{bg}" stroke-width="3"/>'
+    elif kind == 10:
+        body = f'<path d="M20 50 Q50 10 80 50 Q50 90 20 50" fill="{w}"/>'
+    elif kind == 11:
+        body = _star(50, 45, 20, 6, 0) + f'<circle cx="50" cy="50" r="5" fill="{bg}"/>'
+    elif kind == 12:
+        body = f'<path d="M22 32 L60 20 L75 50 L48 80 L18 55 Z" fill="{w}"/>'
+    elif kind == 13:
+        body = f'<circle cx="50" cy="42" r="20" fill="none" stroke="{w}" stroke-width="5"/>'
+        body += f'<rect x="40" y="60" width="20" height="12" rx="2" fill="{w}"/>'
+    elif kind == 14:
+        body = ""
+        for j in range(3):
+            body += f'<rect x="{24 + j * 25}" y="40" width="12" height="24" rx="2" fill="{w}"/>'
+    elif kind == 15:
+        body = f'<path d="M25 25 H75 V48 H25 Z" fill="{w}"/>'
+        body += f'<path d="M25 52 H75 V75 H25 Z" fill="{w}" opacity="0.7"/>'
+    elif kind == 16:
+        body = f'<polygon points="50,20 80,50 50,80 20,50" fill="{w}"/>'
+    elif kind == 17:
+        body = f'<circle cx="50" cy="50" r="3" fill="{w}"/>'
+        body += f'<line x1="50" y1="50" x2="50" y2="22" stroke="{w}" stroke-width="3"/>'
+        body += f'<line x1="50" y1="50" x2="70" y2="56" stroke="{w}" stroke-width="2.5"/>'
+        body += f'<line x1="50" y1="50" x2="32" y2="68" stroke="{w}" stroke-width="2.5"/>'
+    elif kind == 18:
+        body = f'<rect x="30" y="28" width="40" height="48" fill="{w}"/>'
+        body += f'<line x1="30" y1="45" x2="70" y2="45" stroke="{bg}" stroke-width="2.5"/>'
+    elif kind == 19:
+        body = f'<path d="M50 12 L64 50 L50 40 L36 50 Z" fill="{w}"/>'
+        body += f'<rect x="32" y="50" width="36" height="36" fill="{w}"/>'
+    elif kind == 20:
+        body = f'<ellipse cx="50" cy="40" rx="32" ry="12" fill="{w}"/>'
+        body += f'<rect x="45" y="48" width="10" height="32" fill="{w}"/>'
+    elif kind == 21:
+        body = f'<path d="M18 78 L32 25 L50 50 L68 25 L82 78 Z" fill="{w}"/>'
+    elif kind == 22:
+        body = f'<circle cx="50" cy="32" r="7" fill="{w}"/>'
+        body += f'<line x1="50" y1="40" x2="50" y2="78" stroke="{w}" stroke-width="4"/>'
+        body += f'<line x1="28" y1="56" x2="72" y2="56" stroke="{w}" stroke-width="3"/>'
+    elif kind == 23:
+        body = f'<path d="M25 50 A25 25 0 0 1 75 50" fill="none" stroke="{w}" stroke-width="6"/>'
+        body += f'<line x1="50" y1="25" x2="50" y2="58" stroke="{w}" stroke-width="4"/>'
+    elif kind == 24:
+        body = f'<rect x="20" y="20" width="24" height="24" fill="{w}"/>'
+        body += f'<rect x="56" y="20" width="24" height="24" fill="{w}" opacity="0.6"/>'
+        body += f'<rect x="38" y="56" width="24" height="24" fill="{w}"/>'
+    elif kind == 25:
+        body = f'<rect x="28" y="28" width="44" height="44" fill="none" stroke="{w}" stroke-width="5"/>'
+        body += f'<line x1="36" y1="50" x2="64" y2="50" stroke="{w}" stroke-width="3"/>'
+        body += f'<line x1="50" y1="36" x2="50" y2="64" stroke="{w}" stroke-width="3"/>'
+    elif kind == 26:
+        body = f'<polygon points="50,16 90,50 50,84 10,50" fill="{w}"/>'
+        body += f'<circle cx="50" cy="50" r="10" fill="{bg}"/>'
+    elif kind == 27:
+        body = ""
+        for a in (0, 60, 120, 180, 240, 300):
+            body += f'<rect x="48" y="18" width="4" height="16" fill="{w}" transform="rotate({a} 50 50)"/>'
+    elif kind == 28:
+        body = f'<path d="M22 42 Q50 12 78 42 L78 78 L22 78 Z" fill="{w}"/>'
+    elif kind == 29:
+        body = f'<path d="M30 50 H70 M50 30 V70" stroke="{w}" stroke-width="6" stroke-linecap="round"/>'
+        body += f'<circle cx="50" cy="50" r="4" fill="{w}"/>'
     else:
-        x0, y0 = 20 + _pick(n, 20), 18 + _pick(n, 15)
-        body = f"""
-<rect x="18" y="22" width="64" height="58" rx="4" fill="none" stroke="url(#ac{n})" stroke-width="2.5" transform="rotate({a1%24-12} 50 50)"/>
-<circle cx="{x0}" cy="{y0}" r="6" fill="{c3}"/>
-<circle cx="{100-x0-8}" cy="{y0+5}" r="5" fill="{c3}" opacity="0.6"/>
-<path d="M30 80 Q50 65 70 80" stroke="url(#ac{n})" stroke-width="3" fill="none" stroke-linecap="round"/>
-"""
-    tail = "</svg>\n"
-    return head + body + tail
+        body = f'<rect x="24" y="24" width="52" height="52" fill="none" stroke="{w}" stroke-width="4" rx="8"/>'
+        body += f'<path d="M34 50 L45 60 L65 38" fill="none" stroke="{w}" stroke-width="4"/>'
+
+    return head + base + body + "</svg>\n"
 
 
 def main() -> None:
@@ -112,7 +137,7 @@ def main() -> None:
     for n in range(49, 80):
         path = os.path.join(OUT, f"{n}.svg")
         with open(path, "w", encoding="utf-8") as f:
-            f.write(build_svg(n))
+            f.write(build(n))
         print("wrote", path)
 
 
