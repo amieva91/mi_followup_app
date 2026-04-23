@@ -31,7 +31,7 @@
         {{ form.hidden_tag() }}
         <div class="pf-card p-5 sm:p-6 mb-6">
             <h2 class="text-lg font-semibold text-slate-900 mb-4">Avatar</h2>
-            <div class="flex flex-wrap gap-4 items-center">
+            <div class="max-h-72 sm:max-h-96 overflow-y-auto pr-1 flex flex-wrap gap-3 sm:gap-4 items-center content-start">
                 <label class="flex flex-col items-center cursor-pointer">
                     <input type="radio" name="avatar_id" value="0" class="sr-only peer"
                            {% if not current_user.avatar_id %}checked{% endif %}>

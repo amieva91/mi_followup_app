@@ -67,7 +67,7 @@
     
     {% block extra_css %}{% endblock %}
 </head>
-<body class="bg-gray-50 min-h-screen">
+<body class="min-h-screen {% if request.endpoint == 'main.index' %}bg-[#243843]{% else %}bg-gray-50{% endif %}">
     
     <!-- Navbar (oculta en portada) -->
     {% if request.endpoint not in ('main.index', 'auth.login', 'auth.register') %}
@@ -322,19 +322,23 @@
     </nav>
     {% endif %}
     
-    <!-- Flash messages (para mensajes del sistema) -->
+    <!-- Flash: en portada flotante sobre el fondo; en resto bajo contenedor -->
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
+            {% if request.endpoint == 'main.index' %}
+            <div class="fixed top-4 left-0 right-0 z-[200] flex flex-col items-stretch sm:items-center pointer-events-none px-3 sm:px-4">
+            {% else %}
             <div class="container mx-auto px-4 mt-4 max-w-3xl">
+            {% endif %}
                 {% for category, message in messages %}
                     {% if category == 'success' %}
-                    <div class="js-flash-message border border-emerald-200/80 bg-emerald-50/95 text-emerald-900 px-4 py-3 rounded-xl shadow-sm mb-4 transition-opacity duration-300 ease-out">
+                    <div class="js-flash-message {% if request.endpoint == 'main.index' %}w-full sm:max-w-md pointer-events-auto shadow-lg{% endif %} border border-emerald-200/80 bg-emerald-50/95 text-emerald-900 px-4 py-3 rounded-xl shadow-sm mb-3 sm:mb-4 transition-opacity duration-300 ease-out">
                     {% elif category == 'error' %}
-                    <div class="js-flash-message border border-rose-200/80 bg-rose-50/95 text-rose-900 px-4 py-3 rounded-xl shadow-sm mb-4 transition-opacity duration-300 ease-out">
+                    <div class="js-flash-message {% if request.endpoint == 'main.index' %}w-full sm:max-w-md pointer-events-auto shadow-lg{% endif %} border border-rose-200/80 bg-rose-50/95 text-rose-900 px-4 py-3 rounded-xl shadow-sm mb-3 sm:mb-4 transition-opacity duration-300 ease-out">
                     {% elif category == 'warning' %}
-                    <div class="js-flash-message border border-amber-200/80 bg-amber-50/95 text-amber-950 px-4 py-3 rounded-xl shadow-sm mb-4 transition-opacity duration-300 ease-out">
+                    <div class="js-flash-message {% if request.endpoint == 'main.index' %}w-full sm:max-w-md pointer-events-auto shadow-lg{% endif %} border border-amber-200/80 bg-amber-50/95 text-amber-950 px-4 py-3 rounded-xl shadow-sm mb-3 sm:mb-4 transition-opacity duration-300 ease-out">
                     {% else %}
-                    <div class="js-flash-message border-l-4 border-l-teal-500 border border-slate-200/80 bg-slate-50/95 text-slate-800 px-4 py-3 rounded-xl shadow-sm mb-4 transition-opacity duration-300 ease-out">
+                    <div class="js-flash-message {% if request.endpoint == 'main.index' %}w-full sm:max-w-md pointer-events-auto shadow-lg backdrop-blur-sm{% endif %} border-l-4 border-l-teal-500 border border-slate-200/80 bg-slate-50/98 text-slate-800 px-4 py-3 rounded-xl shadow-sm mb-3 sm:mb-4 transition-opacity duration-300 ease-out">
                     {% endif %}
                         <div class="flex items-start justify-between gap-3 text-sm sm:text-base leading-snug">
                             <span>{{ message }}</span>

@@ -36,6 +36,17 @@ AVATARS = {
     40: 'avatars/40.svg', 41: 'avatars/41.svg', 42: 'avatars/42.svg',
     43: 'avatars/43.svg', 44: 'avatars/44.svg', 45: 'avatars/45.svg',
     46: 'avatars/46.svg', 47: 'avatars/47.svg', 48: 'avatars/48.svg',
+    49: 'avatars/49.svg', 50: 'avatars/50.svg', 51: 'avatars/51.svg',
+    52: 'avatars/52.svg', 53: 'avatars/53.svg', 54: 'avatars/54.svg',
+    55: 'avatars/55.svg', 56: 'avatars/56.svg', 57: 'avatars/57.svg',
+    58: 'avatars/58.svg', 59: 'avatars/59.svg', 60: 'avatars/60.svg',
+    61: 'avatars/61.svg', 62: 'avatars/62.svg', 63: 'avatars/63.svg',
+    64: 'avatars/64.svg', 65: 'avatars/65.svg', 66: 'avatars/66.svg',
+    67: 'avatars/67.svg', 68: 'avatars/68.svg', 69: 'avatars/69.svg',
+    70: 'avatars/70.svg', 71: 'avatars/71.svg', 72: 'avatars/72.svg',
+    73: 'avatars/73.svg', 74: 'avatars/74.svg', 75: 'avatars/75.svg',
+    76: 'avatars/76.svg', 77: 'avatars/77.svg', 78: 'avatars/78.svg',
+    79: 'avatars/79.svg',
 }
 
 

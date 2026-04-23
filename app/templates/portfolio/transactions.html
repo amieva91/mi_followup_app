@@ -27,10 +27,12 @@
     }
     #portfolio-tx .tx-modal-surface {
         box-sizing: border-box; border-radius: 1rem;
-        border: 1px solid rgba(63, 95, 115, 0.18);
-        background-image: linear-gradient(145deg, #f8fbfc 0%, #e6eff1 100%);
-        box-shadow: 0 20px 45px rgba(15, 23, 42, 0.28);
+        border: 1px solid rgba(63, 95, 115, 0.22);
+        background-color: #f1f5f4;
+        background-image: linear-gradient(145deg, #fbfdfe 0%, #e8f0f1 100%);
+        box-shadow: 0 24px 50px rgba(15, 23, 42, 0.35);
     }
+    #txDeleteModalDesc { color: #0f172a; }
 </style>
 <div id="portfolio-tx" class="max-w-[92%] mx-auto py-6">
     <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
@@ -457,7 +459,7 @@
                                         data-tx-id="{{ txn.id }}"
                                         data-tx-label="{{ (txn.asset.symbol if txn.asset and txn.asset.symbol else (txn.asset.name if txn.asset else (txn.description[:40] if txn.description else txn.transaction_type)))|e }}"
                                         onclick="openTxDeleteModal(this)"
-                                        class="inline-flex items-center px-3 py-1.5 bg-rose-50 text-rose-800 rounded-lg hover:bg-rose-100/80 transition text-sm font-medium border border-rose-100/80">
+                                        class="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium border-2 border-rose-200/90 bg-rose-50 text-rose-900 shadow-sm hover:bg-rose-100 hover:border-rose-300 transition">
                                     🗑️ Eliminar
                                 </button>
                             </div>
@@ -545,7 +547,7 @@
             <span class="text-2xl" aria-hidden="true">🗑️</span>
         </div>
         <h3 class="text-lg font-semibold text-slate-900 text-center mt-4">Eliminar transacción</h3>
-        <p class="text-sm text-slate-600 text-center mt-2" id="txDeleteModalDesc"></p>
+        <p class="text-sm text-center mt-2 px-1 font-medium" id="txDeleteModalDesc"></p>
         <form id="txDeleteForm" method="POST" class="mt-5 space-y-2">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
             <button type="submit" class="portfolio-touch-btn w-full px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold">
