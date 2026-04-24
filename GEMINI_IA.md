@@ -91,7 +91,7 @@ Si `GEMINI_API_KEY` no está configurada:
 
 1. Usuario pulsa "Generar resumen" en Overview del asset
 2. Backend valida: asset en watchlist
-3. Llamada síncrona a `generate_content` con `gemini-2.5-flash` (prompt orientado a varias frases; `max_output_tokens` 768)
+3. Llamada síncrona a `generate_content` con `gemini-2.5-flash` (prompt con ~80-200 palabras; `max_output_tokens` 1024; `thinking_budget=0` para que el razonamiento interno no consuma el cupo y no se corte el texto a mitad de frase)
 4. Guardar en `asset_about_summary`
 5. Devolver al frontend
 

@@ -88,11 +88,23 @@ Requisitos (español, solo cuerpo de texto, sin título ni saludos):
                     contents=prompt,
                     config=types.GenerateContentConfig(
                         temperature=0.35,
-                        max_output_tokens=768,
+                        # 2.5 Flash cuenta el razonamiento interno contra max_output_tokens; si
+                        # no se limita, la respuesta visible puede quedar truncada a mitad de frase.
+                        max_output_tokens=1024,
+                        thinking_config=types.ThinkingConfig(thinking_budget=0),
                     ),
                 )
                 if response and response.text:
-                    return response.text.strip()
+                    out = response.text.strip()
+                    cands = getattr(response, "candidates", None) or []
+                    if cands and cands[0].finish_reason and "MAX_TOKENS" in str(
+                        cands[0].finish_reason
+                    ).upper():
+                        logger.warning(
+                            "Resumen About: finish_reason=MAX_TOKENS (%s chars).",
+                            len(out),
+                        )
+                    return out
                 raise GeminiServiceError('Respuesta vacía de Gemini')
             except Exception as e:
                 last_error = e
