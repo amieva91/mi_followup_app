@@ -86,18 +86,29 @@
                             <th class="px-4 py-3 text-right font-semibold uppercase">Coste</th>
                             <th class="px-4 py-3 text-right font-semibold uppercase">Valor</th>
                             <th class="px-4 py-3 text-right font-semibold uppercase">P&amp;L</th>
+                            <th class="px-4 py-3 text-center font-semibold uppercase w-[1%] whitespace-nowrap">Acciones</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-200/80">
                         {% for p in metrics.posiciones %}
                         <tr class="hover:bg-teal-50/40 transition-colors">
-                            <td class="px-4 py-3 font-medium text-slate-900">{{ p.name }}</td>
+                            <td class="px-4 py-3 text-slate-900">
+                                <div class="font-medium">{{ p.name }}</div>
+                                {% if p.account_label %}
+                                <div class="text-xs text-slate-500 mt-0.5">{{ p.account_label }}</div>
+                                {% endif %}
+                            </td>
                             <td class="px-4 py-3 text-right text-sm tabular-nums text-slate-800">{{ p.quantity|decimal_eu(2) }}</td>
                             <td class="px-4 py-3 text-right text-sm tabular-nums text-slate-700">{{ (p.average_buy_price * 31.1035)|decimal_eu(2) }}</td>
                             <td class="px-4 py-3 text-right text-sm tabular-nums text-slate-800 price-cell" data-asset-id="{{ p.asset_id or '' }}" data-field="price">{{ (p.price * 31.1035)|decimal_eu(2) if p.price else '—' }}</td>
                             <td class="px-4 py-3 text-right text-sm tabular-nums text-slate-800">{{ p.cost|decimal_eu(2) }} €</td>
                             <td class="px-4 py-3 text-right text-sm tabular-nums text-slate-800 price-cell" data-asset-id="{{ p.asset_id or '' }}" data-field="value">{{ p.value|decimal_eu(2) }} €</td>
                             <td class="px-4 py-3 text-right text-sm tabular-nums price-cell {% if p.pl >= 0 %}text-emerald-700{% else %}text-rose-700{% endif %}" data-asset-id="{{ p.asset_id or '' }}" data-field="pl">{% if p.pl >= 0 %}+{% endif %}{{ p.pl|decimal_eu(2) }} €<span class="text-xs"> ({% if p.pl_pct >= 0 %}+{% endif %}{{ p.pl_pct|decimal_eu(1) }}%)</span></td>
+                            <td class="px-3 py-2 text-center align-middle">
+                                <div class="inline-flex flex-wrap items-center justify-center gap-1">
+                                    <button type="button" class="portfolio-touch-btn inline-flex items-center justify-center px-2.5 py-1.5 rounded-lg bg-slate-200 border border-slate-300 hover:bg-slate-300 text-slate-800 text-xs font-semibold" data-account-id="{{ p.account_id }}" data-asset-id="{{ p.asset_id }}" onclick="metalesOpenMovimientos(this)">Movimientos</button>
+                                </div>
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -114,6 +125,40 @@
         <p class="text-xs text-slate-500 mt-4">Precios: Yahoo (GC=F, SI=F, PL=F, PA=F)</p>
     </div>
     {% endif %}
+</div>
+
+<!-- Modal: movimientos BUY/SELL por cuenta + activo -->
+<div id="metalesMovimientosModal" class="hidden fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55" onclick="if (event.target === this) metalesCloseMovimientos()">
+    <div class="app-modal-panel w-full max-w-3xl max-h-[min(92vh,820px)] flex flex-col shadow-[0_20px_45px_rgba(15,23,42,0.28)]" onclick="event.stopPropagation()">
+        <div class="flex items-start justify-between gap-3 p-4 sm:p-5 border-b border-slate-200/80">
+            <div>
+                <h3 id="metalesMovTitle" class="text-lg font-semibold text-slate-900">Movimientos</h3>
+                <p id="metalesMovSubtitle" class="text-sm text-slate-500 mt-0.5">Compras y ventas registradas</p>
+            </div>
+            <button type="button" onclick="metalesCloseMovimientos()" class="portfolio-touch-btn shrink-0 rounded-lg px-2.5 py-1.5 text-slate-600 hover:bg-slate-200 text-lg leading-none" aria-label="Cerrar">×</button>
+        </div>
+        <div id="metalesMovError" class="hidden text-sm text-rose-700 px-4 sm:px-5 pt-3"></div>
+        <div id="metalesMovBody" class="p-4 sm:p-5 overflow-y-auto flex-1 min-h-0">
+            <p class="text-sm text-slate-500">Cargando…</p>
+        </div>
+    </div>
+</div>
+
+<!-- Modal confirmar eliminar transacción (desde movimientos metales) -->
+<div id="metalesTxDeleteModal" class="hidden fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55 overflow-y-auto" onclick="if (event.target === this) metalesCloseTxDelete()">
+    <div class="app-modal-panel w-full max-w-md p-5 sm:p-6 my-4 relative z-10" onclick="event.stopPropagation()" role="dialog" aria-modal="true">
+        <div class="flex items-center justify-center h-11 w-11 rounded-full bg-rose-100 border border-rose-200/80 mx-auto ring-2 ring-white/50">
+            <span class="text-xl" aria-hidden="true">🗑️</span>
+        </div>
+        <h3 class="text-lg font-semibold text-slate-900 text-center mt-4">Eliminar transacción</h3>
+        <p class="text-sm text-center text-slate-700 mt-3" id="metalesTxDeleteDesc">¿Seguro?</p>
+        <form id="metalesTxDeleteForm" method="post" class="mt-5 space-y-2">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <input type="hidden" name="next" value="{{ url_for('metales.dashboard') }}"/>
+            <button type="submit" class="portfolio-touch-btn w-full px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold shadow-md">Sí, eliminar</button>
+            <button type="button" onclick="metalesCloseTxDelete()" class="portfolio-touch-btn w-full px-4 py-2.5 rounded-xl bg-slate-200 text-slate-800 text-sm font-semibold hover:bg-slate-300 border border-slate-300/80">Cancelar</button>
+        </form>
+    </div>
 </div>
 
 <div id="priceUpdateModal" class="hidden fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55" onclick="if(event.target===this) closePriceModal()">
@@ -145,6 +190,113 @@
 </div>
 
 <script>
+(function () {
+  window.METALES_MOV_API = {{ url_for('metales.api_movimientos') | tojson }};
+
+  function metalesFmt(n) {
+    if (n == null || n === '' || (typeof n === 'number' && isNaN(n))) return '—';
+    return Number(n).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+  }
+
+  function metalesEsc(s) {
+    if (s == null || s === undefined) return '';
+    var d = document.createElement('div');
+    d.textContent = String(s);
+    return d.innerHTML;
+  }
+
+  window.metalesCloseMovimientos = function () {
+    var m = document.getElementById('metalesMovimientosModal');
+    if (m) m.classList.add('hidden');
+    document.body.style.overflow = '';
+  };
+
+  window.metalesOpenMovimientos = function (btn) {
+    var accountId = btn.getAttribute('data-account-id');
+    var assetId = btn.getAttribute('data-asset-id');
+    var modal = document.getElementById('metalesMovimientosModal');
+    var body = document.getElementById('metalesMovBody');
+    var err = document.getElementById('metalesMovError');
+    var title = document.getElementById('metalesMovTitle');
+    if (!modal || !body || !title) return;
+    err.classList.add('hidden');
+    err.textContent = '';
+    body.innerHTML = '<p class="text-sm text-slate-500">Cargando…</p>';
+    modal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    var u = new URL(window.METALES_MOV_API, window.location.origin);
+    u.searchParams.set('account_id', accountId);
+    u.searchParams.set('asset_id', assetId);
+    fetch(u.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.ok) {
+          err.textContent = d.error || 'Error al cargar';
+          err.classList.remove('hidden');
+          body.innerHTML = '';
+          return;
+        }
+        title.textContent = d.asset_name + ' — ' + d.account_label;
+        if (!d.transactions || !d.transactions.length) {
+          body.innerHTML = '<p class="text-sm text-slate-600">No hay operaciones registradas para esta posición.</p>';
+          return;
+        }
+        var rows = d.transactions.map(function (t) {
+          var tipo = t.type === 'BUY' ? 'Compra' : (t.type === 'SELL' ? 'Venta' : t.type);
+          var badge = t.type === 'BUY' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800';
+          return (
+            '<tr class="border-b border-slate-200/80 hover:bg-slate-50/80">' +
+            '<td class="py-2.5 pr-3 text-slate-800 whitespace-nowrap">' + metalesEsc(t.date) + '</td>' +
+            '<td class="py-2.5 pr-3"><span class="px-2 py-0.5 rounded text-xs font-semibold ' + badge + '">' + metalesEsc(tipo) + '</span></td>' +
+            '<td class="py-2.5 pr-3 text-right tabular-nums">' + metalesFmt(t.quantity) + ' g</td>' +
+            '<td class="py-2.5 pr-3 text-right tabular-nums text-slate-700">' + metalesFmt(t.price) + ' <span class="text-xs text-slate-500">€/g</span></td>' +
+            '<td class="py-2.5 pr-3 text-right tabular-nums font-medium">' + metalesFmt(t.amount) + ' ' + metalesEsc(t.currency || 'EUR') + '</td>' +
+            '<td class="py-2.5 text-right whitespace-nowrap">' +
+            '<a href="' + String(t.edit_url).replace(/&/g, '&amp;') + '" target="_blank" rel="noopener" class="text-teal-700 hover:underline text-xs font-semibold mr-2">Editar</a>' +
+            '<button type="button" class="text-rose-700 hover:underline text-xs font-semibold" onclick="metalesOpenTxDelete(' + t.id + ')">Eliminar</button>' +
+            '</td></tr>'
+          );
+        }).join('');
+        body.innerHTML =
+          '<div class="overflow-x-auto rounded-xl border border-slate-200/80">' +
+          '<table class="min-w-full text-sm"><thead><tr class="text-left text-xs uppercase tracking-wide text-slate-500 border-b border-slate-200">' +
+          '<th class="pb-2 pr-3">Fecha</th><th class="pb-2 pr-3">Tipo</th><th class="pb-2 pr-3 text-right">Cant.</th><th class="pb-2 pr-3 text-right">Precio</th><th class="pb-2 pr-3 text-right">Total</th><th class="pb-2 text-right">Acciones</th></tr></thead><tbody>' +
+          rows +
+          '</tbody></table></div>' +
+          '<p class="text-xs text-slate-500 mt-3">Editar abre el formulario del portfolio en otra pestaña. Al eliminar, vuelves a esta lista de metales.</p>';
+      })
+      .catch(function (e) {
+        err.textContent = (e && e.message) || 'Error de red';
+        err.classList.remove('hidden');
+        body.innerHTML = '';
+      });
+  };
+
+  window.metalesOpenTxDelete = function (id) {
+    var form = document.getElementById('metalesTxDeleteForm');
+    var desc = document.getElementById('metalesTxDeleteDesc');
+    var modal = document.getElementById('metalesTxDeleteModal');
+    if (!form || !modal) return;
+    form.action = '/portfolio/transactions/' + id + '/delete';
+    if (desc) {
+      desc.textContent = '¿Eliminar la operación #' + id + '? Se recalcula la posición. No se puede deshacer.';
+    }
+    modal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+  };
+
+  window.metalesCloseTxDelete = function () {
+    var m = document.getElementById('metalesTxDeleteModal');
+    if (m) m.classList.add('hidden');
+    var mov = document.getElementById('metalesMovimientosModal');
+    if (mov && !mov.classList.contains('hidden')) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+  };
+})();
+
 function startPriceUpdate() {
     const modal = document.getElementById('priceUpdateModal');
     const modalTitle = document.getElementById('modalTitle');

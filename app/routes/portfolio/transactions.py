@@ -310,6 +310,9 @@ def transaction_delete(id):
     CacheRebuildStateService.mark_for_dates(current_user.id, dates=[txn_date])
     
     flash(f'✅ Transacción de {asset_symbol} eliminada correctamente. Holdings recalculados.', 'success')
+    next_url = (request.form.get('next') or '').strip()
+    if next_url.startswith('/') and not next_url.startswith('//') and '..' not in next_url:
+        return redirect(next_url)
     return redirect(url_for('portfolio.transactions_list'))
 
 

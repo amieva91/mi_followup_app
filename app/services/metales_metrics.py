@@ -67,7 +67,13 @@ def get_metales_holdings(user_id: int):
     )
 
 
-def _position_to_dict(ps, holding=None, asset=None) -> Dict[str, Any]:
+def _position_to_dict(
+    ps,
+    holding=None,
+    asset=None,
+    account_id=None,
+    account_label=None,
+) -> Dict[str, Any]:
     """Convierte PositionSnapshot a dict para templates (retrocompatibilidad)."""
     d = {
         'symbol': ps.symbol,
@@ -84,6 +90,10 @@ def _position_to_dict(ps, holding=None, asset=None) -> Dict[str, Any]:
     # así que NO puede contener objetos SQLAlchemy (holding/asset).
     if asset is not None:
         d['asset_id'] = asset.id
+    if account_id is not None:
+        d['account_id'] = account_id
+    if account_label:
+        d['account_label'] = account_label
     return d
 
 
@@ -128,7 +138,21 @@ def compute_metales_metrics(user_id: int) -> Dict[str, Any]:
             current_price=price_eur_per_g,
         )
         positions.append(pos)
-        posiciones.append(_position_to_dict(pos, holding=h, asset=asset))
+        acc = h.account
+        account_label = ''
+        if acc:
+            account_label = (
+                f'{acc.broker.name} — {acc.account_name}' if acc.broker else acc.account_name
+            )
+        posiciones.append(
+            _position_to_dict(
+                pos,
+                holding=h,
+                asset=asset,
+                account_id=h.account_id,
+                account_label=account_label,
+            )
+        )
 
     snapshot = create_asset_category_snapshot(category='metales', positions=positions)
 

@@ -1,7 +1,7 @@
 """
 Rutas para el módulo Metales (metales preciosos - Commodity)
 """
-from flask import Blueprint, render_template, redirect, url_for, flash, request
+from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_required, current_user
 from datetime import datetime
 
@@ -27,6 +27,69 @@ def dashboard():
     """Dashboard de metales preciosos"""
     metrics = compute_metales_metrics(current_user.id)
     return render_template('metales/dashboard.html', metrics=metrics)
+
+
+@metales_bp.route('/api/movimientos')
+@login_required
+def api_movimientos():
+    """
+    JSON: transacciones BUY/SELL de un metal en una cuenta (para modal en dashboard metales).
+    """
+    account_id = request.args.get('account_id', type=int)
+    asset_id = request.args.get('asset_id', type=int)
+    if not account_id or not asset_id:
+        return jsonify({'ok': False, 'error': 'Indica account_id y asset_id.'}), 400
+
+    acc = BrokerAccount.query.filter_by(
+        id=account_id, user_id=current_user.id, is_active=True
+    ).first()
+    if not acc:
+        return jsonify({'ok': False, 'error': 'Cuenta no válida.'}), 404
+
+    asset = db.session.get(Asset, asset_id)
+    if not asset or asset.asset_type != 'Commodity' or (asset.symbol or '') not in PRECIOUS_METAL_YAHOO_SYMBOLS:
+        return jsonify({'ok': False, 'error': 'Activo no válido.'}), 404
+
+    txns = (
+        Transaction.query.filter_by(
+            user_id=current_user.id, account_id=account_id, asset_id=asset_id
+        )
+        .filter(Transaction.transaction_type.in_(('BUY', 'SELL')))
+        .order_by(Transaction.transaction_date.desc(), Transaction.id.desc())
+        .all()
+    )
+
+    account_label = (
+        f'{acc.broker.name} — {acc.account_name}' if acc.broker else acc.account_name
+    )
+    rows = []
+    for t in txns:
+        rows.append(
+            {
+                'id': t.id,
+                'date': t.transaction_date.strftime('%d/%m/%Y %H:%M')
+                if t.transaction_date
+                else '',
+                'type': t.transaction_type,
+                'quantity': t.quantity,
+                'price': t.price,
+                'amount': t.amount,
+                'currency': t.currency or 'EUR',
+                'commission': float(t.commission or 0),
+                'fees': float(t.fees or 0),
+                'edit_url': url_for('portfolio.transaction_edit', id=t.id),
+                'delete_url': url_for('portfolio.transaction_delete', id=t.id),
+            }
+        )
+
+    return jsonify(
+        {
+            'ok': True,
+            'account_label': account_label,
+            'asset_name': asset.name or asset.symbol,
+            'transactions': rows,
+        }
+    )
 
 
 @metales_bp.route('/nueva', methods=['GET', 'POST'])
