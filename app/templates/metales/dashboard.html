@@ -167,6 +167,7 @@
             <h3 id="modalTitle" class="text-lg font-semibold text-slate-900">Actualizando precios…</h3>
             <div id="spinner" class="animate-spin rounded-full h-6 w-6 border-2 border-teal-600 border-t-transparent" aria-hidden="true"></div>
         </div>
+        <p class="text-xs text-slate-500 mb-3">Solo metales preciosos de tus posiciones (futuros GC/SI/PL/PA en Yahoo).</p>
         <div class="mb-4">
             <div class="flex justify-between text-sm text-slate-600 mb-1">
                 <span id="progressText">0 / 0</span>
@@ -348,6 +349,7 @@ function startPriceUpdate() {
 
     const formData = new FormData();
     formData.append('csrf_token', document.querySelector('meta[name="csrf-token"]')?.content || document.querySelector('input[name="csrf_token"]')?.value || '');
+    formData.append('scope', 'metales');
 
     fetch('{{ url_for("portfolio.update_prices") }}', { method: 'POST', body: formData })
         .then(r => r.json())

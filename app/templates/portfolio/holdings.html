@@ -43,6 +43,14 @@
         font-size: 0.65rem;
         letter-spacing: 0.04em;
     }
+    #portfolio-holdings .app-modal-panel {
+        box-sizing: border-box;
+        border-radius: 1rem;
+        border: 1px solid rgba(63, 95, 115, 0.18);
+        background-color: #f0f5f6;
+        background-image: linear-gradient(145deg, #f8fbfc 0%, #e6eff1 100%);
+        box-shadow: 0 20px 45px rgba(15, 23, 42, 0.28);
+    }
     #portfolio-holdings .pf-info {
         display: inline-flex;
         align-items: center;
@@ -77,6 +85,10 @@
             <a href="{{ url_for('portfolio.transaction_new') }}" class="portfolio-touch-btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold shadow-[0_10px_20px_rgba(13,148,136,0.28)] w-full sm:w-auto">
                 📝 Nueva transacción
             </a>
+            <button type="button" onclick="startPriceUpdateHoldings()" class="portfolio-touch-btn inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-200 border border-slate-300 hover:bg-slate-300 text-slate-800 text-sm font-semibold w-full sm:w-auto">
+                <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                Actualizar precios
+            </button>
             <a href="{{ url_for('portfolio.dashboard') }}" class="portfolio-touch-btn inline-flex items-center justify-center px-4 py-2.5 bg-slate-200 border border-slate-300 rounded-xl hover:bg-slate-300 text-slate-800 text-sm font-semibold w-full sm:w-auto">
                 Dashboard
             </a>
@@ -254,6 +266,35 @@
 
     <div id="holdingsToast" class="hidden fixed bottom-4 right-4 z-[70] max-w-sm rounded-xl border border-slate-200/80 bg-white shadow-[0_16px_40px_rgba(15,23,42,0.2)] px-4 py-3 text-sm" role="status"></div>
 
+    <div id="priceUpdateModal" class="hidden fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55" onclick="if(event.target===this) closePriceModalHoldings()">
+        <div class="app-modal-panel w-full max-w-md p-5 sm:p-6" onclick="event.stopPropagation()">
+            <div class="flex items-center justify-between mb-4">
+                <h3 id="holdingsPriceModalTitle" class="text-lg font-semibold text-slate-900">Actualizando precios…</h3>
+                <div id="holdingsPriceSpinner" class="animate-spin rounded-full h-6 w-6 border-2 border-teal-600 border-t-transparent" aria-hidden="true"></div>
+            </div>
+            <div class="mb-4">
+                <div class="flex justify-between text-sm text-slate-600 mb-1">
+                    <span id="holdingsProgressText">0 / 0</span>
+                </div>
+                <div class="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                    <div id="holdingsProgressBar" class="bg-teal-600 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+            </div>
+            <p class="text-xs text-slate-500 mb-4">Solo acciones y ETFs de tu cartera (Yahoo).</p>
+            <div id="holdingsPriceResults" class="hidden mb-4">
+                <div class="text-sm text-slate-600 space-y-1">
+                    <div class="flex justify-between"><span>Actualizados</span><span id="holdingsSuccessCount" class="font-medium text-emerald-700">0</span></div>
+                    <div class="flex justify-between"><span>Fallidos</span><span id="holdingsFailedCount" class="font-medium text-rose-700">0</span></div>
+                    <div class="flex justify-between"><span>Omitidos</span><span id="holdingsSkippedCount" class="font-medium text-amber-700">0</span></div>
+                </div>
+            </div>
+            <div id="holdingsPriceError" class="hidden text-sm text-rose-700 mb-4"></div>
+            <div class="flex justify-end">
+                <button type="button" onclick="closePriceModalHoldings()" class="portfolio-touch-btn px-4 py-2 rounded-xl bg-slate-200 text-slate-800 font-semibold hover:bg-slate-300">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
     <div id="fixYahooModal" class="hidden fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55" onclick="if(event.target===this){closeFixYahoo();}">
         <div class="modal-surface w-full max-w-md p-5" onclick="event.stopPropagation()">
             <h3 class="text-lg font-semibold text-slate-900 mb-1">Corregir ticker (Yahoo)</h3>
@@ -276,6 +317,85 @@
         holdingsToastEl.classList.remove('hidden');
         setTimeout(function() { holdingsToastEl.classList.add('hidden'); }, 5000);
     }
+    function startPriceUpdateHoldings() {
+        const modal = document.getElementById('priceUpdateModal');
+        const modalTitle = document.getElementById('holdingsPriceModalTitle');
+        const spinner = document.getElementById('holdingsPriceSpinner');
+        const results = document.getElementById('holdingsPriceResults');
+        const errorMessage = document.getElementById('holdingsPriceError');
+        if (!modal) return;
+        modal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+        if (modalTitle) modalTitle.textContent = 'Actualizando precios…';
+        if (spinner) spinner.classList.remove('hidden');
+        const pb = document.getElementById('holdingsProgressBar');
+        const pt = document.getElementById('holdingsProgressText');
+        if (pb) pb.style.width = '0%';
+        if (pt) pt.textContent = '0 / 0';
+        if (results) results.classList.add('hidden');
+        if (errorMessage) { errorMessage.classList.add('hidden'); errorMessage.textContent = ''; }
+
+        const formData = new FormData();
+        formData.append('csrf_token', document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').content || document.querySelector('input[name="csrf_token"]') && document.querySelector('input[name="csrf_token"]').value || '');
+        formData.append('scope', 'holdings');
+
+        fetch('{{ url_for("portfolio.update_prices") }}', { method: 'POST', body: formData })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.status === 'started') pollHoldingsPriceProgress();
+                else if (errorMessage) {
+                    errorMessage.textContent = (data && data.error) ? data.error : 'Error al iniciar actualización';
+                    errorMessage.classList.remove('hidden');
+                }
+            })
+            .catch(function (err) {
+                if (errorMessage) {
+                    errorMessage.textContent = 'Error de red: ' + (err && err.message ? err.message : err);
+                    errorMessage.classList.remove('hidden');
+                }
+            });
+
+        function pollHoldingsPriceProgress() {
+            fetch('{{ url_for("portfolio.price_update_progress") }}')
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (data.total > 0 && pt && pb) {
+                        pb.style.width = (data.current / data.total * 100) + '%';
+                        pt.textContent = data.current + ' / ' + data.total;
+                    }
+                    if (data.status === 'completed' || data.status === 'failed' || data.status === 'error') {
+                        if (spinner) spinner.classList.add('hidden');
+                        if (data.status === 'completed') {
+                            if (modalTitle) modalTitle.textContent = 'Actualización completada';
+                            if (results) results.classList.remove('hidden');
+                            const r = data.result || {};
+                            const s = document.getElementById('holdingsSuccessCount');
+                            const f = document.getElementById('holdingsFailedCount');
+                            const k = document.getElementById('holdingsSkippedCount');
+                            if (s) s.textContent = data.success != null ? data.success : (r.success != null ? r.success : 0);
+                            if (f) f.textContent = data.failed != null ? data.failed : (r.failed != null ? r.failed : 0);
+                            if (k) k.textContent = data.skipped != null ? data.skipped : (r.skipped != null ? r.skipped : 0);
+                        } else {
+                            if (modalTitle) modalTitle.textContent = 'Error';
+                            if (errorMessage) {
+                                errorMessage.textContent = data.error || data.message || 'Error desconocido';
+                                errorMessage.classList.remove('hidden');
+                            }
+                        }
+                    } else {
+                        setTimeout(pollHoldingsPriceProgress, 500);
+                    }
+                })
+                .catch(function () { setTimeout(pollHoldingsPriceProgress, 1000); });
+        }
+    }
+    function closePriceModalHoldings() {
+        const m = document.getElementById('priceUpdateModal');
+        if (m) m.classList.add('hidden');
+        document.body.style.overflow = '';
+        window.location.reload();
+    }
+
     const modal = document.getElementById('fixYahooModal');
     const urlInput = document.getElementById('yahooUrlInput');
     const confirmBtn = document.getElementById('confirmFixBtn');
