@@ -18,7 +18,8 @@ class GeminiServiceError(Exception):
 
 def _get_api_key() -> Optional[str]:
     """Obtener API key de Gemini desde variables de entorno"""
-    return os.environ.get('GEMINI_API_KEY')
+    raw = os.environ.get('GEMINI_API_KEY')
+    return raw.strip() if raw else None
 
 
 def _get_model_flash() -> str:
