@@ -215,7 +215,11 @@ def transaction_edit(id):
         transaction.transaction_date = form.transaction_date.data
         transaction.quantity = form.quantity.data
         transaction.price = form.price.data
-        transaction.amount = form.quantity.data * form.price.data
+        # Mismo criterio que transaction_new: compra = flujo de caja negativo, venta = positivo
+        amount = (form.quantity.data or 0) * (form.price.data or 0)
+        if form.transaction_type.data == 'BUY':
+            amount = -amount
+        transaction.amount = amount
         transaction.currency = form.currency.data
         transaction.commission = form.commission.data
         transaction.fees = form.fees.data

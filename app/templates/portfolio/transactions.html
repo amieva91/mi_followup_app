@@ -339,13 +339,13 @@
                         <th onclick="sortTableTransactions(3, 'text')" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600 cursor-pointer hover:bg-slate-200/50">
                             Cuenta <span class="sort-arrow">⇅</span>
                         </th>
-                        <th onclick="sortTableTransactions(4, 'number')" class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-600 cursor-pointer hover:bg-slate-200/50">
+                        <th onclick="sortTableTransactions(4, 'number')" class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-600 cursor-pointer hover:bg-slate-200/50" title="En metales: gramos.">
                             Cantidad <span class="sort-arrow">⇅</span>
                         </th>
-                        <th onclick="sortTableTransactions(5, 'number')" class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-600 cursor-pointer hover:bg-slate-200/50">
+                        <th onclick="sortTableTransactions(5, 'number')" class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-600 cursor-pointer hover:bg-slate-200/50" title="Por unidad: en acciones/ETF es €/acción; en metales (Commodity) es €/gramo.">
                             Precio <span class="sort-arrow">⇅</span>
                         </th>
-                        <th onclick="sortTableTransactions(6, 'number')" class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-600 cursor-pointer hover:bg-slate-200/50">
+                        <th onclick="sortTableTransactions(6, 'number')" class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-600 cursor-pointer hover:bg-slate-200/50" title="Importe de la operación. Compras: salida de efectivo (suele ser negativo). El coste en FIFO usa |importe| + comisiones.">
                             Total <span class="sort-arrow">⇅</span>
                         </th>
                         <th onclick="sortTableTransactions(7, 'number')" class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-600 cursor-pointer hover:bg-slate-200/50">
@@ -406,6 +406,9 @@
                         <td class="px-6 py-4 whitespace-nowrap text-right">
                             {% if txn.price %}
                                 <div class="text-sm text-gray-900">{{ txn.price|decimal_eu(2) }} <span class="text-xs text-gray-600">{{txn.currency}}</span></div>
+                                {% if txn.asset and txn.asset.asset_type == 'Commodity' %}
+                                <div class="text-xs text-slate-500">€/g</div>
+                                {% endif %}
                             {% else %}
                                 <div class="text-sm text-gray-400">-</div>
                             {% endif %}
