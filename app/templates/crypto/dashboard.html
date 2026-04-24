@@ -101,16 +101,24 @@
                             <th class="px-4 py-3 text-right font-semibold uppercase">Valor</th>
                             <th class="px-4 py-3 text-right font-semibold uppercase">P&amp;L</th>
                             <th class="px-4 py-3 text-right font-semibold uppercase">Rewards</th>
+                            <th class="px-4 py-3 text-center font-semibold uppercase w-[1%] whitespace-nowrap">Acciones</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-200/80">
                         {% for p in metrics.posiciones %}
                         <tr class="hover:bg-teal-50/40 transition-colors">
                             <td class="px-4 py-3">
-                                {% if p.get('needs_yahoo_fix') and p.get('asset_id') %}
-                                <button type="button" class="fix-yahoo-btn text-amber-700 font-bold mr-1" title="Corregir ticker" data-asset-id="{{ p.asset_id }}" data-asset-name="{{ p.symbol|e }}">!</button>
-                                {% endif %}
-                                <span class="font-medium text-slate-900">{{ p.symbol }}</span>
+                                <div class="flex items-start gap-1">
+                                    {% if p.get('needs_yahoo_fix') and p.get('asset_id') %}
+                                    <button type="button" class="fix-yahoo-btn text-amber-700 font-bold shrink-0" title="Corregir ticker" data-asset-id="{{ p.asset_id }}" data-asset-name="{{ p.symbol|e }}">!</button>
+                                    {% endif %}
+                                    <div>
+                                        <span class="font-medium text-slate-900">{{ p.symbol }}</span>
+                                        {% if p.get('account_label') %}
+                                        <div class="text-xs text-slate-500 mt-0.5">{{ p.account_label }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
                             </td>
                             <td class="px-4 py-3 text-right text-sm text-slate-800 tabular-nums">{{ p.quantity|decimal_eu(4) }}</td>
                             <td class="px-4 py-3 text-right text-sm text-slate-700 tabular-nums">{{ (p.average_buy_price or (p.cost / p.quantity if p.quantity else 0))|decimal_eu(5) if (p.average_buy_price or p.quantity) else '—' }}</td>
@@ -119,6 +127,15 @@
                             <td class="px-4 py-3 text-right text-sm text-slate-800 tabular-nums price-cell" data-asset-id="{{ p.asset_id or '' }}" data-field="value">{{ p.value|decimal_eu(2) }} €</td>
                             <td class="px-4 py-3 text-right text-sm tabular-nums price-cell {% if p.pl >= 0 %}text-emerald-700{% else %}text-rose-700{% endif %}" data-asset-id="{{ p.asset_id or '' }}" data-field="pl">{% if p.pl >= 0 %}+{% endif %}{{ p.pl|decimal_eu(2) }} €<span class="text-xs"> ({% if p.pl_pct >= 0 %}+{% endif %}{{ p.pl_pct|decimal_eu(1) }}%)</span></td>
                             <td class="px-4 py-3 text-right text-sm text-violet-800 tabular-nums">{% if p.reward_quantity > 0 %}{{ p.reward_value|decimal_eu(2) }} €{% else %}—{% endif %}</td>
+                            <td class="px-3 py-2 text-center align-middle">
+                                {% if p.get('account_id') and p.get('asset_id') %}
+                                <div class="inline-flex flex-wrap items-center justify-center gap-1">
+                                    <button type="button" class="portfolio-touch-btn inline-flex items-center justify-center px-2.5 py-1.5 rounded-lg bg-slate-200 border border-slate-300 hover:bg-slate-300 text-slate-800 text-xs font-semibold" data-account-id="{{ p.account_id }}" data-asset-id="{{ p.asset_id }}" onclick="cryptoOpenMovimientos(this)">Movimientos</button>
+                                </div>
+                                {% else %}
+                                <span class="text-slate-400 text-xs">—</span>
+                                {% endif %}
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -168,7 +185,147 @@
     </div>
 </div>
 
+<div id="cryptoMovimientosModal" class="hidden fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55" onclick="if (event.target === this) cryptoCloseMovimientos()">
+    <div class="app-modal-panel w-full max-w-3xl max-h-[min(92vh,820px)] flex flex-col shadow-[0_20px_45px_rgba(15,23,42,0.28)]" onclick="event.stopPropagation()">
+        <div class="flex items-start justify-between gap-3 p-4 sm:p-5 border-b border-slate-200/80">
+            <div>
+                <h3 id="cryptoMovTitle" class="text-lg font-semibold text-slate-900">Movimientos</h3>
+                <p class="text-sm text-slate-500 mt-0.5">Compras y ventas registradas</p>
+            </div>
+            <button type="button" onclick="cryptoCloseMovimientos()" class="portfolio-touch-btn shrink-0 rounded-lg px-2.5 py-1.5 text-slate-600 hover:bg-slate-200 text-lg leading-none" aria-label="Cerrar">×</button>
+        </div>
+        <div id="cryptoMovError" class="hidden text-sm text-rose-700 px-4 sm:px-5 pt-3"></div>
+        <div id="cryptoMovBody" class="p-4 sm:p-5 overflow-y-auto flex-1 min-h-0">
+            <p class="text-sm text-slate-500">Cargando…</p>
+        </div>
+    </div>
+</div>
+
+<div id="cryptoTxDeleteModal" class="hidden fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55 overflow-y-auto" onclick="if (event.target === this) cryptoCloseTxDelete()">
+    <div class="app-modal-panel w-full max-w-md p-5 sm:p-6 my-4 relative z-10" onclick="event.stopPropagation()" role="dialog" aria-modal="true">
+        <div class="flex items-center justify-center h-11 w-11 rounded-full bg-rose-100 border border-rose-200/80 mx-auto ring-2 ring-white/50">
+            <span class="text-xl" aria-hidden="true">🗑️</span>
+        </div>
+        <h3 class="text-lg font-semibold text-slate-900 text-center mt-4">Eliminar transacción</h3>
+        <p class="text-sm text-center text-slate-700 mt-3" id="cryptoTxDeleteDesc">¿Seguro?</p>
+        <form id="cryptoTxDeleteForm" method="post" class="mt-5 space-y-2">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <input type="hidden" name="next" value="{{ url_for('crypto.dashboard') }}"/>
+            <button type="submit" class="portfolio-touch-btn w-full px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold shadow-md">Sí, eliminar</button>
+            <button type="button" onclick="cryptoCloseTxDelete()" class="portfolio-touch-btn w-full px-4 py-2.5 rounded-xl bg-slate-200 text-slate-800 text-sm font-semibold hover:bg-slate-300 border border-slate-300/80">Cancelar</button>
+        </form>
+    </div>
+</div>
+
 <script>
+(function () {
+  window.CRYPTO_MOV_API = {{ url_for('crypto.api_movimientos') | tojson }};
+
+  function cryptoFmt(n, maxd) {
+    if (n == null || n === '' || (typeof n === 'number' && isNaN(n))) return '—';
+    return Number(n).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: maxd != null ? maxd : 6 });
+  }
+
+  function cryptoEsc(s) {
+    if (s == null || s === undefined) return '';
+    var d = document.createElement('div');
+    d.textContent = String(s);
+    return d.innerHTML;
+  }
+
+  window.cryptoCloseMovimientos = function () {
+    var m = document.getElementById('cryptoMovimientosModal');
+    if (m) m.classList.add('hidden');
+    document.body.style.overflow = '';
+  };
+
+  window.cryptoOpenMovimientos = function (btn) {
+    var accountId = btn.getAttribute('data-account-id');
+    var assetId = btn.getAttribute('data-asset-id');
+    var modal = document.getElementById('cryptoMovimientosModal');
+    var body = document.getElementById('cryptoMovBody');
+    var err = document.getElementById('cryptoMovError');
+    var title = document.getElementById('cryptoMovTitle');
+    if (!modal || !body || !title) return;
+    err.classList.add('hidden');
+    err.textContent = '';
+    body.innerHTML = '<p class="text-sm text-slate-500">Cargando…</p>';
+    modal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    var u = new URL(window.CRYPTO_MOV_API, window.location.origin);
+    u.searchParams.set('account_id', accountId);
+    u.searchParams.set('asset_id', assetId);
+    fetch(u.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.ok) {
+          err.textContent = d.error || 'Error al cargar';
+          err.classList.remove('hidden');
+          body.innerHTML = '';
+          return;
+        }
+        title.textContent = d.asset_name + ' — ' + d.account_label;
+        if (!d.transactions || !d.transactions.length) {
+          body.innerHTML = '<p class="text-sm text-slate-600">No hay operaciones registradas para esta posición.</p>';
+          return;
+        }
+        var rows = d.transactions.map(function (t) {
+          var tipo = t.type === 'BUY' ? 'Compra' : (t.type === 'SELL' ? 'Venta' : t.type);
+          var badge = t.type === 'BUY' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800';
+          var ccy = t.currency || 'EUR';
+          return (
+            '<tr class="border-b border-slate-200/80 hover:bg-slate-50/80">' +
+            '<td class="py-2.5 pr-3 text-slate-800 whitespace-nowrap">' + cryptoEsc(t.date) + '</td>' +
+            '<td class="py-2.5 pr-3"><span class="px-2 py-0.5 rounded text-xs font-semibold ' + badge + '">' + cryptoEsc(tipo) + '</span></td>' +
+            '<td class="py-2.5 pr-3 text-right tabular-nums">' + cryptoFmt(t.quantity, 8) + ' ' + cryptoEsc(t.symbol || '') + '</td>' +
+            '<td class="py-2.5 pr-3 text-right tabular-nums text-slate-700">' + cryptoFmt(t.price, 8) + ' <span class="text-xs text-slate-500">' + cryptoEsc(ccy) + '/u</span></td>' +
+            '<td class="py-2.5 pr-3 text-right tabular-nums font-medium">' + cryptoFmt(t.amount, 4) + ' ' + cryptoEsc(ccy) + '</td>' +
+            '<td class="py-2.5 text-right whitespace-nowrap">' +
+            '<a href="' + String(t.edit_url).replace(/&/g, '&amp;') + '" class="text-teal-700 hover:underline text-xs font-semibold mr-2">Editar</a>' +
+            '<button type="button" class="text-rose-700 hover:underline text-xs font-semibold" onclick="cryptoOpenTxDelete(' + t.id + ')">Eliminar</button>' +
+            '</td></tr>'
+          );
+        }).join('');
+        body.innerHTML =
+          '<div class="overflow-x-auto rounded-xl border border-slate-200/80">' +
+          '<table class="min-w-full text-sm"><thead><tr class="text-left text-xs uppercase tracking-wide text-slate-500 border-b border-slate-200">' +
+          '<th class="pb-2 pr-3">Fecha</th><th class="pb-2 pr-3">Tipo</th><th class="pb-2 pr-3 text-right">Cant.</th><th class="pb-2 pr-3 text-right">Precio</th><th class="pb-2 pr-3 text-right">Importe</th><th class="pb-2 text-right">Acciones</th></tr></thead><tbody>' +
+          rows +
+          '</tbody></table></div>' +
+          '<p class="text-xs text-slate-500 mt-3">Editar abre el mismo formulario que «Nueva operación» en cryptomonedas, en esta ventana. Al eliminar, vuelves al dashboard de crypto.</p>';
+      })
+      .catch(function (e) {
+        err.textContent = (e && e.message) || 'Error de red';
+        err.classList.remove('hidden');
+        body.innerHTML = '';
+      });
+  };
+
+  window.cryptoOpenTxDelete = function (id) {
+    var form = document.getElementById('cryptoTxDeleteForm');
+    var desc = document.getElementById('cryptoTxDeleteDesc');
+    var modal = document.getElementById('cryptoTxDeleteModal');
+    if (!form || !modal) return;
+    form.action = '/portfolio/transactions/' + id + '/delete';
+    if (desc) {
+      desc.textContent = '¿Eliminar la operación #' + id + '? Se recalcula la posición. No se puede deshacer.';
+    }
+    modal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+  };
+
+  window.cryptoCloseTxDelete = function () {
+    var m = document.getElementById('cryptoTxDeleteModal');
+    if (m) m.classList.add('hidden');
+    var mov = document.getElementById('cryptoMovimientosModal');
+    if (mov && !mov.classList.contains('hidden')) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+  };
+})();
+
 function startPriceUpdate() {
     const modal = document.getElementById('priceUpdateModal');
     const modalTitle = document.getElementById('modalTitle');
