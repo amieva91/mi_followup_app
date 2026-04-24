@@ -8,7 +8,11 @@ from datetime import datetime
 from app import db
 from app.models import BrokerAccount, Asset, Transaction
 from app.forms.portfolio.account_forms import get_brokers_for_account_modal
-from app.services.metales_metrics import compute_metales_metrics, get_metales_holdings
+from app.services.metales_metrics import (
+    compute_metales_metrics,
+    ensure_precious_metal_assets,
+    PRECIOUS_METAL_YAHOO_SYMBOLS,
+)
 from app.services.currency_service import convert_to_eur
 
 # 1 oz troy = 31.1035 g
@@ -31,10 +35,16 @@ def transaction_new():
     """Nueva compra o venta de metal"""
     from app.forms.metales_forms import MetalTransactionForm
 
-    # Assets de metales disponibles
-    metals = Asset.query.filter_by(asset_type='Commodity').order_by(Asset.symbol).all()
+    # Solo oro, plata, platino, paladio (futuros Yahoo); asegurar filas en BD
+    ensure_precious_metal_assets()
+    metals = (
+        Asset.query.filter_by(asset_type='Commodity')
+        .filter(Asset.symbol.in_(PRECIOUS_METAL_YAHOO_SYMBOLS))
+        .order_by(Asset.symbol)
+        .all()
+    )
     if not metals:
-        flash('No hay metales configurados. Ejecuta el seed: docs/scripts/seed_metales.py', 'warning')
+        flash('No hay metales preciosos configurados. Contacta con soporte o ejecuta el seed: docs/scripts/seed_metales.py', 'warning')
         return redirect(url_for('metales.dashboard'))
 
     form = MetalTransactionForm()
@@ -52,7 +62,7 @@ def transaction_new():
     if form.validate_on_submit():
         account_id = int(form.account_id.data)
         metal = Asset.query.get(form.metal_id.data)
-        if not metal or metal.asset_type != 'Commodity':
+        if not metal or metal.asset_type != 'Commodity' or (metal.symbol or '') not in PRECIOUS_METAL_YAHOO_SYMBOLS:
             flash('Metal no válido', 'error')
             return redirect(url_for('metales.transaction_new'))
 
