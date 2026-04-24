@@ -24,7 +24,8 @@
             </div>
             <div class="mb-3">
                 <label class="block text-sm font-medium text-gray-700 mb-1">Nombre de la cuenta</label>
-                <input type="text" x-model="accountName" class="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500" placeholder="Ej: Principal, DEG" required>
+                {# Sin atributo required: este input vive dentro del formulario padre (metales/crypto); required bloquearía el envío del formulario principal. La validación va en submitAccount(). #}
+                <input type="text" x-model="accountName" class="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500" placeholder="Ej: Principal, DEG" autocomplete="off">
             </div>
             <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700 mb-1">Divisa base</label>
