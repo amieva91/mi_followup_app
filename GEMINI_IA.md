@@ -41,6 +41,8 @@ Las variables son opcionales. Si no se definen, se usan los valores por defecto.
 | `GEMINI_MODEL_TTS` | No | Modelo para audio TTS. Default: `gemini-3.1-flash-tts-preview` |
 | `GEMINI_AGENT_DEEP_RESEARCH` | No | Agente para informes Deep Research. Default: `deep-research-max-preview-04-2026` |
 
+No subas claves reales a Git ni a `env.example`. Si la API responde `403 PERMISSION_DENIED` con *Your API key was reported as leaked*, Google ha desactivado esa clave: crea otra en AI Studio o Cloud Console, actualiza el `.env` (local y VM) y borra o desactiva la clave antigua en la consola.
+
 ### 3.2 Dependencias
 
 ```
