@@ -1,6 +1,6 @@
-{# Fragmento reutilizable para tabla + paginación (usado por AJAX y render normal) #}
+{# Fragmento reutilizable para tabla + paginación (AJAX: debe incluir #transactionsTableBlock y #transactionsPagination) #}
 {% if transactions %}
-<div class="bg-white rounded-xl shadow-sm overflow-hidden">
+<div id="transactionsTableBlock" class="tx-table-wrap overflow-hidden" data-result-total="{{ pagination.total }}">
     <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
@@ -122,12 +122,15 @@
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-center">
                         <div class="flex items-center justify-center gap-2">
-                            <a href="{{ url_for('portfolio.transaction_edit', id=txn.id) }}" 
-                               class="inline-flex items-center px-3 py-1 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition text-sm font-medium">
+                            <a href="{{ url_for('portfolio.transaction_edit', id=txn.id) }}"
+                               class="inline-flex items-center px-3 py-1.5 bg-teal-50 text-teal-800 rounded-lg hover:bg-teal-100/80 transition text-sm font-medium border border-teal-100/80">
                                 ✏️ Editar
                             </a>
-                            <button onclick="confirmDelete({{ txn.id }}, '{{ txn.asset.symbol if txn.asset else txn.transaction_type }}')"
-                                    class="inline-flex items-center px-3 py-1 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition text-sm font-medium">
+                            <button type="button"
+                                    data-tx-id="{{ txn.id }}"
+                                    data-tx-label="{{ (txn.asset.symbol if txn.asset and txn.asset.symbol else (txn.asset.name if txn.asset else (txn.description[:40] if txn.description else txn.transaction_type)))|e }}"
+                                    onclick="openTxDeleteModal(this)"
+                                    class="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium border-2 border-rose-200/90 bg-rose-50 text-rose-900 shadow-sm hover:bg-rose-100 hover:border-rose-300 transition">
                                 🗑️ Eliminar
                             </button>
                         </div>
@@ -140,7 +143,7 @@
 </div>
 
 {% if pagination.pages > 1 %}
-<div class="mt-6 flex items-center justify-between">
+<div id="transactionsPagination" class="mt-6 flex items-center justify-between flex-wrap gap-3">
     <div class="text-sm text-gray-700">
         Mostrando <span class="font-medium">{{ pagination.per_page * (pagination.page - 1) + 1 }}</span> - 
         <span class="font-medium">{{ pagination.per_page * (pagination.page - 1) + pagination.items|length }}</span> 
@@ -191,12 +194,13 @@
 </div>
 {% endif %}
 {% else %}
-<div class="bg-white rounded-xl shadow-sm p-12 text-center">
+<div id="transactionsTableBlock" class="tx-table-wrap overflow-hidden portfolio-card p-12 text-center" data-result-total="0">
     <div class="text-6xl mb-4">🔍</div>
-    <h3 class="text-xl font-semibold text-gray-900 mb-2">No se encontraron transacciones</h3>
-    <p class="text-gray-600 mb-6">Prueba a ajustar los filtros o añadir nuevas transacciones.</p>
-    <a href="{{ url_for('portfolio.transaction_new') }}" class="btn-primary">
-        ➕ Añadir primera transacción
+    <h3 class="text-xl font-semibold text-slate-900 mb-2">No se encontraron transacciones</h3>
+    <p class="text-slate-600 mb-6">Prueba a ajustar los filtros o añadir nuevas transacciones.</p>
+    <a href="{{ url_for('portfolio.transaction_new') }}"
+       class="portfolio-touch-btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold">
+        ➕ Añadir transacción
     </a>
 </div>
 {% endif %}

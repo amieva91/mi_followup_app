@@ -151,7 +151,7 @@
                     ✖️ Limpiar filtros
                 </a>
                 <span id="transactionsCountBadge" class="inline-flex items-center px-4 py-2 rounded-xl text-sm font-medium border border-teal-200/80 bg-teal-50 text-teal-800">
-                    {{ transactions|length }} transacción/es
+                    {{ pagination.total }} transacción/es
                 </span>
             </div>
         </form>
@@ -209,9 +209,9 @@
                         }
                     }
                     
-                    searchTimeout = setTimeout(() => {
+                    searchTimeout = setTimeout(function () {
                         performSearch();
-                    }, 600); // 600ms de debounce para dar tiempo de escribir
+                    }, 300);
                 });
                 
                 // Permitir búsqueda con Enter (inmediata)
@@ -224,21 +224,23 @@
                 });
                 
                 function performSearch() {
-                    const formData = new FormData(form);
-                    const params = new URLSearchParams();
-                    
-                    // Recopilar todos los valores del formulario
-                    for (const [key, value] of formData.entries()) {
-                        if (value) {
-                            params.set(key, value);
+                    const params = new URLSearchParams(window.location.search);
+                    for (let i = 0; i < form.elements.length; i++) {
+                        const el = form.elements[i];
+                        if (!el.name) continue;
+                        if (el.type === 'checkbox') {
+                            if (el.checked) params.set(el.name, el.value);
+                            else params.delete(el.name);
+                        } else {
+                            if (el.value) params.set(el.name, el.value);
+                            else params.delete(el.name);
                         }
                     }
-                    
-                    // Crear nuevo AbortController para esta búsqueda
+                    params.set('page', '1');
+
                     searchAbortController = new AbortController();
-                    
-                    // Hacer petición AJAX
-                    fetch(`${form.action}?${params.toString()}`, {
+
+                    fetch(form.action + '?' + params.toString(), {
                         method: 'GET',
                         headers: {
                             'X-Requested-With': 'XMLHttpRequest'
@@ -246,45 +248,47 @@
                         signal: searchAbortController.signal
                     })
                     .then(response => response.text())
-                    .then(html => {
-                        // Crear un elemento temporal para parsear el HTML
+                    .then(function (html) {
                         const tempDiv = document.createElement('div');
                         tempDiv.innerHTML = html;
-                        
-                        // Extraer solo la tabla y paginación (fragmento)
                         const newTableContainer = tempDiv.querySelector('#transactionsTableBlock');
                         const newPagination = tempDiv.querySelector('#transactionsPagination');
-                        
+
                         if (newTableContainer && tableContainer) {
-                            // Reemplazar solo el contenido de la tabla
+                            const tot = newTableContainer.getAttribute('data-result-total');
                             tableContainer.innerHTML = newTableContainer.innerHTML;
+                            if (tot !== null && tot !== undefined) {
+                                tableContainer.setAttribute('data-result-total', tot);
+                            } else {
+                                tableContainer.removeAttribute('data-result-total');
+                            }
                         }
-                        
-                        // El fragmento AJAX no incluye el badge de contador; estimar por filas de la tabla actual.
+
                         if (transactionsCount && newTableContainer) {
-                            const rows = newTableContainer.querySelectorAll('tbody tr').length;
-                            transactionsCount.textContent = `${rows} transacción/es`;
+                            const tot = newTableContainer.getAttribute('data-result-total');
+                            if (tot !== null && tot !== undefined && tot !== '') {
+                                transactionsCount.textContent = tot + ' transacción/es';
+                            } else {
+                                const rows = newTableContainer.querySelectorAll('tbody tr').length;
+                                transactionsCount.textContent = rows + ' transacción/es';
+                            }
                         }
-                        
-                        // Actualizar paginación si existe
+
                         const paginationContainer = document.getElementById('transactionsPagination');
                         if (newPagination && paginationContainer) {
-                            paginationContainer.innerHTML = newPagination.innerHTML;
-                        } else if (newPagination && !paginationContainer) {
-                            // Si no existe paginación pero debería haberla, añadirla
-                            const tableParent = tableContainer.parentElement;
-                            if (tableParent) {
-                                tableParent.insertAdjacentElement('afterend', newPagination);
+                            if (typeof paginationContainer.replaceWith === 'function') {
+                                paginationContainer.replaceWith(newPagination);
+                            } else {
+                                paginationContainer.outerHTML = newPagination.outerHTML;
                             }
+                        } else if (newPagination && !paginationContainer && tableContainer) {
+                            tableContainer.insertAdjacentElement('afterend', newPagination);
                         } else if (!newPagination && paginationContainer) {
-                            // Si no debería haber paginación, eliminarla
                             paginationContainer.remove();
                         }
-                        
-                        // Actualizar URL sin recargar
-                        window.history.pushState({}, '', `${form.action}?${params.toString()}`);
-                        
-                        // Restaurar opacidad
+
+                        window.history.pushState({}, '', form.action + '?' + params.toString());
+
                         if (tableContainer) {
                             tableContainer.style.opacity = '1';
                         }
