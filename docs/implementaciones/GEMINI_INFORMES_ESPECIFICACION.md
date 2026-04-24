@@ -25,10 +25,10 @@ Integración de la API de Google Gemini en la aplicación para generar:
 
 - **API:** API de Interactions (no `generate_content`).
 - **Referencia:** [Gemini Deep Research - Documentación oficial](https://ai.google.dev/gemini-api/docs/deep-research?hl=es-419)
-- **Agente:** `deep-research-pro-preview-12-2025` (basado en Gemini 3 Pro)
+- **Agente:** `deep-research-max-preview-04-2026` (variante Max, máxima exhaustividad)
 - **Modo:** Ejecución en segundo plano obligatoria (`background=True`).
 - **Flujo:**
-  1. `client.interactions.create(input=..., agent='deep-research-pro-preview-12-2025', background=True)` → devuelve `interaction.id`
+  1. `client.interactions.create(input=..., agent='deep-research-max-preview-04-2026', background=True)` → devuelve `interaction.id`
   2. Poll con `client.interactions.get(interaction.id)` hasta `status == "completed"` o `"failed"`
   3. El resultado final está en `interaction.outputs[-1].text`
 - **Duración típica:** Varios minutos (hasta ~20–60 min).
@@ -38,7 +38,7 @@ Integración de la API de Google Gemini en la aplicación para generar:
 ### 2.2 Resumen "About the Company"
 
 - **API:** `generate_content` (API estándar de Gemini).
-- **Modelo sugerido:** `gemini-2.0-flash` o `gemini-1.5-flash` (respuesta rápida).
+- **Modelo sugerido:** `gemini-2.5-flash` (respuesta rápida); alternativas según la doc de Google.
 - **Modo:** Llamada síncrona única.
 - **Duración típica:** Segundos.
 - **Contexto del prompt:** Nombre, símbolo e ISIN del asset en la base de datos. No hay contexto extra introducido por el usuario.
@@ -282,7 +282,7 @@ Esto debe ejecutarse en la lógica que elimina ítems de la watchlist (por ejemp
 
 - Nuevos campos en `company_reports`: `audio_path`, `audio_status`, `audio_error_msg`, `audio_completed_at`.
 - Servicio: `app/services/gemini_service.py` → `generate_report_tts_audio()`.
-- Flujo: 1) Resumen corto con gemini-2.0-flash; 2) TTS con gemini-2.5-flash-preview-tts; 3) Guardar WAV en `output/reports_audio/`.
+- Flujo: 1) Resumen corto con gemini-2.5-flash; 2) TTS con gemini-3.1-flash-tts-preview; 3) Guardar WAV en `output/reports_audio/`.
 
 ---
 
@@ -306,9 +306,9 @@ google-genai>=1.0.0
 - `GEMINI_API_KEY`: Clave de API de Google AI / Gemini. Obligatoria para informes y audio TTS.
 - `MAIL_SERVER`, `MAIL_PORT`, `MAIL_USE_TLS`, `MAIL_USERNAME`, `MAIL_PASSWORD`: Para envío de informes por correo. Gmail requiere Contraseña de aplicación (no la contraseña normal).
 - **Modelos (opcionales)** – Si no se definen, se usan los valores por defecto. Útil para actualizar modelos sin tocar código:
-  - `GEMINI_MODEL_FLASH`: modelo para texto (About, resumen previo a TTS). Default: `gemini-2.0-flash`
-  - `GEMINI_MODEL_TTS`: modelo para generación de audio. Default: `gemini-2.5-flash-preview-tts`
-  - `GEMINI_AGENT_DEEP_RESEARCH`: agente para informes Deep Research. Default: `deep-research-pro-preview-12-2025`
+  - `GEMINI_MODEL_FLASH`: modelo para texto (About, resumen previo a TTS). Default: `gemini-2.5-flash`
+  - `GEMINI_MODEL_TTS`: modelo para generación de audio. Default: `gemini-3.1-flash-tts-preview`
+  - `GEMINI_AGENT_DEEP_RESEARCH`: agente para informes Deep Research. Default: `deep-research-max-preview-04-2026`
 - Comportamiento si GEMINI_API_KEY no está configurada: deshabilitar botones de generación y mostrar mensaje informativo.
 
 ### 8.3 Mejoras UX (Ene 2026)

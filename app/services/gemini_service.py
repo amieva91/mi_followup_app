@@ -22,18 +22,18 @@ def _get_api_key() -> Optional[str]:
 
 
 def _get_model_flash() -> str:
-    """Modelo para texto (About, resumen TTS). Default: gemini-2.0-flash"""
-    return os.environ.get('GEMINI_MODEL_FLASH') or 'gemini-2.0-flash'
+    """Modelo para texto (About, resumen TTS). Default: gemini-2.5-flash"""
+    return os.environ.get('GEMINI_MODEL_FLASH') or 'gemini-2.5-flash'
 
 
 def _get_model_tts() -> str:
-    """Modelo para generación de audio TTS. Default: gemini-2.5-flash-preview-tts"""
-    return os.environ.get('GEMINI_MODEL_TTS') or 'gemini-2.5-flash-preview-tts'
+    """Modelo para generación de audio TTS. Default: gemini-3.1-flash-tts-preview"""
+    return os.environ.get('GEMINI_MODEL_TTS') or 'gemini-3.1-flash-tts-preview'
 
 
 def _get_agent_deep_research() -> str:
-    """Agente para informes Deep Research. Default: deep-research-pro-preview-12-2025"""
-    return os.environ.get('GEMINI_AGENT_DEEP_RESEARCH') or 'deep-research-pro-preview-12-2025'
+    """Agente para informes Deep Research. Default: deep-research-max-preview-04-2026"""
+    return os.environ.get('GEMINI_AGENT_DEEP_RESEARCH') or 'deep-research-max-preview-04-2026'
 
 
 def is_gemini_available() -> bool:
@@ -217,8 +217,8 @@ Incluye las secciones que consideres relevantes para un inversor."""
 def generate_report_tts_audio(report_content: str, output_path: str) -> None:
     """
     Genera un audio TTS resumen del informe usando Gemini.
-    1. Usa gemini-2.0-flash para crear un resumen de 2-3 min lectura
-    2. Usa gemini-2.5-flash-preview-tts para generar audio
+    1. Usa gemini-2.5-flash para crear un resumen de 2-3 min lectura
+    2. Usa gemini-3.1-flash-tts-preview para generar audio
 
     Args:
         report_content: Contenido Markdown del informe

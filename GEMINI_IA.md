@@ -22,9 +22,9 @@ Todas las llamadas se realizan desde el backend. La API key nunca se expone al f
 
 | Uso | Variable de entorno | Modelo por defecto |
 |-----|---------------------|--------------------|
-| Texto (About, resumen previo a TTS) | `GEMINI_MODEL_FLASH` | `gemini-2.0-flash` |
-| Audio TTS | `GEMINI_MODEL_TTS` | `gemini-2.5-flash-preview-tts` |
-| Informes Deep Research | `GEMINI_AGENT_DEEP_RESEARCH` | `deep-research-pro-preview-12-2025` |
+| Texto (About, resumen previo a TTS) | `GEMINI_MODEL_FLASH` | `gemini-2.5-flash` |
+| Audio TTS | `GEMINI_MODEL_TTS` | `gemini-3.1-flash-tts-preview` |
+| Informes Deep Research | `GEMINI_AGENT_DEEP_RESEARCH` | `deep-research-max-preview-04-2026` |
 
 Las variables son opcionales. Si no se definen, se usan los valores por defecto. Permiten actualizar modelos sin cambiar código cuando Google lance nuevas versiones.
 
@@ -37,9 +37,9 @@ Las variables son opcionales. Si no se definen, se usan los valores por defecto.
 | Variable | Obligatoria | Descripción |
 |----------|-------------|-------------|
 | `GEMINI_API_KEY` | Sí | Clave para la API de Gemini. La forma más directa es [Google AI Studio](https://aistudio.google.com/apikey). También puedes usar una **clave de API** creada en [Google Cloud Console](https://console.cloud.google.com/apis/credentials) (p. ej. *FollowupAPIKey*) siempre que en ese proyecto tengas habilitada la API de **Generative Language** (o el producto que use `google-genai` en el código). Cópiala en el `.env` de la app o en variables del servicio: `GEMINI_API_KEY=...` |
-| `GEMINI_MODEL_FLASH` | No | Modelo para texto. Default: `gemini-2.0-flash` |
-| `GEMINI_MODEL_TTS` | No | Modelo para audio TTS. Default: `gemini-2.5-flash-preview-tts` |
-| `GEMINI_AGENT_DEEP_RESEARCH` | No | Agente para informes Deep Research. Default: `deep-research-pro-preview-12-2025` |
+| `GEMINI_MODEL_FLASH` | No | Modelo para texto. Default: `gemini-2.5-flash` |
+| `GEMINI_MODEL_TTS` | No | Modelo para audio TTS. Default: `gemini-3.1-flash-tts-preview` |
+| `GEMINI_AGENT_DEEP_RESEARCH` | No | Agente para informes Deep Research. Default: `deep-research-max-preview-04-2026` |
 
 ### 3.2 Dependencias
 
@@ -89,7 +89,7 @@ Si `GEMINI_API_KEY` no está configurada:
 
 1. Usuario pulsa "Generar resumen" en Overview del asset
 2. Backend valida: asset en watchlist
-3. Llamada síncrona a `generate_content` con `gemini-2.0-flash`
+3. Llamada síncrona a `generate_content` con `gemini-2.5-flash`
 4. Guardar en `asset_about_summary`
 5. Devolver al frontend
 
@@ -105,8 +105,8 @@ Si `GEMINI_API_KEY` no está configurada:
 
 1. Usuario pulsa "Generar audio resumen" en informe completado
 2. Thread en background:
-   - Resumen del informe con `gemini-2.0-flash`
-   - TTS con `gemini-2.5-flash-preview-tts` (voz Charon)
+   - Resumen del informe con `gemini-2.5-flash`
+   - TTS con `gemini-3.1-flash-tts-preview` (voz Charon)
    - Guardar WAV en `output/reports_audio/report_{id}.wav`
 3. Actualizar `company_reports.audio_path`, `audio_status=completed`
 

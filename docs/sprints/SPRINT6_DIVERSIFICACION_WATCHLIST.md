@@ -86,7 +86,7 @@ Implementar funcionalidades avanzadas de análisis de diversificación y gestió
 **Objetivos implementados**:
 
 1. **Generación de informes Deep Research** (API Gemini Interactions)
-   - Informes detallados sobre compañías usando el agente `deep-research-pro-preview-12-2025`
+   - Informes detallados sobre compañías usando el agente `deep-research-max-preview-04-2026`
    - Ejecución en segundo plano (varios minutos, hasta ~20-60 min)
    - Máximo 5 informes por (usuario, asset); al generar el 6º se elimina el más antiguo
    - Contenido en Markdown, renderizado a HTML en frontend (marked.js)
@@ -99,7 +99,7 @@ Implementar funcionalidades avanzadas de análisis de diversificación y gestió
 
 3. **Resumen "About the Company"**
    - Descripción corta (3-5 líneas) de qué hace la compañía
-   - API `generate_content` con `gemini-2.0-flash` (respuesta rápida, segundos)
+   - API `generate_content` con `gemini-2.5-flash` (respuesta rápida, segundos)
    - Sección en tab Overview del asset
    - Se sobrescribe al volver a generar
 
@@ -111,8 +111,8 @@ Implementar funcionalidades avanzadas de análisis de diversificación y gestió
 
 5. **Audio resumen TTS**
    - Botón "Generar audio resumen" en el detalle del informe
-   - Generación en segundo plano con Gemini 2.5 TTS (`gemini-2.5-flash-preview-tts`)
-   - Flujo: 1) Resumen corto del informe con `gemini-2.0-flash`; 2) TTS sobre ese resumen; 3) Guardar WAV en `output/reports_audio/`
+   - Generación en segundo plano con Gemini 3.1 Flash TTS (`gemini-3.1-flash-tts-preview`)
+   - Flujo: 1) Resumen corto del informe con `gemini-2.5-flash`; 2) TTS sobre ese resumen; 3) Guardar WAV en `output/reports_audio/`
    - Polling automático cada 4s hasta completar o fallar
    - Botón "Descargar audio" cuando está listo
 
