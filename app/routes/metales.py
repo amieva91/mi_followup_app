@@ -7,6 +7,7 @@ from datetime import datetime
 
 from app import db
 from app.models import BrokerAccount, Asset, Transaction
+from app.forms.portfolio.account_forms import get_brokers_for_account_modal
 from app.services.metales_metrics import compute_metales_metrics, get_metales_holdings
 from app.services.currency_service import convert_to_eur
 
@@ -92,4 +93,9 @@ def transaction_new():
         flash(f"✅ {'Compra' if form.transaction_type.data == 'BUY' else 'Venta'} registrada: {qty_g:.2f} g {metal.name}", 'success')
         return redirect(url_for('metales.dashboard'))
 
-    return render_template('metales/transaction_form.html', form=form, metals=metals)
+    return render_template(
+        'metales/transaction_form.html',
+        form=form,
+        metals=metals,
+        brokers_for_account_modal=get_brokers_for_account_modal(),
+    )

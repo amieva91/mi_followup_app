@@ -7,6 +7,7 @@ from flask_login import login_required, current_user
 
 from app import db
 from app.models import BrokerAccount, Asset, Transaction
+from app.forms.portfolio.account_forms import get_brokers_for_account_modal
 from app.services.crypto_metrics import compute_crypto_metrics
 
 crypto_bp = Blueprint('crypto', __name__, url_prefix='/crypto')
@@ -98,7 +99,11 @@ def transaction_new():
         flash(f"✅ {form.transaction_type.data} registrado: {qty} {symbol}", 'success')
         return redirect(url_for('crypto.dashboard'))
 
-    return render_template('crypto/transaction_form.html', form=form)
+    return render_template(
+        'crypto/transaction_form.html',
+        form=form,
+        brokers_for_account_modal=get_brokers_for_account_modal(),
+    )
 
 
 @crypto_bp.route('/import')
