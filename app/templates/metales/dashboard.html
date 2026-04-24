@@ -252,7 +252,7 @@
             '<td class="py-2.5 pr-3 text-right tabular-nums text-slate-700">' + metalesFmt(t.price) + ' <span class="text-xs text-slate-500">€/g</span></td>' +
             '<td class="py-2.5 pr-3 text-right tabular-nums font-medium">' + metalesFmt(t.amount) + ' ' + metalesEsc(t.currency || 'EUR') + '</td>' +
             '<td class="py-2.5 text-right whitespace-nowrap">' +
-            '<a href="' + String(t.edit_url).replace(/&/g, '&amp;') + '" target="_blank" rel="noopener" class="text-teal-700 hover:underline text-xs font-semibold mr-2">Editar</a>' +
+            '<a href="' + String(t.edit_url).replace(/&/g, '&amp;') + '" class="text-teal-700 hover:underline text-xs font-semibold mr-2">Editar</a>' +
             '<button type="button" class="text-rose-700 hover:underline text-xs font-semibold" onclick="metalesOpenTxDelete(' + t.id + ')">Eliminar</button>' +
             '</td></tr>'
           );
@@ -263,7 +263,7 @@
           '<th class="pb-2 pr-3">Fecha</th><th class="pb-2 pr-3">Tipo</th><th class="pb-2 pr-3 text-right">Cant.</th><th class="pb-2 pr-3 text-right">Precio</th><th class="pb-2 pr-3 text-right">Total</th><th class="pb-2 text-right">Acciones</th></tr></thead><tbody>' +
           rows +
           '</tbody></table></div>' +
-          '<p class="text-xs text-slate-500 mt-3">Editar abre el formulario del portfolio en otra pestaña. Al eliminar, vuelves a esta lista de metales.</p>';
+          '<p class="text-xs text-slate-500 mt-3">Editar abre el mismo formulario que «Nueva operación» en metales, en esta ventana. Al eliminar, vuelves a la lista de metales.</p>';
       })
       .catch(function (e) {
         err.textContent = (e && e.message) || 'Error de red';

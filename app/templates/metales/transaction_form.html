@@ -1,6 +1,6 @@
 {% extends "base/layout.html" %}
 
-{% block title %}Nueva Compra/Venta - Metales{% endblock %}
+{% block title %}{% if is_edit|default(false) %}Editar operación{% else %}Nueva compra/venta{% endif %} — Metales{% endblock %}
 
 {% block content %}
 <style>
@@ -15,8 +15,8 @@
 </style>
 <div id="metales-tx" class="max-w-3xl mx-auto px-4 py-8">
     <a href="{{ url_for('metales.dashboard') }}" class="text-teal-700 hover:underline text-sm font-medium mb-3 inline-block">← Volver a metales</a>
-    <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 mb-1">➕ Nueva operación</h1>
-    <p class="text-slate-600 text-sm sm:text-base mb-8">Oro, plata, platino o paladio</p>
+    <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 mb-1">{% if is_edit|default(false) %}✏️ Editar operación{% else %}➕ Nueva operación{% endif %}</h1>
+    <p class="text-slate-600 text-sm sm:text-base mb-8">{% if is_edit|default(false) %}Ajusta cantidad, importe, fecha u otros datos y guarda los cambios.{% else %}Oro, plata, platino o paladio{% endif %}</p>
 
     <div class="tx-card p-6 sm:p-8">
         <form method="POST" action="">
