@@ -548,6 +548,7 @@
         </div>
         <form id="txDeleteForm" method="POST" class="mt-5 space-y-2">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <input type="hidden" name="next" id="txDeleteNext" value=""/>
             <button type="submit" class="portfolio-touch-btn w-full px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold shadow-md">
                 Sí, eliminar
             </button>
@@ -642,6 +643,10 @@ function openTxDeleteModal(btn) {
     const modal = document.getElementById('txDeleteModal');
     if (!form || !desc || !modal || !id) return;
     form.action = '/portfolio/transactions/' + id + '/delete';
+    const nextInp = document.getElementById('txDeleteNext');
+    if (nextInp) {
+        nextInp.value = window.location.pathname + (window.location.search || '');
+    }
     desc.textContent = '¿Eliminar la operación de «' + label + '»? No se puede deshacer.';
     modal.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
