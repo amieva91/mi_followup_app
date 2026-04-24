@@ -10,7 +10,7 @@ La aplicación utiliza la API de **Google Gemini** para:
 
 | Funcionalidad | Descripción |
 |---------------|-------------|
-| **Resumen "About the Company"** | Descripción corta de la empresa (3-5 líneas) |
+| **Resumen "About the Company"** | Descripción informativa (~80-200 palabras: actividad, sector, mercados) |
 | **Informes Deep Research** | Informes de inversión detallados basados en plantillas |
 | **Audio TTS** | Resumen en audio del informe (text-to-speech) |
 
@@ -66,7 +66,7 @@ Si `GEMINI_API_KEY` no está configurada:
 
 | Función | Modo | Descripción |
 |---------|------|-------------|
-| `generate_about_summary(asset)` | Síncrono | Resumen corto "About the Company" |
+| `generate_about_summary(asset)` | Síncrono | Resumen "About the Company" (párrafo detallado) |
 | `run_deep_research_report(...)` | Asíncrono (poll) | Informe completo vía Interactions API |
 | `generate_report_tts_audio(content, path)` | Síncrono | Genera WAV del resumen en audio |
 
@@ -91,7 +91,7 @@ Si `GEMINI_API_KEY` no está configurada:
 
 1. Usuario pulsa "Generar resumen" en Overview del asset
 2. Backend valida: asset en watchlist
-3. Llamada síncrona a `generate_content` con `gemini-2.5-flash`
+3. Llamada síncrona a `generate_content` con `gemini-2.5-flash` (prompt orientado a varias frases; `max_output_tokens` 768)
 4. Guardar en `asset_about_summary`
 5. Devolver al frontend
 

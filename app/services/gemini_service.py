@@ -64,9 +64,13 @@ def generate_about_summary(asset) -> str:
     symbol = asset.symbol or ''
     isin = asset.isin or ''
 
-    prompt = f"""En 3-5 líneas, describe brevemente qué hace la empresa {name}.
+    prompt = f"""Escribe un resumen "About" de la empresa **{name}** para alguien que la ve en una cartera de inversión.
 Símbolo: {symbol or 'N/A'} | ISIN: {isin or 'N/A'}
-Respuesta concisa en español, sin introducciones."""
+
+Requisitos (español, solo cuerpo de texto, sin título ni saludos):
+- Entre 80 y 200 palabras, en varias frases o 2-3 párrafos breves. No basta con una sola oración.
+- Incluye qué hace la compañía (actividad, productos o servicios principales) y, si aplica, sector, tipo de clientes o mercados relevantes.
+- Evita muletillas genéricas; sé concreto. Si faltan datos públicos, indícalo con una frase al final sin inventar cifras."""
 
     try:
         from google import genai
@@ -83,8 +87,8 @@ Respuesta concisa en español, sin introducciones."""
                     model=_get_model_flash(),
                     contents=prompt,
                     config=types.GenerateContentConfig(
-                        temperature=0.3,
-                        max_output_tokens=256,
+                        temperature=0.35,
+                        max_output_tokens=768,
                     ),
                 )
                 if response and response.text:
