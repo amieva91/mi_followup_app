@@ -152,7 +152,7 @@
         </div>
         <h3 class="text-lg font-semibold text-slate-900 text-center mt-4">Eliminar transacción</h3>
         <p class="text-sm text-center text-slate-700 mt-3" id="metalesTxDeleteDesc">¿Seguro?</p>
-        <form id="metalesTxDeleteForm" method="post" class="mt-5 space-y-2">
+        <form id="metalesTxDeleteForm" method="post" class="mt-5 space-y-2" data-default-next="{{ url_for('metales.dashboard') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
             <input type="hidden" name="next" value="{{ url_for('metales.dashboard') }}"/>
             <button type="submit" class="portfolio-touch-btn w-full px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold shadow-md">Sí, eliminar</button>
@@ -192,6 +192,7 @@
 <script>
 (function () {
   window.METALES_MOV_API = {{ url_for('metales.api_movimientos') | tojson }};
+  window.METALES_DASH_URL = {{ url_for('metales.dashboard') | tojson }};
 
   function metalesFmt(n) {
     if (n == null || n === '' || (typeof n === 'number' && isNaN(n))) return '—';
@@ -214,6 +215,7 @@
   window.metalesOpenMovimientos = function (btn) {
     var accountId = btn.getAttribute('data-account-id');
     var assetId = btn.getAttribute('data-asset-id');
+    window.__metalesMovContext = { accountId: accountId, assetId: assetId };
     var modal = document.getElementById('metalesMovimientosModal');
     var body = document.getElementById('metalesMovBody');
     var err = document.getElementById('metalesMovError');
@@ -263,7 +265,7 @@
           '<th class="pb-2 pr-3">Fecha</th><th class="pb-2 pr-3">Tipo</th><th class="pb-2 pr-3 text-right">Cant.</th><th class="pb-2 pr-3 text-right">Precio</th><th class="pb-2 pr-3 text-right">Total</th><th class="pb-2 text-right">Acciones</th></tr></thead><tbody>' +
           rows +
           '</tbody></table></div>' +
-          '<p class="text-xs text-slate-500 mt-3">Editar abre el mismo formulario que «Nueva operación» en metales, en esta ventana. Al eliminar, vuelves a la lista de metales.</p>';
+          '<p class="text-xs text-slate-500 mt-3">Editar abre el mismo formulario que «Nueva operación» en metales, en esta ventana. Al eliminar, se actualiza la lista y este panel sigue abierto.</p>';
       })
       .catch(function (e) {
         err.textContent = (e && e.message) || 'Error de red';
@@ -277,6 +279,20 @@
     var desc = document.getElementById('metalesTxDeleteDesc');
     var modal = document.getElementById('metalesTxDeleteModal');
     if (!form || !modal) return;
+    var nextInp = form.querySelector('input[name="next"]');
+    var def = form.getAttribute('data-default-next') || window.METALES_DASH_URL || '/metales/';
+    if (nextInp) {
+      var ctx = window.__metalesMovContext;
+      if (ctx && ctx.accountId && ctx.assetId) {
+        var nu = new URL(window.METALES_DASH_URL || def, window.location.origin);
+        nu.searchParams.set('reopen_mov', '1');
+        nu.searchParams.set('account_id', String(ctx.accountId));
+        nu.searchParams.set('asset_id', String(ctx.assetId));
+        nextInp.value = nu.pathname + (nu.search || '');
+      } else {
+        nextInp.value = def;
+      }
+    }
     form.action = '/portfolio/transactions/' + id + '/delete';
     if (desc) {
       desc.textContent = '¿Eliminar la operación #' + id + '? Se recalcula la posición. No se puede deshacer.';
@@ -296,6 +312,24 @@
     }
   };
 })();
+
+function metalesTryReopenMovimientosFromQuery() {
+  var p = new URLSearchParams(window.location.search);
+  if (p.get('reopen_mov') !== '1') return;
+  var acc = p.get('account_id');
+  var aid = p.get('asset_id');
+  if (!acc || !aid) return;
+  if (window.history && window.history.replaceState) {
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+  var b = document.createElement('button');
+  b.setAttribute('data-account-id', acc);
+  b.setAttribute('data-asset-id', aid);
+  if (window.metalesOpenMovimientos) {
+    window.metalesOpenMovimientos(b);
+  }
+}
+metalesTryReopenMovimientosFromQuery();
 
 function startPriceUpdate() {
     const modal = document.getElementById('priceUpdateModal');
