@@ -36,7 +36,7 @@ Las variables son opcionales. Si no se definen, se usan los valores por defecto.
 
 | Variable | Obligatoria | Descripción |
 |----------|-------------|-------------|
-| `GEMINI_API_KEY` | Sí | Clave de API de Google AI. Obtener en [Google AI Studio](https://aistudio.google.com/apikey) |
+| `GEMINI_API_KEY` | Sí | Clave para la API de Gemini. La forma más directa es [Google AI Studio](https://aistudio.google.com/apikey). También puedes usar una **clave de API** creada en [Google Cloud Console](https://console.cloud.google.com/apis/credentials) (p. ej. *FollowupAPIKey*) siempre que en ese proyecto tengas habilitada la API de **Generative Language** (o el producto que use `google-genai` en el código). Cópiala en el `.env` de la app o en variables del servicio: `GEMINI_API_KEY=...` |
 | `GEMINI_MODEL_FLASH` | No | Modelo para texto. Default: `gemini-2.0-flash` |
 | `GEMINI_MODEL_TTS` | No | Modelo para audio TTS. Default: `gemini-2.5-flash-preview-tts` |
 | `GEMINI_AGENT_DEEP_RESEARCH` | No | Agente para informes Deep Research. Default: `deep-research-pro-preview-12-2025` |
