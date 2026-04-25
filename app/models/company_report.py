@@ -92,6 +92,7 @@ class CompanyReport(db.Model):
     audio_path = db.Column(db.String(500), nullable=True)  # ruta al archivo WAV
     audio_status = db.Column(db.String(20), nullable=True)  # pending, processing, completed, failed
     audio_error_msg = db.Column(db.Text, nullable=True)
+    audio_progress_json = db.Column(db.Text, nullable=True)  # JSON: pasos guion TTS (poll UI)
     audio_completed_at = db.Column(db.DateTime, nullable=True)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)

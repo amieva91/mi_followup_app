@@ -1,6 +1,7 @@
 """
 Rutas de asset registry, asset detail, reports y about
 """
+import json
 from pathlib import Path
 from flask import render_template, redirect, url_for, flash, request, jsonify, current_app, send_file, make_response
 from flask_login import login_required, current_user
@@ -20,6 +21,19 @@ from app.models import (
     DELISTING_TYPES,
     CompanyReport,
 )
+
+
+def _parse_audio_progress_json(raw):
+    """Parsea ``audio_progress_json`` de company_reports para la API / UI."""
+    if raw is None or raw == '':
+        return None
+    if isinstance(raw, dict):
+        return raw
+    try:
+        return json.loads(raw)
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return None
+
 
 @portfolio_bp.route('/asset-registry')
 @login_required
@@ -1109,6 +1123,7 @@ def asset_report_detail(id, report_id):
         'audio_path': getattr(report, 'audio_path', None),
         'audio_error_msg': getattr(report, 'audio_error_msg', None),
         'audio_completed_at': report.audio_completed_at.isoformat() if getattr(report, 'audio_completed_at', None) else None,
+        'audio_progress': _parse_audio_progress_json(getattr(report, 'audio_progress_json', None)),
     })
 
 
@@ -1228,8 +1243,25 @@ def asset_report_generate_audio(id, report_id):
             error_msg = None
             final_path = f'reports_audio/report_{report_id}.wav'
             now_str = datetime.utcnow().isoformat()
+            def _persist_audio_progress(pj: dict) -> None:
+                c = db.engine.connect()
+                try:
+                    c.execute(
+                        text('UPDATE company_reports SET audio_progress_json = :j WHERE id = :rid'),
+                        {'j': json.dumps(pj, ensure_ascii=False), 'rid': report_id},
+                    )
+                    c.commit()
+                except Exception:
+                    c.rollback()
+                finally:
+                    c.close()
+
             try:
-                generate_report_tts_audio(report_content, str(audio_path))
+                generate_report_tts_audio(
+                    report_content,
+                    str(audio_path),
+                    on_progress=_persist_audio_progress,
+                )
                 status = 'completed'
             except Exception as e:
                 error_msg = str(e)
@@ -1238,11 +1270,31 @@ def asset_report_generate_audio(id, report_id):
 
             conn2 = db.engine.connect()
             try:
-                conn2.execute(text("""
-                    UPDATE company_reports
-                    SET audio_status = :st, audio_error_msg = :err, audio_path = :path, audio_completed_at = :now
-                    WHERE id = :rid
-                """), {'st': status, 'err': error_msg, 'path': final_path if status == 'completed' else None, 'now': now_str if status == 'completed' else None, 'rid': report_id})
+                if status == 'completed':
+                    conn2.execute(
+                        text("""
+                        UPDATE company_reports
+                        SET audio_status = :st, audio_error_msg = NULL, audio_path = :path,
+                            audio_completed_at = :now, audio_progress_json = NULL
+                        WHERE id = :rid
+                    """),
+                        {
+                            'st': status,
+                            'path': final_path,
+                            'now': now_str,
+                            'rid': report_id,
+                        },
+                    )
+                else:
+                    conn2.execute(
+                        text("""
+                        UPDATE company_reports
+                        SET audio_status = 'failed', audio_error_msg = :err, audio_path = NULL,
+                            audio_completed_at = NULL
+                        WHERE id = :rid
+                    """),
+                        {'err': error_msg, 'rid': report_id},
+                    )
                 conn2.commit()
             except Exception:
                 conn2.rollback()
@@ -1277,11 +1329,15 @@ def asset_report_reset_audio(id, report_id):
 
     conn = db.engine.connect()
     try:
-        conn.execute(text("""
+        conn.execute(
+            text("""
             UPDATE company_reports
-            SET audio_status = NULL, audio_path = NULL, audio_error_msg = NULL, audio_completed_at = NULL
+            SET audio_status = NULL, audio_path = NULL, audio_error_msg = NULL,
+                audio_completed_at = NULL, audio_progress_json = NULL
             WHERE id = :rid
-        """), {'rid': report_id})
+        """),
+            {'rid': report_id},
+        )
         conn.commit()
     except Exception:
         conn.rollback()
@@ -1351,6 +1407,7 @@ def api_report_status(report_id):
         'audio_status': getattr(report, 'audio_status', None),
         'audio_path': getattr(report, 'audio_path', None),
         'audio_error_msg': getattr(report, 'audio_error_msg', None),
+        'audio_progress': _parse_audio_progress_json(getattr(report, 'audio_progress_json', None)),
     })
 
 

@@ -7,7 +7,7 @@ Servicio para integración con Google Gemini API.
 import os
 import time
 import logging
-from typing import Callable, Optional, Tuple
+from typing import Any, Callable, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -488,7 +488,32 @@ def _pcm_from_tts_response(response) -> bytes:
     return data
 
 
-def generate_report_tts_audio(report_content: str, output_path: str) -> None:
+def new_audio_progress_steps_state() -> list:
+    """Estado inicial de pasos (guion → TTS) para UI y persistencia en BD."""
+    return [
+        {
+            'id': 'script',
+            'title': 'Guion del podcast (Álex y Taylor)',
+            'status': 'loading',
+            'model': _get_model_podcast_script(),
+            'error': None,
+        },
+        {
+            'id': 'tts',
+            'title': 'Síntesis de voz (dos locutores, NotebookLM)',
+            'status': 'pending',
+            'model': _get_model_tts(),
+            'error': None,
+        },
+    ]
+
+
+def generate_report_tts_audio(
+    report_content: str,
+    output_path: str,
+    *,
+    on_progress: Optional[Callable[[dict], None]] = None,
+) -> None:
     """
     Genera un audio resumen estilo "NotebookLM": dos locutores en conversación (Álex y Taylor).
 
@@ -500,6 +525,8 @@ def generate_report_tts_audio(report_content: str, output_path: str) -> None:
     Args:
         report_content: Contenido Markdown del informe
         output_path: Ruta absoluta donde guardar el WAV
+        on_progress: Opcional. Recibe ``{"steps": [{id, title, status, model, error}, ...]}``
+            en cada transición (``status``: pending, loading, ok, error).
 
     Raises:
         GeminiServiceError: Si falla la generación
@@ -508,12 +535,42 @@ def generate_report_tts_audio(report_content: str, output_path: str) -> None:
     if not api_key:
         raise GeminiServiceError('GEMINI_API_KEY no configurada')
 
+    def emit(steps: list[Any]) -> None:
+        if on_progress:
+            on_progress({'steps': [dict(s) for s in steps]})
+
     try:
         from google import genai
 
         client = genai.Client(api_key=api_key)
-        script = generate_podcast_script_from_report(report_content, client)
-        _synthesize_multispeaker_podcast_wav(client, script, output_path)
+        steps = new_audio_progress_steps_state()
+        emit(steps)
+
+        try:
+            script = generate_podcast_script_from_report(report_content, client)
+        except Exception as e:
+            steps[0]['status'] = 'error'
+            steps[0]['error'] = (str(e) or 'Error')[:4000]
+            emit(steps)
+            raise
+
+        steps[0]['status'] = 'ok'
+        steps[0]['error'] = None
+        steps[1]['status'] = 'loading'
+        emit(steps)
+
+        try:
+            _synthesize_multispeaker_podcast_wav(client, script, output_path)
+        except Exception as e:
+            steps[1]['status'] = 'error'
+            steps[1]['error'] = (str(e) or 'Error')[:4000]
+            emit(steps)
+            raise
+
+        steps[1]['status'] = 'ok'
+        steps[1]['error'] = None
+        emit(steps)
+
         logger.info(
             'TTS podcast completado: %s (palabras guion~%s)',
             output_path,

@@ -417,6 +417,7 @@
                         <span id="reportAudioStatus" class="hidden px-3 py-1.5 rounded-xl text-sm"></span>
                         <a id="btnDownloadAudio" href="#" class="hidden portfolio-touch-btn px-3 py-1.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 text-sm no-underline" download>Descargar audio</a>
                     </div>
+                    <div id="reportAudioProgress" class="hidden mb-3 w-full text-sm" aria-live="polite"></div>
                     <div id="reportAudioPlayer" class="hidden mb-3">
                         <p class="text-sm text-gray-600 mb-1">Escuchar audio resumen:</p>
                         <audio id="audioPlayer" controls class="w-full max-w-md" preload="metadata"></audio>
@@ -605,6 +606,68 @@ function hideReportActionButtons() {
     const audioEl = document.getElementById('audioPlayer');
     if (audioPlayerWrap) audioPlayerWrap.classList.add('hidden');
     if (audioEl) { audioEl.src = ''; try { audioEl.load(); } catch (e) {} }
+    const ap = document.getElementById('reportAudioProgress');
+    if (ap) { ap.classList.add('hidden'); ap.innerHTML = ''; }
+}
+function escapeHtml(s) {
+    if (s == null || s === '') return '';
+    return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+function buildAudioProgressBlockHtml(steps) {
+    if (!steps || !steps.length) return '';
+    var out = [];
+    for (var i = 0; i < steps.length; i++) {
+        if (i > 0) {
+            out.push('<span class="text-slate-400 flex-shrink-0 self-center text-xs px-0.5" aria-hidden="true">--&gt;</span>');
+        }
+        var st = steps[i];
+        var icon = '';
+        if (st.status === 'ok') icon = '<span class="text-emerald-600" title="Completado">✓</span>';
+        else if (st.status === 'loading') icon = '<span class="inline-block w-3.5 h-3.5 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" title="En curso"></span>';
+        else if (st.status === 'error') icon = '<span class="text-red-600" title="Error">✗</span>';
+        else icon = '<span class="text-slate-300" title="Pendiente">○</span>';
+        var err = st.error ? '<div class="text-red-600 text-xs mt-1 max-w-lg leading-snug break-words">' + escapeHtml(st.error) + '</div>' : '';
+        var model = st.model ? ' <code class="text-slate-500 text-[0.7rem] align-baseline break-all">' + escapeHtml(st.model) + '</code>' : '';
+        out.push(
+            '<div class="inline-flex flex-col min-w-0 max-w-full sm:max-w-md flex-shrink">'
+            + '<div class="flex flex-wrap items-baseline gap-x-1.5">'
+            + icon + ' <span class="font-medium text-slate-800 text-sm">' + escapeHtml(st.title || st.id || '') + '</span>' + model
+            + '</div>' + err + '</div>'
+        );
+    }
+    return '<div class="bg-slate-50 border border-slate-200/90 rounded-xl p-3 shadow-sm">'
+        + '<p class="text-xs text-slate-500 mb-2">Generando audio (segundo plano; puedes salir y volver)</p>'
+        + '<div class="flex flex-col sm:flex-row sm:flex-wrap sm:items-start gap-2 sm:gap-x-1 sm:gap-y-2">'
+        + out.join('')
+        + '</div></div>';
+}
+function clearReportAudioProgressUI() {
+    const pb = document.getElementById('reportAudioProgress');
+    if (pb) { pb.classList.add('hidden'); pb.innerHTML = ''; }
+}
+function updateReportAudioProgressUI(data) {
+    const pb = document.getElementById('reportAudioProgress');
+    const legacy = document.getElementById('reportAudioStatus');
+    if (!data || !pb) return;
+    const ap = data.audio_progress;
+    const hasSteps = ap && ap.steps && ap.steps.length;
+    if (hasSteps && (data.audio_status === 'processing' || data.audio_status === 'failed')) {
+        if (legacy) { legacy.classList.add('hidden'); legacy.textContent = ''; }
+        pb.classList.remove('hidden');
+        pb.innerHTML = buildAudioProgressBlockHtml(ap.steps);
+        return;
+    }
+    pb.classList.add('hidden');
+    pb.innerHTML = '';
+    if (data.audio_status === 'processing' && legacy) {
+        legacy.classList.remove('hidden');
+        legacy.className = 'px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-800';
+        legacy.textContent = 'Generando audio…';
+    }
 }
 function updateReportDetailFromStatusPoll(reportId, data) {
     if (Number(currentReportId) !== Number(reportId)) return;
@@ -733,11 +796,7 @@ function startAudioStatusPolling(reportId) {
                 const btnAudio = document.getElementById('btnGenerateAudio');
                 const btnDownload = document.getElementById('btnDownloadAudio');
                 if (data.audio_status === 'processing') {
-                    if (audioStatus) {
-                        audioStatus.classList.remove('hidden');
-                        audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-800';
-                        audioStatus.textContent = 'Generando audio…';
-                    }
+                    updateReportAudioProgressUI(data);
                     if (btnAudio) btnAudio.classList.add('hidden');
                     return;
                 }
@@ -752,7 +811,10 @@ function startAudioStatusPolling(reportId) {
                 }
                 if (data.audio_status === 'failed') {
                     stopAudioStatusPolling(reportId);
-                    if (audioStatus) { audioStatus.classList.remove('hidden'); audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-red-100 text-red-800'; audioStatus.textContent = data.audio_error_msg || 'Error'; }
+                    updateReportAudioProgressUI(data);
+                    if (!data.audio_progress || !data.audio_progress.steps) {
+                        if (audioStatus) { audioStatus.classList.remove('hidden'); audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-red-100 text-red-800'; audioStatus.textContent = data.audio_error_msg || 'Error'; }
+                    }
                     const btnRetry = document.getElementById('btnRetryAudio');
                     if (btnRetry) { btnRetry.textContent = 'Reintentar audio'; btnRetry.classList.remove('hidden'); }
                     if (btnAudio) btnAudio.classList.add('hidden');
@@ -1048,14 +1110,11 @@ function loadReportDetail(reportId) {
                     else btnAudio.classList.add('hidden');
                 }
                 if (aSt === 'processing') {
-                    if (audioStatus) {
-                        audioStatus.classList.remove('hidden');
-                        audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-800';
-                        audioStatus.textContent = 'Generando audio…';
-                    }
                     if (btnAudio) btnAudio.classList.add('hidden');
+                    updateReportAudioProgressUI(data);
                     startAudioStatusPolling(reportId);
                 } else if (aSt === 'completed') {
+                    clearReportAudioProgressUI();
                     if (audioStatus) {
                         audioStatus.classList.remove('hidden');
                         audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-green-100 text-green-800';
@@ -1078,10 +1137,13 @@ function loadReportDetail(reportId) {
                         audioPlayerWrap.classList.remove('hidden');
                     }
                 } else if (aSt === 'failed') {
-                    if (audioStatus) {
-                        audioStatus.classList.remove('hidden');
-                        audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-red-100 text-red-800';
-                        audioStatus.textContent = data.audio_error_msg || 'Error al generar audio';
+                    updateReportAudioProgressUI(data);
+                    if (!data.audio_progress || !data.audio_progress.steps) {
+                        if (audioStatus) {
+                            audioStatus.classList.remove('hidden');
+                            audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-red-100 text-red-800';
+                            audioStatus.textContent = data.audio_error_msg || 'Error al generar audio';
+                        }
                     }
                     if (btnRetry) {
                         btnRetry.textContent = 'Reintentar audio';
@@ -1125,6 +1187,7 @@ function retryReportAudio() {
     .then(r => r.json())
     .then(data => {
         if (data.success) {
+            clearReportAudioProgressUI();
             if (audioStatus) { audioStatus.classList.add('hidden'); }
             if (btnRetry) btnRetry.classList.add('hidden');
             generateReportAudio();
@@ -1155,9 +1218,9 @@ function generateReportAudio() {
             if (data.audio_ready) {
                 loadReportDetail(currentReportId);
             } else {
-                if (audioStatus) { audioStatus.classList.remove('hidden'); audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-800'; audioStatus.textContent = 'Generando audio…'; }
                 if (btn) btn.classList.add('hidden');
                 startAudioStatusPolling(currentReportId);
+                loadReportDetail(currentReportId);
             }
         } else showToast(data.error || 'Error', 'error');
     })
