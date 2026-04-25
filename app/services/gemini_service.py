@@ -87,10 +87,11 @@ def generate_about_summary(asset) -> str:
     prompt = f"""Escribe un resumen "About" de la empresa **{name}** para alguien que la ve en una cartera de inversión.
 Símbolo: {symbol or 'N/A'} | ISIN: {isin or 'N/A'}
 
-Requisitos (español, solo cuerpo de texto, sin título ni saludos):
-- Entre 80 y 200 palabras, en varias frases o 2-3 párrafos breves. No basta con una sola oración.
-- Incluye qué hace la compañía (actividad, productos o servicios principales) y, si aplica, sector, tipo de clientes o mercados relevantes.
-- Evita muletillas genéricas; sé concreto. Si faltan datos públicos, indícalo con una frase al final sin inventar cifras."""
+Requisitos (español, sin saludos; salida en **Markdown mínimo** legible en pantalla):
+- Entre 80 y 200 palabras. Estructura sugerida: 1) un párrafo introductorio; 2) opcionalmente **una lista con viñetas** (2–4 ítems) bajo un subtítulo en **## Actividad** o similar, con puntos concretos (qué hace, mercados, segmento); 3) cierre con una frase si faltan datos públicos (sin inventar cifras).
+- Usa **negritas** en términos clave (producto, segmento, sede) para escaneo visual; no uses tablas; no uses bloques de código; no añadas H1; como mucho un **##** y **###** si hace falta.
+- Tono: claro, inversor; evita muletillas genéricas.
+- Sin título de documento al estilo "Informe" ni meta-comentarios al lector."""
 
     try:
         from google import genai

@@ -54,6 +54,33 @@
 .report-markdown hr { border: none; border-top: 1px solid #e5e7eb; margin: 1.5em 0; }
 .report-markdown code { background: #f3f4f6; padding: 0.15em 0.4em; border-radius: 4px; font-size: 0.9em; }
 
+/* Resumen "About the Company" — legible, escaneable, coherente con informes */
+.about-summary-box {
+    border-radius: 0.75rem;
+    border: 1px solid rgba(13, 148, 136, 0.18);
+    background: linear-gradient(165deg, rgba(255, 255, 255, 0.95) 0%, rgba(240, 253, 250, 0.55) 50%, rgba(241, 245, 249, 0.35) 100%);
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+.about-markdown { line-height: 1.7; color: #1e293b; }
+.about-markdown p { margin: 0 0 0.9em; line-height: 1.7; }
+.about-markdown p:last-child { margin-bottom: 0; }
+.about-markdown h2, .about-markdown h3 {
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #0d9488;
+    margin: 1.1em 0 0.5em;
+    padding-bottom: 0.2em;
+    border-bottom: 1px solid rgba(13, 148, 136, 0.2);
+}
+.about-markdown h2:first-child, .about-markdown h3:first-child { margin-top: 0; }
+.about-markdown ul, .about-markdown ol { margin: 0.4em 0 0.8em; padding-left: 1.15rem; }
+.about-markdown li { margin-bottom: 0.35em; }
+.about-markdown li::marker { color: #0d9488; }
+.about-markdown strong { color: #0f172a; font-weight: 600; }
+.about-markdown a { color: #0d9488; text-decoration: underline; text-underline-offset: 2px; }
+
 /* Portfolio activo: alineado con /portfolio (3D suave, KPI con borde lateral) */
 #portfolio-asset-detail .portfolio-card {
     background: linear-gradient(145deg, #f8fbfc 0%, #f1f7f8 100%);
@@ -251,7 +278,7 @@
                 <!-- About the Company -->
                 <div class="mt-8 asset-inner-panel p-4">
                     <div class="flex justify-between items-center mb-3">
-                        <div class="text-sm font-medium text-gray-700">About the Company</div>
+                        <div class="text-sm font-medium text-slate-800">About the Company</div>
                         {% if gemini_available %}
                         <button type="button" id="btnGenerateAbout" onclick="generateAboutSummary()" 
                                 class="portfolio-touch-btn px-3 py-1.5 bg-teal-600 text-white text-sm rounded-xl hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_8px_16px_rgba(13,148,136,0.25)]">
@@ -261,12 +288,14 @@
                         <span class="text-xs text-gray-400">GEMINI_API_KEY no configurada</span>
                         {% endif %}
                     </div>
-                    <div id="aboutSummaryContent" class="text-gray-800 whitespace-pre-wrap min-h-[60px]">
-                        {% if about_summary %}{{ about_summary }}{% else %}
-                        <span class="text-gray-400">Pulsa "Generar resumen" para obtener una descripción breve de la compañía.</span>
+                    <div class="about-summary-box p-4 sm:p-5 min-h-[72px]">
+                    <div id="aboutSummaryContent" class="about-markdown max-w-3xl min-h-[60px]">
+                        {% if about_summary %}{{ about_summary | about_markdown | safe }}{% else %}
+                        <span class="text-slate-400 text-sm leading-relaxed">Pulsa «Generar resumen» para obtener una descripción breve, con estructura clara y términos destacados.</span>
                         {% endif %}
                     </div>
-                    <div id="aboutSummaryLoading" class="hidden text-sm text-teal-600">Generando...</div>
+                    <div id="aboutSummaryLoading" class="hidden text-sm text-teal-600 mt-2">Generando…</div>
+                    </div>
                 </div>
             </div>
 
@@ -1031,12 +1060,22 @@ function generateAboutSummary() {
     .then(r => r.json())
     .then(data => {
         if (data.success) {
-            content.textContent = data.summary;
+            if (typeof marked !== 'undefined' && data.summary) {
+                content.className = 'about-markdown max-w-3xl min-h-[60px]';
+                content.innerHTML = marked.parse(String(data.summary), { gfm: true, breaks: true });
+            } else {
+                content.className = 'about-markdown max-w-3xl min-h-[60px] text-gray-800';
+                content.textContent = data.summary || '';
+            }
         } else {
+            content.className = 'about-markdown max-w-3xl min-h-[60px]';
             content.innerHTML = '<span class="text-red-600">' + (data.error || 'Error') + '</span>';
         }
     })
-    .catch(err => { content.innerHTML = '<span class="text-red-600">Error: ' + err + '</span>'; })
+    .catch(err => {
+        content.className = 'about-markdown max-w-3xl min-h-[60px]';
+        content.innerHTML = '<span class="text-red-600">Error: ' + err + '</span>';
+    })
     .finally(() => {
         btn.disabled = false;
         loading.classList.add('hidden');
