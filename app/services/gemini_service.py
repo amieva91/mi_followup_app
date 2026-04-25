@@ -313,7 +313,12 @@ def _strip_markdown_fences(text: str) -> str:
 
 PODCAST_SPEAKER_1 = 'Álex'
 PODCAST_SPEAKER_2 = 'Taylor'
-PODCAST_MAX_WORDS = 1200
+# Tope estricto de palabras (previo a TTS). Objetivo de audio ~5:30–6:00.
+PODCAST_MAX_WORDS = 900
+
+# Debe coincidir con nombres en el guion (Álex = masculina, Taylor = femenina en TTS)
+PODCAST_TTS_VOICE_ALEX = 'Charon'  # voz masculina
+PODCAST_TTS_VOICE_TAYLOR = 'Kore'  # voz femenina
 
 # Guion estilo NotebookLM: dos voces (nombres deben coincidir con MultiSpeakerVoiceConfig)
 PODCAST_SCRIPT_PROMPT = f"""Actúa como un productor de podcasts experto. Basándote en el informe de investigación adjunto, genera un guion de conversación entre dos anfitriones, **{PODCAST_SPEAKER_1}** y **{PODCAST_SPEAKER_2}**.
@@ -322,12 +327,12 @@ PODCAST_SCRIPT_PROMPT = f"""Actúa como un productor de podcasts experto. Basán
 1. **Tono:** Conversacional, animado y humano. Evita que parezca que están leyendo un documento.
 2. **Estructura:** {PODCAST_SPEAKER_1} suele introducir los temas y {PODCAST_SPEAKER_2} aporta detalles curiosos o explicaciones con analogías sencillas.
 3. **Dinámica:** Deben interrumpirse educadamente, usar muletillas naturales (como "ah", "claro", "mira") e incluir reacciones emocionales ligeras.
-4. **Etiquetas de audio:** Inserta etiquetas entre corchetes como [laughs], [short pause], [excited] o [thoughtful] en momentos clave (no abuses).
+4. **Etiquetas de audio (uso moderado):** Puedes usar [laughs], [short pause], [excited] o [thoughtful] solo cuando aporten. **No abuses de [long pause], [long silence] ni pausas largas:** añaden muchos segundos de silencio al reloj aunque no sumen a la cuenta de palabras. Si necesitas un respiro, prefiere [short pause] o ninguna.
 5. **Formato de salida (obligatorio):** Cada intervención en su propia línea, con prefijo exacto `{PODCAST_SPEAKER_1}:` o `{PODCAST_SPEAKER_2}:` (respetando mayúsculas y el acento en Álex). Ejemplo:
 {PODCAST_SPEAKER_1}: [entusiasta] ¡Hola a todos! Hoy tenemos un tema interesante…
 {PODCAST_SPEAKER_2}: [interesado] Claro, y lo que vimos en el informe te va a sorprender. [short pause] Empecemos con…
 
-6. **Extensión (crítico):** El guion completo, en español, debe tener **como máximo {PODCAST_MAX_WORDS} palabras** en total. Cuenta antes de entregar. Objetivo: ~6 minutos de audio a ritmo natural.
+6. **Extensión (crítico):** El guion completo, en español, debe tener **como máximo {PODCAST_MAX_WORDS} palabras** en total. Cuenta antes de entregar. Objetivo: aprox. **5:30 a 6:00 minutos** de audio a ritmo natural de conversación.
 
 No añadas título, introducción al lector ni markdown: **solo** las líneas del guion."""
 
@@ -342,9 +347,11 @@ def _shorten_podcast_script_if_needed(
         return script
     resp = client.models.generate_content(
         model=model,
-        contents=f"""Eres un editor de podcasts. El guion tiene {w} palabras; debe quedar en **máximo {max_words} palabras** en total.
-Conserva el tono, la estructura y los prefijos exactos "{PODCAST_SPEAKER_1}:" y "{PODCAST_SPEAKER_2}:" en cada intervención. Conserva [etiquetas] útiles.
-No añadas comentarios: solo el guion.
+        contents=f"""Eres un editor de podcasts. **Re-escritura obligatoria:** el guion tiene {w} palabras y debe quedar en **como mucho {max_words} palabras** en total (cuenta exacta tras escribir).
+- Acorta reescribiendo, no con listas; conserva el tono y los prefijos exactos "{PODCAST_SPEAKER_1}:" y "{PODCAST_SPEAKER_2}:" en cada intervención.
+- **Reduce o elimina** etiquetas de silencio largo: quita [long pause], [long silence] o varias [short pause] seguidas; sustituye por una [short pause] o nada. Las pausas largas alargan el audio minuto aunque no cuenten como palabra.
+- Conserva [laughs] [excited] etc. solo si son pocas y útiles.
+No añadas comentarios: **solo** el guion reescrito.
 
 GUIÓN:
 {script}
@@ -358,6 +365,26 @@ GUIÓN:
     if not resp or not resp.text:
         raise GeminiServiceError('No se pudo acortar el guion de podcast')
     return _strip_markdown_fences(resp.text.strip())
+
+
+def _ensure_script_at_most_words(
+    client, script: str, model: str, max_words: int, max_passes: int = 4
+) -> str:
+    """
+    Si el guion supera ``max_words``, fuerza re-escritura más corta (una o varias pasadas) antes del TTS.
+    """
+    s = script
+    for _ in range(max_passes):
+        n = _count_words(s)
+        if n <= max_words:
+            return s
+        s = _shorten_podcast_script_if_needed(client, s, model, max_words)
+    n = _count_words(s)
+    if n > max_words:
+        raise GeminiServiceError(
+            f'El guion sigue con {n} palabras (límite {max_words}) tras re-escribir. Prueba de nuevo o acorta el informe.'
+        )
+    return s
 
 
 def generate_podcast_script_from_report(report_content: str, client) -> str:
@@ -398,9 +425,9 @@ def generate_podcast_script_from_report(report_content: str, client) -> str:
                 raise GeminiServiceError(
                     f'El guion debe incluir diálogos con prefijos "{PODCAST_SPEAKER_1}:" y "{PODCAST_SPEAKER_2}:"'
                 )
-            script = _shorten_podcast_script_if_needed(client, script, model, PODCAST_MAX_WORDS)
+            script = _ensure_script_at_most_words(client, script, model, PODCAST_MAX_WORDS)
             if f'{PODCAST_SPEAKER_1}:' not in script or f'{PODCAST_SPEAKER_2}:' not in script:
-                raise GeminiServiceError('Tras acortar, el guion perdió el formato de hablantes')
+                raise GeminiServiceError('Tras re-escribir, el guion perdió el formato de hablantes')
             return script
         except GeminiServiceError:
             raise
@@ -416,12 +443,15 @@ def generate_podcast_script_from_report(report_content: str, client) -> str:
 
 
 def _synthesize_multispeaker_podcast_wav(client, script: str, output_path: str) -> None:
-    """Paso 2: TTS con gemini-3.1-flash-tts-preview y dos voces (Charon + Puck)."""
+    """Paso 2: TTS con gemini-3.1-flash-tts-preview: voces fijas (Charon masculina, Kore femenina)."""
     import wave
     from google.genai import types
 
     tts_user = f"""Escena: dos periodistas financieros en un estudio moderno. Estilo: dinámico y accesible para quien empieza en inversión.
-Interpreta el texto como conversación con dos hablantes, {PODCAST_SPEAKER_1} (voz informativa) y {PODCAST_SPEAKER_2} (más animada, analogías sencillas). Respeta las [etiquetas] entre corchetes.
+Interpreta el texto como conversación con **dos locutores distintos**:
+- {PODCAST_SPEAKER_1}: voz **masculina** (timbre Charon, tono informativo).
+- {PODCAST_SPEAKER_2}: voz **femenina** (timbre Kore, más animada, analogías sencillas).
+Respeta las [etiquetas] entre corchetes sin alargar silencios de forma exagerada.
 
 {script.strip()}"""
 
@@ -431,13 +461,17 @@ Interpreta el texto como conversación con dos hablantes, {PODCAST_SPEAKER_1} (v
                 types.SpeakerVoiceConfig(
                     speaker=PODCAST_SPEAKER_1,
                     voice_config=types.VoiceConfig(
-                        prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name='Charon')
+                        prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                            voice_name=PODCAST_TTS_VOICE_ALEX
+                        )
                     ),
                 ),
                 types.SpeakerVoiceConfig(
                     speaker=PODCAST_SPEAKER_2,
                     voice_config=types.VoiceConfig(
-                        prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name='Puck')
+                        prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                            voice_name=PODCAST_TTS_VOICE_TAYLOR
+                        )
                     ),
                 ),
             ]
@@ -500,7 +534,7 @@ def new_audio_progress_steps_state() -> list:
         },
         {
             'id': 'tts',
-            'title': 'Síntesis de voz (dos locutores, NotebookLM)',
+            'title': 'Síntesis TTS (Charon + Kore)',
             'status': 'pending',
             'model': _get_model_tts(),
             'error': None,
@@ -517,10 +551,11 @@ def generate_report_tts_audio(
     """
     Genera un audio resumen estilo "NotebookLM": dos locutores en conversación (Álex y Taylor).
 
-    1) Modelo de texto (``GEMINI_MODEL_PODCAST_SCRIPT`` / por defecto flash): guion con etiquetas
-       [laughs], [short pause], etc., máximo 1.200 palabras.
-    2) ``gemini-3.1-flash-tts-preview`` con ``MultiSpeakerVoiceConfig``: voces Charon (Álex) y
-       Puck (Taylor), una sola petición TTS (PCM 24 kHz mono → WAV).
+    1) Modelo de texto (``GEMINI_MODEL_PODCAST_SCRIPT`` / por defecto flash): guion con tope
+       de ~900 palabras; si se supera, re-escritura más corta (varias pasadas) antes de TTS.
+       Etiquetas de pausa larga desincentivadas en el prompt.
+    2) ``gemini-3.1-flash-tts-preview`` con ``MultiSpeakerVoiceConfig``: **Charon (Álex, masculina)** y
+       **Kore (Taylor, femenina)**, una petición TTS (PCM 24 kHz mono → WAV).
 
     Args:
         report_content: Contenido Markdown del informe
