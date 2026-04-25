@@ -413,7 +413,7 @@
                     <div id="reportDetailActions" class="flex flex-wrap gap-2 mb-3">
                         <button type="button" onclick="sendReportEmail()" id="btnSendReportEmail" class="hidden portfolio-touch-btn px-3 py-1.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 text-sm">Enviar por correo</button>
                         <button type="button" onclick="generateReportAudio()" id="btnGenerateAudio" class="hidden portfolio-touch-btn px-3 py-1.5 bg-slate-600 text-white rounded-xl hover:bg-slate-700 text-sm">Generar audio resumen</button>
-                        <button type="button" onclick="retryReportAudio()" id="btnRetryAudio" class="hidden portfolio-touch-btn px-3 py-1.5 bg-amber-500 text-white rounded-xl hover:bg-amber-600 text-sm">Reintentar audio</button>
+                        <button type="button" onclick="retryReportAudio()" id="btnRetryAudio" class="hidden portfolio-touch-btn px-3 py-1.5 bg-amber-500 text-white rounded-xl hover:bg-amber-600 text-sm" title="Borra el audio actual y genera de nuevo (p. ej. versión larga)">Reintentar / regenerar audio</button>
                         <span id="reportAudioStatus" class="hidden px-3 py-1.5 rounded-xl text-sm"></span>
                         <a id="btnDownloadAudio" href="#" class="hidden portfolio-touch-btn px-3 py-1.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 text-sm no-underline" download>Descargar audio</a>
                     </div>
@@ -851,6 +851,10 @@ function loadReportDetail(reportId) {
                     const audioBaseUrl = `/portfolio/asset/${ASSET_ID}/reports/${reportId}/audio`;
                     btnDownload.href = audioBaseUrl + '?download=1';
                     btnDownload.classList.remove('hidden');
+                    if (btnRetry) {
+                        btnRetry.textContent = 'Regenerar audio';
+                        btnRetry.classList.remove('hidden');
+                    }
                     const audioPlayerWrap = document.getElementById('reportAudioPlayer');
                     const audioEl = document.getElementById('audioPlayer');
                     if (audioPlayerWrap && audioEl) {
@@ -861,7 +865,10 @@ function loadReportDetail(reportId) {
                     audioStatus.classList.remove('hidden');
                     audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-red-100 text-red-800';
                     audioStatus.textContent = data.audio_error_msg || 'Error al generar audio';
-                    if (btnRetry) btnRetry.classList.remove('hidden');
+                    if (btnRetry) {
+                        btnRetry.textContent = 'Reintentar audio';
+                        btnRetry.classList.remove('hidden');
+                    }
                 }
             }
         });
@@ -877,7 +884,7 @@ function pollAudioStatus(reportId) {
             const btnRetry = document.getElementById('btnRetryAudio');
             const btnAudio = document.getElementById('btnGenerateAudio');
             if (audioStatus) { audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-amber-100 text-amber-800'; audioStatus.textContent = 'La generación tardó demasiado.'; }
-            if (btnRetry) btnRetry.classList.remove('hidden');
+            if (btnRetry) { btnRetry.textContent = 'Reintentar audio'; btnRetry.classList.remove('hidden'); }
             return;
         }
         fetch(`/portfolio/api/reports/${reportId}/status`)
@@ -906,7 +913,7 @@ function pollAudioStatus(reportId) {
                     clearInterval(interval);
                     if (audioStatus) { audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-red-100 text-red-800'; audioStatus.textContent = data.audio_error_msg || 'Error'; }
                     const btnRetry = document.getElementById('btnRetryAudio');
-                    if (btnRetry) btnRetry.classList.remove('hidden');
+                    if (btnRetry) { btnRetry.textContent = 'Reintentar audio'; btnRetry.classList.remove('hidden'); }
                 }
             });
     }, 4000);
