@@ -1151,7 +1151,9 @@ def asset_report_generate_audio(id, report_id):
     from flask import current_app
     import threading
 
-    asset = Asset.query.get_or_404(id)
+    asset = Asset.query.get(id)
+    if not asset:
+        return jsonify({'success': False, 'error': 'Asset no encontrado'}), 404
     if not _user_can_access_asset_reports(current_user.id, id):
         return jsonify({'success': False, 'error': 'No autorizado'}), 403
 
@@ -1159,7 +1161,9 @@ def asset_report_generate_audio(id, report_id):
         id=report_id,
         user_id=current_user.id,
         asset_id=id
-    ).first_or_404()
+    ).first()
+    if not report:
+        return jsonify({'success': False, 'error': 'Informe no encontrado'}), 404
 
     if report.status != 'completed':
         return jsonify({'success': False, 'error': 'Solo se puede generar audio de informes completados'}), 400
@@ -1181,6 +1185,9 @@ def asset_report_generate_audio(id, report_id):
 
     def _run_tts():
         with app_obj.app_context():
+            from sqlalchemy import text
+            from datetime import datetime
+
             conn = db.engine.connect()
             try:
                 conn.execute(text("""
@@ -1296,7 +1303,9 @@ def api_report_status(report_id):
     report = CompanyReport.query.filter_by(
         id=report_id,
         user_id=current_user.id
-    ).first_or_404()
+    ).first()
+    if not report:
+        return jsonify({'error': 'Informe no encontrado'}), 404
 
     return jsonify({
         'id': report.id,

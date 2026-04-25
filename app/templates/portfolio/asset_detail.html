@@ -881,8 +881,13 @@ function pollAudioStatus(reportId) {
             return;
         }
         fetch(`/portfolio/api/reports/${reportId}/status`)
-            .then(r => r.json())
+            .then(r => {
+                const ct = r.headers.get('Content-Type') || '';
+                if (!ct.includes('application/json')) { return null; }
+                return r.json();
+            })
             .then(data => {
+                if (!data) return;
                 const audioStatus = document.getElementById('reportAudioStatus');
                 const btnAudio = document.getElementById('btnGenerateAudio');
                 const btnDownload = document.getElementById('btnDownloadAudio');
@@ -952,14 +957,20 @@ function generateReportAudio() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN }
     })
-    .then(r => r.json())
+    .then(r => {
+        const ct = r.headers.get('Content-Type') || '';
+        if (!ct.includes('application/json')) {
+            return r.text().then(() => { throw new Error('El servidor no devolvió JSON (código ' + r.status + '). ¿Sesión caducada o ruta inválida? Recarga e inténtalo de nuevo.'); });
+        }
+        return r.json();
+    })
     .then(data => {
         if (data.success) {
             if (data.audio_ready) {
                 loadReportDetail(currentReportId);
             } else {
                 if (audioStatus) { audioStatus.classList.remove('hidden'); audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-800'; audioStatus.textContent = 'Generando audio...'; }
-                btn.classList.add('hidden');
+                if (btn) btn.classList.add('hidden');
                 pollAudioStatus(currentReportId);
             }
         } else showToast(data.error || 'Error', 'error');
