@@ -1147,7 +1147,8 @@ def asset_report_send_email(id, report_id):
 @csrf.exempt
 def asset_report_generate_audio(id, report_id):
     """Iniciar generación de audio TTS en background"""
-    from app.services.gemini_service import generate_report_tts_audio, GeminiServiceError, is_gemini_available
+    from app.models import CompanyReport
+    from app.services.gemini_service import generate_report_tts_audio, is_gemini_available
     from flask import current_app
     import threading
 
