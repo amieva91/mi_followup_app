@@ -38,6 +38,20 @@ def _get_model_podcast_script() -> str:
     return os.environ.get('GEMINI_MODEL_PODCAST_SCRIPT') or _get_model_flash()
 
 
+def _get_podcast_script_temperature() -> float:
+    """
+    Temperatura para el guion (NotebookLM). Por defecto ~0,82 (más natural; el límite va en el prompt).
+    Rango recomendado 0,7–1,0. Override: GEMINI_PODCAST_SCRIPT_TEMPERATURE.
+    """
+    raw = os.environ.get('GEMINI_PODCAST_SCRIPT_TEMPERATURE')
+    if raw is None or str(raw).strip() == '':
+        return 0.82
+    try:
+        return max(0.0, min(1.0, float(str(raw).strip().replace(',', '.'))))
+    except ValueError:
+        return 0.82
+
+
 def _get_agent_deep_research() -> str:
     """Agente para informes Deep Research. Default: deep-research-preview-04-2026 (más ágil; Max vía env)."""
     return os.environ.get('GEMINI_AGENT_DEEP_RESEARCH') or 'deep-research-preview-04-2026'
@@ -313,71 +327,85 @@ def _strip_markdown_fences(text: str) -> str:
 
 PODCAST_SPEAKER_1 = 'Álex'
 PODCAST_SPEAKER_2 = 'Taylor'
-# Tope estricto de palabras (previo a TTS). Objetivo de audio ~5:30–6:00.
-PODCAST_MAX_WORDS = 900
 
-# Debe coincidir con nombres en el guion (Álex = masculina, Taylor = femenina en TTS)
+# Presupuesto (español ~150 wpm, 6 min ≈ 900). Margen de seguridad antes de TTS.
+PODCAST_SCRIPT_TARGET_MIN = 850
+PODCAST_SCRIPT_TARGET_MAX = 900
+PODCAST_HARD_MAX_WORDS = 950
+# Tres actos: intro ~10 %, cuerpo ~80 %, cierre ~10 % (guía para el modelo, ~900 p. total)
+PODCAST_ACT1_WORDS_GUIDE = 90
+PODCAST_ACT2_WORDS_GUIDE = 720
+PODCAST_ACT3_WORDS_GUIDE = 90
+
+# Debe coincidir con nombres en el guion (TTS: Charon / Kore)
 PODCAST_TTS_VOICE_ALEX = 'Charon'  # voz masculina
 PODCAST_TTS_VOICE_TAYLOR = 'Kore'  # voz femenina
 
-# Guion estilo NotebookLM: dos voces (nombres deben coincidir con MultiSpeakerVoiceConfig)
-PODCAST_SCRIPT_PROMPT = f"""Actúa como un productor de podcasts experto. Basándote en el informe de investigación adjunto, genera un guion de conversación entre dos anfitriones, **{PODCAST_SPEAKER_1}** y **{PODCAST_SPEAKER_2}**.
+# Prompt maestro: planificación por segmentos, estilo Google / NotebookLM
+PODCAST_SCRIPT_PROMPT = f"""Actúa como un guionista profesional de podcasts. Tu misión es convertir el informe de Deep Research adjunto en un diálogo natural entre **{PODCAST_SPEAKER_1}** (hombre) y **{PODCAST_SPEAKER_2}** (mujer).
 
-**Reglas del guion:**
-1. **Tono:** Conversacional, animado y humano. Evita que parezca que están leyendo un documento.
-2. **Estructura:** {PODCAST_SPEAKER_1} suele introducir los temas y {PODCAST_SPEAKER_2} aporta detalles curiosos o explicaciones con analogías sencillas.
-3. **Dinámica:** Deben interrumpirse educadamente, usar muletillas naturales (como "ah", "claro", "mira") e incluir reacciones emocionales ligeras.
-4. **Etiquetas de audio (uso moderado):** Puedes usar [laughs], [short pause], [excited] o [thoughtful] solo cuando aporten. **No abuses de [long pause], [long silence] ni pausas largas:** añaden muchos segundos de silencio al reloj aunque no sumen a la cuenta de palabras. Si necesitas un respiro, prefiere [short pause] o ninguna.
-5. **Formato de salida (obligatorio):** Cada intervención en su propia línea, con prefijo exacto `{PODCAST_SPEAKER_1}:` o `{PODCAST_SPEAKER_2}:` (respetando mayúsculas y el acento en Álex). Ejemplo:
-{PODCAST_SPEAKER_1}: [entusiasta] ¡Hola a todos! Hoy tenemos un tema interesante…
-{PODCAST_SPEAKER_2}: [interesado] Claro, y lo que vimos en el informe te va a sorprender. [short pause] Empecemos con…
+**REGLAS DE ORO DE DURACIÓN (presupuesto de palabras):**
+1. **Límite estricto:** el guion debe situarse en **{PODCAST_SCRIPT_TARGET_MIN}–{PODCAST_SCRIPT_TARGET_MAX} palabras**. **Nunca** superes **{PODCAST_HARD_MAX_WORDS}** palabras.
+2. **Matemática:** en podcast conversacional en español (~150 palabras por minuto), unos **900 palabras** ≈ **6 minutos**. Planifica con ese “presupuesto” desde el primer borrador, no escribas de más pensando en recortar después.
+3. **Distribución en tres actos (orientación de tiempo):**
+   - **Acto 1 — Introducción (~10 %, ~{PODCAST_ACT1_WORDS_GUIDE} palabras):** gancho y presentación del tema (no más de **100** palabras en la práctica).
+   - **Acto 2 — Cuerpo (~80 %, ~{PODCAST_ACT2_WORDS_GUIDE} palabras):** **solo 3** puntos de hallazgo (los más impactantes; **no** intentes cubrir todo el informe).
+   - **Acto 3 — Cierre (~10 %, ~{PODCAST_ACT3_WORDS_GUIDE} palabras):** conclusión y despedida clara al oyente (reserva unas **80–100** palabras para el cierre con despedida natural).
+4. **Priorización:** profundizar en 3 ideas vale más que 10 comentarios superficiales.
 
-6. **Extensión (crítico):** El guion completo, en español, debe tener **como máximo {PODCAST_MAX_WORDS} palabras** en total. Cuenta antes de entregar. Objetivo: aprox. **5:30 a 6:00 minutos** de audio a ritmo natural de conversación.
+**REGLAS DE ESTILO (NotebookLM):**
+- **Voces:** usa los prefijos exactos **{PODCAST_SPEAKER_1}:** y **{PODCAST_SPEAKER_2}:** en cada intervención.
+- **Tono:** {PODCAST_SPEAKER_1} informativo y profesional. {PODCAST_SPEAKER_2} curiosa, con analogías sencillas.
+- **Naturalidad:** interrupciones breves (por ejemplo: «Espera, ¿dices que…?», «Exacto»), [laughs] y [sigh] con moderación.
+- **Pausas:** [short pause] entre cambios de tema. **PROHIBIDO** [long pause], [long silence] o silencios largos (desvían el cronómetro sin contar como palabra).
+- **Cierre:** el **último** turno debe ser una despedida clara hacia el oyente.
 
-No añadas título, introducción al lector ni markdown: **solo** las líneas del guion."""
+**Formato de salida:** una réplica por línea; **solo** el guion, sin título, sin markdown y sin comentarios al lector."""
 
 
-def _shorten_podcast_script_to_target(
+def _synthesis_reduce_script_for_tts(
     client,
     script: str,
     model: str,
-    target_words: int,
-    hard_max_words: int,
+    current_w: int,
 ) -> str:
     """
-    Re-escribe el guion hacia un ``target_words`` (meta agresiva). ``hard_max_words`` no debe superarse.
+    Reducción por síntesis: se pide reescribir apretando el cuerpo y manteniendo intro/cierre
+    (no recorte mecánico; solo si el guion > HARD_MAX).
     """
     from google.genai import types
 
-    w = _count_words(script)
-    if w <= hard_max_words:
+    if current_w <= PODCAST_HARD_MAX_WORDS:
         return script
-    tw = min(target_words, hard_max_words, max(1, w - 1))
+    intro_hint = f'{PODCAST_SPEAKER_1}:'  # ancla mínima para el modelo
     resp = client.models.generate_content(
         model=model,
-        contents=f"""Eres un editor de podcasts. Debes reescribir de forma MÁS CORTA.
+        contents=f"""Este guion de podcast tiene **{current_w} palabras**; es **demasiado largo** para nuestro audio (máximo **{PODCAST_HARD_MAX_WORDS}** palabras antes de TTS, ideal **{PODCAST_SCRIPT_TARGET_MIN}–{PODCAST_SCRIPT_TARGET_MAX}**).
 
-**Números (obligatorio):** El guion que recibes tiene {w} palabras. Debes entregar **como mucho {tw} palabras** en total, contando TODAS las palabras (incluido lo que vaya entre corchetes [ ]). **Bajo ningún concepto** el resultado final puede superar {hard_max_words} palabras.
+Tarea: **reducción por síntesis** (no resumas borrando palabra a palabra a lo brusco):
+1. Mantén la **introducción** (aprox. las primeras intervenciones hasta plantear el tema) lo más fiel en tono, pero puedes ajustar frases.
+2. Mantén el **cierre** y la **despedida final** (última intervención clara hacia el oyente) con la misma intención.
+3. **Aplica el ahorro principal al bloque central:** resume o fusiona el **segundo** o **tercer** hallazgo, elimina matices secundarios, recorta oraciones que repitan el informe.
+4. Cada réplica: prefijo **{PODCAST_SPEAKER_1}:** o **{PODCAST_SPEAKER_2}:**. Sin [long pause].
+5. El resultado final debe quedar en **{PODCAST_SCRIPT_TARGET_MIN}–{PODCAST_SCRIPT_TARGET_MAX}** palabras y **nunca** superar **{PODCAST_HARD_MAX_WORDS}** (cuenta al terminar).
 
-**Cómo acortar (prioridad):**
-1) Elimina repeticiones, digresiones y oraciones al final que no aporten.
-2) Si hace falta, omite matices secundarios y quédate con tesis, riesgo y cierre.
-3) Quita o reduce [long pause] / [long silence] / varias [short pause] seguidas.
-4) Cada réplica con prefijo en línea: "{PODCAST_SPEAKER_1}:" o "{PODCAST_SPEAKER_2}:" (exacto, con tilde en Álex).
+Ancla mínima de apertura (puede variar ligeramente): la primera intervención debería seguir comenzando con algo como una línea que empiece por «{intro_hint}».
 
-Solo el guion, sin comentario previo.
+Solo el guion reescrito.
 
-GUIÓN:
+---
+GUIÓN ACTUAL
+---
 {script}
 """,
         config=types.GenerateContentConfig(
-            temperature=0.12,
+            temperature=0.55,
             max_output_tokens=8192,
             thinking_config=types.ThinkingConfig(thinking_budget=0),
         ),
     )
     if not resp or not resp.text:
-        raise GeminiServiceError('No se pudo acortar el guion de podcast')
+        raise GeminiServiceError('No se pudo aplicar la reducción por síntesis al guion')
     return _strip_markdown_fences(resp.text.strip())
 
 
@@ -421,41 +449,31 @@ def _truncate_script_at_speaker_lines(script: str, max_words: int) -> str:
     return '\n\n'.join(out).strip()
 
 
-def _ensure_script_at_most_words(client, script: str, model: str, max_words: int) -> str:
+def _ensure_script_ready_for_tts(client, script: str, model: str) -> str:
     """
-    Re-escrituras con meta decreciente; si el modelo sigue errando, truncado mecánico.
+    Solo se envía a TTS si el guion tiene ≤ ``PODCAST_HARD_MAX_WORDS`` palabras.
+    Si el borrador inicial supera ese tope, se aplica **reducción por síntesis** (varias pasadas).
+    El truncado mecánico es solo emergencia (no deseado).
     """
     s = script
-    max_ai_passes = 10
-    for k in range(max_ai_passes):
+    for attempt in range(5):
         n = _count_words(s)
-        if n <= max_words:
+        if n <= PODCAST_HARD_MAX_WORDS:
             return s
-        # Meta cada vez más baja: ~35% de recorte o acercar al límite
-        if k < 3:
-            target = min(int(n * 0.65), int(max_words * 0.95))
-        elif k < 6:
-            target = min(int(n * 0.55), int(max_words * 0.88))
-        else:
-            target = int(max_words * 0.82)
-        target = max(80, min(target, max_words - 1))
-        before = n
-        s = _shorten_podcast_script_to_target(client, s, model, target, max_words)
-        after = _count_words(s)
-        if after >= before - 5:
-            logger.warning(
-                'Re-escritura poco efectiva: %s -> %s palabras (límite %s). Pasada %s',
-                before,
-                after,
-                max_words,
-                k + 1,
-            )
-    n = _count_words(s)
-    if n > max_words:
-        logger.warning(
-            'Aplicando truncado mecánico: %s palabras -> límite %s', n, max_words
+        logger.info(
+            'Guion %s palabras > límite %s; reducción por síntesis (intento %s)',
+            n,
+            PODCAST_HARD_MAX_WORDS,
+            attempt + 1,
         )
-        s = _truncate_script_at_speaker_lines(s, max_words)
+        s = _synthesis_reduce_script_for_tts(client, s, model, n)
+    n = _count_words(s)
+    if n > PODCAST_HARD_MAX_WORDS:
+        logger.error(
+            'Guion aún con %s palabras tras síntesis; truncado de emergencia (evitable con informe más corto)',
+            n,
+        )
+        s = _truncate_script_at_speaker_lines(s, PODCAST_HARD_MAX_WORDS)
     return s
 
 
@@ -483,7 +501,7 @@ def generate_podcast_script_from_report(report_content: str, client) -> str:
                 model=model,
                 contents=user_block,
                 config=types.GenerateContentConfig(
-                    temperature=0.45,
+                    temperature=_get_podcast_script_temperature(),
                     max_output_tokens=8192,
                     thinking_config=types.ThinkingConfig(thinking_budget=0),
                 ),
@@ -497,7 +515,7 @@ def generate_podcast_script_from_report(report_content: str, client) -> str:
                 raise GeminiServiceError(
                     f'El guion debe incluir diálogos con prefijos "{PODCAST_SPEAKER_1}:" y "{PODCAST_SPEAKER_2}:"'
                 )
-            script = _ensure_script_at_most_words(client, script, model, PODCAST_MAX_WORDS)
+            script = _ensure_script_ready_for_tts(client, script, model)
             if f'{PODCAST_SPEAKER_1}:' not in script or f'{PODCAST_SPEAKER_2}:' not in script:
                 raise GeminiServiceError('Tras re-escribir, el guion perdió el formato de hablantes')
             return script
@@ -599,7 +617,7 @@ def new_audio_progress_steps_state() -> list:
     return [
         {
             'id': 'script',
-            'title': 'Guion del podcast (Álex y Taylor)',
+            'title': 'Guion 3 actos (≤950 p., estilo NotebookLM)',
             'status': 'loading',
             'model': _get_model_podcast_script(),
             'error': None,
@@ -623,11 +641,11 @@ def generate_report_tts_audio(
     """
     Genera un audio resumen estilo "NotebookLM": dos locutores en conversación (Álex y Taylor).
 
-    1) Modelo de texto (``GEMINI_MODEL_PODCAST_SCRIPT`` / por defecto flash): guion con tope
-       de ~900 palabras; si se supera, re-escritura más corta (varias pasadas) antes de TTS.
-       Etiquetas de pausa larga desincentivadas en el prompt.
-    2) ``gemini-3.1-flash-tts-preview`` con ``MultiSpeakerVoiceConfig``: **Charon (Álex, masculina)** y
-       **Kore (Taylor, femenina)**, una petición TTS (PCM 24 kHz mono → WAV).
+    1) Guion con **presupuesto por segmentos** (tres actos, 850–900 p. objetivo, techo 950 p.):
+       temperatura configurable (``GEMINI_PODCAST_SCRIPT_TEMPERATURE``, p. ej. 0,82). Si el borrador
+       supera 950 palabras, **reducción por síntesis** (no recorte brusco por defecto).
+    2) ``gemini-3.1-flash-tts-preview`` con ``MultiSpeakerVoiceConfig``: **Charon (Álex)** y
+       **Kore (Taylor)**, ``response_modalities=['AUDIO']``, PCM 24 kHz mono → WAV.
 
     Args:
         report_content: Contenido Markdown del informe
