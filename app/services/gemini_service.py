@@ -337,27 +337,41 @@ PODCAST_SCRIPT_PROMPT = f"""Actúa como un productor de podcasts experto. Basán
 No añadas título, introducción al lector ni markdown: **solo** las líneas del guion."""
 
 
-def _shorten_podcast_script_if_needed(
-    client, script: str, model: str, max_words: int
+def _shorten_podcast_script_to_target(
+    client,
+    script: str,
+    model: str,
+    target_words: int,
+    hard_max_words: int,
 ) -> str:
+    """
+    Re-escribe el guion hacia un ``target_words`` (meta agresiva). ``hard_max_words`` no debe superarse.
+    """
     from google.genai import types
 
     w = _count_words(script)
-    if w <= max_words:
+    if w <= hard_max_words:
         return script
+    tw = min(target_words, hard_max_words, max(1, w - 1))
     resp = client.models.generate_content(
         model=model,
-        contents=f"""Eres un editor de podcasts. **Re-escritura obligatoria:** el guion tiene {w} palabras y debe quedar en **como mucho {max_words} palabras** en total (cuenta exacta tras escribir).
-- Acorta reescribiendo, no con listas; conserva el tono y los prefijos exactos "{PODCAST_SPEAKER_1}:" y "{PODCAST_SPEAKER_2}:" en cada intervención.
-- **Reduce o elimina** etiquetas de silencio largo: quita [long pause], [long silence] o varias [short pause] seguidas; sustituye por una [short pause] o nada. Las pausas largas alargan el audio minuto aunque no cuenten como palabra.
-- Conserva [laughs] [excited] etc. solo si son pocas y útiles.
-No añadas comentarios: **solo** el guion reescrito.
+        contents=f"""Eres un editor de podcasts. Debes reescribir de forma MÁS CORTA.
+
+**Números (obligatorio):** El guion que recibes tiene {w} palabras. Debes entregar **como mucho {tw} palabras** en total, contando TODAS las palabras (incluido lo que vaya entre corchetes [ ]). **Bajo ningún concepto** el resultado final puede superar {hard_max_words} palabras.
+
+**Cómo acortar (prioridad):**
+1) Elimina repeticiones, digresiones y oraciones al final que no aporten.
+2) Si hace falta, omite matices secundarios y quédate con tesis, riesgo y cierre.
+3) Quita o reduce [long pause] / [long silence] / varias [short pause] seguidas.
+4) Cada réplica con prefijo en línea: "{PODCAST_SPEAKER_1}:" o "{PODCAST_SPEAKER_2}:" (exacto, con tilde en Álex).
+
+Solo el guion, sin comentario previo.
 
 GUIÓN:
 {script}
 """,
         config=types.GenerateContentConfig(
-            temperature=0.2,
+            temperature=0.12,
             max_output_tokens=8192,
             thinking_config=types.ThinkingConfig(thinking_budget=0),
         ),
@@ -367,23 +381,81 @@ GUIÓN:
     return _strip_markdown_fences(resp.text.strip())
 
 
-def _ensure_script_at_most_words(
-    client, script: str, model: str, max_words: int, max_passes: int = 4
-) -> str:
+def _truncate_script_at_speaker_lines(script: str, max_words: int) -> str:
     """
-    Si el guion supera ``max_words``, fuerza re-escritura más corta (una o varias pasadas) antes del TTS.
+    Último recurso: recorta el guion por turnos, sin romper el prefijo de hablante.
+    """
+    p1 = f'{PODCAST_SPEAKER_1}:'
+    p2 = f'{PODCAST_SPEAKER_2}:'
+    out: list[str] = []
+    wcount = 0
+    for line in (script or '').split('\n'):
+        t = line.strip()
+        if not t:
+            continue
+        if t.startswith(p1):
+            rest = t[len(p1) :].strip()
+            pref = p1
+        elif t.startswith(p2):
+            rest = t[len(p2) :].strip()
+            pref = p2
+        else:
+            continue
+        rest_words = rest.split()
+        room = max_words - wcount
+        if room <= 0:
+            break
+        take = min(len(rest_words), room)
+        if take <= 0:
+            break
+        chunk = ' '.join(rest_words[:take])
+        if take < len(rest_words):
+            chunk = chunk + '…'
+        out.append(f'{pref} {chunk}')
+        wcount += take
+        if take < len(rest_words) or wcount >= max_words:
+            break
+    if not out and script:
+        words = (script or '').split()
+        return ' '.join(words[: max_words]) if words else script
+    return '\n\n'.join(out).strip()
+
+
+def _ensure_script_at_most_words(client, script: str, model: str, max_words: int) -> str:
+    """
+    Re-escrituras con meta decreciente; si el modelo sigue errando, truncado mecánico.
     """
     s = script
-    for _ in range(max_passes):
+    max_ai_passes = 10
+    for k in range(max_ai_passes):
         n = _count_words(s)
         if n <= max_words:
             return s
-        s = _shorten_podcast_script_if_needed(client, s, model, max_words)
+        # Meta cada vez más baja: ~35% de recorte o acercar al límite
+        if k < 3:
+            target = min(int(n * 0.65), int(max_words * 0.95))
+        elif k < 6:
+            target = min(int(n * 0.55), int(max_words * 0.88))
+        else:
+            target = int(max_words * 0.82)
+        target = max(80, min(target, max_words - 1))
+        before = n
+        s = _shorten_podcast_script_to_target(client, s, model, target, max_words)
+        after = _count_words(s)
+        if after >= before - 5:
+            logger.warning(
+                'Re-escritura poco efectiva: %s -> %s palabras (límite %s). Pasada %s',
+                before,
+                after,
+                max_words,
+                k + 1,
+            )
     n = _count_words(s)
     if n > max_words:
-        raise GeminiServiceError(
-            f'El guion sigue con {n} palabras (límite {max_words}) tras re-escribir. Prueba de nuevo o acorta el informe.'
+        logger.warning(
+            'Aplicando truncado mecánico: %s palabras -> límite %s', n, max_words
         )
+        s = _truncate_script_at_speaker_lines(s, max_words)
     return s
 
 
