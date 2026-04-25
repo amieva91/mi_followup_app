@@ -289,11 +289,67 @@ Incluye las secciones que consideres relevantes para un inversor."""
         raise GeminiServiceError(str(e))
 
 
+def _chunk_text_for_speech(text: str, max_chars: int = 2000) -> list[str]:
+    """
+    Parte texto largo para varias solicitudes TTS (la API limita duración por petición).
+    Respeta fin de frase cuando es posible.
+    """
+    text = (text or '').strip()
+    if not text:
+        return []
+    if len(text) <= max_chars:
+        return [text]
+    chunks: list[str] = []
+    rest = text
+    while rest:
+        if len(rest) <= max_chars:
+            chunks.append(rest.strip())
+            break
+        window = rest[:max_chars]
+        cut = max(
+            window.rfind('. '),
+            window.rfind('.\n'),
+            window.rfind('! '),
+            window.rfind('? '),
+            window.rfind('\n\n'),
+        )
+        if cut < max_chars // 3:
+            # Corte duro: exactamente max_chars caracteres
+            piece = rest[:max_chars].strip()
+            rest = rest[max_chars:].strip()
+        else:
+            piece = rest[: cut + 1].strip()
+            rest = rest[cut + 1 :].strip()
+        if piece:
+            chunks.append(piece)
+    return [c for c in chunks if c]
+
+
+def _pcm_from_tts_response(response) -> bytes:
+    """Extrae PCM crudo de una respuesta generate_content con modalidad AUDIO."""
+    import base64
+
+    parts = getattr(response, 'candidates', []) or []
+    if not parts:
+        raise GeminiServiceError('Respuesta TTS vacía')
+    content = parts[0].content
+    inner_parts = getattr(content, 'parts', []) or []
+    if not inner_parts:
+        raise GeminiServiceError('Respuesta TTS sin partes de audio')
+    inline = inner_parts[0].inline_data
+    data = getattr(inline, 'data', None)
+    if not data:
+        raise GeminiServiceError('No hay datos de audio en la respuesta')
+    if isinstance(data, str):
+        return base64.b64decode(data)
+    return data
+
+
 def generate_report_tts_audio(report_content: str, output_path: str) -> None:
     """
     Genera un audio TTS resumen del informe usando Gemini.
-    1. Usa gemini-2.5-flash para crear un resumen de 2-3 min lectura
-    2. Usa gemini-3.1-flash-tts-preview para generar audio
+    1. Modelo flash: resumen largo para leer en voz alta (varios minutos).
+    2. TTS: varias peticiones si hace falta (la API corta ~20–30 s por llamada) y se concatena PCM.
 
     Args:
         report_content: Contenido Markdown del informe
@@ -314,15 +370,14 @@ def generate_report_tts_audio(report_content: str, output_path: str) -> None:
 
         client = genai.Client(api_key=api_key)
 
-        # 1. Generar resumen corto para TTS (~500-800 palabras)
-        summary_prompt = f"""Resume el siguiente informe de investigación de inversiones en un texto fluido 
-para ser leído en voz alta. El resumen debe durar 2-3 minutos de lectura.
-Incluye las conclusiones más importantes y recomendaciones. 
-Texto directo, sin encabezados markdown ni listas con viñetas en el resultado.
-Solo texto corrido, en español.
+        # 1. Resumen para locución (más extenso; thinking off para no comerse el cupo)
+        summary_prompt = f"""Resume el siguiente informe de investigación de inversiones en un texto fluido
+para ser leído en voz alta. Objetivo: unos 4–8 minutos de lectura en voz (varios párrafos).
+Incluye conclusiones y matices útiles; no omitas matices por brevedad.
+Sin encabezados markdown, sin listas con viñetas: solo texto corrido en español.
 
 INFORME:
-{report_content[:12000]}
+{report_content[:20000]}
 """
 
         transcript = client.models.generate_content(
@@ -330,7 +385,8 @@ INFORME:
             contents=summary_prompt,
             config=types.GenerateContentConfig(
                 temperature=0.4,
-                max_output_tokens=1500,
+                max_output_tokens=6000,
+                thinking_config=types.ThinkingConfig(thinking_budget=0),
             ),
         )
         if not transcript or not transcript.text:
@@ -340,50 +396,53 @@ INFORME:
         if len(text_for_tts) < 100:
             raise GeminiServiceError('Resumen demasiado corto para generar audio')
 
-        # 2. Generar audio TTS
-        tts_prompt = f"Lee el siguiente resumen en tono profesional e informativo, pausado y claro:\n\n{text_for_tts}"
+        chunks = _chunk_text_for_speech(text_for_tts, max_chars=2000)
+        if not chunks:
+            raise GeminiServiceError('Texto TTS vacío tras trocear')
 
-        response = client.models.generate_content(
-            model=_get_model_tts(),
-            contents=tts_prompt,
-            config=types.GenerateContentConfig(
-                response_modalities=['AUDIO'],
-                speech_config=types.SpeechConfig(
-                    voice_config=types.VoiceConfig(
-                        prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name='Charon')
-                    )
+        all_pcm = bytearray()
+        for i, piece in enumerate(chunks):
+            tts_prompt = (
+                f"Lee el siguiente fragmento en tono profesional e informativo, claro y pausado. "
+                f"Es la parte {i + 1} de {len(chunks)} de un mismo resumen.\n\n{piece}"
+            )
+            response = client.models.generate_content(
+                model=_get_model_tts(),
+                contents=tts_prompt,
+                config=types.GenerateContentConfig(
+                    response_modalities=['AUDIO'],
+                    # Varias peticiones troceadas; por petición la API suele limitar ~20–40 s de audio
+                    max_output_tokens=16384,
+                    speech_config=types.SpeechConfig(
+                        voice_config=types.VoiceConfig(
+                            prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                                voice_name='Charon'
+                            )
+                        )
+                    ),
                 ),
-            ),
-        )
+            )
 
-        parts = getattr(response, 'candidates', []) or []
-        if not parts:
-            raise GeminiServiceError('Respuesta TTS vacía')
-        content = parts[0].content
-        inner_parts = getattr(content, 'parts', []) or []
-        if not inner_parts:
-            raise GeminiServiceError('Respuesta TTS sin partes de audio')
-        inline = inner_parts[0].inline_data
-        data = getattr(inline, 'data', None)
-        if not data:
-            raise GeminiServiceError('No hay datos de audio en la respuesta')
+            all_pcm.extend(_pcm_from_tts_response(response))
+            if i < len(chunks) - 1:
+                time.sleep(0.35)
 
-        # data puede ser bytes o base64
-        if isinstance(data, str):
-            import base64
-            pcm_data = base64.b64decode(data)
-        else:
-            pcm_data = data
+        if len(all_pcm) < 256:
+            raise GeminiServiceError('Audio generado demasiado corto o vacío')
 
-        # Guardar WAV: PCM 24kHz, 1 canal, 16-bit
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        os.makedirs(os.path.dirname(output_path) or '.', exist_ok=True)
         with wave.open(output_path, 'wb') as wf:
             wf.setnchannels(1)
             wf.setsampwidth(2)
             wf.setframerate(24000)
-            wf.writeframes(pcm_data)
+            wf.writeframes(bytes(all_pcm))
 
-        logger.info('Audio TTS guardado: %s', output_path)
+        logger.info(
+            'Audio TTS guardado: %s (chunks=%s, bytes_pcm=%s)',
+            output_path,
+            len(chunks),
+            len(all_pcm),
+        )
 
     except ImportError as e:
         raise GeminiServiceError(f'Paquete google-genai no instalado: {e}')
