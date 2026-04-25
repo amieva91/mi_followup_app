@@ -622,7 +622,12 @@ function buildAudioProgressBlockHtml(steps) {
     var out = [];
     for (var i = 0; i < steps.length; i++) {
         if (i > 0) {
-            out.push('<span class="text-slate-400 flex-shrink-0 self-center text-xs px-0.5" aria-hidden="true">--&gt;</span>');
+            out.push(
+                '<span class="flex-shrink-0 self-center flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-b from-white to-slate-50 border border-slate-200/90 text-slate-500 shadow-sm ring-1 ring-slate-200/50" aria-hidden="true" title="Siguiente paso">'
+                + '<svg class="h-3.5 w-3.5 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">'
+                + '<path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />'
+                + '</svg></span>'
+            );
         }
         var st = steps[i];
         var icon = '';
