@@ -2,12 +2,24 @@
 Rutas de asset registry, asset detail, reports y about
 """
 from pathlib import Path
-from flask import render_template, redirect, url_for, flash, request, jsonify, current_app, send_file
+from flask import render_template, redirect, url_for, flash, request, jsonify, current_app, send_file, make_response
 from flask_login import login_required, current_user
 
 from app.routes import portfolio_bp
 from app import db, csrf
-from app.models import BrokerAccount, Asset, PortfolioHolding, Transaction, Watchlist, AssetRegistry, AssetDelisting, DELISTING_TYPES
+from sqlalchemy import text, bindparam
+
+from app.models import (
+    BrokerAccount,
+    Asset,
+    PortfolioHolding,
+    Transaction,
+    Watchlist,
+    AssetRegistry,
+    AssetDelisting,
+    DELISTING_TYPES,
+    CompanyReport,
+)
 
 @portfolio_bp.route('/asset-registry')
 @login_required
@@ -738,7 +750,15 @@ def _get_report_audio_path(report):
         return None
     output_folder = current_app.config.get('OUTPUT_FOLDER') or (Path(__file__).resolve().parent.parent.parent / 'output')
     full_path = (Path(output_folder).resolve() / report.audio_path).resolve()
-    return full_path if full_path.exists() and full_path.is_file() else None
+    if not full_path.exists() or not full_path.is_file():
+        return None
+    try:
+        if full_path.stat().st_size < 256:
+            current_app.logger.warning('WAV demasiado pequeño o vacío: %s bytes %s', full_path.stat().st_size, full_path)
+            return None
+    except OSError:
+        return None
+    return full_path
 
 
 def _user_can_access_asset_reports(user_id, asset_id):
@@ -911,7 +931,6 @@ def asset_reports_generate(id):
         def run_report_background():
             """Hilo: usa conexión raw (sin sesión ORM) para evitar 'Instance is not bound to a Session'."""
             from datetime import datetime
-            from sqlalchemy import text, bindparam
 
             with app.app_context():
                 engine = db.engine
@@ -1064,9 +1083,9 @@ def asset_reports_list(id):
 @login_required
 def asset_report_detail(id, report_id):
     """Obtener un informe concreto"""
-    from app.models import CompanyReport
-
-    asset = Asset.query.get_or_404(id)
+    asset = Asset.query.get(id)
+    if not asset:
+        return jsonify({'error': 'Asset no encontrado'}), 404
     if not _user_can_access_asset_reports(current_user.id, id):
         return jsonify({'error': 'No autorizado'}), 403
 
@@ -1074,7 +1093,9 @@ def asset_report_detail(id, report_id):
         id=report_id,
         user_id=current_user.id,
         asset_id=id
-    ).first_or_404()
+    ).first()
+    if not report:
+        return jsonify({'error': 'Informe no encontrado'}), 404
 
     return jsonify({
         'id': report.id,
@@ -1098,7 +1119,9 @@ def asset_report_send_email(id, report_id):
     """Enviar informe por correo al usuario registrado"""
     from app.utils.email import send_report_email
 
-    asset = Asset.query.get_or_404(id)
+    asset = Asset.query.get(id)
+    if not asset:
+        return jsonify({'success': False, 'error': 'Asset no encontrado'}), 404
     if not _user_can_access_asset_reports(current_user.id, id):
         return jsonify({'success': False, 'error': 'No autorizado'}), 403
 
@@ -1106,7 +1129,9 @@ def asset_report_send_email(id, report_id):
         id=report_id,
         user_id=current_user.id,
         asset_id=id
-    ).first_or_404()
+    ).first()
+    if not report:
+        return jsonify({'success': False, 'error': 'Informe no encontrado'}), 404
 
     if report.status != 'completed':
         return jsonify({'success': False, 'error': 'Solo se pueden enviar informes completados'}), 400
@@ -1147,7 +1172,6 @@ def asset_report_send_email(id, report_id):
 @csrf.exempt
 def asset_report_generate_audio(id, report_id):
     """Iniciar generación de audio TTS en background"""
-    from app.models import CompanyReport
     from app.services.gemini_service import generate_report_tts_audio, is_gemini_available
     from flask import current_app
     import threading
@@ -1186,7 +1210,6 @@ def asset_report_generate_audio(id, report_id):
 
     def _run_tts():
         with app_obj.app_context():
-            from sqlalchemy import text
             from datetime import datetime
 
             conn = db.engine.connect()
@@ -1235,7 +1258,9 @@ def asset_report_generate_audio(id, report_id):
 @csrf.exempt
 def asset_report_reset_audio(id, report_id):
     """Resetear estado de audio para permitir reintentar (cuando falló o se quedó colgado)"""
-    asset = Asset.query.get_or_404(id)
+    asset = Asset.query.get(id)
+    if not asset:
+        return jsonify({'success': False, 'error': 'Asset no encontrado'}), 404
     if not _user_can_access_asset_reports(current_user.id, id):
         return jsonify({'success': False, 'error': 'No autorizado'}), 403
 
@@ -1243,7 +1268,9 @@ def asset_report_reset_audio(id, report_id):
         id=report_id,
         user_id=current_user.id,
         asset_id=id
-    ).first_or_404()
+    ).first()
+    if not report:
+        return jsonify({'success': False, 'error': 'Informe no encontrado'}), 404
 
     if report.status != 'completed':
         return jsonify({'success': False, 'error': 'Solo se puede resetear audio de informes completados'}), 400
@@ -1267,22 +1294,32 @@ def asset_report_reset_audio(id, report_id):
 @portfolio_bp.route('/asset/<int:id>/reports/<int:report_id>/audio')
 @login_required
 def asset_report_audio(id, report_id):
-    """Descargar o reproducir el audio TTS del informe"""
+    """Descargar o reproducir el audio TTS del informe.
+    No usar first_or_404: el <audio> del navegador no debe recibir HTML de error (provoca 0:00 y play desactivado)."""
     from flask import send_file
 
-    asset = Asset.query.get_or_404(id)
+    def _plain(msg: str, code: int):
+        r = make_response(msg, code)
+        r.mimetype = 'text/plain; charset=utf-8'
+        return r
+
+    asset = Asset.query.get(id)
+    if not asset:
+        return _plain('Not found', 404)
     if not _user_can_access_asset_reports(current_user.id, id):
-        return jsonify({'error': 'No autorizado'}), 403
+        return _plain('Forbidden', 403)
 
     report = CompanyReport.query.filter_by(
         id=report_id,
         user_id=current_user.id,
         asset_id=id
-    ).first_or_404()
+    ).first()
+    if not report:
+        return _plain('Not found', 404)
 
     full_path = _get_report_audio_path(report)
     if not full_path:
-        return jsonify({'error': 'Archivo de audio no encontrado'}), 404
+        return _plain('Audio not available or file missing', 404)
 
     # download=1 en query → forzar descarga; sin param → permitir reproducción en navegador
     force_download = request.args.get('download') == '1'
@@ -1299,8 +1336,6 @@ def asset_report_audio(id, report_id):
 @login_required
 def api_report_status(report_id):
     """Estado de un informe (para poll desde frontend)"""
-    from app.models import CompanyReport
-
     report = CompanyReport.query.filter_by(
         id=report_id,
         user_id=current_user.id

@@ -919,7 +919,13 @@ function sendReportEmail() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN }
     })
-    .then(r => r.json())
+    .then(r => {
+        const ct = r.headers.get('Content-Type') || '';
+        if (!ct.includes('application/json')) {
+            return r.text().then(() => { throw new Error('Respuesta no JSON (código ' + r.status + '). Revisa el servidor o la sesión.'); });
+        }
+        return r.json();
+    })
     .then(data => {
         if (data.success) showToast(data.message || 'Informe enviado correctamente', 'success');
         else showToast(data.error || 'Error al enviar', 'error');
