@@ -2,6 +2,7 @@
 Servicio para integración con Google Gemini API.
 - Resumen "About the Company": generate_content (rápido, síncrono)
 - Informe Deep Research: Interactions API (background, poll)
+- Audio informe: guion estilo podcast (texto) + TTS multi-locutor gemini-3.1-flash-tts-preview
 """
 import os
 import time
@@ -30,6 +31,11 @@ def _get_model_flash() -> str:
 def _get_model_tts() -> str:
     """Modelo para generación de audio TTS. Default: gemini-3.1-flash-tts-preview"""
     return os.environ.get('GEMINI_MODEL_TTS') or 'gemini-3.1-flash-tts-preview'
+
+
+def _get_model_podcast_script() -> str:
+    """Modelo de texto para guion estilo podcast (dos locutores). Default: mismo que flash."""
+    return os.environ.get('GEMINI_MODEL_PODCAST_SCRIPT') or _get_model_flash()
 
 
 def _get_agent_deep_research() -> str:
@@ -289,40 +295,177 @@ Incluye las secciones que consideres relevantes para un inversor."""
         raise GeminiServiceError(str(e))
 
 
-def _chunk_text_for_speech(text: str, max_chars: int = 2000) -> list[str]:
+def _count_words(text: str) -> int:
+    return len((text or '').split())
+
+
+def _strip_markdown_fences(text: str) -> str:
+    s = (text or '').strip()
+    if not s.startswith('```'):
+        return s
+    lines = s.split('\n')
+    if lines and lines[0].startswith('```'):
+        lines = lines[1:]
+    if lines and lines[-1].strip() == '```':
+        lines = lines[:-1]
+    return '\n'.join(lines).strip()
+
+
+PODCAST_SPEAKER_1 = 'Álex'
+PODCAST_SPEAKER_2 = 'Taylor'
+PODCAST_MAX_WORDS = 1200
+
+# Guion estilo NotebookLM: dos voces (nombres deben coincidir con MultiSpeakerVoiceConfig)
+PODCAST_SCRIPT_PROMPT = f"""Actúa como un productor de podcasts experto. Basándote en el informe de investigación adjunto, genera un guion de conversación entre dos anfitriones, **{PODCAST_SPEAKER_1}** y **{PODCAST_SPEAKER_2}**.
+
+**Reglas del guion:**
+1. **Tono:** Conversacional, animado y humano. Evita que parezca que están leyendo un documento.
+2. **Estructura:** {PODCAST_SPEAKER_1} suele introducir los temas y {PODCAST_SPEAKER_2} aporta detalles curiosos o explicaciones con analogías sencillas.
+3. **Dinámica:** Deben interrumpirse educadamente, usar muletillas naturales (como "ah", "claro", "mira") e incluir reacciones emocionales ligeras.
+4. **Etiquetas de audio:** Inserta etiquetas entre corchetes como [laughs], [short pause], [excited] o [thoughtful] en momentos clave (no abuses).
+5. **Formato de salida (obligatorio):** Cada intervención en su propia línea, con prefijo exacto `{PODCAST_SPEAKER_1}:` o `{PODCAST_SPEAKER_2}:` (respetando mayúsculas y el acento en Álex). Ejemplo:
+{PODCAST_SPEAKER_1}: [entusiasta] ¡Hola a todos! Hoy tenemos un tema interesante…
+{PODCAST_SPEAKER_2}: [interesado] Claro, y lo que vimos en el informe te va a sorprender. [short pause] Empecemos con…
+
+6. **Extensión (crítico):** El guion completo, en español, debe tener **como máximo {PODCAST_MAX_WORDS} palabras** en total. Cuenta antes de entregar. Objetivo: ~6 minutos de audio a ritmo natural.
+
+No añadas título, introducción al lector ni markdown: **solo** las líneas del guion."""
+
+
+def _shorten_podcast_script_if_needed(
+    client, script: str, model: str, max_words: int
+) -> str:
+    from google.genai import types
+
+    w = _count_words(script)
+    if w <= max_words:
+        return script
+    resp = client.models.generate_content(
+        model=model,
+        contents=f"""Eres un editor de podcasts. El guion tiene {w} palabras; debe quedar en **máximo {max_words} palabras** en total.
+Conserva el tono, la estructura y los prefijos exactos "{PODCAST_SPEAKER_1}:" y "{PODCAST_SPEAKER_2}:" en cada intervención. Conserva [etiquetas] útiles.
+No añadas comentarios: solo el guion.
+
+GUIÓN:
+{script}
+""",
+        config=types.GenerateContentConfig(
+            temperature=0.2,
+            max_output_tokens=8192,
+            thinking_config=types.ThinkingConfig(thinking_budget=0),
+        ),
+    )
+    if not resp or not resp.text:
+        raise GeminiServiceError('No se pudo acortar el guion de podcast')
+    return _strip_markdown_fences(resp.text.strip())
+
+
+def generate_podcast_script_from_report(report_content: str, client) -> str:
     """
-    Parte texto largo para varias solicitudes TTS (la API limita duración por petición).
-    Respeta fin de frase cuando es posible.
+    Paso 1: convierte el informe en guion de conversación (estilo NotebookLM) para TTS multi-locutor.
     """
-    text = (text or '').strip()
-    if not text:
-        return []
-    if len(text) <= max_chars:
-        return [text]
-    chunks: list[str] = []
-    rest = text
-    while rest:
-        if len(rest) <= max_chars:
-            chunks.append(rest.strip())
-            break
-        window = rest[:max_chars]
-        cut = max(
-            window.rfind('. '),
-            window.rfind('.\n'),
-            window.rfind('! '),
-            window.rfind('? '),
-            window.rfind('\n\n'),
+    from google.genai import types
+
+    model = _get_model_podcast_script()
+    body = (report_content or '').strip()
+    if len(body) < 80:
+        raise GeminiServiceError('Informe demasiado corto para generar guion de podcast')
+
+    user_block = f"""{PODCAST_SCRIPT_PROMPT}
+
+--- INFORME (markdown) ---
+{body[:50000]}"""
+
+    max_retries = 3
+    retry_delay = 65
+    for attempt in range(max_retries):
+        try:
+            response = client.models.generate_content(
+                model=model,
+                contents=user_block,
+                config=types.GenerateContentConfig(
+                    temperature=0.45,
+                    max_output_tokens=8192,
+                    thinking_config=types.ThinkingConfig(thinking_budget=0),
+                ),
+            )
+            if not response or not response.text:
+                raise GeminiServiceError('Respuesta vacía al generar el guion de podcast')
+            script = _strip_markdown_fences(response.text.strip())
+            if not script or _count_words(script) < 40:
+                raise GeminiServiceError('Guion de podcast demasiado corto o inválido')
+            if f'{PODCAST_SPEAKER_1}:' not in script or f'{PODCAST_SPEAKER_2}:' not in script:
+                raise GeminiServiceError(
+                    f'El guion debe incluir diálogos con prefijos "{PODCAST_SPEAKER_1}:" y "{PODCAST_SPEAKER_2}:"'
+                )
+            script = _shorten_podcast_script_if_needed(client, script, model, PODCAST_MAX_WORDS)
+            if f'{PODCAST_SPEAKER_1}:' not in script or f'{PODCAST_SPEAKER_2}:' not in script:
+                raise GeminiServiceError('Tras acortar, el guion perdió el formato de hablantes')
+            return script
+        except GeminiServiceError:
+            raise
+        except Exception as e:
+            last_error = e
+            err_str = str(e).upper()
+            if attempt < max_retries - 1 and ('429' in err_str or 'RESOURCE_EXHAUSTED' in err_str):
+                logger.warning('Gemini guion podcast 429, reintento %s/%s: %s', attempt + 1, max_retries, e)
+                time.sleep(retry_delay)
+            else:
+                raise GeminiServiceError(str(e)) from e
+    raise GeminiServiceError('No se pudo generar el guion de podcast')
+
+
+def _synthesize_multispeaker_podcast_wav(client, script: str, output_path: str) -> None:
+    """Paso 2: TTS con gemini-3.1-flash-tts-preview y dos voces (Charon + Puck)."""
+    import wave
+    from google.genai import types
+
+    tts_user = f"""Escena: dos periodistas financieros en un estudio moderno. Estilo: dinámico y accesible para quien empieza en inversión.
+Interpreta el texto como conversación con dos hablantes, {PODCAST_SPEAKER_1} (voz informativa) y {PODCAST_SPEAKER_2} (más animada, analogías sencillas). Respeta las [etiquetas] entre corchetes.
+
+{script.strip()}"""
+
+    try:
+        multi = types.MultiSpeakerVoiceConfig(
+            speaker_voice_configs=[
+                types.SpeakerVoiceConfig(
+                    speaker=PODCAST_SPEAKER_1,
+                    voice_config=types.VoiceConfig(
+                        prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name='Charon')
+                    ),
+                ),
+                types.SpeakerVoiceConfig(
+                    speaker=PODCAST_SPEAKER_2,
+                    voice_config=types.VoiceConfig(
+                        prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name='Puck')
+                    ),
+                ),
+            ]
         )
-        if cut < max_chars // 3:
-            # Corte duro: exactamente max_chars caracteres
-            piece = rest[:max_chars].strip()
-            rest = rest[max_chars:].strip()
-        else:
-            piece = rest[: cut + 1].strip()
-            rest = rest[cut + 1 :].strip()
-        if piece:
-            chunks.append(piece)
-    return [c for c in chunks if c]
+    except AttributeError as e:
+        raise GeminiServiceError(
+            'Falta soporte multi-locutor en google-genai. Instala: pip install -U "google-genai>=1.16.0"'
+        ) from e
+
+    response = client.models.generate_content(
+        model=_get_model_tts(),
+        contents=tts_user,
+        config=types.GenerateContentConfig(
+            response_modalities=['AUDIO'],
+            max_output_tokens=24576,
+            speech_config=types.SpeechConfig(multi_speaker_voice_config=multi),
+        ),
+    )
+    all_pcm = _pcm_from_tts_response(response)
+    if len(all_pcm) < 256:
+        raise GeminiServiceError('Audio generado demasiado corto o vacío')
+    os.makedirs(os.path.dirname(output_path) or '.', exist_ok=True)
+    with wave.open(output_path, 'wb') as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(24000)
+        wf.writeframes(all_pcm)
+    logger.info('Audio podcast multi-locutor guardado: %s (bytes_pcm=%s)', output_path, len(all_pcm))
 
 
 def _pcm_from_tts_response(response) -> bytes:
@@ -347,9 +490,12 @@ def _pcm_from_tts_response(response) -> bytes:
 
 def generate_report_tts_audio(report_content: str, output_path: str) -> None:
     """
-    Genera un audio TTS resumen del informe usando Gemini.
-    1. Modelo flash: resumen largo para leer en voz alta (varios minutos).
-    2. TTS: varias peticiones si hace falta (la API corta ~20–30 s por llamada) y se concatena PCM.
+    Genera un audio resumen estilo "NotebookLM": dos locutores en conversación (Álex y Taylor).
+
+    1) Modelo de texto (``GEMINI_MODEL_PODCAST_SCRIPT`` / por defecto flash): guion con etiquetas
+       [laughs], [short pause], etc., máximo 1.200 palabras.
+    2) ``gemini-3.1-flash-tts-preview`` con ``MultiSpeakerVoiceConfig``: voces Charon (Álex) y
+       Puck (Taylor), una sola petición TTS (PCM 24 kHz mono → WAV).
 
     Args:
         report_content: Contenido Markdown del informe
@@ -358,90 +504,20 @@ def generate_report_tts_audio(report_content: str, output_path: str) -> None:
     Raises:
         GeminiServiceError: Si falla la generación
     """
-    import wave
-
     api_key = _get_api_key()
     if not api_key:
         raise GeminiServiceError('GEMINI_API_KEY no configurada')
 
     try:
         from google import genai
-        from google.genai import types
 
         client = genai.Client(api_key=api_key)
-
-        # 1. Resumen para locución (más extenso; thinking off para no comerse el cupo)
-        summary_prompt = f"""Resume el siguiente informe de investigación de inversiones en un texto fluido
-para ser leído en voz alta. Objetivo: unos 4–8 minutos de lectura en voz (varios párrafos).
-Incluye conclusiones y matices útiles; no omitas matices por brevedad.
-Sin encabezados markdown, sin listas con viñetas: solo texto corrido en español.
-
-INFORME:
-{report_content[:20000]}
-"""
-
-        transcript = client.models.generate_content(
-            model=_get_model_flash(),
-            contents=summary_prompt,
-            config=types.GenerateContentConfig(
-                temperature=0.4,
-                max_output_tokens=6000,
-                thinking_config=types.ThinkingConfig(thinking_budget=0),
-            ),
-        )
-        if not transcript or not transcript.text:
-            raise GeminiServiceError('No se pudo generar el resumen para TTS')
-
-        text_for_tts = transcript.text.strip()
-        if len(text_for_tts) < 100:
-            raise GeminiServiceError('Resumen demasiado corto para generar audio')
-
-        chunks = _chunk_text_for_speech(text_for_tts, max_chars=2000)
-        if not chunks:
-            raise GeminiServiceError('Texto TTS vacío tras trocear')
-
-        all_pcm = bytearray()
-        for i, piece in enumerate(chunks):
-            tts_prompt = (
-                f"Lee el siguiente fragmento en tono profesional e informativo, claro y pausado. "
-                f"Es la parte {i + 1} de {len(chunks)} de un mismo resumen.\n\n{piece}"
-            )
-            response = client.models.generate_content(
-                model=_get_model_tts(),
-                contents=tts_prompt,
-                config=types.GenerateContentConfig(
-                    response_modalities=['AUDIO'],
-                    # Varias peticiones troceadas; por petición la API suele limitar ~20–40 s de audio
-                    max_output_tokens=16384,
-                    speech_config=types.SpeechConfig(
-                        voice_config=types.VoiceConfig(
-                            prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                                voice_name='Charon'
-                            )
-                        )
-                    ),
-                ),
-            )
-
-            all_pcm.extend(_pcm_from_tts_response(response))
-            if i < len(chunks) - 1:
-                time.sleep(0.35)
-
-        if len(all_pcm) < 256:
-            raise GeminiServiceError('Audio generado demasiado corto o vacío')
-
-        os.makedirs(os.path.dirname(output_path) or '.', exist_ok=True)
-        with wave.open(output_path, 'wb') as wf:
-            wf.setnchannels(1)
-            wf.setsampwidth(2)
-            wf.setframerate(24000)
-            wf.writeframes(bytes(all_pcm))
-
+        script = generate_podcast_script_from_report(report_content, client)
+        _synthesize_multispeaker_podcast_wav(client, script, output_path)
         logger.info(
-            'Audio TTS guardado: %s (chunks=%s, bytes_pcm=%s)',
+            'TTS podcast completado: %s (palabras guion~%s)',
             output_path,
-            len(chunks),
-            len(all_pcm),
+            _count_words(script),
         )
 
     except ImportError as e:
@@ -449,5 +525,5 @@ INFORME:
     except GeminiServiceError:
         raise
     except Exception as e:
-        logger.exception('Error generando TTS: %s', e)
+        logger.exception('Error generando TTS podcast: %s', e)
         raise GeminiServiceError(str(e))
