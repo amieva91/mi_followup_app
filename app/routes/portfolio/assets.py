@@ -1063,6 +1063,402 @@ def asset_reports_generate(id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@portfolio_bp.route('/asset/<int:id>/reports/generate-deliver', methods=['POST'])
+@login_required
+@csrf.exempt
+def asset_reports_generate_and_deliver(id):
+    """
+    Un solo clic: genera informe Deep Research, audio TTS (es-ES) y envía informe + WAV por correo.
+    Muestra progreso de 4 pasos en ``audio_progress_json`` (``full_pipeline``).
+    """
+    try:
+        from app.models import ReportTemplate, CompanyReport, User
+        from app.services.gemini_service import (
+            run_deep_research_report,
+            generate_report_tts_audio,
+            new_full_pipeline_progress_state,
+            merge_full_pipeline_with_tts_progress,
+            GeminiServiceError,
+            is_gemini_available,
+        )
+        from app.utils.email import send_report_email
+        from flask import current_app
+        import threading
+        from datetime import datetime
+
+        asset = Asset.query.get(id)
+        if not asset:
+            return jsonify({'success': False, 'error': 'Asset no encontrado'}), 404
+        if not _user_can_access_asset_reports(current_user.id, id):
+            return jsonify({'success': False, 'error': 'Asset no está en tu cartera ni en watchlist'}), 403
+
+        if not is_gemini_available():
+            return jsonify({'success': False, 'error': 'GEMINI_API_KEY no configurada'}), 503
+
+        if not current_user.email:
+            return jsonify({'success': False, 'error': 'Tu cuenta no tiene email; no se puede enviar el informe'}), 400
+        if not current_app.config.get('MAIL_SERVER') or not current_app.config.get('MAIL_USERNAME'):
+            return jsonify({'success': False, 'error': 'El correo no está configurado en el servidor'}), 503
+
+        data = request.get_json() or {}
+        template_id = data.get('template_id')
+        if not template_id:
+            return jsonify({'success': False, 'error': 'Selecciona una plantilla'}), 400
+
+        template = ReportTemplate.query.filter_by(id=template_id, user_id=current_user.id).first()
+        if not template:
+            return jsonify({'success': False, 'error': 'Plantilla no encontrada'}), 404
+        if not template.has_valid_description():
+            return jsonify({'success': False, 'error': 'La plantilla debe tener descripción'}), 400
+
+        report = CompanyReport(
+            user_id=current_user.id,
+            asset_id=id,
+            template_id=template.id,
+            template_title=template.title,
+            status='pending',
+        )
+        db.session.add(report)
+        db.session.commit()
+
+        report_id = report.id
+        user_id = current_user.id
+        asset_id = id
+        description = template.description
+        points = template.get_points_list()
+        report_template_title = (template.title or f'Informe {report_id}')[:200]
+
+        app = current_app._get_current_object()
+
+        def run_full_deliver():
+            with app.app_context():
+                engine = db.engine
+
+                def _persist(json_obj):
+                    with engine.connect() as conn:
+                        conn.execute(
+                            text(
+                                'UPDATE company_reports SET audio_progress_json = :j, audio_error_msg = NULL WHERE id = :rid'
+                            ),
+                            {'j': json.dumps(json_obj, ensure_ascii=False), 'rid': report_id},
+                        )
+                        conn.commit()
+
+                def _update_status_fail(err: str) -> None:
+                    now_str = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+                    with engine.connect() as conn:
+                        conn.execute(
+                            text(
+                                """
+                            UPDATE company_reports SET status = 'failed', error_msg = :e, completed_at = :now
+                            WHERE id = :rid
+                        """
+                            ),
+                            {'e': err[:8000], 'now': now_str, 'rid': report_id},
+                        )
+                        conn.commit()
+
+                pstate: dict = new_full_pipeline_progress_state()
+                try:
+                    _persist(pstate)
+                    with engine.connect() as conn:
+                        r = conn.execute(
+                            text('UPDATE company_reports SET status = :st WHERE id = :rid'),
+                            {'st': 'processing', 'rid': report_id},
+                        )
+                        conn.commit()
+                        if r.rowcount == 0:
+                            return
+                except Exception as e:
+                    try:
+                        pstate['steps'][0]['status'] = 'error'
+                        pstate['steps'][0]['error'] = str(e)[:2000]
+                        _persist(pstate)
+                        _update_status_fail(str(e))
+                    except Exception:
+                        pass
+                    return
+
+                aname = asym = aisn = ''
+                try:
+                    with engine.connect() as conn:
+                        row = conn.execute(
+                            text('SELECT name, symbol, isin FROM assets WHERE id = :aid'),
+                            {'aid': asset_id},
+                        ).fetchone()
+                    if not row:
+                        _update_status_fail('Asset no encontrado')
+                        return
+                    aname = (row[0] or 'Desconocida')
+                    asym = (row[1] or '')
+                    aisn = (row[2] or '')
+
+                    def _save_iid(iid: str):
+                        with engine.connect() as conn:
+                            conn.execute(
+                                text(
+                                    'UPDATE company_reports SET gemini_interaction_id = :iid WHERE id = :rid'
+                                ),
+                                {'iid': (iid or '')[:100], 'rid': report_id},
+                            )
+                            conn.commit()
+
+                    st_dr, content_dr = run_deep_research_report(
+                        aname,
+                        asym,
+                        aisn,
+                        description,
+                        points,
+                        on_interaction_created=_save_iid,
+                        max_wait_seconds=6 * 3600,
+                    )
+
+                    if st_dr != 'completed':
+                        pstate['steps'][0]['status'] = 'error'
+                        pstate['steps'][0]['error'] = (content_dr or 'Error en Deep Research')[:4000]
+                        _persist(pstate)
+                        now_str = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+                        with engine.connect() as conn:
+                            conn.execute(
+                                text(
+                                    'UPDATE company_reports SET status = :st, error_msg = :err, completed_at = :now WHERE id = :rid'
+                                ),
+                                {
+                                    'st': 'failed',
+                                    'err': (content_dr or '')[:8000],
+                                    'now': now_str,
+                                    'rid': report_id,
+                                },
+                            )
+                            conn.commit()
+                        return
+
+                    now_str = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+                    pstate['steps'][0]['status'] = 'ok'
+                    pstate['steps'][0]['error'] = None
+                    pstate['steps'][1]['status'] = 'loading'
+                    pstate['steps'][1]['error'] = None
+                    _persist(pstate)
+                    with engine.connect() as conn:
+                        conn.execute(
+                            text(
+                                """
+                            UPDATE company_reports
+                            SET status = 'completed', content = :c, error_msg = NULL, completed_at = :now
+                            WHERE id = :rid
+                        """
+                            ),
+                            {'c': content_dr, 'now': now_str, 'rid': report_id},
+                        )
+                        conn.commit()
+                    # límite 5 informes (misma lógica que generación simple)
+                    with engine.connect() as conn:
+                        cnt = conn.execute(
+                            text(
+                                'SELECT COUNT(*) FROM company_reports WHERE user_id = :uid AND asset_id = :aid'
+                            ),
+                            {'uid': user_id, 'aid': asset_id},
+                        ).scalar()
+                        if cnt and cnt > 5:
+                            lim = int(cnt) - 5
+                            ids = [
+                                r[0]
+                                for r in conn.execute(
+                                    text(
+                                        """
+                                    SELECT id FROM company_reports
+                                    WHERE user_id = :uid AND asset_id = :aid
+                                    ORDER BY created_at ASC LIMIT :lim
+                                """
+                                    ),
+                                    {'uid': user_id, 'aid': asset_id, 'lim': lim},
+                                ).fetchall()
+                            ]
+                            if ids:
+                                stmt = text('DELETE FROM company_reports WHERE id IN :ids').bindparams(
+                                    bindparam('ids', expanding=True)
+                                )
+                                conn.execute(stmt, {'ids': ids})
+                        conn.commit()
+
+                    output_folder = app.config.get('OUTPUT_FOLDER') or (
+                        Path(__file__).resolve().parent.parent.parent / 'output'
+                    )
+                    audio_dir = Path(output_folder).resolve() / 'reports_audio'
+                    audio_path = audio_dir / f'report_{report_id}.wav'
+
+                    with engine.connect() as conn:
+                        conn.execute(
+                            text(
+                                """
+                            UPDATE company_reports
+                            SET audio_status = 'processing', audio_error_msg = NULL, audio_path = NULL, audio_completed_at = NULL
+                            WHERE id = :rid
+                        """
+                            ),
+                            {'rid': report_id},
+                        )
+                        conn.commit()
+
+                    def on_tts(tj: dict) -> None:
+                        nonlocal pstate
+                        pstate = merge_full_pipeline_with_tts_progress(pstate, tj)
+                        _persist(pstate)
+
+                    try:
+                        generate_report_tts_audio(
+                            content_dr or '', str(audio_path), on_progress=on_tts
+                        )
+                    except Exception as tts_e:
+                        current_app.logger.exception('TTS en generate-deliver: %s', tts_e)
+                        pstate['steps'][1]['status'] = 'error'
+                        pstate['steps'][1]['error'] = str(tts_e)[:4000]
+                        pstate['steps'][2]['status'] = 'error'
+                        pstate['steps'][2]['error'] = str(tts_e)[:4000]
+                        _persist(pstate)
+                        with engine.connect() as conn:
+                            conn.execute(
+                                text(
+                                    """
+                                UPDATE company_reports
+                                SET audio_status = 'failed', audio_error_msg = :e, audio_progress_json = NULL
+                                WHERE id = :rid
+                            """
+                                ),
+                                {'e': str(tts_e)[:8000], 'rid': report_id},
+                            )
+                            conn.commit()
+                        return
+
+                    t_ok = datetime.utcnow().isoformat()
+                    pstate['steps'][1]['status'] = 'ok'
+                    pstate['steps'][1]['error'] = None
+                    pstate['steps'][2]['status'] = 'ok'
+                    pstate['steps'][2]['error'] = None
+                    pstate['steps'][3]['status'] = 'loading'
+                    pstate['steps'][3]['error'] = None
+                    _persist(pstate)
+
+                    u = User.query.get(user_id)
+                    if not u or not u.email:
+                        pstate['steps'][3]['status'] = 'error'
+                        pstate['steps'][3]['error'] = 'Usuario sin email'
+                        _persist(pstate)
+                        with engine.connect() as conn:
+                            conn.execute(
+                                text(
+                                    """
+                                UPDATE company_reports
+                                SET audio_status = 'failed', audio_error_msg = 'Usuario sin email', audio_progress_json = NULL
+                                WHERE id = :rid
+                            """
+                                ),
+                                {'rid': report_id},
+                            )
+                            conn.commit()
+                        return
+
+                    try:
+                        send_report_email(
+                            user=u,
+                            asset_name=aname,
+                            report_title=report_template_title,
+                            report_content_markdown=content_dr or '',
+                            audio_file_path=str(audio_path),
+                        )
+                    except Exception as em_e:
+                        current_app.logger.exception('Correo en generate-deliver: %s', em_e)
+                        pstate['steps'][3]['status'] = 'error'
+                        pstate['steps'][3]['error'] = str(em_e)[:4000]
+                        _persist(pstate)
+                        with engine.connect() as conn:
+                            conn.execute(
+                                text(
+                                    """
+                                UPDATE company_reports
+                                SET audio_status = 'failed', audio_error_msg = :e
+                                WHERE id = :rid
+                            """
+                                ),
+                                {'e': str(em_e)[:8000], 'rid': report_id},
+                            )
+                            conn.commit()
+                        return
+
+                    pstate['steps'][3]['status'] = 'ok'
+                    pstate['steps'][3]['error'] = None
+                    with engine.connect() as conn:
+                        conn.execute(
+                            text(
+                                """
+                            UPDATE company_reports
+                            SET audio_status = 'completed', audio_path = :path, audio_error_msg = NULL,
+                                audio_completed_at = :ac, audio_progress_json = NULL
+                            WHERE id = :rid
+                        """
+                            ),
+                            {
+                                'path': f'reports_audio/report_{report_id}.wav',
+                                'ac': t_ok,
+                                'rid': report_id,
+                            },
+                        )
+                        conn.commit()
+
+                except GeminiServiceError as e:
+                    try:
+                        pstate = new_full_pipeline_progress_state()
+                        pstate['steps'][0]['status'] = 'error'
+                        pstate['steps'][0]['error'] = str(e)[:4000]
+                        _persist(pstate)
+                        with engine.connect() as conn:
+                            conn.execute(
+                                text(
+                                    'UPDATE company_reports SET status = :st, error_msg = :e WHERE id = :rid'
+                                ),
+                                {'st': 'failed', 'e': str(e)[:8000], 'rid': report_id},
+                            )
+                            conn.commit()
+                    except Exception:
+                        pass
+                except Exception as e:
+                    import traceback
+
+                    current_app.logger.exception('generate-deliver: %s', e)
+                    try:
+                        pstate = new_full_pipeline_progress_state()
+                        pstate['steps'][0]['status'] = 'error'
+                        pstate['steps'][0]['error'] = str(e)[:2000]
+                        _persist(pstate)
+                        with engine.connect() as conn:
+                            conn.execute(
+                                text(
+                                    'UPDATE company_reports SET status = :st, error_msg = :e WHERE id = :rid'
+                                ),
+                                {'st': 'failed', 'e': str(e)[:8000], 'rid': report_id},
+                            )
+                            conn.commit()
+                    except Exception:
+                        pass
+                    print(traceback.format_exc())
+
+        th = threading.Thread(target=run_full_deliver, daemon=True)
+        th.start()
+
+        return jsonify(
+            {
+                'success': True,
+                'report_id': report.id,
+                'message': 'Iniciado: informe, audio y envío por correo. Puedes salir; recibirás un email al terminar.',
+            }
+        )
+    except Exception as e:
+        import traceback
+        db.session.rollback()
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @portfolio_bp.route('/asset/<int:id>/reports')
 @login_required
 def asset_reports_list(id):

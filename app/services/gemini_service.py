@@ -206,8 +206,17 @@ Descripción de la investigación:
 {description}
 {points_text}
 
-Formatea la salida en Markdown con encabezados, listas y párrafos claros.
-Incluye las secciones que consideres relevantes para un inversor."""
+**Formato y presentación (obligatorio):**
+- Usa un **diseño editorial profesional** en **Markdown** avanzado: **H1** para el título del informe, **H2/H3** para secciones, listas y tablas.
+- Incluye al inicio de cada sección principal un bloque **Key takeaways** (3–5 viñetas) con negritas en conceptos clave.
+- Incluye **tablas comparativas** para cifras, márgenes, PER, deuda, o frente a competidores cuando haya datos.
+- Si aplica, representa en tabla una **puntuación del foso o ventaja competitiva** (no solo texto narrativo) con criterios y notas.
+- Aprovecha la **visualización nativa** del agente (gráficos, comparativas, diagramas de flujo de ingresos) cuando aporte claridad, sin sustituir el rigor.
+- Añade listas con viñetas o emojis con moderación para escaneo visual (sin exceso).
+- El estilo ha de resultar claro al leerse en la **web y en el correo** (bloques no demasiado largos, títulos descriptivos).
+- Idioma: **español (España)**. Tonos: analítico, orientado a inversor.
+
+**Contenido:** cubre con rigor lo que pida la descripción; prioriza análisis accionable frente a rellano."""
 
     try:
         from google import genai
@@ -218,12 +227,37 @@ Incluye las secciones que consideres relevantes para un inversor."""
         if on_status_update:
             on_status_update('processing', 'Iniciando investigación...')
 
-        interaction = client.interactions.create(
-            input=prompt,
-            agent=agent_name,
-            background=True,
-            store=True,  # Requerido por la API para background=True
-        )
+        # Activa resúmenes de razonamiento y gráficos/infografías nativos cuando el SDK/API lo soporten.
+        deep_agent_config = {
+            'type': 'deep-research',
+            'visualization': 'auto',
+            'thinking_summaries': 'auto',
+        }
+        interaction = None
+        last_create_err: Optional[Exception] = None
+        for with_agent_cfg in (True, False):
+            try:
+                kwargs = {
+                    'input': prompt,
+                    'agent': agent_name,
+                    'background': True,
+                    'store': True,  # Requerido por la API para background=True
+                }
+                if with_agent_cfg:
+                    kwargs['agent_config'] = deep_agent_config
+                interaction = client.interactions.create(**kwargs)
+                break
+            except Exception as ex:
+                last_create_err = ex
+                if with_agent_cfg:
+                    logger.warning(
+                        'interactions.create con agent_config falló; reintento sin: %s',
+                        ex,
+                    )
+                    continue
+                raise
+        if interaction is None and last_create_err:
+            raise last_create_err
 
         interaction_id = interaction.id if hasattr(interaction, 'id') else str(interaction)
         logger.info('Deep Research iniciado: agent=%s interaction_id=%s', agent_name, interaction_id)
@@ -353,9 +387,14 @@ PODCAST_SCRIPT_PROMPT = f"""Actúa como un guionista profesional de podcasts. Tu
    - **Acto 3 — Cierre (~10 %, ~{PODCAST_ACT3_WORDS_GUIDE} palabras):** conclusión y despedida clara al oyente (reserva unas **80–100** palabras para el cierre con despedida natural).
 4. **Priorización:** profundizar en 3 ideas vale más que 10 comentarios superficiales.
 
+**RESTRICCIONES CRÍTICAS DE MARCA:**
+1. **Prohibido inventar nombres:** no le pongas nombre al «podcast» ni al programa. No uses frases del tipo «Bienvenidos a…» o títulos de radio inventados.
+2. **Inicio directo:** la primera intervención debe sonar a conversación real (p. ej. «Hola {PODCAST_SPEAKER_2}, he estado revisando el informe sobre…» y entrar al fondo), sin parrilla de emisora.
+3. **Sin introducciones de radio ficticias:** evita muletillas que hagan creer que es un programa con nombre. El foco es **solo** el contenido del informe de investigación.
+
 **REGLAS DE ESTILO (NotebookLM):**
 - **Voces:** usa los prefijos exactos **{PODCAST_SPEAKER_1}:** y **{PODCAST_SPEAKER_2}:** en cada intervención.
-- **Tono:** {PODCAST_SPEAKER_1} informativo y profesional. {PODCAST_SPEAKER_2} curiosa, con analogías sencillas.
+- **Tono:** {PODCAST_SPEAKER_1} informativo y profesional. {PODCAST_SPEAKER_2} curiosa, con analogías sencillas. **Acento y registro: español de España (peninsular), profesional.**
 - **Naturalidad:** interrupciones breves (por ejemplo: «Espera, ¿dices que…?», «Exacto»), [laughs] y [sigh] con moderación.
 - **Pausas:** [short pause] entre cambios de tema. **PROHIBIDO** [long pause], [long silence] o silencios largos (desvían el cronómetro sin contar como palabra).
 - **Cierre:** el **último** turno debe ser una despedida clara hacia el oyente.
@@ -533,14 +572,16 @@ def generate_podcast_script_from_report(report_content: str, client) -> str:
 
 
 def _synthesize_multispeaker_podcast_wav(client, script: str, output_path: str) -> None:
-    """Paso 2: TTS con gemini-3.1-flash-tts-preview: voces fijas (Charon masculina, Kore femenina)."""
+    """Paso 2: TTS con gemini-3.1-flash-tts-preview: voces fijas (Charon masculina, Kore femenina), ``language_code=es-ES``."""
     import wave
     from google.genai import types
 
-    tts_user = f"""Escena: dos periodistas financieros en un estudio moderno. Estilo: dinámico y accesible para quien empieza en inversión.
-Interpreta el texto como conversación con **dos locutores distintos**:
-- {PODCAST_SPEAKER_1}: voz **masculina** (timbre Charon, tono informativo).
-- {PODCAST_SPEAKER_2}: voz **femenina** (timbre Kore, más animada, analogías sencillas).
+    tts_user = f"""**Director de audio (léelo antes de hablar, no lo repitas en voz alta):** Accent: Peninsular Spanish from Spain. Neutral, professional, European Spanish intonation; avoid Latin American inflections. Voces con acento de España peninsular, claras y sin modismos de Hispanoamérica.
+
+Escena: conversación de análisis en contexto de inversión, tono serio y cercano, **español de España (peninsular)**.
+Interpreta el texto como diálogo con **dos interlocutores**:
+- {PODCAST_SPEAKER_1}: voz **masculina** (timbre Charon, informativo).
+- {PODCAST_SPEAKER_2}: voz **femenina** (timbre Kore, clara, analogías sencillas).
 Respeta las [etiquetas] entre corchetes sin alargar silencios de forma exagerada.
 
 {script.strip()}"""
@@ -577,7 +618,10 @@ Respeta las [etiquetas] entre corchetes sin alargar silencios de forma exagerada
         config=types.GenerateContentConfig(
             response_modalities=['AUDIO'],
             max_output_tokens=24576,
-            speech_config=types.SpeechConfig(multi_speaker_voice_config=multi),
+            speech_config=types.SpeechConfig(
+                language_code='es-ES',
+                multi_speaker_voice_config=multi,
+            ),
         ),
     )
     all_pcm = _pcm_from_tts_response(response)
@@ -624,12 +668,73 @@ def new_audio_progress_steps_state() -> list:
         },
         {
             'id': 'tts',
-            'title': 'Síntesis TTS (Charon + Kore)',
+            'title': 'Síntesis TTS (Charon + Kore, es-ES)',
             'status': 'pending',
             'model': _get_model_tts(),
             'error': None,
         },
     ]
+
+
+def new_full_pipeline_progress_state() -> dict:
+    """
+    Guion (progreso unificado) para: informe Deep Research → guion → TTS → envío de correo.
+    Se persiste en ``company_reports.audio_progress_json`` con ``full_pipeline: true``.
+    """
+    return {
+        'full_pipeline': True,
+        'caption': (
+            'Proceso completo en segundo plano: informe, audio (es-ES) y envío por correo. '
+            'Puedes salir; recibirás el informe y el audio en tu email.'
+        ),
+        'steps': [
+            {
+                'id': 'report',
+                'title': 'Informe Deep Research',
+                'status': 'loading',
+                'model': _get_agent_deep_research(),
+                'error': None,
+            },
+            {
+                'id': 'script',
+                'title': 'Guion 3 actos (≤950 p., estilo NotebookLM)',
+                'status': 'pending',
+                'model': _get_model_podcast_script(),
+                'error': None,
+            },
+            {
+                'id': 'tts',
+                'title': 'Síntesis TTS (Charon + Kore, es-ES)',
+                'status': 'pending',
+                'model': _get_model_tts(),
+                'error': None,
+            },
+            {
+                'id': 'email',
+                'title': 'Enviar informe y audio por correo',
+                'status': 'pending',
+                'model': None,
+                'error': None,
+            },
+        ],
+    }
+
+
+def merge_full_pipeline_with_tts_progress(full_state: dict, tts_progress: dict) -> dict:
+    """Incorpora los dos pasos del TTS (guion + audio) en el estado de pipeline de 4 pasos."""
+    out = {**full_state, 'full_pipeline': True}
+    steps = [dict(s) for s in (out.get('steps') or [])]
+    tts_steps = (tts_progress or {}).get('steps') or []
+    if len(steps) >= 3 and len(tts_steps) >= 1:
+        for k in ('status', 'error', 'model'):
+            if k in tts_steps[0] and tts_steps[0][k] is not None:
+                steps[1][k] = tts_steps[0][k]
+    if len(steps) >= 3 and len(tts_steps) >= 2:
+        for k in ('status', 'error', 'model'):
+            if k in tts_steps[1] and tts_steps[1][k] is not None:
+                steps[2][k] = tts_steps[1][k]
+    out['steps'] = steps
+    return out
 
 
 def generate_report_tts_audio(
