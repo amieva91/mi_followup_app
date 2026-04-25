@@ -6,7 +6,7 @@ Servicio para integración con Google Gemini API.
 import os
 import time
 import logging
-from typing import Optional
+from typing import Callable, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -33,8 +33,8 @@ def _get_model_tts() -> str:
 
 
 def _get_agent_deep_research() -> str:
-    """Agente para informes Deep Research. Default: deep-research-max-preview-04-2026"""
-    return os.environ.get('GEMINI_AGENT_DEEP_RESEARCH') or 'deep-research-max-preview-04-2026'
+    """Agente para informes Deep Research. Default: deep-research-preview-04-2026 (más ágil; Max vía env)."""
+    return os.environ.get('GEMINI_AGENT_DEEP_RESEARCH') or 'deep-research-preview-04-2026'
 
 
 def is_gemini_available() -> bool:
@@ -125,6 +125,17 @@ Requisitos (español, solo cuerpo de texto, sin título ni saludos):
         raise GeminiServiceError(str(e))
 
 
+def _extract_interaction_text(interaction) -> str:
+    """Junta el texto de todos los bloques de salida (outputs) de la interacción."""
+    outputs = getattr(interaction, 'outputs', None) or []
+    parts = []
+    for block in outputs:
+        t = getattr(block, 'text', None)
+        if t and str(t).strip():
+            parts.append(str(t).strip())
+    return '\n\n'.join(parts).strip() if parts else ''
+
+
 def run_deep_research_report(
     asset_name: str,
     asset_symbol: str,
@@ -133,7 +144,9 @@ def run_deep_research_report(
     points: list,
     on_status_update=None,
     poll_interval_seconds: int = 15,
-) -> tuple[str, str]:
+    max_wait_seconds: int = 6 * 3600,
+    on_interaction_created: Optional[Callable[[str], None]] = None,
+) -> Tuple[str, str]:
     """
     Ejecuta informe Deep Research en segundo plano (polling hasta completar).
     Llama a la API de Interactions con background=True y hace poll hasta completed/failed.
@@ -146,6 +159,8 @@ def run_deep_research_report(
         points: Lista de puntos/preguntas opcionales
         on_status_update: Callback(opcional) que recibe (status, message) para actualizar UI
         poll_interval_seconds: Segundos entre cada poll
+        max_wait_seconds: Máximo tiempo de espera (evita bucles infinitos si la API no termina)
+        on_interaction_created: Callback con interaction_id nada más crear (para guardar en BD)
 
     Returns:
         tuple: (status, content_or_error)
@@ -191,24 +206,49 @@ Incluye las secciones que consideres relevantes para un inversor."""
         )
 
         interaction_id = interaction.id if hasattr(interaction, 'id') else str(interaction)
-        logger.info('Deep Research iniciado: interaction_id=%s', interaction_id)
+        logger.info('Deep Research iniciado: agent=%s interaction_id=%s', agent_name, interaction_id)
+        if on_interaction_created:
+            try:
+                on_interaction_created(str(interaction_id)[:100])
+            except Exception as cb_err:
+                logger.warning('on_interaction_created falló: %s', cb_err)
 
         if on_status_update:
             on_status_update('processing', 'Investigando en segundo plano...')
 
+        deadline = time.monotonic() + max_wait_seconds
+        poll_n = 0
+        last_logged_status = None
+
         while True:
+            if time.monotonic() > deadline:
+                msg = (
+                    f'Tiempo de espera agotado ({max_wait_seconds // 3600} h) con la API aún en curso. '
+                    f'interaction_id={interaction_id}. Puedes reintentar o usar GEMINI_AGENT_DEEP_RESEARCH=deep-research-preview-04-2026'
+                )
+                logger.error('Deep Research timeout: %s', msg)
+                if on_status_update:
+                    on_status_update('failed', msg)
+                return ('failed', msg)
+
             interaction = client.interactions.get(interaction_id)
-            status = getattr(interaction, 'status', str(interaction)).lower() if hasattr(interaction, 'status') else 'unknown'
+            raw = getattr(interaction, 'status', None)
+            status = (raw or 'unknown')
+            if isinstance(status, str):
+                status = status.lower()
+            else:
+                status = str(getattr(status, 'value', status)).lower()
+
+            if status != last_logged_status or poll_n % 8 == 0:
+                logger.info('Deep Research poll: id=%s status=%s', interaction_id, status)
+                last_logged_status = status
+            poll_n += 1
 
             if status == 'completed':
-                outputs = getattr(interaction, 'outputs', []) or []
-                text = ''
-                if outputs:
-                    last_output = outputs[-1]
-                    text = getattr(last_output, 'text', '') or str(last_output)
+                text = _extract_interaction_text(interaction) or 'Informe vacío'
                 if on_status_update:
                     on_status_update('completed', 'Informe completado')
-                return ('completed', text.strip() or 'Informe vacío')
+                return ('completed', text)
 
             if status == 'failed':
                 error_msg = getattr(interaction, 'error', 'Error desconocido') or 'Error desconocido'
@@ -219,6 +259,24 @@ Incluye las secciones que consideres relevantes para un inversor."""
                 if on_status_update:
                     on_status_update('failed', error_str)
                 return ('failed', error_str)
+
+            if status in ('cancelled', 'canceled'):
+                msg = 'La interacción fue cancelada en el servicio de Gemini.'
+                logger.error('Deep Research: %s', msg)
+                return ('failed', msg)
+
+            if status == 'requires_action':
+                msg = (
+                    'La API devolvió requires_action (pendiente de acción humana en Google). '
+                    'No se puede completar en esta integración. Prueba otra clave de proyecto o el agente deep-research-preview-04-2026.'
+                )
+                logger.error('Deep Research: %s', msg)
+                if on_status_update:
+                    on_status_update('failed', msg)
+                return ('failed', msg)
+
+            if status not in ('in_progress', 'pending', 'running', 'unknown', 'active'):
+                logger.warning('Deep Research: estado inesperado %s, sigo haciendo poll', status)
 
             time.sleep(poll_interval_seconds)
             if on_status_update:

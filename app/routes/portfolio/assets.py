@@ -910,6 +910,9 @@ def asset_reports_generate(id):
 
         def run_report_background():
             """Hilo: usa conexión raw (sin sesión ORM) para evitar 'Instance is not bound to a Session'."""
+            from datetime import datetime
+            from sqlalchemy import text, bindparam
+
             with app.app_context():
                 engine = db.engine
 
@@ -924,11 +927,17 @@ def asset_reports_generate(id):
 
                 try:
                     with engine.connect() as conn:
+                        # Si solo se hace WHERE status='pending', SQLite/condiciones de carrera
+                        # pueden dejar rowcount=0 y el hilo sale sin tocar el informe → queda "pending" para siempre.
                         r = conn.execute(text("""
-                            UPDATE company_reports SET status = 'processing' WHERE id = :rid AND status = 'pending'
+                            UPDATE company_reports SET status = 'processing' WHERE id = :rid
                         """), {'rid': report_id})
                         conn.commit()
                         if r.rowcount == 0:
+                            current_app.logger.error(
+                                'Deep Research: no existe company_reports id=%s al pasar a processing',
+                                report_id,
+                            )
                             return
                 except Exception as e:
                     import traceback
@@ -951,10 +960,24 @@ def asset_reports_generate(id):
                     asym = (row[1] or '')
                     aisn = (row[2] or '')
 
+                    def _save_interaction_id(iid: str):
+                        with engine.connect() as conn:
+                            conn.execute(
+                                text(
+                                    "UPDATE company_reports SET gemini_interaction_id = :iid WHERE id = :rid"
+                                ),
+                                {'iid': (iid or '')[:100], 'rid': report_id},
+                            )
+                            conn.commit()
+
                     status, content = run_deep_research_report(
-                        aname, asym, aisn,
+                        aname,
+                        asym,
+                        aisn,
                         description,
-                        points
+                        points,
+                        on_interaction_created=_save_interaction_id,
+                        max_wait_seconds=6 * 3600,
                     )
 
                     content_val = content if status == 'completed' else None

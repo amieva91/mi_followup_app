@@ -25,10 +25,10 @@ Integración de la API de Google Gemini en la aplicación para generar:
 
 - **API:** API de Interactions (no `generate_content`).
 - **Referencia:** [Gemini Deep Research - Documentación oficial](https://ai.google.dev/gemini-api/docs/deep-research?hl=es-419)
-- **Agente:** `deep-research-max-preview-04-2026` (variante Max, máxima exhaustividad)
+- **Agente por defecto en código:** `deep-research-preview-04-2026`. Opcional vía env: `deep-research-max-preview-04-2026` (más exhaustivo, suele tardar más).
 - **Modo:** Ejecución en segundo plano obligatoria (`background=True`).
 - **Flujo:**
-  1. `client.interactions.create(input=..., agent='deep-research-max-preview-04-2026', background=True)` → devuelve `interaction.id`
+  1. `client.interactions.create(input=..., agent=<GEMINI_AGENT_DEEP_RESEARCH>, background=True)` → devuelve `interaction.id`
   2. Poll con `client.interactions.get(interaction.id)` hasta `status == "completed"` o `"failed"`
   3. El resultado final está en `interaction.outputs[-1].text`
 - **Duración típica:** Varios minutos (hasta ~20–60 min).
@@ -308,7 +308,7 @@ google-genai>=1.0.0
 - **Modelos (opcionales)** – Si no se definen, se usan los valores por defecto. Útil para actualizar modelos sin tocar código:
   - `GEMINI_MODEL_FLASH`: modelo para texto (About, resumen previo a TTS). Default: `gemini-2.5-flash`
   - `GEMINI_MODEL_TTS`: modelo para generación de audio. Default: `gemini-3.1-flash-tts-preview`
-  - `GEMINI_AGENT_DEEP_RESEARCH`: agente para informes Deep Research. Default: `deep-research-max-preview-04-2026`
+  - `GEMINI_AGENT_DEEP_RESEARCH`: agente para informes Deep Research. Default: `deep-research-preview-04-2026` (Max vía env si se desea)
 - Comportamiento si GEMINI_API_KEY no está configurada: deshabilitar botones de generación y mostrar mensaje informativo.
 
 ### 8.3 Mejoras UX (Ene 2026)

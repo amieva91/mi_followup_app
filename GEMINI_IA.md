@@ -24,7 +24,7 @@ Todas las llamadas se realizan desde el backend. La API key nunca se expone al f
 |-----|---------------------|--------------------|
 | Texto (About, resumen previo a TTS) | `GEMINI_MODEL_FLASH` | `gemini-2.5-flash` |
 | Audio TTS | `GEMINI_MODEL_TTS` | `gemini-3.1-flash-tts-preview` |
-| Informes Deep Research | `GEMINI_AGENT_DEEP_RESEARCH` | `deep-research-max-preview-04-2026` |
+| Informes Deep Research | `GEMINI_AGENT_DEEP_RESEARCH` | `deep-research-preview-04-2026` (Max opcional: `deep-research-max-preview-04-2026`) |
 
 Las variables son opcionales. Si no se definen, se usan los valores por defecto. Permiten actualizar modelos sin cambiar código cuando Google lance nuevas versiones.
 
@@ -39,7 +39,7 @@ Las variables son opcionales. Si no se definen, se usan los valores por defecto.
 | `GEMINI_API_KEY` | Sí | Clave para la API de Gemini. La forma más directa es [Google AI Studio](https://aistudio.google.com/apikey). También puedes usar una **clave de API** creada en [Google Cloud Console](https://console.cloud.google.com/apis/credentials) (p. ej. *FollowupAPIKey*) siempre que en ese proyecto tengas habilitada la API de **Generative Language** (o el producto que use `google-genai` en el código). Cópiala en el `.env` de la app o en variables del servicio: `GEMINI_API_KEY=...` |
 | `GEMINI_MODEL_FLASH` | No | Modelo para texto. Default: `gemini-2.5-flash` |
 | `GEMINI_MODEL_TTS` | No | Modelo para audio TTS. Default: `gemini-3.1-flash-tts-preview` |
-| `GEMINI_AGENT_DEEP_RESEARCH` | No | Agente para informes Deep Research. Default: `deep-research-max-preview-04-2026` |
+| `GEMINI_AGENT_DEEP_RESEARCH` | No | Agente para informes Deep Research. Default: `deep-research-preview-04-2026`. Para máxima exhaustividad: `deep-research-max-preview-04-2026` vía env. |
 
 No subas claves reales a Git ni a `env.example`. Si la API responde `403 PERMISSION_DENIED` con *Your API key was reported as leaked*, Google ha desactivado esa clave: crea otra en AI Studio o Cloud Console, actualiza el `.env` (local y VM) y borra o desactiva la clave antigua en la consola.
 
@@ -99,8 +99,8 @@ Si `GEMINI_API_KEY` no está configurada:
 
 1. Usuario selecciona plantilla y pulsa "Generar informe"
 2. Se crea registro en `company_reports` con `status=pending`
-3. Thread en background llama a Interactions API (`background=True`)
-4. Polling hasta `completed` o `failed`
+3. Thread en background pasa a `processing` (sin condición estricta `status=pending` en el SQL, para no quedar colgado en `pending` si el `UPDATE` no afecta filas) y llama a Interactions API (`background=True`); se guarda `gemini_interaction_id` al crear la interacción
+4. Polling hasta `completed` o `failed` (también `timeout` a las 6 h, y fallo explícito con `requires_action` o `cancelled` para no bucles infinitos)
 5. Guardar contenido Markdown en BD
 
 ### 5.3 Audio TTS
