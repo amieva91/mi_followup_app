@@ -399,7 +399,7 @@
                     <span class="text-sm text-gray-400">GEMINI_API_KEY no configurada</span>
                     {% endif %}
                 </div>
-                <div id="reportGenerateLoading" class="hidden mb-4 p-3 bg-sky-50/90 text-sky-900 border border-sky-200/80 rounded-xl text-sm">
+                <div id="reportGenerateLoading" class="hidden mb-4 p-3 bg-sky-50/90 text-sky-900 border border-sky-200/80 rounded-xl text-sm" data-poll-id="">
                     Generando informe... Puede tardar varios minutos.
                 </div>
                 <div id="reportsList" class="space-y-3">
@@ -549,6 +549,220 @@ function showToast(message, type = 'success') {
     }, 3500);
 }
 const API_REPORT_TEMPLATES_URL = "{{ api_report_templates_url|default('/portfolio/api/report-templates') }}" || '/portfolio/api/report-templates';
+
+let generatingReportId = null;
+const reportStatusPolls = new Map();
+const audioStatusPolls = new Map();
+const AUDIO_POLL_MAX = 900;
+const REPORT_POLL_MAX = 900;
+const REPORT_STATUS_MS = 2000;
+const AUDIO_STATUS_MS = 2000;
+
+function reportStatusLabel(status) {
+    if (status === 'pending') return 'en cola';
+    if (status === 'processing') return 'generando';
+    if (status === 'completed') return 'listo';
+    if (status === 'failed') return 'error';
+    return status || '—';
+}
+function reportProgressHtml(status) {
+    if (status === 'pending') {
+        return '<div class="flex items-start gap-2 text-amber-900"><span class="shrink-0 w-2 h-2 mt-1.5 rounded-full bg-amber-400"></span><span>Informe <strong>en cola</strong>. Se iniciará en unos segundos…</span></div>';
+    }
+    if (status === 'processing') {
+        return '<div class="flex items-start gap-2 text-amber-900"><span class="shrink-0 w-2 h-2 mt-1.5 rounded-full bg-amber-500 animate-pulse"></span><span>Investigando con <strong>Deep Research</strong> (puede tardar varios minutos)…</span></div>';
+    }
+    return '<p class="text-gray-500">Cargando…</p>';
+}
+function setReportGenerateBannerVisible(reportId, data) {
+    const el = document.getElementById('reportGenerateLoading');
+    if (!el) return;
+    if (generatingReportId == null || Number(generatingReportId) !== Number(reportId)) return;
+    el.setAttribute('data-poll-id', String(reportId));
+    el.classList.remove('hidden');
+    if (data.status === 'pending') {
+        el.innerHTML = 'Informe <strong>en cola</strong>… Puede empezar en segundos. <span class="text-slate-600">ID: ' + reportId + '</span>';
+    } else if (data.status === 'processing') {
+        el.innerHTML = 'Investigando con <strong>Deep Research</strong>… (varios minutos) <span class="text-slate-600">ID: ' + reportId + '</span>';
+    } else if (data.status === 'failed') {
+        el.innerHTML = '<span class="text-red-800">' + (data.error_msg ? String(data.error_msg).replace(/</g, '&lt;') : 'Error al generar el informe') + '</span> <span class="text-slate-600">ID: ' + reportId + '</span>';
+    } else if (data.status === 'completed') {
+        el.classList.add('hidden');
+    }
+}
+function hideReportActionButtons() {
+    const btnEmail = document.getElementById('btnSendReportEmail');
+    const btnAudio = document.getElementById('btnGenerateAudio');
+    const btnRetry = document.getElementById('btnRetryAudio');
+    const audioStatus = document.getElementById('reportAudioStatus');
+    const btnDownload = document.getElementById('btnDownloadAudio');
+    if (btnEmail) btnEmail.classList.add('hidden');
+    if (btnAudio) btnAudio.classList.add('hidden');
+    if (btnRetry) btnRetry.classList.add('hidden');
+    if (audioStatus) { audioStatus.classList.add('hidden'); audioStatus.textContent = ''; }
+    if (btnDownload) btnDownload.classList.add('hidden');
+    const audioPlayerWrap = document.getElementById('reportAudioPlayer');
+    const audioEl = document.getElementById('audioPlayer');
+    if (audioPlayerWrap) audioPlayerWrap.classList.add('hidden');
+    if (audioEl) { audioEl.src = ''; try { audioEl.load(); } catch (e) {} }
+}
+function updateReportDetailFromStatusPoll(reportId, data) {
+    if (Number(currentReportId) !== Number(reportId)) return;
+    const panel = document.getElementById('reportDetail');
+    const content = document.getElementById('reportDetailContent');
+    if (!panel || !data) return;
+    if (data.status === 'pending' || data.status === 'processing') {
+        panel.classList.remove('hidden');
+        hideReportActionButtons();
+        content.innerHTML = reportProgressHtml(data.status);
+        return;
+    }
+    if (data.status === 'failed') {
+        panel.classList.remove('hidden');
+        hideReportActionButtons();
+        content.innerHTML = '<p class="text-red-600">' + (data.error_msg || 'Error') + '</p>';
+        return;
+    }
+}
+function stopReportStatusPolling(reportId, terminalStatus) {
+    const t = reportStatusPolls.get(reportId);
+    if (t) {
+        clearInterval(t);
+        reportStatusPolls.delete(reportId);
+    }
+    if (generatingReportId == null || Number(generatingReportId) !== Number(reportId)) return;
+    const el = document.getElementById('reportGenerateLoading');
+    const btn = document.getElementById('btnGenerateReport');
+    if (btn) btn.disabled = false;
+    generatingReportId = null;
+    if (el) {
+        if (terminalStatus === 'failed') {
+            setTimeout(function() { if (el) el.classList.add('hidden'); }, 10000);
+        } else {
+            el.classList.add('hidden');
+        }
+    }
+}
+function startReportStatusPolling(reportId) {
+    if (reportStatusPolls.has(reportId)) return;
+    let n = 0;
+    const tick = () => {
+        n++;
+        if (n > REPORT_POLL_MAX) {
+            stopReportStatusPolling(reportId, 'timeout');
+            const el = document.getElementById('reportGenerateLoading');
+            if (el && generatingReportId != null && Number(generatingReportId) === Number(reportId)) {
+                el.classList.remove('hidden');
+                el.innerHTML = 'No se recibió confirmación a tiempo. <span class="text-slate-600">ID: ' + reportId + '</span> Recarga o revisa el listado.';
+            }
+            if (Number(currentReportId) === Number(reportId)) {
+                const c = document.getElementById('reportDetailContent');
+                if (c) c.innerHTML = '<p class="text-amber-800">Tiempo de espera agotado. Revisa el listado o recarga la página.</p>';
+            }
+            return;
+        }
+        fetch('/portfolio/api/reports/' + reportId + '/status')
+            .then(r => {
+                const ct = r.headers.get('Content-Type') || '';
+                if (!r.ok) return null;
+                if (!ct.includes('application/json')) return null;
+                return r.json();
+            })
+            .then(data => {
+                if (!data || !data.status) return;
+                setReportGenerateBannerVisible(reportId, data);
+                loadReports();
+                updateReportDetailFromStatusPoll(reportId, data);
+                if (data.status === 'completed' || data.status === 'failed') {
+                    setReportGenerateBannerVisible(reportId, data);
+                    stopReportStatusPolling(reportId, data.status);
+                    if (data.status === 'failed') {
+                        if (Number(currentReportId) === Number(reportId)) {
+                            const content = document.getElementById('reportDetailContent');
+                            if (content) content.innerHTML = '<p class="text-red-600">' + (data.error_msg || 'Error') + '</p>';
+                        }
+                    } else {
+                        if (Number(currentReportId) === Number(reportId)) {
+                            loadReportDetail(reportId);
+                            const panel = document.getElementById('reportDetail');
+                            if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        }
+                    }
+                }
+            })
+            .catch(() => {});
+    };
+    tick();
+    reportStatusPolls.set(reportId, setInterval(tick, REPORT_STATUS_MS));
+}
+function stopAudioStatusPolling(reportId) {
+    const t = audioStatusPolls.get(reportId);
+    if (t) {
+        clearInterval(t);
+        audioStatusPolls.delete(reportId);
+    }
+}
+function startAudioStatusPolling(reportId) {
+    stopAudioStatusPolling(reportId);
+    let pollCount = 0;
+    const tick = () => {
+        pollCount++;
+        if (pollCount > AUDIO_POLL_MAX) {
+            stopAudioStatusPolling(reportId);
+            if (Number(currentReportId) === Number(reportId)) {
+                const audioStatus = document.getElementById('reportAudioStatus');
+                const btnRetry = document.getElementById('btnRetryAudio');
+                if (audioStatus) { audioStatus.classList.remove('hidden'); audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-amber-100 text-amber-800'; audioStatus.textContent = 'La generación tardó demasiado.'; }
+                if (btnRetry) { btnRetry.textContent = 'Reintentar audio'; btnRetry.classList.remove('hidden'); }
+            }
+            loadReports();
+            return;
+        }
+        fetch('/portfolio/api/reports/' + reportId + '/status')
+            .then(r => {
+                const ct = r.headers.get('Content-Type') || '';
+                if (!r.ok) return null;
+                if (!ct.includes('application/json')) return null;
+                return r.json();
+            })
+            .then(data => {
+                if (!data) return;
+                loadReports();
+                if (Number(currentReportId) !== Number(reportId)) return;
+                const audioStatus = document.getElementById('reportAudioStatus');
+                const btnAudio = document.getElementById('btnGenerateAudio');
+                const btnDownload = document.getElementById('btnDownloadAudio');
+                if (data.audio_status === 'processing') {
+                    if (audioStatus) {
+                        audioStatus.classList.remove('hidden');
+                        audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-800';
+                        audioStatus.textContent = 'Generando audio…';
+                    }
+                    if (btnAudio) btnAudio.classList.add('hidden');
+                    return;
+                }
+                if (data.audio_status === 'completed') {
+                    stopAudioStatusPolling(reportId);
+                    loadReportDetail(reportId);
+                    setTimeout(function() {
+                        const pl = document.getElementById('reportAudioPlayer');
+                        if (pl && !pl.classList.contains('hidden')) pl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }, 150);
+                    return;
+                }
+                if (data.audio_status === 'failed') {
+                    stopAudioStatusPolling(reportId);
+                    if (audioStatus) { audioStatus.classList.remove('hidden'); audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-red-100 text-red-800'; audioStatus.textContent = data.audio_error_msg || 'Error'; }
+                    const btnRetry = document.getElementById('btnRetryAudio');
+                    if (btnRetry) { btnRetry.textContent = 'Reintentar audio'; btnRetry.classList.remove('hidden'); }
+                    if (btnAudio) btnAudio.classList.add('hidden');
+                }
+            })
+            .catch(() => {});
+    };
+    tick();
+    audioStatusPolls.set(reportId, setInterval(tick, AUDIO_STATUS_MS));
+}
 
 document.addEventListener('DOMContentLoaded', function() {
     loadReportTemplates();
@@ -743,8 +957,13 @@ function generateReport() {
     })
     .then(data => {
         if (data.success) {
-            loading.innerHTML = 'Generando informe... Puede tardar varios minutos. <span class="ml-2">ID: ' + data.report_id + '</span>';
-            pollReportStatus(data.report_id);
+            generatingReportId = data.report_id;
+            if (loading) {
+                loading.classList.remove('hidden');
+                loading.setAttribute('data-poll-id', String(data.report_id));
+                loading.innerHTML = 'Informe creado. <strong>En cola</strong>… <span class="text-slate-600">ID: ' + data.report_id + '</span>';
+            }
+            startReportStatusPolling(data.report_id);
         } else {
             showToast(data.error || 'Error', 'error');
             btn.disabled = false;
@@ -756,23 +975,6 @@ function generateReport() {
         btn.disabled = false;
         loading.classList.add('hidden');
     });
-}
-function pollReportStatus(reportId) {
-    const loading = document.getElementById('reportGenerateLoading');
-    const btn = document.getElementById('btnGenerateReport');
-    const interval = setInterval(() => {
-        fetch(`/portfolio/api/reports/${reportId}/status`)
-            .then(r => r.json())
-            .then(data => {
-                if (data.status === 'completed' || data.status === 'failed') {
-                    clearInterval(interval);
-                    loading.classList.add('hidden');
-                    if (btn) btn.disabled = false;
-                    loadReports();
-                    if (data.status === 'completed') loadReportDetail(reportId);
-                }
-            });
-    }, 5000);
 }
 
 function loadReports() {
@@ -789,12 +991,12 @@ function loadReports() {
                 const date = r.completed_at ? new Date(r.completed_at).toLocaleDateString('es-ES') : (r.created_at ? new Date(r.created_at).toLocaleDateString('es-ES') : '');
                 const statusBadge = r.status === 'completed' ? 'bg-green-100 text-green-800' : r.status === 'failed' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800';
                 const name = r.template_title || ('Informe ' + r.id);
-                const audioBadge = r.audio_status === 'completed' ? ' <span class="text-green-600" title="Audio disponible">🔊</span>' : r.audio_status === 'processing' ? ' <span class="text-yellow-600" title="Generando audio...">⏳</span>' : '';
+                const audioBadge = r.audio_status === 'completed' ? ' <span class="text-green-600" title="Audio disponible">🔊</span>' : r.audio_status === 'processing' ? ' <span class="text-yellow-600" title="Generando audio…">⏳</span>' : '';
                 return `
                     <div class="p-3 asset-inner-panel hover:bg-slate-50/80 cursor-pointer transition-colors" onclick="loadReportDetail(${r.id})">
                         <div class="flex justify-between items-center">
                             <span class="text-sm font-medium">${(name || '').replace(/</g, '&lt;')}${audioBadge}</span>
-                            <span class="px-2 py-0.5 rounded text-xs ${statusBadge}">${r.status}</span>
+                            <span class="px-2 py-0.5 rounded text-xs ${statusBadge}">${reportStatusLabel(r.status)}</span>
                         </div>
                         <div class="text-xs text-gray-500 mt-1">${date}</div>
                     </div>
@@ -816,41 +1018,54 @@ function loadReportDetail(reportId) {
             const btnAudio = document.getElementById('btnGenerateAudio');
             const audioStatus = document.getElementById('reportAudioStatus');
             const btnDownload = document.getElementById('btnDownloadAudio');
+            const btnRetry = document.getElementById('btnRetryAudio');
             if (!panel || !content) return;
+            hideReportActionButtons();
             panel.classList.remove('hidden');
-            dateEl.textContent = data.completed_at ? new Date(data.completed_at).toLocaleString('es-ES') : '';
+            const dateSrc = data.completed_at || data.created_at;
+            dateEl.textContent = dateSrc ? new Date(dateSrc).toLocaleString('es-ES') : '';
+            if (data.status === 'pending' || data.status === 'processing') {
+                content.innerHTML = reportProgressHtml(data.status);
+                startReportStatusPolling(reportId);
+                return;
+            }
+            if (data.status === 'failed') {
+                content.innerHTML = '<p class="text-red-600">' + (data.error_msg || 'Error') + '</p>';
+                return;
+            }
             if (data.status === 'completed' && data.content) {
                 content.innerHTML = typeof marked !== 'undefined' ? marked.parse(data.content) : data.content.replace(/\n/g, '<br>');
-            } else if (data.status === 'failed') {
-                content.innerHTML = '<p class="text-red-600">' + (data.error_msg || 'Error') + '</p>';
+            } else if (data.status === 'completed') {
+                content.innerHTML = '<p class="text-gray-500">Esperando contenido del informe…</p>';
             } else {
-                content.innerHTML = '<p class="text-gray-500">Cargando...</p>';
+                content.innerHTML = '<p class="text-gray-500">Cargando…</p>';
             }
-            if (btnEmail) btnEmail.classList.add('hidden');
-            if (btnAudio) btnAudio.classList.add('hidden');
-            const btnRetry = document.getElementById('btnRetryAudio');
-            if (btnRetry) btnRetry.classList.add('hidden');
-            if (audioStatus) { audioStatus.classList.add('hidden'); audioStatus.textContent = ''; }
-            if (btnDownload) btnDownload.classList.add('hidden');
-            const audioPlayerWrap = document.getElementById('reportAudioPlayer');
-            const audioEl = document.getElementById('audioPlayer');
-            if (audioPlayerWrap) audioPlayerWrap.classList.add('hidden');
-            if (audioEl) audioEl.src = '';
             if (data.status === 'completed') {
                 if (btnEmail) btnEmail.classList.remove('hidden');
-                if (btnAudio && data.audio_status !== 'completed' && data.audio_status !== 'failed') btnAudio.classList.remove('hidden');
-                if (data.audio_status === 'processing') {
-                    audioStatus.classList.remove('hidden');
-                    audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-800';
-                    audioStatus.textContent = 'Generando audio...';
-                    pollAudioStatus(reportId);
-                } else if (data.audio_status === 'completed') {
-                    audioStatus.classList.remove('hidden');
-                    audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-green-100 text-green-800';
-                    audioStatus.textContent = 'Audio listo';
-                    const audioBaseUrl = `/portfolio/asset/${ASSET_ID}/reports/${reportId}/audio`;
-                    btnDownload.href = audioBaseUrl + '?download=1';
-                    btnDownload.classList.remove('hidden');
+                const aSt = data.audio_status;
+                if (btnAudio) {
+                    if (aSt == null || aSt === '') btnAudio.classList.remove('hidden');
+                    else btnAudio.classList.add('hidden');
+                }
+                if (aSt === 'processing') {
+                    if (audioStatus) {
+                        audioStatus.classList.remove('hidden');
+                        audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-800';
+                        audioStatus.textContent = 'Generando audio…';
+                    }
+                    if (btnAudio) btnAudio.classList.add('hidden');
+                    startAudioStatusPolling(reportId);
+                } else if (aSt === 'completed') {
+                    if (audioStatus) {
+                        audioStatus.classList.remove('hidden');
+                        audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-green-100 text-green-800';
+                        audioStatus.textContent = 'Audio listo';
+                    }
+                    const audioBaseUrl = '/portfolio/asset/' + ASSET_ID + '/reports/' + reportId + '/audio';
+                    if (btnDownload) {
+                        btnDownload.href = audioBaseUrl + '?download=1';
+                        btnDownload.classList.remove('hidden');
+                    }
                     if (btnRetry) {
                         btnRetry.textContent = 'Regenerar audio';
                         btnRetry.classList.remove('hidden');
@@ -859,12 +1074,15 @@ function loadReportDetail(reportId) {
                     const audioEl = document.getElementById('audioPlayer');
                     if (audioPlayerWrap && audioEl) {
                         audioEl.src = audioBaseUrl;
+                        try { audioEl.load(); } catch (e) {}
                         audioPlayerWrap.classList.remove('hidden');
                     }
-                } else if (data.audio_status === 'failed') {
-                    audioStatus.classList.remove('hidden');
-                    audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-red-100 text-red-800';
-                    audioStatus.textContent = data.audio_error_msg || 'Error al generar audio';
+                } else if (aSt === 'failed') {
+                    if (audioStatus) {
+                        audioStatus.classList.remove('hidden');
+                        audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-red-100 text-red-800';
+                        audioStatus.textContent = data.audio_error_msg || 'Error al generar audio';
+                    }
                     if (btnRetry) {
                         btnRetry.textContent = 'Reintentar audio';
                         btnRetry.classList.remove('hidden');
@@ -872,51 +1090,6 @@ function loadReportDetail(reportId) {
                 }
             }
         });
-}
-function pollAudioStatus(reportId) {
-    let pollCount = 0;
-    const maxPolls = 450;
-    const interval = setInterval(() => {
-        pollCount++;
-        if (pollCount > maxPolls) {
-            clearInterval(interval);
-            const audioStatus = document.getElementById('reportAudioStatus');
-            const btnRetry = document.getElementById('btnRetryAudio');
-            const btnAudio = document.getElementById('btnGenerateAudio');
-            if (audioStatus) { audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-amber-100 text-amber-800'; audioStatus.textContent = 'La generación tardó demasiado.'; }
-            if (btnRetry) { btnRetry.textContent = 'Reintentar audio'; btnRetry.classList.remove('hidden'); }
-            return;
-        }
-        fetch(`/portfolio/api/reports/${reportId}/status`)
-            .then(r => {
-                const ct = r.headers.get('Content-Type') || '';
-                if (!ct.includes('application/json')) { return null; }
-                return r.json();
-            })
-            .then(data => {
-                if (!data) return;
-                const audioStatus = document.getElementById('reportAudioStatus');
-                const btnAudio = document.getElementById('btnGenerateAudio');
-                const btnDownload = document.getElementById('btnDownloadAudio');
-                if (data.audio_status === 'completed') {
-                    clearInterval(interval);
-                    const audioBaseUrl = `/portfolio/asset/${ASSET_ID}/reports/${reportId}/audio`;
-                    if (audioStatus) { audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-green-100 text-green-800'; audioStatus.textContent = 'Audio listo'; }
-                    if (btnDownload) { btnDownload.href = audioBaseUrl + '?download=1'; btnDownload.classList.remove('hidden'); }
-                    if (btnAudio) btnAudio.classList.add('hidden');
-                    const btnRetry = document.getElementById('btnRetryAudio');
-                    if (btnRetry) { btnRetry.textContent = 'Regenerar audio'; btnRetry.classList.remove('hidden'); }
-                    const audioPlayerWrap = document.getElementById('reportAudioPlayer');
-                    const audioEl = document.getElementById('audioPlayer');
-                    if (audioPlayerWrap && audioEl) { audioEl.src = audioBaseUrl; audioPlayerWrap.classList.remove('hidden'); }
-                } else if (data.audio_status === 'failed') {
-                    clearInterval(interval);
-                    if (audioStatus) { audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-red-100 text-red-800'; audioStatus.textContent = data.audio_error_msg || 'Error'; }
-                    const btnRetry = document.getElementById('btnRetryAudio');
-                    if (btnRetry) { btnRetry.textContent = 'Reintentar audio'; btnRetry.classList.remove('hidden'); }
-                }
-            });
-    }, 4000);
 }
 function sendReportEmail() {
     if (!currentReportId) return;
@@ -982,9 +1155,9 @@ function generateReportAudio() {
             if (data.audio_ready) {
                 loadReportDetail(currentReportId);
             } else {
-                if (audioStatus) { audioStatus.classList.remove('hidden'); audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-800'; audioStatus.textContent = 'Generando audio...'; }
+                if (audioStatus) { audioStatus.classList.remove('hidden'); audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-800'; audioStatus.textContent = 'Generando audio…'; }
                 if (btn) btn.classList.add('hidden');
-                pollAudioStatus(currentReportId);
+                startAudioStatusPolling(currentReportId);
             }
         } else showToast(data.error || 'Error', 'error');
     })
