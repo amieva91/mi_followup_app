@@ -70,8 +70,21 @@ def _get_podcast_script_temperature() -> float:
 
 
 def _get_agent_deep_research() -> str:
-    """Agente para informes Deep Research. Default: deep-research-preview-04-2026 (más ágil; Max vía env)."""
-    return os.environ.get('GEMINI_AGENT_DEEP_RESEARCH') or 'deep-research-preview-04-2026'
+    """Agente para informes Deep Research. Default: ``deep-research-max-preview-04-2026`` (más exhaustivo). Override: ``GEMINI_AGENT_DEEP_RESEARCH``."""
+    return os.environ.get('GEMINI_AGENT_DEEP_RESEARCH') or 'deep-research-max-preview-04-2026'
+
+
+def _get_deep_research_collaborative_planning() -> bool:
+    """
+    Plan colaborativo: el agente propone un índice y en flujos interactivos habría un segundo turno de confirmación.
+    En nuestro informe **solo hay un turno** (background + poll); si la API queda en ``requires_action``,
+    poner ``GEMINI_DEEP_RESEARCH_COLLABORATIVE_PLANNING=0`` (por defecto) o usar un agente más ligero.
+    Para forzar el modo con índice (riesgo de ``requires_action`` en desatendido), define ``=1`` / ``true``.
+    """
+    raw = os.environ.get('GEMINI_DEEP_RESEARCH_COLLABORATIVE_PLANNING')
+    if raw is None or str(raw).strip() == '':
+        return False
+    return str(raw).strip().lower() in ('1', 'true', 'yes', 'on')
 
 
 def is_gemini_available() -> bool:
@@ -217,24 +230,28 @@ def run_deep_research_report(
     if points:
         points_text = '\nPuntos a tratar:\n' + '\n'.join(f'- {p}' for p in points if p and str(p).strip())
 
-    prompt = f"""Investiga y genera un informe detallado sobre la empresa {name}.
+    prompt = f"""Actúa como **Analista Senior de Equity Research**. Investiga y redacta un informe sobre la empresa **{name}**.
 Símbolo: {symbol or 'N/A'} | ISIN: {isin or 'N/A'}
 
-Descripción de la investigación:
+**Briefing de la investigación:**
 {description}
 {points_text}
 
-**Formato y presentación (obligatorio):**
-- Usa un **diseño editorial profesional** en **Markdown** avanzado: **H1** para el título del informe, **H2/H3** para secciones, listas y tablas.
-- Incluye al inicio de cada sección principal un bloque **Key takeaways** (3–5 viñetas) con negritas en conceptos clave.
-- Incluye **tablas comparativas** para cifras, márgenes, PER, deuda, o frente a competidores cuando haya datos.
-- Si aplica, representa en tabla una **puntuación del foso o ventaja competitiva** (no solo texto narrativo) con criterios y notas.
-- Aprovecha la **visualización nativa** del agente (gráficos, comparativas, diagramas de flujo de ingresos) cuando aporte claridad, sin sustituir el rigor.
-- Añade listas con viñetas o emojis con moderación para escaneo visual (sin exceso).
-- El estilo ha de resultar claro al leerse en la **web y en el correo** (bloques no demasiado largos, títulos descriptivos).
-- Idioma: **español (España)**. Tonos: analítico, orientado a inversor.
+**Estructura editorial (obligatorio):**
+- **Encabezados:** un **H1** para el título del informe; **H2** (y H3 si hace falta) para subsecciones claramente jerarquizadas.
+- **Key takeaways:** al inicio de **cada sección principal**, un bloque **Key takeaways** con 3–5 viñetas y negritas en los conceptos clave.
+- Evita el “muro de texto”: párrafos cortos, listas donde aporte, bloques escaneables.
 
-**Contenido:** cubre con rigor lo que pida la descripción; prioriza análisis accionable frente a rellano."""
+**Elementos visuales y datos:**
+- **Tablas comparativas** de **múltiplos** (p. ej. PER, P/B, EV/EBITDA, rentabilidad) frente a peers o histórico cuando haya datos fiables.
+- Usa la **visualización nativa** del agente (**visualización activada en la petición**) para **gráficos de barras de ingresos**, tendencias y, si encaja, **diagramas o esquemas del foso económico** (no sustituyan el análisis cualitativo).
+- Complementa con tablas de **puntuación del foso** o ventaja competitiva cuando proceda.
+
+**Rigor y citas (obligatorio):**
+- **Prohibido** el rellano genérico y las frases vacías. Cada **dato numérico** (ratios, porcentajes, millones, fechas de cifras) debe ir acompañado de una **cita inline** en el texto con el formato **`[cite: X]`**, donde **X** identifica la fuente (nombre del documento, informe, regulatorio, prensa verificable, etc.). Si un dato no tiene fuente comprobable, indícalo explícitamente sin inventar la cita.
+- Prioriza **análisis accionable** para un inversor; contrasta visión con riesgos.
+
+**Entrega:** Markdown avanzado, legible en **web y correo**, en **español (España)**."""
 
     try:
         from google import genai
@@ -245,11 +262,12 @@ Descripción de la investigación:
         if on_status_update:
             on_status_update('processing', 'Iniciando investigación...')
 
-        # Activa resúmenes de razonamiento y gráficos/infografías nativos cuando el SDK/API lo soporten.
+        # Configuración del agente Deep Research (tipos del SDK / API de interacciones).
         deep_agent_config = {
             'type': 'deep-research',
             'visualization': 'auto',
             'thinking_summaries': 'auto',
+            'collaborative_planning': _get_deep_research_collaborative_planning(),
         }
         interaction = None
         last_create_err: Optional[Exception] = None
@@ -296,7 +314,8 @@ Descripción de la investigación:
             if time.monotonic() > deadline:
                 msg = (
                     f'Tiempo de espera agotado ({max_wait_seconds // 3600} h) con la API aún en curso. '
-                    f'interaction_id={interaction_id}. Puedes reintentar o usar GEMINI_AGENT_DEEP_RESEARCH=deep-research-preview-04-2026'
+                    f'interaction_id={interaction_id}. Puedes reintentar, usar un agente más ligero vía '
+                    f'GEMINI_AGENT_DEEP_RESEARCH, o desactivar plan colaborativa con GEMINI_DEEP_RESEARCH_COLLABORATIVE_PLANNING=0'
                 )
                 logger.error('Deep Research timeout: %s', msg)
                 if on_status_update:
@@ -339,8 +358,9 @@ Descripción de la investigación:
 
             if status == 'requires_action':
                 msg = (
-                    'La API devolvió requires_action (pendiente de acción humana en Google). '
-                    'No se puede completar en esta integración. Prueba otra clave de proyecto o el agente deep-research-preview-04-2026.'
+                    'La API devolvió requires_action (p. ej. validación de plan colaborativo). '
+                    'En esta integración no hay segundo turno: define GEMINI_DEEP_RESEARCH_COLLABORATIVE_PLANNING=0 '
+                    'o usa GEMINI_AGENT_DEEP_RESEARCH=deep-research-preview-04-2026 (más ágil).'
                 )
                 logger.error('Deep Research: %s', msg)
                 if on_status_update:
