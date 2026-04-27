@@ -54,6 +54,16 @@
 .report-markdown hr { border: none; border-top: 1px solid #e5e7eb; margin: 1.5em 0; }
 .report-markdown code { background: #f3f4f6; padding: 0.15em 0.4em; border-radius: 4px; font-size: 0.9em; }
 
+/* Ajuste de escala para gráficos generados por IA (data URI / imágenes en Markdown) */
+.report-content img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 2rem auto;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
 /* Resumen "About the Company" — legible, escaneable, coherente con informes */
 .about-summary-box {
     border-radius: 0.75rem;
@@ -467,7 +477,7 @@
                         <p class="text-sm text-gray-600 mb-1">Escuchar audio resumen:</p>
                         <audio id="audioPlayer" controls class="w-full max-w-md" preload="metadata"></audio>
                     </div>
-                    <div id="reportDetailContent" class="prose max-w-none report-markdown"></div>
+                    <div id="reportDetailContent" class="prose max-w-none report-markdown report-content"></div>
                 </div>
             </div>
 
@@ -1255,7 +1265,7 @@ function loadReportDetail(reportId) {
                 }
                 if (!fpTerm) {
                     if (data.status === 'completed' && data.content) {
-                        content.className = 'prose max-w-none report-markdown';
+                        content.className = 'prose max-w-none report-markdown report-content';
                         content.innerHTML = typeof marked !== 'undefined' ? marked.parse(data.content) : data.content.replace(/\n/g, '<br>');
                     } else {
                         content.innerHTML = reportProgressHtml(data.status);
