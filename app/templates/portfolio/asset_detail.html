@@ -403,32 +403,43 @@
                 </div>
             </div>
 
-            <!-- Tab: Informes -->
+            <!-- Tab: Informes (Deep Research: informe + opcional audio + correo en un clic) -->
             <div x-show="activeTab === 'reports'" x-cloak>
-                <div class="mb-4 flex justify-between items-center">
+                <div class="mb-4">
                     <h3 class="text-lg font-medium text-gray-900">Informes de investigación</h3>
+                    <p class="text-sm text-slate-600 mt-1 max-w-3xl">Aquí se genera el informe con <strong>Deep Research</strong> (Gemini). Elige plantilla: <strong class="text-teal-800">Generar informe</strong> solo el texto, o <strong class="text-indigo-800">Informe + audio + correo</strong> (un solo clic: investigación, resumen de voz y envío a tu email).</p>
+                </div>
+                <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-start">
                     {% if gemini_available and has_valid_templates %}
-                    <div class="flex flex-col sm:flex-row sm:flex-wrap gap-2 w-full sm:w-auto">
-                        <select id="reportTemplateSelect" class="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500 min-w-0 sm:min-w-[12rem]">
+                    <div class="flex flex-col gap-3 w-full sm:flex-1 sm:min-w-0 sm:max-w-3xl">
+                        <div class="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
+                        <label for="reportTemplateSelect" class="sr-only">Plantilla de informe</label>
+                        <select id="reportTemplateSelect" aria-describedby="reportsActionsHint" class="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500 w-full sm:w-auto sm:min-w-[12rem] sm:max-w-md">
                             {% for t in report_templates %}
                             {% if t.has_valid_description() %}
                             <option value="{{ t.id }}">{{ t.title }}</option>
                             {% endif %}
                             {% endfor %}
                         </select>
-                        <div class="flex flex-wrap gap-2">
-                        <button type="button" onclick="generateReport()" id="btnGenerateReport" class="portfolio-touch-btn px-4 py-2 bg-teal-600 text-white rounded-xl hover:bg-teal-700 shadow-[0_8px_16px_rgba(13,148,136,0.25)]">
-                            Generar informe
+                        <div id="reportsActionsHint" class="flex flex-col sm:flex-row flex-wrap gap-2 w-full sm:w-auto">
+                        <button type="button" onclick="generateReport()" id="btnGenerateReport" class="portfolio-touch-btn px-4 py-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 shadow-[0_8px_16px_rgba(13,148,136,0.25)] w-full sm:w-auto text-center">
+                            Solo generar informe
                         </button>
-                        <button type="button" onclick="generateReportAndDeliver()" id="btnGenerateReportDeliver" class="portfolio-touch-btn px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 shadow-[0_8px_16px_rgba(79,70,229,0.2)]" title="Genera el informe, el audio (es-ES) y te lo envía por correo. Puedes salir; recibirás un email.">
-                            Informe + audio + correo
+                        <button type="button" onclick="generateReportAndDeliver()" id="btnGenerateReportDeliver" class="portfolio-touch-btn px-4 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 shadow-[0_8px_16px_rgba(79,70,229,0.2)] w-full sm:w-auto text-center ring-2 ring-indigo-300/50" title="Un solo clic: informe Deep Research, audio resumen (es-ES) y envío a tu correo. Puedes salir de la pantalla.">
+                            Todo en uno: informe + audio + correo
                         </button>
+                        </div>
                         </div>
                     </div>
                     {% elif gemini_available %}
-                    <button type="button" disabled title="Crea al menos una plantilla en Ajustes de informes" class="px-4 py-2 bg-slate-200 text-slate-500 rounded-xl cursor-not-allowed border border-slate-300">
-                        Generar informe
+                    <div class="flex flex-col sm:flex-row gap-2 w-full sm:justify-end">
+                    <button type="button" disabled title="Crea al menos una plantilla en Ajustes de informes" class="px-4 py-2 bg-slate-200 text-slate-500 rounded-xl cursor-not-allowed border border-slate-300 w-full sm:w-auto">
+                        Solo generar informe
                     </button>
+                    <button type="button" disabled title="Crea al menos una plantilla en Ajustes de informes" class="px-4 py-2 bg-slate-200 text-slate-500 rounded-xl cursor-not-allowed border border-slate-300 w-full sm:w-auto">
+                        Todo en uno: informe + audio + correo
+                    </button>
+                    </div>
                     {% else %}
                     <span class="text-sm text-gray-400">GEMINI_API_KEY no configurada</span>
                     {% endif %}
