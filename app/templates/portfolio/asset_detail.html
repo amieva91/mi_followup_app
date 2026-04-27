@@ -627,8 +627,9 @@ function setReportGenerateBannerVisible(reportId, data) {
     if (generatingReportId == null || Number(generatingReportId) !== Number(reportId)) return;
     el.setAttribute('data-poll-id', String(reportId));
     el.classList.remove('hidden');
-    if (data.audio_progress && data.audio_progress.full_pipeline && data.audio_progress.steps && data.audio_progress.steps.length) {
-        el.innerHTML = buildAudioProgressBlockHtml(data.audio_progress.steps, data.audio_progress.caption);
+    const ap0 = data.audio_progress;
+    if (ap0 && ap0.steps && ap0.steps.length && (ap0.full_pipeline || ap0.report_stages)) {
+        el.innerHTML = buildAudioProgressBlockHtml(ap0.steps, ap0.caption);
         return;
     }
     if (data.status === 'pending') {
@@ -637,12 +638,13 @@ function setReportGenerateBannerVisible(reportId, data) {
         el.innerHTML = 'Investigando con <strong>Deep Research</strong>… (varios minutos) <span class="text-slate-600">ID: ' + reportId + '</span>';
     } else if (data.status === 'failed') {
         el.innerHTML = '<span class="text-red-800">' + (data.error_msg ? String(data.error_msg).replace(/</g, '&lt;') : 'Error al generar el informe') + '</span> <span class="text-slate-600">ID: ' + reportId + '</span>';
-    } else if (data.status === 'completed' && (!data.audio_progress || !data.audio_progress.full_pipeline)) {
+    } else if (data.status === 'completed' && (!data.audio_progress || (!data.audio_progress.full_pipeline && !data.audio_progress.report_stages))) {
         el.classList.add('hidden');
     }
 }
 function fullPipelinePollTerminal(data) {
-    if (!data || !data.audio_progress || !data.audio_progress.full_pipeline) return true;
+    if (!data || !data.audio_progress) return true;
+    if (!data.audio_progress.full_pipeline) return true;
     const steps = data.audio_progress.steps || [];
     const last = steps[steps.length - 1];
     if (last && last.id === 'email' && (last.status === 'ok' || last.status === 'error')) return true;
@@ -692,6 +694,7 @@ function buildAudioProgressBlockHtml(steps, caption) {
         if (st.status === 'ok') icon = '<span class="text-emerald-600" title="Completado">✓</span>';
         else if (st.status === 'loading') icon = '<span class="inline-block w-3.5 h-3.5 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" title="En curso"></span>';
         else if (st.status === 'error') icon = '<span class="text-red-600" title="Error">✗</span>';
+        else if (st.status === 'skipped') icon = '<span class="text-slate-400" title="Omitido en este modo">⏭</span>';
         else icon = '<span class="text-slate-300" title="Pendiente">○</span>';
         var err = st.error ? '<div class="text-red-600 text-xs mt-1 max-w-lg leading-snug break-words">' + escapeHtml(st.error) + '</div>' : '';
         var model = st.model ? ' <code class="text-slate-500 text-[0.7rem] align-baseline break-all">' + escapeHtml(st.model) + '</code>' : '';
@@ -738,13 +741,14 @@ function updateReportDetailFromStatusPoll(reportId, data) {
     const content = document.getElementById('reportDetailContent');
     const audioPb = document.getElementById('reportAudioProgress');
     if (!panel || !data) return;
-    if (data.audio_progress && data.audio_progress.full_pipeline && data.audio_progress.steps && data.audio_progress.steps.length) {
+    const ap1 = data.audio_progress;
+    if (ap1 && ap1.steps && ap1.steps.length && (ap1.full_pipeline || ap1.report_stages)) {
         panel.classList.remove('hidden');
         hideReportActionButtons();
         content.innerHTML = reportProgressHtml(data.status);
         if (audioPb) {
             audioPb.classList.remove('hidden');
-            audioPb.innerHTML = buildAudioProgressBlockHtml(data.audio_progress.steps, data.audio_progress.caption);
+            audioPb.innerHTML = buildAudioProgressBlockHtml(ap1.steps, ap1.caption);
         }
         return;
     }
@@ -1240,9 +1244,15 @@ function loadReportDetail(reportId) {
             const dateSrc = data.completed_at || data.created_at;
             dateEl.textContent = dateSrc ? new Date(dateSrc).toLocaleString('es-ES') : '';
             const fp0 = data.audio_progress;
-            if (fp0 && fp0.full_pipeline && fp0.steps && fp0.steps.length) {
-                const le = fp0.steps[fp0.steps.length - 1];
-                const fpTerm = le && le.id === 'email' && (le.status === 'ok' || le.status === 'error');
+            const hasPipelineProgress = fp0 && fp0.steps && fp0.steps.length && (fp0.full_pipeline || fp0.report_stages);
+            if (hasPipelineProgress) {
+                var fpTerm;
+                if (fp0.full_pipeline) {
+                    const le = fp0.steps[fp0.steps.length - 1];
+                    fpTerm = le && le.id === 'email' && (le.status === 'ok' || le.status === 'error');
+                } else {
+                    fpTerm = (data.status === 'completed' || data.status === 'failed');
+                }
                 if (!fpTerm) {
                     if (data.status === 'completed' && data.content) {
                         content.className = 'prose max-w-none report-markdown';

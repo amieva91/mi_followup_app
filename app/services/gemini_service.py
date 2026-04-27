@@ -78,15 +78,103 @@ def _get_agent_deep_research() -> str:
 
 def _get_deep_research_collaborative_planning() -> bool:
     """
-    Plan colaborativo: el agente propone un índice y en flujos interactivos habría un segundo turno de confirmación.
-    En nuestro informe **solo hay un turno** (background + poll); si la API queda en ``requires_action``,
-    poner ``GEMINI_DEEP_RESEARCH_COLLABORATIVE_PLANNING=0`` (por defecto) o usar un agente más ligero.
-    Para forzar el modo con índice (riesgo de ``requires_action`` en desatendido), define ``=1`` / ``true``.
+    Reservado para compatibilidad. El bucle de dos fases (plan aprobado en servidor) usa
+    :func:`_get_auto_collab_loop`; si está desactivado, el informe usa un solo ``create`` con
+    ``collaborative_planning=False`` para evitar ``requires_action`` sin segundo turno.
     """
     raw = os.environ.get('GEMINI_DEEP_RESEARCH_COLLABORATIVE_PLANNING')
     if raw is None or str(raw).strip() == '':
         return False
     return str(raw).strip().lower() in ('1', 'true', 'yes', 'on')
+
+
+def _get_auto_collab_loop() -> bool:
+    """
+    Si es True (por defecto): plan colaborativo en primer ``interactions.create`` (collaborative_planning=True);
+    a continuación, segundo ``create`` con ``previous_interaction_id`` y ``collaborative_planning=False``
+    para aprobar el plan y ejecutar la investigación (sin intervención del usuario). Override:
+    ``GEMINI_DEEP_RESEARCH_AUTO_COLLAB_LOOP=0`` o ``false``.
+    """
+    raw = os.environ.get('GEMINI_DEEP_RESEARCH_AUTO_COLLAB_LOOP')
+    if raw is None or str(raw).strip() == '':
+        return True
+    return str(raw).strip().lower() in ('1', 'true', 'yes', 'on')
+
+
+# Segundo turno: mensaje de aprobación (documentación Google Deep Research — paso 3 "Approve and execute")
+DEEP_RESEARCH_APPROVE_INPUT = (
+    'El plan propuesto es adecuado. Apruebo el plan tal como está. '
+    'Procede a ejecutar en profundidad la investigación y entrega el informe final completo en español (España) '
+    'en Markdown, siguiendo el briefing, el plan acordado y las reglas de formato indicadas al inicio.'
+)
+
+
+def _report_substep_rows(single_shot: bool) -> list:
+    """Tres subpasos lógicos (plan → validar → informe) para la UI. ``single_shot`` omite plan/validación."""
+    ag = _get_agent_deep_research()
+    if single_shot:
+        return [
+            {
+                'id': 'plan',
+                'title': 'Plan colaborativo (modo directo)',
+                'status': 'skipped',
+                'model': None,
+                'error': None,
+            },
+            {
+                'id': 'validate',
+                'title': 'Confirmación de plan (modo directo)',
+                'status': 'skipped',
+                'model': None,
+                'error': None,
+            },
+            {
+                'id': 'report',
+                'title': 'Generando informe (Deep Research)',
+                'status': 'loading',
+                'model': ag,
+                'error': None,
+            },
+        ]
+    return [
+        {
+            'id': 'plan',
+            'title': 'Generando plan de investigación',
+            'status': 'loading',
+            'model': ag,
+            'error': None,
+        },
+        {
+            'id': 'validate',
+            'title': 'Validando y confirmando plan (automático)',
+            'status': 'pending',
+            'model': None,
+            'error': None,
+        },
+        {
+            'id': 'report',
+            'title': 'Generando informe (Deep Research)',
+            'status': 'pending',
+            'model': ag,
+            'error': None,
+        },
+    ]
+
+
+def new_report_stages_progress_state() -> dict:
+    """
+    Progreso en la pestaña de informes para la generación **solo del informe** (3 subpasos o 1 vía modo directo).
+    Se guarda en ``company_reports.audio_progress_json`` con ``report_stages: true``.
+    """
+    return {
+        'report_stages': True,
+        'full_pipeline': False,
+        'caption': (
+            'Investigación en segundo plano: fases de plan (colaborativo), confirmación automática e informe. '
+            'Puedes salir; el estado se actualizará al volver.'
+        ),
+        'steps': _report_substep_rows(not _get_auto_collab_loop()),
+    }
 
 
 def is_gemini_available() -> bool:
@@ -289,6 +377,106 @@ def _extract_interaction_text(interaction) -> str:
     return '\n\n'.join(parts).strip() if parts else ''
 
 
+def _interaction_status_str(raw) -> str:
+    s = raw or 'unknown'
+    if isinstance(s, str):
+        return s.lower()
+    return str(getattr(s, 'value', s)).lower()
+
+
+def _emit_report_substeps(
+    on_report_substeps: Optional[Callable[[list], None]], sts: list,
+) -> None:
+    if on_report_substeps:
+        on_report_substeps([dict(s) for s in sts])
+
+
+def _interactions_create_deep_research(
+    client, *, input_text: str, agent_name: str, collab: bool, previous_interaction_id: Optional[str] = None
+) -> Any:
+    agent_config = {
+        'type': 'deep-research',
+        'visualization': 'auto',
+        'thinking_summaries': 'auto',
+        'collaborative_planning': collab,
+    }
+    last_create_err: Optional[Exception] = None
+    for with_agent_cfg in (True, False):
+        try:
+            kwargs: dict = {
+                'input': input_text,
+                'agent': agent_name,
+                'background': True,
+                'store': True,
+            }
+            if with_agent_cfg:
+                kwargs['agent_config'] = agent_config
+            if previous_interaction_id:
+                kwargs['previous_interaction_id'] = str(previous_interaction_id)[:200]
+            return client.interactions.create(**kwargs)
+        except Exception as ex:
+            last_create_err = ex
+            if with_agent_cfg:
+                logger.warning('interactions.create (Deep Research) reintento sin agent_config: %s', ex)
+                continue
+            raise
+    if last_create_err:
+        raise last_create_err
+    raise GeminiServiceError('interactions.create devolvió vacío')
+
+
+def _poll_interaction_once(
+    client, interaction_id: str, on_status_update, poll_n: int, last_logged: Optional[str]
+) -> tuple:
+    inter = client.interactions.get(interaction_id)
+    status = _interaction_status_str(getattr(inter, 'status', None))
+    if status != last_logged or poll_n % 8 == 0:
+        logger.info('Deep Research poll: id=%s status=%s', interaction_id, status)
+    return inter, status
+
+
+def _poll_interaction_block(
+    client,
+    interaction_id: str,
+    deadline: float,
+    poll_interval_seconds: int,
+    on_status_update,
+    phase_msg: str,
+) -> tuple[str, Any]:
+    """
+    Devuelve (``completed`` | ``failed`` | ``timeout`` | ``cancelled`` | ``requires_action``, carga útil).
+    En ``failed``/``timeout``/``cancelled`` la carga es str; en los demás es el objeto interacción.
+    """
+    poll_n = 0
+    last_logged: Optional[str] = None
+    while time.monotonic() < deadline:
+        inter, status = _poll_interaction_once(
+            client, interaction_id, on_status_update, poll_n, last_logged
+        )
+        last_logged = status
+        poll_n += 1
+        if status == 'completed':
+            return 'completed', inter
+        if status == 'failed':
+            em = getattr(inter, 'error', 'Error desconocido') or 'Error desconocido'
+            if hasattr(em, 'message'):
+                em = em.message
+            return 'failed', str(em)
+        if status in ('cancelled', 'canceled'):
+            return 'cancelled', 'La interacción fue cancelada en el servicio de Gemini.'
+        if status == 'requires_action':
+            return 'requires_action', inter
+        if status not in ('in_progress', 'pending', 'running', 'unknown', 'active'):
+            logger.warning('Deep Research: estado inesperado %s, sigo haciendo poll', status)
+        time.sleep(poll_interval_seconds)
+        if on_status_update:
+            on_status_update('processing', f'{phase_msg} (estado: {status})')
+    return 'timeout', (
+        f'Tiempo de espera con la API aún en curso. interaction_id={interaction_id}. '
+        f'Puedes reintentar o usar GEMINI_DEEP_RESEARCH_AUTO_COLLAB_LOOP=0 para un solo paso (sin fase de plan).'
+    )
+
+
 def run_deep_research_report(
     asset_name: str,
     asset_symbol: str,
@@ -299,26 +487,15 @@ def run_deep_research_report(
     poll_interval_seconds: int = 15,
     max_wait_seconds: int = 6 * 3600,
     on_interaction_created: Optional[Callable[[str], None]] = None,
+    on_report_substeps: Optional[Callable[[list], None]] = None,
 ) -> Tuple[str, str]:
     """
-    Ejecuta informe Deep Research en segundo plano (polling hasta completar).
-    Llama a la API de Interactions con background=True y hace poll hasta completed/failed.
+    Informe Deep Research: modo **dos fases** (por defecto) con plan colaborativo y confirmación
+    automática vía ``previous_interaction_id``, o un solo ``create`` si
+    ``GEMINI_DEEP_RESEARCH_AUTO_COLLAB_LOOP=0``.
 
-    Args:
-        asset_name: Nombre de la empresa
-        asset_symbol: Símbolo del activo
-        asset_isin: ISIN del activo
-        description: Descripción de la investigación (obligatorio)
-        points: Lista de puntos/preguntas opcionales
-        on_status_update: Callback(opcional) que recibe (status, message) para actualizar UI
-        poll_interval_seconds: Segundos entre cada poll
-        max_wait_seconds: Máximo tiempo de espera (evita bucles infinitos si la API no termina)
-        on_interaction_created: Callback con interaction_id nada más crear (para guardar en BD)
-
-    Returns:
-        tuple: (status, content_or_error)
-        - ('completed', content) si éxito
-        - ('failed', error_msg) si falla
+    ``on_report_substeps`` recibe 3 diccionarios (plan / validar / informe) con ``status``:
+    ``loading`` | ``ok`` | ``error`` | ``pending`` | ``skipped``.
     """
     api_key = _get_api_key()
     if not api_key:
@@ -332,153 +509,212 @@ def run_deep_research_report(
     if points:
         points_text = '\nPuntos a tratar:\n' + '\n'.join(f'- {p}' for p in points if p and str(p).strip())
 
-    prompt = f"""Actúa como **Analista Senior de Equity Research**. Investiga y redacta un informe sobre la empresa **{name}**.
-Símbolo: {symbol or 'N/A'} | ISIN: {isin or 'N/A'}
+    prompt = f"""Actúa como un **Analista Senior de Equity Research** con enfoque en diseño editorial profesional.
 
-**Briefing de la investigación:**
+**Empresa y contexto de investigación**
+- Empresa: **{name}**
+- Símbolo: {symbol or 'N/A'} | ISIN: {isin or 'N/A'}
+
+**Briefing (prioridad y alcance)**
 {description}
 {points_text}
 
-**Estructura editorial (obligatorio):**
-- **Encabezados:** un **H1** para el título del informe; **H2** (y H3 si hace falta) para subsecciones claramente jerarquizadas.
-- **Key takeaways:** al inicio de **cada sección principal**, un bloque **Key takeaways** con 3–5 viñetas y negritas en los conceptos clave.
-- Evita el “muro de texto”: párrafos cortos, listas donde aporte, bloques escaneables.
+**REGLAS DE FORMATO VISUAL**
+- Estructura amigable: no escribas párrafos de más de unas **cuatro líneas** al visualizarlos; divide el texto. Usa **negritas** para resaltar hallazgos, no solo títulos.
+- Bloques de resaltado: incluye al inicio un **Resumen ejecutivo (Executive summary)** y, al inicio de **cada sección principal**, un bloque **Key takeaways**; en ambos casos encierra el contenido en **bloques de cita** Markdown: cada línea del bloque debe comenzar con el carácter **>** (cita) para que destaquen en web y correo.
+- Tablas **condicionales:** usa tablas Markdown solo si los datos son **relevantes y están** en las fuentes. Si faltan datos, usa **listas** (puedes añadir un **icono/emoji** al inicio de viñetas, p. ej. 📈 📊 ✓) en lugar de tablas vacías o genéricas.
+- **Visualización:** para gráficos o infografías, usa la **herramienta nativa** del agente (``visualization: auto`` en el backend). **No** generes Mermaid, xychart-beta, ASCII-art sustitutivo de gráficos ni bloques de código con pseudo-diagramas: el lector no los renderizará.
+- Título con **H1**; secciones con **H2** y **H3** de forma clara y jerarquizada.
 
-**Elementos visuales y datos:**
-- **Tablas comparativas** de **múltiplos** (p. ej. PER, P/B, EV/EBITDA, rentabilidad) frente a peers o histórico cuando haya datos fiables.
-- Usa la **visualización nativa** del agente (**visualización activada en la petición**) para **gráficos de barras de ingresos**, tendencias y, si encaja, **diagramas o esquemas del foso económico** (no sustituyan el análisis cualitativo).
-- Complementa con tablas de **puntuación del foso** o ventaja competitiva cuando proceda.
+**RIGOR, CITAS Y DATOS**
+- **Prohibido** el rellano genérico. Cada **dato numérico** relevante debe ir acompañado de una cita en texto con el formato **`[cite: X]`** (documento, CNMV, informe, prensa verificable, etc.) cuando exista. No inventes la cita.
+- **Protocolo de datos faltantes:** si una métrica (EBITDA, PER actual, márgenes, deuda, guidance, etc.) **no aparece** en las fuentes, declara **«Dato no disponible»** y explica en una frase breve el motivo. **Prohibido** estimar, interpolar o inventar sin base.
+- Prioriza análisis accionable; contrapón oportunidad y riesgo.
 
-**Rigor y citas (obligatorio):**
-- **Prohibido** el rellano genérico y las frases vacías. Cada **dato numérico** (ratios, porcentajes, millones, fechas de cifras) debe ir acompañado de una **cita inline** en el texto con el formato **`[cite: X]`**, donde **X** identifica la fuente (nombre del documento, informe, regulatorio, prensa verificable, etc.). Si un dato no tiene fuente comprobable, indícalo explícitamente sin inventar la cita.
-- **Investigación estricta (datos faltantes):** implementa un modo de rigor absoluto con métricas financieras concretas (p. ej. **EBITDA**, **PER actual**, márgenes, deuda neta, guidance). Si una métrica **no aparece** en las fuentes consultadas, debes declarar **«Dato no disponible»** y explicar en una frase breve por qué (p. ej. no publicado en el periodo, fuera de alcance del documento), **en lugar de estimarla, interpolarla o inventarla**.
-- Prioriza **análisis accionable** para un inversor; contrasta visión con riesgos.
+**CODIFICACIÓN Y ENTREGA**
+- Responde en **español (España)**. Salida en texto **UTF-8** con tildes y eñes correctas en el carácter; **no** uses secuencias escapadas tipo ``\\u00f3``.
 
-**Entrega:** Markdown avanzado, legible en **web y correo**, en **español (España)**."""
+**BIBLIOGRAFÍA / FUENTES**
+- Al final, crea la sección **Fuentes consultadas** (o **Fuentes consultadas y bibliografía**) con hipervínculos descriptivos: ``[Nombre de la fuente](URL)`` cuando haya enlace; si no, solo el nombre y la cita asociada.
+
+**Entrega final** en **Markdown** avanzado, legible en **web y correo**."""
 
     try:
         from google import genai
 
         client = genai.Client(api_key=api_key)
         agent_name = _get_agent_deep_research()
-
+        auto_loop = _get_auto_collab_loop()
+        single_shot = not auto_loop
+        deadline = time.monotonic() + max_wait_seconds
+        sts = _report_substep_rows(single_shot)
         if on_status_update:
             on_status_update('processing', 'Iniciando investigación...')
+        _emit_report_substeps(on_report_substeps, sts)
 
-        # Configuración del agente Deep Research (tipos del SDK / API de interacciones).
-        deep_agent_config = {
-            'type': 'deep-research',
-            'visualization': 'auto',
-            'thinking_summaries': 'auto',
-            'collaborative_planning': _get_deep_research_collaborative_planning(),
-        }
-        interaction = None
-        last_create_err: Optional[Exception] = None
-        for with_agent_cfg in (True, False):
+        def _fail_substeps(phase: str, err: str) -> None:
+            e = (err or 'Error')[:4000]
+            if phase == 'plan':
+                sts[0]['status'] = 'error'
+                sts[0]['error'] = e
+            elif phase == 'validate':
+                sts[1]['status'] = 'error'
+                sts[1]['error'] = e
+            else:
+                sts[2]['status'] = 'error'
+                sts[2]['error'] = e
+            _emit_report_substeps(on_report_substeps, sts)
+
+        if not auto_loop:
+            # Un solo create; sin fase de plan (evita requires_action)
             try:
-                kwargs = {
-                    'input': prompt,
-                    'agent': agent_name,
-                    'background': True,
-                    'store': True,  # Requerido por la API para background=True
-                }
-                if with_agent_cfg:
-                    kwargs['agent_config'] = deep_agent_config
-                interaction = client.interactions.create(**kwargs)
-                break
+                interaction = _interactions_create_deep_research(
+                    client,
+                    input_text=prompt,
+                    agent_name=agent_name,
+                    collab=False,
+                    previous_interaction_id=None,
+                )
             except Exception as ex:
-                last_create_err = ex
-                if with_agent_cfg:
-                    logger.warning(
-                        'interactions.create con agent_config falló; reintento sin: %s',
-                        ex,
-                    )
-                    continue
-                raise
-        if interaction is None and last_create_err:
-            raise last_create_err
+                _fail_substeps('report', str(ex))
+                if on_status_update:
+                    on_status_update('failed', str(ex))
+                return ('failed', str(ex))
+            iid = interaction.id if hasattr(interaction, 'id') else str(interaction)
+            logger.info('Deep Research (modo directo): agent=%s interaction_id=%s', agent_name, iid)
+            if on_interaction_created:
+                try:
+                    on_interaction_created(str(iid)[:100])
+                except Exception as cb_err:
+                    logger.warning('on_interaction_created falló: %s', cb_err)
+            if on_status_update:
+                on_status_update('processing', 'Investigando en segundo plano (modo directo)…')
+            res, data = _poll_interaction_block(
+                client, iid, deadline, poll_interval_seconds, on_status_update, 'Generando informe',
+            )
+            if res in ('failed', 'timeout', 'cancelled'):
+                msg = str(data)
+                if res == 'timeout':
+                    msg = str(data) if data else 'Timeout'
+                _fail_substeps('report', msg)
+                if on_status_update:
+                    on_status_update('failed', msg)
+                return ('failed', msg)
+            if res == 'requires_action':
+                m = 'La API devolvió requires_action en modo directo. Prueba a activar el bucle automático (GEMINI_DEEP_RESEARCH_AUTO_COLLAB_LOOP=1) o otro agente.'
+                _fail_substeps('report', m)
+                if on_status_update:
+                    on_status_update('failed', m)
+                return ('failed', m)
+            inter = data
+            text = _extract_interaction_text(inter) or 'Informe vacío'
+            sts[2]['status'] = 'ok'
+            sts[2]['error'] = None
+            _emit_report_substeps(on_report_substeps, sts)
+            if on_status_update:
+                on_status_update('completed', 'Informe completado')
+            return ('completed', text)
 
-        interaction_id = interaction.id if hasattr(interaction, 'id') else str(interaction)
-        logger.info('Deep Research iniciado: agent=%s interaction_id=%s', agent_name, interaction_id)
+        # Bucle de dos fases: plan (collab) → aprobación automática (sin collab) → informe
+        if on_status_update:
+            on_status_update('processing', 'Fase 1: generando plan de investigación…')
+        try:
+            p1 = _interactions_create_deep_research(
+                client, input_text=prompt, agent_name=agent_name, collab=True, previous_interaction_id=None
+            )
+        except Exception as ex:
+            _fail_substeps('plan', str(ex))
+            if on_status_update:
+                on_status_update('failed', str(ex))
+            return ('failed', str(ex))
+        id1 = p1.id if hasattr(p1, 'id') else str(p1)
+        logger.info('Deep Research fase 1 (plan): agent=%s interaction_id=%s', agent_name, id1)
+
+        r1, d1 = _poll_interaction_block(
+            client, str(id1), deadline, poll_interval_seconds, on_status_update, 'Generando plan de investigación',
+        )
+        if r1 in ('failed', 'timeout', 'cancelled'):
+            msg = d1 if isinstance(d1, str) else str(d1)
+            if r1 == 'timeout' and not isinstance(d1, str):
+                msg = str(d1)
+            _fail_substeps('plan', msg)
+            if on_status_update:
+                on_status_update('failed', msg)
+            return ('failed', msg)
+        if r1 not in ('completed', 'requires_action'):
+            msg = f'Estado inesperado en fase 1: {r1}'
+            _fail_substeps('plan', msg)
+            return ('failed', msg)
+        # Plan listo; preparar aprobación automática
+        sts[0]['status'] = 'ok'
+        sts[0]['error'] = None
+        sts[1]['status'] = 'loading'
+        sts[1]['error'] = None
+        _emit_report_substeps(on_report_substeps, sts)
+        if on_status_update:
+            on_status_update('processing', 'Validando y confirmando plan (automático)…')
+        try:
+            p2 = _interactions_create_deep_research(
+                client,
+                input_text=DEEP_RESEARCH_APPROVE_INPUT,
+                agent_name=agent_name,
+                collab=False,
+                previous_interaction_id=str(id1)[:200],
+            )
+        except Exception as ex:
+            _fail_substeps('validate', str(ex))
+            if on_status_update:
+                on_status_update('failed', str(ex))
+            return ('failed', str(ex))
+        id2 = p2.id if hasattr(p2, 'id') else str(p2)
+        logger.info('Deep Research fase 2 (informe): agent=%s interaction_id=%s', agent_name, id2)
         if on_interaction_created:
             try:
-                on_interaction_created(str(interaction_id)[:100])
+                on_interaction_created(str(id2)[:100])
             except Exception as cb_err:
                 logger.warning('on_interaction_created falló: %s', cb_err)
-
+        sts[1]['status'] = 'ok'
+        sts[1]['error'] = None
+        sts[2]['status'] = 'loading'
+        sts[2]['error'] = None
+        _emit_report_substeps(on_report_substeps, sts)
         if on_status_update:
-            on_status_update('processing', 'Investigando en segundo plano...')
+            on_status_update('processing', 'Generando informe en profundidad…')
 
-        deadline = time.monotonic() + max_wait_seconds
-        poll_n = 0
-        last_logged_status = None
-
-        while True:
-            if time.monotonic() > deadline:
-                msg = (
-                    f'Tiempo de espera agotado ({max_wait_seconds // 3600} h) con la API aún en curso. '
-                    f'interaction_id={interaction_id}. Puedes reintentar, usar un agente más ligero vía '
-                    f'GEMINI_AGENT_DEEP_RESEARCH, o desactivar plan colaborativa con GEMINI_DEEP_RESEARCH_COLLABORATIVE_PLANNING=0'
-                )
-                logger.error('Deep Research timeout: %s', msg)
-                if on_status_update:
-                    on_status_update('failed', msg)
-                return ('failed', msg)
-
-            interaction = client.interactions.get(interaction_id)
-            raw = getattr(interaction, 'status', None)
-            status = (raw or 'unknown')
-            if isinstance(status, str):
-                status = status.lower()
-            else:
-                status = str(getattr(status, 'value', status)).lower()
-
-            if status != last_logged_status or poll_n % 8 == 0:
-                logger.info('Deep Research poll: id=%s status=%s', interaction_id, status)
-                last_logged_status = status
-            poll_n += 1
-
-            if status == 'completed':
-                text = _extract_interaction_text(interaction) or 'Informe vacío'
-                if on_status_update:
-                    on_status_update('completed', 'Informe completado')
-                return ('completed', text)
-
-            if status == 'failed':
-                error_msg = getattr(interaction, 'error', 'Error desconocido') or 'Error desconocido'
-                if hasattr(error_msg, 'message'):
-                    error_msg = error_msg.message
-                error_str = str(error_msg)
-                logger.error('Deep Research falló: %s', error_str)
-                if on_status_update:
-                    on_status_update('failed', error_str)
-                return ('failed', error_str)
-
-            if status in ('cancelled', 'canceled'):
-                msg = 'La interacción fue cancelada en el servicio de Gemini.'
-                logger.error('Deep Research: %s', msg)
-                return ('failed', msg)
-
-            if status == 'requires_action':
-                msg = (
-                    'La API devolvió requires_action (p. ej. validación de plan colaborativo). '
-                    'En esta integración no hay segundo turno: define GEMINI_DEEP_RESEARCH_COLLABORATIVE_PLANNING=0 '
-                    'o usa GEMINI_AGENT_DEEP_RESEARCH=deep-research-preview-04-2026 (más ágil).'
-                )
-                logger.error('Deep Research: %s', msg)
-                if on_status_update:
-                    on_status_update('failed', msg)
-                return ('failed', msg)
-
-            if status not in ('in_progress', 'pending', 'running', 'unknown', 'active'):
-                logger.warning('Deep Research: estado inesperado %s, sigo haciendo poll', status)
-
-            time.sleep(poll_interval_seconds)
+        r2, d2 = _poll_interaction_block(
+            client, str(id2), deadline, poll_interval_seconds, on_status_update, 'Generando informe',
+        )
+        if r2 in ('failed', 'timeout', 'cancelled'):
+            msg = d2 if isinstance(d2, str) else str(d2)
+            if r2 == 'timeout' and not isinstance(d2, str):
+                msg = str(d2)
+            _fail_substeps('report', msg)
             if on_status_update:
-                on_status_update('processing', f'Investigando... (estado: {status})')
+                on_status_update('failed', msg)
+            return ('failed', msg)
+        if r2 == 'requires_action':
+            m = 'La fase 2 quedó en requires_action. Revisa el agente o inténtalo de nuevo.'
+            _fail_substeps('report', m)
+            if on_status_update:
+                on_status_update('failed', m)
+            return ('failed', m)
+        if r2 != 'completed':
+            m = f'Estado inesperado en fase 2: {r2}'
+            _fail_substeps('report', m)
+            return ('failed', m)
+        inter2 = d2
+        text = _extract_interaction_text(inter2) or 'Informe vacío'
+        sts[2]['status'] = 'ok'
+        sts[2]['error'] = None
+        _emit_report_substeps(on_report_substeps, sts)
+        if on_status_update:
+            on_status_update('completed', 'Informe completado')
+        return ('completed', text)
 
     except ImportError as e:
         raise GeminiServiceError(f'Paquete google-genai no instalado: {e}')
+    except GeminiServiceError:
+        raise
     except Exception as e:
         logger.exception('Error en Deep Research: %s', e)
         raise GeminiServiceError(str(e))
@@ -841,23 +1077,19 @@ def new_audio_progress_steps_state() -> list:
 
 def new_full_pipeline_progress_state() -> dict:
     """
-    Guion (progreso unificado) para: informe Deep Research → guion → TTS → envío de correo.
+    Progreso unificado: subpasos del informe (plan / validación / informe) + guion + TTS + correo.
     Se persiste en ``company_reports.audio_progress_json`` con ``full_pipeline: true``.
     """
+    first = _report_substep_rows(not _get_auto_collab_loop())
     return {
         'full_pipeline': True,
+        'report_stages': False,
         'caption': (
-            'Proceso completo en segundo plano: informe, audio (es-ES) y envío por correo. '
+            'Proceso completo en segundo plano: plan e informe Deep Research, audio (es-ES) y envío por correo. '
             'Puedes salir; recibirás el informe y el audio en tu email.'
         ),
-        'steps': [
-            {
-                'id': 'report',
-                'title': 'Informe Deep Research',
-                'status': 'loading',
-                'model': _get_agent_deep_research(),
-                'error': None,
-            },
+        'steps': first
+        + [
             {
                 'id': 'script',
                 'title': 'Guion 3 actos (≤950 p., estilo NotebookLM)',
@@ -884,18 +1116,18 @@ def new_full_pipeline_progress_state() -> dict:
 
 
 def merge_full_pipeline_with_tts_progress(full_state: dict, tts_progress: dict) -> dict:
-    """Incorpora los dos pasos del TTS (guion + audio) en el estado de pipeline de 4 pasos."""
+    """Incorpora guion + TTS en los índices 3 y 4 del pipeline completo (tras los 3 subpasos del informe)."""
     out = {**full_state, 'full_pipeline': True}
     steps = [dict(s) for s in (out.get('steps') or [])]
     tts_steps = (tts_progress or {}).get('steps') or []
-    if len(steps) >= 3 and len(tts_steps) >= 1:
+    if len(steps) >= 5 and len(tts_steps) >= 1:
         for k in ('status', 'error', 'model'):
             if k in tts_steps[0] and tts_steps[0][k] is not None:
-                steps[1][k] = tts_steps[0][k]
-    if len(steps) >= 3 and len(tts_steps) >= 2:
+                steps[3][k] = tts_steps[0][k]
+    if len(steps) >= 6 and len(tts_steps) >= 2:
         for k in ('status', 'error', 'model'):
             if k in tts_steps[1] and tts_steps[1][k] is not None:
-                steps[2][k] = tts_steps[1][k]
+                steps[4][k] = tts_steps[1][k]
     out['steps'] = steps
     return out
 
