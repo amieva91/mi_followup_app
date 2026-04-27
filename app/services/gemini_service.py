@@ -7,6 +7,8 @@ Servicio para integración con Google Gemini API.
   pero replica el patrón guion → audio multispeaker de la documentación oficial).
 """
 import os
+import re
+import base64
 import time
 import logging
 from typing import Any, Callable, Optional, Tuple
@@ -176,14 +178,114 @@ Requisitos (español, sin saludos; salida en **Markdown mínimo** legible en pan
         raise GeminiServiceError(str(e))
 
 
+def _get_output_attr(block: Any, name: str, default=None):
+    if isinstance(block, dict):
+        return block.get(name, default)
+    return getattr(block, name, default)
+
+
+def _norm_output_type(block: Any) -> str:
+    t = _get_output_attr(block, 'type')
+    if t is not None and hasattr(t, 'value'):
+        t = t.value
+    return str(t or '').strip().lower()
+
+
+def _parse_data_url_if_present(s: str) -> tuple[Optional[str], Optional[str]]:
+    """Si ``s`` es data URL, devuelve (payload_base64, mime); si no, (None, None)."""
+    s = (s or '').strip()
+    if not s.startswith('data:'):
+        return None, None
+    m = re.match(r'data:([^;]+);base64,(.+)', s, re.DOTALL | re.IGNORECASE)
+    if m:
+        return m.group(2).strip(), m.group(1).strip()
+    return None, None
+
+
+def _bytes_to_b64(data: Any) -> Optional[str]:
+    if data is None:
+        return None
+    if isinstance(data, (bytes, bytearray)):
+        if not data:
+            return None
+        return base64.b64encode(bytes(data)).decode('ascii')
+    s = str(data).strip()
+    if not s:
+        return None
+    b64, _mime = _parse_data_url_if_present(s)
+    if b64:
+        return b64
+    return s
+
+
+# Límite defensivo (~12M chars base64 ≈ ~9 MiB binario) para no inflar TEXT en BD por error.
+_GEMINI_REPORT_MAX_B64_IMAGE_CHARS = int(
+    os.environ.get('GEMINI_REPORT_MAX_B64_IMAGE_CHARS') or 12_000_000
+)
+
+
+def _image_block_to_markdown(block: Any, index: int) -> Optional[str]:
+    """
+    Convierte un bloque de salida tipo imagen (base64 en API Interactions) en una línea Markdown
+    con data URI, visible en web y en correo (HTML generado desde Markdown).
+    """
+    mime = _get_output_attr(block, 'mime_type') or 'image/png'
+    raw = _get_output_attr(block, 'data')
+    if raw is None:
+        inline = _get_output_attr(block, 'inline_data')
+        if inline is not None:
+            raw = _get_output_attr(inline, 'data')
+            mime = _get_output_attr(inline, 'mime_type') or mime
+    b64 = _bytes_to_b64(raw)
+    if not b64:
+        logger.warning('Bloque de imagen en outputs sin datos base64 (índice %s)', index)
+        return None
+    if len(b64) > _GEMINI_REPORT_MAX_B64_IMAGE_CHARS:
+        logger.warning(
+            'Imagen de informe omitida por tamaño (base64 > %s chars)',
+            _GEMINI_REPORT_MAX_B64_IMAGE_CHARS,
+        )
+        return (
+            f'*[Imagen del informe omitida por tamaño; ajusta GEMINI_REPORT_MAX_B64_IMAGE_CHARS]*'
+        )
+    safe_mime = mime if isinstance(mime, str) and mime.startswith('image/') else 'image/png'
+    return f'![Figura {index}](data:{safe_mime};base64,{b64})'
+
+
 def _extract_interaction_text(interaction) -> str:
-    """Junta el texto de todos los bloques de salida (outputs) de la interacción."""
+    """
+    Reconstruye el informe: texto e imágenes de ``interaction.outputs`` en orden.
+    El agente Deep Research puede devolver imágenes (p. ej. gráficos) como bloques separados;
+    se incrustan como ``data:image/...;base64,...`` en Markdown.
+    """
     outputs = getattr(interaction, 'outputs', None) or []
     parts = []
+    img_n = 0
     for block in outputs:
-        t = getattr(block, 'text', None)
+        otype = _norm_output_type(block)
+        if otype == 'image' or otype in ('image/png', 'image/jpeg', 'image/webp', 'image/gif'):
+            img_n += 1
+            md = _image_block_to_markdown(block, img_n)
+            if md:
+                parts.append(md)
+            continue
+        inline = _get_output_attr(block, 'inline_data')
+        if inline is not None and _get_output_attr(inline, 'data'):
+            img_n += 1
+            md = _image_block_to_markdown(block, img_n)
+            if md:
+                parts.append(md)
+            continue
+        if not otype or otype in ('text', 'output'):
+            t = _get_output_attr(block, 'text')
+            if t and str(t).strip():
+                parts.append(str(t).strip())
+            continue
+        t = _get_output_attr(block, 'text')
         if t and str(t).strip():
             parts.append(str(t).strip())
+        else:
+            logger.debug('Bloque de salida sin texto ni imagen utilizable: type=%s', otype)
     return '\n\n'.join(parts).strip() if parts else ''
 
 
@@ -249,6 +351,7 @@ Símbolo: {symbol or 'N/A'} | ISIN: {isin or 'N/A'}
 
 **Rigor y citas (obligatorio):**
 - **Prohibido** el rellano genérico y las frases vacías. Cada **dato numérico** (ratios, porcentajes, millones, fechas de cifras) debe ir acompañado de una **cita inline** en el texto con el formato **`[cite: X]`**, donde **X** identifica la fuente (nombre del documento, informe, regulatorio, prensa verificable, etc.). Si un dato no tiene fuente comprobable, indícalo explícitamente sin inventar la cita.
+- **Investigación estricta (datos faltantes):** implementa un modo de rigor absoluto con métricas financieras concretas (p. ej. **EBITDA**, **PER actual**, márgenes, deuda neta, guidance). Si una métrica **no aparece** en las fuentes consultadas, debes declarar **«Dato no disponible»** y explicar en una frase breve por qué (p. ej. no publicado en el periodo, fuera de alcance del documento), **en lugar de estimarla, interpolarla o inventarla**.
 - Prioriza **análisis accionable** para un inversor; contrasta visión con riesgos.
 
 **Entrega:** Markdown avanzado, legible en **web y correo**, en **español (España)**."""
