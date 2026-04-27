@@ -2,7 +2,9 @@
 Servicio para integración con Google Gemini API.
 - Resumen "About the Company": generate_content (rápido, síncrono)
 - Informe Deep Research: Interactions API (background, poll)
-- Audio informe: guion estilo podcast (texto) + TTS multi-locutor gemini-3.1-flash-tts-preview
+- Audio informe: guion estilo podcast (texto) + TTS multi-locutor ``gemini-3.1-flash-tts-preview``
+  (API ``generateContent`` del SDK; no es el producto independiente «NotebookLM / Podcasts» de Google,
+  pero replica el patrón guion → audio multispeaker de la documentación oficial).
 """
 import os
 import time
@@ -36,6 +38,21 @@ def _get_model_tts() -> str:
 def _get_model_podcast_script() -> str:
     """Modelo de texto para guion estilo podcast (dos locutores). Default: mismo que flash."""
     return os.environ.get('GEMINI_MODEL_PODCAST_SCRIPT') or _get_model_flash()
+
+
+def _get_tts_synthesis_temperature() -> float:
+    """
+    Temperatura solo en la llamada al modelo TTS (audio), no al guion.
+    Valores altos en audio largo pueden aumentar artefactos; por defecto 0,65.
+    Override: GEMINI_TTS_TEMPERATURE.
+    """
+    raw = os.environ.get('GEMINI_TTS_TEMPERATURE')
+    if raw is None or str(raw).strip() == '':
+        return 0.65
+    try:
+        return max(0.0, min(1.0, float(str(raw).strip().replace(',', '.'))))
+    except ValueError:
+        return 0.65
 
 
 def _get_podcast_script_temperature() -> float:
@@ -376,31 +393,32 @@ PODCAST_ACT3_WORDS_GUIDE = 90
 PODCAST_TTS_VOICE_ALEX = 'Charon'  # voz masculina
 PODCAST_TTS_VOICE_TAYLOR = 'Kore'  # voz femenina
 
-# Prompt maestro: planificación por segmentos, estilo Google / NotebookLM
-PODCAST_SCRIPT_PROMPT = f"""Actúa como un guionista profesional de podcasts. Tu misión es convertir el informe de Deep Research adjunto en un diálogo natural entre **{PODCAST_SPEAKER_1}** (hombre) y **{PODCAST_SPEAKER_2}** (mujer).
+# Prompt maestro (estructura de diálogo tipo audios estilo NotebookLM / guion conversacional)
+PODCAST_SCRIPT_PROMPT = f"""Eres guionista de diálogos de inversión. Convierte el informe de Deep Research adjunto en una conversación **solo entre {PODCAST_SPEAKER_1}** (hombre, voz informativa) y **{PODCAST_SPEAKER_2}** (mujer, voz clara/curiosa).
 
 **REGLAS DE ORO DE DURACIÓN (presupuesto de palabras):**
 1. **Límite estricto:** el guion debe situarse en **{PODCAST_SCRIPT_TARGET_MIN}–{PODCAST_SCRIPT_TARGET_MAX} palabras**. **Nunca** superes **{PODCAST_HARD_MAX_WORDS}** palabras.
-2. **Matemática:** en podcast conversacional en español (~150 palabras por minuto), unos **900 palabras** ≈ **6 minutos**. Planifica con ese “presupuesto” desde el primer borrador, no escribas de más pensando en recortar después.
-3. **Distribución en tres actos (orientación de tiempo):**
-   - **Acto 1 — Introducción (~10 %, ~{PODCAST_ACT1_WORDS_GUIDE} palabras):** gancho y presentación del tema (no más de **100** palabras en la práctica).
-   - **Acto 2 — Cuerpo (~80 %, ~{PODCAST_ACT2_WORDS_GUIDE} palabras):** **solo 3** puntos de hallazgo (los más impactantes; **no** intentes cubrir todo el informe).
-   - **Acto 3 — Cierre (~10 %, ~{PODCAST_ACT3_WORDS_GUIDE} palabras):** conclusión y despedida clara al oyente (reserva unas **80–100** palabras para el cierre con despedida natural).
-4. **Priorización:** profundizar en 3 ideas vale más que 10 comentarios superficiales.
+2. **Ritmo (~150 wpm en español):** ~**900** palabras ≈ **6 minutos**. No escribas de más asumiendo un recorte después.
+3. **Tres actos (orientación):** Intro ~{PODCAST_ACT1_WORDS_GUIDE} p. / Cuerpo ~{PODCAST_ACT2_WORDS_GUIDE} p. (solo **3** hallazgos) / Cierre ~{PODCAST_ACT3_WORDS_GUIDE} p.
 
-**RESTRICCIONES CRÍTICAS DE MARCA:**
-1. **Prohibido inventar nombres:** no le pongas nombre al «podcast» ni al programa. No uses frases del tipo «Bienvenidos a…» o títulos de radio inventados.
-2. **Inicio directo:** la primera intervención debe sonar a conversación real (p. ej. «Hola {PODCAST_SPEAKER_2}, he estado revisando el informe sobre…» y entrar al fondo), sin parrilla de emisora.
-3. **Sin introducciones de radio ficticias:** evita muletillas que hagan creer que es un programa con nombre. El foco es **solo** el contenido del informe de investigación.
+**ESTRUCTURA DE DIÁLOGO (obligatoria):**
+- **Apertura informal:** el primer turno debe ser un saludo natural entre los dos, p. ej. «Hola {PODCAST_SPEAKER_2}, estuve viendo estos datos de…» (sin nombre de programa ni «bienvenidos»).
+- **Dinámica:** alterna frases **cortas y contundentes** de {PODCAST_SPEAKER_2} (preguntas, reacciones) con **explicaciones algo más largas** de {PODCAST_SPEAKER_1} (datos, contexto). Evita monólogos de un solo hablante.
+- **Muletillas de acuerdo (espaciadas):** incluye a menudo, de forma orgánica, interjecciones como *Exacto*, *Justo eso*, *Totalmente* o *Mira esto* (o variantes en castellano de España) para mantener el ritmo; no las repitas en bucle en cada frase.
+- **Sin audiencia:** la conversación es **únicamente entre {PODCAST_SPEAKER_1} y {PODCAST_SPEAKER_2}**. Prohibido: «gracias por escucharnos», «bienvenidos al programa», «ustedes», o dirigirse a oyentes. No inventes título de emisora.
+- **Cierre (últimas réplicas):** termina con una **reflexión breve o pregunta final de {PODCAST_SPEAKER_2}**; **{PODCAST_SPEAKER_1}** responde con **una sola frase de menos de 5 palabras** (cierre técnicamente seco, sin despedida emotiva a la audiencia). No despedidas de radio (ni «hasta la próxima semana en…»).
+- **Registro:** español de **España (peninsular)**, analítico, para inversor.
 
-**REGLAS DE ESTILO (NotebookLM):**
-- **Voces:** usa los prefijos exactos **{PODCAST_SPEAKER_1}:** y **{PODCAST_SPEAKER_2}:** en cada intervención.
-- **Tono:** {PODCAST_SPEAKER_1} informativo y profesional. {PODCAST_SPEAKER_2} curiosa, con analogías sencillas. **Acento y registro: español de España (peninsular), profesional.**
-- **Naturalidad:** interrupciones breves (por ejemplo: «Espera, ¿dices que…?», «Exacto»), [laughs] y [sigh] con moderación.
-- **Pausas:** [short pause] entre cambios de tema. **PROHIBIDO** [long pause], [long silence] o silencios largos (desvían el cronómetro sin contar como palabra).
-- **Cierre:** el **último** turno debe ser una despedida clara hacia el oyente.
+**ETIQUETAS DE DIRECCIÓN (TTS) — inclúyelas en el cuerpo del guion donde tenga sentido (no en todas las frases):**
+- **[uhm]:** a veces **antes** de que {PODCAST_SPEAKER_2} lance la pregunta “difícil” o el dato clave, para sonar humano.
+- **[laughs]:** a veces **después** de una analogía breve o un comentario ligeramente irónico.
+- **[short pause]:** tras una **cifra o ratio importante** (p. ej. un PER, un márgen) o al cambiar de sub-tema. **Nunca** [long pause] ni silencios largos.
 
-**Formato de salida:** una réplica por línea; **solo** el guion, sin título, sin markdown y sin comentarios al lector."""
+**REGLAS DE ESTILO (interfaz TTS):**
+- Prefijos exactos de línea: **{PODCAST_SPEAKER_1}:** y **{PODCAST_SPEAKER_2}:** (una intervención por línea).
+- **Priorización del cuerpo:** solo 3 ideas fuertes del informe; no listes todo el deep research.
+
+**Formato de salida:** **solo** el guion (una réplica por línea), sin markdown, sin título de documento y sin notas al lector."""
 
 
 def _synthesis_reduce_script_for_tts(
@@ -424,7 +442,7 @@ def _synthesis_reduce_script_for_tts(
 
 Tarea: **reducción por síntesis** (no resumas borrando palabra a palabra a lo brusco):
 1. Mantén la **introducción** (aprox. las primeras intervenciones hasta plantear el tema) lo más fiel en tono, pero puedes ajustar frases.
-2. Mantén el **cierre** y la **despedida final** (última intervención clara hacia el oyente) con la misma intención.
+2. Mantén el **cierre final** (pregunta o reflexión de Taylor + respuesta muy breve de Álex, **menos de 5 palabras**), sin despedidas a audiencia ni nombre de programa.
 3. **Aplica el ahorro principal al bloque central:** resume o fusiona el **segundo** o **tercer** hallazgo, elimina matices secundarios, recorta oraciones que repitan el informe.
 4. Cada réplica: prefijo **{PODCAST_SPEAKER_1}:** o **{PODCAST_SPEAKER_2}:**. Sin [long pause].
 5. El resultado final debe quedar en **{PODCAST_SCRIPT_TARGET_MIN}–{PODCAST_SCRIPT_TARGET_MAX}** palabras y **nunca** superar **{PODCAST_HARD_MAX_WORDS}** (cuenta al terminar).
@@ -572,18 +590,53 @@ def generate_podcast_script_from_report(report_content: str, client) -> str:
     raise GeminiServiceError('No se pudo generar el guion de podcast')
 
 
+def _pcm_from_tts_response(response) -> bytes:
+    """Extrae PCM crudo (s16le mono 24 kHz) de una respuesta generate_content con modalidad AUDIO."""
+    import base64
+
+    parts = getattr(response, 'candidates', []) or []
+    if not parts:
+        raise GeminiServiceError('Respuesta TTS vacía')
+    content = parts[0].content
+    inner_parts = getattr(content, 'parts', []) or []
+    if not inner_parts:
+        raise GeminiServiceError('Respuesta TTS sin partes de audio')
+    inline = inner_parts[0].inline_data
+    data = getattr(inline, 'data', None)
+    mime = (getattr(inline, 'mime_type', None) or '').lower()
+    if not data:
+        raise GeminiServiceError('No hay datos de audio en la respuesta')
+    raw: bytes
+    if isinstance(data, str):
+        raw = base64.b64decode(data)
+    else:
+        raw = data
+    if 'mpeg' in mime or 'mp3' in mime:
+        raise GeminiServiceError(
+            'La API devolvió MP3; esta integración espera PCM lineal para escribir WAV. '
+            'Actualiza google-genai o contacta soporte si el modelo deja de enviar PCM.'
+        )
+    return raw
+
+
 def _synthesize_multispeaker_podcast_wav(client, script: str, output_path: str) -> None:
-    """Paso 2: TTS con gemini-3.1-flash-tts-preview: voces fijas (Charon masculina, Kore femenina), ``language_code=es-ES``."""
+    """
+    TTS multispeaker con ``gemini-3.1-flash-tts-preview``.
+    Temperatura de **síntesis de audio** con ``GEMINI_TTS_TEMPERATURE`` (por defecto 0,65), no la del guion.
+    Salida: WAV PCM 24 kHz mono (formato documentado en ai.google.dev para TTS).
+    """
     import wave
     from google.genai import types
 
-    tts_user = f"""**Director de audio (léelo antes de hablar, no lo repitas en voz alta):** Accent: Peninsular Spanish from Spain. Neutral, professional, European Spanish intonation; avoid Latin American inflections. Voces con acento de España peninsular, claras y sin modismos de Hispanoamérica.
+    tts_user = f"""**Director de audio (no leer en voz alta):** Accent: Peninsular Spanish from Spain. Neutral, professional; avoid Latin American inflections.
 
-Escena: conversación de análisis en contexto de inversión, tono serio y cercano, **español de España (peninsular)**.
-Interpreta el texto como diálogo con **dos interlocutores**:
-- {PODCAST_SPEAKER_1}: voz **masculina** (timbre Charon, informativo).
-- {PODCAST_SPEAKER_2}: voz **femenina** (timbre Kore, clara, analogías sencillas).
-Respeta las [etiquetas] entre corchetes sin alargar silencios de forma exagerada.
+This is a private two-person conversation in European Spanish; there is no live audience, show title, or sign-off to listeners. Speak the dialogue naturally.
+
+Speakers and voices:
+- {PODCAST_SPEAKER_1}: male, Charon, informative, slightly longer lines with figures.
+- {PODCAST_SPEAKER_2}: female, Kore, firm, short punchy questions and reactions.
+
+Respect [bracket tags] such as [short pause], [uhm], [laughs], [sigh] — keep them short; never stretch silence unnaturally on long monologues.
 
 {script.strip()}"""
 
@@ -619,6 +672,7 @@ Respeta las [etiquetas] entre corchetes sin alargar silencios de forma exagerada
         config=types.GenerateContentConfig(
             response_modalities=['AUDIO'],
             max_output_tokens=24576,
+            temperature=_get_tts_synthesis_temperature(),
             speech_config=types.SpeechConfig(
                 language_code='es-ES',
                 multi_speaker_voice_config=multi,
@@ -634,27 +688,12 @@ Respeta las [etiquetas] entre corchetes sin alargar silencios de forma exagerada
         wf.setsampwidth(2)
         wf.setframerate(24000)
         wf.writeframes(all_pcm)
-    logger.info('Audio podcast multi-locutor guardado: %s (bytes_pcm=%s)', output_path, len(all_pcm))
-
-
-def _pcm_from_tts_response(response) -> bytes:
-    """Extrae PCM crudo de una respuesta generate_content con modalidad AUDIO."""
-    import base64
-
-    parts = getattr(response, 'candidates', []) or []
-    if not parts:
-        raise GeminiServiceError('Respuesta TTS vacía')
-    content = parts[0].content
-    inner_parts = getattr(content, 'parts', []) or []
-    if not inner_parts:
-        raise GeminiServiceError('Respuesta TTS sin partes de audio')
-    inline = inner_parts[0].inline_data
-    data = getattr(inline, 'data', None)
-    if not data:
-        raise GeminiServiceError('No hay datos de audio en la respuesta')
-    if isinstance(data, str):
-        return base64.b64decode(data)
-    return data
+    logger.info(
+        'Audio podcast multi-locutor guardado: %s (bytes_pcm=%s, tts_temp=%s)',
+        output_path,
+        len(all_pcm),
+        _get_tts_synthesis_temperature(),
+    )
 
 
 def new_audio_progress_steps_state() -> list:
@@ -751,7 +790,9 @@ def generate_report_tts_audio(
        temperatura configurable (``GEMINI_PODCAST_SCRIPT_TEMPERATURE``, p. ej. 0,82). Si el borrador
        supera 950 palabras, **reducción por síntesis** (no recorte brusco por defecto).
     2) ``gemini-3.1-flash-tts-preview`` con ``MultiSpeakerVoiceConfig``: **Charon (Álex)** y
-       **Kore (Taylor)**, ``response_modalities=['AUDIO']``, PCM 24 kHz mono → WAV.
+       **Kore (Taylor)**, ``response_modalities=['AUDIO']``, temperatura de **audio**
+       (``GEMINI_TTS_TEMPERATURE``, predeterminado 0,65), PCM 24 kHz mono → WAV según la guía
+       pública de TTS (el producto «Podcasts»/NotebookLM en la app de Google usa otro canal).
 
     Args:
         report_content: Contenido Markdown del informe
