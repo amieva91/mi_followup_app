@@ -508,6 +508,11 @@
                         <p class="text-sm text-gray-600 mb-1">Escuchar audio resumen:</p>
                         <audio id="audioPlayer" controls class="w-full max-w-md" preload="metadata"></audio>
                     </div>
+                    <div id="reportViewToggle" class="hidden mb-3 flex flex-wrap gap-2 items-center">
+                        <span class="text-xs text-slate-600">Vista:</span>
+                        <button type="button" id="btnReportViewSummary" class="portfolio-touch-btn px-3 py-1 rounded-xl text-sm bg-teal-600 text-white">Resumen</button>
+                        <button type="button" id="btnReportViewFull" class="portfolio-touch-btn px-3 py-1 rounded-xl text-sm bg-slate-200 text-slate-800 border border-slate-300">Informe completo</button>
+                    </div>
                     <div id="reportDetailContent" class="prose max-w-none report-markdown report-content"></div>
                 </div>
             </div>
@@ -962,6 +967,16 @@ function startAudioStatusPolling(reportId) {
 document.addEventListener('DOMContentLoaded', function() {
     loadReportTemplates();
     document.getElementById('templateForm')?.addEventListener('submit', saveTemplate);
+    document.getElementById('btnReportViewSummary')?.addEventListener('click', function() {
+        reportViewMode = 'summary';
+        renderReportDetailMarkdown(reportMarkdownSummary);
+        updateReportViewButtons();
+    });
+    document.getElementById('btnReportViewFull')?.addEventListener('click', function() {
+        reportViewMode = 'full';
+        renderReportDetailMarkdown(reportMarkdownFull);
+        updateReportViewButtons();
+    });
 });
 
 function openReportTemplatesModal() {
@@ -1265,6 +1280,45 @@ function loadReports() {
         });
 }
 let currentReportId = null;
+/** Markdown guardados para conmutar resumen / informe completo */
+let reportMarkdownSummary = '';
+let reportMarkdownFull = '';
+let reportViewMode = 'summary';
+
+function renderReportDetailMarkdown(md) {
+    const el = document.getElementById('reportDetailContent');
+    if (!el) return;
+    el.className = 'prose max-w-none report-markdown report-content';
+    el.innerHTML = typeof marked !== 'undefined' ? marked.parse(md || '') : (md || '').replace(/\n/g, '<br>');
+}
+function updateReportViewButtons() {
+    const sumBtn = document.getElementById('btnReportViewSummary');
+    const fullBtn = document.getElementById('btnReportViewFull');
+    if (!sumBtn || !fullBtn) return;
+    const active = 'portfolio-touch-btn px-3 py-1 rounded-xl text-sm bg-teal-600 text-white';
+    const idle = 'portfolio-touch-btn px-3 py-1 rounded-xl text-sm bg-slate-200 text-slate-800 border border-slate-300';
+    sumBtn.className = reportViewMode === 'summary' ? active : idle;
+    fullBtn.className = reportViewMode === 'full' ? active : idle;
+}
+function setupReportViewToggle(data) {
+    reportMarkdownFull = data.content || '';
+    reportMarkdownSummary = (data.summary_content || '').trim();
+    const togg = document.getElementById('reportViewToggle');
+    if (!togg) {
+        renderReportDetailMarkdown(reportMarkdownFull);
+        return;
+    }
+    if (reportMarkdownSummary.length > 0) {
+        togg.classList.remove('hidden');
+        reportViewMode = 'summary';
+        renderReportDetailMarkdown(reportMarkdownSummary);
+    } else {
+        togg.classList.add('hidden');
+        reportViewMode = 'full';
+        renderReportDetailMarkdown(reportMarkdownFull);
+    }
+    updateReportViewButtons();
+}
 
 function loadReportDetail(reportId) {
     currentReportId = reportId;
@@ -1281,6 +1335,8 @@ function loadReportDetail(reportId) {
             const btnRetry = document.getElementById('btnRetryAudio');
             if (!panel || !content) return;
             hideReportActionButtons();
+            const togg = document.getElementById('reportViewToggle');
+            if (togg) togg.classList.add('hidden');
             panel.classList.remove('hidden');
             const dateSrc = data.completed_at || data.created_at;
             dateEl.textContent = dateSrc ? new Date(dateSrc).toLocaleString('es-ES') : '';
@@ -1297,7 +1353,7 @@ function loadReportDetail(reportId) {
                 if (!fpTerm) {
                     if (data.status === 'completed' && data.content) {
                         content.className = 'prose max-w-none report-markdown report-content';
-                        content.innerHTML = typeof marked !== 'undefined' ? marked.parse(data.content) : data.content.replace(/\n/g, '<br>');
+                        setupReportViewToggle(data);
                     } else {
                         content.innerHTML = reportProgressHtml(data.status);
                     }
@@ -1322,7 +1378,7 @@ function loadReportDetail(reportId) {
                 return;
             }
             if (data.status === 'completed' && data.content) {
-                content.innerHTML = typeof marked !== 'undefined' ? marked.parse(data.content) : data.content.replace(/\n/g, '<br>');
+                setupReportViewToggle(data);
             } else if (data.status === 'completed') {
                 content.innerHTML = '<p class="text-gray-500">Esperando contenido del informe…</p>';
             } else {

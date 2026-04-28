@@ -127,8 +127,16 @@ DEEP_RESEARCH_APPROVE_INPUT = (
 
 
 def _report_substep_rows(single_shot: bool) -> list:
-    """Tres subpasos lógicos (plan → validar → informe) para la UI. ``single_shot`` omite plan/validación."""
+    """Subpasos para la UI: plan → validar → informe → resumen Flash."""
     ag = _get_agent_deep_research()
+    flash_m = _get_model_flash()
+    summary_row = {
+        'id': 'summary',
+        'title': 'Generando resumen (Flash)',
+        'status': 'pending',
+        'model': flash_m,
+        'error': None,
+    }
     if single_shot:
         return [
             {
@@ -152,6 +160,7 @@ def _report_substep_rows(single_shot: bool) -> list:
                 'model': ag,
                 'error': None,
             },
+            summary_row,
         ]
     return [
         {
@@ -175,20 +184,42 @@ def _report_substep_rows(single_shot: bool) -> list:
             'model': ag,
             'error': None,
         },
+        summary_row,
     ]
+
+
+def report_substeps_after_dr_ok(
+    single_shot: bool, summary_phase: str, summary_error: Optional[str] = None
+) -> list:
+    """
+    Tras completar Deep Research: primeros pasos en ok/skipped; paso ``summary`` según ``summary_phase``
+    (``loading``, ``ok``, ``error``).
+    """
+    subs = _report_substep_rows(single_shot)
+    if single_shot:
+        subs[0]['status'] = subs[1]['status'] = 'skipped'
+        subs[2]['status'] = 'ok'
+        subs[2]['error'] = None
+    else:
+        for i in range(3):
+            subs[i]['status'] = 'ok'
+            subs[i]['error'] = None
+    subs[3]['status'] = summary_phase
+    subs[3]['error'] = summary_error
+    return subs
 
 
 def new_report_stages_progress_state() -> dict:
     """
-    Progreso en la pestaña de informes para la generación **solo del informe** (3 subpasos o 1 vía modo directo).
+    Progreso en la pestaña de informes para la generación **solo del informe** (plan → … → informe → resumen).
     Se guarda en ``company_reports.audio_progress_json`` con ``report_stages: true``.
     """
     return {
         'report_stages': True,
         'full_pipeline': False,
         'caption': (
-            'Investigación en segundo plano: fases de plan (colaborativo), confirmación automática e informe. '
-            'Puedes salir; el estado se actualizará al volver.'
+            'Investigación en segundo plano: plan (colaborativo), confirmación, informe Deep Research '
+            'y resumen para correo/vista. Puedes salir; el estado se actualizará al volver.'
         ),
         'steps': _report_substep_rows(not _get_auto_collab_loop()),
     }
@@ -280,6 +311,78 @@ Requisitos (español, sin saludos; salida en **Markdown mínimo** legible en pan
         raise
     except Exception as e:
         logger.exception('Error generando resumen About: %s', e)
+        raise GeminiServiceError(str(e))
+
+
+def fallback_report_summary_markdown(full_md: str) -> str:
+    """
+    Reserva si Flash falla: mismo Markdown truncado (sin inventar cifras nuevas).
+    """
+    body = (full_md or '').strip()
+    if not body:
+        return '*Sin contenido de informe.*'
+    cap = 18000
+    if len(body) <= cap:
+        return body
+    return (
+        body[:cap]
+        + '\n\n---\n*(Correo truncado por tamaño; el PDF adjunto contiene el informe completo.)*'
+    )
+
+
+def generate_report_email_summary(full_report_markdown: str) -> str:
+    """
+    Resume el informe largo en Markdown para el cuerpo del correo / vista «Resumen».
+    Modelo: :func:`_get_model_flash`.
+    """
+    api_key = _get_api_key()
+    if not api_key:
+        raise GeminiServiceError('GEMINI_API_KEY no configurada')
+    md_in = (full_report_markdown or '').strip()
+    if not md_in:
+        return '*Informe vacío.*'
+
+    cap_in = 420000
+    slice_md = md_in if len(md_in) <= cap_in else md_in[:cap_in]
+
+    prompt = f"""Eres editor financiero. Con el siguiente informe en Markdown (español de España), escribe un **resumen ejecutivo ampliado** para el cuerpo de un correo.
+
+Requisitos:
+- Salida **solo Markdown** (sin HTML). Español (España).
+- Incluye **todas las tablas** del original: puedes fusionar o acortar filas pero **no inventes cifras**. Las citas tipo `[cite: …]` deben mantenerse donde aplique.
+- Para cada **figura** (`![…](…)` o imagen en base64), conserva la línea Markdown de imagen si es razonable; si la imagen es muy pesada, pon un titular `### Figura (del informe)` y un párrafo breve describiendo solo lo que el texto del informe ya dice sobre esa figura (sin nuevos números).
+- Mantén secciones tipo **Resumen ejecutivo** / **Key takeaways** acortadas si existen.
+- Sin bloques de código, sin JSON, sin Mermaid.
+- Tope orientativo ~3500 palabras.
+
+--- INFORME ---
+
+{slice_md}
+"""
+
+    try:
+        from google import genai
+        from google.genai import types
+
+        client = genai.Client(api_key=api_key)
+        response = client.models.generate_content(
+            model=_get_model_flash(),
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                temperature=0.25,
+                max_output_tokens=8192,
+                thinking_config=types.ThinkingConfig(thinking_budget=0),
+            ),
+        )
+        if response and response.text:
+            return response.text.strip()
+        raise GeminiServiceError('Respuesta vacía del resumen')
+    except ImportError as e:
+        raise GeminiServiceError(f'Paquete google-genai no instalado: {e}')
+    except GeminiServiceError:
+        raise
+    except Exception as e:
+        logger.exception('generate_report_email_summary: %s', e)
         raise GeminiServiceError(str(e))
 
 
@@ -1433,7 +1536,7 @@ def new_audio_progress_steps_state() -> list:
 
 def new_full_pipeline_progress_state() -> dict:
     """
-    Progreso unificado: subpasos del informe (plan / validación / informe) + guion + TTS + correo.
+    Progreso unificado: subpasos del informe (plan / validación / informe / resumen) + guion + TTS + correo.
     Se persiste en ``company_reports.audio_progress_json`` con ``full_pipeline: true``.
     """
     first = _report_substep_rows(not _get_auto_collab_loop())
@@ -1441,8 +1544,8 @@ def new_full_pipeline_progress_state() -> dict:
         'full_pipeline': True,
         'report_stages': False,
         'caption': (
-            'Proceso completo en segundo plano: plan e informe Deep Research, audio (es-ES) y envío por correo. '
-            'Puedes salir; recibirás el informe y el audio en tu email.'
+            'Proceso completo: Deep Research, resumen Flash, audio (es-ES) y envío por correo '
+            '(cuerpo con resumen + PDF del informe completo). Puedes salir.'
         ),
         'steps': first
         + [
@@ -1472,18 +1575,18 @@ def new_full_pipeline_progress_state() -> dict:
 
 
 def merge_full_pipeline_with_tts_progress(full_state: dict, tts_progress: dict) -> dict:
-    """Incorpora guion + TTS en los índices 3 y 4 del pipeline completo (tras los 3 subpasos del informe)."""
+    """Incorpora guion + TTS en los índices 4 y 5 del pipeline completo (tras plan→informe→resumen)."""
     out = {**full_state, 'full_pipeline': True}
     steps = [dict(s) for s in (out.get('steps') or [])]
     tts_steps = (tts_progress or {}).get('steps') or []
-    if len(steps) >= 5 and len(tts_steps) >= 1:
+    if len(steps) >= 6 and len(tts_steps) >= 1:
         for k in ('status', 'error', 'model'):
             if k in tts_steps[0] and tts_steps[0][k] is not None:
-                steps[3][k] = tts_steps[0][k]
-    if len(steps) >= 6 and len(tts_steps) >= 2:
+                steps[4][k] = tts_steps[0][k]
+    if len(steps) >= 7 and len(tts_steps) >= 2:
         for k in ('status', 'error', 'model'):
             if k in tts_steps[1] and tts_steps[1][k] is not None:
-                steps[4][k] = tts_steps[1][k]
+                steps[5][k] = tts_steps[1][k]
     out['steps'] = steps
     return out
 

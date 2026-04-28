@@ -84,6 +84,7 @@ class CompanyReport(db.Model):
     template_title = db.Column(db.String(200), nullable=True)  # Nombre mostrado (denormalizado)
 
     content = db.Column(db.Text, nullable=True)  # Contenido del informe (Markdown)
+    summary_content = db.Column(db.Text, nullable=True)  # Resumen Markdown (Flash) para correo / vista previa
     status = db.Column(db.String(20), nullable=False, default='pending')  # pending, processing, completed, failed
     error_msg = db.Column(db.Text, nullable=True)
     gemini_interaction_id = db.Column(db.String(100), nullable=True)

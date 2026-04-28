@@ -43,6 +43,20 @@ def _parse_audio_progress_json(raw):
         return None
 
 
+def _persist_report_stages_from_steps(engine, report_id, steps_list):
+    """Persiste la lista de pasos del informe (``report_stages``)."""
+    from app.services.gemini_service import new_report_stages_progress_state
+
+    base = new_report_stages_progress_state()
+    base['steps'] = steps_list
+    with engine.connect() as conn:
+        conn.execute(
+            text('UPDATE company_reports SET audio_progress_json = :j WHERE id = :rid'),
+            {'j': json.dumps(base, ensure_ascii=False), 'rid': report_id},
+        )
+        conn.commit()
+
+
 @portfolio_bp.route('/asset-registry')
 @login_required
 def asset_registry():
@@ -1093,14 +1107,47 @@ def asset_reports_generate(id):
 
                     content_val = content if status == 'completed' else None
                     error_val = content if status == 'failed' else None
-                    _update_status(
-                        status,
-                        content_val=content_val,
-                        error_val=error_val,
-                        clear_progress=(status == 'completed'),
-                    )
 
                     if status == 'completed':
+                        from app.services.gemini_service import (
+                            generate_report_email_summary,
+                            fallback_report_summary_markdown,
+                            report_substeps_after_dr_ok,
+                            _get_auto_collab_loop,
+                        )
+
+                        single_shot = not _get_auto_collab_loop()
+                        _persist_report_stages_from_steps(
+                            engine,
+                            report_id,
+                            report_substeps_after_dr_ok(single_shot, 'loading'),
+                        )
+                        try:
+                            summary_md = generate_report_email_summary(content or '')
+                        except Exception:
+                            summary_md = fallback_report_summary_markdown(content or '')
+                        _persist_report_stages_from_steps(
+                            engine,
+                            report_id,
+                            report_substeps_after_dr_ok(single_shot, 'ok'),
+                        )
+                        now_str = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+                        with engine.connect() as conn:
+                            conn.execute(
+                                text("""
+                                    UPDATE company_reports SET status = 'completed', completed_at = :now,
+                                    content = :content, summary_content = :sm, error_msg = NULL,
+                                    audio_progress_json = NULL
+                                    WHERE id = :rid
+                                """),
+                                {
+                                    'now': now_str,
+                                    'content': content,
+                                    'sm': summary_md,
+                                    'rid': report_id,
+                                },
+                            )
+                            conn.commit()
                         with engine.connect() as conn:
                             cnt = conn.execute(text(
                                 "SELECT COUNT(*) FROM company_reports WHERE user_id = :uid AND asset_id = :aid"
@@ -1118,6 +1165,14 @@ def asset_reports_generate(id):
                                     )
                                     conn.execute(stmt, {'ids': ids})
                             conn.commit()
+                    else:
+                        _update_status(
+                            status,
+                            content_val=content_val,
+                            error_val=error_val,
+                            clear_progress=False,
+                        )
+
                 except GeminiServiceError as e:
                     try:
                         _update_status('failed', error_val=str(e))
@@ -1289,7 +1344,7 @@ def asset_reports_generate_and_deliver(id):
 
                     def _on_report_subs(subs: list) -> None:
                         nonlocal pstate
-                        for i in range(min(3, len(subs))):
+                        for i in range(min(len(subs), len(pstate['steps']))):
                             pstate['steps'][i] = dict(subs[i])
                         _persist(pstate)
 
@@ -1335,19 +1390,38 @@ def asset_reports_generate_and_deliver(id):
                         return
 
                     now_str = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-                    pstate['steps'][3]['status'] = 'loading'
-                    pstate['steps'][3]['error'] = None
+                    from app.services.gemini_service import (
+                        generate_report_email_summary,
+                        fallback_report_summary_markdown,
+                        report_substeps_after_dr_ok,
+                        _get_auto_collab_loop,
+                    )
+
+                    single_shot = not _get_auto_collab_loop()
+                    subs_ld = report_substeps_after_dr_ok(single_shot, 'loading')
+                    for i in range(min(len(subs_ld), len(pstate['steps']))):
+                        pstate['steps'][i] = subs_ld[i]
                     _persist(pstate)
+                    try:
+                        summary_md_pl = generate_report_email_summary(content_dr or '')
+                    except Exception:
+                        summary_md_pl = fallback_report_summary_markdown(content_dr or '')
+                    subs_ok = report_substeps_after_dr_ok(single_shot, 'ok')
+                    for i in range(min(len(subs_ok), len(pstate['steps']))):
+                        pstate['steps'][i] = subs_ok[i]
+                    _persist(pstate)
+
                     with engine.connect() as conn:
                         conn.execute(
                             text(
                                 """
                             UPDATE company_reports
-                            SET status = 'completed', content = :c, error_msg = NULL, completed_at = :now
+                            SET status = 'completed', content = :c, summary_content = :sm,
+                            error_msg = NULL, completed_at = :now
                             WHERE id = :rid
                         """
                             ),
-                            {'c': content_dr, 'now': now_str, 'rid': report_id},
+                            {'c': content_dr, 'sm': summary_md_pl, 'now': now_str, 'rid': report_id},
                         )
                         conn.commit()
                     # límite 5 informes (misma lógica que generación simple)
@@ -1399,6 +1473,10 @@ def asset_reports_generate_and_deliver(id):
                         )
                         conn.commit()
 
+                    pstate['steps'][4]['status'] = 'loading'
+                    pstate['steps'][4]['error'] = None
+                    _persist(pstate)
+
                     def on_tts(tj: dict) -> None:
                         nonlocal pstate
                         pstate = merge_full_pipeline_with_tts_progress(pstate, tj)
@@ -1410,10 +1488,10 @@ def asset_reports_generate_and_deliver(id):
                         )
                     except Exception as tts_e:
                         current_app.logger.exception('TTS en generate-deliver: %s', tts_e)
-                        pstate['steps'][3]['status'] = 'error'
-                        pstate['steps'][3]['error'] = str(tts_e)[:4000]
                         pstate['steps'][4]['status'] = 'error'
                         pstate['steps'][4]['error'] = str(tts_e)[:4000]
+                        pstate['steps'][5]['status'] = 'error'
+                        pstate['steps'][5]['error'] = str(tts_e)[:4000]
                         _persist(pstate)
                         with engine.connect() as conn:
                             conn.execute(
@@ -1430,18 +1508,18 @@ def asset_reports_generate_and_deliver(id):
                         return
 
                     t_ok = datetime.utcnow().isoformat()
-                    pstate['steps'][3]['status'] = 'ok'
-                    pstate['steps'][3]['error'] = None
                     pstate['steps'][4]['status'] = 'ok'
                     pstate['steps'][4]['error'] = None
-                    pstate['steps'][5]['status'] = 'loading'
+                    pstate['steps'][5]['status'] = 'ok'
                     pstate['steps'][5]['error'] = None
+                    pstate['steps'][6]['status'] = 'loading'
+                    pstate['steps'][6]['error'] = None
                     _persist(pstate)
 
                     u = User.query.get(user_id)
                     if not u or not u.email:
-                        pstate['steps'][5]['status'] = 'error'
-                        pstate['steps'][5]['error'] = 'Usuario sin email'
+                        pstate['steps'][6]['status'] = 'error'
+                        pstate['steps'][6]['error'] = 'Usuario sin email'
                         _persist(pstate)
                         with engine.connect() as conn:
                             conn.execute(
@@ -1462,13 +1540,14 @@ def asset_reports_generate_and_deliver(id):
                             user=u,
                             asset_name=aname,
                             report_title=report_template_title,
-                            report_content_markdown=content_dr or '',
+                            email_body_markdown=summary_md_pl,
                             audio_file_path=str(audio_path),
+                            full_report_markdown_for_pdf=content_dr or '',
                         )
                     except Exception as em_e:
                         current_app.logger.exception('Correo en generate-deliver: %s', em_e)
-                        pstate['steps'][5]['status'] = 'error'
-                        pstate['steps'][5]['error'] = str(em_e)[:4000]
+                        pstate['steps'][6]['status'] = 'error'
+                        pstate['steps'][6]['error'] = str(em_e)[:4000]
                         _persist(pstate)
                         with engine.connect() as conn:
                             conn.execute(
@@ -1484,8 +1563,8 @@ def asset_reports_generate_and_deliver(id):
                             conn.commit()
                         return
 
-                    pstate['steps'][5]['status'] = 'ok'
-                    pstate['steps'][5]['error'] = None
+                    pstate['steps'][6]['status'] = 'ok'
+                    pstate['steps'][6]['error'] = None
                     with engine.connect() as conn:
                         conn.execute(
                             text(
@@ -1611,6 +1690,7 @@ def asset_report_detail(id, report_id):
     return jsonify({
         'id': report.id,
         'content': report.content,
+        'summary_content': getattr(report, 'summary_content', None),
         'status': report.status,
         'error_msg': report.error_msg,
         'template_title': report.template_title,
@@ -1667,8 +1747,12 @@ def asset_report_send_email(id, report_id):
             user=current_user,
             asset_name=asset.name or asset.symbol or asset.isin or 'Activo',
             report_title=report.template_title or f'Informe {report.id}',
-            report_content_markdown=report.content or '',
+            email_body_markdown=(
+                (getattr(report, 'summary_content', None) or '').strip()
+                or (report.content or '')
+            ),
             audio_file_path=audio_path_arg,
+            full_report_markdown_for_pdf=report.content or '',
         )
         msg = 'Informe enviado a ' + current_user.email
         if audio_path_arg:

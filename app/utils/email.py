@@ -220,16 +220,24 @@ El equipo de FollowUp
         raise
 
 
-def send_report_email(user, asset_name, report_title, report_content_markdown, audio_file_path=None):
+def send_report_email(
+    user,
+    asset_name,
+    report_title,
+    email_body_markdown,
+    audio_file_path=None,
+    full_report_markdown_for_pdf=None,
+):
     """
-    Envía el informe por correo:
+    Envía correo con **resumen** (Markdown) en el cuerpo HTML y, opcionalmente, informe completo en **PDF**.
+
     - Markdown → HTML (tablas y extensiones ``extra``).
-    - Imágenes ``data:image/...;base64`` → adjuntos inline CID (compatibilidad Gmail/Outlook).
-    - CSS inlining con premailer para tablas y formato en clientes que ignoran ``<style>``.
+    - Imágenes ``data:image/...;base64`` → adjuntos inline CID.
+    - Si ``full_report_markdown_for_pdf`` está definido, se intenta generar PDF del informe largo.
     """
     import html as html_module
 
-    md = report_content_markdown or ''
+    md = email_body_markdown or ''
     try:
         import markdown as md_lib
 
@@ -257,12 +265,28 @@ def send_report_email(user, asset_name, report_title, report_content_markdown, a
             audio_attached = True
             audio_note = 'Se adjunta el audio resumen (archivo WAV).'
 
+    pdf_note = ''
+    pdf_bytes = None
+    pdf_filename = None
+    if full_report_markdown_for_pdf and str(full_report_markdown_for_pdf).strip():
+        try:
+            from app.utils.report_pdf import markdown_report_to_pdf_bytes
+
+            pdf_bytes = markdown_report_to_pdf_bytes(full_report_markdown_for_pdf)
+            if pdf_bytes:
+                slug = ''.join(c if c.isalnum() or c in ' -_' else '_' for c in (report_title or 'informe'))[:72].strip() or 'informe'
+                pdf_filename = f'{slug}_completo.pdf'
+                pdf_note = 'Se adjunta el informe completo en PDF (alta calidad de lectura).'
+        except Exception as pdf_e:
+            current_app.logger.warning('PDF informe omitido: %s', pdf_e)
+
     plain_body = f"""Hola {user.username},
 
 Te enviamos el informe "{report_title}" para {asset_name}.
 {audio_note}
+{pdf_note}
 
-Versión HTML con tablas e ilustraciones: abre el mensaje en un cliente que soporte HTML.
+El mensaje HTML incluye el resumen con tablas e ilustraciones cuando el cliente lo permite.
 
 Saludos,
 El equipo de FollowUp
@@ -272,6 +296,12 @@ El equipo de FollowUp
     safe_title = html_module.escape(report_title or '')
     safe_asset = html_module.escape(asset_name or '')
     safe_username = html_module.escape(user.username or '')
+    intro_pdf = ''
+    if pdf_bytes and pdf_filename:
+        intro_pdf = (
+            '<p style="color:#0f766e;font-size:15px;"><strong>Resumen en este correo</strong>; '
+            'el <strong>informe completo</strong> está en el archivo PDF adjunto.</p>'
+        )
     shell = f"""<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -287,7 +317,7 @@ El equipo de FollowUp
 </div>
 <div class="content">
 <p>Hola <strong>{safe_username}</strong>,</p>
-<p>Aquí tienes el informe que solicitaste.</p>
+{intro_pdf if intro_pdf else '<p>Aquí tienes el contenido solicitado.</p>'}
 {f'<p style="color:#4338ca;font-size:14px;">🎧 Se adjunta el audio resumen (WAV).</p>' if audio_attached else ''}
 {inner_report_html}
 </div>
@@ -330,5 +360,17 @@ El equipo de FollowUp
         wav_part.add_header('Content-Disposition', 'attachment', filename=wav_filename)
         root.attach(wav_part)
 
+    if pdf_bytes and pdf_filename:
+        pdf_part = MIMEBase('application', 'pdf')
+        pdf_part.set_payload(pdf_bytes)
+        encoders.encode_base64(pdf_part)
+        pdf_part.add_header('Content-Disposition', 'attachment', filename=pdf_filename)
+        root.attach(pdf_part)
+
     _smtp_send_mime(root, [user.email])
-    current_app.logger.info(f'Report email sent to {user.email} (CID inline={len(inline_images)})')
+    current_app.logger.info(
+        'Report email sent to %s (CID=%s, pdf=%s)',
+        user.email,
+        len(inline_images),
+        bool(pdf_bytes),
+    )

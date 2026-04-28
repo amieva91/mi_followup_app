@@ -23,6 +23,7 @@ Flask-Mail==0.9.1
 # Markdown
 markdown==3.5.1
 premailer>=3.10.0
+xhtml2pdf>=0.2.15
 
 # Data Processing
 pandas==2.1.3
