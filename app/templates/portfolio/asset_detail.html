@@ -486,7 +486,6 @@
                         <button type="button" onclick="sendReportEmail()" id="btnSendReportEmail" class="hidden portfolio-touch-btn px-3 py-1.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 text-sm">Enviar por correo</button>
                         <button type="button" onclick="generateReportAudio()" id="btnGenerateAudio" class="hidden portfolio-touch-btn px-3 py-1.5 bg-slate-600 text-white rounded-xl hover:bg-slate-700 text-sm">Generar audio resumen</button>
                         <button type="button" onclick="retryReportAudio()" id="btnRetryAudio" class="hidden portfolio-touch-btn px-3 py-1.5 bg-amber-500 text-white rounded-xl hover:bg-amber-600 text-sm" title="Borra el audio actual y genera de nuevo (p. ej. versión larga)">Reintentar / regenerar audio</button>
-                        <button type="button" onclick="cancelStuckReport()" id="btnCancelStuckReport" class="hidden portfolio-touch-btn px-3 py-1.5 bg-red-600 text-white rounded-xl hover:bg-red-700 text-sm" title="Si el informe lleva mucho en «generando» sin avanzar, marca este intento como fallido">Marcar como fallido</button>
                         <span id="reportAudioStatus" class="hidden px-3 py-1.5 rounded-xl text-sm"></span>
                         <a id="btnDownloadAudio" href="#" class="hidden portfolio-touch-btn px-3 py-1.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 text-sm no-underline" download>Descargar audio</a>
                     </div>
@@ -682,13 +681,11 @@ function hideReportActionButtons() {
     const btnEmail = document.getElementById('btnSendReportEmail');
     const btnAudio = document.getElementById('btnGenerateAudio');
     const btnRetry = document.getElementById('btnRetryAudio');
-    const btnCancel = document.getElementById('btnCancelStuckReport');
     const audioStatus = document.getElementById('reportAudioStatus');
     const btnDownload = document.getElementById('btnDownloadAudio');
     if (btnEmail) btnEmail.classList.add('hidden');
     if (btnAudio) btnAudio.classList.add('hidden');
     if (btnRetry) btnRetry.classList.add('hidden');
-    if (btnCancel) btnCancel.classList.add('hidden');
     if (audioStatus) { audioStatus.classList.add('hidden'); audioStatus.textContent = ''; }
     if (btnDownload) btnDownload.classList.add('hidden');
     const audioPlayerWrap = document.getElementById('reportAudioPlayer');
@@ -780,8 +777,6 @@ function updateReportDetailFromStatusPoll(reportId, data) {
             audioPb.classList.remove('hidden');
             audioPb.innerHTML = buildAudioProgressBlockHtml(ap1.steps, ap1.caption);
         }
-        const btnCancelPoll = document.getElementById('btnCancelStuckReport');
-        if (btnCancelPoll && (data.status === 'pending' || data.status === 'processing')) btnCancelPoll.classList.remove('hidden');
         return;
     }
     if (audioPb) { audioPb.classList.add('hidden'); audioPb.innerHTML = ''; }
@@ -789,8 +784,6 @@ function updateReportDetailFromStatusPoll(reportId, data) {
         panel.classList.remove('hidden');
         hideReportActionButtons();
         content.innerHTML = reportProgressHtml(data.status);
-        const btnCancelPoll2 = document.getElementById('btnCancelStuckReport');
-        if (btnCancelPoll2) btnCancelPoll2.classList.remove('hidden');
         return;
     }
     if (data.status === 'failed') {
@@ -799,38 +792,6 @@ function updateReportDetailFromStatusPoll(reportId, data) {
         content.innerHTML = '<p class="text-red-600">' + (data.error_msg || 'Error') + '</p>';
         return;
     }
-}
-function cancelStuckReport() {
-    if (!currentReportId) return;
-    var rid = currentReportId;
-    fetch('/portfolio/asset/' + ASSET_ID + '/reports/' + rid + '/cancel', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-    })
-        .then(function (r) {
-            return r.json().then(function (j) {
-                return { ok: r.ok, j: j };
-            });
-        })
-        .then(function (res) {
-            if (res.ok && res.j.success) {
-                stopReportStatusPolling(rid, 'failed');
-                var bc = document.getElementById('btnCancelStuckReport');
-                if (bc) bc.classList.add('hidden');
-                loadReportDetail(rid);
-                loadReports();
-                if (typeof showToast === 'function') {
-                    showToast('Informe marcado como fallido. Puedes generar uno nuevo.', 'success');
-                }
-            } else {
-                var err = res.j && res.j.error ? res.j.error : 'No se pudo marcar como fallido';
-                if (typeof showToast === 'function') showToast(err, 'error');
-            }
-        })
-        .catch(function () {
-            if (typeof showToast === 'function') showToast('Error de red', 'error');
-        });
 }
 function stopReportStatusPolling(reportId, terminalStatus) {
     const t = reportStatusPolls.get(reportId);
@@ -1333,16 +1294,12 @@ function loadReportDetail(reportId) {
                     }
                     if (btnEmail) btnEmail.classList.add('hidden');
                     if (btnAudio) btnAudio.classList.add('hidden');
-                    const btnCancel = document.getElementById('btnCancelStuckReport');
-                    if (btnCancel && (data.status === 'pending' || data.status === 'processing')) btnCancel.classList.remove('hidden');
                     startReportStatusPolling(reportId);
                     return;
                 }
             }
             if (data.status === 'pending' || data.status === 'processing') {
                 content.innerHTML = reportProgressHtml(data.status);
-                const btnCancel = document.getElementById('btnCancelStuckReport');
-                if (btnCancel) btnCancel.classList.remove('hidden');
                 startReportStatusPolling(reportId);
                 return;
             }

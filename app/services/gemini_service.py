@@ -509,7 +509,7 @@ def _poll_interaction_block(
             f'Tiempo máximo de espera agotado ({budget_seconds}s de presupuesto total para Deep Research). '
             'Los informes suelen completarse en minutos; más de ~60 minutos con estado «en curso» suele indicar '
             'un bloqueo silencioso en el proveedor (polling sin señal de éxito o fallo). '
-            f'interaction_id={interaction_id}. Cancela y vuelve a generar el informe; si persiste, '
+            f'interaction_id={interaction_id}. Vuelve a generar el informe; si persiste, '
             'prueba GEMINI_DEEP_RESEARCH_AUTO_COLLAB_LOOP=0 (sin fase de plan colaborativo).'
         )
     else:

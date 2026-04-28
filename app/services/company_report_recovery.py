@@ -21,7 +21,7 @@ _MSG_ORPHAN_NO_IID = (
 
 _MSG_TIMEOUT_STALE = (
     'Tiempo máximo superado sin resultado (posible bloqueo silencioso en el proveedor). '
-    'Genera el informe de nuevo o usa «Marcar como fallido» si sigue mostrándose en curso.'
+    'Cuando el servidor corta la espera, genera el informe de nuevo.'
 )
 
 

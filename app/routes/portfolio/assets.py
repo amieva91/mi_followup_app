@@ -1885,38 +1885,6 @@ def asset_report_audio(id, report_id):
     )
 
 
-@portfolio_bp.route('/asset/<int:id>/reports/<int:report_id>/cancel', methods=['POST'])
-@login_required
-@csrf.exempt
-def asset_report_cancel(id, report_id):
-    """Marca como fallido un informe pendiente o en generación (informe atascado)."""
-    from datetime import datetime
-
-    asset = Asset.query.get(id)
-    if not asset:
-        return jsonify({'success': False, 'error': 'Asset no encontrado'}), 404
-    if not _user_can_access_asset_reports(current_user.id, id):
-        return jsonify({'success': False, 'error': 'No autorizado'}), 403
-
-    report = CompanyReport.query.filter_by(
-        id=report_id,
-        user_id=current_user.id,
-        asset_id=id,
-    ).first()
-    if not report:
-        return jsonify({'success': False, 'error': 'Informe no encontrado'}), 404
-    if report.status not in ('pending', 'processing'):
-        return jsonify({'success': False, 'error': 'Este informe ya no está en generación'}), 400
-
-    report.status = 'failed'
-    report.error_msg = (
-        'Marcado como fallido (informe atascado). Genera un informe nuevo si lo necesitas.'
-    )
-    report.completed_at = datetime.utcnow()
-    db.session.commit()
-    return jsonify({'success': True})
-
-
 @portfolio_bp.route('/api/reports/<int:report_id>/status')
 @login_required
 def api_report_status(report_id):
