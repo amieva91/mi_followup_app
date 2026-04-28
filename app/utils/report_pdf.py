@@ -1,39 +1,62 @@
-"""PDF experimental desde Markdown de informes (xhtml2pdf)."""
+"""PDF experimental desde Markdown de informes (reportlab, sin dependencias nativas cairo)."""
 from __future__ import annotations
 
 import logging
+import re
+from io import BytesIO
 from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 
 def markdown_report_to_pdf_bytes(full_md: str) -> Optional[bytes]:
-    """Devuelve PDF en bytes o None si falla la conversión."""
+    """
+    Convierte Markdown a PDF con texto fluido (tablas/imágenes complejas pueden simplificarse).
+    Sin cairo/pango: apto para VM mínima.
+    """
     try:
-        from io import BytesIO
-
         import markdown as md_lib
-        from xhtml2pdf import pisa
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+        from reportlab.lib.units import mm
+        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
+        from xml.sax.saxutils import escape
 
         md = full_md or ''
-        html_body = md_lib.markdown(md, extensions=['extra', 'nl2br', 'tables'])
-        wrapper = f"""<!DOCTYPE html><html><head><meta charset="utf-8"/>
-<style>
-@page {{ size: A4; margin: 18mm; }}
-body {{ font-family: Helvetica, Arial, sans-serif; font-size: 10pt; line-height: 1.45; color: #1e293b; }}
-table {{ border-collapse: collapse; width: 100%; margin: 0.8em 0; font-size: 9pt; }}
-th, td {{ border: 1px solid #cbd5e1; padding: 5px 7px; text-align: left; }}
-th {{ background: #0f766e; color: white; }}
-img {{ max-width: 100%; height: auto; }}
-blockquote {{ border-left: 4px solid #0d9488; margin: 0.8em 0; padding: 0.4em 0.8em; background: #f8fafc; }}
-h1, h2, h3 {{ color: #0f172a; }}
-pre {{ white-space: pre-wrap; font-size: 8pt; }}
-</style></head><body>{html_body}</body></html>"""
+        html = md_lib.markdown(md, extensions=['extra', 'nl2br', 'tables'])
+        text = re.sub(r'<[^>]+>', '\n', html)
+        text = re.sub(r'\n{3,}', '\n\n', text).strip()
+        if not text:
+            text = '(Informe vacío)'
+
         buf = BytesIO()
-        result = pisa.CreatePDF(src=wrapper.encode('utf-8'), dest=buf, encoding='utf-8')
-        if getattr(result, 'err', 0):
-            logger.warning('xhtml2pdf devolvió err=%s', getattr(result, 'err', None))
-            return None
+        doc = SimpleDocTemplate(
+            buf,
+            pagesize=A4,
+            leftMargin=18 * mm,
+            rightMargin=18 * mm,
+            topMargin=16 * mm,
+            bottomMargin=16 * mm,
+        )
+        base = getSampleStyleSheet()
+        body_style = ParagraphStyle(
+            name='ReportBody',
+            parent=base['Normal'],
+            fontName='Helvetica',
+            fontSize=10,
+            leading=13,
+            spaceAfter=6,
+        )
+        story = []
+        for block in text.split('\n\n'):
+            chunk = (block or '').strip()
+            if not chunk:
+                continue
+            safe = escape(chunk).replace('\n', '<br/>')
+            story.append(Paragraph(safe, body_style))
+            story.append(Spacer(1, 4))
+
+        doc.build(story)
         data = buf.getvalue()
         return data if data else None
     except Exception as e:
