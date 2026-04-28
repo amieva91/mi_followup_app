@@ -12,21 +12,42 @@ logger = logging.getLogger(__name__)
 # ![alt](data:image/...;base64,...) — una línea típica de los informes Gemini
 _MD_IMG_LINE = re.compile(r'!\[[^\]]*\]\(([^)]+)\)', re.MULTILINE)
 
-_DATA_URI_RE = re.compile(
-    r'^data:(image/[a-zA-Z0-9.+-]+);base64,(.+)$',
-    re.DOTALL | re.IGNORECASE,
+# <img src="data:image/..."> a veces aparece en bloques de texto del modelo
+_IMG_SRC_DATA_URI = re.compile(
+    r'<img\b[^>]*?\bsrc\s*=\s*([\"\'])(data:image/[^\"\']+)\1',
+    re.IGNORECASE | re.DOTALL,
 )
 
 
 def _data_uri_to_bytes(uri: str) -> Optional[bytes]:
-    u = (uri or '').strip()
-    m = _DATA_URI_RE.match(u.replace('\n', '').replace('\r', ''))
+    """
+    Decodifica ``data:image/...;...;base64,...`` tolerando ``charset`` u otros parámetros
+    entre el MIME y ``base64`` (fallaba el regex estricto ``mime;base64``).
+    """
+    u = (uri or '').strip().replace('\n', '').replace('\r', '').replace(' ', '')
+    if not u.lower().startswith('data:image/'):
+        return None
+    m = re.search(r';base64,(.+)$', u, re.IGNORECASE | re.DOTALL)
     if not m:
         return None
     try:
-        return base64.b64decode(m.group(2), validate=False)
+        return base64.b64decode(m.group(1), validate=False)
     except Exception:
         return None
+
+
+def _normalize_markdown_for_pdf_images(md: str) -> str:
+    """Convierte <img src=\"data:image...\"> en líneas Markdown reconocibles por el generador."""
+    if not md or '<img' not in md.lower():
+        return md
+
+    def repl(match) -> str:
+        inner = match.group(2).strip()
+        if _data_uri_to_bytes(inner):
+            return f'\n\n![]({inner})\n\n'
+        return match.group(0)
+
+    return _IMG_SRC_DATA_URI.sub(repl, md)
 
 
 def _append_markdown_text_story(
@@ -97,7 +118,7 @@ def markdown_report_to_pdf_bytes(full_md: str) -> Optional[bytes]:
         from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
         from xml.sax.saxutils import escape
 
-        md = full_md or ''
+        md = _normalize_markdown_for_pdf_images(full_md or '')
         margin_side_pt = 18 * 72 / 25.4
         margin_tb_pt = 16 * 72 / 25.4
         content_width_pt = float(A4[0]) - 2 * margin_side_pt
