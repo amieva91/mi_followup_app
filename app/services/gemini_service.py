@@ -357,56 +357,128 @@ def _image_block_to_markdown(block: Any, index: int) -> Optional[str]:
     return f'![Figura {index}](data:{safe_mime};base64,{b64})'
 
 
+_PLACEHOLDER_VIZ_SPEC = (
+    '*[Visualización omitida: el modelo envió solo especificación JSON (sin imagen raster); '
+    'no se muestra el bloque técnico aquí.]*'
+)
+
+
+def _dict_has_raster_payload(data: dict) -> bool:
+    """True si parece haber datos de imagen reales embebidos."""
+    for key in ('image_base64', 'image_bytes', 'b64_json', 'png_base64'):
+        v = data.get(key)
+        if isinstance(v, str) and len(v) > 200:
+            return True
+    inl = data.get('inline_data')
+    if isinstance(inl, dict) and inl.get('data'):
+        return True
+    return False
+
+
+def _dict_is_visualization_spec(data: dict) -> bool:
+    """Patrones típicos de especificación de figura (IMAGE/CODE) frente a otro JSON casual."""
+    gm = str(data.get('generation_method') or data.get('Generation_method') or '').strip().upper()
+    if gm in ('IMAGE', 'CODE'):
+        return True
+    vt = data.get('visual_type') or data.get('Visual_type')
+    if isinstance(vt, str) and vt.strip():
+        low = vt.lower()
+        if any(
+            x in low
+            for x in (
+                'chart',
+                'graf',
+                'diagram',
+                'flow',
+                'flujo',
+                'infograf',
+                'bar ',
+                'bar/',
+                'system',
+            )
+        ):
+            return True
+    core = {'concept', 'visual_type', 'data_specification', 'design_and_interaction'}
+    present = core.intersection(data.keys())
+    if len(present) >= 2 and data.get('concept'):
+        return True
+    if data.get('data_specification') and isinstance(data.get('data_specification'), dict):
+        if data.get('visual_type') or data.get('title'):
+            return True
+    return False
+
+
+def _strip_embedded_visualization_specs(raw: str) -> str:
+    """
+    Recorre ``raw`` buscando objetos JSON sueltos (incl. varios concatenados ``{"..."},{...}``)
+    y sustituye especificaciones visuales sin raster por un marcador Markdown.
+    """
+    if not raw or '{' not in raw:
+        return raw
+    decoder = json.JSONDecoder()
+    pos = 0
+    parts: list[str] = []
+    n = len(raw)
+    replaced = 0
+    while pos < n:
+        i = raw.find('{', pos)
+        if i < 0:
+            parts.append(raw[pos:])
+            break
+        parts.append(raw[pos:i])
+        try:
+            obj, end_idx = decoder.raw_decode(raw, i)
+        except json.JSONDecodeError:
+            parts.append('{')
+            pos = i + 1
+            continue
+        chunk = raw[i:end_idx]
+        use_placeholder = False
+        if isinstance(obj, dict):
+            if _dict_is_visualization_spec(obj) and not _dict_has_raster_payload(obj):
+                use_placeholder = True
+        elif isinstance(obj, list) and obj:
+            if all(
+                isinstance(x, dict)
+                and _dict_is_visualization_spec(x)
+                and not _dict_has_raster_payload(x)
+                for x in obj
+            ):
+                use_placeholder = True
+        if use_placeholder:
+            parts.append(_PLACEHOLDER_VIZ_SPEC)
+            replaced += 1
+        else:
+            parts.append(chunk)
+        pos = end_idx
+        while pos < n and raw[pos] in ' \t\n\r,':
+            pos += 1
+        if pos < n and raw[pos] == '"':
+            pos += 1
+    if replaced:
+        logger.info(
+            'Deep Research: %s bloque(s) JSON de especificación visual sustituido(s) por marcador',
+            replaced,
+        )
+    return ''.join(parts)
+
+
 def _sanitize_visualization_spec_text(raw: str) -> str:
     """
-    Deep Research con ``visualization: auto`` puede devolver en ``outputs[].text`` un JSON de
-    especificación de figura (p. ej. ``generation_method: IMAGE``, layout, caption…) **sin** raster ni base64.
-    Si lo concatenamos tal cual, el informe muestra JSON crudo en lugar de una imagen.
-
-    Si detectamos ese patrón sin datos de imagen incrustados, sustituimos por una línea breve Markdown.
+    Deep Research puede volcar JSON de especificación de figura (IMAGE/CODE, Vega-Lite metadata…)
+    sin imagen raster. Evita mostrar JSON crudo en el informe.
     """
     s = (raw or '').strip()
-    if len(s) < 40 or not (s.startswith('{') or s.startswith('```')):
+    if not s:
         return raw
-    candidate = s
-    if candidate.startswith('```'):
-        lines = candidate.split('\n')
+    if s.startswith('```'):
+        lines = s.split('\n')
         if lines and lines[0].strip().startswith('```'):
             lines = lines[1:]
         if lines and lines[-1].strip() == '```':
             lines = lines[:-1]
-        candidate = '\n'.join(lines).strip()
-    if not candidate.startswith('{'):
-        return raw
-    try:
-        data = json.loads(candidate)
-    except (json.JSONDecodeError, TypeError, ValueError):
-        return raw
-    if not isinstance(data, dict):
-        return raw
-    gm = str(data.get('generation_method') or data.get('Generation_method') or '').strip().upper()
-    vt = data.get('visual_type') or data.get('Visual_type')
-    vt_s = str(vt).lower() if vt else ''
-    looks_like_viz_spec = gm == 'IMAGE' or (
-        isinstance(vt, str)
-        and any(x in vt_s for x in ('infograf', 'diagram', 'flujo', 'esquem', 'chart', 'graf'))
-    )
-    if not looks_like_viz_spec:
-        return raw
-    for key in ('image_base64', 'image_bytes', 'b64_json', 'png_base64', 'data'):
-        v = data.get(key)
-        if v and isinstance(v, str) and len(v) > 200:
-            return raw
-    inl = data.get('inline_data')
-    if isinstance(inl, dict) and inl.get('data'):
-        return raw
-    logger.info(
-        'Deep Research: bloque JSON de especificación visual sin raster sustituido por marcador'
-    )
-    return (
-        '*[Figura / infografía: el modelo envió solo la especificación (JSON), no la imagen renderizada '
-        'en esta respuesta de la API; no se puede mostrar como gráfico aquí.]*'
-    )
+        s = '\n'.join(lines).strip()
+    return _strip_embedded_visualization_specs(s)
 
 
 def _extract_interaction_text(interaction) -> str:
