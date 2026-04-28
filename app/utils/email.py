@@ -31,14 +31,22 @@ body { font-family: Arial, Helvetica, sans-serif; line-height: 1.6; color: #333;
 .container { max-width: 700px; margin: 0 auto; padding: 20px; }
 .header { background: #1e3a8a; color: white; padding: 20px; text-align: center; }
 .content { padding: 30px; background: #f9fafb; }
-.report-email-body { background: white; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px; margin-top: 16px; }
+.report-email-body {
+    background: white; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px; margin-top: 16px;
+    font-size: 1.1rem; line-height: 1.7; color: #333;
+}
 .report-email-body table { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: 0.9rem; }
 .report-email-body th, .report-email-body td { border: 1px solid #e5e7eb; padding: 0.5em 0.65em; text-align: left; }
 .report-email-body th { background: #0f766e; color: white; font-weight: 600; }
 .report-email-body tr:nth-child(even) { background: #f9fafb; }
 .report-email-body blockquote { border-left: 4px solid #0d9488; margin: 1em 0; padding: 0.5em 1em; background: #f0f4ff; color: #374151; }
-.report-email-body img { max-width: 100%; height: auto; display: block; margin: 1rem auto; border-radius: 8px; }
-.report-email-body h1, .report-email-body h2, .report-email-body h3 { color: #0f172a; line-height: 1.3; }
+.report-email-body img {
+    max-width: 90%; height: auto; display: block; margin: 3rem auto;
+    border-radius: 8px; border: 1px solid #eee; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+.report-email-body h1 { font-size: 2.2rem; margin-bottom: 1.5rem; color: #0f172a; line-height: 1.3; }
+.report-email-body h2 { font-size: 1.7rem; margin-top: 2rem; color: #0f172a; line-height: 1.3; }
+.report-email-body h3 { color: #0f172a; line-height: 1.3; }
 .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
 </style>
 """

@@ -54,13 +54,30 @@
 .report-markdown hr { border: none; border-top: 1px solid #e5e7eb; margin: 1.5em 0; }
 .report-markdown code { background: #f3f4f6; padding: 0.15em 0.4em; border-radius: 4px; font-size: 0.9em; }
 
-/* Ajuste de escala para gráficos generados por IA (data URI / imágenes en Markdown) */
+/* Equilibrio texto vs gráficos de alta resolución — lectura tipo revista, sin quitar tablas/blockquotes */
+.report-content {
+    font-size: 1.1rem;
+    line-height: 1.7;
+    color: #333;
+}
+.report-content h1 {
+    font-size: 2.2rem;
+    margin-bottom: 1.5rem;
+}
+.report-content h2 {
+    font-size: 1.7rem;
+    margin-top: 2rem;
+}
+.report-markdown.report-content p {
+    color: #333;
+}
 .report-content img {
-    max-width: 100%;
+    max-width: 90%;
     height: auto;
     display: block;
-    margin: 2rem auto;
+    margin: 3rem auto;
     border-radius: 8px;
+    border: 1px solid #eee;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
