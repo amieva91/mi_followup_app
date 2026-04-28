@@ -1,16 +1,21 @@
 """
-Informes ``company_reports`` en estado ``processing`` sin proceso vivo (p. ej. tras reinicio
-del servidor): marca como fallidos y permite liberar la UI sin esperas indefinidas.
+Informes ``company_reports`` en ``processing`` tras reinicio del proceso web.
+
+- Sin ``gemini_interaction_id``: no hay nada que reanudar → ``failed``.
+- Con ``gemini_interaction_id``: se lanza un hilo que vuelve a hacer polling a Gemini
+  (:func:`resume_company_report_from_interaction_id`) para no perder trabajo que sigue en curso
+  en el proveedor.
 """
 from __future__ import annotations
 
 import logging
+import threading
 from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
-_MSG_RESTART_OR_ORPHAN = (
-    'Generación interrumpida: no hay proceso activo (reinicio del servidor o tarea huérfana). '
+_MSG_ORPHAN_NO_IID = (
+    'Generación interrumpida antes de obtener respuesta de Gemini (sin interaction_id). '
     'Genera el informe de nuevo.'
 )
 
@@ -45,36 +50,66 @@ def expire_company_report_if_stale(report) -> bool:
     return True
 
 
-def fail_orphan_processing_reports_after_restart(app_logger=None) -> int:
+def recover_processing_reports_after_restart(app, app_logger=None) -> None:
     """
-    Tras ``systemctl restart`` ningún hilo en segundo plano sobrevive: las filas ``processing``
-    quedarían en bucle en la UI. Devuelve el número de filas actualizadas.
+    Tras ``systemctl restart`` ningún hilo en segundo plano sobrevive.
+
+    - Informes con ``gemini_interaction_id``: reanudar polling en un hilo daemon.
+    - Sin id (nunca llegó el callback de Gemini): marcar como fallido.
+    - Audio en ``processing``: marcar fallido (la cola TTS no se reanuda aquí).
     """
     from app import db
     from app.models.company_report import CompanyReport
 
     log = app_logger or logger
     now = datetime.utcnow()
-    n = 0
+
     rows = CompanyReport.query.filter(CompanyReport.status == 'processing').all()
+    fail_no_iid = []
+    resume_ids = []
     for r in rows:
+        iid = (r.gemini_interaction_id or '').strip()
+        if iid:
+            resume_ids.append(r.id)
+        else:
+            fail_no_iid.append(r)
+
+    for r in fail_no_iid:
         r.status = 'failed'
-        r.error_msg = _MSG_RESTART_OR_ORPHAN
+        r.error_msg = _MSG_ORPHAN_NO_IID
         r.completed_at = now
-        n += 1
+
     audio_n = 0
     rows_a = CompanyReport.query.filter(CompanyReport.audio_status == 'processing').all()
     for r in rows_a:
         r.audio_status = 'failed'
-        msg = _MSG_RESTART_OR_ORPHAN[:2000]
-        r.audio_error_msg = msg
+        r.audio_error_msg = (_MSG_ORPHAN_NO_IID[:2000])
         audio_n += 1
-    if n or audio_n:
+
+    if fail_no_iid or audio_n:
         db.session.commit()
         log.warning(
-            'company_reports: %s informes y %s audios en processing marcados failed (huérfanos tras arranque)',
-            n,
+            'company_reports: %s informes sin interaction_id y %s audios marcados failed; '
+            '%s informes con reanudación programada',
+            len(fail_no_iid),
             audio_n,
+            len(resume_ids),
         )
-    return n + audio_n
+    elif resume_ids:
+        log.info(
+            'company_reports: reinicio — reanudando Deep Research para report_ids=%s',
+            resume_ids,
+        )
 
+    for rid in resume_ids:
+
+        def _run(rid_: int) -> None:
+            try:
+                with app.app_context():
+                    from app.services.gemini_service import resume_company_report_from_interaction_id
+
+                    resume_company_report_from_interaction_id(rid_)
+            except Exception:
+                log.exception('Deep Research resume: excepción no controlada report_id=%s', rid_)
+
+        threading.Thread(target=_run, args=(rid,), daemon=True).start()

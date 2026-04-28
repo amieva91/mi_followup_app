@@ -793,6 +793,162 @@ def run_deep_research_report(
         raise GeminiServiceError(str(e))
 
 
+def _persist_company_report_completed_resume(report_id: int, markdown: str) -> None:
+    """Persiste informe Deep Research completado (usado por reanudación tras reinicio del proceso)."""
+    from datetime import datetime
+
+    from app import db
+    from app.models.company_report import CompanyReport
+
+    r = CompanyReport.query.filter_by(id=report_id).first()
+    if not r:
+        return
+    r.status = 'completed'
+    r.content = markdown
+    r.error_msg = None
+    r.completed_at = datetime.utcnow()
+    r.audio_progress_json = None
+    db.session.commit()
+
+
+def _persist_company_report_failed_resume(report_id: int, msg: str) -> None:
+    from datetime import datetime
+
+    from app import db
+    from app.models.company_report import CompanyReport
+
+    r = CompanyReport.query.filter_by(id=report_id).first()
+    if not r:
+        return
+    r.status = 'failed'
+    r.error_msg = (msg or '')[:8000]
+    r.completed_at = datetime.utcnow()
+    db.session.commit()
+
+
+def resume_company_report_from_interaction_id(report_id: int) -> None:
+    """
+    Tras reinicio del proceso web el hilo que hacía polling murió; si Gemini sigue devolviendo
+    ``interaction_id``, reanuda el polling con el tiempo restante del presupuesto y persiste el resultado.
+
+    Si la API queda en ``requires_action`` y el modo es dos fases (auto loop), crea la fase 2 como en
+    :func:`run_deep_research_report`.
+    """
+    from datetime import datetime
+
+    from google import genai
+
+    logger.info('Deep Research resume: comprobando report_id=%s', report_id)
+
+    from app import db
+    from app.models.company_report import CompanyReport
+
+    report = CompanyReport.query.filter_by(id=report_id).first()
+    if not report or report.status != 'processing':
+        logger.info(
+            'Deep Research resume: omitido report_id=%s (sin fila o estado=%s)',
+            report_id,
+            getattr(report, 'status', None),
+        )
+        return
+
+    iid = (report.gemini_interaction_id or '').strip()
+    if not iid:
+        return
+
+    api_key = _get_api_key()
+    if not api_key:
+        _persist_company_report_failed_resume(report_id, 'GEMINI_API_KEY no configurada')
+        return
+
+    client = genai.Client(api_key=api_key)
+    agent_name = _get_agent_deep_research()
+    auto_loop = _get_auto_collab_loop()
+
+    born = report.created_at
+    max_sec = _get_deep_research_max_wait_seconds()
+    elapsed = (datetime.utcnow() - born).total_seconds() if born else 0.0
+    remaining = max(120.0, float(max_sec) - float(elapsed))
+    deadline = time.monotonic() + remaining
+    poll_interval_seconds = 15
+    wait_budget = max(60, int(remaining))
+
+    def noop_status(*_a: Any, **_k: Any) -> None:
+        pass
+
+    res: str
+    data: Any
+    res, data = _poll_interaction_block(
+        client,
+        iid,
+        deadline,
+        poll_interval_seconds,
+        noop_status,
+        'Reanudando informe (servidor reiniciado)',
+        budget_seconds=wait_budget,
+    )
+
+    if res == 'requires_action' and auto_loop:
+        try:
+            p2 = _interactions_create_deep_research(
+                client,
+                input_text=DEEP_RESEARCH_APPROVE_INPUT,
+                agent_name=agent_name,
+                collab=False,
+                previous_interaction_id=str(iid)[:200],
+            )
+        except Exception as ex:
+            _persist_company_report_failed_resume(report_id, str(ex))
+            logger.warning('Deep Research resume: fase 2 create falló report_id=%s: %s', report_id, ex)
+            return
+        id2 = p2.id if hasattr(p2, 'id') else str(p2)
+        logger.info('Deep Research resume: fase 2 creada interaction_id=%s report_id=%s', id2, report_id)
+        rc = CompanyReport.query.filter_by(id=report_id).first()
+        if rc:
+            rc.gemini_interaction_id = str(id2)[:100]
+            db.session.commit()
+
+        remaining2 = max(60.0, deadline - time.monotonic())
+        deadline2 = time.monotonic() + remaining2
+        res, data = _poll_interaction_block(
+            client,
+            str(id2),
+            deadline2,
+            poll_interval_seconds,
+            noop_status,
+            'Generando informe',
+            budget_seconds=max(60, int(remaining2)),
+        )
+    elif res == 'requires_action' and not auto_loop:
+        _persist_company_report_failed_resume(
+            report_id,
+            'La API quedó en requires_action (modo sin bucle colaborativo); genera el informe de nuevo.',
+        )
+        return
+
+    if res == 'completed':
+        inter = data
+        text = _extract_interaction_text(inter) or 'Informe vacío'
+        _persist_company_report_completed_resume(report_id, text)
+        logger.info('Deep Research resume: completado report_id=%s', report_id)
+        return
+
+    if res in ('failed', 'timeout', 'cancelled'):
+        msg = str(data) if isinstance(data, str) else str(data)
+        _persist_company_report_failed_resume(report_id, msg)
+        logger.warning('Deep Research resume: resultado=%s report_id=%s', res, report_id)
+        return
+
+    if res == 'requires_action':
+        _persist_company_report_failed_resume(
+            report_id,
+            'La API quedó en requires_action tras reinicio; genera el informe de nuevo.',
+        )
+        return
+
+    _persist_company_report_failed_resume(report_id, f'Estado inesperado tras reanudar: {res}')
+
+
 def _count_words(text: str) -> int:
     return len((text or '').split())
 

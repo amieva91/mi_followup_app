@@ -231,12 +231,12 @@ def create_app(config_name='default'):
     os.makedirs(os.path.join(app.config['OUTPUT_FOLDER'], 'reports_audio'), exist_ok=True)
     os.makedirs(app.root_path + '/../instance', exist_ok=True)
 
-    # Informes Deep Research en segundo plano no sobreviven al reinicio: limpiar processing huérfano
+    # Informes Deep Research: tras reinicio, reanudar polling si hay interaction_id (si no, fallar sin id)
     with app.app_context():
         try:
-            from app.services.company_report_recovery import fail_orphan_processing_reports_after_restart
+            from app.services.company_report_recovery import recover_processing_reports_after_restart
 
-            fail_orphan_processing_reports_after_restart(app.logger)
+            recover_processing_reports_after_restart(app, app.logger)
         except Exception as ex:
             app.logger.warning('company_reports: recuperación al arranque omitida: %s', ex)
 
