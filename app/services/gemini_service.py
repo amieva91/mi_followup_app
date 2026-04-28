@@ -449,6 +449,8 @@ def _poll_interaction_block(
     """
     poll_n = 0
     last_logged: Optional[str] = None
+    phase_wall_start = time.monotonic()
+    last_slow_log = phase_wall_start
     while time.monotonic() < deadline:
         inter, status = _poll_interaction_once(
             client, interaction_id, on_status_update, poll_n, last_logged
@@ -468,6 +470,19 @@ def _poll_interaction_block(
             return 'requires_action', inter
         if status not in ('in_progress', 'pending', 'running', 'unknown', 'active'):
             logger.warning('Deep Research: estado inesperado %s, sigo haciendo poll', status)
+        now_wall = time.monotonic()
+        if now_wall - last_slow_log >= 300:
+            elapsed = int(now_wall - phase_wall_start)
+            logger.info(
+                'Deep Research: esperando API (%s) — interaction_id=%s último_estado=%s '
+                'poll=%s tiempo_desde_inicio_fase=%ss',
+                phase_msg,
+                interaction_id,
+                status,
+                poll_n,
+                elapsed,
+            )
+            last_slow_log = now_wall
         time.sleep(poll_interval_seconds)
         if on_status_update:
             on_status_update('processing', f'{phase_msg} (estado: {status})')
@@ -630,6 +645,11 @@ def run_deep_research_report(
             return ('failed', str(ex))
         id1 = p1.id if hasattr(p1, 'id') else str(p1)
         logger.info('Deep Research fase 1 (plan): agent=%s interaction_id=%s', agent_name, id1)
+        if on_interaction_created:
+            try:
+                on_interaction_created(str(id1)[:100])
+            except Exception as cb_err:
+                logger.warning('on_interaction_created (fase 1) falló: %s', cb_err)
 
         r1, d1 = _poll_interaction_block(
             client, str(id1), deadline, poll_interval_seconds, on_status_update, 'Generando plan de investigación',
