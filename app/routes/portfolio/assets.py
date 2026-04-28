@@ -1068,6 +1068,13 @@ def asset_reports_generate(id):
                         )
                         conn.commit()
 
+                    current_app.logger.info(
+                        'Deep Research worker: inicio informe solo texto report_id=%s asset_id=%s user_id=%s',
+                        report_id,
+                        asset_id,
+                        user_id,
+                    )
+
                     status, content = run_deep_research_report(
                         aname,
                         asym,
@@ -1076,6 +1083,12 @@ def asset_reports_generate(id):
                         points,
                         on_interaction_created=_save_interaction_id,
                         on_report_substeps=_persist_report_stages,
+                    )
+
+                    current_app.logger.info(
+                        'Deep Research worker: fin informe solo texto report_id=%s resultado=%s',
+                        report_id,
+                        status,
                     )
 
                     content_val = content if status == 'completed' else None
@@ -1280,6 +1293,13 @@ def asset_reports_generate_and_deliver(id):
                             pstate['steps'][i] = dict(subs[i])
                         _persist(pstate)
 
+                    current_app.logger.info(
+                        'Deep Research worker: inicio pipeline informe+audio+correo report_id=%s asset_id=%s user_id=%s',
+                        report_id,
+                        asset_id,
+                        user_id,
+                    )
+
                     st_dr, content_dr = run_deep_research_report(
                         aname,
                         asym,
@@ -1288,6 +1308,12 @@ def asset_reports_generate_and_deliver(id):
                         points,
                         on_interaction_created=_save_iid,
                         on_report_substeps=_on_report_subs,
+                    )
+
+                    current_app.logger.info(
+                        'Deep Research worker: fin fase DR en pipeline report_id=%s resultado=%s',
+                        report_id,
+                        st_dr,
                     )
 
                     if st_dr != 'completed':
