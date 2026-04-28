@@ -272,7 +272,11 @@ def send_report_email(
         try:
             from app.utils.report_pdf import markdown_report_to_pdf_bytes
 
-            pdf_bytes = markdown_report_to_pdf_bytes(full_report_markdown_for_pdf)
+            pdf_bytes = markdown_report_to_pdf_bytes(
+                full_report_markdown_for_pdf,
+                document_title=(report_title or 'Informe').strip(),
+                subtitle=(asset_name or '').strip() or None,
+            )
             if pdf_bytes:
                 slug = ''.join(c if c.isalnum() or c in ' -_' else '_' for c in (report_title or 'informe'))[:72].strip() or 'informe'
                 pdf_filename = f'{slug}_completo.pdf'

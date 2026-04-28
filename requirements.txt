@@ -23,8 +23,7 @@ Flask-Mail==0.9.1
 # Markdown
 markdown==3.5.1
 premailer>=3.10.0
-reportlab>=4.0.0
-Pillow>=10.0.0
+playwright>=1.49.0
 
 # Data Processing
 pandas==2.1.3
