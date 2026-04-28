@@ -8,6 +8,7 @@ Servicio para integración con Google Gemini API.
 """
 import os
 import re
+import json
 import base64
 import time
 import logging
@@ -356,6 +357,58 @@ def _image_block_to_markdown(block: Any, index: int) -> Optional[str]:
     return f'![Figura {index}](data:{safe_mime};base64,{b64})'
 
 
+def _sanitize_visualization_spec_text(raw: str) -> str:
+    """
+    Deep Research con ``visualization: auto`` puede devolver en ``outputs[].text`` un JSON de
+    especificación de figura (p. ej. ``generation_method: IMAGE``, layout, caption…) **sin** raster ni base64.
+    Si lo concatenamos tal cual, el informe muestra JSON crudo en lugar de una imagen.
+
+    Si detectamos ese patrón sin datos de imagen incrustados, sustituimos por una línea breve Markdown.
+    """
+    s = (raw or '').strip()
+    if len(s) < 40 or not (s.startswith('{') or s.startswith('```')):
+        return raw
+    candidate = s
+    if candidate.startswith('```'):
+        lines = candidate.split('\n')
+        if lines and lines[0].strip().startswith('```'):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == '```':
+            lines = lines[:-1]
+        candidate = '\n'.join(lines).strip()
+    if not candidate.startswith('{'):
+        return raw
+    try:
+        data = json.loads(candidate)
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return raw
+    if not isinstance(data, dict):
+        return raw
+    gm = str(data.get('generation_method') or data.get('Generation_method') or '').strip().upper()
+    vt = data.get('visual_type') or data.get('Visual_type')
+    vt_s = str(vt).lower() if vt else ''
+    looks_like_viz_spec = gm == 'IMAGE' or (
+        isinstance(vt, str)
+        and any(x in vt_s for x in ('infograf', 'diagram', 'flujo', 'esquem', 'chart', 'graf'))
+    )
+    if not looks_like_viz_spec:
+        return raw
+    for key in ('image_base64', 'image_bytes', 'b64_json', 'png_base64', 'data'):
+        v = data.get(key)
+        if v and isinstance(v, str) and len(v) > 200:
+            return raw
+    inl = data.get('inline_data')
+    if isinstance(inl, dict) and inl.get('data'):
+        return raw
+    logger.info(
+        'Deep Research: bloque JSON de especificación visual sin raster sustituido por marcador'
+    )
+    return (
+        '*[Figura / infografía: el modelo envió solo la especificación (JSON), no la imagen renderizada '
+        'en esta respuesta de la API; no se puede mostrar como gráfico aquí.]*'
+    )
+
+
 def _extract_interaction_text(interaction) -> str:
     """
     Reconstruye el informe: texto e imágenes de ``interaction.outputs`` en orden.
@@ -383,11 +436,11 @@ def _extract_interaction_text(interaction) -> str:
         if not otype or otype in ('text', 'output'):
             t = _get_output_attr(block, 'text')
             if t and str(t).strip():
-                parts.append(str(t).strip())
+                parts.append(_sanitize_visualization_spec_text(str(t)).strip())
             continue
         t = _get_output_attr(block, 'text')
         if t and str(t).strip():
-            parts.append(str(t).strip())
+            parts.append(_sanitize_visualization_spec_text(str(t)).strip())
         else:
             logger.debug('Bloque de salida sin texto ni imagen utilizable: type=%s', otype)
     return '\n\n'.join(parts).strip() if parts else ''
