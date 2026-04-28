@@ -55,9 +55,8 @@
 .report-markdown code { background: #f3f4f6; padding: 0.15em 0.4em; border-radius: 4px; font-size: 0.9em; }
 
 /* Equilibrio texto vs gráficos — paleta teal/slate FollowUp (misma línea que About / portfolio) */
-/* Cuerpo + medio punto respecto a 1.15rem (solo texto del informe en #reportDetailContent). */
 .report-markdown.report-content {
-    font-size: calc(1.15rem + 0.5pt) !important;
+    font-size: 1.15rem !important;
     line-height: 1.8;
     color: #1e293b;
     text-wrap: pretty;
@@ -67,7 +66,7 @@
     margin-bottom: 0.85em;
 }
 .report-markdown.report-content blockquote {
-    font-size: 0.939em; /* ~1.08rem cuando el padre era 1.15rem; escala con calc(+0.5pt) del contenedor */
+    font-size: 1.08rem;
     line-height: 1.75;
     padding: 1.35rem 1.6rem;
     margin: 2rem 0;
@@ -79,17 +78,13 @@
     box-shadow: 0 4px 18px rgba(15, 23, 42, 0.07);
 }
 .report-markdown.report-content h1 {
-    font-size: clamp(calc(1.65rem + 0.5pt), 4vw, calc(2.05rem + 0.5pt));
+    font-size: clamp(1.65rem, 4vw, 2.05rem);
     margin-bottom: 1.25rem;
 }
 .report-markdown.report-content h2 {
-    font-size: clamp(calc(1.28rem + 0.5pt), 3vw, calc(1.62rem + 0.5pt));
+    font-size: clamp(1.28rem, 3vw, 1.62rem);
     margin-top: 2rem;
 }
-.report-markdown.report-content table {
-    font-size: 0.783em; /* mantiene ~0.9rem frente al cuerpo 1.15rem al usar em sobre este bloque */
-}
-/* Solo el panel de detalle del informe usa .report-markdown.report-content (no otras vistas). */
 .report-markdown.report-content img {
     max-width: 85% !important;
     height: auto;
@@ -1327,7 +1322,6 @@ function loadReportDetail(reportId) {
                 return;
             }
             if (data.status === 'completed' && data.content) {
-                content.className = 'prose max-w-none report-markdown report-content';
                 content.innerHTML = typeof marked !== 'undefined' ? marked.parse(data.content) : data.content.replace(/\n/g, '<br>');
             } else if (data.status === 'completed') {
                 content.innerHTML = '<p class="text-gray-500">Esperando contenido del informe…</p>';
