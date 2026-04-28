@@ -330,6 +330,44 @@ def fallback_report_summary_markdown(full_md: str) -> str:
     )
 
 
+_SIGNOFF_LINE = re.compile(
+    r'^\s*(?:Atentamente|Cordiales saludos|Un cordial saludo|Saludos cordiales)\s*,?\s*$',
+    re.I,
+)
+
+
+def _strip_email_summary_boilerplate(md: str) -> str:
+    """
+    Quita cierres formales que a veces inventa el modelo (Atentamente, Editor Financiero, [Tu Nombre]).
+    """
+    if not (md or '').strip():
+        return md or ''
+    lines = md.split('\n')
+    cut = None
+    for i, line in enumerate(lines):
+        if _SIGNOFF_LINE.match(line):
+            cut = i
+            break
+    if cut is not None:
+        lines = lines[:cut]
+    while lines:
+        ls = lines[-1].strip()
+        if not ls:
+            lines.pop()
+            continue
+        if re.match(r'^[\[\s]*Tu\s+Nombre[\]\s]*$', ls, re.I):
+            lines.pop()
+            continue
+        if re.match(r'^Editor\s+Financiero\.?$', ls, re.I):
+            lines.pop()
+            continue
+        if ls in ('---', '***'):
+            lines.pop()
+            continue
+        break
+    return '\n'.join(lines).rstrip()
+
+
 def generate_report_email_summary(full_report_markdown: str) -> str:
     """
     Resume el informe largo en Markdown para el cuerpo del correo / vista «Resumen».
@@ -345,15 +383,25 @@ def generate_report_email_summary(full_report_markdown: str) -> str:
     cap_in = 420000
     slice_md = md_in if len(md_in) <= cap_in else md_in[:cap_in]
 
-    prompt = f"""Eres editor financiero. Con el siguiente informe en Markdown (español de España), escribe un **resumen ejecutivo ampliado** para el cuerpo de un correo.
+    prompt = f"""Eres editor financiero. Con el siguiente informe en Markdown (español de España), escribe un **resumen visual y escaneable** para el cuerpo de un correo (vista «Resumen» en la app).
 
-Requisitos:
-- Salida **solo Markdown** (sin HTML). Español (España).
-- Incluye **todas las tablas** del original: puedes fusionar o acortar filas pero **no inventes cifras**. Las citas tipo `[cite: …]` deben mantenerse donde aplique.
-- Para cada **figura** (`![…](…)` o imagen en base64), conserva la línea Markdown de imagen si es razonable; si la imagen es muy pesada, pon un titular `### Figura (del informe)` y un párrafo breve describiendo solo lo que el texto del informe ya dice sobre esa figura (sin nuevos números).
-- Mantén secciones tipo **Resumen ejecutivo** / **Key takeaways** acortadas si existen.
-- Sin bloques de código, sin JSON, sin Mermaid.
-- Tope orientativo ~3500 palabras.
+**Prioridad de contenido (de más a menos importante):**
+1. Bloques **Key takeaways** por tema (ver formato obligatorio abajo).
+2. **Tablas** Markdown relevantes del original (puedes comprimir filas/columnas triviales pero **no inventes ni redondees cifras**). Mantén `[cite: …]` donde corresponda.
+3. Líneas de **figuras** `![…](…)` con `data:image/…;base64,…` cuando aporten claridad; si una imagen es enorme, sustituye solo esa por un `### …` + párrafo breve describiendo lo que el propio informe ya dice (sin números nuevos).
+
+**Formato obligatorio — mismo «recuadro» que el informe largo en web/correo:**
+- Los **Key takeaways** deben ir siempre en **bloques de cita Markdown**: **cada línea** del bloque empieza por `>` (incluidas viñetas y sub-bloques).
+- Dentro del bloque, la primera línea de takeaway puede ser por ejemplo `> **Key takeaways**` y debajo líneas `> - 📊 …`, `> - ⚠️ …` con texto útil, **negritas** en datos clave, y citas `[cite: …]`.
+- Usa **emojis** al inicio de viñetas donde encaje (📊 📈 ⚠️ ✅ 💡 🏦 …), líneas en blanco entre secciones para aire, y `##` / `###` para títulos de tema breves **fuera** de las citas cuando ayuden a escanear.
+- No escribas párrafos larguísimos: prioriza listas dentro de los bloques `>` y tablas pegadas fuera de ellos si hace falta el detalle tabular.
+
+**Prohibido:**
+- Firmas, despedidas o metadatos editoriales: **no** escribas «Atentamente», «Cordiales saludos», «Editor Financiero», «[Tu Nombre]», ni equivalentes.
+- Bloques de código, JSON, Mermaid.
+- Salida **solo Markdown** (sin HTML envolviendo).
+
+Longitud orientativa: breve y muy legible (~800–1800 palabras de contenido útil), sin relleno.
 
 --- INFORME ---
 
@@ -369,13 +417,13 @@ Requisitos:
             model=_get_model_flash(),
             contents=prompt,
             config=types.GenerateContentConfig(
-                temperature=0.25,
+                temperature=0.28,
                 max_output_tokens=8192,
                 thinking_config=types.ThinkingConfig(thinking_budget=0),
             ),
         )
         if response and response.text:
-            return response.text.strip()
+            return _strip_email_summary_boilerplate(response.text.strip())
         raise GeminiServiceError('Respuesta vacía del resumen')
     except ImportError as e:
         raise GeminiServiceError(f'Paquete google-genai no instalado: {e}')

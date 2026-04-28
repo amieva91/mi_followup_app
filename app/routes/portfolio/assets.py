@@ -1186,6 +1186,8 @@ def asset_reports_generate(id):
                         pass
                     print(traceback.format_exc())
 
+        # Sin cola global: cada petición usa su propio hilo; varios informes seguidos
+        # pueden ejecutarse en paralelo (Gemini/GPU aplicará límites de cuenta).
         thread = threading.Thread(target=run_report_background, daemon=True)
         thread.start()
 
@@ -1620,6 +1622,7 @@ def asset_reports_generate_and_deliver(id):
                         pass
                     print(traceback.format_exc())
 
+        # Sin cola global en servidor (véase también asset_reports_generate).
         th = threading.Thread(target=run_full_deliver, daemon=True)
         th.start()
 
