@@ -47,38 +47,52 @@
     border-left: 4px solid #0d9488;
     margin: 1em 0;
     padding: 0.5em 1em;
-    background: #f0f4ff;
-    color: #374151;
+    background: rgba(240, 253, 250, 0.55);
+    color: #334155;
     font-style: italic;
 }
 .report-markdown hr { border: none; border-top: 1px solid #e5e7eb; margin: 1.5em 0; }
 .report-markdown code { background: #f3f4f6; padding: 0.15em 0.4em; border-radius: 4px; font-size: 0.9em; }
 
-/* Equilibrio texto vs gráficos de alta resolución — lectura tipo revista, sin quitar tablas/blockquotes */
-.report-content {
-    font-size: 1.1rem;
-    line-height: 1.7;
-    color: #333;
-}
-.report-content h1 {
-    font-size: 2.2rem;
-    margin-bottom: 1.5rem;
-}
-.report-content h2 {
-    font-size: 1.7rem;
-    margin-top: 2rem;
+/* Equilibrio texto vs gráficos — paleta teal/slate FollowUp (misma línea que About / portfolio) */
+.report-markdown.report-content {
+    font-size: 1.15rem !important;
+    line-height: 1.8;
+    color: #1e293b;
+    text-wrap: pretty;
 }
 .report-markdown.report-content p {
-    color: #333;
+    color: #334155;
+    margin-bottom: 0.85em;
 }
-.report-content img {
-    max-width: 90%;
+.report-markdown.report-content blockquote {
+    font-size: 1.08rem;
+    line-height: 1.75;
+    padding: 1.35rem 1.6rem;
+    margin: 2rem 0;
+    background: linear-gradient(165deg, rgba(248, 250, 252, 0.98) 0%, rgba(240, 253, 250, 0.42) 55%, rgba(241, 245, 249, 0.5) 100%);
+    border-left: 5px solid #0d9488;
+    border-radius: 0 12px 12px 0;
+    color: #334155;
+    font-style: italic;
+    box-shadow: 0 4px 18px rgba(15, 23, 42, 0.07);
+}
+.report-markdown.report-content h1 {
+    font-size: clamp(1.65rem, 4vw, 2.05rem);
+    margin-bottom: 1.25rem;
+}
+.report-markdown.report-content h2 {
+    font-size: clamp(1.28rem, 3vw, 1.62rem);
+    margin-top: 2rem;
+}
+.report-markdown.report-content img {
+    max-width: 85% !important;
     height: auto;
     display: block;
     margin: 3rem auto;
     border-radius: 8px;
-    border: 1px solid #eee;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(226, 232, 240, 0.95);
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.09);
 }
 
 /* Resumen "About the Company" — legible, escaneable, coherente con informes */
