@@ -101,6 +101,22 @@ def _get_auto_collab_loop() -> bool:
     return str(raw).strip().lower() in ('1', 'true', 'yes', 'on')
 
 
+def _get_deep_research_max_wait_seconds() -> int:
+    """
+    Tiempo máximo de polling para Deep Research (segundos), **presupuesto global** para todas las fases.
+    Por defecto 3600 (60 minutos): por encima de ese margen la API preview suele devolver fallo o timeout del proveedor;
+    si el cliente sigue viendo «en curso», conviene no hacer polling indefinido (bloqueo silencioso).
+    Override: GEMINI_DEEP_RESEARCH_MAX_WAIT_SECONDS (mínimo 60).
+    """
+    raw = os.environ.get('GEMINI_DEEP_RESEARCH_MAX_WAIT_SECONDS')
+    if raw is None or str(raw).strip() == '':
+        return 3600
+    try:
+        return max(60, int(str(raw).strip()))
+    except ValueError:
+        return 3600
+
+
 # Segundo turno: mensaje de aprobación (documentación Google Deep Research — paso 3 "Approve and execute")
 DEEP_RESEARCH_APPROVE_INPUT = (
     'El plan propuesto es adecuado. Apruebo el plan tal como está. '
@@ -442,6 +458,8 @@ def _poll_interaction_block(
     poll_interval_seconds: int,
     on_status_update,
     phase_msg: str,
+    *,
+    budget_seconds: Optional[int] = None,
 ) -> tuple[str, Any]:
     """
     Devuelve (``completed`` | ``failed`` | ``timeout`` | ``cancelled`` | ``requires_action``, carga útil).
@@ -486,10 +504,20 @@ def _poll_interaction_block(
         time.sleep(poll_interval_seconds)
         if on_status_update:
             on_status_update('processing', f'{phase_msg} (estado: {status})')
-    return 'timeout', (
-        f'Tiempo de espera con la API aún en curso. interaction_id={interaction_id}. '
-        f'Puedes reintentar o usar GEMINI_DEEP_RESEARCH_AUTO_COLLAB_LOOP=0 para un solo paso (sin fase de plan).'
-    )
+    if budget_seconds is not None:
+        msg = (
+            f'Tiempo máximo de espera agotado ({budget_seconds}s de presupuesto total para Deep Research). '
+            'Los informes suelen completarse en minutos; más de ~60 minutos con estado «en curso» suele indicar '
+            'un bloqueo silencioso en el proveedor (polling sin señal de éxito o fallo). '
+            f'interaction_id={interaction_id}. Cancela y vuelve a generar el informe; si persiste, '
+            'prueba GEMINI_DEEP_RESEARCH_AUTO_COLLAB_LOOP=0 (sin fase de plan colaborativo).'
+        )
+    else:
+        msg = (
+            f'Tiempo de espera agotado. interaction_id={interaction_id}. '
+            'Reintenta o usa GEMINI_DEEP_RESEARCH_AUTO_COLLAB_LOOP=0 para un solo paso (sin fase de plan).'
+        )
+    return 'timeout', msg
 
 
 def run_deep_research_report(
@@ -500,7 +528,7 @@ def run_deep_research_report(
     points: list,
     on_status_update=None,
     poll_interval_seconds: int = 15,
-    max_wait_seconds: int = 6 * 3600,
+    max_wait_seconds: Optional[int] = None,
     on_interaction_created: Optional[Callable[[str], None]] = None,
     on_report_substeps: Optional[Callable[[list], None]] = None,
 ) -> Tuple[str, str]:
@@ -511,6 +539,9 @@ def run_deep_research_report(
 
     ``on_report_substeps`` recibe 3 diccionarios (plan / validar / informe) con ``status``:
     ``loading`` | ``ok`` | ``error`` | ``pending`` | ``skipped``.
+
+    ``max_wait_seconds``: si es ``None``, se usa :func:`_get_deep_research_max_wait_seconds` (por defecto 3600 s;
+    variable ``GEMINI_DEEP_RESEARCH_MAX_WAIT_SECONDS``).
     """
     api_key = _get_api_key()
     if not api_key:
@@ -562,7 +593,10 @@ def run_deep_research_report(
         agent_name = _get_agent_deep_research()
         auto_loop = _get_auto_collab_loop()
         single_shot = not auto_loop
-        deadline = time.monotonic() + max_wait_seconds
+        wait_budget = (
+            max_wait_seconds if max_wait_seconds is not None else _get_deep_research_max_wait_seconds()
+        )
+        deadline = time.monotonic() + wait_budget
         sts = _report_substep_rows(single_shot)
         if on_status_update:
             on_status_update('processing', 'Iniciando investigación...')
@@ -606,7 +640,13 @@ def run_deep_research_report(
             if on_status_update:
                 on_status_update('processing', 'Investigando en segundo plano (modo directo)…')
             res, data = _poll_interaction_block(
-                client, iid, deadline, poll_interval_seconds, on_status_update, 'Generando informe',
+                client,
+                iid,
+                deadline,
+                poll_interval_seconds,
+                on_status_update,
+                'Generando informe',
+                budget_seconds=wait_budget,
             )
             if res in ('failed', 'timeout', 'cancelled'):
                 msg = str(data)
@@ -652,7 +692,13 @@ def run_deep_research_report(
                 logger.warning('on_interaction_created (fase 1) falló: %s', cb_err)
 
         r1, d1 = _poll_interaction_block(
-            client, str(id1), deadline, poll_interval_seconds, on_status_update, 'Generando plan de investigación',
+            client,
+            str(id1),
+            deadline,
+            poll_interval_seconds,
+            on_status_update,
+            'Generando plan de investigación',
+            budget_seconds=wait_budget,
         )
         if r1 in ('failed', 'timeout', 'cancelled'):
             msg = d1 if isinstance(d1, str) else str(d1)
@@ -703,7 +749,13 @@ def run_deep_research_report(
             on_status_update('processing', 'Generando informe en profundidad…')
 
         r2, d2 = _poll_interaction_block(
-            client, str(id2), deadline, poll_interval_seconds, on_status_update, 'Generando informe',
+            client,
+            str(id2),
+            deadline,
+            poll_interval_seconds,
+            on_status_update,
+            'Generando informe',
+            budget_seconds=wait_budget,
         )
         if r2 in ('failed', 'timeout', 'cancelled'):
             msg = d2 if isinstance(d2, str) else str(d2)

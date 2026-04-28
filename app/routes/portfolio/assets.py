@@ -1068,7 +1068,6 @@ def asset_reports_generate(id):
                         points,
                         on_interaction_created=_save_interaction_id,
                         on_report_substeps=_persist_report_stages,
-                        max_wait_seconds=6 * 3600,
                     )
 
                     content_val = content if status == 'completed' else None
@@ -1281,7 +1280,6 @@ def asset_reports_generate_and_deliver(id):
                         points,
                         on_interaction_created=_save_iid,
                         on_report_substeps=_on_report_subs,
-                        max_wait_seconds=6 * 3600,
                     )
 
                     if st_dr != 'completed':
