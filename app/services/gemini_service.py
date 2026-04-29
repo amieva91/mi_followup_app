@@ -1283,7 +1283,31 @@ def resume_company_report_from_interaction_id(report_id: int) -> None:
 
 
 def _count_words(text: str) -> int:
+    """Palabras aproximadas (Tokens por espacio); suficiente para acotar guiones."""
     return len((text or '').split())
+
+
+def _count_script_words_for_budget(text: str) -> int:
+    """
+    Palabras «habladas» para presupuesto de TTS: ignora líneas vacías y prefijos de hablante
+    duplicados para no inflar el recuento mecánico.
+    """
+    s = (text or '').strip()
+    if not s:
+        return 0
+    n = 0
+    for line in s.split('\n'):
+        line = line.strip()
+        if not line:
+            continue
+        if line.startswith(f'{PODCAST_SPEAKER_1}:') or line.startswith(f'{PODCAST_SPEAKER_2}:'):
+            _, _, rest = line.partition(':')
+            chunk = rest.strip()
+            if chunk:
+                n += len(chunk.split())
+        else:
+            n += len(line.split())
+    return n
 
 
 def _strip_markdown_fences(text: str) -> str:
@@ -1301,14 +1325,15 @@ def _strip_markdown_fences(text: str) -> str:
 PODCAST_SPEAKER_1 = 'Álex'
 PODCAST_SPEAKER_2 = 'Taylor'
 
-# Presupuesto (español ~150 wpm, 6 min ≈ 900). Margen de seguridad antes de TTS.
-PODCAST_SCRIPT_TARGET_MIN = 850
-PODCAST_SCRIPT_TARGET_MAX = 900
-PODCAST_HARD_MAX_WORDS = 950
-# Tres actos: intro ~10 %, cuerpo ~80 %, cierre ~10 % (guía para el modelo, ~900 p. total)
-PODCAST_ACT1_WORDS_GUIDE = 90
-PODCAST_ACT2_WORDS_GUIDE = 720
-PODCAST_ACT3_WORDS_GUIDE = 90
+# Objetivo ~5 min audibles (español ~130–145 palabras/min). La API TTS admite mal salidas > unos minutos
+# si el guion es largo; Google recomienda fragmentar — nos quedamos en ≤750 palabras habladas antes de TTS.
+PODCAST_SCRIPT_TARGET_MIN = 620
+PODCAST_SCRIPT_TARGET_MAX = 700
+PODCAST_HARD_MAX_WORDS = 750
+# Tres actos proporcionales (~700 palabras objetivo)
+PODCAST_ACT1_WORDS_GUIDE = 70
+PODCAST_ACT2_WORDS_GUIDE = 560
+PODCAST_ACT3_WORDS_GUIDE = 70
 
 # Debe coincidir con nombres en el guion (TTS: Charon / Kore)
 PODCAST_TTS_VOICE_ALEX = 'Charon'  # voz masculina
@@ -1318,8 +1343,8 @@ PODCAST_TTS_VOICE_TAYLOR = 'Kore'  # voz femenina
 PODCAST_SCRIPT_PROMPT = f"""Eres guionista de diálogos de inversión. Convierte el informe de Deep Research adjunto en una conversación **solo entre {PODCAST_SPEAKER_1}** (hombre, voz informativa) y **{PODCAST_SPEAKER_2}** (mujer, voz clara/curiosa).
 
 **REGLAS DE ORO DE DURACIÓN (presupuesto de palabras):**
-1. **Límite estricto:** el guion debe situarse en **{PODCAST_SCRIPT_TARGET_MIN}–{PODCAST_SCRIPT_TARGET_MAX} palabras**. **Nunca** superes **{PODCAST_HARD_MAX_WORDS}** palabras.
-2. **Ritmo (~150 wpm en español):** ~**900** palabras ≈ **6 minutos**. No escribas de más asumiendo un recorte después.
+1. **Límite estricto:** el guion debe situarse en **{PODCAST_SCRIPT_TARGET_MIN}–{PODCAST_SCRIPT_TARGET_MAX} palabras**. **Nunca** superes **{PODCAST_HARD_MAX_WORDS}** palabras (cuenta solo texto hablado, sin etiquetas entre corchetes).
+2. **Duración máxima audible objetivo: ≤ 5 minutos.** Ritmo ~130–145 palabras/minuto en español peninsular claro. No escribas más pensando en «luego lo recortamos».
 3. **Tres actos (orientación):** Intro ~{PODCAST_ACT1_WORDS_GUIDE} p. / Cuerpo ~{PODCAST_ACT2_WORDS_GUIDE} p. (solo **3** hallazgos) / Cierre ~{PODCAST_ACT3_WORDS_GUIDE} p.
 
 **ESTRUCTURA DE DIÁLOGO (obligatoria):**
@@ -1330,10 +1355,10 @@ PODCAST_SCRIPT_PROMPT = f"""Eres guionista de diálogos de inversión. Convierte
 - **Cierre (últimas réplicas):** termina con una **reflexión breve o pregunta final de {PODCAST_SPEAKER_2}**; **{PODCAST_SPEAKER_1}** responde con **una sola frase de menos de 5 palabras** (cierre técnicamente seco, sin despedida emotiva a la audiencia). No despedidas de radio (ni «hasta la próxima semana en…»).
 - **Registro:** español de **España (peninsular)**, analítico, para inversor.
 
-**ETIQUETAS DE DIRECCIÓN (TTS) — inclúyelas en el cuerpo del guion donde tenga sentido (no en todas las frases):**
-- **[uhm]:** a veces **antes** de que {PODCAST_SPEAKER_2} lance la pregunta “difícil” o el dato clave, para sonar humano.
-- **[laughs]:** a veces **después** de una analogía breve o un comentario ligeramente irónico.
-- **[short pause]:** tras una **cifra o ratio importante** (p. ej. un PER, un márgen) o al cambiar de sub-tema. **Nunca** [long pause] ni silencios largos.
+**ETIQUETAS DE DIRECCIÓN (TTS) — como máximo **6** en todo el guion entre `[short pause]`, `[uhm]` y `[laughs]` (muchas pausas alargan el audio sin sumar contenido):**
+- **[uhm]:** solo ocasionalmente antes de lo más «difícil» de Taylor.
+- **[laughs]:** solo tras una analogía muy breve.
+- **[short pause]:** solo tras una cifra importante o cambio de sub-tema. **Prohibido** [long pause] y pausas encadenadas.
 
 **REGLAS DE ESTILO (interfaz TTS):**
 - Prefijos exactos de línea: **{PODCAST_SPEAKER_1}:** y **{PODCAST_SPEAKER_2}:** (una intervención por línea).
@@ -1430,26 +1455,26 @@ def _truncate_script_at_speaker_lines(script: str, max_words: int) -> str:
 
 def _ensure_script_ready_for_tts(client, script: str, model: str) -> str:
     """
-    Solo se envía a TTS si el guion tiene ≤ ``PODCAST_HARD_MAX_WORDS`` palabras.
+    Solo se envía a TTS si el guion tiene ≤ ``PODCAST_HARD_MAX_WORDS`` palabras habladas.
     Si el borrador inicial supera ese tope, se aplica **reducción por síntesis** (varias pasadas).
     El truncado mecánico es solo emergencia (no deseado).
     """
     s = script
     for attempt in range(5):
-        n = _count_words(s)
+        n = _count_script_words_for_budget(s)
         if n <= PODCAST_HARD_MAX_WORDS:
             return s
         logger.info(
-            'Guion %s palabras > límite %s; reducción por síntesis (intento %s)',
+            'Guion %s palabras (presupuesto) > límite %s; reducción por síntesis (intento %s)',
             n,
             PODCAST_HARD_MAX_WORDS,
             attempt + 1,
         )
         s = _synthesis_reduce_script_for_tts(client, s, model, n)
-    n = _count_words(s)
+    n = _count_script_words_for_budget(s)
     if n > PODCAST_HARD_MAX_WORDS:
         logger.error(
-            'Guion aún con %s palabras tras síntesis; truncado de emergencia (evitable con informe más corto)',
+            'Guion aún con %s palabras (presupuesto) tras síntesis; truncado de emergencia',
             n,
         )
         s = _truncate_script_at_speaker_lines(s, PODCAST_HARD_MAX_WORDS)
@@ -1488,7 +1513,7 @@ def generate_podcast_script_from_report(report_content: str, client) -> str:
             if not response or not response.text:
                 raise GeminiServiceError('Respuesta vacía al generar el guion de podcast')
             script = _strip_markdown_fences(response.text.strip())
-            if not script or _count_words(script) < 40:
+            if not script or _count_script_words_for_budget(script) < 40:
                 raise GeminiServiceError('Guion de podcast demasiado corto o inválido')
             if f'{PODCAST_SPEAKER_1}:' not in script or f'{PODCAST_SPEAKER_2}:' not in script:
                 raise GeminiServiceError(
@@ -1512,32 +1537,50 @@ def generate_podcast_script_from_report(report_content: str, client) -> str:
 
 
 def _pcm_from_tts_response(response) -> bytes:
-    """Extrae PCM crudo (s16le mono 24 kHz) de una respuesta generate_content con modalidad AUDIO."""
+    """Extrae PCM crudo (s16le mono 24 kHz); concatena **todas** las partes con audio (API puede fragmentar)."""
     import base64
 
-    parts = getattr(response, 'candidates', []) or []
-    if not parts:
-        raise GeminiServiceError('Respuesta TTS vacía')
-    content = parts[0].content
-    inner_parts = getattr(content, 'parts', []) or []
-    if not inner_parts:
-        raise GeminiServiceError('Respuesta TTS sin partes de audio')
-    inline = inner_parts[0].inline_data
-    data = getattr(inline, 'data', None)
-    mime = (getattr(inline, 'mime_type', None) or '').lower()
-    if not data:
+    chunks: list[bytes] = []
+    for cand in getattr(response, 'candidates', []) or []:
+        content = getattr(cand, 'content', None)
+        if not content:
+            continue
+        for part in getattr(content, 'parts', []) or []:
+            inl = getattr(part, 'inline_data', None)
+            if inl is None:
+                continue
+            data = getattr(inl, 'data', None)
+            mime = (getattr(inl, 'mime_type', None) or '').lower()
+            if not data:
+                continue
+            raw: bytes
+            if isinstance(data, str):
+                raw = base64.b64decode(data)
+            else:
+                raw = data
+            if 'mpeg' in mime or 'mp3' in mime:
+                raise GeminiServiceError(
+                    'La API devolvió MP3; esta integración espera PCM lineal para escribir WAV. '
+                    'Actualiza google-genai o contacta soporte si el modelo deja de enviar PCM.'
+                )
+            chunks.append(raw)
+    if not chunks:
         raise GeminiServiceError('No hay datos de audio en la respuesta')
-    raw: bytes
-    if isinstance(data, str):
-        raw = base64.b64decode(data)
-    else:
-        raw = data
-    if 'mpeg' in mime or 'mp3' in mime:
-        raise GeminiServiceError(
-            'La API devolvió MP3; esta integración espera PCM lineal para escribir WAV. '
-            'Actualiza google-genai o contacta soporte si el modelo deja de enviar PCM.'
+    pcm = b''.join(chunks)
+    try:
+        cand0 = (getattr(response, 'candidates', []) or [None])[0]
+        fr = getattr(cand0, 'finish_reason', None) if cand0 is not None else None
+        dur_sec = len(pcm) / float(24000 * 2)
+        logger.info(
+            'TTS PCM: partes=%s bytes=%s duración_aprox_s=%.2f finish_reason=%s',
+            len(chunks),
+            len(pcm),
+            dur_sec,
+            fr,
         )
-    return raw
+    except Exception:
+        pass
+    return pcm
 
 
 def _synthesize_multispeaker_podcast_wav(client, script: str, output_path: str) -> None:
@@ -1622,7 +1665,7 @@ def new_audio_progress_steps_state() -> list:
     return [
         {
             'id': 'script',
-            'title': 'Guion 3 actos (≤950 p., estilo NotebookLM)',
+            'title': 'Guion 3 actos (≤750 palabras, ~5 min, estilo NotebookLM)',
             'status': 'loading',
             'model': _get_model_podcast_script(),
             'error': None,
@@ -1654,7 +1697,7 @@ def new_full_pipeline_progress_state() -> dict:
         + [
             {
                 'id': 'script',
-                'title': 'Guion 3 actos (≤950 p., estilo NotebookLM)',
+                'title': 'Guion 3 actos (≤750 palabras, ~5 min, estilo NotebookLM)',
                 'status': 'pending',
                 'model': _get_model_podcast_script(),
                 'error': None,
@@ -1703,9 +1746,9 @@ def generate_report_tts_audio(
     """
     Genera un audio resumen estilo "NotebookLM": dos locutores en conversación (Álex y Taylor).
 
-    1) Guion con **presupuesto por segmentos** (tres actos, 850–900 p. objetivo, techo 950 p.):
+    1) Guion con **presupuesto corto** (~620–700 palabras habladas, techo 750; audible objetivo ≤ ~5 min):
        temperatura configurable (``GEMINI_PODCAST_SCRIPT_TEMPERATURE``, p. ej. 0,82). Si el borrador
-       supera 950 palabras, **reducción por síntesis** (no recorte brusco por defecto).
+       supera el techo, **reducción por síntesis** (no recorte brusco por defecto).
     2) ``gemini-3.1-flash-tts-preview`` con ``MultiSpeakerVoiceConfig``: **Charon (Álex)** y
        **Kore (Taylor)**, ``response_modalities=['AUDIO']``, temperatura de **audio**
        (``GEMINI_TTS_TEMPERATURE``, predeterminado 0,65), PCM 24 kHz mono → WAV según la guía
@@ -1761,9 +1804,9 @@ def generate_report_tts_audio(
         emit(steps)
 
         logger.info(
-            'TTS podcast completado: %s (palabras guion~%s)',
+            'TTS podcast completado: %s (palabras habladas ~%s)',
             output_path,
-            _count_words(script),
+            _count_script_words_for_budget(script),
         )
 
     except ImportError as e:
