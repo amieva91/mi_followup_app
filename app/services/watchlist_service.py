@@ -5,6 +5,7 @@ from typing import List, Optional, Dict, Any
 from app import db
 from app.models import Watchlist, WatchlistConfig, Asset, User
 from datetime import datetime
+from pathlib import Path
 
 
 class WatchlistService:
@@ -114,10 +115,35 @@ class WatchlistService:
         if not watchlist_item:
             return False
 
-        # Borrado en cascada: informes y resumen About
+        # Borrado en cascada: informes y resumen About (+ audios en disco)
         from app.models.company_report import CompanyReport, AssetAboutSummary
+        # Capturar ids para poder eliminar ficheros WAV
+        report_ids = [
+            r[0]
+            for r in db.session.query(CompanyReport.id)
+            .filter_by(user_id=user_id, asset_id=asset_id)
+            .all()
+        ]
         CompanyReport.query.filter_by(user_id=user_id, asset_id=asset_id).delete()
         AssetAboutSummary.query.filter_by(user_id=user_id, asset_id=asset_id).delete()
+
+        # Intentar borrar WAVs del audio resumen si existen (best-effort)
+        try:
+            from flask import current_app
+
+            output_folder = current_app.config.get('OUTPUT_FOLDER')
+        except Exception:
+            output_folder = None
+        base = Path(output_folder).resolve() if output_folder else (Path(__file__).resolve().parent.parent / 'output').resolve()
+        audio_dir = base / 'reports_audio'
+        for rid in report_ids:
+            try:
+                p = audio_dir / f'report_{rid}.wav'
+                if p.exists() and p.is_file():
+                    p.unlink()
+            except Exception:
+                # No bloquear el borrado de watchlist por un fallo de filesystem
+                pass
 
         db.session.delete(watchlist_item)
         db.session.commit()
