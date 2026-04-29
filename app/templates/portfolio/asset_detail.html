@@ -1253,7 +1253,7 @@ function generateReport() {
 }
 
 function loadReports() {
-    fetch(`/portfolio/asset/${ASSET_ID}/reports`)
+    fetch(`/portfolio/asset/${ASSET_ID}/reports?t=${Date.now()}`, { cache: 'no-store' })
         .then(r => r.json())
         .then(data => {
             const container = document.getElementById('reportsList');
@@ -1322,7 +1322,7 @@ function setupReportViewToggle(data) {
 
 function loadReportDetail(reportId) {
     currentReportId = reportId;
-    fetch(`/portfolio/asset/${ASSET_ID}/reports/${reportId}`)
+    fetch(`/portfolio/asset/${ASSET_ID}/reports/${reportId}?t=${Date.now()}`, { cache: 'no-store' })
         .then(r => r.json())
         .then(data => {
             const panel = document.getElementById('reportDetail');
