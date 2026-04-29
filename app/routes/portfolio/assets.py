@@ -1690,10 +1690,18 @@ def asset_report_detail(id, report_id):
 
     _maybe_expire_stale_report(report)
 
+    sm_raw = getattr(report, 'summary_content', None)
+    if sm_raw is not None and str(sm_raw).strip():
+        from app.services.gemini_service import sanitize_report_summary_markdown
+
+        summary_out = sanitize_report_summary_markdown(str(sm_raw))
+    else:
+        summary_out = sm_raw
+
     return jsonify({
         'id': report.id,
         'content': report.content,
-        'summary_content': getattr(report, 'summary_content', None),
+        'summary_content': summary_out,
         'status': report.status,
         'error_msg': report.error_msg,
         'template_title': report.template_title,
@@ -1713,6 +1721,7 @@ def asset_report_detail(id, report_id):
 def asset_report_send_email(id, report_id):
     """Enviar informe por correo al usuario registrado"""
     from app.utils.email import send_report_email
+    from app.services.gemini_service import sanitize_report_summary_markdown
 
     asset = Asset.query.get(id)
     if not asset:
@@ -1746,14 +1755,17 @@ def asset_report_send_email(id, report_id):
         else:
             current_app.logger.info('Enviando informe sin audio (no encontrado o no generado): report_id=%s, audio_status=%s, audio_path=%s',
                 report_id, getattr(report, 'audio_status', None), getattr(report, 'audio_path', None))
+        sm = (getattr(report, 'summary_content', None) or '').strip()
+        if sm:
+            email_body_md = sanitize_report_summary_markdown(sm)
+        else:
+            email_body_md = report.content or ''
+
         send_report_email(
             user=current_user,
             asset_name=asset.name or asset.symbol or asset.isin or 'Activo',
             report_title=report.template_title or f'Informe {report.id}',
-            email_body_markdown=(
-                (getattr(report, 'summary_content', None) or '').strip()
-                or (report.content or '')
-            ),
+            email_body_markdown=email_body_md,
             audio_file_path=audio_path_arg,
             full_report_markdown_for_pdf=report.content or '',
         )

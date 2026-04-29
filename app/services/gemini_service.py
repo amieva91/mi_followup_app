@@ -368,6 +368,59 @@ def _strip_email_summary_boilerplate(md: str) -> str:
     return '\n'.join(lines).rstrip()
 
 
+# Imágenes data:… en el resumen rompen correo/UI y el límite de tokens (salida truncada a mitad del base64).
+_IMG_MD_DATA_URI = re.compile(r'!\[([^\]]*)\]\(\s*data:image[^)]+\)', re.IGNORECASE | re.DOTALL)
+_TRUNC_IMG_DATA_START = re.compile(
+    r'!\[[^\]]*\]\(\s*data:image[^\)]*$',
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def _sanitize_summary_embedded_assets(md: str) -> str:
+    """
+    Sustituye `![](data:image…)` por referencias cortas y elimina basura por truncamiento.
+    El informe largo y el PDF conservan las figuras raster.
+    """
+    if not (md or '').strip():
+        return md or ''
+
+    def _repl_img(m) -> str:
+        alt = (m.group(1) or '').strip() or 'Figura'
+        alt = alt[:160]
+        return (
+            f'\n\n### 📷 {alt}\n'
+            f'*Gráfico disponible en «Informe completo» y en el PDF adjunto.*\n'
+        )
+
+    s = _IMG_MD_DATA_URI.sub(_repl_img, md)
+    # Respuesta cortada a mitad de una imagen (sin `)` de cierre)
+    s = _TRUNC_IMG_DATA_START.sub(
+        '\n*(Referencia a figura incompleta en el resumen; abre el informe completo o el PDF.)*\n',
+        s,
+    )
+    # Líneas residuales gigantes (solo base64 suelto)
+    cleaned = []
+    for line in s.split('\n'):
+        ls = line.strip()
+        if len(line) > 3000 and 'base64' in ls:
+            continue
+        cleaned.append(line)
+    return '\n'.join(cleaned).strip()
+
+
+def sanitize_report_summary_markdown(md: Optional[str]) -> Optional[str]:
+    """
+    Limpia resúmenes al servirlos (retrocompatibilidad): sustituye data-URI enormes
+    que rompen UI/correo sin tocar el informe completo.
+    """
+    if md is None:
+        return None
+    x = md.strip()
+    if not x:
+        return md
+    return _sanitize_summary_embedded_assets(x)
+
+
 def generate_report_email_summary(full_report_markdown: str) -> str:
     """
     Resume el informe largo en Markdown para el cuerpo del correo / vista «Resumen».
@@ -388,7 +441,7 @@ def generate_report_email_summary(full_report_markdown: str) -> str:
 **Prioridad de contenido (de más a menos importante):**
 1. Bloques **Key takeaways** por tema (ver formato obligatorio abajo).
 2. **Tablas** Markdown relevantes del original (puedes comprimir filas/columnas triviales pero **no inventes ni redondees cifras**). Mantén `[cite: …]` donde corresponda.
-3. Líneas de **figuras** `![…](…)` con `data:image/…;base64,…` cuando aporten claridad; si una imagen es enorme, sustituye solo esa por un `### …` + párrafo breve describiendo lo que el propio informe ya dice (sin números nuevos).
+3. **Figuras / gráficos:** está **prohibido** incluir URLs `data:image/…;base64,…` o cualquier imagen embebida en el resumen (rompen el correo y el límite de salida). Para cada figura relevante usa solo `### 📷 Título breve` + 1–2 frases en cursiva con lo que ya dice el texto del informe y `[cite: …]` si aplica. Las imágenes reales están en **Informe completo** y en el **PDF**.
 
 **Formato obligatorio — mismo «recuadro» que el informe largo en web/correo:**
 - Los **Key takeaways** deben ir siempre en **bloques de cita Markdown**: **cada línea** del bloque empieza por `>` (incluidas viñetas y sub-bloques).
@@ -423,7 +476,9 @@ Longitud orientativa: breve y muy legible (~800–1800 palabras de contenido út
             ),
         )
         if response and response.text:
-            return _strip_email_summary_boilerplate(response.text.strip())
+            raw = response.text.strip()
+            raw = _strip_email_summary_boilerplate(raw)
+            return _sanitize_summary_embedded_assets(raw)
         raise GeminiServiceError('Respuesta vacía del resumen')
     except ImportError as e:
         raise GeminiServiceError(f'Paquete google-genai no instalado: {e}')
