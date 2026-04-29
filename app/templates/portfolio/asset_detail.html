@@ -851,7 +851,7 @@ function startReportStatusPolling(reportId) {
             }
             return;
         }
-        fetch('/portfolio/api/reports/' + reportId + '/status')
+        fetch('/portfolio/api/reports/' + reportId + '/status?t=' + Date.now(), { cache: 'no-store' })
             .then(r => {
                 const ct = r.headers.get('Content-Type') || '';
                 if (!r.ok) return null;
@@ -919,7 +919,7 @@ function startAudioStatusPolling(reportId) {
             loadReports();
             return;
         }
-        fetch('/portfolio/api/reports/' + reportId + '/status')
+        fetch('/portfolio/api/reports/' + reportId + '/status?t=' + Date.now(), { cache: 'no-store' })
             .then(r => {
                 const ct = r.headers.get('Content-Type') || '';
                 if (!r.ok) return null;
