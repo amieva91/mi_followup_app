@@ -688,13 +688,20 @@ function setReportGenerateBannerVisible(reportId, data) {
         el.classList.add('hidden');
     }
 }
+/** Todo-en-uno terminado para la UI: correo ok/error, o cualquier paso en error (p. ej. TTS fallido). */
+function isFullPipelineUiTerminal(ap) {
+    if (!ap || !ap.full_pipeline || !ap.steps || !ap.steps.length) return true;
+    const steps = ap.steps;
+    for (var i = 0; i < steps.length; i++) {
+        if (steps[i] && steps[i].status === 'error') return true;
+    }
+    const last = steps[steps.length - 1];
+    return !!(last && last.id === 'email' && (last.status === 'ok' || last.status === 'error'));
+}
 function fullPipelinePollTerminal(data) {
     if (!data || !data.audio_progress) return true;
     if (!data.audio_progress.full_pipeline) return true;
-    const steps = data.audio_progress.steps || [];
-    const last = steps[steps.length - 1];
-    if (last && last.id === 'email' && (last.status === 'ok' || last.status === 'error')) return true;
-    return false;
+    return isFullPipelineUiTerminal(data.audio_progress);
 }
 function hideReportActionButtons() {
     const btnEmail = document.getElementById('btnSendReportEmail');
@@ -1442,8 +1449,7 @@ function loadReportDetail(reportId) {
             if (hasPipelineProgress) {
                 var fpTerm;
                 if (fp0.full_pipeline) {
-                    const le = fp0.steps[fp0.steps.length - 1];
-                    fpTerm = le && le.id === 'email' && (le.status === 'ok' || le.status === 'error');
+                    fpTerm = isFullPipelineUiTerminal(fp0);
                 } else {
                     fpTerm = (data.status === 'completed' || data.status === 'failed');
                 }
