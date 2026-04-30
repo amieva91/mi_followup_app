@@ -2,6 +2,7 @@
 Rutas de asset registry, asset detail, reports y about
 """
 import json
+from datetime import datetime
 from pathlib import Path
 from flask import render_template, redirect, url_for, flash, request, jsonify, current_app, send_file, make_response
 from flask_login import login_required, current_user
