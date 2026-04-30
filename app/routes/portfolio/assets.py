@@ -1052,7 +1052,8 @@ def asset_reports_generate(id):
                         with engine.connect() as conn:
                             conn.execute(
                                 text(
-                                    "UPDATE company_reports SET gemini_interaction_id = :iid WHERE id = :rid"
+                                    "UPDATE company_reports SET gemini_interaction_id = :iid "
+                                    "WHERE id = :rid AND status = 'processing'"
                                 ),
                                 {'iid': (iid or '')[:100], 'rid': report_id},
                             )
@@ -1344,7 +1345,8 @@ def asset_reports_generate_and_deliver(id):
                         with engine.connect() as conn:
                             conn.execute(
                                 text(
-                                    'UPDATE company_reports SET gemini_interaction_id = :iid WHERE id = :rid'
+                                    "UPDATE company_reports SET gemini_interaction_id = :iid "
+                                    "WHERE id = :rid AND status = 'processing'"
                                 ),
                                 {'iid': (iid or '')[:100], 'rid': report_id},
                             )
