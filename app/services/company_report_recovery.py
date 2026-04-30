@@ -12,6 +12,7 @@ import logging
 import threading
 from datetime import datetime, timedelta
 import json
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -62,63 +63,102 @@ def recover_processing_reports_after_restart(app, app_logger=None) -> None:
     from app import db
     from app.models.company_report import CompanyReport
 
+    # Guard de seguridad:
+    # - Gunicorn puede recrear workers durante el día (sin systemctl restart).
+    # - Esta función se llama en init por worker; NO debemos marcar como failed
+    #   informes recién creados que aún están corriendo y todavía no han persistido interaction_id.
+    # - Además, evitamos que varios workers hagan el barrido a la vez.
+    try:
+        import fcntl  # type: ignore
+    except Exception:
+        fcntl = None  # type: ignore
+
+    lock_fp = None
+    if fcntl is not None:
+        try:
+            os.makedirs(app.instance_path, exist_ok=True)
+            lock_path = os.path.join(app.instance_path, 'followup.recovery_company_reports.lock')
+            lock_fp = open(lock_path, 'a+')
+            fcntl.flock(lock_fp.fileno(), fcntl.LOCK_EX)
+        except Exception:
+            lock_fp = None
+
     log = app_logger or logger
     now = datetime.utcnow()
+    # No tocar filas "jóvenes" (evita falsos positivos durante arranque/recycle de worker).
+    # 3 minutos suele ser suficiente para que gemini_interaction_id se persista si el hilo está vivo.
+    min_age_seconds = 180
+    min_age_threshold = now - timedelta(seconds=min_age_seconds)
 
-    rows = CompanyReport.query.filter(CompanyReport.status == 'processing').all()
-    fail_no_iid = []
-    resume_ids = []
-    for r in rows:
-        iid = (r.gemini_interaction_id or '').strip()
-        if iid:
-            resume_ids.append(r.id)
-        else:
-            fail_no_iid.append(r)
+    try:
+        rows = CompanyReport.query.filter(CompanyReport.status == 'processing').all()
+        fail_no_iid = []
+        resume_ids = []
+        for r in rows:
+            # Solo considerar como "huérfano" si es suficientemente antiguo.
+            if getattr(r, 'created_at', None) and r.created_at > min_age_threshold:
+                continue
+            iid = (r.gemini_interaction_id or '').strip()
+            if iid:
+                resume_ids.append(r.id)
+            else:
+                fail_no_iid.append(r)
 
-    for r in fail_no_iid:
-        r.status = 'failed'
-        r.error_msg = _MSG_ORPHAN_NO_IID
-        r.completed_at = now
+        for r in fail_no_iid:
+            r.status = 'failed'
+            r.error_msg = _MSG_ORPHAN_NO_IID
+            r.completed_at = now
 
-    audio_n = 0
-    rows_a = CompanyReport.query.filter(CompanyReport.audio_status == 'processing').all()
-    for r in rows_a:
-        r.audio_status = 'failed'
-        r.audio_error_msg = (_MSG_ORPHAN_NO_IID[:2000])
-        # Si había un panel de progreso (pipeline completo), evitar que se quede "atascado" en loading.
-        # Marcamos el paso TTS como error para que la UI muestre el fallo real y permita reintentar.
+        audio_n = 0
+        rows_a = CompanyReport.query.filter(CompanyReport.audio_status == 'processing').all()
+        for r in rows_a:
+            if getattr(r, 'created_at', None) and r.created_at > min_age_threshold:
+                continue
+            r.audio_status = 'failed'
+            r.audio_error_msg = (_MSG_ORPHAN_NO_IID[:2000])
+            # Si había un panel de progreso (pipeline completo), evitar que se quede "atascado" en loading.
+            # Marcamos el paso TTS como error para que la UI muestre el fallo real y permita reintentar.
+            try:
+                ap_raw = getattr(r, 'audio_progress_json', None)
+                if ap_raw and str(ap_raw).strip():
+                    ap = json.loads(str(ap_raw))
+                    steps = ap.get('steps') if isinstance(ap, dict) else None
+                    if isinstance(steps, list):
+                        for st in steps:
+                            if isinstance(st, dict) and st.get('id') == 'tts':
+                                st['status'] = 'error'
+                                st['error'] = _MSG_ORPHAN_NO_IID[:2000]
+                        ap['caption'] = ap.get('caption') or ''
+                        r.audio_progress_json = json.dumps(ap, ensure_ascii=False)
+            except Exception:
+                pass
+            audio_n += 1
+
+        if fail_no_iid or audio_n:
+            db.session.commit()
+            log.warning(
+                'company_reports: %s informes huérfanos (sin interaction_id) y %s audios marcados failed; '
+                '%s informes con reanudación programada (si procede)',
+                len(fail_no_iid),
+                audio_n,
+                len(resume_ids),
+            )
+        elif resume_ids:
+            log.info(
+                'company_reports: recuperación — reanudando Deep Research para report_ids=%s',
+                resume_ids,
+            )
+    finally:
         try:
-            ap_raw = getattr(r, 'audio_progress_json', None)
-            if ap_raw and str(ap_raw).strip():
-                ap = json.loads(str(ap_raw))
-                steps = ap.get('steps') if isinstance(ap, dict) else None
-                if isinstance(steps, list):
-                    for st in steps:
-                        if isinstance(st, dict) and st.get('id') == 'tts':
-                            st['status'] = 'error'
-                            st['error'] = _MSG_ORPHAN_NO_IID[:2000]
-                    # Si email estaba pendiente, lo dejamos pendiente (pipeline no terminó).
-                    ap['caption'] = ap.get('caption') or ''
-                    r.audio_progress_json = json.dumps(ap, ensure_ascii=False)
+            if lock_fp is not None:
+                try:
+                    if fcntl is not None:
+                        fcntl.flock(lock_fp.fileno(), fcntl.LOCK_UN)
+                except Exception:
+                    pass
+                lock_fp.close()
         except Exception:
-            # Best-effort: no bloquear recuperación por JSON corrupto.
             pass
-        audio_n += 1
-
-    if fail_no_iid or audio_n:
-        db.session.commit()
-        log.warning(
-            'company_reports: %s informes sin interaction_id y %s audios marcados failed; '
-            '%s informes con reanudación programada',
-            len(fail_no_iid),
-            audio_n,
-            len(resume_ids),
-        )
-    elif resume_ids:
-        log.info(
-            'company_reports: reinicio — reanudando Deep Research para report_ids=%s',
-            resume_ids,
-        )
 
     for rid in resume_ids:
 
