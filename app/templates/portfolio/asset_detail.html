@@ -770,7 +770,23 @@ function updateReportAudioProgressUI(data) {
     if (hasSteps && (data.audio_status === 'processing' || data.audio_status === 'failed' || (ap.full_pipeline && data.status === 'completed'))) {
         if (legacy) { legacy.classList.add('hidden'); legacy.textContent = ''; }
         pb.classList.remove('hidden');
-        pb.innerHTML = buildAudioProgressBlockHtml(ap.steps, ap.caption);
+        // Compat: si tras un reinicio el backend marcó audio_status=failed pero el JSON quedó con "tts: loading",
+        // forzamos el paso TTS a error para reflejar la realidad y evitar estados "eternos".
+        let stepsOut = ap.steps;
+        if (data.audio_status === 'failed' && typeof data.audio_error_msg === 'string' && data.audio_error_msg.trim()) {
+            try {
+                stepsOut = (ap.steps || []).map(s => {
+                    if (!s || typeof s !== 'object') return s;
+                    if (s.id === 'tts' && (s.status === 'loading' || s.status === 'pending')) {
+                        return { ...s, status: 'error', error: data.audio_error_msg };
+                    }
+                    return s;
+                });
+            } catch (e) {
+                stepsOut = ap.steps;
+            }
+        }
+        pb.innerHTML = buildAudioProgressBlockHtml(stepsOut, ap.caption);
         return;
     }
     pb.classList.add('hidden');
