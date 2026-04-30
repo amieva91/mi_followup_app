@@ -974,7 +974,11 @@ def asset_reports_generate(id):
             from datetime import datetime
 
             with app.app_context():
-                engine = db.engine
+                from app.background_tasks_lock import background_tasks_lock
+
+                # Serialización global: informes/audio se ejecutan de uno en uno.
+                with background_tasks_lock(app):
+                    engine = db.engine
 
                 def _update_status(st, content_val=None, error_val=None, clear_progress=False):
                     now_str = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
@@ -1273,7 +1277,11 @@ def asset_reports_generate_and_deliver(id):
 
         def run_full_deliver():
             with app.app_context():
-                engine = db.engine
+                from app.background_tasks_lock import background_tasks_lock
+
+                # Serialización global: pipelines largos de uno en uno.
+                with background_tasks_lock(app):
+                    engine = db.engine
 
                 def _persist(json_obj):
                     with engine.connect() as conn:
@@ -1821,7 +1829,11 @@ def asset_report_generate_audio(id, report_id):
 
     def _run_tts():
         with app_obj.app_context():
-            from datetime import datetime
+            from app.background_tasks_lock import background_tasks_lock
+
+            # Serialización global: una tarea larga a la vez (incluye regeneraciones).
+            with background_tasks_lock(app_obj):
+                from datetime import datetime
 
             conn = db.engine.connect()
             try:
