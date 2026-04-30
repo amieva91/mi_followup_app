@@ -860,6 +860,22 @@ function updateReportDetailFromStatusPoll(reportId, data) {
         }
         return;
     }
+    // Regenerar audio: JSON solo con steps (sin full_pipeline/report_stages). El poll de informe
+    // no debe vaciar el bloque de audio (competía con startAudioStatusPolling y parpadeaba).
+    if (
+        data.status === 'completed' &&
+        ap1 &&
+        ap1.steps &&
+        ap1.steps.length &&
+        !ap1.full_pipeline &&
+        !ap1.report_stages &&
+        (data.audio_status === 'queued' ||
+            data.audio_status === 'processing' ||
+            data.audio_status === 'failed')
+    ) {
+        updateReportAudioProgressUI(data);
+        return;
+    }
     if (audioPb) { audioPb.classList.add('hidden'); audioPb.innerHTML = ''; }
     if (data.status === 'pending' || data.status === 'processing') {
         panel.classList.remove('hidden');
@@ -1484,13 +1500,17 @@ function loadReportDetail(reportId) {
                         audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-800';
                         audioStatus.textContent = 'Audio en cola' + qp + '…';
                     }
-                    startReportStatusPolling(reportId);
+                    stopReportStatusPolling(reportId);
+                    startAudioStatusPolling(reportId);
                 } else
                 if (aSt === 'processing') {
                     if (btnAudio) btnAudio.classList.add('hidden');
                     updateReportAudioProgressUI(data);
                     if (fp2 && fp2.full_pipeline) startReportStatusPolling(reportId);
-                    else startAudioStatusPolling(reportId);
+                    else {
+                        stopReportStatusPolling(reportId);
+                        startAudioStatusPolling(reportId);
+                    }
                 } else if (aSt === 'completed') {
                     clearReportAudioProgressUI();
                     if (audioStatus) {
