@@ -1666,6 +1666,36 @@ def asset_reports_list(id):
         asset_id=id
     ).order_by(CompanyReport.created_at.desc()).limit(5).all()
 
+    def _queue_position_for_report(r) -> int | None:
+        """Posición aproximada en cola global (1-indexed) para mostrar en listados.
+        Reutiliza el mismo criterio que /api/reports/<id>/status."""
+        try:
+            should_queue = (
+                getattr(r, 'status', None) in ('pending', 'processing')
+                or getattr(r, 'audio_status', None) in ('queued', 'processing')
+            )
+            created_at = getattr(r, 'created_at', None)
+            if not should_queue or not created_at:
+                return None
+            q = db.session.execute(
+                text(
+                    """
+                    SELECT COUNT(*) FROM company_reports
+                    WHERE created_at < :t
+                      AND (
+                        status IN ('pending','processing')
+                        OR audio_status IN ('queued','processing')
+                      )
+                    """
+                ),
+                {'t': created_at},
+            ).scalar()
+            if q is None:
+                return None
+            return int(q) + 1
+        except Exception:
+            return None
+
     return jsonify({
         'reports': [
             {
@@ -1675,6 +1705,7 @@ def asset_reports_list(id):
                 'template_title': r.template_title or f'Informe {r.id}',
                 'created_at': r.created_at.isoformat() if r.created_at else None,
                 'completed_at': r.completed_at.isoformat() if r.completed_at else None,
+                'queue_position': _queue_position_for_report(r),
             }
             for r in reports
         ]

@@ -651,8 +651,11 @@ const REPORT_POLL_MAX = 900;
 const REPORT_STATUS_MS = 2000;
 const AUDIO_STATUS_MS = 2000;
 
-function reportStatusLabel(status) {
-    if (status === 'pending') return 'en cola';
+function reportStatusLabel(status, queuePosition) {
+    if (status === 'pending') {
+        const qp = queuePosition ? ` (#${queuePosition})` : '';
+        return 'en cola' + qp;
+    }
     if (status === 'processing') return 'generando';
     if (status === 'completed') return 'listo';
     if (status === 'failed') return 'error';
@@ -1381,7 +1384,7 @@ function loadReports() {
                     <div class="p-3 asset-inner-panel hover:bg-slate-50/80 cursor-pointer transition-colors" onclick="loadReportDetail(${r.id})">
                         <div class="flex justify-between items-center">
                             <span class="text-sm font-medium">${(name || '').replace(/</g, '&lt;')}${audioBadge}</span>
-                            <span class="px-2 py-0.5 rounded text-xs ${statusBadge}">${reportStatusLabel(r.status)}</span>
+                            <span class="px-2 py-0.5 rounded text-xs ${statusBadge}">${reportStatusLabel(r.status, r.queue_position)}</span>
                         </div>
                         <div class="text-xs text-gray-500 mt-1">${date}</div>
                     </div>
