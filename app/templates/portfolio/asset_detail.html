@@ -768,7 +768,18 @@ function updateReportAudioProgressUI(data) {
     const ap = data.audio_progress;
     const hasSteps = ap && ap.steps && ap.steps.length;
     if (hasSteps && (data.audio_status === 'queued' || data.audio_status === 'processing' || data.audio_status === 'failed' || (ap.full_pipeline && data.status === 'completed'))) {
-        if (legacy) { legacy.classList.add('hidden'); legacy.textContent = ''; }
+        // Mostrar "en cola" aunque haya pasos (si no, parece que ya está ejecutando).
+        if (legacy) {
+            if (data.audio_status === 'queued') {
+                const qp = data.queue_position ? ` (#${data.queue_position})` : '';
+                legacy.classList.remove('hidden');
+                legacy.className = 'px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-800';
+                legacy.textContent = 'Audio en cola' + qp + '…';
+            } else {
+                legacy.classList.add('hidden');
+                legacy.textContent = '';
+            }
+        }
         pb.classList.remove('hidden');
         // Compat: si tras un reinicio el backend marcó audio_status=failed pero el JSON quedó con "tts: loading",
         // forzamos el paso TTS a error para reflejar la realidad y evitar estados "eternos".
@@ -786,7 +797,12 @@ function updateReportAudioProgressUI(data) {
                 stepsOut = ap.steps;
             }
         }
-        pb.innerHTML = buildAudioProgressBlockHtml(stepsOut, ap.caption);
+        let cap = ap.caption;
+        if (data.audio_status === 'queued') {
+            const qp = data.queue_position ? ` (#${data.queue_position})` : '';
+            cap = 'Audio en cola' + qp + ' (se ejecutará cuando le toque; puedes salir y volver)';
+        }
+        pb.innerHTML = buildAudioProgressBlockHtml(stepsOut, cap);
         return;
     }
     pb.classList.add('hidden');
