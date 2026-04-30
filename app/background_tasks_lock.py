@@ -12,8 +12,11 @@ from __future__ import annotations
 import os
 import logging
 from contextlib import contextmanager
+import threading
 
 logger = logging.getLogger(__name__)
+
+_THREAD_LOCK = threading.Lock()
 
 
 def _lock_path(app) -> str:
@@ -28,26 +31,33 @@ def background_tasks_lock(app):
     - Cross-process: funciona con varios workers gunicorn.
     - Bloqueante: el que llegue después espera sin consumir CPU.
     """
+    # 1) Lock intra-proceso (threads): fcntl.flock no bloquea entre threads del mismo proceso.
+    _THREAD_LOCK.acquire()
+    fp = None
     try:
-        import fcntl  # type: ignore
-    except ImportError:
-        # En plataformas sin fcntl, no podemos garantizar serialización global.
-        yield
-        return
+        # 2) Lock cross-proceso (gunicorn multi-worker)
+        try:
+            import fcntl  # type: ignore
+        except ImportError:
+            yield
+            return
 
-    os.makedirs(app.instance_path, exist_ok=True)
-    path = _lock_path(app)
-    fp = open(path, "a+")
-    try:
+        os.makedirs(app.instance_path, exist_ok=True)
+        path = _lock_path(app)
+        fp = open(path, "a+")
         fcntl.flock(fp.fileno(), fcntl.LOCK_EX)
-        yield
+        try:
+            yield
+        finally:
+            try:
+                fcntl.flock(fp.fileno(), fcntl.LOCK_UN)
+            except Exception:
+                pass
     finally:
         try:
-            fcntl.flock(fp.fileno(), fcntl.LOCK_UN)
+            if fp is not None:
+                fp.close()
         except Exception:
             pass
-        try:
-            fp.close()
-        except Exception:
-            pass
+        _THREAD_LOCK.release()
 
