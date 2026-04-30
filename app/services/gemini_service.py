@@ -772,6 +772,58 @@ def _interactions_create_deep_research(
     raise GeminiServiceError('interactions.create devolvió vacío')
 
 
+def _interactions_create_deep_research_with_retries(
+    client,
+    *,
+    input_text: str,
+    agent_name: str,
+    collab: bool,
+    previous_interaction_id: Optional[str] = None,
+    max_attempts: int = 3,
+    retry_delay_seconds: int = 30,
+    on_status_update=None,
+    status_label: str = 'Creando Deep Research',
+) -> Any:
+    """
+    Reintentos de `interactions.create` cuando falla **antes** de tener `interaction_id`.
+    Mantiene el turno en la cola (el caller suele estar bajo lock de background).
+    """
+    attempts = max(1, int(max_attempts or 1))
+    last_err: Optional[Exception] = None
+    for attempt in range(1, attempts + 1):
+        try:
+            return _interactions_create_deep_research(
+                client,
+                input_text=input_text,
+                agent_name=agent_name,
+                collab=collab,
+                previous_interaction_id=previous_interaction_id,
+            )
+        except Exception as ex:
+            last_err = ex
+            if attempt >= attempts:
+                break
+            logger.warning(
+                'Deep Research: interactions.create falló (intento %s/%s). Reintento en %ss. error=%s',
+                attempt,
+                attempts,
+                retry_delay_seconds,
+                ex,
+            )
+            if on_status_update:
+                try:
+                    on_status_update(
+                        'processing',
+                        f'{status_label} falló (intento {attempt}/{attempts}); reintentando en {retry_delay_seconds}s…',
+                    )
+                except Exception:
+                    pass
+            time.sleep(max(1, int(retry_delay_seconds or 1)))
+    if last_err:
+        raise last_err
+    raise GeminiServiceError('interactions.create falló (sin error capturable)')
+
+
 def _poll_interaction_once(
     client, interaction_id: str, on_status_update, poll_n: int, last_logged: Optional[str]
 ) -> tuple:
@@ -951,12 +1003,16 @@ Con ``visualization: auto`` debes entregar **solo imágenes raster finales** inc
         if not auto_loop:
             # Un solo create; sin fase de plan (evita requires_action)
             try:
-                interaction = _interactions_create_deep_research(
+                interaction = _interactions_create_deep_research_with_retries(
                     client,
                     input_text=prompt,
                     agent_name=agent_name,
                     collab=False,
                     previous_interaction_id=None,
+                    max_attempts=3,
+                    retry_delay_seconds=30,
+                    on_status_update=on_status_update,
+                    status_label='Creando Deep Research (modo directo)',
                 )
             except Exception as ex:
                 _fail_substeps('report', str(ex))
@@ -1008,8 +1064,16 @@ Con ``visualization: auto`` debes entregar **solo imágenes raster finales** inc
         if on_status_update:
             on_status_update('processing', 'Fase 1: generando plan de investigación…')
         try:
-            p1 = _interactions_create_deep_research(
-                client, input_text=prompt, agent_name=agent_name, collab=True, previous_interaction_id=None
+            p1 = _interactions_create_deep_research_with_retries(
+                client,
+                input_text=prompt,
+                agent_name=agent_name,
+                collab=True,
+                previous_interaction_id=None,
+                max_attempts=3,
+                retry_delay_seconds=30,
+                on_status_update=on_status_update,
+                status_label='Creando plan Deep Research',
             )
         except Exception as ex:
             _fail_substeps('plan', str(ex))
@@ -1054,12 +1118,16 @@ Con ``visualization: auto`` debes entregar **solo imágenes raster finales** inc
         if on_status_update:
             on_status_update('processing', 'Validando y confirmando plan (automático)…')
         try:
-            p2 = _interactions_create_deep_research(
+            p2 = _interactions_create_deep_research_with_retries(
                 client,
                 input_text=DEEP_RESEARCH_APPROVE_INPUT,
                 agent_name=agent_name,
                 collab=False,
                 previous_interaction_id=str(id1)[:200],
+                max_attempts=3,
+                retry_delay_seconds=30,
+                on_status_update=on_status_update,
+                status_label='Confirmando plan Deep Research',
             )
         except Exception as ex:
             _fail_substeps('validate', str(ex))
