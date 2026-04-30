@@ -43,6 +43,22 @@ def _get_model_podcast_script() -> str:
     return os.environ.get('GEMINI_MODEL_PODCAST_SCRIPT') or _get_model_flash()
 
 
+def _get_tts_max_output_tokens() -> int:
+    """
+    Presupuesto de salida para TTS (modalidad AUDIO). Valores bajos provocan
+    ``finish_reason=MAX_TOKENS``: el modelo corta la locución y el resto del PCM
+    suele ser silencio (~16 min de fichero con ~3 min de voz). Override:
+    ``GEMINI_TTS_MAX_OUTPUT_TOKENS`` (acotado 8192–262144).
+    """
+    raw = os.environ.get('GEMINI_TTS_MAX_OUTPUT_TOKENS')
+    if raw is not None and str(raw).strip() != '':
+        try:
+            return max(8192, min(262144, int(str(raw).strip())))
+        except ValueError:
+            pass
+    return 131072
+
+
 def _get_tts_synthesis_temperature() -> float:
     """
     Temperatura solo en la llamada al modelo TTS (audio), no al guion.
@@ -1604,8 +1620,8 @@ def generate_podcast_script_from_report(report_content: str, client) -> str:
     raise GeminiServiceError('No se pudo generar el guion de podcast')
 
 
-def _pcm_from_tts_response(response) -> bytes:
-    """Extrae PCM crudo (s16le mono 24 kHz); concatena **todas** las partes con audio (API puede fragmentar)."""
+def _pcm_from_tts_response(response) -> Tuple[bytes, Any]:
+    """Extrae PCM crudo (s16le mono 24 kHz) y ``finish_reason`` del primer candidato."""
     import base64
 
     chunks: list[bytes] = []
@@ -1635,6 +1651,7 @@ def _pcm_from_tts_response(response) -> bytes:
     if not chunks:
         raise GeminiServiceError('No hay datos de audio en la respuesta')
     pcm = b''.join(chunks)
+    fr = None
     try:
         cand0 = (getattr(response, 'candidates', []) or [None])[0]
         fr = getattr(cand0, 'finish_reason', None) if cand0 is not None else None
@@ -1648,16 +1665,44 @@ def _pcm_from_tts_response(response) -> bytes:
         )
     except Exception:
         pass
-    return pcm
+    return pcm, fr
 
 
-def _synthesize_multispeaker_podcast_wav(client, script: str, output_path: str) -> None:
+def _trim_trailing_silence_pcm_s16le(pcm: bytes, *, sample_rate: int = 24000) -> bytes:
     """
-    TTS multispeaker con ``gemini-3.1-flash-tts-preview``.
-    Temperatura de **síntesis de audio** con ``GEMINI_TTS_TEMPERATURE`` (por defecto 0,65), no la del guion.
-    Salida: WAV PCM 24 kHz mono (formato documentado en ai.google.dev para TTS).
+    Recorta silencio final (y solo final) en PCM int16 mono. Mitiga respuestas TTS con
+    ``MAX_TOKENS`` donde el modelo rellena el resto del presupuesto con muestras casi nulas.
     """
-    import wave
+    if not pcm or len(pcm) < 4 or len(pcm) % 2 != 0:
+        return pcm
+    try:
+        import numpy as np
+    except ImportError:
+        return pcm
+    x = np.frombuffer(pcm, dtype=np.int16)
+    frame = max(1, int(sample_rate * 0.03))
+    thresh = 512
+    last_voice_end = 0
+    for start in range(0, len(x), frame):
+        chunk = x[start : start + frame]
+        if chunk.size == 0:
+            break
+        if int(np.max(np.abs(chunk.astype(np.int32)))) > thresh:
+            last_voice_end = start + int(chunk.size)
+    if last_voice_end == 0:
+        return pcm
+    pad_samples = int(sample_rate * 0.4)
+    end = min(len(x), last_voice_end + pad_samples)
+    return x[:end].tobytes()
+
+
+def _finish_reason_is_max_tokens(fr: Any) -> bool:
+    s = str(fr or '')
+    return 'MAX_TOKENS' in s.upper()
+
+
+def _generate_tts_pcm_once(client, script: str, max_output_tokens: int) -> Tuple[bytes, Any]:
+    """Una llamada TTS multispeaker; devuelve PCM y finish_reason."""
     from google.genai import types
 
     tts_user = f"""**Director de audio (no leer en voz alta):** Accent: Peninsular Spanish from Spain. Neutral, professional; avoid Latin American inflections.
@@ -1703,7 +1748,7 @@ Respect [bracket tags] such as [short pause], [uhm], [laughs], [sigh] — keep t
         contents=tts_user,
         config=types.GenerateContentConfig(
             response_modalities=['AUDIO'],
-            max_output_tokens=24576,
+            max_output_tokens=max_output_tokens,
             temperature=_get_tts_synthesis_temperature(),
             speech_config=types.SpeechConfig(
                 language_code='es-ES',
@@ -1711,9 +1756,50 @@ Respect [bracket tags] such as [short pause], [uhm], [laughs], [sigh] — keep t
             ),
         ),
     )
-    all_pcm = _pcm_from_tts_response(response)
+    return _pcm_from_tts_response(response)
+
+
+def _synthesize_multispeaker_podcast_wav(client, script: str, output_path: str) -> None:
+    """
+    TTS multispeaker con ``gemini-3.1-flash-tts-preview``.
+    Temperatura de **síntesis de audio** con ``GEMINI_TTS_TEMPERATURE`` (por defecto 0,65), no la del guion.
+    Salida: WAV PCM 24 kHz mono (formato documentado en ai.google.dev para TTS).
+
+    Si ``finish_reason`` es ``MAX_TOKENS``, el modelo suele devolver mucho PCM silencioso al final;
+    se reintenta con mayor ``max_output_tokens`` y, en cualquier caso, se recorta silencio final.
+    """
+    import wave
+
+    t0 = _get_tts_max_output_tokens()
+    all_pcm, fr = _generate_tts_pcm_once(client, script, t0)
+    if _finish_reason_is_max_tokens(fr):
+        t1 = min(262144, max(t0 * 2, 98304))
+        logger.warning(
+            'TTS: MAX_TOKENS con max_output_tokens=%s; reintentando con %s',
+            t0,
+            t1,
+        )
+        all_pcm, fr = _generate_tts_pcm_once(client, script, t1)
+
+    raw_len = len(all_pcm)
+    all_pcm = _trim_trailing_silence_pcm_s16le(all_pcm, sample_rate=24000)
+    if raw_len != len(all_pcm):
+        logger.info(
+            'TTS: recortado silencio final PCM: %s -> %s bytes (~%.2fs -> ~%.2fs)',
+            raw_len,
+            len(all_pcm),
+            raw_len / float(24000 * 2),
+            len(all_pcm) / float(24000 * 2),
+        )
+
     if len(all_pcm) < 256:
         raise GeminiServiceError('Audio generado demasiado corto o vacío')
+    if _finish_reason_is_max_tokens(fr):
+        raise GeminiServiceError(
+            'La síntesis de voz alcanzó el límite de salida del modelo (audio incompleto). '
+            'Pulsa «Regenerar audio». Si se repite, el informe podría ser demasiado largo para un solo audio.'
+        )
+
     os.makedirs(os.path.dirname(output_path) or '.', exist_ok=True)
     with wave.open(output_path, 'wb') as wf:
         wf.setnchannels(1)
@@ -1721,10 +1807,11 @@ Respect [bracket tags] such as [short pause], [uhm], [laughs], [sigh] — keep t
         wf.setframerate(24000)
         wf.writeframes(all_pcm)
     logger.info(
-        'Audio podcast multi-locutor guardado: %s (bytes_pcm=%s, tts_temp=%s)',
+        'Audio podcast multi-locutor guardado: %s (bytes_pcm=%s, tts_temp=%s, finish_reason=%s)',
         output_path,
         len(all_pcm),
         _get_tts_synthesis_temperature(),
+        fr,
     )
 
 

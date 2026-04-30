@@ -21,6 +21,12 @@ _MSG_ORPHAN_NO_IID = (
     'Genera el informe de nuevo.'
 )
 
+# El TTS no usa interaction_id; este mensaje evita confundir al usuario cuando falla solo el audio.
+_MSG_AUDIO_ORPHAN = (
+    'La generación de audio se interrumpió (reinicio del servidor o fin del worker). '
+    'Pulsa «Regenerar audio».'
+)
+
 _MSG_TIMEOUT_STALE = (
     'Tiempo máximo superado sin resultado (posible bloqueo silencioso en el proveedor). '
     'Cuando el servidor corta la espera, genera el informe de nuevo.'
@@ -135,7 +141,7 @@ def recover_processing_reports_after_restart(app, app_logger=None) -> None:
             if getattr(r, 'created_at', None) and r.created_at > min_age_threshold:
                 continue
             r.audio_status = 'failed'
-            r.audio_error_msg = (_MSG_ORPHAN_NO_IID[:2000])
+            r.audio_error_msg = (_MSG_AUDIO_ORPHAN[:2000])
             # Si había un panel de progreso (pipeline completo), evitar que se quede "atascado" en loading.
             # Marcamos el paso TTS como error para que la UI muestre el fallo real y permita reintentar.
             try:
@@ -147,7 +153,7 @@ def recover_processing_reports_after_restart(app, app_logger=None) -> None:
                         for st in steps:
                             if isinstance(st, dict) and st.get('id') == 'tts':
                                 st['status'] = 'error'
-                                st['error'] = _MSG_ORPHAN_NO_IID[:2000]
+                                st['error'] = _MSG_AUDIO_ORPHAN[:2000]
                         ap['caption'] = ap.get('caption') or ''
                         r.audio_progress_json = json.dumps(ap, ensure_ascii=False)
             except Exception:
