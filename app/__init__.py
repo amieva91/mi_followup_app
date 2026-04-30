@@ -234,9 +234,13 @@ def create_app(config_name='default'):
     # Informes Deep Research: tras reinicio, reanudar polling si hay interaction_id (si no, fallar sin id)
     with app.app_context():
         try:
-            from app.services.company_report_recovery import recover_processing_reports_after_restart
+            from app.services.company_report_recovery import (
+                recover_processing_reports_after_restart,
+                recover_stuck_pending_reports,
+            )
 
             recover_processing_reports_after_restart(app, app.logger)
+            recover_stuck_pending_reports(app, app.logger)
         except Exception as ex:
             app.logger.warning('company_reports: recuperación al arranque omitida: %s', ex)
 

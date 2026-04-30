@@ -172,3 +172,90 @@ def recover_processing_reports_after_restart(app, app_logger=None) -> None:
                 log.exception('Deep Research resume: excepción no controlada report_id=%s', rid_)
 
         threading.Thread(target=_run, args=(rid,), daemon=True).start()
+
+
+def recover_stuck_pending_reports(app, app_logger=None) -> None:
+    """
+    Reclamación best-effort de informes `pending` que se quedaron en cola sin hilo vivo.
+
+    Esto puede ocurrir si el worker de Gunicorn que creó el hilo daemon se recicla antes
+    de adquirir el lock global. En vez de dejar el informe en `pending` para siempre,
+    lo relanzamos en background.
+    """
+    from app.models.company_report import CompanyReport
+
+    log = app_logger or logger
+    now = datetime.utcnow()
+    min_age_seconds = 180
+    threshold = now - timedelta(seconds=min_age_seconds)
+
+    # Reusar el mismo lock file (misma intención: barrido 1 vez).
+    try:
+        import fcntl  # type: ignore
+    except Exception:
+        fcntl = None  # type: ignore
+
+    lock_fp = None
+    if fcntl is not None:
+        try:
+            os.makedirs(app.instance_path, exist_ok=True)
+            lock_path = os.path.join(app.instance_path, "followup.recovery_company_reports.lock")
+            lock_fp = open(lock_path, "a+")
+            fcntl.flock(lock_fp.fileno(), fcntl.LOCK_EX)
+        except Exception:
+            lock_fp = None
+
+    try:
+        # Solo "solo informe": se identifica por NO tener full_pipeline en audio_progress_json.
+        rows = (
+            CompanyReport.query.filter(CompanyReport.status == "pending")
+            .filter(CompanyReport.created_at < threshold)
+            .order_by(CompanyReport.created_at.asc())
+            .limit(10)
+            .all()
+        )
+        if not rows:
+            return
+        kicked = 0
+        for r in rows:
+            ap = getattr(r, "audio_progress_json", None)
+            is_full = False
+            if ap and str(ap).strip():
+                try:
+                    obj = json.loads(str(ap))
+                    is_full = bool(isinstance(obj, dict) and obj.get("full_pipeline"))
+                except Exception:
+                    is_full = False
+            if is_full:
+                continue
+
+            rid = int(r.id)
+
+            def _run(rid_: int) -> None:
+                try:
+                    from app.services.company_report_runner import run_report_only_by_id
+
+                    run_report_only_by_id(app, rid_)
+                except Exception:
+                    log.exception("Deep Research runner: excepción no controlada report_id=%s", rid_)
+
+            threading.Thread(target=_run, args=(rid,), daemon=True).start()
+            kicked += 1
+
+        if kicked:
+            log.warning(
+                "company_reports: %s informes pending atascados relanzados (>= %ss)",
+                kicked,
+                min_age_seconds,
+            )
+    finally:
+        try:
+            if lock_fp is not None:
+                try:
+                    if fcntl is not None:
+                        fcntl.flock(lock_fp.fileno(), fcntl.LOCK_UN)
+                except Exception:
+                    pass
+                lock_fp.close()
+        except Exception:
+            pass
