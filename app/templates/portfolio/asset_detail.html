@@ -767,7 +767,7 @@ function updateReportAudioProgressUI(data) {
     if (!data || !pb) return;
     const ap = data.audio_progress;
     const hasSteps = ap && ap.steps && ap.steps.length;
-    if (hasSteps && (data.audio_status === 'processing' || data.audio_status === 'failed' || (ap.full_pipeline && data.status === 'completed'))) {
+    if (hasSteps && (data.audio_status === 'queued' || data.audio_status === 'processing' || data.audio_status === 'failed' || (ap.full_pipeline && data.status === 'completed'))) {
         if (legacy) { legacy.classList.add('hidden'); legacy.textContent = ''; }
         pb.classList.remove('hidden');
         // Compat: si tras un reinicio el backend marcó audio_status=failed pero el JSON quedó con "tts: loading",
@@ -791,10 +791,15 @@ function updateReportAudioProgressUI(data) {
     }
     pb.classList.add('hidden');
     pb.innerHTML = '';
-    if (data.audio_status === 'processing' && legacy) {
+    if ((data.audio_status === 'queued' || data.audio_status === 'processing') && legacy) {
         legacy.classList.remove('hidden');
         legacy.className = 'px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-800';
-        legacy.textContent = 'Generando audio…';
+        if (data.audio_status === 'queued') {
+            const qp = data.queue_position ? ` (#${data.queue_position})` : '';
+            legacy.textContent = 'Audio en cola' + qp + '…';
+        } else {
+            legacy.textContent = 'Generando audio…';
+        }
     }
 }
 function updateReportDetailFromStatusPoll(reportId, data) {
@@ -956,6 +961,17 @@ function startAudioStatusPolling(reportId) {
                 const audioStatus = document.getElementById('reportAudioStatus');
                 const btnAudio = document.getElementById('btnGenerateAudio');
                 const btnDownload = document.getElementById('btnDownloadAudio');
+                if (data.audio_status === 'queued') {
+                    updateReportAudioProgressUI(data);
+                    if (btnAudio) btnAudio.classList.add('hidden');
+                    if (audioStatus) {
+                        const qp = data.queue_position ? ` (#${data.queue_position})` : '';
+                        audioStatus.classList.remove('hidden');
+                        audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-800';
+                        audioStatus.textContent = 'Audio en cola' + qp + '…';
+                    }
+                    return;
+                }
                 if (data.audio_status === 'processing') {
                     updateReportAudioProgressUI(data);
                     if (btnAudio) btnAudio.classList.add('hidden');
@@ -1289,7 +1305,15 @@ function loadReports() {
                 const date = r.completed_at ? new Date(r.completed_at).toLocaleDateString('es-ES') : (r.created_at ? new Date(r.created_at).toLocaleDateString('es-ES') : '');
                 const statusBadge = r.status === 'completed' ? 'bg-green-100 text-green-800' : r.status === 'failed' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800';
                 const name = r.template_title || ('Informe ' + r.id);
-                const audioBadge = r.audio_status === 'completed' ? ' <span class="text-green-600" title="Audio disponible">🔊</span>' : r.audio_status === 'processing' ? ' <span class="text-yellow-600" title="Generando audio…">⏳</span>' : '';
+                const audioBadge = r.audio_status === 'completed'
+                    ? ' <span class="text-green-600" title="Audio disponible">🔊</span>'
+                    : (r.audio_status === 'queued'
+                        ? ' <span class="text-yellow-600" title="Audio en cola…">⏳</span>'
+                        : (r.audio_status === 'processing'
+                            ? ' <span class="text-yellow-600" title="Generando audio…">⏳</span>'
+                            : ''
+                        )
+                    );
                 return `
                     <div class="p-3 asset-inner-panel hover:bg-slate-50/80 cursor-pointer transition-colors" onclick="loadReportDetail(${r.id})">
                         <div class="flex justify-between items-center">
@@ -1417,6 +1441,17 @@ function loadReportDetail(reportId) {
                     else if (aSt == null || aSt === '') btnAudio.classList.remove('hidden');
                     else btnAudio.classList.add('hidden');
                 }
+                if (aSt === 'queued') {
+                    if (btnAudio) btnAudio.classList.add('hidden');
+                    updateReportAudioProgressUI(data);
+                    if (audioStatus) {
+                        const qp = data.queue_position ? ` (#${data.queue_position})` : '';
+                        audioStatus.classList.remove('hidden');
+                        audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-800';
+                        audioStatus.textContent = 'Audio en cola' + qp + '…';
+                    }
+                    startReportStatusPolling(reportId);
+                } else
                 if (aSt === 'processing') {
                     if (btnAudio) btnAudio.classList.add('hidden');
                     updateReportAudioProgressUI(data);

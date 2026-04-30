@@ -1823,7 +1823,7 @@ def asset_report_generate_audio(id, report_id):
         return jsonify({'success': False, 'error': 'GEMINI_API_KEY no configurada'}), 503
 
     audio_status = getattr(report, 'audio_status', None)
-    if audio_status == 'processing':
+    if audio_status in ('processing', 'queued'):
         # Idempotente: si ya hay una generación en curso (o en cola), no fallar la UI.
         return jsonify(
             {
@@ -1842,7 +1842,7 @@ def asset_report_generate_audio(id, report_id):
     app_obj = current_app._get_current_object()
 
     # Marcar inmediatamente en BD para que la UI refleje "en cola" aunque el hilo espere el lock.
-    # (El hilo volverá a setear processing al entrar en el lock; aquí solo aseguramos visibilidad.)
+    # (El hilo setea processing al entrar en el lock; aquí solo aseguramos visibilidad y posición.)
     try:
         conn0 = db.engine.connect()
         try:
@@ -1851,7 +1851,7 @@ def asset_report_generate_audio(id, report_id):
                 text(
                     """
                     UPDATE company_reports
-                    SET audio_status = 'processing', audio_error_msg = NULL, audio_path = NULL,
+                    SET audio_status = 'queued', audio_error_msg = NULL, audio_path = NULL,
                         audio_completed_at = NULL, audio_progress_json = :j
                     WHERE id = :rid
                     """
@@ -2046,6 +2046,33 @@ def api_report_status(report_id):
 
     _maybe_expire_stale_report(report)
 
+    # Posición aproximada en cola global (tareas largas serializadas por background_tasks_lock).
+    queue_position = None
+    try:
+        should_queue = (
+            getattr(report, 'status', None) in ('pending', 'processing')
+            or getattr(report, 'audio_status', None) in ('queued', 'processing')
+        )
+        if should_queue and getattr(report, 'created_at', None):
+            created_at = report.created_at
+            q = db.session.execute(
+                text(
+                    """
+                    SELECT COUNT(*) FROM company_reports
+                    WHERE created_at < :t
+                      AND (
+                        status IN ('pending','processing')
+                        OR audio_status IN ('queued','processing')
+                      )
+                    """
+                ),
+                {'t': created_at},
+            ).scalar()
+            if q is not None:
+                queue_position = int(q) + 1
+    except Exception:
+        queue_position = None
+
     return jsonify({
         'id': report.id,
         'status': report.status,
@@ -2055,6 +2082,7 @@ def api_report_status(report_id):
         'audio_path': getattr(report, 'audio_path', None),
         'audio_error_msg': getattr(report, 'audio_error_msg', None),
         'audio_progress': _parse_audio_progress_json(getattr(report, 'audio_progress_json', None)),
+        'queue_position': queue_position,
     })
 
 
