@@ -1794,7 +1794,11 @@ def asset_report_send_email(id, report_id):
 @csrf.exempt
 def asset_report_generate_audio(id, report_id):
     """Iniciar generación de audio TTS en background"""
-    from app.services.gemini_service import generate_report_tts_audio, is_gemini_available
+    from app.services.gemini_service import (
+        generate_report_tts_audio,
+        is_gemini_available,
+        new_audio_progress_steps_state,
+    )
     from flask import current_app
     import threading
 
@@ -1820,7 +1824,14 @@ def asset_report_generate_audio(id, report_id):
 
     audio_status = getattr(report, 'audio_status', None)
     if audio_status == 'processing':
-        return jsonify({'success': False, 'error': 'Ya hay una generación de audio en curso'}), 400
+        # Idempotente: si ya hay una generación en curso (o en cola), no fallar la UI.
+        return jsonify(
+            {
+                'success': True,
+                'message': 'Audio ya en cola/generándose. Puede tardar unos minutos.',
+                'audio_ready': False,
+            }
+        )
     if audio_status == 'completed' and getattr(report, 'audio_path', None):
         return jsonify({'success': True, 'message': 'El audio ya existe', 'audio_ready': True})
 
@@ -1829,6 +1840,30 @@ def asset_report_generate_audio(id, report_id):
     audio_path = audio_dir / f'report_{report_id}.wav'
     report_content = report.content or ''
     app_obj = current_app._get_current_object()
+
+    # Marcar inmediatamente en BD para que la UI refleje "en cola" aunque el hilo espere el lock.
+    # (El hilo volverá a setear processing al entrar en el lock; aquí solo aseguramos visibilidad.)
+    try:
+        conn0 = db.engine.connect()
+        try:
+            pj0 = {'steps': new_audio_progress_steps_state()}
+            conn0.execute(
+                text(
+                    """
+                    UPDATE company_reports
+                    SET audio_status = 'processing', audio_error_msg = NULL, audio_path = NULL,
+                        audio_completed_at = NULL, audio_progress_json = :j
+                    WHERE id = :rid
+                    """
+                ),
+                {'rid': report_id, 'j': json.dumps(pj0, ensure_ascii=False)},
+            )
+            conn0.commit()
+        finally:
+            conn0.close()
+    except Exception:
+        # Best-effort: si falla, el hilo actualizará estado al entrar al lock.
+        pass
 
     def _run_tts():
         from app.background_tasks_lock import background_tasks_lock
