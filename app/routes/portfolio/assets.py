@@ -1414,6 +1414,9 @@ def asset_reports_generate_and_deliver(id):
                         summary_md_pl = generate_report_email_summary(content_dr or '')
                     except Exception:
                         summary_md_pl = fallback_report_summary_markdown(content_dr or '')
+                    # Defensivo: evitar NULL en summary_content (rompe el toggle Resumen).
+                    if not isinstance(summary_md_pl, str) or not summary_md_pl.strip():
+                        summary_md_pl = fallback_report_summary_markdown(content_dr or '')
                     subs_ok = report_substeps_after_dr_ok(single_shot, 'ok')
                     for i in range(min(len(subs_ok), len(pstate['steps']))):
                         pstate['steps'][i] = subs_ok[i]
