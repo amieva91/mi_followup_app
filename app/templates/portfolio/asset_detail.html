@@ -823,6 +823,7 @@ function updateReportDetailFromStatusPoll(reportId, data) {
     const panel = document.getElementById('reportDetail');
     const content = document.getElementById('reportDetailContent');
     const audioPb = document.getElementById('reportAudioProgress');
+    const legacyAudioStatus = document.getElementById('reportAudioStatus');
     if (!panel || !data) return;
     const ap1 = data.audio_progress;
     if (ap1 && ap1.steps && ap1.steps.length && (ap1.full_pipeline || ap1.report_stages)) {
@@ -838,7 +839,24 @@ function updateReportDetailFromStatusPoll(reportId, data) {
         }
         if (audioPb) {
             audioPb.classList.remove('hidden');
-            audioPb.innerHTML = buildAudioProgressBlockHtml(ap1.steps, ap1.caption);
+            let cap = ap1.caption;
+            if (data.audio_status === 'queued') {
+                const qp = data.queue_position ? ` (#${data.queue_position})` : '';
+                cap = 'Audio en cola' + qp + ' (se ejecutará cuando le toque; puedes salir y volver)';
+            }
+            audioPb.innerHTML = buildAudioProgressBlockHtml(ap1.steps, cap);
+        }
+        // Aunque haya bloque de pasos, mostrar siempre el aviso "Audio en cola" si aplica.
+        if (legacyAudioStatus) {
+            if (data.audio_status === 'queued') {
+                const qp = data.queue_position ? ` (#${data.queue_position})` : '';
+                legacyAudioStatus.classList.remove('hidden');
+                legacyAudioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-800';
+                legacyAudioStatus.textContent = 'Audio en cola' + qp + '…';
+            } else {
+                legacyAudioStatus.classList.add('hidden');
+                legacyAudioStatus.textContent = '';
+            }
         }
         return;
     }
