@@ -791,7 +791,14 @@ function updateReportDetailFromStatusPoll(reportId, data) {
     if (ap1 && ap1.steps && ap1.steps.length && (ap1.full_pipeline || ap1.report_stages)) {
         panel.classList.remove('hidden');
         hideReportActionButtons();
-        content.innerHTML = reportProgressHtml(data.status);
+        // Importante: en "todo en uno" el informe puede estar ya COMPLETADO mientras audio/correo siguen.
+        // No debemos machacar el HTML del informe/resumen con el spinner de progreso.
+        if (data.status !== 'completed') {
+            content.innerHTML = reportProgressHtml(data.status);
+        } else {
+            // Si aún no hay contenido renderizado (p. ej. panel abierto por primera vez), dejamos el texto actual.
+            // `loadReportDetail()` se encarga de pintar informe/resumen cuando hay content.
+        }
         if (audioPb) {
             audioPb.classList.remove('hidden');
             audioPb.innerHTML = buildAudioProgressBlockHtml(ap1.steps, ap1.caption);
