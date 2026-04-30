@@ -43,6 +43,49 @@ def _parse_audio_progress_json(raw):
         return None
 
 
+def _active_queue_timestamp(report) -> datetime | None:
+    """Timestamp que representa el *momento de encolado* de la tarea activa de este informe.
+
+    - Si hay audio en cola/en curso: usa ``audio_enqueued_at`` (fallback created_at).
+    - Si hay informe en cola/en curso: usa ``report_enqueued_at`` (fallback created_at).
+    """
+    try:
+        a_st = getattr(report, "audio_status", None)
+        r_st = getattr(report, "status", None)
+        if a_st in ("queued", "processing"):
+            return getattr(report, "audio_enqueued_at", None) or getattr(report, "created_at", None)
+        if r_st in ("pending", "processing"):
+            return getattr(report, "report_enqueued_at", None) or getattr(report, "created_at", None)
+    except Exception:
+        return None
+    return None
+
+
+def _queue_position_for_report_obj(report) -> int | None:
+    """Posición aproximada en cola global (1-indexed), basada en timestamp de encolado real."""
+    try:
+        t0 = _active_queue_timestamp(report)
+        if not t0:
+            return None
+        q = db.session.execute(
+            text(
+                """
+                SELECT COUNT(*) FROM company_reports
+                WHERE (
+                    (audio_status IN ('queued','processing') AND COALESCE(audio_enqueued_at, created_at) < :t)
+                    OR (status IN ('pending','processing') AND COALESCE(report_enqueued_at, created_at) < :t)
+                )
+                """
+            ),
+            {"t": t0},
+        ).scalar()
+        if q is None:
+            return None
+        return int(q) + 1
+    except Exception:
+        return None
+
+
 def _persist_report_stages_from_steps(engine, report_id, steps_list):
     """Persiste la lista de pasos del informe (``report_stages``)."""
     from app.services.gemini_service import new_report_stages_progress_state
@@ -955,7 +998,8 @@ def asset_reports_generate(id):
             asset_id=id,
             template_id=template.id,
             template_title=template.title,
-            status='pending'
+            status='pending',
+            report_enqueued_at=datetime.utcnow(),
         )
         db.session.add(report)
         db.session.commit()
@@ -1262,6 +1306,7 @@ def asset_reports_generate_and_deliver(id):
             template_id=template.id,
             template_title=template.title,
             status='pending',
+            report_enqueued_at=datetime.utcnow(),
         )
         db.session.add(report)
         db.session.commit()
@@ -1520,6 +1565,7 @@ def asset_reports_generate_and_deliver(id):
                             conn.commit()
                         return
 
+                    # ✅ Audio generado: persistimos YA como completed, aunque luego falle el correo (tamaño adjunto, etc.)
                     t_ok = datetime.utcnow().isoformat()
                     pstate['steps'][4]['status'] = 'ok'
                     pstate['steps'][4]['error'] = None
@@ -1528,6 +1574,29 @@ def asset_reports_generate_and_deliver(id):
                     pstate['steps'][6]['status'] = 'loading'
                     pstate['steps'][6]['error'] = None
                     _persist(pstate)
+
+                    with engine.connect() as conn:
+                        conn.execute(
+                            text(
+                                """
+                                UPDATE company_reports
+                                SET audio_status = 'completed',
+                                    audio_path = :path,
+                                    audio_error_msg = NULL,
+                                    audio_completed_at = :ac,
+                                    email_status = 'processing',
+                                    email_error_msg = NULL,
+                                    email_completed_at = NULL
+                                WHERE id = :rid
+                                """
+                            ),
+                            {
+                                'path': f'reports_audio/report_{report_id}.wav',
+                                'ac': t_ok,
+                                'rid': report_id,
+                            },
+                        )
+                        conn.commit()
 
                     u = User.query.get(user_id)
                     if not u or not u.email:
@@ -1567,7 +1636,7 @@ def asset_reports_generate_and_deliver(id):
                                 text(
                                     """
                                 UPDATE company_reports
-                                SET audio_status = 'failed', audio_error_msg = :e
+                                SET email_status = 'failed', email_error_msg = :e, email_completed_at = NULL
                                 WHERE id = :rid
                             """
                                 ),
@@ -1583,14 +1652,13 @@ def asset_reports_generate_and_deliver(id):
                             text(
                                 """
                             UPDATE company_reports
-                            SET audio_status = 'completed', audio_path = :path, audio_error_msg = NULL,
-                                audio_completed_at = :ac, audio_progress_json = NULL
+                            SET email_status = 'completed', email_error_msg = NULL, email_completed_at = :ec,
+                                audio_progress_json = NULL
                             WHERE id = :rid
                         """
                             ),
                             {
-                                'path': f'reports_audio/report_{report_id}.wav',
-                                'ac': t_ok,
+                                'ec': datetime.utcnow().isoformat(),
                                 'rid': report_id,
                             },
                         )
@@ -1667,34 +1735,7 @@ def asset_reports_list(id):
     ).order_by(CompanyReport.created_at.desc()).limit(5).all()
 
     def _queue_position_for_report(r) -> int | None:
-        """Posición aproximada en cola global (1-indexed) para mostrar en listados.
-        Reutiliza el mismo criterio que /api/reports/<id>/status."""
-        try:
-            should_queue = (
-                getattr(r, 'status', None) in ('pending', 'processing')
-                or getattr(r, 'audio_status', None) in ('queued', 'processing')
-            )
-            created_at = getattr(r, 'created_at', None)
-            if not should_queue or not created_at:
-                return None
-            q = db.session.execute(
-                text(
-                    """
-                    SELECT COUNT(*) FROM company_reports
-                    WHERE created_at < :t
-                      AND (
-                        status IN ('pending','processing')
-                        OR audio_status IN ('queued','processing')
-                      )
-                    """
-                ),
-                {'t': created_at},
-            ).scalar()
-            if q is None:
-                return None
-            return int(q) + 1
-        except Exception:
-            return None
+        return _queue_position_for_report_obj(r)
 
     return jsonify({
         'reports': [
@@ -1754,6 +1795,9 @@ def asset_report_detail(id, report_id):
         'audio_error_msg': getattr(report, 'audio_error_msg', None),
         'audio_completed_at': report.audio_completed_at.isoformat() if getattr(report, 'audio_completed_at', None) else None,
         'audio_progress': _parse_audio_progress_json(getattr(report, 'audio_progress_json', None)),
+        'email_status': getattr(report, 'email_status', None),
+        'email_error_msg': getattr(report, 'email_error_msg', None),
+        'email_completed_at': report.email_completed_at.isoformat() if getattr(report, 'email_completed_at', None) else None,
     })
 
 
@@ -1883,11 +1927,16 @@ def asset_report_generate_audio(id, report_id):
                     """
                     UPDATE company_reports
                     SET audio_status = 'queued', audio_error_msg = NULL, audio_path = NULL,
-                        audio_completed_at = NULL, audio_progress_json = :j
+                        audio_completed_at = NULL, audio_progress_json = :j,
+                        audio_enqueued_at = :now
                     WHERE id = :rid
                     """
                 ),
-                {'rid': report_id, 'j': json.dumps(pj0, ensure_ascii=False)},
+                {
+                    'rid': report_id,
+                    'j': json.dumps(pj0, ensure_ascii=False),
+                    'now': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
+                },
             )
             conn0.commit()
         finally:
@@ -2080,27 +2129,7 @@ def api_report_status(report_id):
     # Posición aproximada en cola global (tareas largas serializadas por background_tasks_lock).
     queue_position = None
     try:
-        should_queue = (
-            getattr(report, 'status', None) in ('pending', 'processing')
-            or getattr(report, 'audio_status', None) in ('queued', 'processing')
-        )
-        if should_queue and getattr(report, 'created_at', None):
-            created_at = report.created_at
-            q = db.session.execute(
-                text(
-                    """
-                    SELECT COUNT(*) FROM company_reports
-                    WHERE created_at < :t
-                      AND (
-                        status IN ('pending','processing')
-                        OR audio_status IN ('queued','processing')
-                      )
-                    """
-                ),
-                {'t': created_at},
-            ).scalar()
-            if q is not None:
-                queue_position = int(q) + 1
+        queue_position = _queue_position_for_report_obj(report)
     except Exception:
         queue_position = None
 
@@ -2114,6 +2143,8 @@ def api_report_status(report_id):
         'audio_error_msg': getattr(report, 'audio_error_msg', None),
         'audio_progress': _parse_audio_progress_json(getattr(report, 'audio_progress_json', None)),
         'queue_position': queue_position,
+        'email_status': getattr(report, 'email_status', None),
+        'email_error_msg': getattr(report, 'email_error_msg', None),
     })
 
 
