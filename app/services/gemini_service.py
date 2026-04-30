@@ -1839,6 +1839,10 @@ def generate_report_tts_audio(
         if on_progress:
             on_progress({'steps': [dict(s) for s in steps]})
 
+    def _is_no_interaction_id_error(err: Exception) -> bool:
+        s = (str(err) or '').lower()
+        return ('sin interaction_id' in s) or ('without interaction_id' in s)
+
     try:
         from google import genai
 
@@ -1859,13 +1863,42 @@ def generate_report_tts_audio(
         steps[1]['status'] = 'loading'
         emit(steps)
 
-        try:
-            _synthesize_multispeaker_podcast_wav(client, script, output_path)
-        except Exception as e:
-            steps[1]['status'] = 'error'
-            steps[1]['error'] = (str(e) or 'Error')[:4000]
-            emit(steps)
-            raise
+        # Reintentos: si Gemini falla antes de devolver respuesta (sin interaction_id), reintentar sin perder turno.
+        max_attempts = 3
+        retry_delay_seconds = 30
+        last_tts_err: Optional[Exception] = None
+        for attempt in range(1, max_attempts + 1):
+            try:
+                _synthesize_multispeaker_podcast_wav(client, script, output_path)
+                last_tts_err = None
+                break
+            except Exception as e:
+                last_tts_err = e
+                if (attempt < max_attempts) and _is_no_interaction_id_error(e):
+                    logger.warning(
+                        'TTS: error sin interaction_id (intento %s/%s). Reintento en %ss. err=%s',
+                        attempt,
+                        max_attempts,
+                        retry_delay_seconds,
+                        e,
+                    )
+                    # Mantener en loading pero informar del reintento en el tooltip/error del paso.
+                    steps[1]['status'] = 'loading'
+                    steps[1]['error'] = (
+                        f'Fallo transitorio (sin interaction_id). Reintentando en {retry_delay_seconds}s… '
+                        f'({attempt}/{max_attempts})'
+                    )[:4000]
+                    emit(steps)
+                    time.sleep(retry_delay_seconds)
+                    continue
+                # No reintetable o agotado
+                steps[1]['status'] = 'error'
+                steps[1]['error'] = (str(e) or 'Error')[:4000]
+                emit(steps)
+                raise
+        if last_tts_err is not None:
+            # debería estar cubierto por raise anterior, pero por seguridad
+            raise last_tts_err
 
         steps[1]['status'] = 'ok'
         steps[1]['error'] = None
