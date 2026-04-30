@@ -812,8 +812,14 @@ function updateReportAudioProgressUI(data) {
         pb.innerHTML = buildAudioProgressBlockHtml(stepsOut, cap);
         return;
     }
-    pb.classList.add('hidden');
-    pb.innerHTML = '';
+    // Anti-parpadeo: si el audio está en cola/en curso y por timing llega un poll sin `audio_progress`,
+    // no vaciamos un bloque ya renderizado (evita "aparece/desaparece" indefinidamente).
+    if ((data.audio_status === 'queued' || data.audio_status === 'processing') && !pb.classList.contains('hidden') && pb.innerHTML.trim()) {
+        // mantenemos el bloque actual
+    } else {
+        pb.classList.add('hidden');
+        pb.innerHTML = '';
+    }
     if ((data.audio_status === 'queued' || data.audio_status === 'processing') && legacy) {
         legacy.classList.remove('hidden');
         legacy.className = 'px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-800';
