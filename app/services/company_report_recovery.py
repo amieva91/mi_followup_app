@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import threading
 from datetime import datetime, timedelta
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +85,24 @@ def recover_processing_reports_after_restart(app, app_logger=None) -> None:
     for r in rows_a:
         r.audio_status = 'failed'
         r.audio_error_msg = (_MSG_ORPHAN_NO_IID[:2000])
+        # Si había un panel de progreso (pipeline completo), evitar que se quede "atascado" en loading.
+        # Marcamos el paso TTS como error para que la UI muestre el fallo real y permita reintentar.
+        try:
+            ap_raw = getattr(r, 'audio_progress_json', None)
+            if ap_raw and str(ap_raw).strip():
+                ap = json.loads(str(ap_raw))
+                steps = ap.get('steps') if isinstance(ap, dict) else None
+                if isinstance(steps, list):
+                    for st in steps:
+                        if isinstance(st, dict) and st.get('id') == 'tts':
+                            st['status'] = 'error'
+                            st['error'] = _MSG_ORPHAN_NO_IID[:2000]
+                    # Si email estaba pendiente, lo dejamos pendiente (pipeline no terminó).
+                    ap['caption'] = ap.get('caption') or ''
+                    r.audio_progress_json = json.dumps(ap, ensure_ascii=False)
+        except Exception:
+            # Best-effort: no bloquear recuperación por JSON corrupto.
+            pass
         audio_n += 1
 
     if fail_no_iid or audio_n:
