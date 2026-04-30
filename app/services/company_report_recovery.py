@@ -85,6 +85,26 @@ def recover_processing_reports_after_restart(app, app_logger=None) -> None:
 
     log = app_logger or logger
     now = datetime.utcnow()
+    # Ejecutar solo una vez por arranque del servicio (no por worker gunicorn).
+    # Si varios workers se inician secuencialmente, evitar que uno marque como huérfano
+    # un informe que otro worker acaba de relanzar y aún no ha persistido interaction_id.
+    boot_marker = os.path.join(app.instance_path, "followup.recovery_boot_marker")
+    try:
+        if os.path.exists(boot_marker):
+            try:
+                mtime = datetime.utcfromtimestamp(os.path.getmtime(boot_marker))
+                if (now - mtime).total_seconds() < 600:
+                    return
+            except Exception:
+                # si no podemos leer mtime, seguimos
+                pass
+        try:
+            with open(boot_marker, "w", encoding="utf-8") as fp:
+                fp.write(now.isoformat())
+        except Exception:
+            pass
+    except Exception:
+        pass
     # No tocar filas "jóvenes" (evita falsos positivos durante arranque/recycle de worker).
     # 3 minutos suele ser suficiente para que gemini_interaction_id se persista si el hilo está vivo.
     min_age_seconds = 180
@@ -206,6 +226,24 @@ def recover_stuck_pending_reports(app, app_logger=None) -> None:
             lock_fp = None
 
     try:
+        # Mismo marker: si recovery ya corrió en este arranque, no repetir barridos.
+        boot_marker = os.path.join(app.instance_path, "followup.recovery_boot_marker")
+        try:
+            if os.path.exists(boot_marker):
+                try:
+                    mtime = datetime.utcfromtimestamp(os.path.getmtime(boot_marker))
+                    if (now - mtime).total_seconds() < 600:
+                        return
+                except Exception:
+                    pass
+            try:
+                with open(boot_marker, "w", encoding="utf-8") as fp:
+                    fp.write(now.isoformat())
+            except Exception:
+                pass
+        except Exception:
+            pass
+
         # Solo "solo informe": se identifica por NO tener full_pipeline en audio_progress_json.
         rows = (
             CompanyReport.query.filter(CompanyReport.status == "pending")
