@@ -284,13 +284,14 @@ def execute_full_deliver_tail(
             pstate["steps"][5]["status"] = "error"
             pstate["steps"][5]["error"] = str(tts_e)[:4000]
             _persist(pstate)
+            # Informe y resumen Flash ya persistidos: el usuario puede leer el texto; audio falló → entrega incompleta.
             with engine.connect() as conn:
                 conn.execute(
                     text(
                         """
                         UPDATE company_reports
                         SET audio_status = 'failed', audio_error_msg = :e,
-                            delivery_phase_status = 'failed'
+                            delivery_phase_status = 'partial'
                         WHERE id = :rid
                         """
                     ),

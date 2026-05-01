@@ -12,6 +12,7 @@ import json
 import base64
 import time
 import logging
+import concurrent.futures
 from typing import Any, Callable, Optional, Tuple
 
 logger = logging.getLogger(__name__)
@@ -19,6 +20,12 @@ logger = logging.getLogger(__name__)
 
 class GeminiServiceError(Exception):
     """Error en el servicio Gemini"""
+    pass
+
+
+class GeminiTTSSynthesisTimeoutError(GeminiServiceError):
+    """La llamada de síntesis TTS superó el tiempo máximo configurado (wall-clock)."""
+
     pass
 
 
@@ -72,6 +79,38 @@ def _get_tts_synthesis_temperature() -> float:
         return max(0.0, min(1.0, float(str(raw).strip().replace(',', '.'))))
     except ValueError:
         return 0.65
+
+
+def _get_tts_synthesis_wall_timeout_seconds() -> int:
+    """
+    Tiempo máximo (reloj de pared) para la fase de síntesis TTS: una o dos llamadas
+    a la API de audio + escritura WAV. Por defecto 30 minutos.
+    Override: GEMINI_TTS_SYNTHESIS_TIMEOUT_SECONDS (mínimo 120, máximo 7200).
+    """
+    raw = os.environ.get('GEMINI_TTS_SYNTHESIS_TIMEOUT_SECONDS')
+    if raw is not None and str(raw).strip() != '':
+        try:
+            return max(120, min(7200, int(str(raw).strip())))
+        except ValueError:
+            pass
+    return 1800
+
+
+def _make_tts_genai_client(api_key: str):
+    """
+    Cliente sólo para síntesis: ``HttpOptions.timeout`` en milisegundos un poco por encima
+    del wall-timeout para que no aborte httpx antes que el límite global del hilo.
+    """
+    from google import genai
+    from google.genai import types
+
+    sec = _get_tts_synthesis_wall_timeout_seconds()
+    ms = max(60_000, int((sec + 120) * 1000))
+    try:
+        return genai.Client(api_key=api_key, http_options=types.HttpOptions(timeout=ms))
+    except Exception:
+        logger.warning('genai.Client(http_options=...) no disponible; TTS con cliente por defecto', exc_info=True)
+        return genai.Client(api_key=api_key)
 
 
 def _get_podcast_script_temperature() -> float:
@@ -1761,6 +1800,12 @@ Respect [bracket tags] such as [short pause], [uhm], [laughs], [sigh] — keep t
             'Falta soporte multi-locutor en google-genai. Instala: pip install -U "google-genai>=1.16.0"'
         ) from e
 
+    logger.info(
+        'TTS: solicitud generate_content AUDIO (model=%s, max_output_tokens=%s, chars_prompt~%s)',
+        _get_model_tts(),
+        max_output_tokens,
+        len(tts_user),
+    )
     response = client.models.generate_content(
         model=_get_model_tts(),
         contents=tts_user,
@@ -1785,52 +1830,101 @@ def _synthesize_multispeaker_podcast_wav(client, script: str, output_path: str) 
 
     Si ``finish_reason`` es ``MAX_TOKENS``, el modelo suele devolver mucho PCM silencioso al final;
     se reintenta con mayor ``max_output_tokens`` y, en cualquier caso, se recorta silencio final.
+
+    Límite de tiempo total (incluye reintento): ``GEMINI_TTS_SYNTHESIS_TIMEOUT_SECONDS`` (defecto 1800 s).
     """
     import wave
 
-    t0 = _get_tts_max_output_tokens()
-    all_pcm, fr = _generate_tts_pcm_once(client, script, t0)
-    if _finish_reason_is_max_tokens(fr):
-        t1 = min(262144, max(t0 * 2, 98304))
-        logger.warning(
-            'TTS: MAX_TOKENS con max_output_tokens=%s; reintentando con %s',
-            t0,
-            t1,
-        )
-        all_pcm, fr = _generate_tts_pcm_once(client, script, t1)
-
-    raw_len = len(all_pcm)
-    all_pcm = _trim_trailing_silence_pcm_s16le(all_pcm, sample_rate=24000)
-    if raw_len != len(all_pcm):
-        logger.info(
-            'TTS: recortado silencio final PCM: %s -> %s bytes (~%.2fs -> ~%.2fs)',
-            raw_len,
-            len(all_pcm),
-            raw_len / float(24000 * 2),
-            len(all_pcm) / float(24000 * 2),
-        )
-
-    if len(all_pcm) < 256:
-        raise GeminiServiceError('Audio generado demasiado corto o vacío')
-    if _finish_reason_is_max_tokens(fr):
-        raise GeminiServiceError(
-            'La síntesis de voz alcanzó el límite de salida del modelo (audio incompleto). '
-            'Pulsa «Regenerar audio». Si se repite, el informe podría ser demasiado largo para un solo audio.'
-        )
-
-    os.makedirs(os.path.dirname(output_path) or '.', exist_ok=True)
-    with wave.open(output_path, 'wb') as wf:
-        wf.setnchannels(1)
-        wf.setsampwidth(2)
-        wf.setframerate(24000)
-        wf.writeframes(all_pcm)
+    timeout_sec = _get_tts_synthesis_wall_timeout_seconds()
+    wall0 = time.monotonic()
+    words = _count_script_words_for_budget(script)
+    chars = len((script or '').strip())
     logger.info(
-        'Audio podcast multi-locutor guardado: %s (bytes_pcm=%s, tts_temp=%s, finish_reason=%s)',
-        output_path,
-        len(all_pcm),
-        _get_tts_synthesis_temperature(),
-        fr,
+        'TTS síntesis: inicio (model=%s, palabras_habladas~%s, chars_guion=%s, max_output_tokens=%s, wall_timeout_s=%s). '
+        'Nota: el tiempo real depende de la cola y carga en la API de Google; no sólo del tamaño del guion.',
+        _get_model_tts(),
+        words,
+        chars,
+        _get_tts_max_output_tokens(),
+        timeout_sec,
     )
+
+    part_path = f'{output_path}.synth_part'
+
+    def _run_inner() -> None:
+        api0 = time.monotonic()
+        t0 = _get_tts_max_output_tokens()
+        all_pcm, fr = _generate_tts_pcm_once(client, script, t0)
+        if _finish_reason_is_max_tokens(fr):
+            t1 = min(262144, max(t0 * 2, 98304))
+            logger.warning(
+                'TTS: MAX_TOKENS con max_output_tokens=%s; reintentando con %s',
+                t0,
+                t1,
+            )
+            all_pcm, fr = _generate_tts_pcm_once(client, script, t1)
+
+        raw_len = len(all_pcm)
+        all_pcm = _trim_trailing_silence_pcm_s16le(all_pcm, sample_rate=24000)
+        if raw_len != len(all_pcm):
+            logger.info(
+                'TTS: recortado silencio final PCM: %s -> %s bytes (~%.2fs -> ~%.2fs)',
+                raw_len,
+                len(all_pcm),
+                raw_len / float(24000 * 2),
+                len(all_pcm) / float(24000 * 2),
+            )
+
+        if len(all_pcm) < 256:
+            raise GeminiServiceError('Audio generado demasiado corto o vacío')
+        if _finish_reason_is_max_tokens(fr):
+            raise GeminiServiceError(
+                'La síntesis de voz alcanzó el límite de salida del modelo (audio incompleto). '
+                'Pulsa «Regenerar audio». Si se repite, el informe podría ser demasiado largo para un solo audio.'
+            )
+
+        os.makedirs(os.path.dirname(output_path) or '.', exist_ok=True)
+        with wave.open(part_path, 'wb') as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(24000)
+            wf.writeframes(all_pcm)
+        os.replace(part_path, output_path)
+        logger.info(
+            'Audio podcast multi-locutor guardado: %s (bytes_pcm=%s, tts_temp=%s, finish_reason=%s, api_y_escritura_s=%.0f)',
+            output_path,
+            len(all_pcm),
+            _get_tts_synthesis_temperature(),
+            fr,
+            time.monotonic() - api0,
+        )
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        fut = pool.submit(_run_inner)
+        try:
+            fut.result(timeout=timeout_sec)
+        except concurrent.futures.TimeoutError:
+            elapsed = time.monotonic() - wall0
+            logger.error(
+                'TTS síntesis: tiempo máximo superado (wall_timeout=%ss, transcurrido=%.0fs). '
+                'Causas frecuentes: cola en el proveedor, respuesta de audio muy voluminosa (max_output_tokens=%s), '
+                'latencia de red o un segundo intento tras MAX_TOKENS. Modelo=%s.',
+                timeout_sec,
+                elapsed,
+                _get_tts_max_output_tokens(),
+                _get_model_tts(),
+            )
+            try:
+                if os.path.isfile(part_path):
+                    os.unlink(part_path)
+            except OSError:
+                pass
+            raise GeminiTTSSynthesisTimeoutError(
+                'Tiempo máximo de síntesis de voz superado (%s min). '
+                'El informe y el resumen (si existen) siguen guardados; pulsa «Regenerar audio». '
+                'Si se repite, prueba más tarde: la API a veces encola peticiones largas.'
+                % (timeout_sec // 60)
+            ) from None
 
 
 def new_audio_progress_steps_state() -> list:
@@ -1956,7 +2050,14 @@ def generate_report_tts_audio(
         emit(steps)
 
         try:
+            t_script0 = time.monotonic()
             script = generate_podcast_script_from_report(report_content, client)
+            logger.info(
+                'TTS guion: generado en %.0fs (~%s palabras habladas). Siguiente paso: síntesis (timeout %ss).',
+                time.monotonic() - t_script0,
+                _count_script_words_for_budget(script),
+                _get_tts_synthesis_wall_timeout_seconds(),
+            )
         except Exception as e:
             steps[0]['status'] = 'error'
             steps[0]['error'] = (str(e) or 'Error')[:4000]
@@ -1968,13 +2069,15 @@ def generate_report_tts_audio(
         steps[1]['status'] = 'loading'
         emit(steps)
 
+        tts_client = _make_tts_genai_client(api_key)
+
         # Reintentos: si Gemini falla antes de devolver respuesta (sin interaction_id), reintentar sin perder turno.
         max_attempts = 3
         retry_delay_seconds = 30
         last_tts_err: Optional[Exception] = None
         for attempt in range(1, max_attempts + 1):
             try:
-                _synthesize_multispeaker_podcast_wav(client, script, output_path)
+                _synthesize_multispeaker_podcast_wav(tts_client, script, output_path)
                 last_tts_err = None
                 break
             except Exception as e:
