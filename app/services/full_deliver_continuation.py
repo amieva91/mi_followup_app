@@ -17,7 +17,8 @@ from sqlalchemy import bindparam, text
 
 from app import db
 from app.background_tasks_lock import background_tasks_lock
-from app.models.company_report import CompanyReport, User
+from app.models.company_report import CompanyReport
+from app.models.user import User
 
 logger = logging.getLogger(__name__)
 
