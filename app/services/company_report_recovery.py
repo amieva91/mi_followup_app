@@ -33,6 +33,58 @@ _MSG_TIMEOUT_STALE = (
 )
 
 
+def _stale_audio_queued_seconds() -> int:
+    """Segundos tras los cuales un ``audio_status=queued`` (informe ya OK, sin WAV) se considera abandonado."""
+    try:
+        return max(300, int(str(os.environ.get('STALE_AUDIO_QUEUED_SECONDS', '7200')).strip()))
+    except ValueError:
+        return 7200
+
+
+def expire_stale_audio_queued_rows(app_logger=None) -> int:
+    """
+    Informe ya ``completed``, audio en ``queued``, sin fichero y con antigüedad de encolado alta:
+    no hay worker real esperando — ensucian la cola global y la numeración.
+
+    Marca ``audio_status=failed`` con mensaje claro para que el usuario pulse «Regenerar audio».
+    """
+    from app import db
+    from sqlalchemy import text
+
+    log = app_logger or logger
+    sec = _stale_audio_queued_seconds()
+    cutoff = datetime.utcnow() - timedelta(seconds=sec)
+    msg = (
+        'La petición de audio quedó demasiado tiempo en cola sin ejecutarse. '
+        'Pulsa «Regenerar audio».'
+    )
+    try:
+        res = db.session.execute(
+            text(
+                """
+                UPDATE company_reports
+                SET audio_status = 'failed', audio_error_msg = :msg
+                WHERE audio_status = 'queued'
+                  AND status = 'completed'
+                  AND (audio_path IS NULL OR TRIM(COALESCE(audio_path, '')) = '')
+                  AND COALESCE(audio_enqueued_at, created_at) < :cutoff
+                """
+            ),
+            {'cutoff': cutoff, 'msg': msg[:8000]},
+        )
+        n = int(getattr(res, 'rowcount', 0) or 0)
+        if n:
+            db.session.commit()
+            log.info('company_reports: expiradas %s peticiones de audio encoladas obsoletas (cutoff %ss)', n, sec)
+        else:
+            db.session.rollback()
+        return n
+    except Exception:
+        db.session.rollback()
+        log.exception('expire_stale_audio_queued_rows: error')
+        return 0
+
+
 def expire_company_report_if_stale(report) -> bool:
     """
     Si el informe lleva demasiado en ``pending``/``processing`` respecto a la fecha de creación,

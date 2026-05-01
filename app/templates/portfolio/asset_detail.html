@@ -651,9 +651,24 @@ const REPORT_POLL_MAX = 900;
 const REPORT_STATUS_MS = 2000;
 const AUDIO_STATUS_MS = 2000;
 
-function reportStatusLabel(status, queuePosition) {
+function formatQueueSuffix(data) {
+    if (!data) return '';
+    const p = data.queue_position;
+    const t = data.queue_waiting_total;
+    if (!p) return '';
+    if (typeof t === 'number' && t > 0) return ` (#${p} de ${t})`;
+    return ` (#${p})`;
+}
+function reportStatusLabel(status, queuePosition, queueWaitingTotal) {
     if (status === 'pending') {
-        const qp = queuePosition ? ` (#${queuePosition})` : '';
+        let qp = '';
+        if (queuePosition) {
+            if (typeof queueWaitingTotal === 'number' && queueWaitingTotal > 0) {
+                qp = ` (#${queuePosition} de ${queueWaitingTotal})`;
+            } else {
+                qp = ` (#${queuePosition})`;
+            }
+        }
         return 'en cola' + qp;
     }
     if (status === 'processing') return 'generando';
@@ -781,7 +796,7 @@ function updateReportAudioProgressUI(data) {
         // Mostrar "en cola" aunque haya pasos (si no, parece que ya está ejecutando).
         if (legacy) {
             if (data.audio_status === 'queued') {
-                const qp = data.queue_position ? ` (#${data.queue_position})` : '';
+                const qp = formatQueueSuffix(data);
                 legacy.classList.remove('hidden');
                 legacy.className = 'px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-800';
                 legacy.textContent = 'Audio en cola' + qp + '…';
@@ -809,7 +824,7 @@ function updateReportAudioProgressUI(data) {
         }
         let cap = ap.caption;
         if (data.audio_status === 'queued') {
-            const qp = data.queue_position ? ` (#${data.queue_position})` : '';
+            const qp = formatQueueSuffix(data);
             cap = 'Audio en cola' + qp + ' (se ejecutará cuando le toque; puedes salir y volver)';
         }
         pb.innerHTML = buildAudioProgressBlockHtml(stepsOut, cap);
@@ -827,7 +842,7 @@ function updateReportAudioProgressUI(data) {
         legacy.classList.remove('hidden');
         legacy.className = 'px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-800';
         if (data.audio_status === 'queued') {
-            const qp = data.queue_position ? ` (#${data.queue_position})` : '';
+            const qp = formatQueueSuffix(data);
             legacy.textContent = 'Audio en cola' + qp + '…';
         } else {
             legacy.textContent = 'Generando audio…';
@@ -857,7 +872,7 @@ function updateReportDetailFromStatusPoll(reportId, data) {
             audioPb.classList.remove('hidden');
             let cap = ap1.caption;
             if (data.audio_status === 'queued') {
-                const qp = data.queue_position ? ` (#${data.queue_position})` : '';
+                const qp = formatQueueSuffix(data);
                 cap = 'Audio en cola' + qp + ' (se ejecutará cuando le toque; puedes salir y volver)';
             }
             audioPb.innerHTML = buildAudioProgressBlockHtml(ap1.steps, cap);
@@ -865,7 +880,7 @@ function updateReportDetailFromStatusPoll(reportId, data) {
         // Aunque haya bloque de pasos, mostrar siempre el aviso "Audio en cola" si aplica.
         if (legacyAudioStatus) {
             if (data.audio_status === 'queued') {
-                const qp = data.queue_position ? ` (#${data.queue_position})` : '';
+                const qp = formatQueueSuffix(data);
                 legacyAudioStatus.classList.remove('hidden');
                 legacyAudioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-800';
                 legacyAudioStatus.textContent = 'Audio en cola' + qp + '…';
@@ -1031,7 +1046,7 @@ function startAudioStatusPolling(reportId) {
                     updateReportAudioProgressUI(data);
                     if (btnAudio) btnAudio.classList.add('hidden');
                     if (audioStatus) {
-                        const qp = data.queue_position ? ` (#${data.queue_position})` : '';
+                        const qp = formatQueueSuffix(data);
                         audioStatus.classList.remove('hidden');
                         audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-800';
                         audioStatus.textContent = 'Audio en cola' + qp + '…';
@@ -1384,7 +1399,7 @@ function loadReports() {
                     <div class="p-3 asset-inner-panel hover:bg-slate-50/80 cursor-pointer transition-colors" onclick="loadReportDetail(${r.id})">
                         <div class="flex justify-between items-center">
                             <span class="text-sm font-medium">${(name || '').replace(/</g, '&lt;')}${audioBadge}</span>
-                            <span class="px-2 py-0.5 rounded text-xs ${statusBadge}">${reportStatusLabel(r.status, r.queue_position)}</span>
+                            <span class="px-2 py-0.5 rounded text-xs ${statusBadge}">${reportStatusLabel(r.status, r.queue_position, data.queue_waiting_total)}</span>
                         </div>
                         <div class="text-xs text-gray-500 mt-1">${date}</div>
                     </div>
@@ -1510,7 +1525,7 @@ function loadReportDetail(reportId) {
                     if (btnAudio) btnAudio.classList.add('hidden');
                     updateReportAudioProgressUI(data);
                     if (audioStatus) {
-                        const qp = data.queue_position ? ` (#${data.queue_position})` : '';
+                        const qp = formatQueueSuffix(data);
                         audioStatus.classList.remove('hidden');
                         audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-800';
                         audioStatus.textContent = 'Audio en cola' + qp + '…';

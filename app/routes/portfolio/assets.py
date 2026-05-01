@@ -2,7 +2,7 @@
 Rutas de asset registry, asset detail, reports y about
 """
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from flask import render_template, redirect, url_for, flash, request, jsonify, current_app, send_file, make_response
 from flask_login import login_required, current_user
@@ -62,29 +62,89 @@ def _active_queue_timestamp(report) -> datetime | None:
     return None
 
 
-def _queue_position_for_report_obj(report) -> int | None:
-    """Posición aproximada en cola global (1-indexed), basada en timestamp de encolado real."""
+def _maybe_expire_stale_audio_queued() -> None:
+    """Limpia encolados de audio irreales (informe listo, sin WAV, demasiado tiempo en cola)."""
     try:
-        t0 = _active_queue_timestamp(report)
-        if not t0:
-            return None
-        q = db.session.execute(
+        from app.services.company_report_recovery import expire_stale_audio_queued_rows
+
+        expire_stale_audio_queued_rows(getattr(current_app, 'logger', None))
+    except Exception:
+        current_app.logger.exception('expire_stale_audio_queued_rows')
+
+
+def _stale_audio_queued_cutoff_utc() -> datetime:
+    from app.services.company_report_recovery import _stale_audio_queued_seconds
+
+    return datetime.utcnow() - timedelta(seconds=_stale_audio_queued_seconds())
+
+
+def _row_is_stale_audio_queued(row: dict, cutoff: datetime) -> bool:
+    if row.get('audio_status') != 'queued' or row.get('status') != 'completed':
+        return False
+    path = (row.get('audio_path') or '').strip()
+    if path:
+        return False
+    t = row.get('audio_enqueued_at') or row.get('created_at')
+    if not t:
+        return False
+    return t < cutoff
+
+
+def _row_active_queue_sort_key(row: dict, cutoff: datetime) -> datetime | None:
+    """Clave de ordenación global: un informe aporta como mucho un trabajo activo (audio tiene prioridad)."""
+    a_st = row.get('audio_status')
+    r_st = row.get('status')
+    if a_st in ('queued', 'processing'):
+        if a_st == 'queued' and _row_is_stale_audio_queued(row, cutoff):
+            pass
+        else:
+            return row.get('audio_enqueued_at') or row.get('created_at')
+    if r_st in ('pending', 'processing'):
+        return row.get('report_enqueued_at') or row.get('created_at')
+    return None
+
+
+def _sorted_active_queue_rows() -> list[tuple[datetime, int]]:
+    """Lista (tiempo_encolado, id) ordenada; define la cola global real para el lock serial."""
+    cutoff = _stale_audio_queued_cutoff_utc()
+    try:
+        res = db.session.execute(
             text(
                 """
-                SELECT COUNT(*) FROM company_reports
-                WHERE (
-                    (audio_status IN ('queued','processing') AND COALESCE(audio_enqueued_at, created_at) < :t)
-                    OR (status IN ('pending','processing') AND COALESCE(report_enqueued_at, created_at) < :t)
-                )
+                SELECT id, audio_status, status, audio_path,
+                       audio_enqueued_at, report_enqueued_at, created_at
+                FROM company_reports
                 """
-            ),
-            {"t": t0},
-        ).scalar()
-        if q is None:
-            return None
-        return int(q) + 1
+            )
+        )
+        pairs: list[tuple[datetime, int]] = []
+        for r in res.mappings():
+            row = dict(r)
+            k = _row_active_queue_sort_key(row, cutoff)
+            if k is not None:
+                pairs.append((k, int(row['id'])))
+        pairs.sort(key=lambda x: (x[0], x[1]))
+        return pairs
     except Exception:
-        return None
+        current_app.logger.exception('_sorted_active_queue_rows')
+        return []
+
+
+def _queue_metrics_for_report(report) -> tuple[int | None, int]:
+    """(posición 1-based en cola global, total trabajos activos) o (None, total) si este informe no espera."""
+    rid = int(report.id)
+    pairs = _sorted_active_queue_rows()
+    n = len(pairs)
+    for i, (_k, qid) in enumerate(pairs):
+        if qid == rid:
+            return i + 1, n
+    return None, n
+
+
+def _queue_position_for_report_obj(report) -> int | None:
+    """Posición 1-based en cola global; None si este informe no está esperando turno."""
+    pos, _n = _queue_metrics_for_report(report)
+    return pos
 
 
 def _persist_report_stages_from_steps(engine, report_id, steps_list):
@@ -1730,15 +1790,17 @@ def asset_reports_list(id):
     if not _user_can_access_asset_reports(current_user.id, id):
         return jsonify({'error': 'No autorizado'}), 403
 
+    _maybe_expire_stale_audio_queued()
+    pairs = _sorted_active_queue_rows()
+    pos_by_id = {qid: i + 1 for i, (_k, qid) in enumerate(pairs)}
+
     reports = CompanyReport.query.filter_by(
         user_id=current_user.id,
         asset_id=id
     ).order_by(CompanyReport.created_at.desc()).limit(5).all()
 
-    def _queue_position_for_report(r) -> int | None:
-        return _queue_position_for_report_obj(r)
-
     return jsonify({
+        'queue_waiting_total': len(pairs),
         'reports': [
             {
                 'id': r.id,
@@ -1747,10 +1809,10 @@ def asset_reports_list(id):
                 'template_title': r.template_title or f'Informe {r.id}',
                 'created_at': r.created_at.isoformat() if r.created_at else None,
                 'completed_at': r.completed_at.isoformat() if r.completed_at else None,
-                'queue_position': _queue_position_for_report(r),
+                'queue_position': pos_by_id.get(r.id),
             }
             for r in reports
-        ]
+        ],
     })
 
 
@@ -1773,6 +1835,15 @@ def asset_report_detail(id, report_id):
         return jsonify({'error': 'Informe no encontrado'}), 404
 
     _maybe_expire_stale_report(report)
+    _maybe_expire_stale_audio_queued()
+    db.session.refresh(report)
+
+    qp_detail: int | None = None
+    qwait_detail = 0
+    try:
+        qp_detail, qwait_detail = _queue_metrics_for_report(report)
+    except Exception:
+        current_app.logger.exception('queue_metrics asset_report_detail')
 
     sm_raw = getattr(report, 'summary_content', None)
     if sm_raw is not None and str(sm_raw).strip():
@@ -1796,6 +1867,8 @@ def asset_report_detail(id, report_id):
         'audio_error_msg': getattr(report, 'audio_error_msg', None),
         'audio_completed_at': report.audio_completed_at.isoformat() if getattr(report, 'audio_completed_at', None) else None,
         'audio_progress': _parse_audio_progress_json(getattr(report, 'audio_progress_json', None)),
+        'queue_position': qp_detail,
+        'queue_waiting_total': qwait_detail,
         'email_status': getattr(report, 'email_status', None),
         'email_error_msg': getattr(report, 'email_error_msg', None),
         'email_completed_at': report.email_completed_at.isoformat() if getattr(report, 'email_completed_at', None) else None,
@@ -2126,13 +2199,15 @@ def api_report_status(report_id):
         return jsonify({'error': 'Informe no encontrado'}), 404
 
     _maybe_expire_stale_report(report)
+    _maybe_expire_stale_audio_queued()
+    db.session.refresh(report)
 
-    # Posición aproximada en cola global (tareas largas serializadas por background_tasks_lock).
-    queue_position = None
+    queue_position: int | None = None
+    queue_waiting_total = 0
     try:
-        queue_position = _queue_position_for_report_obj(report)
+        queue_position, queue_waiting_total = _queue_metrics_for_report(report)
     except Exception:
-        queue_position = None
+        current_app.logger.exception('queue_metrics api_report_status')
 
     return jsonify({
         'id': report.id,
@@ -2144,6 +2219,7 @@ def api_report_status(report_id):
         'audio_error_msg': getattr(report, 'audio_error_msg', None),
         'audio_progress': _parse_audio_progress_json(getattr(report, 'audio_progress_json', None)),
         'queue_position': queue_position,
+        'queue_waiting_total': queue_waiting_total,
         'email_status': getattr(report, 'email_status', None),
         'email_error_msg': getattr(report, 'email_error_msg', None),
     })
