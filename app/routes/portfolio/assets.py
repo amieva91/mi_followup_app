@@ -2,7 +2,7 @@
 Rutas de asset registry, asset detail, reports y about
 """
 import json
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from flask import render_template, redirect, url_for, flash, request, jsonify, current_app, send_file, make_response
 from flask_login import login_required, current_user
@@ -11,6 +11,7 @@ from app.routes import portfolio_bp
 from app import db, csrf
 from sqlalchemy import text, bindparam
 
+from app.services.company_report_queue import queue_metrics_for_report, sorted_active_queue_rows
 from app.models import (
     BrokerAccount,
     Asset,
@@ -22,24 +23,6 @@ from app.models import (
     DELISTING_TYPES,
     CompanyReport,
 )
-
-def _to_utc_dt(v) -> datetime | None:
-    """Convierte valores de SQLite/SQLAlchemy (str/datetime) a datetime naive UTC."""
-    if v is None:
-        return None
-    if isinstance(v, datetime):
-        return v
-    if isinstance(v, str):
-        s = v.strip()
-        if not s:
-            return None
-        # SQLite suele devolver "YYYY-MM-DD HH:MM:SS(.ffffff)"
-        try:
-            return datetime.fromisoformat(s.replace("Z", "+00:00").replace(" ", "T"))
-        except Exception:
-            return None
-    return None
-
 
 def _maybe_expire_stale_report(report: CompanyReport) -> None:
     """Si el informe lleva demasiado en pending/processing, marca failed y refresca la fila."""
@@ -98,87 +81,9 @@ def _maybe_expire_stale_full_delivery_tail() -> None:
         current_app.logger.exception('expire_stale_full_delivery_tails')
 
 
-def _stale_audio_queued_cutoff_utc() -> datetime:
-    from app.services.company_report_recovery import _stale_audio_queued_seconds
-
-    return datetime.utcnow() - timedelta(seconds=_stale_audio_queued_seconds())
-
-
-def _row_is_stale_audio_queued(row: dict, cutoff: datetime) -> bool:
-    if row.get('audio_status') != 'queued' or row.get('status') != 'completed':
-        return False
-    path = (row.get('audio_path') or '').strip()
-    if path:
-        return False
-    t = _to_utc_dt(row.get('audio_enqueued_at') or row.get('created_at'))
-    if not t:
-        return False
-    return t < cutoff
-
-
-def _row_active_queue_sort_key(row: dict, cutoff: datetime) -> datetime | None:
-    """Clave de ordenación global: un informe aporta como mucho un trabajo activo (audio tiene prioridad)."""
-    a_st = row.get('audio_status')
-    r_st = row.get('status')
-    dm = row.get('delivery_mode')
-    dps = row.get('delivery_phase_status')
-    if a_st in ('queued', 'processing'):
-        if a_st == 'queued' and _row_is_stale_audio_queued(row, cutoff):
-            pass
-        else:
-            return _to_utc_dt(row.get('audio_enqueued_at') or row.get('created_at'))
-    if (
-        r_st == 'completed'
-        and dm == 'full_deliver'
-        and (dps == 'processing' or dps is None)
-    ):
-        return _to_utc_dt(row.get('completed_at') or row.get('report_enqueued_at') or row.get('created_at'))
-    if r_st in ('pending', 'processing'):
-        return _to_utc_dt(row.get('report_enqueued_at') or row.get('created_at'))
-    return None
-
-
-def _sorted_active_queue_rows() -> list[tuple[datetime, int]]:
-    """Lista (tiempo_encolado, id) ordenada; define la cola global real para el lock serial."""
-    cutoff = _stale_audio_queued_cutoff_utc()
-    try:
-        res = db.session.execute(
-            text(
-                """
-                SELECT id, audio_status, status, audio_path,
-                       audio_enqueued_at, report_enqueued_at, created_at,
-                       delivery_mode, delivery_phase_status, completed_at
-                FROM company_reports
-                """
-            )
-        )
-        pairs: list[tuple[datetime, int]] = []
-        for r in res.mappings():
-            row = dict(r)
-            k = _row_active_queue_sort_key(row, cutoff)
-            if k is not None:
-                pairs.append((k, int(row['id'])))
-        pairs.sort(key=lambda x: (x[0], x[1]))
-        return pairs
-    except Exception:
-        current_app.logger.exception('_sorted_active_queue_rows')
-        return []
-
-
-def _queue_metrics_for_report(report) -> tuple[int | None, int]:
-    """(posición 1-based en cola global, total trabajos activos) o (None, total) si este informe no espera."""
-    rid = int(report.id)
-    pairs = _sorted_active_queue_rows()
-    n = len(pairs)
-    for i, (_k, qid) in enumerate(pairs):
-        if qid == rid:
-            return i + 1, n
-    return None, n
-
-
 def _queue_position_for_report_obj(report) -> int | None:
     """Posición 1-based en cola global; None si este informe no está esperando turno."""
-    pos, _n = _queue_metrics_for_report(report)
+    pos, _n = queue_metrics_for_report(report)
     return pos
 
 
@@ -1116,7 +1021,7 @@ def asset_reports_generate(id):
             from app.background_tasks_lock import background_tasks_lock
 
             # Serialización global: informes/audio se ejecutan de uno en uno.
-            with app.app_context(), background_tasks_lock(app):
+            with app.app_context(), background_tasks_lock(app, fair_report_id=report_id):
                 engine = db.engine
 
                 def _update_status(st, content_val=None, error_val=None, clear_progress=False):
@@ -1419,7 +1324,7 @@ def asset_reports_generate_and_deliver(id):
             from app.background_tasks_lock import background_tasks_lock
 
             # Serialización global: pipelines largos de uno en uno.
-            with app.app_context(), background_tasks_lock(app):
+            with app.app_context(), background_tasks_lock(app, fair_report_id=report_id):
                 engine = db.engine
 
                 def _persist(json_obj):
@@ -1620,7 +1525,7 @@ def asset_reports_list(id):
 
     _maybe_expire_stale_full_delivery_tail()
     _maybe_expire_stale_audio_queued()
-    pairs = _sorted_active_queue_rows()
+    pairs = sorted_active_queue_rows()
     pos_by_id = {qid: i + 1 for i, (_k, qid) in enumerate(pairs)}
 
     reports = CompanyReport.query.filter_by(
@@ -1673,7 +1578,7 @@ def asset_report_detail(id, report_id):
     qp_detail: int | None = None
     qwait_detail = 0
     try:
-        qp_detail, qwait_detail = _queue_metrics_for_report(report)
+        qp_detail, qwait_detail = queue_metrics_for_report(report)
     except Exception:
         current_app.logger.exception('queue_metrics asset_report_detail')
 
@@ -1864,7 +1769,7 @@ def asset_report_generate_audio(id, report_id):
         from app.background_tasks_lock import background_tasks_lock
 
         # Serialización global: una tarea larga a la vez (incluye regeneraciones).
-        with app_obj.app_context(), background_tasks_lock(app_obj):
+        with app_obj.app_context(), background_tasks_lock(app_obj, fair_report_id=report_id):
             from datetime import datetime
 
             conn = db.engine.connect()
@@ -2054,7 +1959,7 @@ def api_report_status(report_id):
     queue_position: int | None = None
     queue_waiting_total = 0
     try:
-        queue_position, queue_waiting_total = _queue_metrics_for_report(report)
+        queue_position, queue_waiting_total = queue_metrics_for_report(report)
     except Exception:
         current_app.logger.exception('queue_metrics api_report_status')
 

@@ -70,7 +70,7 @@ def continue_full_deliver_after_dr(app: Flask, report_id: int) -> None:
     Ejecuta la cola de entrega bajo ``background_tasks_lock``.
     Idempotente: si ya hay resumen/audio/correo completos, sale sin duplicar trabajo.
     """
-    with background_tasks_lock(app):
+    with background_tasks_lock(app, fair_report_id=report_id):
         report = CompanyReport.query.filter_by(id=report_id).first()
         if not report:
             return
@@ -433,7 +433,7 @@ def run_full_deliver_pending_recovery(app: Flask, report_id: int) -> None:
     """
     from app.services.gemini_service import GeminiServiceError, run_deep_research_report, new_full_pipeline_progress_state
 
-    with app.app_context(), background_tasks_lock(app):
+    with app.app_context(), background_tasks_lock(app, fair_report_id=int(report_id)):
         engine = db.engine
         rid = int(report_id)
         with engine.connect() as conn:

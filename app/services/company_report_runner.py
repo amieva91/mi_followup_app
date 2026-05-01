@@ -38,7 +38,7 @@ def run_report_only_by_id(app, report_id: int) -> None:
         GeminiServiceError,
     )
 
-    with app.app_context(), background_tasks_lock(app):
+    with app.app_context(), background_tasks_lock(app, fair_report_id=int(report_id)):
         engine = db.engine
 
         # 1) Reclamar fila: pending -> processing (si ya fue reclamada, no hacemos nada)
