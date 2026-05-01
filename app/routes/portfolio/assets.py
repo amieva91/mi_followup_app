@@ -1853,6 +1853,13 @@ def asset_report_generate_audio(id, report_id):
         # Best-effort: si falla, el hilo actualizará estado al entrar al lock.
         pass
 
+    current_app.logger.info(
+        'Audio TTS encolado: report_id=%s asset_id=%s user_id=%s',
+        report_id,
+        id,
+        current_user.id,
+    )
+
     def _run_tts():
         from app.background_tasks_lock import background_tasks_lock
 
@@ -1871,6 +1878,8 @@ def asset_report_generate_audio(id, report_id):
                 conn.rollback()
             finally:
                 conn.close()
+
+            app_obj.logger.info('Audio TTS en ejecución (lock adquirido): report_id=%s', report_id)
 
             status = 'failed'
             error_msg = None
@@ -1977,6 +1986,12 @@ def asset_report_reset_audio(id, report_id):
     finally:
         conn.close()
 
+    current_app.logger.info(
+        'Informe audio reseteado (reintentar): report_id=%s asset_id=%s user_id=%s',
+        report_id,
+        id,
+        current_user.id,
+    )
     return jsonify({'success': True, 'message': 'Audio reseteado. Puedes generar de nuevo.'})
 
 
