@@ -36,9 +36,9 @@ _MSG_TIMEOUT_STALE = (
 def _stale_audio_queued_seconds() -> int:
     """Segundos tras los cuales un ``audio_status=queued`` (informe ya OK, sin WAV) se considera abandonado."""
     try:
-        return max(300, int(str(os.environ.get('STALE_AUDIO_QUEUED_SECONDS', '7200')).strip()))
+        return max(300, int(str(os.environ.get('STALE_AUDIO_QUEUED_SECONDS', '3600')).strip()))
     except ValueError:
-        return 7200
+        return 3600
 
 
 def expire_stale_audio_queued_rows(app_logger=None) -> int:

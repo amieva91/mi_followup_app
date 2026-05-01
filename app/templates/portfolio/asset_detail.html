@@ -648,8 +648,26 @@ const reportStatusPolls = new Map();
 const audioStatusPolls = new Map();
 const AUDIO_POLL_MAX = 900;
 const REPORT_POLL_MAX = 900;
-const REPORT_STATUS_MS = 2000;
-const AUDIO_STATUS_MS = 2000;
+/** Poll más frecuente para que la posición en cola (#n de t) se actualice casi en tiempo real. */
+const REPORT_STATUS_MS = 1000;
+const AUDIO_STATUS_MS = 1000;
+/** Refresco del listado de informes mientras haya trabajos en cola global (aunque no haya poll activo en un ID concreto). */
+const QUEUE_LIST_POLL_MS = 1000;
+let reportsListQueuePollTimer = null;
+
+function syncReportsListQueuePollTimer(data) {
+    const n = data && typeof data.queue_waiting_total === 'number' ? data.queue_waiting_total : 0;
+    if (n > 0) {
+        if (reportsListQueuePollTimer == null) {
+            reportsListQueuePollTimer = setInterval(function() {
+                loadReports();
+            }, QUEUE_LIST_POLL_MS);
+        }
+    } else if (reportsListQueuePollTimer != null) {
+        clearInterval(reportsListQueuePollTimer);
+        reportsListQueuePollTimer = null;
+    }
+}
 
 function formatQueueSuffix(data) {
     if (!data) return '';
@@ -1377,9 +1395,13 @@ function loadReports() {
         .then(r => r.json())
         .then(data => {
             const container = document.getElementById('reportsList');
-            if (!container) return;
+            if (!container) {
+                syncReportsListQueuePollTimer(data);
+                return;
+            }
             if (!data.reports || data.reports.length === 0) {
                 container.innerHTML = '<p class="text-gray-500 text-sm">No hay informes. Pulsa "Generar informe" para crear uno.</p>';
+                syncReportsListQueuePollTimer(data);
                 return;
             }
             container.innerHTML = data.reports.map(r => {
@@ -1405,7 +1427,9 @@ function loadReports() {
                     </div>
                 `;
             }).join('');
-        });
+            syncReportsListQueuePollTimer(data);
+        })
+        .catch(function() { syncReportsListQueuePollTimer(null); });
 }
 let currentReportId = null;
 /** Markdown guardados para conmutar resumen / informe completo */
