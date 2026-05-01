@@ -23,6 +23,23 @@ from app.models import (
     CompanyReport,
 )
 
+def _to_utc_dt(v) -> datetime | None:
+    """Convierte valores de SQLite/SQLAlchemy (str/datetime) a datetime naive UTC."""
+    if v is None:
+        return None
+    if isinstance(v, datetime):
+        return v
+    if isinstance(v, str):
+        s = v.strip()
+        if not s:
+            return None
+        # SQLite suele devolver "YYYY-MM-DD HH:MM:SS(.ffffff)"
+        try:
+            return datetime.fromisoformat(s.replace("Z", "+00:00").replace(" ", "T"))
+        except Exception:
+            return None
+    return None
+
 
 def _maybe_expire_stale_report(report: CompanyReport) -> None:
     """Si el informe lleva demasiado en pending/processing, marca failed y refresca la fila."""
@@ -84,7 +101,7 @@ def _row_is_stale_audio_queued(row: dict, cutoff: datetime) -> bool:
     path = (row.get('audio_path') or '').strip()
     if path:
         return False
-    t = row.get('audio_enqueued_at') or row.get('created_at')
+    t = _to_utc_dt(row.get('audio_enqueued_at') or row.get('created_at'))
     if not t:
         return False
     return t < cutoff
@@ -98,9 +115,9 @@ def _row_active_queue_sort_key(row: dict, cutoff: datetime) -> datetime | None:
         if a_st == 'queued' and _row_is_stale_audio_queued(row, cutoff):
             pass
         else:
-            return row.get('audio_enqueued_at') or row.get('created_at')
+            return _to_utc_dt(row.get('audio_enqueued_at') or row.get('created_at'))
     if r_st in ('pending', 'processing'):
-        return row.get('report_enqueued_at') or row.get('created_at')
+        return _to_utc_dt(row.get('report_enqueued_at') or row.get('created_at'))
     return None
 
 
