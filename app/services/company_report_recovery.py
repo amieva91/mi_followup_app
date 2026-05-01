@@ -188,9 +188,13 @@ def recover_processing_reports_after_restart(app, app_logger=None) -> None:
             r.completed_at = now
 
         audio_n = 0
+        tail_resume_ids: list[int] = []
         rows_a = CompanyReport.query.filter(CompanyReport.audio_status == 'processing').all()
         for r in rows_a:
             if getattr(r, 'created_at', None) and r.created_at > min_age_threshold:
+                continue
+            if getattr(r, 'delivery_mode', None) == 'full_deliver' and (r.status or '') == 'completed':
+                tail_resume_ids.append(int(r.id))
                 continue
             r.audio_status = 'failed'
             r.audio_error_msg = (_MSG_AUDIO_ORPHAN[:2000])
@@ -250,6 +254,14 @@ def recover_processing_reports_after_restart(app, app_logger=None) -> None:
                 log.exception('Deep Research resume: excepción no controlada report_id=%s', rid_)
 
         threading.Thread(target=_run, args=(rid,), daemon=True).start()
+
+    for rid in tail_resume_ids:
+        try:
+            from app.services.full_deliver_continuation import schedule_full_delivery_continuation
+
+            schedule_full_delivery_continuation(app, rid)
+        except Exception:
+            log.exception('full_deliver: reanudación tras audio processing report_id=%s', rid)
 
 
 def recover_stuck_pending_reports(app, app_logger=None) -> None:
@@ -314,6 +326,30 @@ def recover_stuck_pending_reports(app, app_logger=None) -> None:
             return
         kicked = 0
         for r in rows:
+            is_fd = getattr(r, "delivery_mode", None) == "full_deliver"
+            if not is_fd:
+                ap = getattr(r, "audio_progress_json", None)
+                if ap and str(ap).strip() and "full_pipeline" in str(ap):
+                    is_fd = True
+            if is_fd:
+                rid = int(r.id)
+
+                def _run_full(rid_: int) -> None:
+                    try:
+                        with app.app_context():
+                            from app.services.full_deliver_continuation import run_full_deliver_pending_recovery
+
+                            run_full_deliver_pending_recovery(app, rid_)
+                    except Exception:
+                        log.exception(
+                            "full_deliver pending recovery: excepción report_id=%s",
+                            rid_,
+                        )
+
+                threading.Thread(target=_run_full, args=(rid,), daemon=True).start()
+                kicked += 1
+                continue
+
             ap = getattr(r, "audio_progress_json", None)
             is_full = False
             if ap and str(ap).strip():
@@ -355,3 +391,74 @@ def recover_stuck_pending_reports(app, app_logger=None) -> None:
                 lock_fp.close()
         except Exception:
             pass
+
+
+def clean_company_report_queues(app_logger=None) -> dict:
+    """
+    Operación de mantenimiento: marca como fallidos informes ``pending``/``processing``,
+    audios ``queued`` huérfanos, y corta colas ``full_deliver`` en ``processing``.
+    """
+    from sqlalchemy import text
+
+    from app import db
+
+    log = app_logger or logger
+    now = datetime.utcnow()
+    msg_rep = (
+        "Cola de informes limpiada manualmente (pendiente o en curso). "
+        "Vuelve a lanzar la generación si aún lo necesitas."
+    )
+    msg_au = (
+        "Cola de audio limpiada manualmente. Pulsa «Regenerar audio» si quieres un nuevo fichero."
+    )
+    msg_fd = (
+        "Entrega todo-en-uno interrumpida (limpieza manual). "
+        "El informe puede estar listo en la app; reenvía correo o regenera audio si hace falta."
+    )
+    out = {"reports_pending_failed": 0, "audio_queued_failed": 0, "full_deliver_partial": 0}
+    try:
+        r1 = db.session.execute(
+            text(
+                """
+                UPDATE company_reports
+                SET status = 'failed', error_msg = :msg, completed_at = :now
+                WHERE status IN ('pending', 'processing')
+                """
+            ),
+            {"msg": msg_rep[:8000], "now": now},
+        )
+        out["reports_pending_failed"] = int(getattr(r1, "rowcount", 0) or 0)
+
+        r2 = db.session.execute(
+            text(
+                """
+                UPDATE company_reports
+                SET audio_status = 'failed', audio_error_msg = :msg
+                WHERE audio_status = 'queued' AND status = 'completed'
+                """
+            ),
+            {"msg": msg_au[:8000]},
+        )
+        out["audio_queued_failed"] = int(getattr(r2, "rowcount", 0) or 0)
+
+        r3 = db.session.execute(
+            text(
+                """
+                UPDATE company_reports
+                SET delivery_phase_status = 'partial', error_msg = :msg
+                WHERE delivery_mode = 'full_deliver'
+                  AND (delivery_phase_status = 'processing' OR delivery_phase_status IS NULL)
+                  AND status = 'completed'
+                """
+            ),
+            {"msg": msg_fd[:8000]},
+        )
+        out["full_deliver_partial"] = int(getattr(r3, "rowcount", 0) or 0)
+
+        db.session.commit()
+        log.warning("company_reports: limpieza manual %s", out)
+    except Exception:
+        db.session.rollback()
+        log.exception("clean_company_report_queues")
+        raise
+    return out

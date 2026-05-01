@@ -105,6 +105,12 @@ class CompanyReport(db.Model):
     email_error_msg = db.Column(db.Text, nullable=True)
     email_completed_at = db.Column(db.DateTime, nullable=True)
 
+    # Todo-en-uno (generate-deliver): seguimiento tras Deep Research (reanudación / timeout).
+    # delivery_mode: 'full_deliver' | NULL
+    # delivery_phase_status: 'processing' | 'completed' | 'failed' | 'partial'
+    delivery_mode = db.Column(db.String(20), nullable=True)
+    delivery_phase_status = db.Column(db.String(20), nullable=True)
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     completed_at = db.Column(db.DateTime, nullable=True)
 

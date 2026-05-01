@@ -677,7 +677,7 @@ function formatQueueSuffix(data) {
     if (typeof t === 'number' && t > 0) return ` (#${p} de ${t})`;
     return ` (#${p})`;
 }
-function reportStatusLabel(status, queuePosition, queueWaitingTotal) {
+function reportStatusLabel(status, queuePosition, queueWaitingTotal, deliveryMode, deliveryPhase) {
     if (status === 'pending') {
         let qp = '';
         if (queuePosition) {
@@ -690,6 +690,21 @@ function reportStatusLabel(status, queuePosition, queueWaitingTotal) {
         return 'en cola' + qp;
     }
     if (status === 'processing') return 'generando';
+    if (status === 'completed' && deliveryMode === 'full_deliver') {
+        const ph = deliveryPhase == null ? '' : String(deliveryPhase);
+        if (ph === 'processing' || ph === '') {
+            let qp = '';
+            if (queuePosition) {
+                if (typeof queueWaitingTotal === 'number' && queueWaitingTotal > 0) {
+                    qp = ` (#${queuePosition} de ${queueWaitingTotal})`;
+                } else {
+                    qp = ` (#${queuePosition})`;
+                }
+            }
+            return 'entregando' + qp;
+        }
+        if (ph === 'partial') return 'entrega incompleta';
+    }
     if (status === 'completed') return 'listo';
     if (status === 'failed') return 'error';
     return status || '—';
@@ -1421,7 +1436,7 @@ function loadReports() {
                     <div class="p-3 asset-inner-panel hover:bg-slate-50/80 cursor-pointer transition-colors" onclick="loadReportDetail(${r.id})">
                         <div class="flex justify-between items-center">
                             <span class="text-sm font-medium">${(name || '').replace(/</g, '&lt;')}${audioBadge}</span>
-                            <span class="px-2 py-0.5 rounded text-xs ${statusBadge}">${reportStatusLabel(r.status, r.queue_position, data.queue_waiting_total)}</span>
+                            <span class="px-2 py-0.5 rounded text-xs ${statusBadge}">${reportStatusLabel(r.status, r.queue_position, data.queue_waiting_total, r.delivery_mode, r.delivery_phase_status)}</span>
                         </div>
                         <div class="text-xs text-gray-500 mt-1">${date}</div>
                     </div>

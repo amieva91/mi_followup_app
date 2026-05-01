@@ -89,6 +89,15 @@ def _maybe_expire_stale_audio_queued() -> None:
         current_app.logger.exception('expire_stale_audio_queued_rows')
 
 
+def _maybe_expire_stale_full_delivery_tail() -> None:
+    try:
+        from app.services.full_deliver_continuation import expire_stale_full_delivery_tails
+
+        expire_stale_full_delivery_tails(getattr(current_app, 'logger', None))
+    except Exception:
+        current_app.logger.exception('expire_stale_full_delivery_tails')
+
+
 def _stale_audio_queued_cutoff_utc() -> datetime:
     from app.services.company_report_recovery import _stale_audio_queued_seconds
 
@@ -111,11 +120,19 @@ def _row_active_queue_sort_key(row: dict, cutoff: datetime) -> datetime | None:
     """Clave de ordenación global: un informe aporta como mucho un trabajo activo (audio tiene prioridad)."""
     a_st = row.get('audio_status')
     r_st = row.get('status')
+    dm = row.get('delivery_mode')
+    dps = row.get('delivery_phase_status')
     if a_st in ('queued', 'processing'):
         if a_st == 'queued' and _row_is_stale_audio_queued(row, cutoff):
             pass
         else:
             return _to_utc_dt(row.get('audio_enqueued_at') or row.get('created_at'))
+    if (
+        r_st == 'completed'
+        and dm == 'full_deliver'
+        and (dps == 'processing' or dps is None)
+    ):
+        return _to_utc_dt(row.get('completed_at') or row.get('report_enqueued_at') or row.get('created_at'))
     if r_st in ('pending', 'processing'):
         return _to_utc_dt(row.get('report_enqueued_at') or row.get('created_at'))
     return None
@@ -129,7 +146,8 @@ def _sorted_active_queue_rows() -> list[tuple[datetime, int]]:
             text(
                 """
                 SELECT id, audio_status, status, audio_path,
-                       audio_enqueued_at, report_enqueued_at, created_at
+                       audio_enqueued_at, report_enqueued_at, created_at,
+                       delivery_mode, delivery_phase_status, completed_at
                 FROM company_reports
                 """
             )
@@ -1339,16 +1357,13 @@ def asset_reports_generate_and_deliver(id):
     informe, guion, TTS y correo.
     """
     try:
-        from app.models import ReportTemplate, CompanyReport, User
+        from app.models import ReportTemplate, CompanyReport
         from app.services.gemini_service import (
             run_deep_research_report,
-            generate_report_tts_audio,
             new_full_pipeline_progress_state,
-            merge_full_pipeline_with_tts_progress,
             GeminiServiceError,
             is_gemini_available,
         )
-        from app.utils.email import send_report_email
         from flask import current_app
         import threading
         from datetime import datetime
@@ -1385,6 +1400,8 @@ def asset_reports_generate_and_deliver(id):
             template_title=template.title,
             status='pending',
             report_enqueued_at=datetime.utcnow(),
+            delivery_mode='full_deliver',
+            delivery_phase_status='processing',
         )
         db.session.add(report)
         db.session.commit()
@@ -1522,225 +1539,19 @@ def asset_reports_generate_and_deliver(id):
                             conn.commit()
                         return
 
-                    now_str = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-                    from app.services.gemini_service import (
-                        generate_report_email_summary,
-                        fallback_report_summary_markdown,
-                        report_substeps_after_dr_ok,
-                        _get_auto_collab_loop,
+                    from app.services.full_deliver_continuation import execute_full_deliver_tail
+
+                    execute_full_deliver_tail(
+                        app,
+                        engine=engine,
+                        report_id=report_id,
+                        user_id=user_id,
+                        asset_id=asset_id,
+                        aname=aname,
+                        report_template_title=report_template_title,
+                        content_dr=content_dr or '',
+                        pstate=pstate,
                     )
-
-                    single_shot = not _get_auto_collab_loop()
-                    subs_ld = report_substeps_after_dr_ok(single_shot, 'loading')
-                    for i in range(min(len(subs_ld), len(pstate['steps']))):
-                        pstate['steps'][i] = subs_ld[i]
-                    _persist(pstate)
-                    try:
-                        summary_md_pl = generate_report_email_summary(content_dr or '')
-                    except Exception:
-                        summary_md_pl = fallback_report_summary_markdown(content_dr or '')
-                    # Defensivo: evitar NULL en summary_content (rompe el toggle Resumen).
-                    if not isinstance(summary_md_pl, str) or not summary_md_pl.strip():
-                        summary_md_pl = fallback_report_summary_markdown(content_dr or '')
-                    subs_ok = report_substeps_after_dr_ok(single_shot, 'ok')
-                    for i in range(min(len(subs_ok), len(pstate['steps']))):
-                        pstate['steps'][i] = subs_ok[i]
-                    _persist(pstate)
-
-                    with engine.connect() as conn:
-                        conn.execute(
-                            text(
-                                """
-                            UPDATE company_reports
-                            SET status = 'completed', content = :c, summary_content = :sm,
-                            error_msg = NULL, completed_at = :now
-                            WHERE id = :rid
-                        """
-                            ),
-                            {'c': content_dr, 'sm': summary_md_pl, 'now': now_str, 'rid': report_id},
-                        )
-                        conn.commit()
-                    # límite 5 informes (misma lógica que generación simple)
-                    with engine.connect() as conn:
-                        cnt = conn.execute(
-                            text(
-                                'SELECT COUNT(*) FROM company_reports WHERE user_id = :uid AND asset_id = :aid'
-                            ),
-                            {'uid': user_id, 'aid': asset_id},
-                        ).scalar()
-                        if cnt and cnt > 5:
-                            lim = int(cnt) - 5
-                            ids = [
-                                r[0]
-                                for r in conn.execute(
-                                    text(
-                                        """
-                                    SELECT id FROM company_reports
-                                    WHERE user_id = :uid AND asset_id = :aid
-                                    ORDER BY created_at ASC LIMIT :lim
-                                """
-                                    ),
-                                    {'uid': user_id, 'aid': asset_id, 'lim': lim},
-                                ).fetchall()
-                            ]
-                            if ids:
-                                stmt = text('DELETE FROM company_reports WHERE id IN :ids').bindparams(
-                                    bindparam('ids', expanding=True)
-                                )
-                                conn.execute(stmt, {'ids': ids})
-                        conn.commit()
-
-                    output_folder = app.config.get('OUTPUT_FOLDER') or (
-                        Path(__file__).resolve().parent.parent.parent / 'output'
-                    )
-                    audio_dir = Path(output_folder).resolve() / 'reports_audio'
-                    audio_path = audio_dir / f'report_{report_id}.wav'
-
-                    with engine.connect() as conn:
-                        conn.execute(
-                            text(
-                                """
-                            UPDATE company_reports
-                            SET audio_status = 'processing', audio_error_msg = NULL, audio_path = NULL, audio_completed_at = NULL
-                            WHERE id = :rid
-                        """
-                            ),
-                            {'rid': report_id},
-                        )
-                        conn.commit()
-
-                    pstate['steps'][4]['status'] = 'loading'
-                    pstate['steps'][4]['error'] = None
-                    _persist(pstate)
-
-                    def on_tts(tj: dict) -> None:
-                        nonlocal pstate
-                        pstate = merge_full_pipeline_with_tts_progress(pstate, tj)
-                        _persist(pstate)
-
-                    try:
-                        generate_report_tts_audio(
-                            content_dr or '', str(audio_path), on_progress=on_tts
-                        )
-                    except Exception as tts_e:
-                        current_app.logger.exception('TTS en generate-deliver: %s', tts_e)
-                        pstate['steps'][4]['status'] = 'error'
-                        pstate['steps'][4]['error'] = str(tts_e)[:4000]
-                        pstate['steps'][5]['status'] = 'error'
-                        pstate['steps'][5]['error'] = str(tts_e)[:4000]
-                        _persist(pstate)
-                        with engine.connect() as conn:
-                            conn.execute(
-                                text(
-                                    """
-                                UPDATE company_reports
-                                SET audio_status = 'failed', audio_error_msg = :e, audio_progress_json = NULL
-                                WHERE id = :rid
-                            """
-                                ),
-                                {'e': str(tts_e)[:8000], 'rid': report_id},
-                            )
-                            conn.commit()
-                        return
-
-                    # ✅ Audio generado: persistimos YA como completed, aunque luego falle el correo (tamaño adjunto, etc.)
-                    t_ok = datetime.utcnow().isoformat()
-                    pstate['steps'][4]['status'] = 'ok'
-                    pstate['steps'][4]['error'] = None
-                    pstate['steps'][5]['status'] = 'ok'
-                    pstate['steps'][5]['error'] = None
-                    pstate['steps'][6]['status'] = 'loading'
-                    pstate['steps'][6]['error'] = None
-                    _persist(pstate)
-
-                    with engine.connect() as conn:
-                        conn.execute(
-                            text(
-                                """
-                                UPDATE company_reports
-                                SET audio_status = 'completed',
-                                    audio_path = :path,
-                                    audio_error_msg = NULL,
-                                    audio_completed_at = :ac,
-                                    email_status = 'processing',
-                                    email_error_msg = NULL,
-                                    email_completed_at = NULL
-                                WHERE id = :rid
-                                """
-                            ),
-                            {
-                                'path': f'reports_audio/report_{report_id}.wav',
-                                'ac': t_ok,
-                                'rid': report_id,
-                            },
-                        )
-                        conn.commit()
-
-                    u = User.query.get(user_id)
-                    if not u or not u.email:
-                        pstate['steps'][6]['status'] = 'error'
-                        pstate['steps'][6]['error'] = 'Usuario sin email'
-                        _persist(pstate)
-                        with engine.connect() as conn:
-                            conn.execute(
-                                text(
-                                    """
-                                UPDATE company_reports
-                                SET audio_status = 'failed', audio_error_msg = 'Usuario sin email', audio_progress_json = NULL
-                                WHERE id = :rid
-                            """
-                                ),
-                                {'rid': report_id},
-                            )
-                            conn.commit()
-                        return
-
-                    try:
-                        send_report_email(
-                            user=u,
-                            asset_name=aname,
-                            report_title=report_template_title,
-                            email_body_markdown=summary_md_pl,
-                            audio_file_path=str(audio_path),
-                            full_report_markdown_for_pdf=content_dr or '',
-                        )
-                    except Exception as em_e:
-                        current_app.logger.exception('Correo en generate-deliver: %s', em_e)
-                        pstate['steps'][6]['status'] = 'error'
-                        pstate['steps'][6]['error'] = str(em_e)[:4000]
-                        _persist(pstate)
-                        with engine.connect() as conn:
-                            conn.execute(
-                                text(
-                                    """
-                                UPDATE company_reports
-                                SET email_status = 'failed', email_error_msg = :e, email_completed_at = NULL
-                                WHERE id = :rid
-                            """
-                                ),
-                                {'e': str(em_e)[:8000], 'rid': report_id},
-                            )
-                            conn.commit()
-                        return
-
-                    pstate['steps'][6]['status'] = 'ok'
-                    pstate['steps'][6]['error'] = None
-                    with engine.connect() as conn:
-                        conn.execute(
-                            text(
-                                """
-                            UPDATE company_reports
-                            SET email_status = 'completed', email_error_msg = NULL, email_completed_at = :ec,
-                                audio_progress_json = NULL
-                            WHERE id = :rid
-                        """
-                            ),
-                            {
-                                'ec': datetime.utcnow().isoformat(),
-                                'rid': report_id,
-                            },
-                        )
-                        conn.commit()
 
                 except GeminiServiceError as e:
                     try:
@@ -1807,6 +1618,7 @@ def asset_reports_list(id):
     if not _user_can_access_asset_reports(current_user.id, id):
         return jsonify({'error': 'No autorizado'}), 403
 
+    _maybe_expire_stale_full_delivery_tail()
     _maybe_expire_stale_audio_queued()
     pairs = _sorted_active_queue_rows()
     pos_by_id = {qid: i + 1 for i, (_k, qid) in enumerate(pairs)}
@@ -1823,6 +1635,8 @@ def asset_reports_list(id):
                 'id': r.id,
                 'status': r.status,
                 'audio_status': getattr(r, 'audio_status', None),
+                'delivery_mode': getattr(r, 'delivery_mode', None),
+                'delivery_phase_status': getattr(r, 'delivery_phase_status', None),
                 'template_title': r.template_title or f'Informe {r.id}',
                 'created_at': r.created_at.isoformat() if r.created_at else None,
                 'completed_at': r.completed_at.isoformat() if r.completed_at else None,
@@ -1852,6 +1666,7 @@ def asset_report_detail(id, report_id):
         return jsonify({'error': 'Informe no encontrado'}), 404
 
     _maybe_expire_stale_report(report)
+    _maybe_expire_stale_full_delivery_tail()
     _maybe_expire_stale_audio_queued()
     db.session.refresh(report)
 
@@ -1889,6 +1704,8 @@ def asset_report_detail(id, report_id):
         'email_status': getattr(report, 'email_status', None),
         'email_error_msg': getattr(report, 'email_error_msg', None),
         'email_completed_at': report.email_completed_at.isoformat() if getattr(report, 'email_completed_at', None) else None,
+        'delivery_mode': getattr(report, 'delivery_mode', None),
+        'delivery_phase_status': getattr(report, 'delivery_phase_status', None),
     })
 
 

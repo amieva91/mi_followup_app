@@ -241,6 +241,13 @@ def create_app(config_name='default'):
 
             recover_processing_reports_after_restart(app, app.logger)
             recover_stuck_pending_reports(app, app.logger)
+            from app.services.full_deliver_continuation import (
+                expire_stale_full_delivery_tails,
+                recover_stuck_full_delivery_tails,
+            )
+
+            expire_stale_full_delivery_tails(app.logger)
+            recover_stuck_full_delivery_tails(app)
         except Exception as ex:
             app.logger.warning('company_reports: recuperación al arranque omitida: %s', ex)
 
@@ -266,6 +273,42 @@ def create_app(config_name='default'):
             )
         else:
             print(f"OK: sin cola o sin actualización [cron price-poll-one {elapsed:.2f}s]")
+
+    @app.cli.command('company-report-clean-queues')
+    def company_report_clean_queues():
+        """
+        Marca como fallidos informes pending/processing, audios encolados y corta entregas todo-en-uno
+        a medias. Útil tras atascos en cola (ejecutar con la app configurada y backup de BD si procede).
+        """
+        from app.services.company_report_recovery import clean_company_report_queues
+
+        summary = clean_company_report_queues(app.logger)
+        print(summary)
+
+    @app.cli.command('company-report-resume-full-deliver')
+    @click.argument('report_id', type=int)
+    def company_report_resume_full_deliver(report_id):
+        """
+        Marca un informe ya completado (Deep Research) como pendiente de cola todo-en-uno
+        y programa resumen Flash, TTS y correo. Útil para filas antiguas sin ``delivery_mode``.
+        """
+        from app import db
+        from app.models.company_report import CompanyReport
+        from app.services.full_deliver_continuation import schedule_full_delivery_continuation
+
+        rid = int(report_id)
+        r = CompanyReport.query.filter_by(id=rid).first()
+        if not r:
+            print(f'No existe company_reports.id={rid}')
+            return
+        if (r.status or '') != 'completed' or not (r.content or '').strip():
+            print('El informe debe estar en estado completed con contenido no vacío.')
+            return
+        r.delivery_mode = 'full_deliver'
+        r.delivery_phase_status = 'processing'
+        db.session.commit()
+        schedule_full_delivery_continuation(app, rid)
+        print(f'Reanudación programada para report_id={rid}')
 
     @app.cli.command('benchmark-global-daily-once')
     def benchmark_global_daily_once():

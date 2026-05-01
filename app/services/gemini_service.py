@@ -1214,18 +1214,36 @@ def _persist_company_report_completed_resume(report_id: int, markdown: str) -> N
     """Persiste informe Deep Research completado (usado por reanudación tras reinicio del proceso)."""
     from datetime import datetime
 
+    from flask import current_app, has_app_context
+
     from app import db
     from app.models.company_report import CompanyReport
 
     r = CompanyReport.query.filter_by(id=report_id).first()
     if not r:
         return
+    is_full_deliver = getattr(r, 'delivery_mode', None) == 'full_deliver'
     r.status = 'completed'
     r.content = markdown
     r.error_msg = None
     r.completed_at = datetime.utcnow()
-    r.audio_progress_json = None
+    if not is_full_deliver:
+        r.audio_progress_json = None
+    else:
+        r.delivery_phase_status = 'processing'
     db.session.commit()
+
+    if is_full_deliver and has_app_context():
+        try:
+            app = current_app._get_current_object()
+            from app.services.full_deliver_continuation import schedule_full_delivery_continuation
+
+            schedule_full_delivery_continuation(app, int(report_id))
+        except Exception:
+            logger.exception(
+                'full_deliver: no se pudo programar la cola de entrega tras resume report_id=%s',
+                report_id,
+            )
 
 
 def _persist_company_report_failed_resume(report_id: int, msg: str) -> None:
