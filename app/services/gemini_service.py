@@ -63,7 +63,7 @@ def _get_tts_max_output_tokens() -> int:
             return max(8192, min(262144, int(str(raw).strip())))
         except ValueError:
             pass
-    return 131072
+    return 65536
 
 
 def _get_tts_synthesis_temperature() -> float:
@@ -1466,15 +1466,16 @@ def _strip_markdown_fences(text: str) -> str:
 PODCAST_SPEAKER_1 = 'Álex'
 PODCAST_SPEAKER_2 = 'Taylor'
 
-# Objetivo ~5 min audibles (español ~130–145 palabras/min). La API TTS admite mal salidas > unos minutos
-# si el guion es largo; Google recomienda fragmentar — nos quedamos en ≤750 palabras habladas antes de TTS.
+# Objetivo ~5 min audibles (español ~130–145 palabras/min). El modelo puede pasarse del objetivo;
+# el **techo de borrador** (900) da margen antes de forzar reducción; lo que entra a TTS queda en ≤750.
 PODCAST_SCRIPT_TARGET_MIN = 620
-PODCAST_SCRIPT_TARGET_MAX = 700
-PODCAST_HARD_MAX_WORDS = 750
-# Tres actos proporcionales (~700 palabras objetivo)
-PODCAST_ACT1_WORDS_GUIDE = 70
-PODCAST_ACT2_WORDS_GUIDE = 560
-PODCAST_ACT3_WORDS_GUIDE = 70
+PODCAST_SCRIPT_TARGET_MAX = 750
+PODCAST_FIRST_DRAFT_HARD_MAX_WORDS = 900
+PODCAST_TTS_MAX_WORDS = 750
+# Tres actos proporcionales (~objetivo 750 palabras)
+PODCAST_ACT1_WORDS_GUIDE = 75
+PODCAST_ACT2_WORDS_GUIDE = 600
+PODCAST_ACT3_WORDS_GUIDE = 75
 
 # Debe coincidir con nombres en el guion (TTS: Charon / Kore)
 PODCAST_TTS_VOICE_ALEX = 'Charon'  # voz masculina
@@ -1484,8 +1485,8 @@ PODCAST_TTS_VOICE_TAYLOR = 'Kore'  # voz femenina
 PODCAST_SCRIPT_PROMPT = f"""Eres guionista de diálogos de inversión. Convierte el informe de Deep Research adjunto en una conversación **solo entre {PODCAST_SPEAKER_1}** (hombre, voz informativa) y **{PODCAST_SPEAKER_2}** (mujer, voz clara/curiosa).
 
 **REGLAS DE ORO DE DURACIÓN (presupuesto de palabras):**
-1. **Límite estricto:** el guion debe situarse en **{PODCAST_SCRIPT_TARGET_MIN}–{PODCAST_SCRIPT_TARGET_MAX} palabras**. **Nunca** superes **{PODCAST_HARD_MAX_WORDS}** palabras (cuenta solo texto hablado, sin etiquetas entre corchetes).
-2. **Duración máxima audible objetivo: ≤ 5 minutos.** Ritmo ~130–145 palabras/minuto en español peninsular claro. No escribas más pensando en «luego lo recortamos».
+1. **Objetivo:** sitúa el guion en **{PODCAST_SCRIPT_TARGET_MIN}–{PODCAST_SCRIPT_TARGET_MAX}** palabras (texto hablado, sin corchetes). **Techo absoluto del borrador:** **{PODCAST_FIRST_DRAFT_HARD_MAX_WORDS}** palabras — no lo superes.
+2. **Duración máxima audible objetivo: ≤ 5 minutos.** Ritmo ~130–145 palabras/minuto en español peninsular claro. Apunta al rango objetivo, no al techo.
 3. **Tres actos (orientación):** Intro ~{PODCAST_ACT1_WORDS_GUIDE} p. / Cuerpo ~{PODCAST_ACT2_WORDS_GUIDE} p. (solo **3** hallazgos) / Cierre ~{PODCAST_ACT3_WORDS_GUIDE} p.
 
 **ESTRUCTURA DE DIÁLOGO (obligatoria):**
@@ -1520,19 +1521,19 @@ def _synthesis_reduce_script_for_tts(
     """
     from google.genai import types
 
-    if current_w <= PODCAST_HARD_MAX_WORDS:
+    if current_w <= PODCAST_TTS_MAX_WORDS:
         return script
     intro_hint = f'{PODCAST_SPEAKER_1}:'  # ancla mínima para el modelo
     resp = client.models.generate_content(
         model=model,
-        contents=f"""Este guion de podcast tiene **{current_w} palabras**; es **demasiado largo** para nuestro audio (máximo **{PODCAST_HARD_MAX_WORDS}** palabras antes de TTS, ideal **{PODCAST_SCRIPT_TARGET_MIN}–{PODCAST_SCRIPT_TARGET_MAX}**).
+        contents=f"""Este guion de podcast tiene **{current_w} palabras**; debe quedar en **≤{PODCAST_TTS_MAX_WORDS}** antes de la síntesis de voz (objetivo **{PODCAST_SCRIPT_TARGET_MIN}–{PODCAST_SCRIPT_TARGET_MAX}** palabras).
 
 Tarea: **reducción por síntesis** (no resumas borrando palabra a palabra a lo brusco):
 1. Mantén la **introducción** (aprox. las primeras intervenciones hasta plantear el tema) lo más fiel en tono, pero puedes ajustar frases.
 2. Mantén el **cierre final** (pregunta o reflexión de Taylor + respuesta muy breve de Álex, **menos de 5 palabras**), sin despedidas a audiencia ni nombre de programa.
 3. **Aplica el ahorro principal al bloque central:** resume o fusiona el **segundo** o **tercer** hallazgo, elimina matices secundarios, recorta oraciones que repitan el informe.
 4. Cada réplica: prefijo **{PODCAST_SPEAKER_1}:** o **{PODCAST_SPEAKER_2}:**. Sin [long pause].
-5. El resultado final debe quedar en **{PODCAST_SCRIPT_TARGET_MIN}–{PODCAST_SCRIPT_TARGET_MAX}** palabras y **nunca** superar **{PODCAST_HARD_MAX_WORDS}** (cuenta al terminar).
+5. El resultado final debe quedar en **{PODCAST_SCRIPT_TARGET_MIN}–{PODCAST_SCRIPT_TARGET_MAX}** palabras y **nunca** superar **{PODCAST_TTS_MAX_WORDS}** (cuenta al terminar).
 
 Ancla mínima de apertura (puede variar ligeramente): la primera intervención debería seguir comenzando con algo como una línea que empiece por «{intro_hint}».
 
@@ -1596,29 +1597,30 @@ def _truncate_script_at_speaker_lines(script: str, max_words: int) -> str:
 
 def _ensure_script_ready_for_tts(client, script: str, model: str) -> str:
     """
-    Solo se envía a TTS si el guion tiene ≤ ``PODCAST_HARD_MAX_WORDS`` palabras habladas.
-    Si el borrador inicial supera ese tope, se aplica **reducción por síntesis** (varias pasadas).
-    El truncado mecánico es solo emergencia (no deseado).
+    Objetivo: ≤ ``PODCAST_TTS_MAX_WORDS`` (750) palabras habladas antes de TTS.
+    El borrador puede llegar hasta ~``PODCAST_FIRST_DRAFT_HARD_MAX_WORDS`` (900); si sigue por encima
+    de 750, se aplica **reducción por síntesis** (varias pasadas). El truncado mecánico es emergencia.
     """
     s = script
     for attempt in range(5):
         n = _count_script_words_for_budget(s)
-        if n <= PODCAST_HARD_MAX_WORDS:
+        if n <= PODCAST_TTS_MAX_WORDS:
             return s
         logger.info(
-            'Guion %s palabras (presupuesto) > límite %s; reducción por síntesis (intento %s)',
+            'Guion %s palabras (presupuesto) > límite TTS %s; reducción por síntesis (intento %s)',
             n,
-            PODCAST_HARD_MAX_WORDS,
+            PODCAST_TTS_MAX_WORDS,
             attempt + 1,
         )
         s = _synthesis_reduce_script_for_tts(client, s, model, n)
     n = _count_script_words_for_budget(s)
-    if n > PODCAST_HARD_MAX_WORDS:
+    if n > PODCAST_TTS_MAX_WORDS:
         logger.error(
-            'Guion aún con %s palabras (presupuesto) tras síntesis; truncado de emergencia',
+            'Guion aún con %s palabras (presupuesto) tras síntesis; truncado de emergencia a %s',
             n,
+            PODCAST_TTS_MAX_WORDS,
         )
-        s = _truncate_script_at_speaker_lines(s, PODCAST_HARD_MAX_WORDS)
+        s = _truncate_script_at_speaker_lines(s, PODCAST_TTS_MAX_WORDS)
     return s
 
 
@@ -1932,7 +1934,7 @@ def new_audio_progress_steps_state() -> list:
     return [
         {
             'id': 'script',
-            'title': 'Guion 3 actos (≤750 palabras, ~5 min, estilo NotebookLM)',
+            'title': 'Guion 3 actos (obj. ~750 pal., máx. borrador 900, ~5 min)',
             'status': 'loading',
             'model': _get_model_podcast_script(),
             'error': None,
@@ -1964,7 +1966,7 @@ def new_full_pipeline_progress_state() -> dict:
         + [
             {
                 'id': 'script',
-                'title': 'Guion 3 actos (≤750 palabras, ~5 min, estilo NotebookLM)',
+                'title': 'Guion 3 actos (obj. ~750 pal., máx. borrador 900, ~5 min)',
                 'status': 'pending',
                 'model': _get_model_podcast_script(),
                 'error': None,
@@ -2013,7 +2015,7 @@ def generate_report_tts_audio(
     """
     Genera un audio resumen estilo "NotebookLM": dos locutores en conversación (Álex y Taylor).
 
-    1) Guion con **presupuesto corto** (~620–700 palabras habladas, techo 750; audible objetivo ≤ ~5 min):
+    1) Guion con **objetivo ~620–750** palabras habladas (techo de borrador 900 antes de compactar a ≤750 para TTS; audible ≤ ~5 min):
        temperatura configurable (``GEMINI_PODCAST_SCRIPT_TEMPERATURE``, p. ej. 0,82). Si el borrador
        supera el techo, **reducción por síntesis** (no recorte brusco por defecto).
     2) ``gemini-3.1-flash-tts-preview`` con ``MultiSpeakerVoiceConfig``: **Charon (Álex)** y
