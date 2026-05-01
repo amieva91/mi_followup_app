@@ -85,24 +85,49 @@ def expire_stale_audio_queued_rows(app_logger=None) -> int:
         return 0
 
 
+def _stale_queue_grace_seconds() -> int:
+    """
+    Margen extra para el reloj de «informe demasiado viejo»: tiempo posible en cola global
+    (fair lock) antes de que Deep Research empiece de verdad. Sin esto, ``created_at`` antiguo
+    + ~1 h de espera en ``pending`` hace que al pasar a ``processing`` se dispare un falso
+    ``_MSG_TIMEOUT_STALE`` en minutos.
+    """
+    try:
+        return max(0, int(str(os.environ.get('GEMINI_DR_STALE_QUEUE_GRACE_SECONDS', '7200')).strip()))
+    except ValueError:
+        return 7200
+
+
 def expire_company_report_if_stale(report) -> bool:
     """
-    Si el informe lleva demasiado en ``pending``/``processing`` respecto a la fecha de creación,
-    marca ``failed`` y hace commit. Devuelve True si hubo cambio persistido.
+    Si el informe lleva demasiado en ``processing`` respecto al reloj de encolado/creación,
+    marca ``failed`` (bloqueo silencioso probable en Gemini). No aplica a ``pending``: ese estado
+    incluye espera legítima por el lock global, no consumo de presupuesto Deep Research.
     """
     from app import db
     from app.services.gemini_service import _get_deep_research_max_wait_seconds
 
     if report.status not in ('pending', 'processing'):
         return False
-    born = report.created_at
-    if not born:
+    if report.status == 'pending':
         return False
+    created = report.created_at
+    if not created:
+        return False
+    enq = getattr(report, 'report_enqueued_at', None)
+    clock_start = max(created, enq) if enq else created
     max_sec = _get_deep_research_max_wait_seconds()
     grace = 180
-    threshold = datetime.utcnow() - timedelta(seconds=max_sec + grace)
-    if not (born < threshold):
+    qgrace = _stale_queue_grace_seconds()
+    threshold = datetime.utcnow() - timedelta(seconds=max_sec + grace + qgrace)
+    if not (clock_start < threshold):
         return False
+    logger.info(
+        'company_reports: expire stale timeout report_id=%s clock_start=%s threshold_budget_s=%s',
+        getattr(report, 'id', None),
+        clock_start,
+        max_sec + grace + qgrace,
+    )
     report.status = 'failed'
     report.error_msg = _MSG_TIMEOUT_STALE
     report.completed_at = datetime.utcnow()
