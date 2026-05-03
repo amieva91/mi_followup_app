@@ -1,8 +1,19 @@
 """
 Modelo de Watchlist (Lista de seguimiento de assets)
 """
+import json
 from datetime import datetime, date
 from app import db
+
+
+# Campos manuales editables / rellenables por IA (mismo orden que en rutas y plantillas)
+WATCHLIST_MANUAL_FIELD_KEYS = (
+    "next_earnings_date",
+    "per_ntm",
+    "ntm_dividend_yield",
+    "eps",
+    "cagr_revenue_yoy",
+)
 
 
 class Watchlist(db.Model):
@@ -21,6 +32,9 @@ class Watchlist(db.Model):
     ntm_dividend_yield = db.Column(db.Float)  # NTM Dividend Yield (%)
     eps = db.Column(db.Float)  # Earnings Per Share
     cagr_revenue_yoy = db.Column(db.Float)  # CAGR Revenue YoY (%)
+
+    # Origen por campo manual: "user" | "ai" | omitido (null en BD = sin marcar / vacío tras reset)
+    manual_field_sources = db.Column(db.JSON, nullable=True)
     
     # Campos calculados/caché (se actualizan automáticamente)
     operativa_indicator = db.Column(db.String(10))  # BUY, SELL, HOLD, o "-" (default)
@@ -47,6 +61,57 @@ class Watchlist(db.Model):
     
     def __repr__(self):
         return f"Watchlist(user_id={self.user_id}, asset_id={self.asset_id})"
+
+    def get_manual_field_sources_dict(self) -> dict:
+        raw = self.manual_field_sources
+        if not raw:
+            return {}
+        if isinstance(raw, dict):
+            base = dict(raw)
+        else:
+            try:
+                base = json.loads(raw) if isinstance(raw, str) else {}
+            except (json.JSONDecodeError, TypeError):
+                base = {}
+        return {k: base[k] for k in WATCHLIST_MANUAL_FIELD_KEYS if k in base and base[k] is not None}
+
+    def get_manual_field_source(self, field: str):
+        if field not in WATCHLIST_MANUAL_FIELD_KEYS:
+            return None
+        return self.get_manual_field_sources_dict().get(field)
+
+    def merge_manual_field_sources(self, updates: dict):
+        cur = self.get_manual_field_sources_dict()
+        for k in WATCHLIST_MANUAL_FIELD_KEYS:
+            if k not in updates:
+                continue
+            val = updates[k]
+            if val is None:
+                cur.pop(k, None)
+            else:
+                cur[k] = val
+        self.manual_field_sources = cur if cur else None
+
+
+class WatchlistAiJob(db.Model):
+    """
+    Progreso de un lote Deep Research + extracción watchlist (un usuario, serie de assets).
+    """
+
+    __tablename__ = "watchlist_ai_jobs"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    status = db.Column(db.String(20), nullable=False, default="running")  # running|completed|failed
+    total = db.Column(db.Integer, nullable=False, default=0)
+    completed_count = db.Column(db.Integer, nullable=False, default=0)
+    current_asset_id = db.Column(db.Integer, db.ForeignKey("assets.id", ondelete="SET NULL"), nullable=True)
+    current_asset_label = db.Column(db.String(200), nullable=True)
+    error_message = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    user = db.relationship("User", backref=db.backref("watchlist_ai_jobs", lazy=True))
 
 
 class WatchlistConfig(db.Model):

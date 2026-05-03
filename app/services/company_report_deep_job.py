@@ -39,6 +39,7 @@ def run_company_report_deep_research_job(
     description,
     points,
     extra_prompt_suffix=None,
+    post_watchlist_extract=False,
 ):
     """
     Hilo: actualiza un CompanyReport (pending → processing → completed/failed).
@@ -115,6 +116,18 @@ def run_company_report_deep_research_job(
             error_val = content if status == 'failed' else None
             _update_status(status, content_val=content_val, error_val=error_val)
 
+            if status == 'completed' and post_watchlist_extract and content_val:
+                try:
+                    from app.services.watchlist_report_extract_service import (
+                        try_apply_report_to_watchlist,
+                    )
+
+                    try_apply_report_to_watchlist(user_id, asset_id, content_val)
+                except Exception as ex:
+                    logger.exception(
+                        "post_watchlist_extract falló asset_id=%s: %s", asset_id, ex
+                    )
+
             if status == 'completed':
                 with engine.connect() as conn:
                     cnt = conn.execute(
@@ -174,30 +187,83 @@ def start_company_report_background_thread(
             'description': description,
             'points': points,
             'extra_prompt_suffix': extra_prompt_suffix,
+            'post_watchlist_extract': False,
         },
         daemon=True,
     )
     t.start()
 
 
-def start_watchlist_batch_reports_thread(app, jobs):
+def start_watchlist_batch_reports_thread(app, job_id, jobs):
     """
     Varios informes en un solo hilo, en serie (menos carga en API Gemini).
+    Actualiza WatchlistAiJob para progreso en UI.
 
     jobs: lista de dicts con keys report_id, user_id, asset_id, description, points
     """
     import threading
 
     def worker():
-        for job in jobs:
-            run_company_report_deep_research_job(
-                app,
-                job['report_id'],
-                job['user_id'],
-                job['asset_id'],
-                job['description'],
-                job['points'],
-                extra_prompt_suffix=WATCHLIST_MANUAL_FIELDS_PROMPT,
-            )
+        with app.app_context():
+            from app import db
+            from app.models import Asset, WatchlistAiJob
+
+            job_row = WatchlistAiJob.query.get(job_id)
+            if not job_row:
+                return
+            total = len(jobs)
+            job_row.total = total
+            job_row.completed_count = 0
+            job_row.status = "running"
+            job_row.error_message = None
+            job_row.updated_at = datetime.utcnow()
+            db.session.commit()
+
+            try:
+                for idx, job in enumerate(jobs):
+                    aid = job["asset_id"]
+                    asset = Asset.query.get(aid)
+                    label = (
+                        (asset.name or asset.symbol or str(aid))[:200]
+                        if asset
+                        else str(aid)
+                    )
+                    job_row.current_asset_id = aid
+                    job_row.current_asset_label = label
+                    job_row.completed_count = idx
+                    job_row.updated_at = datetime.utcnow()
+                    db.session.commit()
+
+                    run_company_report_deep_research_job(
+                        app,
+                        job["report_id"],
+                        job["user_id"],
+                        aid,
+                        job["description"],
+                        job["points"],
+                        extra_prompt_suffix=WATCHLIST_MANUAL_FIELDS_PROMPT,
+                        post_watchlist_extract=True,
+                    )
+
+                    job_row.completed_count = idx + 1
+                    job_row.updated_at = datetime.utcnow()
+                    db.session.commit()
+
+                job_row.status = "completed"
+                job_row.current_asset_id = None
+                job_row.current_asset_label = None
+                job_row.updated_at = datetime.utcnow()
+                db.session.commit()
+            except Exception as e:
+                logger.exception("watchlist batch job %s: %s", job_id, e)
+                try:
+                    job_row = WatchlistAiJob.query.get(job_id)
+                    if job_row:
+                        job_row.status = "failed"
+                        job_row.error_message = str(e)[:2000]
+                        job_row.updated_at = datetime.utcnow()
+                        db.session.commit()
+                except Exception:
+                    pass
 
     threading.Thread(target=worker, daemon=True).start()

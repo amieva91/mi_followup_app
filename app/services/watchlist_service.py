@@ -80,6 +80,8 @@ class WatchlistService:
         
         # Aplicar datos manuales si se proporcionan
         if datos_manuales:
+            from app.models.watchlist import WATCHLIST_MANUAL_FIELD_KEYS
+
             if 'next_earnings_date' in datos_manuales:
                 watchlist_item.next_earnings_date = datos_manuales['next_earnings_date']
             if 'per_ntm' in datos_manuales:
@@ -90,7 +92,18 @@ class WatchlistService:
                 watchlist_item.eps = datos_manuales['eps']
             if 'cagr_revenue_yoy' in datos_manuales:
                 watchlist_item.cagr_revenue_yoy = datos_manuales['cagr_revenue_yoy']
-        
+            src_updates = {}
+            for k in WATCHLIST_MANUAL_FIELD_KEYS:
+                if k not in datos_manuales:
+                    continue
+                v = datos_manuales.get(k)
+                if v in (None, ''):
+                    src_updates[k] = None
+                else:
+                    src_updates[k] = 'user'
+            if src_updates:
+                watchlist_item.merge_manual_field_sources(src_updates)
+
         db.session.add(watchlist_item)
         db.session.commit()
         

@@ -16,7 +16,7 @@ from app.models.metrics_cache import MetricsCache
 from app.models.dashboard_summary_cache import DashboardSummaryCache
 from app.models.portfolio_evolution_cache import PortfolioEvolutionCache
 from app.models.portfolio_benchmarks_cache import PortfolioBenchmarksCache
-from app.models.watchlist import Watchlist, WatchlistConfig
+from app.models.watchlist import Watchlist, WatchlistAiJob, WatchlistConfig
 from app.models.company_report import ReportSettings, ReportTemplate, CompanyReport, AssetAboutSummary
 from app.models.debt_plan import DebtPlan
 from app.models.real_estate import RealEstateProperty, PropertyValuation, PROPERTY_TYPES, PROPERTY_ICONS, get_property_icon
@@ -52,6 +52,7 @@ __all__ = [
     'PortfolioEvolutionCache',
     'PortfolioBenchmarksCache',
     'Watchlist',
+    'WatchlistAiJob',
     'WatchlistConfig',
     'ReportSettings',
     'ReportTemplate',

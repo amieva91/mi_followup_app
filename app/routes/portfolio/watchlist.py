@@ -518,11 +518,11 @@ def watchlist_update(watchlist_id):
     try:
         from app.services.watchlist_service import WatchlistService
         
-        data = request.get_json()
-        
+        data = request.get_json() or {}
+
         # Debug: Log de datos recibidos
         print(f"DEBUG watchlist_update: Datos recibidos: {data}")
-        
+
         # Filtrar solo campos permitidos y convertir a float si es necesario
         allowed_fields = ['next_earnings_date', 'per_ntm', 'ntm_dividend_yield', 'eps', 'cagr_revenue_yoy']
         update_data = {}
@@ -551,6 +551,18 @@ def watchlist_update(watchlist_id):
         # Verificar que pertenece al usuario actual
         if watchlist_item.user_id != current_user.id:
             return jsonify({'success': False, 'error': 'No autorizado'}), 403
+
+        source_updates = {}
+        for k in allowed_fields:
+            if k not in data:
+                continue
+            raw = data.get(k)
+            if raw in (None, ''):
+                source_updates[k] = None
+            else:
+                source_updates[k] = 'user'
+        if source_updates:
+            watchlist_item.merge_manual_field_sources(source_updates)
         
         # Obtener current_value_eur si el asset está en cartera
         current_value_eur = None
@@ -713,6 +725,7 @@ def watchlist_reports_generate_all():
         from flask import current_app
 
         from app.models import CompanyReport, ReportTemplate
+        from app.models.watchlist import WatchlistAiJob
         from app.services.company_report_deep_job import start_watchlist_batch_reports_thread
         from app.services.gemini_service import is_gemini_available
 
@@ -732,6 +745,17 @@ def watchlist_reports_generate_all():
         if not template.has_valid_description():
             return jsonify({'success': False, 'error': 'La plantilla debe tener descripción'}), 400
 
+        busy = WatchlistAiJob.query.filter_by(
+            user_id=current_user.id, status='running'
+        ).first()
+        if busy:
+            return jsonify(
+                {
+                    'success': False,
+                    'error': 'Ya hay un lote de informes IA en ejecución. Espera a que termine.',
+                }
+            ), 409
+
         rows = Watchlist.query.filter_by(user_id=current_user.id).order_by(Watchlist.asset_id).all()
         asset_ids = list(dict.fromkeys(r.asset_id for r in rows))
         if not asset_ids:
@@ -741,6 +765,15 @@ def watchlist_reports_generate_all():
         points = template.get_points_list()
         user_id = current_user.id
         app = current_app._get_current_object()
+
+        job_row = WatchlistAiJob(
+            user_id=user_id,
+            status='running',
+            total=len(asset_ids),
+            completed_count=0,
+        )
+        db.session.add(job_row)
+        db.session.flush()
 
         jobs = []
         for aid in asset_ids:
@@ -764,11 +797,12 @@ def watchlist_reports_generate_all():
             )
         db.session.commit()
 
-        start_watchlist_batch_reports_thread(app, jobs)
+        start_watchlist_batch_reports_thread(app, job_row.id, jobs)
 
         return jsonify(
             {
                 'success': True,
+                'job_id': job_row.id,
                 'queued': len(jobs),
                 'report_ids': [j['report_id'] for j in jobs],
                 'message': (
@@ -782,4 +816,71 @@ def watchlist_reports_generate_all():
 
         db.session.rollback()
         traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@portfolio_bp.route('/watchlist/ai-job/<int:job_id>/status')
+@login_required
+def watchlist_ai_job_status(job_id):
+    """Progreso del lote Deep Research + extracción watchlist."""
+    from app.models.watchlist import WatchlistAiJob
+
+    job = WatchlistAiJob.query.filter_by(id=job_id, user_id=current_user.id).first()
+    if not job:
+        return jsonify({'error': 'No encontrado'}), 404
+    return jsonify(
+        {
+            'id': job.id,
+            'status': job.status,
+            'total': job.total,
+            'completed_count': job.completed_count,
+            'current_asset_id': job.current_asset_id,
+            'current_asset_label': job.current_asset_label or '',
+            'error_message': job.error_message,
+        }
+    )
+
+
+@portfolio_bp.route('/watchlist/<int:watchlist_id>/reset-manual-fields', methods=['POST'])
+@login_required
+@csrf.exempt
+def watchlist_reset_manual_fields(watchlist_id):
+    """Borra los 5 campos manuales y el origen (usuario/IA) para poder volver a rellenar."""
+    try:
+        from app.services.watchlist_metrics_service import WatchlistMetricsService
+        from app.services.watchlist_service import WatchlistService
+
+        wl = Watchlist.query.get(watchlist_id)
+        if not wl or wl.user_id != current_user.id:
+            return jsonify({'success': False, 'error': 'No encontrado o no autorizado'}), 404
+
+        wl.next_earnings_date = None
+        wl.per_ntm = None
+        wl.ntm_dividend_yield = None
+        wl.eps = None
+        wl.cagr_revenue_yoy = None
+        wl.manual_field_sources = None
+
+        config = WatchlistService.get_or_create_config(current_user.id)
+        current_value_eur = None
+        holding = PortfolioHolding.query.filter_by(
+            user_id=current_user.id, asset_id=wl.asset_id
+        ).filter(PortfolioHolding.quantity > 0).first()
+        if holding:
+            cost_eur = convert_to_eur(holding.total_cost, holding.asset.currency)
+            if holding.asset.current_price:
+                current_value_local = holding.quantity * holding.asset.current_price
+                current_value_eur = convert_to_eur(
+                    current_value_local, holding.asset.currency
+                )
+            else:
+                current_value_eur = cost_eur
+
+        WatchlistMetricsService.update_all_metrics(
+            wl, config, current_value_eur=current_value_eur
+        )
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Campos manuales reiniciados'})
+    except Exception as e:
+        db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500

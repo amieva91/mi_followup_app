@@ -62,6 +62,31 @@
         justify-content: space-between;
         gap: 0.5rem;
     }
+    /* Origen manual: usuario vs IA */
+    #portfolio-watch .watchlist-val-ai { color: #075985; font-style: italic; }
+    #portfolio-watch .watchlist-val-user { color: #0f172a; font-weight: 600; }
+    #watchlistJobBanner {
+        display: none;
+        align-items: center;
+        gap: 0.65rem;
+        padding: 0.65rem 1rem;
+        border-radius: 0.85rem;
+        border: 1px solid rgba(14, 116, 144, 0.35);
+        background: linear-gradient(135deg, #ecfeff 0%, #cffafe 100%);
+        color: #0c4a6e;
+        font-size: 0.875rem;
+        margin-bottom: 1rem;
+    }
+    #watchlistJobBanner.is-visible { display: flex; }
+    #watchlistJobBanner .wl-job-pulse {
+        width: 0.5rem; height: 0.5rem; border-radius: 9999px;
+        background: #0d9488;
+        animation: wlPulse 1.2s ease-in-out infinite;
+    }
+    @keyframes wlPulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.45; transform: scale(0.85); }
+    }
 </style>
 <div id="portfolio-watch" class="max-w-[98%] mx-auto px-3 sm:px-4 py-8">
     <!-- Toast Notification Container -->
@@ -100,6 +125,11 @@
                 Añadir Asset
             </button>
         </div>
+    </div>
+
+    <div id="watchlistJobBanner" role="status" aria-live="polite">
+        <span class="wl-job-pulse" aria-hidden="true"></span>
+        <span id="watchlistJobBannerText">Procesando informes IA…</span>
     </div>
 
     {% if table_data %}
@@ -223,14 +253,16 @@
                         <td class="px-4 py-3 whitespace-nowrap" data-sort-value="{% if watchlist_item and watchlist_item.next_earnings_date %}{{ watchlist_item.next_earnings_date.strftime('%Y%m%d') }}{% else %}99999999{% endif %}">
                             {% if watchlist_item and watchlist_item.next_earnings_date %}
                                 {% set earnings_date = watchlist_item.next_earnings_date %}
+                                {% set src_ed = watchlist_item.get_manual_field_source('next_earnings_date') %}
+                                {% set src_ed_cls = ' watchlist-val-ai' if src_ed == 'ai' else (' watchlist-val-user' if src_ed == 'user' else '') %}
                                 {% set days_diff = (earnings_date - today).days %}
                                 {% set yellow_days = color_thresholds.fecha_resultados.yellow_days if color_thresholds and color_thresholds.fecha_resultados and color_thresholds.fecha_resultados.yellow_days else 15 %}
                                 {% if days_diff > 0 %}
-                                    <span class="text-sm text-green-600 font-medium">{{ earnings_date.strftime('%Y-%m-%d') }}</span>
+                                    <span class="text-sm text-green-600 font-medium{{ src_ed_cls }}">{{ earnings_date.strftime('%Y-%m-%d') }}</span>
                                 {% elif days_diff >= -yellow_days %}
-                                    <span class="text-sm text-yellow-600 font-medium">{{ earnings_date.strftime('%Y-%m-%d') }}</span>
+                                    <span class="text-sm text-yellow-600 font-medium{{ src_ed_cls }}">{{ earnings_date.strftime('%Y-%m-%d') }}</span>
                                 {% else %}
-                                    <span class="text-sm text-red-600 font-medium">{{ earnings_date.strftime('%Y-%m-%d') }}</span>
+                                    <span class="text-sm text-red-600 font-medium{{ src_ed_cls }}">{{ earnings_date.strftime('%Y-%m-%d') }}</span>
                                 {% endif %}
                             {% else %}
                                 <span class="text-xs text-gray-400">—</span>
@@ -471,7 +503,8 @@
                         <!-- PER o NTM P/E -->
                         <td class="px-4 py-3 whitespace-nowrap text-right">
                             {% if watchlist_item and watchlist_item.per_ntm is not none %}
-                                <span class="text-sm text-gray-900">{{ watchlist_item.per_ntm|decimal_eu(2) }}</span>
+                                {% set src_per = watchlist_item.get_manual_field_source('per_ntm') %}
+                                <span class="text-sm text-gray-900{% if src_per == 'ai' %} watchlist-val-ai{% elif src_per == 'user' %} watchlist-val-user{% endif %}">{{ watchlist_item.per_ntm|decimal_eu(2) }}</span>
                             {% else %}
                                 <span class="text-xs text-gray-400">—</span>
                             {% endif %}
@@ -480,7 +513,8 @@
                         <!-- NTM Dividend Yield (%) -->
                         <td class="px-4 py-3 whitespace-nowrap text-right">
                             {% if watchlist_item and watchlist_item.ntm_dividend_yield is not none %}
-                                <span class="text-sm text-gray-900">{{ watchlist_item.ntm_dividend_yield|decimal_eu(2) }}%</span>
+                                {% set src_dy = watchlist_item.get_manual_field_source('ntm_dividend_yield') %}
+                                <span class="text-sm text-gray-900{% if src_dy == 'ai' %} watchlist-val-ai{% elif src_dy == 'user' %} watchlist-val-user{% endif %}">{{ watchlist_item.ntm_dividend_yield|decimal_eu(2) }}%</span>
                             {% else %}
                                 <span class="text-xs text-gray-400">—</span>
                             {% endif %}
@@ -489,7 +523,8 @@
                         <!-- EPS -->
                         <td class="px-4 py-3 whitespace-nowrap text-right">
                             {% if watchlist_item and watchlist_item.eps is not none %}
-                                <span class="text-sm text-gray-900">{{ watchlist_item.eps|decimal_eu(2) }}</span>
+                                {% set src_eps = watchlist_item.get_manual_field_source('eps') %}
+                                <span class="text-sm text-gray-900{% if src_eps == 'ai' %} watchlist-val-ai{% elif src_eps == 'user' %} watchlist-val-user{% endif %}">{{ watchlist_item.eps|decimal_eu(2) }}</span>
                             {% else %}
                                 <span class="text-xs text-gray-400">—</span>
                             {% endif %}
@@ -498,7 +533,8 @@
                         <!-- CAGR Revenue YoY (%) -->
                         <td class="px-4 py-3 whitespace-nowrap text-right">
                             {% if watchlist_item and watchlist_item.cagr_revenue_yoy is not none %}
-                                <span class="text-sm text-gray-900">{{ watchlist_item.cagr_revenue_yoy|decimal_eu(2) }}%</span>
+                                {% set src_cagr = watchlist_item.get_manual_field_source('cagr_revenue_yoy') %}
+                                <span class="text-sm text-gray-900{% if src_cagr == 'ai' %} watchlist-val-ai{% elif src_cagr == 'user' %} watchlist-val-user{% endif %}">{{ watchlist_item.cagr_revenue_yoy|decimal_eu(2) }}%</span>
                             {% else %}
                                 <span class="text-xs text-gray-400">—</span>
                             {% endif %}
@@ -508,6 +544,7 @@
                         <td class="px-4 py-3 whitespace-nowrap text-center">
                             {% if watchlist_item %}
                             <div class="flex items-center justify-center gap-2">
+                                <button type="button" onclick="resetWatchlistManualFields({{ watchlist_item.id }})" class="text-amber-600 hover:text-amber-800 text-sm" title="Borrar los 5 datos manuales (origen usuario o IA)">⟲</button>
                                 <button onclick="editWatchlistItem({{ watchlist_item.id }}, {{ asset.id }})" class="text-blue-600 hover:text-blue-800 text-sm" title="Editar">
                                     ✏️
                                 </button>
@@ -1617,6 +1654,96 @@ function closeSettingsModal() {
     document.body.style.overflow = '';
 }
 
+let watchlistJobPollTimer = null;
+
+function showWatchlistJobBanner(visible) {
+    const b = document.getElementById('watchlistJobBanner');
+    if (!b) return;
+    if (visible) b.classList.add('is-visible');
+    else b.classList.remove('is-visible');
+}
+
+function stopWatchlistJobPoll() {
+    if (watchlistJobPollTimer) {
+        clearInterval(watchlistJobPollTimer);
+        watchlistJobPollTimer = null;
+    }
+}
+
+function startWatchlistJobPoll(jobId) {
+    if (!jobId) return;
+    const ssKey = 'watchlistAiJobLastCc:' + jobId;
+    let lastSeen = parseInt(sessionStorage.getItem(ssKey) || '-1', 10);
+    sessionStorage.setItem('watchlistAiJobId', String(jobId));
+    stopWatchlistJobPoll();
+    showWatchlistJobBanner(true);
+    const tick = async () => {
+        try {
+            const r = await fetch('/portfolio/watchlist/ai-job/' + jobId + '/status');
+            if (!r.ok) return;
+            const d = await r.json();
+            const label = (d.current_asset_label || '').trim() || '(inicio)';
+            const cur = typeof d.completed_count === 'number' ? d.completed_count : 0;
+            const tot = typeof d.total === 'number' ? d.total : '?';
+            const el = document.getElementById('watchlistJobBannerText');
+            if (el) {
+                if (d.status === 'running') {
+                    el.textContent = 'Informes IA: ' + cur + '/' + tot + ' — ahora: ' + label;
+                } else if (d.status === 'completed') {
+                    el.textContent = 'Informes IA completados. Actualizando…';
+                } else if (d.status === 'failed') {
+                    el.textContent = 'Informes IA: error — ' + (d.error_message || '');
+                }
+            }
+            if (d.status === 'running' && cur > lastSeen) {
+                lastSeen = cur;
+                sessionStorage.setItem(ssKey, String(lastSeen));
+                if (cur >= 1) {
+                    location.reload();
+                    return;
+                }
+            }
+            if (d.status === 'completed' || d.status === 'failed') {
+                stopWatchlistJobPoll();
+                sessionStorage.removeItem('watchlistAiJobId');
+                sessionStorage.removeItem(ssKey);
+                if (d.status === 'completed') {
+                    setTimeout(function () { location.reload(); }, 500);
+                } else {
+                    showWatchlistJobBanner(false);
+                }
+            }
+        } catch (e) { /* silencio */ }
+    };
+    tick();
+    watchlistJobPollTimer = setInterval(tick, 2500);
+}
+
+async function resetWatchlistManualFields(watchlistId) {
+    showConfirmModal(
+        'Reiniciar datos manuales',
+        '¿Borrar los cinco campos (fecha resultados, PER, dividend yield NTM, EPS, CAGR) y sus orígenes (usuario o IA)?',
+        async function () {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+            try {
+                const response = await fetch('/portfolio/watchlist/' + watchlistId + '/reset-manual-fields', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken }
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showToast('Campos reiniciados', 'success');
+                    setTimeout(function () { location.reload(); }, 400);
+                } else {
+                    showToast('Error: ' + (data.error || ''), 'error');
+                }
+            } catch (error) {
+                showToast('Error de conexión: ' + error.message, 'error');
+            }
+        }
+    );
+}
+
 // Deep Research para toda la watchlist (plantilla única, cola en serie en el servidor)
 function showGenerateReportModal() {
     document.getElementById('generateReportModal').classList.remove('hidden');
@@ -1642,9 +1769,13 @@ async function confirmGenerateReportFromWatchlist() {
         if (data.success) {
             const n = typeof data.queued === 'number' ? data.queued : '';
             showToast(
-                (n !== '' ? `${n} informe(s) en cola. ` : '') + 'Puede tardar bastante (serie). Revisa Informes en cada ficha de asset.',
+                (n !== '' ? n + ' informe(s) en cola. ' : '') + 'Progreso arriba; la tabla se refresca al completar cada activo.',
                 'success'
             );
+            if (data.job_id) {
+                sessionStorage.removeItem('watchlistAiJobLastCc:' + data.job_id);
+                startWatchlistJobPoll(data.job_id);
+            }
         } else {
             showToast('Error: ' + (data.error || 'Error desconocido'), 'error');
         }
@@ -1746,9 +1877,12 @@ function sortTable(columnIndex, type) {
 
 // Ordenar por fecha por defecto al cargar
 document.addEventListener('DOMContentLoaded', function() {
-    // Ordenar por columna 1 (Fecha próximos resultados) en orden descendente
     sortDirection[1] = 'desc';
     sortTable(1, 'date');
+    const jid = sessionStorage.getItem('watchlistAiJobId');
+    if (jid) {
+        startWatchlistJobPoll(parseInt(jid, 10));
+    }
 });
 </script>
 
