@@ -698,3 +698,88 @@ def watchlist_update_prices():
         print(f"Error en watchlist_update_prices: {str(e)}")
         print(traceback.format_exc())
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@portfolio_bp.route('/watchlist/reports/generate-all', methods=['POST'])
+@login_required
+@csrf.exempt
+def watchlist_reports_generate_all():
+    """
+    Deep Research para todos los assets de la watchlist del usuario.
+    Los informes se procesan en serie (un solo hilo) para no saturar la API de Gemini.
+    El prompt incluye el esquema de campos manuales de la watchlist.
+    """
+    try:
+        from flask import current_app
+
+        from app.models import CompanyReport, ReportTemplate
+        from app.services.company_report_deep_job import start_watchlist_batch_reports_thread
+        from app.services.gemini_service import is_gemini_available
+
+        if not is_gemini_available():
+            return jsonify({'success': False, 'error': 'GEMINI_API_KEY no configurada'}), 503
+
+        data = request.get_json() or {}
+        template_id = data.get('template_id')
+        if not template_id:
+            return jsonify({'success': False, 'error': 'Selecciona una plantilla'}), 400
+
+        template = ReportTemplate.query.filter_by(
+            id=template_id, user_id=current_user.id
+        ).first()
+        if not template:
+            return jsonify({'success': False, 'error': 'Plantilla no encontrada'}), 404
+        if not template.has_valid_description():
+            return jsonify({'success': False, 'error': 'La plantilla debe tener descripción'}), 400
+
+        rows = Watchlist.query.filter_by(user_id=current_user.id).order_by(Watchlist.asset_id).all()
+        asset_ids = list(dict.fromkeys(r.asset_id for r in rows))
+        if not asset_ids:
+            return jsonify({'success': False, 'error': 'No hay assets en tu watchlist'}), 400
+
+        description = template.description
+        points = template.get_points_list()
+        user_id = current_user.id
+        app = current_app._get_current_object()
+
+        jobs = []
+        for aid in asset_ids:
+            report = CompanyReport(
+                user_id=user_id,
+                asset_id=aid,
+                template_id=template.id,
+                template_title=template.title,
+                status='pending',
+            )
+            db.session.add(report)
+            db.session.flush()
+            jobs.append(
+                {
+                    'report_id': report.id,
+                    'user_id': user_id,
+                    'asset_id': aid,
+                    'description': description,
+                    'points': points,
+                }
+            )
+        db.session.commit()
+
+        start_watchlist_batch_reports_thread(app, jobs)
+
+        return jsonify(
+            {
+                'success': True,
+                'queued': len(jobs),
+                'report_ids': [j['report_id'] for j in jobs],
+                'message': (
+                    f'Deep Research encolado para {len(jobs)} asset(s) de la watchlist '
+                    '(en serie). Consulta la pestaña Informes en cada ficha.'
+                ),
+            }
+        )
+    except Exception as e:
+        import traceback
+
+        db.session.rollback()
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500

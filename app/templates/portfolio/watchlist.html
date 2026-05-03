@@ -87,6 +87,12 @@
                 </svg>
                 Actualizar Precios
             </button>
+            {% if gemini_available and has_valid_templates %}
+            <button type="button" onclick="showGenerateReportModal()" class="portfolio-touch-btn flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-semibold border border-emerald-800/30 w-full sm:w-auto" title="Deep Research para todos los assets de la watchlist (cola en serie)">
+                <span class="text-base leading-none" aria-hidden="true">🔬</span>
+                Informes IA (watchlist)
+            </button>
+            {% endif %}
             <button type="button" onclick="openAddAssetModal()" class="portfolio-touch-btn flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold shadow-[0_10px_20px_rgba(13,148,136,0.28)] w-full sm:w-auto">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
@@ -502,13 +508,6 @@
                         <td class="px-4 py-3 whitespace-nowrap text-center">
                             {% if watchlist_item %}
                             <div class="flex items-center justify-center gap-2">
-                                {% if gemini_available and has_valid_templates %}
-                                <button onclick="showGenerateReportModal({{ asset.id }})" class="text-green-600 hover:text-green-800 text-sm" title="Generar informe">
-                                    📄
-                                </button>
-                                {% elif gemini_available %}
-                                <span class="text-gray-300 cursor-help text-sm" title="Crea al menos una plantilla en Ajustes de informes del asset">📄</span>
-                                {% endif %}
                                 <button onclick="editWatchlistItem({{ watchlist_item.id }}, {{ asset.id }})" class="text-blue-600 hover:text-blue-800 text-sm" title="Editar">
                                     ✏️
                                 </button>
@@ -537,11 +536,12 @@
     {% endif %}
 </div>
 
-<!-- Modal para seleccionar plantilla al generar informe -->
+<!-- Modal: Deep Research para toda la watchlist (una plantilla, cola en serie) -->
 <div id="generateReportModal" class="hidden fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55 overflow-y-auto" onclick="if(event.target===this) closeGenerateReportModal()">
     <div class="watchlist-modal-surface w-full max-w-md p-5 sm:p-6" onclick="event.stopPropagation()">
-        <h3 class="text-lg font-semibold text-slate-900 mb-2">Generar informe</h3>
-        <p class="text-sm text-slate-600 mb-4">Selecciona la plantilla que quieras usar:</p>
+        <h3 class="text-lg font-semibold text-slate-900 mb-2">Informes IA — toda la watchlist</h3>
+        <p class="text-sm text-slate-600 mb-3">Se encolará un informe <strong>Deep Research</strong> por cada asset de tu watchlist, <strong>uno tras otro</strong> (menos carga en la API). El prompt incluye el formato de los cinco datos manuales de la tabla (earnings, PER, dividend yield NTM, EPS, CAGR ingresos) para que el informe los deje explícitos solo si hay fuente fiable.</p>
+        <p class="text-sm text-slate-600 mb-4">Plantilla a usar para todos:</p>
         <select id="watchlistTemplateSelect" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 mb-4 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white">
             {% for t in report_templates %}
             {% if t.has_valid_description() %}
@@ -551,7 +551,7 @@
         </select>
         <div class="flex flex-col-reverse sm:flex-row justify-end gap-2">
             <button type="button" onclick="closeGenerateReportModal()" class="portfolio-touch-btn px-4 py-2 rounded-xl bg-slate-200 text-slate-800 font-semibold hover:bg-slate-300 w-full sm:w-auto">Cancelar</button>
-            <button type="button" onclick="confirmGenerateReportFromWatchlist()" class="portfolio-touch-btn px-4 py-2 rounded-xl bg-teal-600 text-white font-semibold hover:bg-teal-700 w-full sm:w-auto">Generar</button>
+            <button type="button" onclick="confirmGenerateReportFromWatchlist()" class="portfolio-touch-btn px-4 py-2 rounded-xl bg-teal-600 text-white font-semibold hover:bg-teal-700 w-full sm:w-auto">Encolar todos</button>
         </div>
     </div>
 </div>
@@ -1617,34 +1617,34 @@ function closeSettingsModal() {
     document.body.style.overflow = '';
 }
 
-// Generar informe desde watchlist: mostrar modal para seleccionar plantilla
-let generateReportAssetId = null;
-function showGenerateReportModal(assetId) {
-    generateReportAssetId = assetId;
+// Deep Research para toda la watchlist (plantilla única, cola en serie en el servidor)
+function showGenerateReportModal() {
     document.getElementById('generateReportModal').classList.remove('hidden');
     document.body.style.overflow = 'hidden';
 }
 function closeGenerateReportModal() {
     document.getElementById('generateReportModal').classList.add('hidden');
     document.body.style.overflow = '';
-    generateReportAssetId = null;
 }
 async function confirmGenerateReportFromWatchlist() {
     const sel = document.getElementById('watchlistTemplateSelect');
     const templateId = sel ? parseInt(sel.value, 10) : null;
     if (!templateId) { showToast('Selecciona una plantilla', 'error'); return; }
-    if (!generateReportAssetId) { showToast('Error: asset no seleccionado', 'error'); return; }
     closeGenerateReportModal();
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
     try {
-        const response = await fetch(`/portfolio/asset/${generateReportAssetId}/reports/generate`, {
+        const response = await fetch('/portfolio/watchlist/reports/generate-all', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
             body: JSON.stringify({ template_id: templateId })
         });
         const data = await response.json();
         if (data.success) {
-            showToast('Generación de informe iniciada. Puede tardar varios minutos. Consulta la pestaña Informes en el detalle del asset.', 'success');
+            const n = typeof data.queued === 'number' ? data.queued : '';
+            showToast(
+                (n !== '' ? `${n} informe(s) en cola. ` : '') + 'Puede tardar bastante (serie). Revisa Informes en cada ficha de asset.',
+                'success'
+            );
         } else {
             showToast('Error: ' + (data.error || 'Error desconocido'), 'error');
         }

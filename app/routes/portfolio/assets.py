@@ -864,9 +864,9 @@ def asset_reports_generate(id):
     """Iniciar generación de informe Deep Research para un asset"""
     try:
         from app.models import ReportTemplate, CompanyReport
-        from app.services.gemini_service import run_deep_research_report, GeminiServiceError, is_gemini_available
+        from app.services.gemini_service import is_gemini_available
+        from app.services.company_report_deep_job import start_company_report_background_thread
         from flask import current_app
-        import threading
 
         asset = Asset.query.get(id)
         if not asset:
@@ -899,7 +899,6 @@ def asset_reports_generate(id):
         db.session.add(report)
         db.session.commit()
 
-        # Capturar valores para el hilo (no pasar objetos ORM: quedan desvinculados de la sesión)
         report_id = report.id
         user_id = current_user.id
         asset_id = id
@@ -907,93 +906,9 @@ def asset_reports_generate(id):
         points = template.get_points_list()
 
         app = current_app._get_current_object()
-
-        def run_report_background():
-            """Hilo: usa conexión raw (sin sesión ORM) para evitar 'Instance is not bound to a Session'."""
-            with app.app_context():
-                engine = db.engine
-
-                def _update_status(st, content_val=None, error_val=None):
-                    now_str = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-                    with engine.connect() as conn:
-                        conn.execute(text("""
-                            UPDATE company_reports SET status = :st, completed_at = :now
-                            , content = :content, error_msg = :error WHERE id = :rid
-                        """), {'st': st, 'now': now_str, 'content': content_val, 'error': error_val, 'rid': report_id})
-                        conn.commit()
-
-                try:
-                    with engine.connect() as conn:
-                        r = conn.execute(text("""
-                            UPDATE company_reports SET status = 'processing' WHERE id = :rid AND status = 'pending'
-                        """), {'rid': report_id})
-                        conn.commit()
-                        if r.rowcount == 0:
-                            return
-                except Exception as e:
-                    import traceback
-                    try:
-                        _update_status('failed', error_val=str(e))
-                    except Exception:
-                        pass
-                    print(traceback.format_exc())
-                    return
-
-                try:
-                    with engine.connect() as conn:
-                        row = conn.execute(text(
-                            "SELECT name, symbol, isin FROM assets WHERE id = :aid"
-                        ), {'aid': asset_id}).fetchone()
-                    if not row:
-                        _update_status('failed', error_val='Asset no encontrado')
-                        return
-                    aname = (row[0] or 'Desconocida')
-                    asym = (row[1] or '')
-                    aisn = (row[2] or '')
-
-                    status, content = run_deep_research_report(
-                        aname, asym, aisn,
-                        description,
-                        points
-                    )
-
-                    content_val = content if status == 'completed' else None
-                    error_val = content if status == 'failed' else None
-                    _update_status(status, content_val=content_val, error_val=error_val)
-
-                    if status == 'completed':
-                        with engine.connect() as conn:
-                            cnt = conn.execute(text(
-                                "SELECT COUNT(*) FROM company_reports WHERE user_id = :uid AND asset_id = :aid"
-                            ), {'uid': user_id, 'aid': asset_id}).scalar()
-                            if cnt and cnt > 5:
-                                lim = int(cnt) - 5
-                                ids = [r[0] for r in conn.execute(text("""
-                                    SELECT id FROM company_reports
-                                    WHERE user_id = :uid AND asset_id = :aid
-                                    ORDER BY created_at ASC LIMIT :lim
-                                """), {'uid': user_id, 'aid': asset_id, 'lim': lim}).fetchall()]
-                                if ids:
-                                    stmt = text("DELETE FROM company_reports WHERE id IN :ids").bindparams(
-                                        bindparam('ids', expanding=True)
-                                    )
-                                    conn.execute(stmt, {'ids': ids})
-                            conn.commit()
-                except GeminiServiceError as e:
-                    try:
-                        _update_status('failed', error_val=str(e))
-                    except Exception:
-                        pass
-                except Exception as e:
-                    import traceback
-                    try:
-                        _update_status('failed', error_val=str(e))
-                    except Exception:
-                        pass
-                    print(traceback.format_exc())
-
-        thread = threading.Thread(target=run_report_background, daemon=True)
-        thread.start()
+        start_company_report_background_thread(
+            app, report_id, user_id, asset_id, description, points, extra_prompt_suffix=None
+        )
 
         return jsonify({
             'success': True,

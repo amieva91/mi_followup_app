@@ -116,6 +116,7 @@ def run_deep_research_report(
     points: list,
     on_status_update=None,
     poll_interval_seconds: int = 15,
+    extra_prompt_suffix: Optional[str] = None,
 ) -> tuple[str, str]:
     """
     Ejecuta informe Deep Research en segundo plano (polling hasta completar).
@@ -129,6 +130,7 @@ def run_deep_research_report(
         points: Lista de puntos/preguntas opcionales
         on_status_update: Callback(opcional) que recibe (status, message) para actualizar UI
         poll_interval_seconds: Segundos entre cada poll
+        extra_prompt_suffix: Texto opcional a añadir al final del prompt (p. ej. esquema watchlist)
 
     Returns:
         tuple: (status, content_or_error)
@@ -156,6 +158,8 @@ Descripción de la investigación:
 
 Formatea la salida en Markdown con encabezados, listas y párrafos claros.
 Incluye las secciones que consideres relevantes para un inversor."""
+    if extra_prompt_suffix and str(extra_prompt_suffix).strip():
+        prompt = prompt + "\n\n" + str(extra_prompt_suffix).strip()
 
     try:
         from google import genai
