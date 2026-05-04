@@ -2,7 +2,7 @@
 Rutas de watchlist
 """
 from collections import defaultdict
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from flask import render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_required, current_user
 
@@ -718,7 +718,8 @@ def watchlist_update_prices():
 def watchlist_reports_generate_all():
     """
     Deep Research para todos los assets de la watchlist del usuario.
-    Los informes se procesan en serie (un solo hilo) para no saturar la API de Gemini.
+    Cada asset crea un company_reports distinto: N assets ⇒ N puestos en la cola global
+    (misma cola que la pestaña Informes de cada ficha). Se procesan en serie en un hilo.
     El prompt incluye el esquema de campos manuales de la watchlist.
     """
     try:
@@ -776,14 +777,16 @@ def watchlist_reports_generate_all():
         db.session.flush()
 
         jobs = []
-        for aid in asset_ids:
+        base_enqueued = datetime.utcnow()
+        for i, aid in enumerate(asset_ids):
+            # Un ms entre informes ⇒ orden estable en la cola global (mismo criterio que otros informes).
             report = CompanyReport(
                 user_id=user_id,
                 asset_id=aid,
                 template_id=template.id,
                 template_title=template.title,
                 status='pending',
-                report_enqueued_at=datetime.utcnow(),
+                report_enqueued_at=base_enqueued + timedelta(milliseconds=i),
             )
             db.session.add(report)
             db.session.flush()
@@ -823,23 +826,64 @@ def watchlist_reports_generate_all():
 @portfolio_bp.route('/watchlist/ai-job/<int:job_id>/status')
 @login_required
 def watchlist_ai_job_status(job_id):
-    """Progreso del lote Deep Research + extracción watchlist."""
+    """Progreso del lote Deep Research + extracción watchlist; opcionalmente posición en cola global por informe."""
+    from app.models import CompanyReport
     from app.models.watchlist import WatchlistAiJob
+    from app.services.company_report_queue import (
+        queue_metrics_for_report,
+        sorted_active_queue_rows,
+    )
 
     job = WatchlistAiJob.query.filter_by(id=job_id, user_id=current_user.id).first()
     if not job:
         return jsonify({'error': 'No encontrado'}), 404
-    return jsonify(
-        {
-            'id': job.id,
-            'status': job.status,
-            'total': job.total,
-            'completed_count': job.completed_count,
-            'current_asset_id': job.current_asset_id,
-            'current_asset_label': job.current_asset_label or '',
-            'error_message': job.error_message,
-        }
-    )
+
+    global_queue_length = len(sorted_active_queue_rows())
+
+    payload = {
+        'id': job.id,
+        'status': job.status,
+        'total': job.total,
+        'completed_count': job.completed_count,
+        'current_asset_id': job.current_asset_id,
+        'current_asset_label': job.current_asset_label or '',
+        'error_message': job.error_message,
+        'global_queue_length': global_queue_length,
+        'report_queue': [],
+    }
+
+    raw_ids = (request.args.get('report_ids') or '').strip()
+    if raw_ids:
+        seen = set()
+        for part in raw_ids.split(','):
+            part = part.strip()
+            if not part.isdigit():
+                continue
+            rid = int(part)
+            if rid in seen:
+                continue
+            seen.add(rid)
+            rep = CompanyReport.query.filter_by(
+                id=rid, user_id=current_user.id
+            ).first()
+            if not rep:
+                continue
+            pos, qtot = queue_metrics_for_report(rep)
+            asset = Asset.query.get(rep.asset_id)
+            label = ''
+            if asset:
+                label = (asset.symbol or asset.name or str(rep.asset_id))[:120]
+            payload['report_queue'].append(
+                {
+                    'report_id': rep.id,
+                    'asset_id': rep.asset_id,
+                    'label': label,
+                    'queue_position': pos,
+                    'queue_total': qtot,
+                }
+            )
+
+    return jsonify(payload)
 
 
 @portfolio_bp.route('/watchlist/<int:watchlist_id>/reset-manual-fields', methods=['POST'])
