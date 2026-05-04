@@ -80,6 +80,14 @@ class Watchlist(db.Model):
             return None
         return self.get_manual_field_sources_dict().get(field)
 
+    def needs_watchlist_ia_deep_research(self) -> bool:
+        """
+        True si conviene encolar Informes IA (Deep Research) para esta fila.
+        False cuando los cinco campos manuales tienen origen explícito ``user``:
+        en ese caso no se gasta API ni se crea informe (no hay huecos que IA deba rellenar).
+        """
+        return not all(self.get_manual_field_source(k) == 'user' for k in WATCHLIST_MANUAL_FIELD_KEYS)
+
     def merge_manual_field_sources(self, updates: dict):
         cur = self.get_manual_field_sources_dict()
         for k in WATCHLIST_MANUAL_FIELD_KEYS:

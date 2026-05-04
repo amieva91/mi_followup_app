@@ -1781,8 +1781,11 @@ async function confirmGenerateReportFromWatchlist() {
         const data = await response.json();
             if (data.success) {
             const n = typeof data.queued === 'number' ? data.queued : '';
+            const sk = typeof data.skipped_fully_user_sourced === 'number' && data.skipped_fully_user_sourced > 0
+                ? (' Omitidos ' + data.skipped_fully_user_sourced + ' activo(s) con los 5 campos ya en origen usuario.')
+                : '';
             showToast(
-                (n !== '' ? n + ' informe(s) = ' + n + ' puesto(s) en la cola global. ' : '') + 'Progreso arriba; la tabla se refresca al completar cada activo.',
+                (n !== '' ? n + ' informe(s) = ' + n + ' puesto(s) en la cola global. ' : '') + sk + 'Progreso arriba; la tabla se refresca al completar cada activo.',
                 'success'
             );
             if (data.job_id) {

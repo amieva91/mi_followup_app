@@ -713,10 +713,9 @@ def watchlist_update_prices():
 @csrf.exempt
 def watchlist_reports_generate_all():
     """
-    Deep Research para todos los assets de la watchlist del usuario.
-    Cada asset crea un company_reports distinto: N assets ⇒ N puestos en la cola global
-    (misma cola que la pestaña Informes de cada ficha). Se procesan en serie en un hilo.
-    El prompt incluye el esquema de campos manuales de la watchlist.
+    Deep Research para los assets de la watchlist que **necesitan** Informes IA.
+    Se omiten filas donde los cinco campos manuales tienen origen ``user`` (ahorro API).
+    Cada asset encolado crea un ``company_reports`` distinto (cola global). Serie en un hilo.
     """
     try:
         from flask import current_app
@@ -744,9 +743,16 @@ def watchlist_reports_generate_all():
             ), 409
 
         rows = Watchlist.query.filter_by(user_id=current_user.id).order_by(Watchlist.asset_id).all()
-        asset_ids = list(dict.fromkeys(r.asset_id for r in rows))
+        rows_ia = [r for r in rows if r.needs_watchlist_ia_deep_research()]
+        skipped_fully_user = len(rows) - len(rows_ia)
+        asset_ids = list(dict.fromkeys(r.asset_id for r in rows_ia))
         if not asset_ids:
-            return jsonify({'success': False, 'error': 'No hay assets en tu watchlist'}), 400
+            msg = (
+                'Ningún activo necesita Informes IA: los cinco campos manuales tienen origen usuario en todas las filas.'
+                if skipped_fully_user
+                else 'No hay assets en tu watchlist'
+            )
+            return jsonify({'success': False, 'error': msg, 'skipped_fully_user_sourced': skipped_fully_user}), 400
 
         user_id = current_user.id
         app = current_app._get_current_object()
@@ -793,9 +799,15 @@ def watchlist_reports_generate_all():
                 'job_id': job_row.id,
                 'queued': len(jobs),
                 'report_ids': [j['report_id'] for j in jobs],
+                'skipped_fully_user_sourced': skipped_fully_user,
                 'message': (
                     f'Deep Research encolado para {len(jobs)} asset(s) de la watchlist '
                     '(en serie). Consulta la pestaña Informes en cada ficha.'
+                    + (
+                        f' Omitidos {skipped_fully_user} con los cinco campos ya definidos por ti (origen usuario).'
+                        if skipped_fully_user
+                        else ''
+                    )
                 ),
             }
         )
