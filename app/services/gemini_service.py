@@ -14,6 +14,7 @@ import base64
 import time
 import logging
 import concurrent.futures
+from datetime import datetime
 from typing import Any, Callable, Literal, Optional, Tuple
 
 logger = logging.getLogger(__name__)
@@ -436,6 +437,7 @@ def run_watchlist_ia_flash_report(
     if extra_prompt_suffix and str(extra_prompt_suffix).strip():
         extra_tail = '\n\n**Instrucciones adicionales**\n' + str(extra_prompt_suffix).strip()
 
+    ref_today = datetime.utcnow().strftime('%Y-%m-%d')
     prompt = f"""Eres un asistente de datos financieros. Responde en **español (España)** en **Markdown breve**.
 No escribas un informe de inversión largo ni recomendaciones de compra/venta.
 **Salida en una sola respuesta** (modelo Flash, sin agente Deep Research). Si no estás seguro de un dato público reciente, \
@@ -444,6 +446,7 @@ usa `null` en el JSON como indique el briefing; **no inventes** cifras ni fechas
 **Empresa**
 - Nombre: **{name}**
 - Símbolo: {symbol or 'N/A'} | ISIN: {isin or 'N/A'}
+- **Calendario de referencia (UTC, servidor):** {ref_today}. Para `next_earnings_date`: el **año** debe ser el de la próxima fecha **anunciada o inferible** con rigor; **no** asumas 2024 u otro año por patrón histórico. Sin año fiable → `null`.
 
 **Briefing (prioridad máxima)**
 {description}
@@ -1160,6 +1163,7 @@ def run_deep_research_report(
         extra_tail = '\n\n**Instrucciones adicionales**\n' + str(extra_prompt_suffix).strip()
 
     if research_prompt_style == 'watchlist_minimal':
+        ref_today = datetime.utcnow().strftime('%Y-%m-%d')
         prompt = f"""Eres un asistente de investigación financiera. Usa las herramientas del agente Deep Research \
 para consultar **fuentes públicas fiables**. Objetivo: cumplir **estrictamente** el briefing y los puntos; \
 no escribas un informe de inversión largo.
@@ -1168,6 +1172,7 @@ no escribas un informe de inversión largo.
 **Empresa**
 - Nombre: **{name}**
 - Símbolo: {symbol or 'N/A'} | ISIN: {isin or 'N/A'}
+- **Calendario de referencia (UTC, servidor):** {ref_today}. En el JSON, `next_earnings_date` debe llevar el **año que indiquen las fuentes** para la próxima divulgación; **no** uses años obsoletos (p. ej. 2024) por defecto. Si el año no es verificable, `null`.
 
 **Briefing (prioridad máxima)**
 {description}
