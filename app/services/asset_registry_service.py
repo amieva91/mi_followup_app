@@ -11,6 +11,52 @@ from app.services.market_data.mappers import ExchangeMapper, YahooSuffixMapper
 # Timeout para verificación contra Yahoo
 VERIFY_YAHOO_TIMEOUT = 10
 
+_YAHOO_CHART_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/120.0.0.0 Safari/537.36"
+)
+
+
+def fetch_yahoo_display_name_and_currency(full_ticker: str) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Nombre legible y divisa desde la Chart API de Yahoo (sin cookie).
+    Fallback a yfinance si la chart no trae nombre.
+    """
+    full_ticker = (full_ticker or "").strip()
+    if not full_ticker:
+        return None, None
+    display_name: Optional[str] = None
+    currency: Optional[str] = None
+    try:
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{full_ticker}"
+        r = requests.get(url, headers={"User-Agent": _YAHOO_CHART_UA}, timeout=VERIFY_YAHOO_TIMEOUT)
+        r.raise_for_status()
+        data = r.json()
+        res = data.get("chart", {}).get("result")
+        if res:
+            meta = res[0].get("meta", {}) or {}
+            display_name = meta.get("longName") or meta.get("shortName")
+            currency = meta.get("currency")
+    except Exception:
+        pass
+    if not display_name:
+        try:
+            import yfinance as yf
+
+            info = yf.Ticker(full_ticker).info or {}
+            display_name = info.get("longName") or info.get("shortName") or info.get("displayName")
+            if not currency:
+                currency = info.get("currency")
+        except Exception:
+            pass
+    if display_name:
+        display_name = str(display_name).strip() or None
+    if currency:
+        currency = str(currency).strip().upper() or None
+        if len(currency) != 3:
+            currency = None
+    return display_name, currency
+
 
 class AssetRegistryService:
     """
@@ -262,6 +308,20 @@ class AssetRegistryService:
             
             registry.symbol = parsed['symbol']
             registry.yahoo_suffix = parsed['suffix']
+
+            full_ticker = parsed.get("full_ticker") or f"{parsed['symbol']}{parsed['suffix']}"
+            disp_name, chart_currency = fetch_yahoo_display_name_and_currency(full_ticker)
+            sym_upper = (parsed["symbol"] or "").strip().upper()
+            cur_name = (registry.name or "").strip()
+            if disp_name:
+                if (
+                    not cur_name
+                    or cur_name.upper() == sym_upper
+                    or cur_name.upper() == full_ticker.upper()
+                ):
+                    registry.name = disp_name
+            if chart_currency and (not registry.currency or registry.currency == "USD"):
+                registry.currency = chart_currency
             
             # Intentar derivar ibkr_exchange desde MIC si no lo tenemos
             if not registry.ibkr_exchange and registry.degiro_exchange:
@@ -288,9 +348,7 @@ class AssetRegistryService:
         if not ticker:
             return False, "Sin ticker"
         url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
+        headers = {"User-Agent": _YAHOO_CHART_UA}
         try:
             r = requests.get(url, headers=headers, timeout=VERIFY_YAHOO_TIMEOUT)
             r.raise_for_status()

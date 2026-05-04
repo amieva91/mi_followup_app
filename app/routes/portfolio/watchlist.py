@@ -374,20 +374,21 @@ def watchlist_add():
                     )
                     db.session.add(registry)
                     db.session.flush()
-                    
-                    # Intentar enriquecer con Yahoo Finance para obtener datos completos
-                    try:
-                        service.enrich_from_yahoo_url(registry, yahoo_url, update_db=False)
-                    except Exception:
-                        # Si falla el enriquecimiento, continuar con datos básicos
-                        pass
-            
+
+            # Nombre legible vía Chart API / yfinance (también si el registry ya existía)
+            try:
+                service.enrich_from_yahoo_url(registry, yahoo_url, update_db=False)
+            except Exception:
+                pass
+
             # Buscar o crear Asset
             asset = Asset.query.filter_by(isin=registry.isin).first() if registry.isin else None
             
             if not asset:
                 # Crear Asset desde AssetRegistry
                 asset = service.create_asset_from_registry(registry)
+            else:
+                service.sync_asset_from_registry(asset, registry)
             
             # Añadir a watchlist
             watchlist_item = WatchlistService.add_to_watchlist(current_user.id, asset.id)
