@@ -617,7 +617,7 @@ def create_app(config_name='default'):
         """
         Solo pruebas: cambia current_price de activos (holdings + watchlist) para ver
         actualización en vivo. Ejecuta, deja /dashboard o /portfolio abiertos, espera ≤30s.
-        Usa "Actualizar precios" manual para restaurar valores reales.
+        Espera el job de precios (cron) o ajusta en BD para restaurar valores reales.
         """
         from datetime import datetime
         from flask import current_app

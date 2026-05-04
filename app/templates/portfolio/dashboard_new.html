@@ -12,13 +12,6 @@
             <p class="text-gray-600 mt-1">Vista general de tus inversiones</p>
         </div>
         <div class="flex gap-3">
-            <!-- Botón Actualizar Precios (Sprint 3 Final) -->
-            <button onclick="startPriceUpdate()" class="btn-secondary flex items-center gap-2">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                </svg>
-                Actualizar Precios
-            </button>
             <a href="{{ url_for('portfolio.account_new') }}" class="btn-secondary">
                 🏦 Nueva Cuenta
             </a>
@@ -456,55 +449,6 @@
     {% endif %}
 </div>
 
-<!-- Modal de actualización de precios (Sprint 3 Final) -->
-<div id="priceUpdateModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-        <div class="mt-3">
-            <div class="flex items-center justify-between mb-4">
-                <h3 id="modalTitle" class="text-lg font-medium text-gray-900">
-                    🔄 Actualizando precios...
-                </h3>
-                <div id="spinner" class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-            </div>
-            
-            <!-- Barra de progreso -->
-            <div class="mb-4">
-                <div class="flex justify-between text-sm text-gray-600 mb-1">
-                    <span id="progressText">0 / 0</span>
-                    <span id="estimatedTime"></span>
-                </div>
-                <div class="w-full bg-gray-200 rounded-full h-2.5">
-                    <div id="progressBar" class="bg-blue-600 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
-                </div>
-            </div>
-            
-            <!-- Resultados -->
-            <div id="results" class="hidden mb-4">
-                <div class="text-sm text-gray-600 space-y-1">
-                    <div class="flex justify-between">
-                        <span>✅ Actualizados:</span>
-                        <span id="successCount" class="font-medium text-green-600">0</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span>❌ Fallidos:</span>
-                        <span id="failedCount" class="font-medium text-red-600">0</span>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Mensaje de error -->
-            <div id="errorMessage" class="hidden text-sm text-red-600 mb-4"></div>
-            
-            <!-- Botón cerrar -->
-            <div class="flex justify-end">
-                <button id="closeModalBtn" onclick="closeModal()" class="px-4 py-2 bg-gray-200 text-gray-800 text-sm font-medium rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-300">
-                    Cerrar
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
 <script>
 // Ordenar tabla de holdings (con soporte para formato europeo)
 let sortDirectionHoldings = {};
@@ -561,116 +505,6 @@ function sortTableHoldings(columnIndex, type) {
     document.querySelectorAll('.sort-arrow').forEach(arrow => arrow.textContent = '⇅');
     const currentArrow = table.querySelectorAll('th')[columnIndex].querySelector('.sort-arrow');
     currentArrow.textContent = direction === 'asc' ? '↑' : '↓';
-}
-
-// Funciones del modal de actualización de precios
-function startPriceUpdate() {
-    const modal = document.getElementById('priceUpdateModal');
-    const modalTitle = document.getElementById('modalTitle');
-    const spinner = document.getElementById('spinner');
-    const progressBar = document.getElementById('progressBar');
-    const progressText = document.getElementById('progressText');
-    const estimatedTime = document.getElementById('estimatedTime');
-    const results = document.getElementById('results');
-    const errorMessage = document.getElementById('errorMessage');
-    
-    // Reset UI
-    modal.classList.remove('hidden');
-    modalTitle.textContent = '🔄 Actualizando precios...';
-    spinner.classList.remove('hidden');
-    progressBar.style.width = '0%';
-    progressText.textContent = '0 / 0';
-    estimatedTime.textContent = '';
-    results.classList.add('hidden');
-    errorMessage.classList.add('hidden');
-    
-    // Fetch inicial para empezar la actualización
-    fetch('/portfolio/update-prices', { method: 'POST' })
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'started') {
-                pollProgress();
-            } else {
-                showError('Error al iniciar actualización');
-            }
-        })
-        .catch(error => {
-            showError('Error de red: ' + error.message);
-        });
-}
-
-function pollProgress() {
-    fetch('/portfolio/update-prices/progress')
-        .then(response => response.json())
-        .then(data => {
-            updateProgressUI(data);
-            
-            if (data.status === 'completed' || data.status === 'failed') {
-                onUpdateComplete(data);
-            } else {
-                setTimeout(pollProgress, 500);
-            }
-        })
-        .catch(error => {
-            console.error('Error polling:', error);
-            setTimeout(pollProgress, 1000);
-        });
-}
-
-function updateProgressUI(data) {
-    const progressBar = document.getElementById('progressBar');
-    const progressText = document.getElementById('progressText');
-    const estimatedTime = document.getElementById('estimatedTime');
-    
-    if (data.total > 0) {
-        const percentage = (data.current / data.total) * 100;
-        progressBar.style.width = percentage + '%';
-        progressText.textContent = `${data.current} / ${data.total}`;
-        
-        if (data.estimated_seconds && data.estimated_seconds > 0) {
-            estimatedTime.textContent = `~${data.estimated_seconds}s restantes`;
-        }
-    }
-}
-
-function onUpdateComplete(data) {
-    const modalTitle = document.getElementById('modalTitle');
-    const spinner = document.getElementById('spinner');
-    const results = document.getElementById('results');
-    const successCount = document.getElementById('successCount');
-    const failedCount = document.getElementById('failedCount');
-    const errorMessage = document.getElementById('errorMessage');
-    
-    spinner.classList.add('hidden');
-    
-    if (data.status === 'completed') {
-        modalTitle.textContent = '✅ Actualización completada';
-        results.classList.remove('hidden');
-        successCount.textContent = data.updated || 0;
-        failedCount.textContent = data.failed || 0;
-    } else {
-        modalTitle.textContent = '❌ Error en actualización';
-        errorMessage.textContent = data.message || 'Error desconocido';
-        errorMessage.classList.remove('hidden');
-    }
-}
-
-function showError(message) {
-    const modalTitle = document.getElementById('modalTitle');
-    const spinner = document.getElementById('spinner');
-    const errorMessage = document.getElementById('errorMessage');
-    
-    modalTitle.textContent = '❌ Error';
-    spinner.classList.add('hidden');
-    errorMessage.textContent = message;
-    errorMessage.classList.remove('hidden');
-}
-
-function closeModal() {
-    const modal = document.getElementById('priceUpdateModal');
-    modal.classList.add('hidden');
-    // Recargar la página para mostrar los precios actualizados
-    window.location.reload();
 }
 </script>
 {% endblock %}

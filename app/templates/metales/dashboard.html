@@ -43,10 +43,6 @@
             <p class="text-slate-600 mt-1 text-sm sm:text-base">Oro, plata, platino y paladio (gramos)</p>
         </div>
         <div class="flex flex-col sm:flex-row flex-wrap gap-2 sm:gap-3">
-            <button type="button" onclick="startPriceUpdate()" class="portfolio-touch-btn inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-200 border border-slate-300 hover:bg-slate-300 text-slate-800 text-sm font-semibold w-full sm:w-auto">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-                Actualizar precios
-            </button>
             <a href="{{ url_for('metales.transaction_new') }}" class="portfolio-touch-btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold shadow-[0_10px_20px_rgba(13,148,136,0.28)] w-full sm:w-auto">➕ Compra / venta</a>
             <a href="{{ url_for('portfolio.dashboard') }}" class="portfolio-touch-btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-slate-200 border border-slate-300 hover:bg-slate-300 text-slate-800 text-sm font-semibold w-full sm:w-auto">📊 Portfolio</a>
         </div>
@@ -158,35 +154,6 @@
             <button type="submit" class="portfolio-touch-btn w-full px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold shadow-md">Sí, eliminar</button>
             <button type="button" onclick="metalesCloseTxDelete()" class="portfolio-touch-btn w-full px-4 py-2.5 rounded-xl bg-slate-200 text-slate-800 text-sm font-semibold hover:bg-slate-300 border border-slate-300/80">Cancelar</button>
         </form>
-    </div>
-</div>
-
-<div id="priceUpdateModal" class="hidden fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55" onclick="if(event.target===this) closePriceModal()">
-    <div class="app-modal-panel w-full max-w-md p-5 sm:p-6" onclick="event.stopPropagation()">
-        <div class="flex items-center justify-between mb-4">
-            <h3 id="modalTitle" class="text-lg font-semibold text-slate-900">Actualizando precios…</h3>
-            <div id="spinner" class="animate-spin rounded-full h-6 w-6 border-2 border-teal-600 border-t-transparent" aria-hidden="true"></div>
-        </div>
-        <p class="text-xs text-slate-500 mb-3">Solo metales preciosos de tus posiciones (futuros GC/SI/PL/PA en Yahoo).</p>
-        <div class="mb-4">
-            <div class="flex justify-between text-sm text-slate-600 mb-1">
-                <span id="progressText">0 / 0</span>
-            </div>
-            <div class="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
-                <div id="progressBar" class="bg-teal-600 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
-            </div>
-        </div>
-        <div id="results" class="hidden mb-4">
-            <div class="text-sm text-slate-600 space-y-1">
-                <div class="flex justify-between"><span>Actualizados</span><span id="successCount" class="font-medium text-emerald-700">0</span></div>
-                <div class="flex justify-between"><span>Fallidos</span><span id="failedCount" class="font-medium text-rose-700">0</span></div>
-                <div class="flex justify-between"><span>Omitidos</span><span id="skippedCount" class="font-medium text-amber-700">0</span></div>
-            </div>
-        </div>
-        <div id="errorMessage" class="hidden text-sm text-rose-700 mb-4"></div>
-        <div class="flex justify-end">
-            <button type="button" onclick="closePriceModal()" class="portfolio-touch-btn px-4 py-2 rounded-xl bg-slate-200 text-slate-800 font-semibold hover:bg-slate-300">Cerrar</button>
-        </div>
     </div>
 </div>
 
@@ -331,68 +298,6 @@ function metalesTryReopenMovimientosFromQuery() {
   }
 }
 metalesTryReopenMovimientosFromQuery();
-
-function startPriceUpdate() {
-    const modal = document.getElementById('priceUpdateModal');
-    const modalTitle = document.getElementById('modalTitle');
-    const spinner = document.getElementById('spinner');
-    const results = document.getElementById('results');
-    const errorMessage = document.getElementById('errorMessage');
-    modal.classList.remove('hidden');
-    document.body.style.overflow = 'hidden';
-    modalTitle.textContent = 'Actualizando precios…';
-    spinner.classList.remove('hidden');
-    document.getElementById('progressBar').style.width = '0%';
-    document.getElementById('progressText').textContent = '0 / 0';
-    results.classList.add('hidden');
-    errorMessage.classList.add('hidden');
-
-    const formData = new FormData();
-    formData.append('csrf_token', document.querySelector('meta[name="csrf-token"]')?.content || document.querySelector('input[name="csrf_token"]')?.value || '');
-    formData.append('scope', 'metales');
-
-    fetch('{{ url_for("portfolio.update_prices") }}', { method: 'POST', body: formData })
-        .then(r => r.json())
-        .then(data => {
-            if (data.status === 'started') pollPriceProgress();
-            else { errorMessage.textContent = data.message || 'Error al iniciar actualización'; errorMessage.classList.remove('hidden'); }
-        })
-        .catch(err => { errorMessage.textContent = 'Error de red: ' + err.message; errorMessage.classList.remove('hidden'); });
-
-    function pollPriceProgress() {
-        fetch('{{ url_for("portfolio.price_update_progress") }}')
-            .then(r => r.json())
-            .then(data => {
-                if (data.total > 0) {
-                    document.getElementById('progressBar').style.width = (data.current / data.total * 100) + '%';
-                    document.getElementById('progressText').textContent = data.current + ' / ' + data.total;
-                }
-                if (data.status === 'completed' || data.status === 'failed') {
-                    spinner.classList.add('hidden');
-                    if (data.status === 'completed') {
-                        modalTitle.textContent = 'Actualización completada';
-                        results.classList.remove('hidden');
-                        const r = data.result || {};
-                        document.getElementById('successCount').textContent = data.success ?? r.success ?? 0;
-                        document.getElementById('failedCount').textContent = data.failed ?? r.failed ?? 0;
-                        document.getElementById('skippedCount').textContent = data.skipped ?? r.skipped ?? 0;
-                    } else {
-                        modalTitle.textContent = 'Error';
-                        errorMessage.textContent = data.message || 'Error desconocido';
-                        errorMessage.classList.remove('hidden');
-                    }
-                } else {
-                    setTimeout(pollPriceProgress, 500);
-                }
-            })
-            .catch(() => setTimeout(pollPriceProgress, 1000));
-    }
-}
-function closePriceModal() {
-    document.getElementById('priceUpdateModal').classList.add('hidden');
-    document.body.style.overflow = '';
-    window.location.reload();
-}
 </script>
 {% endblock %}
 
