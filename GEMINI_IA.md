@@ -10,7 +10,7 @@ La aplicación utiliza la API de **Google Gemini** para:
 
 | Funcionalidad | Descripción |
 |---------------|-------------|
-| **Resumen "About the Company"** | Descripción corta de la empresa (3-5 líneas) |
+| **Resumen "About the Company"** | Descripción informativa (~80-200 palabras: actividad, sector, mercados) |
 | **Informes Deep Research** | Informes de inversión detallados basados en plantillas |
 | **Audio TTS** | Resumen en audio del informe (text-to-speech) |
 
@@ -22,9 +22,9 @@ Todas las llamadas se realizan desde el backend. La API key nunca se expone al f
 
 | Uso | Variable de entorno | Modelo por defecto |
 |-----|---------------------|--------------------|
-| Texto (About, resumen previo a TTS) | `GEMINI_MODEL_FLASH` | `gemini-2.0-flash` |
-| Audio TTS | `GEMINI_MODEL_TTS` | `gemini-2.5-flash-preview-tts` |
-| Informes Deep Research | `GEMINI_AGENT_DEEP_RESEARCH` | `deep-research-pro-preview-12-2025` |
+| Texto (About, resumen previo a TTS) | `GEMINI_MODEL_FLASH` | `gemini-2.5-flash` |
+| Audio TTS | `GEMINI_MODEL_TTS` | `gemini-3.1-flash-tts-preview` |
+| Informes Deep Research | `GEMINI_AGENT_DEEP_RESEARCH` | `deep-research-preview-04-2026` (Max opcional: `deep-research-max-preview-04-2026`) |
 
 Las variables son opcionales. Si no se definen, se usan los valores por defecto. Permiten actualizar modelos sin cambiar código cuando Google lance nuevas versiones.
 
@@ -36,10 +36,12 @@ Las variables son opcionales. Si no se definen, se usan los valores por defecto.
 
 | Variable | Obligatoria | Descripción |
 |----------|-------------|-------------|
-| `GEMINI_API_KEY` | Sí | Clave de API de Google AI. Obtener en [Google AI Studio](https://aistudio.google.com/apikey) |
-| `GEMINI_MODEL_FLASH` | No | Modelo para texto. Default: `gemini-2.0-flash` |
-| `GEMINI_MODEL_TTS` | No | Modelo para audio TTS. Default: `gemini-2.5-flash-preview-tts` |
-| `GEMINI_AGENT_DEEP_RESEARCH` | No | Agente para informes Deep Research. Default: `deep-research-pro-preview-12-2025` |
+| `GEMINI_API_KEY` | Sí | Clave para la API de Gemini. La forma más directa es [Google AI Studio](https://aistudio.google.com/apikey). También puedes usar una **clave de API** creada en [Google Cloud Console](https://console.cloud.google.com/apis/credentials) (p. ej. *FollowupAPIKey*) siempre que en ese proyecto tengas habilitada la API de **Generative Language** (o el producto que use `google-genai` en el código). Cópiala en el `.env` de la app o en variables del servicio: `GEMINI_API_KEY=...` |
+| `GEMINI_MODEL_FLASH` | No | Modelo para texto. Default: `gemini-2.5-flash` |
+| `GEMINI_MODEL_TTS` | No | Modelo para audio TTS. Default: `gemini-3.1-flash-tts-preview` |
+| `GEMINI_AGENT_DEEP_RESEARCH` | No | Agente para informes Deep Research. Default: `deep-research-preview-04-2026`. Para máxima exhaustividad: `deep-research-max-preview-04-2026` vía env. |
+
+No subas claves reales a Git ni a `env.example`. Si la API responde `403 PERMISSION_DENIED` con *Your API key was reported as leaked*, Google ha desactivado esa clave: crea otra en AI Studio o Cloud Console, actualiza el `.env` (local y VM) y borra o desactiva la clave antigua en la consola.
 
 ### 3.2 Dependencias
 
@@ -64,7 +66,7 @@ Si `GEMINI_API_KEY` no está configurada:
 
 | Función | Modo | Descripción |
 |---------|------|-------------|
-| `generate_about_summary(asset)` | Síncrono | Resumen corto "About the Company" |
+| `generate_about_summary(asset)` | Síncrono | Resumen "About the Company" (párrafo detallado) |
 | `run_deep_research_report(...)` | Asíncrono (poll) | Informe completo vía Interactions API |
 | `generate_report_tts_audio(content, path)` | Síncrono | Genera WAV del resumen en audio |
 
@@ -89,7 +91,7 @@ Si `GEMINI_API_KEY` no está configurada:
 
 1. Usuario pulsa "Generar resumen" en Overview del asset
 2. Backend valida: asset en watchlist
-3. Llamada síncrona a `generate_content` con `gemini-2.0-flash`
+3. Llamada síncrona a `generate_content` con `gemini-2.5-flash` (prompt con ~80-200 palabras; `max_output_tokens` 1024; `thinking_budget=0` para que el razonamiento interno no consuma el cupo y no se corte el texto a mitad de frase)
 4. Guardar en `asset_about_summary`
 5. Devolver al frontend
 
@@ -97,16 +99,16 @@ Si `GEMINI_API_KEY` no está configurada:
 
 1. Usuario selecciona plantilla y pulsa "Generar informe"
 2. Se crea registro en `company_reports` con `status=pending`
-3. Thread en background llama a Interactions API (`background=True`)
-4. Polling hasta `completed` o `failed`
+3. Thread en background pasa a `processing` (sin condición estricta `status=pending` en el SQL, para no quedar colgado en `pending` si el `UPDATE` no afecta filas) y llama a Interactions API (`background=True`); se guarda `gemini_interaction_id` al crear la interacción
+4. Polling hasta `completed` o `failed` (también `timeout` a las 6 h, y fallo explícito con `requires_action` o `cancelled` para no bucles infinitos)
 5. Guardar contenido Markdown en BD
 
 ### 5.3 Audio TTS
 
 1. Usuario pulsa "Generar audio resumen" en informe completado
 2. Thread en background:
-   - Resumen del informe con `gemini-2.0-flash`
-   - TTS con `gemini-2.5-flash-preview-tts` (voz Charon)
+   - Resumen del informe con `gemini-2.5-flash`
+   - TTS con `gemini-3.1-flash-tts-preview` (voz Charon)
    - Guardar WAV en `output/reports_audio/report_{id}.wav`
 3. Actualizar `company_reports.audio_path`, `audio_status=completed`
 

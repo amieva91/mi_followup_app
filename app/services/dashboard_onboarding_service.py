@@ -14,6 +14,7 @@ from datetime import datetime
 from typing import Any
 
 from app import db
+from app.services.metales_metrics import PRECIOUS_METAL_YAHOO_SYMBOLS
 from app.models import (
     Asset,
     Bank,
@@ -77,6 +78,20 @@ class DashboardOnboardingService:
         return q.first() is not None
 
     @staticmethod
+    def _precious_metales_portfolio_exists(user_id: int) -> bool:
+        q = (
+            db.session.query(PortfolioHolding.id)
+            .join(Asset, Asset.id == PortfolioHolding.asset_id)
+            .filter(
+                PortfolioHolding.user_id == user_id,
+                PortfolioHolding.quantity > 0,
+                Asset.asset_type == 'Commodity',
+                Asset.symbol.in_(PRECIOUS_METAL_YAHOO_SYMBOLS),
+            )
+        )
+        return q.first() is not None
+
+    @staticmethod
     def _completed_milestones(user_id: int) -> set[str]:
         completed: set[str] = set()
         if DashboardOnboardingService._exists_any(Bank, user_id):
@@ -91,7 +106,7 @@ class DashboardOnboardingService:
             completed.add("portfolio")
         if DashboardOnboardingService._portfolio_exists(user_id, ("Crypto",)):
             completed.add("crypto")
-        if DashboardOnboardingService._portfolio_exists(user_id, ("Commodity",)):
+        if DashboardOnboardingService._precious_metales_portfolio_exists(user_id):
             completed.add("metales")
         if DashboardOnboardingService._exists_any(RealEstateProperty, user_id):
             completed.add("real_estate")
@@ -126,7 +141,7 @@ class DashboardOnboardingService:
             return True
         if "crypto" in keys and DashboardOnboardingService._portfolio_exists(user_id, ("Crypto",)):
             return True
-        if "metales" in keys and DashboardOnboardingService._portfolio_exists(user_id, ("Commodity",)):
+        if "metales" in keys and DashboardOnboardingService._precious_metales_portfolio_exists(user_id):
             return True
         if (
             {"portfolio", "crypto", "metales"} & keys

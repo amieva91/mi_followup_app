@@ -783,6 +783,7 @@ def watchlist_reports_generate_all():
                 template_id=template.id,
                 template_title=template.title,
                 status='pending',
+                report_enqueued_at=datetime.utcnow(),
             )
             db.session.add(report)
             db.session.flush()

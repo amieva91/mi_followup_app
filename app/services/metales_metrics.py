@@ -2,6 +2,9 @@
 Precios Yahoo en USD/oz troy; cantidad interna en gramos.
 1 oz troy = 31.1035 g.
 Usa pnl_lib para fórmulas unificadas de P&L.
+
+Solo metales preciosos (futuros Yahoo): oro, plata, platino, paladio.
+Excluye otros Commodity (p. ej. petróleo BZ=F) del módulo y de agregados "metales".
 """
 from typing import Dict, List, Any
 
@@ -11,6 +14,42 @@ from app.services.metrics.pnl_lib import (
 )
 
 OZ_TROY_TO_G = 31.1035
+
+# Futuros Yahoo del módulo Metales (oro, plata, platino, paladio)
+PRECIOUS_METAL_YAHOO_SYMBOLS = frozenset({'GC=F', 'SI=F', 'PL=F', 'PA=F'})
+
+PRECIOUS_METAL_DEFS: List[Dict[str, str]] = [
+    {'symbol': 'GC=F', 'name': 'Oro (XAU)', 'currency': 'USD'},
+    {'symbol': 'SI=F', 'name': 'Plata (XAG)', 'currency': 'USD'},
+    {'symbol': 'PL=F', 'name': 'Platino (XPT)', 'currency': 'USD'},
+    {'symbol': 'PA=F', 'name': 'Paladio (XPD)', 'currency': 'USD'},
+]
+
+
+def ensure_precious_metal_assets() -> None:
+    """Crea en BD los cuatro assets Commodity de metales preciosos si faltan (idempotente)."""
+    from app import db
+    from app.models import Asset
+
+    changed = False
+    for m in PRECIOUS_METAL_DEFS:
+        existing = Asset.query.filter(
+            Asset.symbol == m['symbol'],
+            Asset.asset_type == 'Commodity',
+        ).first()
+        if not existing:
+            db.session.add(
+                Asset(
+                    symbol=m['symbol'],
+                    name=m['name'],
+                    asset_type='Commodity',
+                    currency=m['currency'],
+                    yahoo_suffix='',
+                )
+            )
+            changed = True
+    if changed:
+        db.session.commit()
 
 
 def get_metales_holdings(user_id: int):
@@ -23,11 +62,18 @@ def get_metales_holdings(user_id: int):
         .filter(PortfolioHolding.quantity > 0)
         .join(PortfolioHolding.asset)
         .filter(Asset.asset_type == 'Commodity')
+        .filter(Asset.symbol.in_(PRECIOUS_METAL_YAHOO_SYMBOLS))
         .all()
     )
 
 
-def _position_to_dict(ps, holding=None, asset=None) -> Dict[str, Any]:
+def _position_to_dict(
+    ps,
+    holding=None,
+    asset=None,
+    account_id=None,
+    account_label=None,
+) -> Dict[str, Any]:
     """Convierte PositionSnapshot a dict para templates (retrocompatibilidad)."""
     d = {
         'symbol': ps.symbol,
@@ -44,6 +90,10 @@ def _position_to_dict(ps, holding=None, asset=None) -> Dict[str, Any]:
     # así que NO puede contener objetos SQLAlchemy (holding/asset).
     if asset is not None:
         d['asset_id'] = asset.id
+    if account_id is not None:
+        d['account_id'] = account_id
+    if account_label:
+        d['account_label'] = account_label
     return d
 
 
@@ -88,7 +138,21 @@ def compute_metales_metrics(user_id: int) -> Dict[str, Any]:
             current_price=price_eur_per_g,
         )
         positions.append(pos)
-        posiciones.append(_position_to_dict(pos, holding=h, asset=asset))
+        acc = h.account
+        account_label = ''
+        if acc:
+            account_label = (
+                f'{acc.broker.name} — {acc.account_name}' if acc.broker else acc.account_name
+            )
+        posiciones.append(
+            _position_to_dict(
+                pos,
+                holding=h,
+                asset=asset,
+                account_id=h.account_id,
+                account_label=account_label,
+            )
+        )
 
     snapshot = create_asset_category_snapshot(category='metales', positions=positions)
 

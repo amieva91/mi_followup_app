@@ -1,13 +1,16 @@
 """
 Rutas de cuentas de broker (CRUD)
 """
-from flask import render_template, redirect, url_for, flash
+from flask import render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_required, current_user
 
 from app.routes import portfolio_bp
 from app import db
 from app.models import Broker, BrokerAccount, PortfolioHolding, Transaction
 from app.forms import BrokerAccountForm
+from app.forms.portfolio.account_forms import BROKER_WHITELIST
+
+_CURRENCY_CHOICES = {"EUR", "USD", "GBP", "CHF"}
 
 
 @portfolio_bp.route('/accounts')
@@ -50,6 +53,56 @@ def account_new():
         return redirect(url_for('portfolio.accounts_list'))
 
     return render_template('portfolio/account_form.html', form=form, title='Nueva Cuenta')
+
+
+@portfolio_bp.route('/accounts/quick-create', methods=['POST'])
+@login_required
+def quick_create_account():
+    """Crea una cuenta (broker + nombre) desde un modal; devuelve JSON para añadir al desplegable."""
+    broker_id = request.form.get('broker_id', type=int)
+    broker_name_new = (request.form.get('broker_name_new') or '').strip()
+    account_name = (request.form.get('account_name') or '').strip()
+    base_currency = (request.form.get('base_currency') or 'EUR').upper().strip()
+    if not account_name or len(account_name) > 100:
+        return jsonify({'ok': False, 'error': 'Indica un nombre de cuenta (máx. 100 caracteres).'}), 400
+    if base_currency not in _CURRENCY_CHOICES:
+        return jsonify({'ok': False, 'error': 'Divisa no válida.'}), 400
+
+    allowed = {
+        b.id
+        for b in Broker.query.filter_by(is_active=True)
+        .filter(Broker.name.in_(BROKER_WHITELIST))
+        .all()
+    }
+
+    if broker_id and broker_id in allowed:
+        use_broker_id = broker_id
+    elif broker_name_new and len(broker_name_new) <= 100:
+        b = Broker.query.filter(db.func.lower(Broker.name) == broker_name_new.lower()).first()
+        if not b:
+            b = Broker(name=broker_name_new, full_name=broker_name_new, is_active=True)
+            db.session.add(b)
+            db.session.flush()
+        use_broker_id = b.id
+    else:
+        return jsonify(
+            {
+                'ok': False,
+                'error': 'Selecciona un broker de la lista o escribe el nombre de uno nuevo.',
+            }
+        ), 400
+
+    account = BrokerAccount(
+        user_id=current_user.id,
+        broker_id=use_broker_id,
+        account_name=account_name,
+        base_currency=base_currency,
+    )
+    db.session.add(account)
+    db.session.commit()
+    br = db.session.get(Broker, use_broker_id)
+    label = f'{br.name} - {account_name}' if br else account_name
+    return jsonify({'ok': True, 'id': account.id, 'label': label})
 
 
 @portfolio_bp.route('/accounts/<int:id>/edit', methods=['GET', 'POST'])

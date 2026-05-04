@@ -71,6 +71,24 @@ def user_has_module(user, key):
     return user.has_module(key)
 
 
+def about_markdown_to_html(value):
+    """
+    Convierte Markdown del resumen «About the Company» a HTML (contenido generado/curado, no input libre de usuario).
+    """
+    if value is None or str(value).strip() == '':
+        return ''
+    s = str(value).strip()
+    try:
+        import markdown
+
+        return markdown.markdown(
+            s,
+            extensions=['extra', 'nl2br'],
+        )
+    except ImportError:
+        return s.replace('\n', '<br>\n')
+
+
 def register_filters(app):
     """
     Registra los filtros personalizados en la aplicación Flask
@@ -79,4 +97,5 @@ def register_filters(app):
     app.jinja_env.filters['decimal_eu'] = format_decimal_eu
     app.jinja_env.filters['month_es'] = format_month_es
     app.jinja_env.filters['user_has_module'] = user_has_module
+    app.jinja_env.filters['about_markdown'] = about_markdown_to_html
 

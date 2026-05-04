@@ -39,6 +39,10 @@ sudo -u $APP_USER python3 -m venv venv
 sudo -u $APP_USER $APP_DIR/venv/bin/pip install --upgrade pip
 sudo -u $APP_USER $APP_DIR/venv/bin/pip install -r requirements.txt gunicorn
 
+echo "=== Playwright Chromium (PDF informes) ==="
+sudo "$APP_DIR/venv/bin/python" -m playwright install-deps chromium 2>/dev/null || true
+sudo -u $APP_USER env PLAYWRIGHT_BROWSERS_PATH=0 HOME=$APP_DIR "$APP_DIR/venv/bin/python" -m playwright install chromium
+
 echo "=== Creando archivo .env ==="
 SECRET_KEY=$(openssl rand -hex 32)
 # SQLite requiere 4 barras para ruta absoluta: sqlite:////path
@@ -67,6 +71,7 @@ User=$APP_USER
 Group=$APP_USER
 WorkingDirectory=$APP_DIR
 Environment="PATH=$APP_DIR/venv/bin"
+Environment="PLAYWRIGHT_BROWSERS_PATH=0"
 Environment="FLASK_ENV=production"
 ExecStart=$APP_DIR/venv/bin/gunicorn --workers 4 --bind 127.0.0.1:5000 --timeout 1200 run:app
 Restart=always

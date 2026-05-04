@@ -46,9 +46,11 @@ def run_company_report_deep_research_job(
     Usa conexión raw SQL para no depender de sesión ORM del hilo principal.
     """
     from app import db
+    from app.background_tasks_lock import background_tasks_lock
     from app.services.gemini_service import run_deep_research_report, GeminiServiceError
 
-    with app.app_context():
+    # Misma cola justa que informes desde ficha (company_report_queue + flock).
+    with app.app_context(), background_tasks_lock(app, fair_report_id=report_id):
         engine = db.engine
 
         def _update_status(st, content_val=None, error_val=None):
@@ -75,7 +77,7 @@ def run_company_report_deep_research_job(
             with engine.connect() as conn:
                 r = conn.execute(
                     text(
-                        "UPDATE company_reports SET status = 'processing' WHERE id = :rid AND status = 'pending'"
+                        "UPDATE company_reports SET status = 'processing' WHERE id = :rid"
                     ),
                     {'rid': report_id},
                 )

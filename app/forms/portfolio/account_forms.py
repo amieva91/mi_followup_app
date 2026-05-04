@@ -8,6 +8,17 @@ from app.models import Broker
 BROKER_WHITELIST = {'IBKR', 'DeGiro', 'Manual', 'Revolut', 'Commodities'}
 
 
+def get_brokers_for_account_modal():
+    """Misma lista que BrokerAccountForm: brokers activos de la lista blanca, para el modal de creación rápida."""
+    brokers = (
+        Broker.query.filter_by(is_active=True)
+        .filter(Broker.name.in_(BROKER_WHITELIST))
+        .order_by(Broker.name)
+        .all()
+    )
+    return [{'id': b.id, 'label': f'{b.name} - {b.full_name or b.name}'} for b in brokers]
+
+
 class BrokerAccountForm(FlaskForm):
     """Formulario para crear/editar cuenta de broker"""
     broker_id = SelectField('Broker', coerce=lambda x: int(x) if x else None, validators=[Optional()])

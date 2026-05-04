@@ -1,7 +1,7 @@
 """watchlist manual_field_sources + watchlist_ai_jobs
 
 Revision ID: wlmanual01
-Revises: r8s9t0u1v2w3
+Revises: d4e5f6a7b8c9
 Create Date: 2026-05-03
 
 """
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 revision = "wlmanual01"
-down_revision = "r8s9t0u1v2w3"
+down_revision = "d4e5f6a7b8c9"
 branch_labels = None
 depends_on = None
 

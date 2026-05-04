@@ -1,6 +1,6 @@
 {% extends "base/layout.html" %}
 
-{% block title %}Nueva Compra/Venta - Crypto{% endblock %}
+{% block title %}{% if is_edit|default(false) %}Editar operación{% else %}Nueva compra/venta{% endif %} — Crypto{% endblock %}
 
 {% block content %}
 <style>
@@ -15,17 +15,23 @@
 </style>
 <div id="crypto-tx" class="max-w-3xl mx-auto px-4 py-8">
     <a href="{{ url_for('crypto.dashboard') }}" class="text-teal-700 hover:underline text-sm font-medium mb-3 inline-block">← Volver a cryptomonedas</a>
-    <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 mb-1">➕ Nueva operación</h1>
-    <p class="text-slate-600 text-sm sm:text-base mb-8">Operación manual de criptomoneda</p>
+    <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 mb-1">{% if is_edit|default(false) %}✏️ Editar operación{% else %}➕ Nueva operación{% endif %}</h1>
+    <p class="text-slate-600 text-sm sm:text-base mb-8">{% if is_edit|default(false) %}Modifica los datos y guarda.{% else %}Operación manual de criptomoneda{% endif %}</p>
 
     <div class="tx-card p-6 sm:p-8">
         <form method="POST" action="">
             {{ form.hidden_tag() }}
 
             <div class="space-y-6">
+                {% set account_select_id = 'crypto_account_id' %}
                 <div>
                     {{ form.account_id.label(class="block text-sm font-medium text-gray-700 mb-2") }}
-                    {{ form.account_id(class="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500") }}
+                    <div class="flex items-center gap-2">
+                        <div class="flex-1 min-w-0">
+                            {{ form.account_id(id=account_select_id, class="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500") }}
+                        </div>
+                        {% include 'components/account_modal_quick.html' %}
+                    </div>
                     {% if form.account_id.errors %}
                         <div class="mt-1 text-sm text-red-600">{{ form.account_id.errors[0] }}</div>
                     {% endif %}

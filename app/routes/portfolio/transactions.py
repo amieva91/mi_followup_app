@@ -215,7 +215,11 @@ def transaction_edit(id):
         transaction.transaction_date = form.transaction_date.data
         transaction.quantity = form.quantity.data
         transaction.price = form.price.data
-        transaction.amount = form.quantity.data * form.price.data
+        # Mismo criterio que transaction_new: compra = flujo de caja negativo, venta = positivo
+        amount = (form.quantity.data or 0) * (form.price.data or 0)
+        if form.transaction_type.data == 'BUY':
+            amount = -amount
+        transaction.amount = amount
         transaction.currency = form.currency.data
         transaction.commission = form.commission.data
         transaction.fees = form.fees.data
@@ -306,6 +310,9 @@ def transaction_delete(id):
     CacheRebuildStateService.mark_for_dates(current_user.id, dates=[txn_date])
     
     flash(f'✅ Transacción de {asset_symbol} eliminada correctamente. Holdings recalculados.', 'success')
+    next_url = (request.form.get('next') or '').strip()
+    if next_url.startswith('/') and not next_url.startswith('//') and '..' not in next_url:
+        return redirect(next_url)
     return redirect(url_for('portfolio.transactions_list'))
 
 

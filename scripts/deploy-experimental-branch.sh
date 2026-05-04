@@ -58,6 +58,12 @@ source venv/bin/activate
 pip install --no-cache-dir -r requirements.txt --quiet
 echo "   ✓ pip OK"
 
+echo "🎭 Playwright (Chromium para PDF del informe, mismo HTML/CSS que la web)..."
+export PLAYWRIGHT_BROWSERS_PATH=0
+python -m playwright install-deps chromium 2>/dev/null || true
+python -m playwright install chromium
+echo "   ✓ Chromium OK"
+
 echo "🗄️  Migraciones..."
 export FLASK_APP=run.py
 export FLASK_ENV=production

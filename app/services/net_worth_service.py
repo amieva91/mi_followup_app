@@ -9,13 +9,15 @@ import numpy as np
 
 from sqlalchemy.exc import OperationalError
 
+from sqlalchemy import and_, or_
+
 from app import db
 from app.models.portfolio import PortfolioHolding
 from app.models.asset import Asset
 from app.models.user import User
 from app.services.bank_service import BankService
 from app.services.crypto_metrics import compute_crypto_metrics
-from app.services.metales_metrics import compute_metales_metrics
+from app.services.metales_metrics import compute_metales_metrics, PRECIOUS_METAL_YAHOO_SYMBOLS
 from app.services.stocks_metrics import compute_stocks_metrics
 from app.services.debt_service import DebtService
 from app.services.currency_service import convert_to_eur
@@ -109,13 +111,15 @@ def _convert_amount(amount: float, from_currency: str, to_currency: str) -> floa
 def get_commodities_snapshot(user_id: int) -> List[Dict[str, Any]]:
     """
     Snapshot ligero para widget 'Commodities' en dashboard.
-    Devuelve 3 filas: Oro, Plata, Oil Brent, con precio en USD y % cambio día.
+    Devuelve 4 filas: oro, plata, platino, paladio (futuros Yahoo), con precio en USD y % cambio día.
+    No incluye petróleo ni otros Commodity.
     """
     # tickers Yahoo (Chart API). En nuestro modelo es Asset.symbol (yahoo_suffix vacío).
     wanted = [
         {"symbol": "GC=F", "name": "Oro", "currency": "USD"},
         {"symbol": "SI=F", "name": "Plata", "currency": "USD"},
-        {"symbol": "BZ=F", "name": "Oil Brent", "currency": "USD"},
+        {"symbol": "PL=F", "name": "Platino", "currency": "USD"},
+        {"symbol": "PA=F", "name": "Paladio", "currency": "USD"},
     ]
 
     rows: List[Dict[str, Any]] = []
@@ -412,7 +416,9 @@ def _get_holdings_value_at_date(
         asset = txn.asset
         if not asset or asset.asset_type not in asset_types:
             continue
-        
+        if asset.asset_type == 'Commodity' and (asset.symbol or '') not in PRECIOUS_METAL_YAHOO_SYMBOLS:
+            continue
+
         if asset_id not in fifo_calculators:
             fifo_calculators[asset_id] = {
                 'fifo': FIFOCalculator(symbol=asset.symbol),
@@ -494,6 +500,22 @@ def _has_active_holdings(user_id: int, asset_types: List[str]) -> bool:
             PortfolioHolding.user_id == user_id,
             PortfolioHolding.quantity > 0,
             Asset.asset_type.in_(asset_types),
+        )
+        .first()
+        is not None
+    )
+
+
+def _has_active_precious_metal_holdings(user_id: int) -> bool:
+    """True si hay gramos de metales preciosos (GC/SI/PL/PA) en cartera, no otros Commodity."""
+    return (
+        db.session.query(PortfolioHolding.id)
+        .join(Asset, PortfolioHolding.asset_id == Asset.id)
+        .filter(
+            PortfolioHolding.user_id == user_id,
+            PortfolioHolding.quantity > 0,
+            Asset.asset_type == 'Commodity',
+            Asset.symbol.in_(PRECIOUS_METAL_YAHOO_SYMBOLS),
         )
         .first()
         is not None
@@ -590,6 +612,7 @@ def _metales_bucket_now_prev_from_holdings(user_id: int) -> Tuple[float, float]:
         .filter(PortfolioHolding.quantity > 0)
         .join(Asset)
         .filter(Asset.asset_type == "Commodity")
+        .filter(Asset.symbol.in_(PRECIOUS_METAL_YAHOO_SYMBOLS))
         .all()
     )
     for h in rows:
@@ -624,9 +647,7 @@ def get_investments_day_change(user_id: int) -> Optional[Tuple[float, float]]:
     include_crypto = _user_has_module(user_id, "crypto") and _has_active_holdings(
         user_id, ["Crypto"]
     )
-    include_metales = _user_has_module(user_id, "metales") and _has_active_holdings(
-        user_id, ["Commodity"]
-    )
+    include_metales = _user_has_module(user_id, "metales") and _has_active_precious_metal_holdings(user_id)
 
     if not (include_stocks or include_crypto or include_metales):
         return None
@@ -701,7 +722,9 @@ def _get_holdings_breakdown_at_date(user_id: int, target_date, use_current_price
         asset = txn.asset
         if not asset or asset.asset_type not in type_mapping:
             continue
-        
+        if asset.asset_type == 'Commodity' and (asset.symbol or '') not in PRECIOUS_METAL_YAHOO_SYMBOLS:
+            continue
+
         if asset_id not in fifo_calculators:
             fifo_calculators[asset_id] = {
                 'fifo': FIFOCalculator(symbol=asset.symbol),
@@ -950,7 +973,15 @@ def get_top_movers_for_user(user_id: int, limit: int = 5) -> List[Dict[str, Any]
         .join(PortfolioHolding, PortfolioHolding.asset_id == Asset.id)
         .filter(PortfolioHolding.user_id == user_id)
         .filter(PortfolioHolding.quantity > 0)
-        .filter(Asset.asset_type.in_(['Stock', 'ETF', 'Crypto', 'Commodity']))
+        .filter(
+            or_(
+                Asset.asset_type.in_(['Stock', 'ETF', 'Crypto']),
+                and_(
+                    Asset.asset_type == 'Commodity',
+                    Asset.symbol.in_(PRECIOUS_METAL_YAHOO_SYMBOLS),
+                ),
+            )
+        )
         .filter(Asset.day_change_percent.isnot(None))
         .distinct()
         .all()

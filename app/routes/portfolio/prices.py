@@ -41,6 +41,22 @@ def update_prices():
     except Exception:
         return jsonify({'error': 'Token CSRF inválido'}), 400
 
+    scope = (request.form.get('scope') or '').strip().lower()
+    if scope and scope not in ('holdings', 'crypto', 'metales'):
+        return jsonify({'error': 'Alcance de actualización no válido'}), 400
+
+    asset_types = None
+    symbols_filter = None
+    if scope == 'holdings':
+        asset_types = ['Stock', 'ETF']
+    elif scope == 'crypto':
+        asset_types = ['Crypto']
+    elif scope == 'metales':
+        from app.services.metales_metrics import PRECIOUS_METAL_YAHOO_SYMBOLS
+
+        asset_types = ['Commodity']
+        symbols_filter = PRECIOUS_METAL_YAHOO_SYMBOLS
+
     user_id = current_user.id
     session_key = f'price_update_{user_id}'
 
@@ -77,7 +93,11 @@ def update_prices():
                 except Exception:
                     pass  # No bloquear si falla el delisting
                 updater = PriceUpdater(progress_callback=lambda d: update_price_progress(session_key, d), user_id=user_id)
-                result = updater.update_asset_prices(user_id=user_id)
+                result = updater.update_asset_prices(
+                    user_id=user_id,
+                    asset_types=asset_types,
+                    symbols_filter=symbols_filter,
+                )
                 if delisting_result.get('created', 0) > 0:
                     result = result or {}
                     result['delistings_created'] = delisting_result.get('created', 0)

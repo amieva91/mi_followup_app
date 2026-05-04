@@ -5,6 +5,7 @@ Usa pnl_lib para fórmulas unificadas de P&L.
 """
 from typing import Dict, List, Any
 
+from app.models import BrokerAccount
 from app.services.metrics.pnl_lib import (
     create_position_snapshot,
     create_asset_category_snapshot,
@@ -45,6 +46,8 @@ def _position_to_dict(ps) -> Dict[str, Any]:
         'reward_value': ps.extra.get('reward_value', 0),
         'asset_id': ps.extra.get('asset_id'),
         'needs_yahoo_fix': ps.extra.get('needs_yahoo_fix', False),
+        'account_id': ps.extra.get('account_id'),
+        'account_label': ps.extra.get('account_label') or '',
     }
     return d
 
@@ -55,11 +58,20 @@ def compute_crypto_metrics(user_id: int) -> Dict[str, Any]:
     Devuelve dict con claves unificadas (total_cost, total_value, total_pnl, total_pnl_pct)
     y claves legacy (capital_invertido, valor_total, pl_total, pl_pct_total) para compatibilidad.
     """
-    from app.models import Transaction, BrokerAccount, Broker
+    from app.models import Transaction, Broker
 
     holdings = get_crypto_holdings(user_id)
     if not holdings:
         return _empty_metrics()
+
+    account_ids = {h.account_id for h in holdings}
+    acc_map = {
+        a.id: a
+        for a in BrokerAccount.query.filter(
+            BrokerAccount.id.in_(account_ids),
+            BrokerAccount.user_id == user_id,
+        ).all()
+    }
 
     # Cuentas Revolut para rewards
     revolut_account_ids = [
@@ -111,6 +123,14 @@ def compute_crypto_metrics(user_id: int) -> Dict[str, Any]:
             total_value = qty * price if price else total_cost
             cuasi_fiat += total_value if price else qty
 
+        acc = acc_map.get(h.account_id)
+        if acc and acc.broker:
+            account_label = f'{acc.broker.name} — {acc.account_name}'
+        elif acc:
+            account_label = acc.account_name or ''
+        else:
+            account_label = ''
+
         pos = create_position_snapshot(
             symbol=symbol,
             name=asset.name or symbol,
@@ -123,6 +143,8 @@ def compute_crypto_metrics(user_id: int) -> Dict[str, Any]:
                 'reward_value': reward_value,
                 'asset_id': asset.id,
                 'needs_yahoo_fix': not (asset.yahoo_ticker),
+                'account_id': h.account_id,
+                'account_label': account_label,
             },
         )
         positions.append(pos)

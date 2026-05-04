@@ -52,6 +52,12 @@ echo "📚 Comprobando dependencias..."
 pip install --no-cache-dir -r requirements.txt --quiet
 echo "   ✓ Dependencias OK"
 
+echo "🎭 Playwright (Chromium para PDF del informe)..."
+export PLAYWRIGHT_BROWSERS_PATH=0
+python -m playwright install-deps chromium 2>/dev/null || true
+python -m playwright install chromium
+echo "   ✓ Chromium OK"
+
 # Migraciones (para reset completo de BD en producción: ./scripts/reset_db_production.sh)
 echo "🗄️  Aplicando migraciones..."
 export FLASK_APP=run.py

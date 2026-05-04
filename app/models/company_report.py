@@ -84,6 +84,7 @@ class CompanyReport(db.Model):
     template_title = db.Column(db.String(200), nullable=True)  # Nombre mostrado (denormalizado)
 
     content = db.Column(db.Text, nullable=True)  # Contenido del informe (Markdown)
+    summary_content = db.Column(db.Text, nullable=True)  # Resumen Markdown (Flash) para correo / vista previa
     status = db.Column(db.String(20), nullable=False, default='pending')  # pending, processing, completed, failed
     error_msg = db.Column(db.Text, nullable=True)
     gemini_interaction_id = db.Column(db.String(100), nullable=True)
@@ -92,7 +93,23 @@ class CompanyReport(db.Model):
     audio_path = db.Column(db.String(500), nullable=True)  # ruta al archivo WAV
     audio_status = db.Column(db.String(20), nullable=True)  # pending, processing, completed, failed
     audio_error_msg = db.Column(db.Text, nullable=True)
+    audio_progress_json = db.Column(db.Text, nullable=True)  # JSON: pasos guion TTS (poll UI)
     audio_completed_at = db.Column(db.DateTime, nullable=True)
+
+    # Cola (orden real por petición, no por created_at).
+    report_enqueued_at = db.Column(db.DateTime, nullable=True)
+    audio_enqueued_at = db.Column(db.DateTime, nullable=True)
+
+    # Email (pipeline todo-en-uno): separar fallo de envío del estado del audio.
+    email_status = db.Column(db.String(20), nullable=True)  # processing, completed, failed
+    email_error_msg = db.Column(db.Text, nullable=True)
+    email_completed_at = db.Column(db.DateTime, nullable=True)
+
+    # Todo-en-uno (generate-deliver): seguimiento tras Deep Research (reanudación / timeout).
+    # delivery_mode: 'full_deliver' | NULL
+    # delivery_phase_status: 'processing' | 'completed' | 'failed' | 'partial'
+    delivery_mode = db.Column(db.String(20), nullable=True)
+    delivery_phase_status = db.Column(db.String(20), nullable=True)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     completed_at = db.Column(db.DateTime, nullable=True)

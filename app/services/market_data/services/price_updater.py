@@ -3,7 +3,7 @@ PriceUpdater Service - Actualización de precios y métricas desde Yahoo Finance
 Sprint 3 Final - Real-time Prices
 """
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Collection, Dict, List, Optional, Tuple
 import time
 import requests
 import yfinance as yf
@@ -109,13 +109,23 @@ class PriceUpdater:
             logger.error(f"   ❌ Error en autenticación: {e}")
             return False
     
-    def update_asset_prices(self, asset_ids: Optional[List[int]] = None, user_id: Optional[int] = None) -> Dict:
+    def update_asset_prices(
+        self,
+        asset_ids: Optional[List[int]] = None,
+        user_id: Optional[int] = None,
+        asset_types: Optional[List[str]] = None,
+        symbols_filter: Optional[Collection[str]] = None,
+    ) -> Dict:
         """
         Actualiza precios de uno o varios activos.
 
         Args:
             asset_ids: Lista de IDs de activos. Si None, actualiza activos con holdings > 0.
             user_id: Si se indica, solo se consideran posiciones de ese usuario (evita escanear activos de otros usuarios).
+            asset_types: Si se indica, solo se actualizan activos cuyo ``asset_type`` esté en la lista
+                (p. ej. ``['Crypto']`` o ``['Stock','ETF']``) tras resolver holdings.
+            symbols_filter: Si se indica, solo activos cuyo ``symbol`` esté en este conjunto
+                (p. ej. futuros de metales: GC=F, SI=F…).
         Returns:
             Dict con estadísticas de la actualización
         """
@@ -141,6 +151,13 @@ class PriceUpdater:
             assets = Asset.query.filter(Asset.id.in_(asset_ids_with_holdings)).all()
 
         assets = [a for a in assets if a.id not in delisted_asset_ids]
+
+        if asset_types:
+            allowed_t = set(asset_types)
+            assets = [a for a in assets if (a.asset_type or '') in allowed_t]
+        if symbols_filter:
+            sym_set = set(symbols_filter)
+            assets = [a for a in assets if (a.symbol or '') in sym_set]
 
         if not assets:
             logger.info("⚠️ No hay activos para actualizar")

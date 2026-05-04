@@ -47,12 +47,80 @@
     border-left: 4px solid #0d9488;
     margin: 1em 0;
     padding: 0.5em 1em;
-    background: #f0f4ff;
-    color: #374151;
+    background: rgba(240, 253, 250, 0.55);
+    color: #334155;
     font-style: italic;
 }
 .report-markdown hr { border: none; border-top: 1px solid #e5e7eb; margin: 1.5em 0; }
 .report-markdown code { background: #f3f4f6; padding: 0.15em 0.4em; border-radius: 4px; font-size: 0.9em; }
+
+/* Equilibrio texto vs gráficos — paleta teal/slate FollowUp (misma línea que About / portfolio) */
+.report-markdown.report-content {
+    font-size: 1.15rem !important;
+    line-height: 1.8;
+    color: #1e293b;
+    text-wrap: pretty;
+}
+.report-markdown.report-content p {
+    color: #334155;
+    margin-bottom: 0.85em;
+}
+.report-markdown.report-content blockquote {
+    font-size: 1.08rem;
+    line-height: 1.75;
+    padding: 1.35rem 1.6rem;
+    margin: 2rem 0;
+    background: linear-gradient(165deg, rgba(248, 250, 252, 0.98) 0%, rgba(240, 253, 250, 0.42) 55%, rgba(241, 245, 249, 0.5) 100%);
+    border-left: 5px solid #0d9488;
+    border-radius: 0 12px 12px 0;
+    color: #334155;
+    font-style: italic;
+    box-shadow: 0 4px 18px rgba(15, 23, 42, 0.07);
+}
+.report-markdown.report-content h1 {
+    font-size: clamp(1.65rem, 4vw, 2.05rem);
+    margin-bottom: 1.25rem;
+}
+.report-markdown.report-content h2 {
+    font-size: clamp(1.28rem, 3vw, 1.62rem);
+    margin-top: 2rem;
+}
+.report-markdown.report-content img {
+    max-width: 85% !important;
+    height: auto;
+    display: block;
+    margin: 3rem auto;
+    border-radius: 8px;
+    border: 1px solid rgba(226, 232, 240, 0.95);
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.09);
+}
+
+/* Resumen "About the Company" — legible, escaneable, coherente con informes */
+.about-summary-box {
+    border-radius: 0.75rem;
+    border: 1px solid rgba(13, 148, 136, 0.18);
+    background: linear-gradient(165deg, rgba(255, 255, 255, 0.95) 0%, rgba(240, 253, 250, 0.55) 50%, rgba(241, 245, 249, 0.35) 100%);
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+.about-markdown { line-height: 1.7; color: #1e293b; }
+.about-markdown p { margin: 0 0 0.9em; line-height: 1.7; }
+.about-markdown p:last-child { margin-bottom: 0; }
+.about-markdown h2, .about-markdown h3 {
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #0d9488;
+    margin: 1.1em 0 0.5em;
+    padding-bottom: 0.2em;
+    border-bottom: 1px solid rgba(13, 148, 136, 0.2);
+}
+.about-markdown h2:first-child, .about-markdown h3:first-child { margin-top: 0; }
+.about-markdown ul, .about-markdown ol { margin: 0.4em 0 0.8em; padding-left: 1.15rem; }
+.about-markdown li { margin-bottom: 0.35em; }
+.about-markdown li::marker { color: #0d9488; }
+.about-markdown strong { color: #0f172a; font-weight: 600; }
+.about-markdown a { color: #0d9488; text-decoration: underline; text-underline-offset: 2px; }
 
 /* Portfolio activo: alineado con /portfolio (3D suave, KPI con borde lateral) */
 #portfolio-asset-detail .portfolio-card {
@@ -251,7 +319,7 @@
                 <!-- About the Company -->
                 <div class="mt-8 asset-inner-panel p-4">
                     <div class="flex justify-between items-center mb-3">
-                        <div class="text-sm font-medium text-gray-700">About the Company</div>
+                        <div class="text-sm font-medium text-slate-800">About the Company</div>
                         {% if gemini_available %}
                         <button type="button" id="btnGenerateAbout" onclick="generateAboutSummary()" 
                                 class="portfolio-touch-btn px-3 py-1.5 bg-teal-600 text-white text-sm rounded-xl hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_8px_16px_rgba(13,148,136,0.25)]">
@@ -261,12 +329,14 @@
                         <span class="text-xs text-gray-400">GEMINI_API_KEY no configurada</span>
                         {% endif %}
                     </div>
-                    <div id="aboutSummaryContent" class="text-gray-800 whitespace-pre-wrap min-h-[60px]">
-                        {% if about_summary %}{{ about_summary }}{% else %}
-                        <span class="text-gray-400">Pulsa "Generar resumen" para obtener una descripción breve de la compañía.</span>
+                    <div class="about-summary-box p-4 sm:p-5 min-h-[72px]">
+                    <div id="aboutSummaryContent" class="about-markdown max-w-3xl min-h-[60px]">
+                        {% if about_summary %}{{ about_summary | about_markdown | safe }}{% else %}
+                        <span class="text-slate-400 text-sm leading-relaxed">Pulsa «Generar resumen» para obtener una descripción breve, con estructura clara y términos destacados.</span>
                         {% endif %}
                     </div>
-                    <div id="aboutSummaryLoading" class="hidden text-sm text-teal-600">Generando...</div>
+                    <div id="aboutSummaryLoading" class="hidden text-sm text-teal-600 mt-2">Generando…</div>
+                    </div>
                 </div>
             </div>
 
@@ -374,32 +444,48 @@
                 </div>
             </div>
 
-            <!-- Tab: Informes -->
+            <!-- Tab: Informes (Deep Research: informe + opcional audio + correo en un clic) -->
             <div x-show="activeTab === 'reports'" x-cloak>
-                <div class="mb-4 flex justify-between items-center">
+                <div class="mb-4">
                     <h3 class="text-lg font-medium text-gray-900">Informes de investigación</h3>
+                    <p class="text-sm text-slate-600 mt-1 max-w-3xl">Aquí se genera el informe con <strong>Deep Research</strong> (Gemini). Elige plantilla: <strong class="text-teal-800">Generar informe</strong> solo el texto, o <strong class="text-indigo-800">Informe + audio + correo</strong> (un solo clic: investigación, resumen de voz y envío a tu email).</p>
+                </div>
+                <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-start">
                     {% if gemini_available and has_valid_templates %}
-                    <div class="flex gap-2">
-                        <select id="reportTemplateSelect" class="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
+                    <div class="flex flex-col gap-3 w-full sm:flex-1 sm:min-w-0 sm:max-w-3xl">
+                        <div class="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
+                        <label for="reportTemplateSelect" class="sr-only">Plantilla de informe</label>
+                        <select id="reportTemplateSelect" aria-describedby="reportsActionsHint" class="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500 w-full sm:w-auto sm:min-w-[12rem] sm:max-w-md">
                             {% for t in report_templates %}
                             {% if t.has_valid_description() %}
                             <option value="{{ t.id }}">{{ t.title }}</option>
                             {% endif %}
                             {% endfor %}
                         </select>
-                        <button type="button" onclick="generateReport()" id="btnGenerateReport" class="portfolio-touch-btn px-4 py-2 bg-teal-600 text-white rounded-xl hover:bg-teal-700 shadow-[0_8px_16px_rgba(13,148,136,0.25)]">
-                            Generar informe
+                        <div id="reportsActionsHint" class="flex flex-col sm:flex-row flex-wrap gap-2 w-full sm:w-auto">
+                        <button type="button" onclick="generateReport()" id="btnGenerateReport" class="portfolio-touch-btn px-4 py-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 shadow-[0_8px_16px_rgba(13,148,136,0.25)] w-full sm:w-auto text-center">
+                            Solo generar informe
                         </button>
+                        <button type="button" onclick="generateReportAndDeliver()" id="btnGenerateReportDeliver" class="portfolio-touch-btn px-4 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 shadow-[0_8px_16px_rgba(79,70,229,0.2)] w-full sm:w-auto text-center ring-2 ring-indigo-300/50" title="Un solo clic: informe Deep Research, audio resumen (es-ES) y envío a tu correo. Puedes salir de la pantalla.">
+                            Todo en uno: informe + audio + correo
+                        </button>
+                        </div>
+                        </div>
                     </div>
                     {% elif gemini_available %}
-                    <button type="button" disabled title="Crea al menos una plantilla en Ajustes de informes" class="px-4 py-2 bg-slate-200 text-slate-500 rounded-xl cursor-not-allowed border border-slate-300">
-                        Generar informe
+                    <div class="flex flex-col sm:flex-row gap-2 w-full sm:justify-end">
+                    <button type="button" disabled title="Crea al menos una plantilla en Ajustes de informes" class="px-4 py-2 bg-slate-200 text-slate-500 rounded-xl cursor-not-allowed border border-slate-300 w-full sm:w-auto">
+                        Solo generar informe
                     </button>
+                    <button type="button" disabled title="Crea al menos una plantilla en Ajustes de informes" class="px-4 py-2 bg-slate-200 text-slate-500 rounded-xl cursor-not-allowed border border-slate-300 w-full sm:w-auto">
+                        Todo en uno: informe + audio + correo
+                    </button>
+                    </div>
                     {% else %}
                     <span class="text-sm text-gray-400">GEMINI_API_KEY no configurada</span>
                     {% endif %}
                 </div>
-                <div id="reportGenerateLoading" class="hidden mb-4 p-3 bg-sky-50/90 text-sky-900 border border-sky-200/80 rounded-xl text-sm">
+                <div id="reportGenerateLoading" class="hidden mb-4 p-3 bg-sky-50/90 text-sky-900 border border-sky-200/80 rounded-xl text-sm" data-poll-id="">
                     Generando informe... Puede tardar varios minutos.
                 </div>
                 <div id="reportsList" class="space-y-3">
@@ -413,15 +499,21 @@
                     <div id="reportDetailActions" class="flex flex-wrap gap-2 mb-3">
                         <button type="button" onclick="sendReportEmail()" id="btnSendReportEmail" class="hidden portfolio-touch-btn px-3 py-1.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 text-sm">Enviar por correo</button>
                         <button type="button" onclick="generateReportAudio()" id="btnGenerateAudio" class="hidden portfolio-touch-btn px-3 py-1.5 bg-slate-600 text-white rounded-xl hover:bg-slate-700 text-sm">Generar audio resumen</button>
-                        <button type="button" onclick="retryReportAudio()" id="btnRetryAudio" class="hidden portfolio-touch-btn px-3 py-1.5 bg-amber-500 text-white rounded-xl hover:bg-amber-600 text-sm">Reintentar audio</button>
+                        <button type="button" onclick="retryReportAudio()" id="btnRetryAudio" class="hidden portfolio-touch-btn px-3 py-1.5 bg-amber-500 text-white rounded-xl hover:bg-amber-600 text-sm" title="Borra el audio actual y genera de nuevo (p. ej. versión larga)">Reintentar / regenerar audio</button>
                         <span id="reportAudioStatus" class="hidden px-3 py-1.5 rounded-xl text-sm"></span>
                         <a id="btnDownloadAudio" href="#" class="hidden portfolio-touch-btn px-3 py-1.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 text-sm no-underline" download>Descargar audio</a>
                     </div>
+                    <div id="reportAudioProgress" class="hidden mb-3 w-full text-sm" aria-live="polite"></div>
                     <div id="reportAudioPlayer" class="hidden mb-3">
                         <p class="text-sm text-gray-600 mb-1">Escuchar audio resumen:</p>
                         <audio id="audioPlayer" controls class="w-full max-w-md" preload="metadata"></audio>
                     </div>
-                    <div id="reportDetailContent" class="prose max-w-none report-markdown"></div>
+                    <div id="reportViewToggle" class="hidden mb-3 flex flex-wrap gap-2 items-center">
+                        <span class="text-xs text-slate-600">Vista:</span>
+                        <button type="button" id="btnReportViewSummary" class="portfolio-touch-btn px-3 py-1 rounded-xl text-sm bg-teal-600 text-white">Resumen</button>
+                        <button type="button" id="btnReportViewFull" class="portfolio-touch-btn px-3 py-1 rounded-xl text-sm bg-slate-200 text-slate-800 border border-slate-300">Informe completo</button>
+                    </div>
+                    <div id="reportDetailContent" class="prose max-w-none report-markdown report-content"></div>
                 </div>
             </div>
 
@@ -550,9 +642,494 @@ function showToast(message, type = 'success') {
 }
 const API_REPORT_TEMPLATES_URL = "{{ api_report_templates_url|default('/portfolio/api/report-templates') }}" || '/portfolio/api/report-templates';
 
+let generatingReportId = null;
+let generatingFullPipeline = false;
+const reportStatusPolls = new Map();
+const audioStatusPolls = new Map();
+const AUDIO_POLL_MAX = 900;
+const REPORT_POLL_MAX = 900;
+/** Poll más frecuente para que la posición en cola (#n de t) se actualice casi en tiempo real. */
+const REPORT_STATUS_MS = 1000;
+const AUDIO_STATUS_MS = 1000;
+/** Refresco del listado de informes mientras haya trabajos en cola global (aunque no haya poll activo en un ID concreto). */
+const QUEUE_LIST_POLL_MS = 1000;
+let reportsListQueuePollTimer = null;
+
+function syncReportsListQueuePollTimer(data) {
+    const n = data && typeof data.queue_waiting_total === 'number' ? data.queue_waiting_total : 0;
+    if (n > 0) {
+        if (reportsListQueuePollTimer == null) {
+            reportsListQueuePollTimer = setInterval(function() {
+                loadReports();
+            }, QUEUE_LIST_POLL_MS);
+        }
+    } else if (reportsListQueuePollTimer != null) {
+        clearInterval(reportsListQueuePollTimer);
+        reportsListQueuePollTimer = null;
+    }
+}
+
+function formatQueueSuffix(data) {
+    if (!data) return '';
+    const p = data.queue_position;
+    const t = data.queue_waiting_total;
+    if (!p) return '';
+    if (typeof t === 'number' && t > 0) return ` (#${p} de ${t})`;
+    return ` (#${p})`;
+}
+function reportStatusLabel(status, queuePosition, queueWaitingTotal, deliveryMode, deliveryPhase) {
+    if (status === 'pending') {
+        let qp = '';
+        if (queuePosition) {
+            if (typeof queueWaitingTotal === 'number' && queueWaitingTotal > 0) {
+                qp = ` (#${queuePosition} de ${queueWaitingTotal})`;
+            } else {
+                qp = ` (#${queuePosition})`;
+            }
+        }
+        return 'en cola' + qp;
+    }
+    if (status === 'processing') return 'generando';
+    if (status === 'completed' && deliveryMode === 'full_deliver') {
+        const ph = deliveryPhase == null ? '' : String(deliveryPhase);
+        if (ph === 'processing' || ph === '') {
+            let qp = '';
+            if (queuePosition) {
+                if (typeof queueWaitingTotal === 'number' && queueWaitingTotal > 0) {
+                    qp = ` (#${queuePosition} de ${queueWaitingTotal})`;
+                } else {
+                    qp = ` (#${queuePosition})`;
+                }
+            }
+            return 'entregando' + qp;
+        }
+        if (ph === 'partial') return 'entrega incompleta';
+    }
+    if (status === 'completed') return 'listo';
+    if (status === 'failed') return 'error';
+    return status || '—';
+}
+function reportProgressHtml(status) {
+    if (status === 'pending') {
+        return '<div class="flex items-start gap-2 text-amber-900"><span class="shrink-0 w-2 h-2 mt-1.5 rounded-full bg-amber-400"></span><span>Informe <strong>en cola</strong>. Se iniciará en unos segundos…</span></div>';
+    }
+    if (status === 'processing') {
+        return '<div class="flex items-start gap-2 text-amber-900"><span class="shrink-0 w-2 h-2 mt-1.5 rounded-full bg-amber-500 animate-pulse"></span><span>Investigando con <strong>Deep Research</strong> (puede tardar varios minutos)…</span></div>';
+    }
+    return '<p class="text-gray-500">Cargando…</p>';
+}
+function setReportGenerateBannerVisible(reportId, data) {
+    const el = document.getElementById('reportGenerateLoading');
+    if (!el) return;
+    if (generatingReportId == null || Number(generatingReportId) !== Number(reportId)) return;
+    el.setAttribute('data-poll-id', String(reportId));
+    el.classList.remove('hidden');
+    const ap0 = data.audio_progress;
+    if (ap0 && ap0.steps && ap0.steps.length && (ap0.full_pipeline || ap0.report_stages)) {
+        el.innerHTML = buildAudioProgressBlockHtml(ap0.steps, ap0.caption);
+        return;
+    }
+    if (data.status === 'pending') {
+        el.innerHTML = 'Informe <strong>en cola</strong>… Puede empezar en segundos. <span class="text-slate-600">ID: ' + reportId + '</span>';
+    } else if (data.status === 'processing') {
+        el.innerHTML = 'Investigando con <strong>Deep Research</strong>… (varios minutos) <span class="text-slate-600">ID: ' + reportId + '</span>';
+    } else if (data.status === 'failed') {
+        el.innerHTML = '<span class="text-red-800">' + (data.error_msg ? String(data.error_msg).replace(/</g, '&lt;') : 'Error al generar el informe') + '</span> <span class="text-slate-600">ID: ' + reportId + '</span>';
+    } else if (data.status === 'completed' && (!data.audio_progress || (!data.audio_progress.full_pipeline && !data.audio_progress.report_stages))) {
+        el.classList.add('hidden');
+    }
+}
+/** Todo-en-uno terminado para la UI: correo ok/error, o cualquier paso en error (p. ej. TTS fallido). */
+function isFullPipelineUiTerminal(ap) {
+    if (!ap || !ap.full_pipeline || !ap.steps || !ap.steps.length) return true;
+    const steps = ap.steps;
+    for (var i = 0; i < steps.length; i++) {
+        if (steps[i] && steps[i].status === 'error') return true;
+    }
+    const last = steps[steps.length - 1];
+    return !!(last && last.id === 'email' && (last.status === 'ok' || last.status === 'error'));
+}
+function fullPipelinePollTerminal(data) {
+    if (!data || !data.audio_progress) return true;
+    if (!data.audio_progress.full_pipeline) return true;
+    return isFullPipelineUiTerminal(data.audio_progress);
+}
+function hideReportActionButtons() {
+    const btnEmail = document.getElementById('btnSendReportEmail');
+    const btnAudio = document.getElementById('btnGenerateAudio');
+    const btnRetry = document.getElementById('btnRetryAudio');
+    const audioStatus = document.getElementById('reportAudioStatus');
+    const btnDownload = document.getElementById('btnDownloadAudio');
+    if (btnEmail) btnEmail.classList.add('hidden');
+    if (btnAudio) btnAudio.classList.add('hidden');
+    if (btnRetry) btnRetry.classList.add('hidden');
+    if (audioStatus) { audioStatus.classList.add('hidden'); audioStatus.textContent = ''; }
+    if (btnDownload) btnDownload.classList.add('hidden');
+    const audioPlayerWrap = document.getElementById('reportAudioPlayer');
+    const audioEl = document.getElementById('audioPlayer');
+    if (audioPlayerWrap) audioPlayerWrap.classList.add('hidden');
+    if (audioEl) { audioEl.src = ''; try { audioEl.load(); } catch (e) {} }
+    const ap = document.getElementById('reportAudioProgress');
+    if (ap) { ap.classList.add('hidden'); ap.innerHTML = ''; }
+}
+function escapeHtml(s) {
+    if (s == null || s === '') return '';
+    return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+function buildAudioProgressBlockHtml(steps, caption) {
+    if (!steps || !steps.length) return '';
+    var cap = caption || 'Generando audio (segundo plano; puedes salir y volver)';
+    var out = [];
+    for (var i = 0; i < steps.length; i++) {
+        if (i > 0) {
+            out.push(
+                '<span class="flex-shrink-0 self-center flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-b from-white to-slate-50 border border-slate-200/90 text-slate-500 shadow-sm ring-1 ring-slate-200/50" aria-hidden="true" title="Siguiente paso">'
+                + '<svg class="h-3.5 w-3.5 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">'
+                + '<path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />'
+                + '</svg></span>'
+            );
+        }
+        var st = steps[i];
+        var icon = '';
+        if (st.status === 'ok') icon = '<span class="text-emerald-600" title="Completado">✓</span>';
+        else if (st.status === 'loading') icon = '<span class="inline-block w-3.5 h-3.5 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" title="En curso"></span>';
+        else if (st.status === 'error') icon = '<span class="text-red-600" title="Error">✗</span>';
+        else if (st.status === 'skipped') icon = '<span class="text-slate-400" title="Omitido en este modo">⏭</span>';
+        else icon = '<span class="text-slate-300" title="Pendiente">○</span>';
+        var err = st.error ? '<div class="text-red-600 text-xs mt-1 max-w-lg leading-snug break-words">' + escapeHtml(st.error) + '</div>' : '';
+        var model = st.model ? ' <code class="text-slate-500 text-[0.7rem] align-baseline break-all">' + escapeHtml(st.model) + '</code>' : '';
+        out.push(
+            '<div class="inline-flex flex-col min-w-0 max-w-full sm:max-w-md flex-shrink">'
+            + '<div class="flex flex-wrap items-baseline gap-x-1.5">'
+            + icon + ' <span class="font-medium text-slate-800 text-sm">' + escapeHtml(st.title || st.id || '') + '</span>' + model
+            + '</div>' + err + '</div>'
+        );
+    }
+    return '<div class="bg-slate-50 border border-slate-200/90 rounded-xl p-3 shadow-sm">'
+        + '<p class="text-xs text-slate-500 mb-2">' + escapeHtml(cap) + '</p>'
+        + '<div class="flex flex-col sm:flex-row sm:flex-wrap sm:items-start gap-2 sm:gap-x-1 sm:gap-y-2">'
+        + out.join('')
+        + '</div></div>';
+}
+function clearReportAudioProgressUI() {
+    const pb = document.getElementById('reportAudioProgress');
+    if (pb) { pb.classList.add('hidden'); pb.innerHTML = ''; }
+}
+function updateReportAudioProgressUI(data) {
+    const pb = document.getElementById('reportAudioProgress');
+    const legacy = document.getElementById('reportAudioStatus');
+    if (!data || !pb) return;
+    const ap = data.audio_progress;
+    const hasSteps = ap && ap.steps && ap.steps.length;
+    if (hasSteps && (data.audio_status === 'queued' || data.audio_status === 'processing' || data.audio_status === 'failed' || (ap.full_pipeline && data.status === 'completed'))) {
+        // Mostrar "en cola" aunque haya pasos (si no, parece que ya está ejecutando).
+        if (legacy) {
+            if (data.audio_status === 'queued') {
+                const qp = formatQueueSuffix(data);
+                legacy.classList.remove('hidden');
+                legacy.className = 'px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-800';
+                legacy.textContent = 'Audio en cola' + qp + '…';
+            } else {
+                legacy.classList.add('hidden');
+                legacy.textContent = '';
+            }
+        }
+        pb.classList.remove('hidden');
+        // Compat: si tras un reinicio el backend marcó audio_status=failed pero el JSON quedó con "tts: loading",
+        // forzamos el paso TTS a error para reflejar la realidad y evitar estados "eternos".
+        let stepsOut = ap.steps;
+        if (data.audio_status === 'failed' && typeof data.audio_error_msg === 'string' && data.audio_error_msg.trim()) {
+            try {
+                stepsOut = (ap.steps || []).map(s => {
+                    if (!s || typeof s !== 'object') return s;
+                    if (s.id === 'tts' && (s.status === 'loading' || s.status === 'pending')) {
+                        return { ...s, status: 'error', error: data.audio_error_msg };
+                    }
+                    return s;
+                });
+            } catch (e) {
+                stepsOut = ap.steps;
+            }
+        }
+        let cap = ap.caption;
+        if (data.audio_status === 'queued') {
+            const qp = formatQueueSuffix(data);
+            cap = 'Audio en cola' + qp + ' (se ejecutará cuando le toque; puedes salir y volver)';
+        }
+        pb.innerHTML = buildAudioProgressBlockHtml(stepsOut, cap);
+        return;
+    }
+    // Anti-parpadeo: si el audio está en cola/en curso y por timing llega un poll sin `audio_progress`,
+    // no vaciamos un bloque ya renderizado (evita "aparece/desaparece" indefinidamente).
+    if ((data.audio_status === 'queued' || data.audio_status === 'processing') && !pb.classList.contains('hidden') && pb.innerHTML.trim()) {
+        // mantenemos el bloque actual
+    } else {
+        pb.classList.add('hidden');
+        pb.innerHTML = '';
+    }
+    if ((data.audio_status === 'queued' || data.audio_status === 'processing') && legacy) {
+        legacy.classList.remove('hidden');
+        legacy.className = 'px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-800';
+        if (data.audio_status === 'queued') {
+            const qp = formatQueueSuffix(data);
+            legacy.textContent = 'Audio en cola' + qp + '…';
+        } else {
+            legacy.textContent = 'Generando audio…';
+        }
+    }
+}
+function updateReportDetailFromStatusPoll(reportId, data) {
+    if (Number(currentReportId) !== Number(reportId)) return;
+    const panel = document.getElementById('reportDetail');
+    const content = document.getElementById('reportDetailContent');
+    const audioPb = document.getElementById('reportAudioProgress');
+    const legacyAudioStatus = document.getElementById('reportAudioStatus');
+    if (!panel || !data) return;
+    const ap1 = data.audio_progress;
+    if (ap1 && ap1.steps && ap1.steps.length && (ap1.full_pipeline || ap1.report_stages)) {
+        panel.classList.remove('hidden');
+        hideReportActionButtons();
+        // Importante: en "todo en uno" el informe puede estar ya COMPLETADO mientras audio/correo siguen.
+        // No debemos machacar el HTML del informe/resumen con el spinner de progreso.
+        if (data.status !== 'completed') {
+            content.innerHTML = reportProgressHtml(data.status);
+        } else {
+            // Si aún no hay contenido renderizado (p. ej. panel abierto por primera vez), dejamos el texto actual.
+            // `loadReportDetail()` se encarga de pintar informe/resumen cuando hay content.
+        }
+        if (audioPb) {
+            audioPb.classList.remove('hidden');
+            let cap = ap1.caption;
+            if (data.audio_status === 'queued') {
+                const qp = formatQueueSuffix(data);
+                cap = 'Audio en cola' + qp + ' (se ejecutará cuando le toque; puedes salir y volver)';
+            }
+            audioPb.innerHTML = buildAudioProgressBlockHtml(ap1.steps, cap);
+        }
+        // Aunque haya bloque de pasos, mostrar siempre el aviso "Audio en cola" si aplica.
+        if (legacyAudioStatus) {
+            if (data.audio_status === 'queued') {
+                const qp = formatQueueSuffix(data);
+                legacyAudioStatus.classList.remove('hidden');
+                legacyAudioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-800';
+                legacyAudioStatus.textContent = 'Audio en cola' + qp + '…';
+            } else {
+                legacyAudioStatus.classList.add('hidden');
+                legacyAudioStatus.textContent = '';
+            }
+        }
+        return;
+    }
+    // Regenerar audio: JSON solo con steps (sin full_pipeline/report_stages). El poll de informe
+    // no debe vaciar el bloque de audio (competía con startAudioStatusPolling y parpadeaba).
+    if (
+        data.status === 'completed' &&
+        ap1 &&
+        ap1.steps &&
+        ap1.steps.length &&
+        !ap1.full_pipeline &&
+        !ap1.report_stages &&
+        (data.audio_status === 'queued' ||
+            data.audio_status === 'processing' ||
+            data.audio_status === 'failed')
+    ) {
+        updateReportAudioProgressUI(data);
+        return;
+    }
+    if (audioPb) { audioPb.classList.add('hidden'); audioPb.innerHTML = ''; }
+    if (data.status === 'pending' || data.status === 'processing') {
+        panel.classList.remove('hidden');
+        hideReportActionButtons();
+        content.innerHTML = reportProgressHtml(data.status);
+        return;
+    }
+    if (data.status === 'failed') {
+        panel.classList.remove('hidden');
+        hideReportActionButtons();
+        content.innerHTML = '<p class="text-red-600">' + (data.error_msg || 'Error') + '</p>';
+        return;
+    }
+}
+function stopReportStatusPolling(reportId, terminalStatus) {
+    const t = reportStatusPolls.get(reportId);
+    if (t) {
+        clearInterval(t);
+        reportStatusPolls.delete(reportId);
+    }
+    if (generatingReportId == null || Number(generatingReportId) !== Number(reportId)) return;
+    const el = document.getElementById('reportGenerateLoading');
+    const btn = document.getElementById('btnGenerateReport');
+    const btnDeliver = document.getElementById('btnGenerateReportDeliver');
+    if (btn) btn.disabled = false;
+    if (btnDeliver) btnDeliver.disabled = false;
+    generatingReportId = null;
+    if (el) {
+        if (terminalStatus === 'failed') {
+            setTimeout(function() { if (el) el.classList.add('hidden'); }, 10000);
+        } else {
+            el.classList.add('hidden');
+        }
+    }
+}
+function startReportStatusPolling(reportId) {
+    if (reportStatusPolls.has(reportId)) return;
+    let n = 0;
+    const tick = () => {
+        n++;
+        if (n > REPORT_POLL_MAX) {
+            stopReportStatusPolling(reportId, 'timeout');
+            const el = document.getElementById('reportGenerateLoading');
+            if (el && generatingReportId != null && Number(generatingReportId) === Number(reportId)) {
+                el.classList.remove('hidden');
+                el.innerHTML = 'No se recibió confirmación a tiempo. <span class="text-slate-600">ID: ' + reportId + '</span> Recarga o revisa el listado.';
+            }
+            if (Number(currentReportId) === Number(reportId)) {
+                const c = document.getElementById('reportDetailContent');
+                if (c) c.innerHTML = '<p class="text-amber-800">Tiempo de espera agotado. Revisa el listado o recarga la página.</p>';
+            }
+            return;
+        }
+        fetch('/portfolio/api/reports/' + reportId + '/status?t=' + Date.now(), { cache: 'no-store' })
+            .then(r => {
+                const ct = r.headers.get('Content-Type') || '';
+                if (!r.ok) return null;
+                if (!ct.includes('application/json')) return null;
+                return r.json();
+            })
+            .then(data => {
+                if (!data || !data.status) return;
+                setReportGenerateBannerVisible(reportId, data);
+                loadReports();
+                updateReportDetailFromStatusPoll(reportId, data);
+                const reportPollDone = data.status === 'failed' || (data.status === 'completed' && fullPipelinePollTerminal(data));
+                if (reportPollDone) {
+                    setReportGenerateBannerVisible(reportId, data);
+                    stopReportStatusPolling(reportId, data.status);
+                    if (data.status === 'failed') {
+                        generatingFullPipeline = false;
+                        if (Number(currentReportId) === Number(reportId)) {
+                            const content = document.getElementById('reportDetailContent');
+                            if (content) content.innerHTML = '<p class="text-red-600">' + (data.error_msg || 'Error') + '</p>';
+                        }
+                    } else {
+                        if (generatingFullPipeline) {
+                            const bad = data.error_msg || data.audio_error_msg || (data.audio_status === 'failed');
+                            if (!bad) {
+                                showToast('Proceso completado. Revisa tu correo: deberías tener el informe y el audio adjuntos.', 'success');
+                            } else {
+                                showToast('El proceso terminó con errores (revisa el informe o el aviso de audio/correo en la ficha).', 'error');
+                            }
+                            generatingFullPipeline = false;
+                        }
+                        if (Number(currentReportId) === Number(reportId)) {
+                            loadReportDetail(reportId);
+                            const panel = document.getElementById('reportDetail');
+                            if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        }
+                    }
+                }
+            })
+            .catch(() => {});
+    };
+    tick();
+    reportStatusPolls.set(reportId, setInterval(tick, REPORT_STATUS_MS));
+}
+function stopAudioStatusPolling(reportId) {
+    const t = audioStatusPolls.get(reportId);
+    if (t) {
+        clearInterval(t);
+        audioStatusPolls.delete(reportId);
+    }
+}
+function startAudioStatusPolling(reportId) {
+    stopAudioStatusPolling(reportId);
+    let pollCount = 0;
+    const tick = () => {
+        pollCount++;
+        if (pollCount > AUDIO_POLL_MAX) {
+            stopAudioStatusPolling(reportId);
+            if (Number(currentReportId) === Number(reportId)) {
+                const audioStatus = document.getElementById('reportAudioStatus');
+                const btnRetry = document.getElementById('btnRetryAudio');
+                if (audioStatus) { audioStatus.classList.remove('hidden'); audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-amber-100 text-amber-800'; audioStatus.textContent = 'La generación tardó demasiado.'; }
+                if (btnRetry) { btnRetry.textContent = 'Reintentar audio'; btnRetry.classList.remove('hidden'); }
+            }
+            loadReports();
+            return;
+        }
+        fetch('/portfolio/api/reports/' + reportId + '/status?t=' + Date.now(), { cache: 'no-store' })
+            .then(r => {
+                const ct = r.headers.get('Content-Type') || '';
+                if (!r.ok) return null;
+                if (!ct.includes('application/json')) return null;
+                return r.json();
+            })
+            .then(data => {
+                if (!data) return;
+                loadReports();
+                if (Number(currentReportId) !== Number(reportId)) return;
+                const audioStatus = document.getElementById('reportAudioStatus');
+                const btnAudio = document.getElementById('btnGenerateAudio');
+                const btnDownload = document.getElementById('btnDownloadAudio');
+                if (data.audio_status === 'queued') {
+                    updateReportAudioProgressUI(data);
+                    if (btnAudio) btnAudio.classList.add('hidden');
+                    if (audioStatus) {
+                        const qp = formatQueueSuffix(data);
+                        audioStatus.classList.remove('hidden');
+                        audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-800';
+                        audioStatus.textContent = 'Audio en cola' + qp + '…';
+                    }
+                    return;
+                }
+                if (data.audio_status === 'processing') {
+                    updateReportAudioProgressUI(data);
+                    if (btnAudio) btnAudio.classList.add('hidden');
+                    return;
+                }
+                if (data.audio_status === 'completed') {
+                    stopAudioStatusPolling(reportId);
+                    loadReportDetail(reportId);
+                    setTimeout(function() {
+                        const pl = document.getElementById('reportAudioPlayer');
+                        if (pl && !pl.classList.contains('hidden')) pl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }, 150);
+                    return;
+                }
+                if (data.audio_status === 'failed') {
+                    stopAudioStatusPolling(reportId);
+                    updateReportAudioProgressUI(data);
+                    if (!data.audio_progress || !data.audio_progress.steps) {
+                        if (audioStatus) { audioStatus.classList.remove('hidden'); audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-red-100 text-red-800'; audioStatus.textContent = data.audio_error_msg || 'Error'; }
+                    }
+                    const btnRetry = document.getElementById('btnRetryAudio');
+                    if (btnRetry) { btnRetry.textContent = 'Reintentar audio'; btnRetry.classList.remove('hidden'); }
+                    if (btnAudio) btnAudio.classList.add('hidden');
+                }
+            })
+            .catch(() => {});
+    };
+    tick();
+    audioStatusPolls.set(reportId, setInterval(tick, AUDIO_STATUS_MS));
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     loadReportTemplates();
     document.getElementById('templateForm')?.addEventListener('submit', saveTemplate);
+    document.getElementById('btnReportViewSummary')?.addEventListener('click', function() {
+        reportViewMode = 'summary';
+        renderReportDetailMarkdown(reportMarkdownSummary);
+        updateReportViewButtons();
+    });
+    document.getElementById('btnReportViewFull')?.addEventListener('click', function() {
+        reportViewMode = 'full';
+        renderReportDetailMarkdown(reportMarkdownFull);
+        updateReportViewButtons();
+    });
 });
 
 function openReportTemplatesModal() {
@@ -707,26 +1284,89 @@ function generateAboutSummary() {
     .then(r => r.json())
     .then(data => {
         if (data.success) {
-            content.textContent = data.summary;
+            if (typeof marked !== 'undefined' && data.summary) {
+                content.className = 'about-markdown max-w-3xl min-h-[60px]';
+                content.innerHTML = marked.parse(String(data.summary), { gfm: true, breaks: true });
+            } else {
+                content.className = 'about-markdown max-w-3xl min-h-[60px] text-gray-800';
+                content.textContent = data.summary || '';
+            }
         } else {
+            content.className = 'about-markdown max-w-3xl min-h-[60px]';
             content.innerHTML = '<span class="text-red-600">' + (data.error || 'Error') + '</span>';
         }
     })
-    .catch(err => { content.innerHTML = '<span class="text-red-600">Error: ' + err + '</span>'; })
+    .catch(err => {
+        content.className = 'about-markdown max-w-3xl min-h-[60px]';
+        content.innerHTML = '<span class="text-red-600">Error: ' + err + '</span>';
+    })
     .finally(() => {
         btn.disabled = false;
         loading.classList.add('hidden');
     });
 }
 
-function generateReport() {
-    const btn = document.getElementById('btnGenerateReport');
+function generateReportAndDeliver() {
+    const btn = document.getElementById('btnGenerateReportDeliver');
+    const btn2 = document.getElementById('btnGenerateReport');
     const loading = document.getElementById('reportGenerateLoading');
     const sel = document.getElementById('reportTemplateSelect');
     if (!btn || btn.disabled) return;
     const templateId = sel ? parseInt(sel.value, 10) : null;
     if (!templateId) { showToast('Selecciona una plantilla', 'error'); return; }
     btn.disabled = true;
+    if (btn2) btn2.disabled = true;
+    loading.classList.remove('hidden');
+    generatingFullPipeline = true;
+    fetch(`/portfolio/asset/${ASSET_ID}/reports/generate-deliver`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+        body: JSON.stringify({ template_id: templateId })
+    })
+    .then(async function(r) {
+        const contentType = r.headers.get('Content-Type') || '';
+        if (!contentType.includes('application/json')) {
+            const text = await r.text();
+            throw new Error(r.status + ' ' + (text.slice(0, 100) || r.statusText));
+        }
+        return r.json();
+    })
+    .then(data => {
+        if (data.success) {
+            generatingReportId = data.report_id;
+            if (loading) {
+                loading.classList.remove('hidden');
+                loading.setAttribute('data-poll-id', String(data.report_id));
+                loading.innerHTML = 'Iniciando proceso completo… <span class="text-slate-600">ID: ' + data.report_id + '</span>';
+            }
+            startReportStatusPolling(data.report_id);
+        } else {
+            showToast(data.error || 'Error', 'error');
+            generatingFullPipeline = false;
+            btn.disabled = false;
+            if (btn2) btn2.disabled = false;
+            loading.classList.add('hidden');
+        }
+    })
+    .catch(err => {
+        showToast('Error: ' + (err.message || err), 'error');
+        generatingFullPipeline = false;
+        btn.disabled = false;
+        if (btn2) btn2.disabled = false;
+        loading.classList.add('hidden');
+    });
+}
+
+function generateReport() {
+    const btn = document.getElementById('btnGenerateReport');
+    const btnDeliver = document.getElementById('btnGenerateReportDeliver');
+    const loading = document.getElementById('reportGenerateLoading');
+    const sel = document.getElementById('reportTemplateSelect');
+    if (!btn || btn.disabled) return;
+    const templateId = sel ? parseInt(sel.value, 10) : null;
+    if (!templateId) { showToast('Selecciona una plantilla', 'error'); return; }
+    btn.disabled = true;
+    if (btnDeliver) btnDeliver.disabled = true;
     loading.classList.remove('hidden');
     fetch(`/portfolio/asset/${ASSET_ID}/reports/generate`, {
         method: 'POST',
@@ -743,70 +1383,113 @@ function generateReport() {
     })
     .then(data => {
         if (data.success) {
-            loading.innerHTML = 'Generando informe... Puede tardar varios minutos. <span class="ml-2">ID: ' + data.report_id + '</span>';
-            pollReportStatus(data.report_id);
+            generatingReportId = data.report_id;
+            if (loading) {
+                loading.classList.remove('hidden');
+                loading.setAttribute('data-poll-id', String(data.report_id));
+                loading.innerHTML = 'Informe creado. <strong>En cola</strong>… <span class="text-slate-600">ID: ' + data.report_id + '</span>';
+            }
+            startReportStatusPolling(data.report_id);
         } else {
             showToast(data.error || 'Error', 'error');
             btn.disabled = false;
+            if (btnDeliver) btnDeliver.disabled = false;
             loading.classList.add('hidden');
         }
     })
     .catch(err => {
         showToast('Error: ' + (err.message || err), 'error');
         btn.disabled = false;
+        if (btnDeliver) btnDeliver.disabled = false;
         loading.classList.add('hidden');
     });
 }
-function pollReportStatus(reportId) {
-    const loading = document.getElementById('reportGenerateLoading');
-    const btn = document.getElementById('btnGenerateReport');
-    const interval = setInterval(() => {
-        fetch(`/portfolio/api/reports/${reportId}/status`)
-            .then(r => r.json())
-            .then(data => {
-                if (data.status === 'completed' || data.status === 'failed') {
-                    clearInterval(interval);
-                    loading.classList.add('hidden');
-                    if (btn) btn.disabled = false;
-                    loadReports();
-                    if (data.status === 'completed') loadReportDetail(reportId);
-                }
-            });
-    }, 5000);
-}
 
 function loadReports() {
-    fetch(`/portfolio/asset/${ASSET_ID}/reports`)
+    fetch(`/portfolio/asset/${ASSET_ID}/reports?t=${Date.now()}`, { cache: 'no-store' })
         .then(r => r.json())
         .then(data => {
             const container = document.getElementById('reportsList');
-            if (!container) return;
+            if (!container) {
+                syncReportsListQueuePollTimer(data);
+                return;
+            }
             if (!data.reports || data.reports.length === 0) {
                 container.innerHTML = '<p class="text-gray-500 text-sm">No hay informes. Pulsa "Generar informe" para crear uno.</p>';
+                syncReportsListQueuePollTimer(data);
                 return;
             }
             container.innerHTML = data.reports.map(r => {
                 const date = r.completed_at ? new Date(r.completed_at).toLocaleDateString('es-ES') : (r.created_at ? new Date(r.created_at).toLocaleDateString('es-ES') : '');
                 const statusBadge = r.status === 'completed' ? 'bg-green-100 text-green-800' : r.status === 'failed' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800';
                 const name = r.template_title || ('Informe ' + r.id);
-                const audioBadge = r.audio_status === 'completed' ? ' <span class="text-green-600" title="Audio disponible">🔊</span>' : r.audio_status === 'processing' ? ' <span class="text-yellow-600" title="Generando audio...">⏳</span>' : '';
+                const audioBadge = r.audio_status === 'completed'
+                    ? ' <span class="text-green-600" title="Audio disponible">🔊</span>'
+                    : (r.audio_status === 'queued'
+                        ? ' <span class="text-yellow-600" title="Audio en cola…">⏳</span>'
+                        : (r.audio_status === 'processing'
+                            ? ' <span class="text-yellow-600" title="Generando audio…">⏳</span>'
+                            : ''
+                        )
+                    );
                 return `
                     <div class="p-3 asset-inner-panel hover:bg-slate-50/80 cursor-pointer transition-colors" onclick="loadReportDetail(${r.id})">
                         <div class="flex justify-between items-center">
                             <span class="text-sm font-medium">${(name || '').replace(/</g, '&lt;')}${audioBadge}</span>
-                            <span class="px-2 py-0.5 rounded text-xs ${statusBadge}">${r.status}</span>
+                            <span class="px-2 py-0.5 rounded text-xs ${statusBadge}">${reportStatusLabel(r.status, r.queue_position, data.queue_waiting_total, r.delivery_mode, r.delivery_phase_status)}</span>
                         </div>
                         <div class="text-xs text-gray-500 mt-1">${date}</div>
                     </div>
                 `;
             }).join('');
-        });
+            syncReportsListQueuePollTimer(data);
+        })
+        .catch(function() { syncReportsListQueuePollTimer(null); });
 }
 let currentReportId = null;
+/** Markdown guardados para conmutar resumen / informe completo */
+let reportMarkdownSummary = '';
+let reportMarkdownFull = '';
+let reportViewMode = 'summary';
+
+function renderReportDetailMarkdown(md) {
+    const el = document.getElementById('reportDetailContent');
+    if (!el) return;
+    el.className = 'prose max-w-none report-markdown report-content';
+    el.innerHTML = typeof marked !== 'undefined' ? marked.parse(md || '') : (md || '').replace(/\n/g, '<br>');
+}
+function updateReportViewButtons() {
+    const sumBtn = document.getElementById('btnReportViewSummary');
+    const fullBtn = document.getElementById('btnReportViewFull');
+    if (!sumBtn || !fullBtn) return;
+    const active = 'portfolio-touch-btn px-3 py-1 rounded-xl text-sm bg-teal-600 text-white';
+    const idle = 'portfolio-touch-btn px-3 py-1 rounded-xl text-sm bg-slate-200 text-slate-800 border border-slate-300';
+    sumBtn.className = reportViewMode === 'summary' ? active : idle;
+    fullBtn.className = reportViewMode === 'full' ? active : idle;
+}
+function setupReportViewToggle(data) {
+    reportMarkdownFull = data.content || '';
+    reportMarkdownSummary = (data.summary_content || '').trim();
+    const togg = document.getElementById('reportViewToggle');
+    if (!togg) {
+        renderReportDetailMarkdown(reportMarkdownFull);
+        return;
+    }
+    if (reportMarkdownSummary.length > 0) {
+        togg.classList.remove('hidden');
+        reportViewMode = 'summary';
+        renderReportDetailMarkdown(reportMarkdownSummary);
+    } else {
+        togg.classList.add('hidden');
+        reportViewMode = 'full';
+        renderReportDetailMarkdown(reportMarkdownFull);
+    }
+    updateReportViewButtons();
+}
 
 function loadReportDetail(reportId) {
     currentReportId = reportId;
-    fetch(`/portfolio/asset/${ASSET_ID}/reports/${reportId}`)
+    fetch(`/portfolio/asset/${ASSET_ID}/reports/${reportId}?t=${Date.now()}`, { cache: 'no-store' })
         .then(r => r.json())
         .then(data => {
             const panel = document.getElementById('reportDetail');
@@ -816,95 +1499,126 @@ function loadReportDetail(reportId) {
             const btnAudio = document.getElementById('btnGenerateAudio');
             const audioStatus = document.getElementById('reportAudioStatus');
             const btnDownload = document.getElementById('btnDownloadAudio');
-            if (!panel || !content) return;
-            panel.classList.remove('hidden');
-            dateEl.textContent = data.completed_at ? new Date(data.completed_at).toLocaleString('es-ES') : '';
-            if (data.status === 'completed' && data.content) {
-                content.innerHTML = typeof marked !== 'undefined' ? marked.parse(data.content) : data.content.replace(/\n/g, '<br>');
-            } else if (data.status === 'failed') {
-                content.innerHTML = '<p class="text-red-600">' + (data.error_msg || 'Error') + '</p>';
-            } else {
-                content.innerHTML = '<p class="text-gray-500">Cargando...</p>';
-            }
-            if (btnEmail) btnEmail.classList.add('hidden');
-            if (btnAudio) btnAudio.classList.add('hidden');
             const btnRetry = document.getElementById('btnRetryAudio');
-            if (btnRetry) btnRetry.classList.add('hidden');
-            if (audioStatus) { audioStatus.classList.add('hidden'); audioStatus.textContent = ''; }
-            if (btnDownload) btnDownload.classList.add('hidden');
-            const audioPlayerWrap = document.getElementById('reportAudioPlayer');
-            const audioEl = document.getElementById('audioPlayer');
-            if (audioPlayerWrap) audioPlayerWrap.classList.add('hidden');
-            if (audioEl) audioEl.src = '';
+            if (!panel || !content) return;
+            hideReportActionButtons();
+            const togg = document.getElementById('reportViewToggle');
+            if (togg) togg.classList.add('hidden');
+            panel.classList.remove('hidden');
+            const dateSrc = data.completed_at || data.created_at;
+            dateEl.textContent = dateSrc ? new Date(dateSrc).toLocaleString('es-ES') : '';
+            const fp0 = data.audio_progress;
+            const hasPipelineProgress = fp0 && fp0.steps && fp0.steps.length && (fp0.full_pipeline || fp0.report_stages);
+            if (hasPipelineProgress) {
+                var fpTerm;
+                if (fp0.full_pipeline) {
+                    fpTerm = isFullPipelineUiTerminal(fp0);
+                } else {
+                    fpTerm = (data.status === 'completed' || data.status === 'failed');
+                }
+                if (!fpTerm) {
+                    if (data.status === 'completed' && data.content) {
+                        content.className = 'prose max-w-none report-markdown report-content';
+                        setupReportViewToggle(data);
+                    } else {
+                        content.innerHTML = reportProgressHtml(data.status);
+                    }
+                    const audioPb = document.getElementById('reportAudioProgress');
+                    if (audioPb) {
+                        audioPb.classList.remove('hidden');
+                        audioPb.innerHTML = buildAudioProgressBlockHtml(fp0.steps, fp0.caption);
+                    }
+                    if (btnEmail) btnEmail.classList.add('hidden');
+                    if (btnAudio) btnAudio.classList.add('hidden');
+                    startReportStatusPolling(reportId);
+                    return;
+                }
+            }
+            if (data.status === 'pending' || data.status === 'processing') {
+                content.innerHTML = reportProgressHtml(data.status);
+                startReportStatusPolling(reportId);
+                return;
+            }
+            if (data.status === 'failed') {
+                content.innerHTML = '<p class="text-red-600">' + (data.error_msg || 'Error') + '</p>';
+                return;
+            }
+            if (data.status === 'completed' && data.content) {
+                setupReportViewToggle(data);
+            } else if (data.status === 'completed') {
+                content.innerHTML = '<p class="text-gray-500">Esperando contenido del informe…</p>';
+            } else {
+                content.innerHTML = '<p class="text-gray-500">Cargando…</p>';
+            }
             if (data.status === 'completed') {
-                if (btnEmail) btnEmail.classList.remove('hidden');
-                if (btnAudio && data.audio_status !== 'completed' && data.audio_status !== 'failed') btnAudio.classList.remove('hidden');
-                if (data.audio_status === 'processing') {
-                    audioStatus.classList.remove('hidden');
-                    audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-800';
-                    audioStatus.textContent = 'Generando audio...';
-                    pollAudioStatus(reportId);
-                } else if (data.audio_status === 'completed') {
-                    audioStatus.classList.remove('hidden');
-                    audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-green-100 text-green-800';
-                    audioStatus.textContent = 'Audio listo';
-                    const audioBaseUrl = `/portfolio/asset/${ASSET_ID}/reports/${reportId}/audio`;
-                    btnDownload.href = audioBaseUrl + '?download=1';
-                    btnDownload.classList.remove('hidden');
+                const fp2 = data.audio_progress;
+                const hideManualActions = fp2 && fp2.full_pipeline;
+                if (btnEmail && !hideManualActions) btnEmail.classList.remove('hidden');
+                const aSt = data.audio_status;
+                if (btnAudio) {
+                    if (hideManualActions) btnAudio.classList.add('hidden');
+                    else if (aSt == null || aSt === '') btnAudio.classList.remove('hidden');
+                    else btnAudio.classList.add('hidden');
+                }
+                if (aSt === 'queued') {
+                    if (btnAudio) btnAudio.classList.add('hidden');
+                    updateReportAudioProgressUI(data);
+                    if (audioStatus) {
+                        const qp = formatQueueSuffix(data);
+                        audioStatus.classList.remove('hidden');
+                        audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-800';
+                        audioStatus.textContent = 'Audio en cola' + qp + '…';
+                    }
+                    stopReportStatusPolling(reportId);
+                    startAudioStatusPolling(reportId);
+                } else
+                if (aSt === 'processing') {
+                    if (btnAudio) btnAudio.classList.add('hidden');
+                    updateReportAudioProgressUI(data);
+                    if (fp2 && fp2.full_pipeline) startReportStatusPolling(reportId);
+                    else {
+                        stopReportStatusPolling(reportId);
+                        startAudioStatusPolling(reportId);
+                    }
+                } else if (aSt === 'completed') {
+                    clearReportAudioProgressUI();
+                    if (audioStatus) {
+                        audioStatus.classList.remove('hidden');
+                        audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-green-100 text-green-800';
+                        audioStatus.textContent = 'Audio listo';
+                    }
+                    const audioBaseUrl = '/portfolio/asset/' + ASSET_ID + '/reports/' + reportId + '/audio';
+                    if (btnDownload) {
+                        btnDownload.href = audioBaseUrl + '?download=1';
+                        btnDownload.classList.remove('hidden');
+                    }
+                    if (btnRetry) {
+                        btnRetry.textContent = 'Regenerar audio';
+                        btnRetry.classList.remove('hidden');
+                    }
                     const audioPlayerWrap = document.getElementById('reportAudioPlayer');
                     const audioEl = document.getElementById('audioPlayer');
                     if (audioPlayerWrap && audioEl) {
                         audioEl.src = audioBaseUrl;
+                        try { audioEl.load(); } catch (e) {}
                         audioPlayerWrap.classList.remove('hidden');
                     }
-                } else if (data.audio_status === 'failed') {
-                    audioStatus.classList.remove('hidden');
-                    audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-red-100 text-red-800';
-                    audioStatus.textContent = data.audio_error_msg || 'Error al generar audio';
-                    if (btnRetry) btnRetry.classList.remove('hidden');
+                } else if (aSt === 'failed') {
+                    updateReportAudioProgressUI(data);
+                    if (!data.audio_progress || !data.audio_progress.steps) {
+                        if (audioStatus) {
+                            audioStatus.classList.remove('hidden');
+                            audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-red-100 text-red-800';
+                            audioStatus.textContent = data.audio_error_msg || 'Error al generar audio';
+                        }
+                    }
+                    if (btnRetry) {
+                        btnRetry.textContent = 'Reintentar audio';
+                        btnRetry.classList.remove('hidden');
+                    }
                 }
             }
         });
-}
-function pollAudioStatus(reportId) {
-    let pollCount = 0;
-    const maxPolls = 450;
-    const interval = setInterval(() => {
-        pollCount++;
-        if (pollCount > maxPolls) {
-            clearInterval(interval);
-            const audioStatus = document.getElementById('reportAudioStatus');
-            const btnRetry = document.getElementById('btnRetryAudio');
-            const btnAudio = document.getElementById('btnGenerateAudio');
-            if (audioStatus) { audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-amber-100 text-amber-800'; audioStatus.textContent = 'La generación tardó demasiado.'; }
-            if (btnRetry) btnRetry.classList.remove('hidden');
-            return;
-        }
-        fetch(`/portfolio/api/reports/${reportId}/status`)
-            .then(r => r.json())
-            .then(data => {
-                const audioStatus = document.getElementById('reportAudioStatus');
-                const btnAudio = document.getElementById('btnGenerateAudio');
-                const btnDownload = document.getElementById('btnDownloadAudio');
-                if (data.audio_status === 'completed') {
-                    clearInterval(interval);
-                    const audioBaseUrl = `/portfolio/asset/${ASSET_ID}/reports/${reportId}/audio`;
-                    if (audioStatus) { audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-green-100 text-green-800'; audioStatus.textContent = 'Audio listo'; }
-                    if (btnDownload) { btnDownload.href = audioBaseUrl + '?download=1'; btnDownload.classList.remove('hidden'); }
-                    if (btnAudio) btnAudio.classList.add('hidden');
-                    const btnRetry = document.getElementById('btnRetryAudio');
-                    if (btnRetry) { btnRetry.textContent = 'Regenerar audio'; btnRetry.classList.remove('hidden'); }
-                    const audioPlayerWrap = document.getElementById('reportAudioPlayer');
-                    const audioEl = document.getElementById('audioPlayer');
-                    if (audioPlayerWrap && audioEl) { audioEl.src = audioBaseUrl; audioPlayerWrap.classList.remove('hidden'); }
-                } else if (data.audio_status === 'failed') {
-                    clearInterval(interval);
-                    if (audioStatus) { audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-red-100 text-red-800'; audioStatus.textContent = data.audio_error_msg || 'Error'; }
-                    const btnRetry = document.getElementById('btnRetryAudio');
-                    if (btnRetry) btnRetry.classList.remove('hidden');
-                }
-            });
-    }, 4000);
 }
 function sendReportEmail() {
     if (!currentReportId) return;
@@ -914,7 +1628,13 @@ function sendReportEmail() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN }
     })
-    .then(r => r.json())
+    .then(r => {
+        const ct = r.headers.get('Content-Type') || '';
+        if (!ct.includes('application/json')) {
+            return r.text().then(() => { throw new Error('Respuesta no JSON (código ' + r.status + '). Revisa el servidor o la sesión.'); });
+        }
+        return r.json();
+    })
     .then(data => {
         if (data.success) showToast(data.message || 'Informe enviado correctamente', 'success');
         else showToast(data.error || 'Error al enviar', 'error');
@@ -934,6 +1654,7 @@ function retryReportAudio() {
     .then(r => r.json())
     .then(data => {
         if (data.success) {
+            clearReportAudioProgressUI();
             if (audioStatus) { audioStatus.classList.add('hidden'); }
             if (btnRetry) btnRetry.classList.add('hidden');
             generateReportAudio();
@@ -952,15 +1673,21 @@ function generateReportAudio() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN }
     })
-    .then(r => r.json())
+    .then(r => {
+        const ct = r.headers.get('Content-Type') || '';
+        if (!ct.includes('application/json')) {
+            return r.text().then(() => { throw new Error('El servidor no devolvió JSON (código ' + r.status + '). ¿Sesión caducada o ruta inválida? Recarga e inténtalo de nuevo.'); });
+        }
+        return r.json();
+    })
     .then(data => {
         if (data.success) {
             if (data.audio_ready) {
                 loadReportDetail(currentReportId);
             } else {
-                if (audioStatus) { audioStatus.classList.remove('hidden'); audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-800'; audioStatus.textContent = 'Generando audio...'; }
-                btn.classList.add('hidden');
-                pollAudioStatus(currentReportId);
+                if (btn) btn.classList.add('hidden');
+                startAudioStatusPolling(currentReportId);
+                loadReportDetail(currentReportId);
             }
         } else showToast(data.error || 'Error', 'error');
     })
