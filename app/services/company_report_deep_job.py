@@ -19,10 +19,13 @@ def run_company_report_deep_research_job(
     points,
     extra_prompt_suffix=None,
     post_watchlist_extract=False,
+    research_prompt_style="full",
 ):
     """
     Hilo: actualiza un CompanyReport (pending → processing → completed/failed).
     Usa conexión raw SQL para no depender de sesión ORM del hilo principal.
+
+    research_prompt_style: ``watchlist_minimal`` solo para Informes IA (prompt corto en gemini_service).
     """
     from app import db
     from app.background_tasks_lock import background_tasks_lock
@@ -91,6 +94,7 @@ def run_company_report_deep_research_job(
                 description,
                 points,
                 extra_prompt_suffix=extra_prompt_suffix,
+                research_prompt_style=research_prompt_style,
             )
 
             content_val = content if status == 'completed' else None
@@ -224,6 +228,7 @@ def start_watchlist_batch_reports_thread(app, job_id, jobs):
                         job["points"],
                         extra_prompt_suffix=None,
                         post_watchlist_extract=True,
+                        research_prompt_style="watchlist_minimal",
                     )
 
                     job_row.completed_count = idx + 1

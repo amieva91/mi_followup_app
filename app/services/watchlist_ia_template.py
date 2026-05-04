@@ -4,6 +4,9 @@ Briefing fijo para «Informes IA» en watchlist: solo Deep Research, objetivo m�
 No usa ReportTemplate del usuario: una sola petición optimizada por activo.
 Salida esperada: breve + sección/tablas para extracción; idealmente un bloque ```json final
 (Flash sigue como respaldo si falta el JSON).
+
+En ``run_deep_research_report`` el lote Informes IA usa ``research_prompt_style="watchlist_minimal"``:
+prompt corto sin el bloque largo de informe completo de ficha (menos tokens / contradicciones).
 """
 from __future__ import annotations
 
@@ -30,9 +33,9 @@ usa `null` si no hay dato verificable, nunca inventes):
 - `per_ntm`: PER o P/E **NTM** (número decimal, sin texto).
 - `ntm_dividend_yield`: dividend yield **NTM** en **porcentaje como número** (ej. `2.3` = 2,3 %) o `null`.
 - `eps`: beneficio por acción (EPS), número en la moneda del activo o `null`.
-- `cagr_revenue_yoy`: CAGR de ingresos interanual en **porcentaje como número** (ej. `8.0`) o `null`.
+- `cagr_revenue_yoy`: CAGR de ingresos interanual en **porcentaje como número** (ej. `8.0`) o `null` estimado de los próximos 2 años.
 
-**Reglas:** no rellenes con estimaciones; si las fuentes contradicen, prioriza la más reciente con cita y una sola frase de nota. \
+**Reglas:** si las fuentes contradicen, prioriza la más reciente con cita y una sola frase de nota. \
 Mantén el cuerpo **breve** (prioriza la tabla + JSON; evita capítulos largos).
 """
 

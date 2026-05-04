@@ -13,7 +13,7 @@ import base64
 import time
 import logging
 import concurrent.futures
-from typing import Any, Callable, Optional, Tuple
+from typing import Any, Callable, Literal, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -970,6 +970,7 @@ def run_deep_research_report(
     on_interaction_created: Optional[Callable[[str], None]] = None,
     on_report_substeps: Optional[Callable[[list], None]] = None,
     extra_prompt_suffix: Optional[str] = None,
+    research_prompt_style: Literal["full", "watchlist_minimal"] = "full",
 ) -> Tuple[str, str]:
     """
     Informe Deep Research: modo **dos fases** (por defecto) con plan colaborativo y confirmación
@@ -989,6 +990,8 @@ def run_deep_research_report(
         on_report_substeps: Recibe 3 diccionarios (plan / validar / informe) con ``status``:
             ``loading`` | ``ok`` | ``error`` | ``pending`` | ``skipped``.
         extra_prompt_suffix: Texto opcional al final del prompt (p. ej. esquema watchlist en lote IA).
+        research_prompt_style: ``full`` = informe largo (ficha). ``watchlist_minimal`` = solo briefing + reglas
+            breves (Informes IA); menos instrucciones contradictorias y suele reducir salida/tokens.
 
     ``max_wait_seconds``: si es ``None``, se usa :func:`_get_deep_research_max_wait_seconds` (por defecto 3600 s;
     variable ``GEMINI_DEEP_RESEARCH_MAX_WAIT_SECONDS``).
@@ -1000,12 +1003,39 @@ def run_deep_research_report(
     name = asset_name or 'Desconocida'
     symbol = asset_symbol or ''
     isin = asset_isin or ''
+    if research_prompt_style not in ('full', 'watchlist_minimal'):
+        research_prompt_style = 'full'
 
     points_text = ''
     if points:
         points_text = '\nPuntos a tratar:\n' + '\n'.join(f'- {p}' for p in points if p and str(p).strip())
 
-    prompt = f"""Actúa como un **Analista Senior de Equity Research** con enfoque en diseño editorial profesional.
+    extra_tail = ''
+    if extra_prompt_suffix and str(extra_prompt_suffix).strip():
+        extra_tail = '\n\n**Instrucciones adicionales**\n' + str(extra_prompt_suffix).strip()
+
+    if research_prompt_style == 'watchlist_minimal':
+        prompt = f"""Eres un asistente de investigación financiera. Usa las herramientas del agente Deep Research \
+para consultar **fuentes públicas fiables**. Objetivo: cumplir **estrictamente** el briefing y los puntos; \
+no escribas un informe de inversión largo.
+
+**Empresa**
+- Nombre: **{name}**
+- Símbolo: {symbol or 'N/A'} | ISIN: {isin or 'N/A'}
+
+**Briefing (prioridad máxima)**
+{description}
+{points_text}
+
+**Reglas de salida (obligatorio)**
+- Responde en **español (España)**.
+- Salida en **Markdown breve**: prioriza lo que pida el briefing (p. ej. sección «Datos watchlist (extracción)» y el bloque de código JSON con las claves indicadas).
+- **No** recomendaciones de compra/venta; **no** capítulos extensos tipo equity research completo; **no** gráficos ni figuras salvo lo estrictamente pedido en el briefing.
+- **No inventes** cifras ni fechas: si no hay dato verificable, usa `null` en el JSON como indique el briefing.
+- Citas o fuentes: basta con lo necesario en la tabla del briefing; no hace falta bibliografía larga.{extra_tail}
+"""
+    else:
+        prompt = f"""Actúa como un **Analista Senior de Equity Research** con enfoque en diseño editorial profesional.
 
 **Empresa y contexto de investigación**
 - Empresa: **{name}**
@@ -1036,9 +1066,8 @@ Con ``visualization: auto`` debes entregar **solo imágenes raster finales** inc
 **BIBLIOGRAFÍA / FUENTES**
 - Al final, crea la sección **Fuentes consultadas** (o **Fuentes consultadas y bibliografía**) con hipervínculos descriptivos: ``[Nombre de la fuente](URL)`` cuando haya enlace; si no, solo el nombre y la cita asociada.
 
-**Entrega final** en **Markdown** avanzado, legible en **web y correo**."""
-    if extra_prompt_suffix and str(extra_prompt_suffix).strip():
-        prompt = prompt + "\n\n" + str(extra_prompt_suffix).strip()
+**Entrega final** en **Markdown** avanzado, legible en **web y correo**.{extra_tail}
+"""
 
     try:
         from google import genai
