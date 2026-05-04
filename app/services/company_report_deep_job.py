@@ -1,5 +1,5 @@
 """
-Ejecución en segundo plano de informes Deep Research (CompanyReport).
+Ejecución en segundo plano de informes de compañía (CompanyReport): Deep Research y/o Gemini Flash.
 Un solo hilo puede procesar varios informes en serie para no saturar la API.
 """
 import logging
@@ -30,21 +30,28 @@ def run_company_report_deep_research_job(
     from app import db
     from app.background_tasks_lock import background_tasks_lock
     from app.services.company_report_queue import is_report_queue_debug
-    from app.services.gemini_service import run_deep_research_report, GeminiServiceError
+    from app.services.gemini_service import (
+        GeminiServiceError,
+        run_deep_research_report,
+        run_watchlist_ia_flash_report,
+        watchlist_ia_prefers_flash,
+    )
 
     # Misma cola justa que informes desde ficha (company_report_queue + flock).
     with app.app_context(), background_tasks_lock(app, fair_report_id=report_id):
         engine = db.engine
 
         if is_report_queue_debug():
+            _wl_flash = research_prompt_style == 'watchlist_minimal' and watchlist_ia_prefers_flash()
             logger.info(
                 'REPORT_QUEUE_DEBUG deep_job begin | report_id=%s user_id=%s asset_id=%s '
-                'style=%s post_watchlist_extract=%s',
+                'style=%s post_watchlist_extract=%s watchlist_backend=%s',
                 report_id,
                 user_id,
                 asset_id,
                 research_prompt_style,
                 post_watchlist_extract,
+                'flash' if _wl_flash else 'deep_research',
             )
 
         def _update_status(st, content_val=None, error_val=None):
@@ -99,15 +106,25 @@ def run_company_report_deep_research_job(
             asym = row[1] or ''
             aisn = row[2] or ''
 
-            status, content = run_deep_research_report(
-                aname,
-                asym,
-                aisn,
-                description,
-                points,
-                extra_prompt_suffix=extra_prompt_suffix,
-                research_prompt_style=research_prompt_style,
-            )
+            if research_prompt_style == 'watchlist_minimal' and watchlist_ia_prefers_flash():
+                status, content = run_watchlist_ia_flash_report(
+                    aname,
+                    asym,
+                    aisn,
+                    description,
+                    points,
+                    extra_prompt_suffix=extra_prompt_suffix,
+                )
+            else:
+                status, content = run_deep_research_report(
+                    aname,
+                    asym,
+                    aisn,
+                    description,
+                    points,
+                    extra_prompt_suffix=extra_prompt_suffix,
+                    research_prompt_style=research_prompt_style,
+                )
 
             content_val = content if status == 'completed' else None
             error_val = content if status == 'failed' else None

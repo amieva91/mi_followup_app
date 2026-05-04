@@ -1,7 +1,8 @@
 """
 Servicio para integración con Google Gemini API.
 - Resumen "About the Company": generate_content (rápido, síncrono)
-- Informe Deep Research: Interactions API (background, poll)
+- Informes IA watchlist: por defecto Gemini Flash (``generate_content``); opcional Deep Research.
+- Informe largo (ficha): Interactions API Deep Research (background, poll)
 - Audio informe: guion estilo podcast (texto) + TTS multi-locutor ``gemini-3.1-flash-tts-preview``
   (API ``generateContent`` del SDK; no es el producto independiente «NotebookLM / Podcasts» de Google,
   pero replica el patrón guion → audio multispeaker de la documentación oficial).
@@ -199,6 +200,17 @@ def _get_watchlist_ia_use_collab_plan() -> bool:
     return str(raw).strip().lower() in ('1', 'true', 'yes', 'on')
 
 
+def watchlist_ia_prefers_flash() -> bool:
+    """
+    Informes IA watchlist: por defecto **Gemini Flash** (rápido y barato).
+    Para usar de nuevo **Deep Research**: ``GEMINI_WATCHLIST_IA_USE_DEEP_RESEARCH=1``.
+    """
+    raw = os.environ.get('GEMINI_WATCHLIST_IA_USE_DEEP_RESEARCH')
+    if raw is None or str(raw).strip() == '':
+        return True
+    return str(raw).strip().lower() not in ('1', 'true', 'yes', 'on')
+
+
 # Segundo turno: mensaje de aprobación (documentación Google Deep Research — paso 3 "Approve and execute")
 DEEP_RESEARCH_APPROVE_INPUT = (
     'El plan propuesto es adecuado. Apruebo el plan tal como está. '
@@ -393,6 +405,110 @@ Requisitos (español, sin saludos; salida en **Markdown mínimo** legible en pan
     except Exception as e:
         logger.exception('Error generando resumen About: %s', e)
         raise GeminiServiceError(str(e))
+
+
+def run_watchlist_ia_flash_report(
+    asset_name: str,
+    asset_symbol: str,
+    asset_isin: str,
+    description: str,
+    points: list,
+    extra_prompt_suffix: Optional[str] = None,
+    on_status_update=None,
+) -> Tuple[str, str]:
+    """
+    Informes IA (watchlist): una llamada síncrona a **Gemini Flash** con el mismo briefing corto
+    que ``watchlist_minimal``. Sin Interactions API ni polling.
+    """
+    api_key = _get_api_key()
+    if not api_key:
+        raise GeminiServiceError('GEMINI_API_KEY no configurada')
+
+    name = asset_name or 'Desconocida'
+    symbol = asset_symbol or ''
+    isin = asset_isin or ''
+
+    points_text = ''
+    if points:
+        points_text = '\nPuntos a tratar:\n' + '\n'.join(f'- {p}' for p in points if p and str(p).strip())
+
+    extra_tail = ''
+    if extra_prompt_suffix and str(extra_prompt_suffix).strip():
+        extra_tail = '\n\n**Instrucciones adicionales**\n' + str(extra_prompt_suffix).strip()
+
+    prompt = f"""Eres un asistente de datos financieros. Responde en **español (España)** en **Markdown breve**.
+No escribas un informe de inversión largo ni recomendaciones de compra/venta.
+**Salida en una sola respuesta** (modelo Flash, sin agente Deep Research). Si no estás seguro de un dato público reciente, \
+usa `null` en el JSON como indique el briefing; **no inventes** cifras ni fechas.
+
+**Empresa**
+- Nombre: **{name}**
+- Símbolo: {symbol or 'N/A'} | ISIN: {isin or 'N/A'}
+
+**Briefing (prioridad máxima)**
+{description}
+{points_text}
+
+**Reglas de salida (obligatorio)**
+- Prioriza la sección **«Datos watchlist (extracción)»** y el bloque de código **```json** con las claves del briefing.
+- **No** capítulos extensos; **no** gráficos salvo lo pedido.
+- Citas o fuentes: lo necesario en la tabla del briefing.{extra_tail}
+"""
+
+    if on_status_update:
+        on_status_update('processing', 'Generando con Gemini Flash…')
+
+    try:
+        from google import genai
+        from google.genai import types
+
+        client = genai.Client(api_key=api_key)
+        model = _get_model_flash()
+        max_retries = 3
+        retry_delay = 65
+
+        for attempt in range(max_retries):
+            try:
+                response = client.models.generate_content(
+                    model=model,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        temperature=0.2,
+                        max_output_tokens=8192,
+                        thinking_config=types.ThinkingConfig(thinking_budget=0),
+                    ),
+                )
+                if response and response.text and str(response.text).strip():
+                    out = str(response.text).strip()
+                    logger.info('Watchlist IA Flash: model=%s chars=%s', model, len(out))
+                    if on_status_update:
+                        on_status_update('completed', 'Informe completado')
+                    return ('completed', out)
+                raise GeminiServiceError('Respuesta vacía de Gemini Flash')
+            except Exception as e:
+                err_str = str(e).upper()
+                if attempt < max_retries - 1 and ('429' in err_str or 'RESOURCE_EXHAUSTED' in err_str):
+                    logger.warning(
+                        'Watchlist IA Flash 429, reintento %s/%s en %ss: %s',
+                        attempt + 1,
+                        max_retries,
+                        retry_delay,
+                        e,
+                    )
+                    time.sleep(retry_delay)
+                else:
+                    raise
+
+    except ImportError as e:
+        raise GeminiServiceError(f'Paquete google-genai no instalado: {e}')
+    except GeminiServiceError:
+        raise
+    except Exception as e:
+        logger.exception('Watchlist IA Flash: %s', e)
+        msg = str(e)[:8000]
+        if on_status_update:
+            on_status_update('failed', msg)
+        return ('failed', msg)
 
 
 def fallback_report_summary_markdown(full_md: str) -> str:
@@ -1417,10 +1533,10 @@ def resume_company_report_from_interaction_id(report_id: int) -> None:
     agent_name = _get_agent_deep_research()
     auto_loop = _get_auto_collab_loop()
 
-    from app.services.watchlist_ia_template import WATCHLIST_IA_REPORT_TITLE
+    from app.services.watchlist_ia_template import is_watchlist_ia_report_title
 
     born = report.created_at
-    is_watchlist_ia = (report.template_title or '').strip() == WATCHLIST_IA_REPORT_TITLE
+    is_watchlist_ia = is_watchlist_ia_report_title(report.template_title)
     max_sec = (
         _get_watchlist_ia_max_wait_seconds()
         if is_watchlist_ia
