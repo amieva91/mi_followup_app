@@ -11,7 +11,7 @@ Los valores se escriben con :func:`apply_extracted_watchlist_fields`, que **nunc
 import json
 import logging
 import re
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
@@ -46,6 +46,37 @@ def _parse_json_object(text: str) -> Optional[dict]:
     return None
 
 
+def _utc_today() -> date:
+    return datetime.utcnow().date()
+
+
+def _sanitize_next_earnings_candidate(raw: Any) -> Any:
+    """
+    «Próximos» resultados: descarta fechas estrictamente anteriores a hoy (UTC),
+    típico sesgo del modelo (p. ej. año 2024 en 2026). Devuelve 'YYYY-MM-DD' o None.
+    """
+    if raw in (None, "", "null", "no disponible", "n/d", "N/A"):
+        return None
+    if not isinstance(raw, str):
+        return raw
+    s = raw.strip()
+    if len(s) < 10:
+        return None
+    try:
+        d = datetime.strptime(s[:10], "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        return None
+    today = _utc_today()
+    if d < today:
+        logger.info(
+            "watchlist: next_earnings_date descartada (anterior a hoy UTC %s): %s",
+            today.isoformat(),
+            s[:10],
+        )
+        return None
+    return s[:10]
+
+
 def _normalize_watchlist_five(data: dict) -> Dict[str, Any]:
     """Normaliza las cinco claves; valores desconocidos → None donde aplique."""
     out: Dict[str, Any] = {}
@@ -56,6 +87,8 @@ def _normalize_watchlist_five(data: dict) -> Dict[str, Any]:
         v = data.get(key)
         if v in (None, "", "null", "no disponible", "n/d", "N/A"):
             out[key] = None
+        elif key == "next_earnings_date":
+            out[key] = _sanitize_next_earnings_candidate(v)
         else:
             out[key] = v
     return out
@@ -96,6 +129,7 @@ def extract_watchlist_fields_from_report_md(report_markdown: str) -> Dict[str, A
         raise GeminiServiceError("GEMINI_API_KEY no configurada")
 
     body = (report_markdown or "")[:120000]
+    ref_today = datetime.utcnow().strftime("%Y-%m-%d")
     prompt = f"""Eres un extractor estricto. Tienes un informe de investigación en markdown (puede incluir la sección "Datos watchlist (extracción)").
 
 Devuelve ÚNICAMENTE un objeto JSON válido, sin markdown ni texto adicional, con exactamente estas claves:
@@ -109,6 +143,7 @@ Reglas:
 - null si el informe no da un valor claro y explícito para esa magnitud.
 - No inventes ni estimes: solo copia o deriva de cifras explícitas del texto.
 - Si hay conflicto entre secciones, prioriza la sección "Datos watchlist (extracción)" si existe.
+- **next_earnings_date** = solo la próxima divulgación **en el futuro** respecto a {ref_today} (UTC). Fechas anteriores o años claramente pasados → null.
 
 Informe:
 ---
@@ -157,9 +192,10 @@ def apply_extracted_watchlist_fields(
 
     if wl.get_manual_field_source("next_earnings_date") != "user":
         raw_d = extracted.get("next_earnings_date")
-        if raw_d and isinstance(raw_d, str):
+        san = _sanitize_next_earnings_candidate(raw_d)
+        if san:
             try:
-                wl.next_earnings_date = datetime.strptime(raw_d[:10], "%Y-%m-%d").date()
+                wl.next_earnings_date = datetime.strptime(san, "%Y-%m-%d").date()
                 applied["next_earnings_date"] = str(wl.next_earnings_date)
                 src_updates["next_earnings_date"] = "ai"
             except (ValueError, TypeError):

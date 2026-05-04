@@ -1716,10 +1716,8 @@ function startWatchlistJobPoll(jobId, reportIdsOpt) {
             if (d.status === 'running' && cur > lastSeen) {
                 lastSeen = cur;
                 sessionStorage.setItem(ssKey, String(lastSeen));
-                if (cur >= 1) {
-                    location.reload();
-                    return;
-                }
+                // No recargar la página en cada activo: evita saltos de scroll, parpadeo del banner
+                // y sensación de F5. Un solo reload al terminar el lote (abajo).
             }
             if (d.status === 'completed' || d.status === 'failed') {
                 stopWatchlistJobPoll();
