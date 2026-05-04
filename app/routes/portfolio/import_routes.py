@@ -4,7 +4,7 @@ Rutas de importación CSV
 import os
 import time
 import traceback
-from flask import render_template, redirect, url_for, flash, request, jsonify
+from flask import render_template, redirect, url_for, flash, request, jsonify, current_app
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 
@@ -133,6 +133,7 @@ def import_csv_process():
     completed_files = []
     total_files = len(files)
     failed_enrichment_cache = set()  # ISINs cuyo enriquecimiento falló (evita reintentos entre archivos)
+    csv_asset_ids_touched = set()  # unión de activos tocados por los CSV (refresco consenso en background)
 
     # En cuanto el cuerpo POST está completo (esta vista ya corre): el polling puede leer esto.
     # Evita pantalla 0% mientras el primer archivo se guarda y se parsea (muy largo en prod).
@@ -256,6 +257,12 @@ def import_csv_process():
             total_stats['enrichment_success'] += stats.get('enrichment_success', 0)
             total_stats['enrichment_failed'] += stats.get('enrichment_failed', 0)
 
+            for aid in stats.get('asset_ids_touched') or []:
+                try:
+                    csv_asset_ids_touched.add(int(aid))
+                except (TypeError, ValueError):
+                    pass
+
             if os.path.exists(filepath):
                 os.remove(filepath)
 
@@ -286,6 +293,18 @@ def import_csv_process():
         from app.services.cache_rebuild_state_service import CacheRebuildStateService
 
         CacheRebuildStateService.mark_full_history(current_user.id)
+
+        # Mismo criterio que el cron de consenso, solo sobre activos tocados por los CSV;
+        # hilo en segundo plano para no alargar el POST.
+        if csv_asset_ids_touched:
+            from app.services.analyst_consensus_refresh_service import (
+                schedule_stale_analyst_consensus_refresh,
+            )
+
+            schedule_stale_analyst_consensus_refresh(
+                current_app._get_current_object(),
+                only_asset_ids=csv_asset_ids_touched,
+            )
 
     from urllib.parse import urlencode
 

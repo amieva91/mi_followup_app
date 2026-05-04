@@ -10,6 +10,7 @@ Configuracion recomendada en local:
 | Script | Frecuencia | Comando Flask | Log |
 |--------|------------|----------------|-----|
 | `install_price_poll_cron.sh` | Cada minuto (`* * * * *`) | `price-poll-one` | `logs/price_poll_cron.log` |
+| `install_analyst_consensus_cron.sh` | Cada día a las 00:00 (`0 0 * * *`, hora del servidor) | `analyst-consensus-refresh-stale` | `logs/analyst_consensus_cron.log` |
 | `install_benchmark_global_cron.sh` | Cada 15 min (`*/15 * * * *`) | `benchmark-global-daily-once` | `logs/benchmark_global_daily_cron.log` |
 | `install_cache_rebuild_cron.sh` | Dos ticks por minuto (s 0 y s 30) | `cache-rebuild-worker-once` | `logs/cache_rebuild_worker.log` |
 
@@ -20,6 +21,7 @@ Configuracion recomendada en local:
 
 ```bash
 ./scripts/install_price_poll_cron.sh
+./scripts/install_analyst_consensus_cron.sh
 ./scripts/install_benchmark_global_cron.sh
 ./scripts/install_cache_rebuild_cron.sh
 ```

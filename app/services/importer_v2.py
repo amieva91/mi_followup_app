@@ -2,7 +2,7 @@
 CSV Importer V2 - Usa AssetRegistry como cache global
 """
 import logging
-from typing import Dict, List, Any, Callable, Union
+from typing import Dict, List, Any, Callable, Union, Optional
 from datetime import datetime
 from decimal import Decimal
 from app import db
@@ -98,6 +98,7 @@ class CSVImporterV2:
         self.asset_cache = {}  # {isin: Asset}
         # Cache compartido de ISINs cuyo enriquecimiento ya falló (evita reintentos en la misma sesión)
         self.failed_enrichment_cache = failed_enrichment_cache if failed_enrichment_cache is not None else set()
+        self.asset_ids_touched = set()  # ids de Asset referenciados en este CSV (post-commit: refresco consenso)
     
     def import_data(
         self,
@@ -167,8 +168,13 @@ class CSVImporterV2:
         saved_count = Transaction.query.filter_by(user_id=self.user_id, account_id=self.broker_account_id).count()
         _idebug.debug(f"Transacciones total en cuenta: {saved_count}")
         
+        self.stats['asset_ids_touched'] = sorted(self.asset_ids_touched)
         _idebug.info(f"importer_v2: import_data FIN - stats={self.stats}")
         return self.stats
+
+    def _note_asset_touched(self, asset: Optional[Asset]) -> None:
+        if asset is not None and getattr(asset, "id", None):
+            self.asset_ids_touched.add(asset.id)
 
     def _create_transaction_snapshot(self):
         """Crea snapshot de transacciones existentes"""
@@ -396,6 +402,7 @@ class CSVImporterV2:
                     if registry.ibkr_exchange and not existing.exchange:
                         existing.exchange = registry.ibkr_exchange
                 self.asset_cache[isin] = existing
+                self._note_asset_touched(existing)
                 continue
             
             # Obtener desde registro
@@ -407,6 +414,7 @@ class CSVImporterV2:
             asset = self.registry_service.create_asset_from_registry(registry, self.user_id)
             self.asset_cache[isin] = asset
             self.stats['assets_created'] += 1
+            self._note_asset_touched(asset)
         
         db.session.commit()
     
@@ -498,6 +506,7 @@ class CSVImporterV2:
             db.session.add(transaction)
             self.stats['transactions_created'] += 1
             created += 1
+            self._note_asset_touched(asset)
         
         _idebug.info(f"importer_v2: transacciones -> Forex={skipped_forex}, NoAsset={skipped_no_asset}, Duplicados={skipped_duplicate}, Creadas={created}")
     
@@ -556,6 +565,7 @@ class CSVImporterV2:
             
             db.session.add(transaction)
             self.stats['dividends_created'] += 1
+            self._note_asset_touched(asset)
         
         if skipped_duplicate > 0:
             _idebug.info(f"importer_v2: dividendos duplicados saltados={skipped_duplicate}")

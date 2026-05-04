@@ -8,9 +8,11 @@ de consenso no existe o es anterior a hace STALE_DAYS días (datos con más de S
 """
 from __future__ import annotations
 
+import logging
+import threading
 import time
 from datetime import datetime, timedelta
-from typing import Any, Dict
+from typing import Any, Collection, Dict, Optional
 
 from app import db
 from app.models.asset import Asset
@@ -18,6 +20,7 @@ from app.services.market_data.services.price_updater import DELAY_BETWEEN_REQUES
 from app.services.price_polling_service import get_assets_to_poll
 
 STALE_DAYS = 90
+_log = logging.getLogger(__name__)
 
 
 def _needs_analyst_refresh(asset: Asset, threshold: datetime) -> bool:
@@ -35,14 +38,38 @@ def _needs_analyst_refresh(asset: Asset, threshold: datetime) -> bool:
     return empty or consensus_too_old
 
 
-def run_refresh() -> Dict[str, Any]:
+def run_refresh(only_asset_ids: Optional[Collection[int]] = None) -> Dict[str, Any]:
     """
-    Autentica una vez con Yahoo y actualiza todos los activos pollables que lo necesiten,
-    en orden por id (como build_poll_queue para activos).
+    Primero se determina el subconjunto pollable que necesita refresco (vacío o consenso
+    con más de STALE_DAYS días); solo esos reciben llamadas a Yahoo.
+
+    Args:
+        only_asset_ids: Si se indica (p. ej. activos tocados por un CSV), solo se consideran
+            esos ids entre los pollables. None = todos los pollables (cron global).
     """
     pollable = get_assets_to_poll()
     if not pollable:
         return {"ok": True, "processed": 0, "success": 0, "failed": 0, "message": "Sin activos pollables"}
+
+    if only_asset_ids is not None:
+        allow = {int(x) for x in only_asset_ids}
+        if not allow:
+            return {
+                "ok": True,
+                "processed": 0,
+                "success": 0,
+                "failed": 0,
+                "message": "Sin ids de activo para revisar",
+            }
+        pollable = [a for a in pollable if a.id in allow]
+        if not pollable:
+            return {
+                "ok": True,
+                "processed": 0,
+                "success": 0,
+                "failed": 0,
+                "message": "Ningún activo del lote está en la cola pollable",
+            }
 
     threshold = datetime.utcnow() - timedelta(days=STALE_DAYS)
     stale_assets = [a for a in sorted(pollable, key=lambda x: x.id) if _needs_analyst_refresh(a, threshold)]
@@ -90,3 +117,30 @@ def run_refresh() -> Dict[str, Any]:
         "failed": failed,
         "message": f"Refresco consenso: {success} ok, {failed} fallidos (total a procesar: {len(stale_assets)})",
     }
+
+
+def schedule_stale_analyst_consensus_refresh(app, only_asset_ids: Optional[Collection[int]] = None) -> None:
+    """
+    Encola el mismo trabajo que el cron en un hilo daemon: no bloquea la respuesta HTTP
+    (p. ej. tras importar CSV). Si only_asset_ids está vacío, no hace nada.
+    """
+    if only_asset_ids is not None:
+        ids = frozenset(int(x) for x in only_asset_ids)
+        if not ids:
+            return
+    else:
+        ids = None
+
+    def worker():
+        with app.app_context():
+            try:
+                summary = run_refresh(only_asset_ids=ids)
+                _log.info("%s", summary.get("message", summary))
+            except Exception:
+                _log.exception("schedule_stale_analyst_consensus_refresh: error en segundo plano")
+
+    threading.Thread(
+        target=worker,
+        name="analyst-consensus-refresh",
+        daemon=True,
+    ).start()

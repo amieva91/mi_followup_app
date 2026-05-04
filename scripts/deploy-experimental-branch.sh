@@ -69,6 +69,10 @@ export FLASK_APP=run.py
 export FLASK_ENV=production
 flask db upgrade
 echo "   ✓ Migraciones OK"
+
+echo "⏰ Cron consenso analistas (00:00)..."
+sudo -u followup bash -lc 'cd /var/www/followup && ./scripts/install_analyst_consensus_cron.sh' || true
+echo "   ✓ Cron consenso OK"
 INNER
 
 echo "🔄 Reiniciando aplicación..."
