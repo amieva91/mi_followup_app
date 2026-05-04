@@ -17,7 +17,7 @@ from typing import Any, Collection, Dict, Optional
 from app import db
 from app.models.asset import Asset
 from app.services.market_data.services.price_updater import DELAY_BETWEEN_REQUESTS, PriceUpdater
-from app.services.price_polling_service import get_assets_to_poll
+from app.services.price_polling_service import POLLABLE_TYPES, get_assets_to_poll, _invalidate_caches_for_asset
 
 STALE_DAYS = 90
 _log = logging.getLogger(__name__)
@@ -142,5 +142,47 @@ def schedule_stale_analyst_consensus_refresh(app, only_asset_ids: Optional[Colle
     threading.Thread(
         target=worker,
         name="analyst-consensus-refresh",
+        daemon=True,
+    ).start()
+
+
+def schedule_immediate_market_data_for_watchlist_asset(app, asset_id: int) -> None:
+    """
+    Tras añadir un activo a la watchlist: en segundo plano, mismo trabajo que el cron
+    de consenso (Chart + quoteSummary cuando Yahoo autentica). Si no hay éxito, al menos
+    actualiza precio vía Chart API como price-poll-one.
+    """
+    aid = int(asset_id)
+
+    def worker():
+        with app.app_context():
+            try:
+                asset = Asset.query.get(aid)
+                if (
+                    not asset
+                    or not asset.yahoo_ticker
+                    or (asset.asset_type or "") not in POLLABLE_TYPES
+                ):
+                    return
+                summary = run_refresh(only_asset_ids=[aid])
+                if summary.get("success", 0) >= 1:
+                    return
+                db.session.expire_all()
+                asset = Asset.query.get(aid)
+                if not asset or not asset.yahoo_ticker:
+                    return
+                updater = PriceUpdater()
+                if updater.update_single_asset_price_only(asset):
+                    try:
+                        db.session.commit()
+                        _invalidate_caches_for_asset(aid)
+                    except Exception:
+                        db.session.rollback()
+            except Exception:
+                _log.exception("schedule_immediate_market_data_for_watchlist_asset: error en segundo plano")
+
+    threading.Thread(
+        target=worker,
+        name="watchlist-immediate-market",
         daemon=True,
     ).start()

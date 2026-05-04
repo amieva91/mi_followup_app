@@ -11,6 +11,22 @@ from app import db, csrf
 from app.models import BrokerAccount, Asset, PortfolioHolding, Watchlist, AssetRegistry
 from app.services.currency_service import convert_to_eur
 
+
+def _schedule_market_data_after_watchlist_add(asset: Asset) -> None:
+    """Precio + consenso en segundo plano (misma lógica que cron / import CSV)."""
+    if not asset:
+        return
+    from flask import current_app
+    from app.services.analyst_consensus_refresh_service import (
+        schedule_immediate_market_data_for_watchlist_asset,
+    )
+
+    schedule_immediate_market_data_for_watchlist_asset(
+        current_app._get_current_object(),
+        asset.id,
+    )
+
+
 @portfolio_bp.route('/watchlist')
 @login_required
 def watchlist():
@@ -393,7 +409,8 @@ def watchlist_add():
             # Añadir a watchlist
             watchlist_item = WatchlistService.add_to_watchlist(current_user.id, asset.id)
             db.session.commit()
-            
+            _schedule_market_data_after_watchlist_add(asset)
+
             return jsonify({
                 'success': True,
                 'message': f'Asset añadido a watchlist: {asset.symbol}',
@@ -421,7 +438,8 @@ def watchlist_add():
             # Añadir a watchlist
             watchlist_item = WatchlistService.add_to_watchlist(current_user.id, asset.id)
             db.session.commit()
-            
+            _schedule_market_data_after_watchlist_add(asset)
+
             return jsonify({
                 'success': True,
                 'message': f'Asset añadido a watchlist: {asset.symbol}',
@@ -437,7 +455,8 @@ def watchlist_add():
             
             watchlist_item = WatchlistService.add_to_watchlist(current_user.id, asset_id)
             db.session.commit()
-            
+            _schedule_market_data_after_watchlist_add(asset)
+
             return jsonify({
                 'success': True,
                 'message': f'Asset añadido a watchlist: {asset.symbol}',
