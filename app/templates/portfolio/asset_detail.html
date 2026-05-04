@@ -436,7 +436,7 @@
                             {{ asset.number_of_analyst_opinions if asset.number_of_analyst_opinions else '—' }}
                         </div>
                     </div>
-                    <div class="asset-inner-panel p-4 md:col-span-2">
+                    <div class="asset-inner-panel p-4 {% if watchlist_valoracion_12m is none or not asset.current_price %}md:col-span-2{% endif %}">
                         <div class="text-sm text-gray-600 mb-1">Precio Objetivo Medio</div>
                         <div class="text-lg font-semibold text-gray-900">
                             {{ asset.target_mean_price|decimal_eu(2) if asset.target_mean_price else '—' }} {{ asset.currency if asset.target_mean_price else '' }}
@@ -449,7 +449,7 @@
                         {% endif %}
                     </div>
                     {% if watchlist_valoracion_12m is not none and asset.current_price %}
-                    <div class="asset-inner-panel p-4 md:col-span-2">
+                    <div class="asset-inner-panel p-4">
                         <div class="text-sm text-gray-600 mb-1">Precio objetivo medio FwUP</div>
                         <div class="text-lg font-semibold text-gray-900">
                             {% set fwup_target = asset.current_price * (1 + watchlist_valoracion_12m / 100.0) %}
