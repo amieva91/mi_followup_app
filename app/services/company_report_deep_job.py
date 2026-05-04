@@ -21,7 +21,6 @@ def run_company_report_deep_research_job(
     post_watchlist_extract=False,
     research_prompt_style="full",
     watchlist_force_deep_research=False,
-    watchlist_extract_override_user=False,
 ):
     """
     Hilo: actualiza un CompanyReport (pending → processing → completed/failed).
@@ -29,7 +28,7 @@ def run_company_report_deep_research_job(
 
     research_prompt_style: ``watchlist_minimal`` solo para Informes IA (prompt corto en gemini_service).
     watchlist_force_deep_research: si True, no usa Flash aunque el env pida Flash (fila «exhaustivo»).
-    watchlist_extract_override_user: si True, la extracción a watchlist puede sobrescribir campos con origen usuario.
+    La extracción a watchlist **nunca** sustituye campos con origen ``user`` (Flash o DR).
     """
     from app import db
     from app.background_tasks_lock import background_tasks_lock
@@ -53,14 +52,13 @@ def run_company_report_deep_research_job(
             )
             logger.info(
                 'REPORT_QUEUE_DEBUG deep_job begin | report_id=%s user_id=%s asset_id=%s '
-                'style=%s post_watchlist_extract=%s watchlist_backend=%s override_user=%s',
+                'style=%s post_watchlist_extract=%s watchlist_backend=%s',
                 report_id,
                 user_id,
                 asset_id,
                 research_prompt_style,
                 post_watchlist_extract,
                 'flash' if _wl_flash else 'deep_research',
-                watchlist_extract_override_user,
             )
 
         def _update_status(st, content_val=None, error_val=None):
@@ -149,12 +147,7 @@ def run_company_report_deep_research_job(
                         try_apply_report_to_watchlist,
                     )
 
-                    try_apply_report_to_watchlist(
-                        user_id,
-                        asset_id,
-                        content_val,
-                        override_user_sources=watchlist_extract_override_user,
-                    )
+                    try_apply_report_to_watchlist(user_id, asset_id, content_val)
                 except Exception as ex:
                     logger.exception(
                         "post_watchlist_extract falló asset_id=%s: %s", asset_id, ex
@@ -253,7 +246,7 @@ def start_watchlist_row_deep_research_thread(
     description,
     points,
 ):
-    """Un activo: Deep Research (watchlist_minimal) + extracción pudiendo sustituir datos en origen usuario."""
+    """Un activo: Deep Research (watchlist_minimal) + misma extracción que Flash (respeta origen usuario)."""
     import threading
 
     def worker():
@@ -268,7 +261,6 @@ def start_watchlist_row_deep_research_thread(
             post_watchlist_extract=True,
             research_prompt_style='watchlist_minimal',
             watchlist_force_deep_research=True,
-            watchlist_extract_override_user=True,
         )
 
     threading.Thread(target=worker, daemon=True).start()

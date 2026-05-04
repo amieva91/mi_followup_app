@@ -825,8 +825,8 @@ def watchlist_reports_generate_all():
 def watchlist_reports_queue_dr_row():
     """
     Un activo: **Deep Research** con el briefing fijo de Informes IA, cola global como el resto.
-    Puede encolarse varias veces (varios clics); al terminar, la extracción **sí** puede sustituir
-    valores con origen usuario si el informe trae cifras nuevas.
+    Puede encolarse varias veces (varios clics). La extracción a la tabla respeta el origen **user**
+    igual que el lote Flash (para aplicar IA en un campo manual del usuario hay que resetear o vaciar antes).
     """
     try:
         from flask import current_app
@@ -879,7 +879,7 @@ def watchlist_reports_queue_dr_row():
                 'report_id': report.id,
                 'message': (
                     'Informe IA exhaustivo (Deep Research) encolado. Revisa la pestaña Informes del activo; '
-                    'la tabla se puede actualizar al completarse.'
+                    'solo se actualizarán en la tabla los campos sin origen usuario.'
                 ),
             }
         )

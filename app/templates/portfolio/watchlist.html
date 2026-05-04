@@ -545,7 +545,7 @@
                             {% if watchlist_item %}
                             <div class="flex items-center justify-center gap-2 flex-wrap">
                                 {% if gemini_available %}
-                                <button type="button" onclick="queueWatchlistRowDeepResearch({{ asset.id }})" class="text-violet-700 hover:text-violet-900 text-sm font-semibold" title="Informe IA exhaustivo (Deep Research): encola un trabajo; puedes pulsar en varias filas">🔬</button>
+                                <button type="button" onclick="queueWatchlistRowDeepResearch({{ asset.id }})" class="text-violet-700 hover:text-violet-900 text-sm font-semibold" title="Informe IA exhaustivo (Deep Research). No sustituye campos con origen tuyo; resetea o vacía antes si quieres que la IA los rellene. Puedes encolar varias filas">🔬</button>
                                 {% endif %}
                                 <button type="button" onclick="resetWatchlistManualFields({{ watchlist_item.id }})" class="text-amber-600 hover:text-amber-800 text-sm" title="Borrar los 5 datos manuales (origen usuario o IA)">⟲</button>
                                 <button onclick="editWatchlistItem({{ watchlist_item.id }}, {{ asset.id }})" class="text-blue-600 hover:text-blue-800 text-sm" title="Editar">
@@ -580,8 +580,8 @@
 <div id="generateReportModal" class="hidden fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55 overflow-y-auto" onclick="if(event.target===this) closeGenerateReportModal()">
     <div class="watchlist-modal-surface w-full max-w-md p-5 sm:p-6" onclick="event.stopPropagation()">
         <h3 class="text-lg font-semibold text-slate-900 mb-2">Informes IA — toda la watchlist</h3>
-        <p class="text-sm text-slate-600 mb-3">Modo <strong>rápido y económico (Gemini Flash)</strong> con el mismo briefing fijo: rellena la tabla con los <strong>cinco campos</strong> (earnings, PER NTM, dividend yield NTM, EPS, CAGR). Solo se encolan filas con <strong>huecos o datos puestos por la IA</strong>; si los cinco tienen origen <strong>tuyo</strong>, se omiten.</p>
-        <p class="text-sm text-slate-600 mb-4">Para <strong>una fila concreta</strong> y búsqueda más exhaustiva, usa el botón <strong class="whitespace-nowrap">🔬</strong> en Acciones (Deep Research, más lento y caro).</p>
+        <p class="text-sm text-slate-600 mb-3">Modo <strong>rápido y económico (Gemini Flash)</strong> con el mismo briefing fijo: rellena la tabla con los <strong>cinco campos</strong> (earnings, PER NTM, dividend yield NTM, EPS, CAGR). Solo se encolan filas con <strong>huecos o datos puestos por la IA</strong>; si los cinco tienen origen <strong>tuyo</strong>, se omiten. Los datos que <strong>tú</strong> hayas fijado (origen usuario) <strong>nunca</strong> los sustituye la IA; usa ⟲ o edita/borra el campo para permitir que se rellene.</p>
+        <p class="text-sm text-slate-600 mb-4">Para <strong>una fila concreta</strong> y búsqueda más exhaustiva, usa <strong class="whitespace-nowrap">🔬</strong> en Acciones (Deep Research, más lento y caro). La extracción a la tabla sigue la <strong>misma regla</strong>: no pisa origen usuario.</p>
         <div class="flex flex-col-reverse sm:flex-row justify-end gap-2">
             <button type="button" onclick="closeGenerateReportModal()" class="portfolio-touch-btn px-4 py-2 rounded-xl bg-slate-200 text-slate-800 font-semibold hover:bg-slate-300 w-full sm:w-auto">Cancelar</button>
             <button type="button" onclick="confirmGenerateReportFromWatchlist()" class="portfolio-touch-btn px-4 py-2 rounded-xl bg-teal-600 text-white font-semibold hover:bg-teal-700 w-full sm:w-auto">Encolar elegibles</button>

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 # Título guardado en company_reports (sin plantilla FK): lote global barato (Flash).
 WATCHLIST_IA_REPORT_TITLE = "Watchlist IA (Flash)"
-# Una fila encolada desde Acciones: Deep Research + extracción puede sobrescribir origen usuario.
+# Una fila encolada desde Acciones: Deep Research (misma extracción; no pisa origen usuario).
 WATCHLIST_IA_REPORT_TITLE_DR_ROW = "Watchlist IA (Deep Research, fila)"
 
 _WATCHLIST_IA_TITLE_ALIASES = frozenset(

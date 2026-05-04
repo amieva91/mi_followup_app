@@ -1473,15 +1473,14 @@ def _persist_company_report_completed_resume(report_id: int, markdown: str) -> N
 
     if has_app_context() and markdown and not is_full_deliver:
         try:
-            from app.services.watchlist_ia_template import WATCHLIST_IA_REPORT_TITLE_DR_ROW
+            from app.services.watchlist_ia_template import is_watchlist_ia_report_title
             from app.services.watchlist_report_extract_service import try_apply_report_to_watchlist
 
-            if (r.template_title or "").strip() == WATCHLIST_IA_REPORT_TITLE_DR_ROW:
+            if is_watchlist_ia_report_title(r.template_title):
                 try_apply_report_to_watchlist(
                     int(r.user_id),
                     int(r.asset_id),
                     markdown,
-                    override_user_sources=True,
                 )
         except Exception:
             logger.exception(

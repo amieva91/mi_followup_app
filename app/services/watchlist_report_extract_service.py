@@ -6,8 +6,7 @@ Flujo:
    en ``watchlist_ia_template``), se parsea aquí **sin llamar a Flash**.
 2. Si no, **Gemini Flash** lee el markdown y devuelve el mismo JSON (normalizador/rescate).
 
-Los valores se escriben con :func:`apply_extracted_watchlist_fields` (por defecto respeta origen ``user``;
-informe DR por fila puede usar ``override_user_sources``).
+Los valores se escriben con :func:`apply_extracted_watchlist_fields`, que **nunca** sustituye campos con origen ``user``.
 """
 import json
 import logging
@@ -138,13 +137,10 @@ def apply_extracted_watchlist_fields(
     user_id: int,
     asset_id: int,
     extracted: Dict[str, Any],
-    *,
-    override_user_sources: bool = False,
 ) -> Dict[str, Any]:
     """
     Aplica valores extraídos al registro Watchlist del usuario/asset.
-    Por defecto no toca campos con origen 'user'. Con ``override_user_sources=True`` (informe DR por fila),
-    sí sobrescribe si el JSON trae valor no nulo. Recalcula métricas derivadas.
+    No modifica campos cuyo origen en ``manual_field_sources`` es ``user``. Recalcula métricas derivadas.
     """
     from app import db
     from app.models import Watchlist, PortfolioHolding
@@ -156,11 +152,10 @@ def apply_extracted_watchlist_fields(
     if not wl:
         return {"skipped": True, "reason": "no_watchlist_row"}
 
-    sources = wl.get_manual_field_sources_dict()
     applied = {}
     src_updates = {}
 
-    if override_user_sources or wl.get_manual_field_source("next_earnings_date") != "user":
+    if wl.get_manual_field_source("next_earnings_date") != "user":
         raw_d = extracted.get("next_earnings_date")
         if raw_d and isinstance(raw_d, str):
             try:
@@ -171,7 +166,7 @@ def apply_extracted_watchlist_fields(
                 pass
 
     for key in ("per_ntm", "ntm_dividend_yield", "eps", "cagr_revenue_yoy"):
-        if not override_user_sources and wl.get_manual_field_source(key) == "user":
+        if wl.get_manual_field_source(key) == "user":
             continue
         v = extracted.get(key)
         if v is None:
@@ -208,13 +203,7 @@ def apply_extracted_watchlist_fields(
     return {"applied": applied, "skipped": False}
 
 
-def try_apply_report_to_watchlist(
-    user_id: int,
-    asset_id: int,
-    report_markdown: str,
-    *,
-    override_user_sources: bool = False,
-) -> None:
+def try_apply_report_to_watchlist(user_id: int, asset_id: int, report_markdown: str) -> None:
     """No lanza si falla extracción: solo log."""
     try:
         extracted = extract_watchlist_fields_from_report_md(report_markdown)
@@ -222,14 +211,11 @@ def try_apply_report_to_watchlist(
             return
         if not any(extracted.get(k) is not None for k in _WATCHLIST_JSON_KEYS):
             logger.info(
-                "watchlist extract: sin valores no nulos tras normalizar (asset_id=%s override_user=%s); "
+                "watchlist extract: sin valores no nulos tras normalizar (asset_id=%s); "
                 "suele indicar que el modelo no encontró cifras verificables, no un fallo de API.",
                 asset_id,
-                override_user_sources,
             )
             return
-        apply_extracted_watchlist_fields(
-            user_id, asset_id, extracted, override_user_sources=override_user_sources
-        )
+        apply_extracted_watchlist_fields(user_id, asset_id, extracted)
     except Exception as e:
         logger.exception("try_apply_report_to_watchlist: %s", e)
