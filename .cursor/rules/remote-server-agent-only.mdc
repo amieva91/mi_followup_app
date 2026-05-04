@@ -1,0 +1,10 @@
+---
+description: Operaciones en la VM followup (GCP) las ejecuta el agente; no pedir al usuario comandos en el servidor salvo bloqueo de acceso.
+alwaysApply: true
+---
+
+# Servidor remoto (followup.fit / VM `followup`)
+
+- **No pedir al usuario** que ejecute cosas en el servidor, edite `.env`, `systemctl`, etc. El agente debe hacerlo vía **`gcloud compute ssh followup --zone=us-central1-c`** (mismo patrón que `scripts/deploy-experimental-branch.sh`) o ampliando scripts de deploy cuando encaje.
+- Si algo falla (auth gcloud, permisos IAM), entonces sí se puede pedir **solo** lo mínimo para desbloquear acceso (p. ej. comprobar que `gcloud` está logueado con la cuenta correcta).
+- Variables de entorno de la app en producción experimental: **`/var/www/followup/.env`** (carga `python-dotenv` desde `config.py`). Tras cambiar `.env`: **`sudo systemctl restart followup.service`**.
