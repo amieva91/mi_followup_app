@@ -7,6 +7,7 @@ Salida esperada: breve + sección/tablas para extracción; idealmente un bloque 
 
 En ``run_deep_research_report`` el lote Informes IA usa ``research_prompt_style="watchlist_minimal"``:
 prompt corto sin el bloque largo de informe completo de ficha (menos tokens / contradicciones).
+Presupuesto de polling por activo: 20 min por defecto (``GEMINI_WATCHLIST_IA_MAX_WAIT_SECONDS``).
 """
 from __future__ import annotations
 

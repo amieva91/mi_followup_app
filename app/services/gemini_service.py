@@ -173,6 +173,20 @@ def _get_deep_research_max_wait_seconds() -> int:
         return 3600
 
 
+def _get_watchlist_ia_max_wait_seconds() -> int:
+    """
+    Presupuesto de polling por activo para Informes IA (watchlist, ``watchlist_minimal``).
+    Por defecto 1200 s (20 min). Override: GEMINI_WATCHLIST_IA_MAX_WAIT_SECONDS (mínimo 60).
+    """
+    raw = os.environ.get('GEMINI_WATCHLIST_IA_MAX_WAIT_SECONDS')
+    if raw is None or str(raw).strip() == '':
+        return 1200
+    try:
+        return max(60, int(str(raw).strip()))
+    except ValueError:
+        return 1200
+
+
 # Segundo turno: mensaje de aprobación (documentación Google Deep Research — paso 3 "Approve and execute")
 DEEP_RESEARCH_APPROVE_INPUT = (
     'El plan propuesto es adecuado. Apruebo el plan tal como está. '
@@ -993,8 +1007,10 @@ def run_deep_research_report(
         research_prompt_style: ``full`` = informe largo (ficha). ``watchlist_minimal`` = solo briefing + reglas
             breves (Informes IA); menos instrucciones contradictorias y suele reducir salida/tokens.
 
-    ``max_wait_seconds``: si es ``None``, se usa :func:`_get_deep_research_max_wait_seconds` (por defecto 3600 s;
-    variable ``GEMINI_DEEP_RESEARCH_MAX_WAIT_SECONDS``).
+    ``max_wait_seconds``: si es ``None``, con ``research_prompt_style='watchlist_minimal'`` se usa
+    :func:`_get_watchlist_ia_max_wait_seconds` (por defecto 1200 s; ``GEMINI_WATCHLIST_IA_MAX_WAIT_SECONDS``);
+    en caso contrario :func:`_get_deep_research_max_wait_seconds` (3600 s por defecto;
+    ``GEMINI_DEEP_RESEARCH_MAX_WAIT_SECONDS``).
     """
     api_key = _get_api_key()
     if not api_key:
@@ -1076,9 +1092,12 @@ Con ``visualization: auto`` debes entregar **solo imágenes raster finales** inc
         agent_name = _get_agent_deep_research()
         auto_loop = _get_auto_collab_loop()
         single_shot = not auto_loop
-        wait_budget = (
-            max_wait_seconds if max_wait_seconds is not None else _get_deep_research_max_wait_seconds()
-        )
+        if max_wait_seconds is not None:
+            wait_budget = max_wait_seconds
+        elif research_prompt_style == 'watchlist_minimal':
+            wait_budget = _get_watchlist_ia_max_wait_seconds()
+        else:
+            wait_budget = _get_deep_research_max_wait_seconds()
         deadline = time.monotonic() + wait_budget
         sts = _report_substep_rows(single_shot)
         if on_status_update:
@@ -1382,8 +1401,15 @@ def resume_company_report_from_interaction_id(report_id: int) -> None:
     agent_name = _get_agent_deep_research()
     auto_loop = _get_auto_collab_loop()
 
+    from app.services.watchlist_ia_template import WATCHLIST_IA_REPORT_TITLE
+
     born = report.created_at
-    max_sec = _get_deep_research_max_wait_seconds()
+    is_watchlist_ia = (report.template_title or '').strip() == WATCHLIST_IA_REPORT_TITLE
+    max_sec = (
+        _get_watchlist_ia_max_wait_seconds()
+        if is_watchlist_ia
+        else _get_deep_research_max_wait_seconds()
+    )
     elapsed = (datetime.utcnow() - born).total_seconds() if born else 0.0
     remaining = max(120.0, float(max_sec) - float(elapsed))
     deadline = time.monotonic() + remaining
