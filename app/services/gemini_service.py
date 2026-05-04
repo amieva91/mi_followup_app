@@ -187,6 +187,18 @@ def _get_watchlist_ia_max_wait_seconds() -> int:
         return 1200
 
 
+def _get_watchlist_ia_use_collab_plan() -> bool:
+    """
+    Informes IA: por defecto **modo directo** (un solo ``interactions.create``, sin fase de plan
+    colaborativo ni segundo turno): menos latencia y coste. Para volver al bucle plan→aprobación
+    automática→informe (más lento): ``GEMINI_WATCHLIST_IA_COLLAB_PLAN=1``.
+    """
+    raw = os.environ.get('GEMINI_WATCHLIST_IA_COLLAB_PLAN')
+    if raw is None or str(raw).strip() == '':
+        return False
+    return str(raw).strip().lower() in ('1', 'true', 'yes', 'on')
+
+
 # Segundo turno: mensaje de aprobación (documentación Google Deep Research — paso 3 "Approve and execute")
 DEEP_RESEARCH_APPROVE_INPUT = (
     'El plan propuesto es adecuado. Apruebo el plan tal como está. '
@@ -1005,7 +1017,8 @@ def run_deep_research_report(
             ``loading`` | ``ok`` | ``error`` | ``pending`` | ``skipped``.
         extra_prompt_suffix: Texto opcional al final del prompt (p. ej. esquema watchlist en lote IA).
         research_prompt_style: ``full`` = informe largo (ficha). ``watchlist_minimal`` = solo briefing + reglas
-            breves (Informes IA); menos instrucciones contradictorias y suele reducir salida/tokens.
+            breves (Informes IA); por defecto **modo directo** (sin plan colaborativo) salvo
+            ``GEMINI_WATCHLIST_IA_COLLAB_PLAN=1``.
 
     ``max_wait_seconds``: si es ``None``, con ``research_prompt_style='watchlist_minimal'`` se usa
     :func:`_get_watchlist_ia_max_wait_seconds` (por defecto 1200 s; ``GEMINI_WATCHLIST_IA_MAX_WAIT_SECONDS``);
@@ -1034,6 +1047,7 @@ def run_deep_research_report(
         prompt = f"""Eres un asistente de investigación financiera. Usa las herramientas del agente Deep Research \
 para consultar **fuentes públicas fiables**. Objetivo: cumplir **estrictamente** el briefing y los puntos; \
 no escribas un informe de inversión largo.
+**Eficiencia (obligatorio):** prioriza **pocas** consultas bien dirigidas; si en el briefing o el contexto hay **URLs o dominios concretos** (IR, regulador, bolsa), **consúltalos primero** antes de ampliar la búsqueda. No alargues el trabajo más de lo necesario para rellenar la tabla y el JSON.
 
 **Empresa**
 - Nombre: **{name}**
@@ -1091,6 +1105,8 @@ Con ``visualization: auto`` debes entregar **solo imágenes raster finales** inc
         client = genai.Client(api_key=api_key)
         agent_name = _get_agent_deep_research()
         auto_loop = _get_auto_collab_loop()
+        if research_prompt_style == 'watchlist_minimal' and not _get_watchlist_ia_use_collab_plan():
+            auto_loop = False
         single_shot = not auto_loop
         if max_wait_seconds is not None:
             wait_budget = max_wait_seconds
