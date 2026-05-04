@@ -49,6 +49,8 @@ def background_tasks_lock(app, fair_report_id: int | None = None):
         path = _lock_path(app)
         deadline = time.monotonic() + _MAX_FAIR_WAIT_SEC if fair_report_id is not None else None
         head: int | None = None
+        fair_wait_log_next = 0.0
+        fair_wait_first = True
 
         while True:
             fp = open(path, "a+")
@@ -58,15 +60,35 @@ def background_tasks_lock(app, fair_report_id: int | None = None):
 
             from app.services.company_report_queue import (
                 first_in_global_report_queue,
+                is_report_queue_debug,
+                log_global_queue_snapshot,
+                queue_metrics_for_report_id,
                 report_id_in_active_global_queue,
+                sorted_active_queue_rows,
             )
 
             rid = int(fair_report_id)
             if not report_id_in_active_global_queue(rid):
+                if is_report_queue_debug():
+                    logger.info(
+                        'REPORT_QUEUE_DEBUG fair_lock skip_queue | report_id=%s (not in active global queue)',
+                        rid,
+                    )
+                    log_global_queue_snapshot(f'fair_skip_queue report_id={rid}')
                 break
 
             head = first_in_global_report_queue()
             if head is None or int(head) == rid:
+                if is_report_queue_debug():
+                    pos, tot = queue_metrics_for_report_id(rid)
+                    logger.info(
+                        'REPORT_QUEUE_DEBUG fair_lock acquired | report_id=%s head=%s our_pos=%s/%s',
+                        rid,
+                        head,
+                        pos,
+                        tot,
+                    )
+                    log_global_queue_snapshot(f'fair_acquired report_id={rid} head={head}')
                 break
 
             fcntl.flock(fp.fileno(), fcntl.LOCK_UN)
@@ -82,6 +104,23 @@ def background_tasks_lock(app, fair_report_id: int | None = None):
                 fp = open(path, "a+")
                 fcntl.flock(fp.fileno(), fcntl.LOCK_EX)
                 break
+
+            now = time.monotonic()
+            if is_report_queue_debug() and (fair_wait_first or now >= fair_wait_log_next):
+                fair_wait_first = False
+                fair_wait_log_next = now + 12.0
+                pos, tot = queue_metrics_for_report_id(rid)
+                pairs = sorted_active_queue_rows()
+                head_seq = ','.join(f'{i + 1}:{qid}' for i, (_t, qid) in enumerate(pairs[:20]))
+                logger.info(
+                    'REPORT_QUEUE_DEBUG fair_lock waiting | report_id=%s queue_head=%s our_pos=%s/%s '
+                    'order[:20]=%s',
+                    rid,
+                    head,
+                    pos,
+                    tot,
+                    head_seq or '-',
+                )
 
             time.sleep(_FAIR_RETRY_SLEEP_SEC)
 

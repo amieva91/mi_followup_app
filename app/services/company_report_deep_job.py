@@ -29,11 +29,23 @@ def run_company_report_deep_research_job(
     """
     from app import db
     from app.background_tasks_lock import background_tasks_lock
+    from app.services.company_report_queue import is_report_queue_debug
     from app.services.gemini_service import run_deep_research_report, GeminiServiceError
 
     # Misma cola justa que informes desde ficha (company_report_queue + flock).
     with app.app_context(), background_tasks_lock(app, fair_report_id=report_id):
         engine = db.engine
+
+        if is_report_queue_debug():
+            logger.info(
+                'REPORT_QUEUE_DEBUG deep_job begin | report_id=%s user_id=%s asset_id=%s '
+                'style=%s post_watchlist_extract=%s',
+                report_id,
+                user_id,
+                asset_id,
+                research_prompt_style,
+                post_watchlist_extract,
+            )
 
         def _update_status(st, content_val=None, error_val=None):
             now_str = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
@@ -155,6 +167,25 @@ def run_company_report_deep_research_job(
                 pass
             traceback.print_exc()
 
+        if is_report_queue_debug():
+            try:
+                with engine.connect() as conn:
+                    st = conn.execute(
+                        text('SELECT status FROM company_reports WHERE id = :rid'),
+                        {'rid': report_id},
+                    ).scalar()
+                logger.info(
+                    'REPORT_QUEUE_DEBUG deep_job end | report_id=%s asset_id=%s final_status=%s',
+                    report_id,
+                    asset_id,
+                    st,
+                )
+            except Exception:
+                logger.exception(
+                    'REPORT_QUEUE_DEBUG deep_job end status read failed report_id=%s',
+                    report_id,
+                )
+
 
 def start_company_report_background_thread(
     app, report_id, user_id, asset_id, description, points, extra_prompt_suffix=None
@@ -204,7 +235,25 @@ def start_watchlist_batch_reports_thread(app, job_id, jobs):
             job_row.updated_at = datetime.utcnow()
             db.session.commit()
 
+            from app.services.company_report_queue import (
+                is_report_queue_debug,
+                log_global_queue_snapshot,
+            )
+
             try:
+                if is_report_queue_debug():
+                    order = [int(j['report_id']) for j in jobs]
+                    aids = [int(j['asset_id']) for j in jobs]
+                    logger.info(
+                        'REPORT_QUEUE_DEBUG watchlist_ia_batch start | job_id=%s n=%s '
+                        'report_ids_order=%s asset_ids_order=%s',
+                        job_id,
+                        len(jobs),
+                        order,
+                        aids,
+                    )
+                    log_global_queue_snapshot(f'watchlist_ia_batch start job_id={job_id}')
+
                 for idx, job in enumerate(jobs):
                     aid = job["asset_id"]
                     asset = Asset.query.get(aid)
@@ -218,6 +267,17 @@ def start_watchlist_batch_reports_thread(app, job_id, jobs):
                     job_row.completed_count = idx
                     job_row.updated_at = datetime.utcnow()
                     db.session.commit()
+
+                    if is_report_queue_debug():
+                        logger.info(
+                            'REPORT_QUEUE_DEBUG watchlist_ia_batch item | job_id=%s idx=%s/%s '
+                            'report_id=%s asset_id=%s',
+                            job_id,
+                            idx + 1,
+                            total,
+                            job['report_id'],
+                            aid,
+                        )
 
                     run_company_report_deep_research_job(
                         app,
@@ -240,8 +300,25 @@ def start_watchlist_batch_reports_thread(app, job_id, jobs):
                 job_row.current_asset_label = None
                 job_row.updated_at = datetime.utcnow()
                 db.session.commit()
+
+                if is_report_queue_debug():
+                    logger.info(
+                        'REPORT_QUEUE_DEBUG watchlist_ia_batch done | job_id=%s status=completed',
+                        job_id,
+                    )
+                    log_global_queue_snapshot(f'watchlist_ia_batch done job_id={job_id}')
             except Exception as e:
                 logger.exception("watchlist batch job %s: %s", job_id, e)
+                if is_report_queue_debug():
+                    logger.info(
+                        'REPORT_QUEUE_DEBUG watchlist_ia_batch error | job_id=%s err=%s',
+                        job_id,
+                        str(e)[:500],
+                    )
+                    try:
+                        log_global_queue_snapshot(f'watchlist_ia_batch error job_id={job_id}')
+                    except Exception:
+                        pass
                 try:
                     job_row = WatchlistAiJob.query.get(job_id)
                     if job_row:
