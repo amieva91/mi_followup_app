@@ -1,6 +1,12 @@
 """
-Extrae con Gemini Flash los 5 campos manuales de watchlist desde el markdown del informe.
-Solo escribe en BD donde el origen del campo no es 'user'.
+Rellena los 5 campos editables de watchlist a partir del texto devuelto por **Deep Research**.
+
+Flujo:
+1. Si el markdown incluye un bloque ``json`` con las cinco claves (lo pide el briefing fijo
+   en ``watchlist_ia_template``), se parsea aquí **sin llamar a Flash**.
+2. Si no, **Gemini Flash** lee el markdown y devuelve el mismo JSON (normalizador/rescate).
+
+Los valores se escriben con :func:`apply_extracted_watchlist_fields` (respeta origen ``user``).
 """
 import json
 import logging
@@ -9,6 +15,14 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
+
+_WATCHLIST_JSON_KEYS = (
+    "next_earnings_date",
+    "per_ntm",
+    "ntm_dividend_yield",
+    "eps",
+    "cagr_revenue_yoy",
+)
 
 
 def _parse_json_object(text: str) -> Optional[dict]:
@@ -32,10 +46,49 @@ def _parse_json_object(text: str) -> Optional[dict]:
     return None
 
 
+def _normalize_watchlist_five(data: dict) -> Dict[str, Any]:
+    """Normaliza las cinco claves; valores desconocidos → None donde aplique."""
+    out: Dict[str, Any] = {}
+    for key in _WATCHLIST_JSON_KEYS:
+        if key not in data:
+            out[key] = None
+            continue
+        v = data.get(key)
+        if v in (None, "", "null", "no disponible", "n/d", "N/A"):
+            out[key] = None
+        else:
+            out[key] = v
+    return out
+
+
+def _try_inline_json_from_report_md(report_markdown: str) -> Optional[Dict[str, Any]]:
+    """
+    Busca bloques ```json en el markdown (p. ej. devueltos por Deep Research).
+    Devuelve dict normalizado si hay al menos una clave conocida con contenido parseable.
+    """
+    if not report_markdown or not str(report_markdown).strip():
+        return None
+    for fence in re.finditer(r"```(?:json)?\s*([\s\S]*?)```", report_markdown, re.I):
+        inner = fence.group(1).strip()
+        data = _parse_json_object(inner)
+        if not data:
+            continue
+        if not any(k in data for k in _WATCHLIST_JSON_KEYS):
+            continue
+        norm = _normalize_watchlist_five(data)
+        if any(norm.get(k) is not None for k in _WATCHLIST_JSON_KEYS):
+            return norm
+    return None
+
+
 def extract_watchlist_fields_from_report_md(report_markdown: str) -> Dict[str, Any]:
     """
-    Llama a Gemini Flash para obtener JSON con los 5 campos (null si no consta).
+    Obtiene JSON con los 5 campos: primero desde bloque embebido; si no, Gemini Flash.
     """
+    inline = _try_inline_json_from_report_md(report_markdown)
+    if inline is not None:
+        return inline
+
     from app.services.gemini_service import GeminiServiceError, _get_api_key, _get_model_flash
 
     api_key = _get_api_key()
@@ -77,23 +130,7 @@ Informe:
     if not data:
         logger.warning("extract_watchlist_fields: no se pudo parsear JSON de la respuesta")
         return {}
-    out = {}
-    for key in (
-        "next_earnings_date",
-        "per_ntm",
-        "ntm_dividend_yield",
-        "eps",
-        "cagr_revenue_yoy",
-    ):
-        if key not in data:
-            out[key] = None
-            continue
-        v = data.get(key)
-        if v in (None, "", "null", "no disponible", "n/d", "N/A"):
-            out[key] = None
-        else:
-            out[key] = v
-    return out
+    return _normalize_watchlist_five(data)
 
 
 def apply_extracted_watchlist_fields(

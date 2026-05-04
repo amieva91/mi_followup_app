@@ -207,10 +207,8 @@ def watchlist():
     # Ordenar primero, luego revertir para que las fechas más lejanas estén primero
     table_data.sort(key=get_sort_key, reverse=True)
     
-    from app.models import ReportTemplate
     from app.services.gemini_service import is_gemini_available
-    report_templates = ReportTemplate.query.filter_by(user_id=current_user.id).order_by(ReportTemplate.title).all()
-    has_valid_templates = any(t.has_valid_description() for t in report_templates)
+
     gemini_available = is_gemini_available()
 
     return render_template(
@@ -223,9 +221,7 @@ def watchlist():
         tier_amounts=config.get_tier_amounts_dict(),
         color_thresholds=config.get_color_thresholds_dict(),
         today=today,
-        report_templates=report_templates,
-        has_valid_templates=has_valid_templates,
-        gemini_available=gemini_available
+        gemini_available=gemini_available,
     )
 
 
@@ -725,26 +721,16 @@ def watchlist_reports_generate_all():
     try:
         from flask import current_app
 
-        from app.models import CompanyReport, ReportTemplate
+        from app.models import CompanyReport
         from app.models.watchlist import WatchlistAiJob
         from app.services.company_report_deep_job import start_watchlist_batch_reports_thread
         from app.services.gemini_service import is_gemini_available
+        from app.services.watchlist_ia_template import get_watchlist_ia_deep_brief
 
         if not is_gemini_available():
             return jsonify({'success': False, 'error': 'GEMINI_API_KEY no configurada'}), 503
 
-        data = request.get_json() or {}
-        template_id = data.get('template_id')
-        if not template_id:
-            return jsonify({'success': False, 'error': 'Selecciona una plantilla'}), 400
-
-        template = ReportTemplate.query.filter_by(
-            id=template_id, user_id=current_user.id
-        ).first()
-        if not template:
-            return jsonify({'success': False, 'error': 'Plantilla no encontrada'}), 404
-        if not template.has_valid_description():
-            return jsonify({'success': False, 'error': 'La plantilla debe tener descripción'}), 400
+        description, points, report_title = get_watchlist_ia_deep_brief()
 
         busy = WatchlistAiJob.query.filter_by(
             user_id=current_user.id, status='running'
@@ -762,8 +748,6 @@ def watchlist_reports_generate_all():
         if not asset_ids:
             return jsonify({'success': False, 'error': 'No hay assets en tu watchlist'}), 400
 
-        description = template.description
-        points = template.get_points_list()
         user_id = current_user.id
         app = current_app._get_current_object()
 
@@ -783,8 +767,8 @@ def watchlist_reports_generate_all():
             report = CompanyReport(
                 user_id=user_id,
                 asset_id=aid,
-                template_id=template.id,
-                template_title=template.title,
+                template_id=None,
+                template_title=report_title,
                 status='pending',
                 report_enqueued_at=base_enqueued + timedelta(milliseconds=i),
             )

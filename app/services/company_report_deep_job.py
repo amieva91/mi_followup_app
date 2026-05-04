@@ -10,27 +10,6 @@ from sqlalchemy import bindparam, text
 
 logger = logging.getLogger(__name__)
 
-# Texto añadido al prompt de Deep Research cuando se lanza desde la watchlist (todos los assets).
-WATCHLIST_MANUAL_FIELDS_PROMPT = """
-## Datos para formulario watchlist (solo si la investigación lo respalda con fuentes)
-
-Al final del informe, incluye una sección breve **"Datos watchlist (extracción)"** donde, para cada campo,
-indiques el valor **solo si aparece de forma clara en fuentes fiables** de tu investigación; si no, escribe exactamente `no disponible`.
-
-Formato esperado por la aplicación (nombres de campo internos):
-
-| Campo | Significado | Formato si hay dato |
-|-------|-------------|---------------------|
-| next_earnings_date | Próxima fecha de presentación de resultados (earnings) | Fecha ISO `YYYY-MM-DD` |
-| per_ntm | PER o P/E NTM | Número decimal (ej. 18.5), sin texto |
-| ntm_dividend_yield | Dividend yield NTM | Número en % (ej. 2.3 para 2,3%) |
-| eps | EPS (beneficio por acción) | Número decimal en moneda del activo |
-| cagr_revenue_yoy | CAGR ingresos interanual | Número en % (ej. 8.0) |
-
-No inventes cifras: si no hay fuente explícita, `no disponible` para ese campo.
-"""
-
-
 def run_company_report_deep_research_job(
     app,
     report_id,
@@ -243,7 +222,7 @@ def start_watchlist_batch_reports_thread(app, job_id, jobs):
                         aid,
                         job["description"],
                         job["points"],
-                        extra_prompt_suffix=WATCHLIST_MANUAL_FIELDS_PROMPT,
+                        extra_prompt_suffix=None,
                         post_watchlist_extract=True,
                     )
 

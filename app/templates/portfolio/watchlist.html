@@ -112,7 +112,7 @@
                 </svg>
                 Actualizar Precios
             </button>
-            {% if gemini_available and has_valid_templates %}
+            {% if gemini_available %}
             <button type="button" onclick="showGenerateReportModal()" class="portfolio-touch-btn flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-semibold border border-emerald-800/30 w-full sm:w-auto" title="Deep Research para todos los assets de la watchlist (cola en serie)">
                 <span class="text-base leading-none" aria-hidden="true">🔬</span>
                 Informes IA (watchlist)
@@ -577,15 +577,8 @@
 <div id="generateReportModal" class="hidden fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55 overflow-y-auto" onclick="if(event.target===this) closeGenerateReportModal()">
     <div class="watchlist-modal-surface w-full max-w-md p-5 sm:p-6" onclick="event.stopPropagation()">
         <h3 class="text-lg font-semibold text-slate-900 mb-2">Informes IA — toda la watchlist</h3>
-        <p class="text-sm text-slate-600 mb-3">Cada asset recibe su propio informe <strong>Deep Research</strong>: si tienes N activos, hay <strong>N puestos</strong> en la <strong>misma cola global</strong> que la pestaña Informes de cada ficha (incluye otros informes o audios que tengas en curso). Se van ejecutando <strong>uno tras otro</strong>. El prompt incluye el formato de los cinco datos manuales de la tabla (earnings, PER, dividend yield NTM, EPS, CAGR ingresos) para que el informe los deje explícitos solo si hay fuente fiable.</p>
-        <p class="text-sm text-slate-600 mb-4">Plantilla a usar para todos:</p>
-        <select id="watchlistTemplateSelect" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 mb-4 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white">
-            {% for t in report_templates %}
-            {% if t.has_valid_description() %}
-            <option value="{{ t.id }}">{{ t.title }}</option>
-            {% endif %}
-            {% endfor %}
-        </select>
+        <p class="text-sm text-slate-600 mb-3">Cada activo usa el agente <strong>Deep Research</strong> con un <strong>briefing fijo</strong> (no elige plantillas): solo investigar y devolver los <strong>cinco campos</strong> de la tabla (earnings, PER NTM, dividend yield NTM, EPS, CAGR ingresos), en formato breve + JSON. Si tienes N activos, hay <strong>N puestos</strong> en la cola global como en la ficha del activo.</p>
+        <p class="text-sm text-slate-600 mb-4">Se usa una <strong>plantilla interna fija</strong> optimizada solo para estos cinco datos (Deep Research + extracción a la tabla). No elijas plantillas de usuario.</p>
         <div class="flex flex-col-reverse sm:flex-row justify-end gap-2">
             <button type="button" onclick="closeGenerateReportModal()" class="portfolio-touch-btn px-4 py-2 rounded-xl bg-slate-200 text-slate-800 font-semibold hover:bg-slate-300 w-full sm:w-auto">Cancelar</button>
             <button type="button" onclick="confirmGenerateReportFromWatchlist()" class="portfolio-touch-btn px-4 py-2 rounded-xl bg-teal-600 text-white font-semibold hover:bg-teal-700 w-full sm:w-auto">Encolar todos</button>
@@ -1777,16 +1770,13 @@ function closeGenerateReportModal() {
     document.body.style.overflow = '';
 }
 async function confirmGenerateReportFromWatchlist() {
-    const sel = document.getElementById('watchlistTemplateSelect');
-    const templateId = sel ? parseInt(sel.value, 10) : null;
-    if (!templateId) { showToast('Selecciona una plantilla', 'error'); return; }
     closeGenerateReportModal();
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
     try {
         const response = await fetch('/portfolio/watchlist/reports/generate-all', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-            body: JSON.stringify({ template_id: templateId })
+            body: JSON.stringify({})
         });
         const data = await response.json();
             if (data.success) {
