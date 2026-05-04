@@ -274,6 +274,20 @@ def create_app(config_name='default'):
         else:
             print(f"OK: sin cola o sin actualización [cron price-poll-one {elapsed:.2f}s]")
 
+    @app.cli.command('analyst-consensus-refresh-stale')
+    @click.option('--limit', default=30, type=int, help='Máximo de activos a procesar por ejecución')
+    def analyst_consensus_refresh_stale(limit):
+        """
+        Refresca consenso de analistas (quoteSummary) para activos en cartera/watchlist
+        con datos vacíos o con más de 90 días sin actualizar. Ejecutar 1×/día vía cron.
+        """
+        from app.services.analyst_consensus_refresh_service import run_refresh
+
+        summary = run_refresh(limit=limit)
+        print(summary.get('message', summary))
+        if not summary.get('ok'):
+            raise SystemExit(1)
+
     @app.cli.command('company-report-clean-queues')
     def company_report_clean_queues():
         """

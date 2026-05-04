@@ -521,7 +521,8 @@ class PriceUpdater:
                             if asset.recommendation_key:
                                 logger.debug(f"      🎯 Recomendación: {asset.recommendation_key}")
                             
-                            logger.debug(f"      ✅ Datos avanzados obtenidos")
+                            asset.analyst_consensus_updated_at = datetime.utcnow()
+                            logger.debug(f"      ✅ Datos avanzados obtenidos (consenso analistas)")
                         else:
                             logger.debug(f"      ⚠️ quoteSummary sin resultados")
                     else:

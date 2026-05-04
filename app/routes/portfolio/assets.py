@@ -756,19 +756,18 @@ def asset_detail(id):
         asset_id=id
     ).filter(PortfolioHolding.quantity > 0).all()
     
-    # Verificar si el asset está en watchlist (si no tiene holdings)
-    is_in_watchlist = False
+    watchlist_item = Watchlist.query.filter_by(
+        user_id=current_user.id,
+        asset_id=id
+    ).first()
     if not holdings:
-        from app.models import Watchlist
-        watchlist_item = Watchlist.query.filter_by(
-            user_id=current_user.id,
-            asset_id=id
-        ).first()
         is_in_watchlist = watchlist_item is not None
         
         if not is_in_watchlist:
             flash('❌ Este activo no está en tu cartera ni en tu watchlist', 'error')
             return redirect(url_for('portfolio.dashboard'))
+    else:
+        is_in_watchlist = watchlist_item is not None
     
     # Calcular totales del usuario para este asset (solo si tiene holdings)
     total_quantity = sum(h.quantity for h in holdings) if holdings else 0
@@ -815,6 +814,7 @@ def asset_detail(id):
         unrealized_pl_pct=unrealized_pl_pct,
         transactions=transactions,
         is_in_watchlist=is_in_watchlist,
+        watchlist_valoracion_12m=(watchlist_item.valoracion_12m if watchlist_item else None),
         report_templates=report_templates,
         has_valid_templates=has_valid_templates,
         about_summary=about_summary,

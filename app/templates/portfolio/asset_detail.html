@@ -404,6 +404,13 @@
 
             <!-- Tab: Análisis -->
             <div x-show="activeTab === 'analysis'" x-cloak>
+                <p class="text-xs text-slate-500 mb-4">
+                    {% if asset.analyst_consensus_updated_at %}
+                        Datos de consenso (Yahoo) actualizados: {{ asset.analyst_consensus_updated_at.strftime('%d/%m/%Y %H:%M') }} UTC
+                    {% else %}
+                        Datos de consenso (Yahoo): sin fecha de actualización (se rellenará en la próxima actualización completa o con el job diario)
+                    {% endif %}
+                </p>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div class="asset-inner-panel p-4">
                         <div class="text-sm text-gray-600 mb-1">Recomendación de Analistas</div>
@@ -441,6 +448,19 @@
                             </div>
                         {% endif %}
                     </div>
+                    {% if watchlist_valoracion_12m is not none and asset.current_price %}
+                    <div class="asset-inner-panel p-4 md:col-span-2">
+                        <div class="text-sm text-gray-600 mb-1">Precio objetivo medio FwUP</div>
+                        <div class="text-lg font-semibold text-gray-900">
+                            {% set fwup_target = asset.current_price * (1 + watchlist_valoracion_12m / 100.0) %}
+                            {{ fwup_target|decimal_eu(2) }} {{ asset.currency }}
+                        </div>
+                        <div class="text-sm mt-1 {% if watchlist_valoracion_12m > 0 %}text-emerald-600{% elif watchlist_valoracion_12m < 0 %}text-rose-600{% else %}text-slate-500{% endif %}">
+                            Valoración 12M (watchlist): {% if watchlist_valoracion_12m > 0 %}+{% endif %}{{ watchlist_valoracion_12m|decimal_eu(2) }}%
+                            <span class="text-slate-500 font-normal">— precio = cotización × (1 + %/100), mismo % que en la tabla watchlist.</span>
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
 

@@ -53,6 +53,7 @@ class Asset(db.Model):
     recommendation_key = db.Column(db.String(20))  # 'buy', 'hold', 'sell', 'strong_buy'
     number_of_analyst_opinions = db.Column(db.Integer)  # Número de analistas
     target_mean_price = db.Column(db.Float)  # Precio objetivo medio
+    analyst_consensus_updated_at = db.Column(db.DateTime)  # Última vez que quoteSummary (financialData) actualizó consenso
     
     # DEPRECATED FIELDS
     yahoo_symbol = db.Column(db.String(20))  # DEPRECATED: Usar yahoo_ticker property
