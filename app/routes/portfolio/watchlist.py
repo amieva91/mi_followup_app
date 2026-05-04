@@ -713,8 +713,8 @@ def watchlist_update_prices():
 @csrf.exempt
 def watchlist_reports_generate_all():
     """
-    Deep Research para los assets de la watchlist que **necesitan** Informes IA.
-    Se omiten filas donde los cinco campos manuales tienen origen ``user`` (ahorro API).
+    Informes IA en lote (por defecto **Gemini Flash**) para filas que **necesitan** datos
+    (huecos o rellenados por IA). Se omiten filas donde los cinco campos tienen origen ``user``.
     Cada asset encolado crea un ``company_reports`` distinto (cola global). Serie en un hilo.
     """
     try:
@@ -801,13 +801,85 @@ def watchlist_reports_generate_all():
                 'report_ids': [j['report_id'] for j in jobs],
                 'skipped_fully_user_sourced': skipped_fully_user,
                 'message': (
-                    f'Deep Research encolado para {len(jobs)} asset(s) de la watchlist '
+                    f'Informes IA (Flash) encolados para {len(jobs)} asset(s) de la watchlist '
                     '(en serie). Consulta la pestaña Informes en cada ficha.'
                     + (
                         f' Omitidos {skipped_fully_user} con los cinco campos ya definidos por ti (origen usuario).'
                         if skipped_fully_user
                         else ''
                     )
+                ),
+            }
+        )
+    except Exception as e:
+        import traceback
+
+        db.session.rollback()
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@portfolio_bp.route('/watchlist/reports/queue-dr-row', methods=['POST'])
+@login_required
+@csrf.exempt
+def watchlist_reports_queue_dr_row():
+    """
+    Un activo: **Deep Research** con el briefing fijo de Informes IA, cola global como el resto.
+    Puede encolarse varias veces (varios clics); al terminar, la extracción **sí** puede sustituir
+    valores con origen usuario si el informe trae cifras nuevas.
+    """
+    try:
+        from flask import current_app
+
+        from app.models import CompanyReport
+        from app.services.company_report_deep_job import start_watchlist_row_deep_research_thread
+        from app.services.gemini_service import is_gemini_available
+        from app.services.watchlist_ia_template import get_watchlist_ia_deep_brief
+
+        if not is_gemini_available():
+            return jsonify({'success': False, 'error': 'GEMINI_API_KEY no configurada'}), 503
+
+        data = request.get_json() or {}
+        try:
+            asset_id = int(data.get('asset_id'))
+        except (TypeError, ValueError):
+            return jsonify({'success': False, 'error': 'asset_id inválido'}), 400
+
+        row = Watchlist.query.filter_by(user_id=current_user.id, asset_id=asset_id).first()
+        if not row:
+            return jsonify({'success': False, 'error': 'El activo no está en tu watchlist'}), 404
+
+        description, points, report_title = get_watchlist_ia_deep_brief(use_dr_row_title=True)
+        user_id = current_user.id
+        app = current_app._get_current_object()
+
+        report = CompanyReport(
+            user_id=user_id,
+            asset_id=asset_id,
+            template_id=None,
+            template_title=report_title,
+            status='pending',
+            report_enqueued_at=datetime.utcnow(),
+        )
+        db.session.add(report)
+        db.session.commit()
+
+        start_watchlist_row_deep_research_thread(
+            app,
+            report.id,
+            user_id,
+            asset_id,
+            description,
+            points,
+        )
+
+        return jsonify(
+            {
+                'success': True,
+                'report_id': report.id,
+                'message': (
+                    'Informe IA exhaustivo (Deep Research) encolado. Revisa la pestaña Informes del activo; '
+                    'la tabla se puede actualizar al completarse.'
                 ),
             }
         )

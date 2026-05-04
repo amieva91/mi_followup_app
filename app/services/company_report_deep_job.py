@@ -20,12 +20,16 @@ def run_company_report_deep_research_job(
     extra_prompt_suffix=None,
     post_watchlist_extract=False,
     research_prompt_style="full",
+    watchlist_force_deep_research=False,
+    watchlist_extract_override_user=False,
 ):
     """
     Hilo: actualiza un CompanyReport (pending → processing → completed/failed).
     Usa conexión raw SQL para no depender de sesión ORM del hilo principal.
 
     research_prompt_style: ``watchlist_minimal`` solo para Informes IA (prompt corto en gemini_service).
+    watchlist_force_deep_research: si True, no usa Flash aunque el env pida Flash (fila «exhaustivo»).
+    watchlist_extract_override_user: si True, la extracción a watchlist puede sobrescribir campos con origen usuario.
     """
     from app import db
     from app.background_tasks_lock import background_tasks_lock
@@ -42,16 +46,21 @@ def run_company_report_deep_research_job(
         engine = db.engine
 
         if is_report_queue_debug():
-            _wl_flash = research_prompt_style == 'watchlist_minimal' and watchlist_ia_prefers_flash()
+            _wl_flash = (
+                research_prompt_style == 'watchlist_minimal'
+                and watchlist_ia_prefers_flash()
+                and not watchlist_force_deep_research
+            )
             logger.info(
                 'REPORT_QUEUE_DEBUG deep_job begin | report_id=%s user_id=%s asset_id=%s '
-                'style=%s post_watchlist_extract=%s watchlist_backend=%s',
+                'style=%s post_watchlist_extract=%s watchlist_backend=%s override_user=%s',
                 report_id,
                 user_id,
                 asset_id,
                 research_prompt_style,
                 post_watchlist_extract,
                 'flash' if _wl_flash else 'deep_research',
+                watchlist_extract_override_user,
             )
 
         def _update_status(st, content_val=None, error_val=None):
@@ -106,7 +115,11 @@ def run_company_report_deep_research_job(
             asym = row[1] or ''
             aisn = row[2] or ''
 
-            if research_prompt_style == 'watchlist_minimal' and watchlist_ia_prefers_flash():
+            if (
+                research_prompt_style == 'watchlist_minimal'
+                and watchlist_ia_prefers_flash()
+                and not watchlist_force_deep_research
+            ):
                 status, content = run_watchlist_ia_flash_report(
                     aname,
                     asym,
@@ -136,7 +149,12 @@ def run_company_report_deep_research_job(
                         try_apply_report_to_watchlist,
                     )
 
-                    try_apply_report_to_watchlist(user_id, asset_id, content_val)
+                    try_apply_report_to_watchlist(
+                        user_id,
+                        asset_id,
+                        content_val,
+                        override_user_sources=watchlist_extract_override_user,
+                    )
                 except Exception as ex:
                     logger.exception(
                         "post_watchlist_extract falló asset_id=%s: %s", asset_id, ex
@@ -225,6 +243,35 @@ def start_company_report_background_thread(
         daemon=True,
     )
     t.start()
+
+
+def start_watchlist_row_deep_research_thread(
+    app,
+    report_id,
+    user_id,
+    asset_id,
+    description,
+    points,
+):
+    """Un activo: Deep Research (watchlist_minimal) + extracción pudiendo sustituir datos en origen usuario."""
+    import threading
+
+    def worker():
+        run_company_report_deep_research_job(
+            app,
+            report_id,
+            user_id,
+            asset_id,
+            description,
+            points,
+            extra_prompt_suffix=None,
+            post_watchlist_extract=True,
+            research_prompt_style='watchlist_minimal',
+            watchlist_force_deep_research=True,
+            watchlist_extract_override_user=True,
+        )
+
+    threading.Thread(target=worker, daemon=True).start()
 
 
 def start_watchlist_batch_reports_thread(app, job_id, jobs):

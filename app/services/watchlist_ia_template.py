@@ -9,12 +9,15 @@ Salida esperada: breve + tabla de extracción + bloque de código JSON; si falta
 """
 from __future__ import annotations
 
-# Título guardado en company_reports (sin plantilla FK).
+# Título guardado en company_reports (sin plantilla FK): lote global barato (Flash).
 WATCHLIST_IA_REPORT_TITLE = "Watchlist IA (Flash)"
+# Una fila encolada desde Acciones: Deep Research + extracción puede sobrescribir origen usuario.
+WATCHLIST_IA_REPORT_TITLE_DR_ROW = "Watchlist IA (Deep Research, fila)"
 
 _WATCHLIST_IA_TITLE_ALIASES = frozenset(
     {
         WATCHLIST_IA_REPORT_TITLE,
+        WATCHLIST_IA_REPORT_TITLE_DR_ROW,
         "Watchlist IA (Deep Research)",
     }
 )
@@ -62,10 +65,7 @@ WATCHLIST_IA_DEEP_POINTS: list[str] = [
 ]
 
 
-def get_watchlist_ia_deep_brief() -> tuple[str, list[str], str]:
+def get_watchlist_ia_deep_brief(*, use_dr_row_title: bool = False) -> tuple[str, list[str], str]:
     """(description, points, template_title) para un job Informes IA."""
-    return (
-        WATCHLIST_IA_DEEP_DESCRIPTION,
-        list(WATCHLIST_IA_DEEP_POINTS),
-        WATCHLIST_IA_REPORT_TITLE,
-    )
+    title = WATCHLIST_IA_REPORT_TITLE_DR_ROW if use_dr_row_title else WATCHLIST_IA_REPORT_TITLE
+    return (WATCHLIST_IA_DEEP_DESCRIPTION, list(WATCHLIST_IA_DEEP_POINTS), title)

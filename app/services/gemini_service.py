@@ -1466,6 +1466,24 @@ def _persist_company_report_completed_resume(report_id: int, markdown: str) -> N
         r.delivery_phase_status = 'processing'
     db.session.commit()
 
+    if has_app_context() and markdown and not is_full_deliver:
+        try:
+            from app.services.watchlist_ia_template import WATCHLIST_IA_REPORT_TITLE_DR_ROW
+            from app.services.watchlist_report_extract_service import try_apply_report_to_watchlist
+
+            if (r.template_title or "").strip() == WATCHLIST_IA_REPORT_TITLE_DR_ROW:
+                try_apply_report_to_watchlist(
+                    int(r.user_id),
+                    int(r.asset_id),
+                    markdown,
+                    override_user_sources=True,
+                )
+        except Exception:
+            logger.exception(
+                "post_watchlist_extract tras resume falló report_id=%s",
+                report_id,
+            )
+
     if is_full_deliver and has_app_context():
         try:
             app = current_app._get_current_object()
