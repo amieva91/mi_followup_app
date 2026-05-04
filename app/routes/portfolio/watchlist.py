@@ -715,7 +715,9 @@ def watchlist_reports_generate_all():
     """
     Informes IA en lote (por defecto **Gemini Flash**) para filas que **necesitan** datos
     (huecos o rellenados por IA). Se omiten filas donde los cinco campos tienen origen ``user``.
-    Cada asset encolado crea un ``company_reports`` distinto (cola global). Serie en un hilo.
+    Cada asset encolado crea un ``company_reports`` (cola global). Por activo solo se conserva
+    el último informe con título «Watchlist IA (Flash)»; los anteriores del mismo título se eliminan.
+    Serie en un hilo.
     """
     try:
         from flask import current_app
@@ -724,7 +726,10 @@ def watchlist_reports_generate_all():
         from app.models.watchlist import WatchlistAiJob
         from app.services.company_report_deep_job import start_watchlist_batch_reports_thread
         from app.services.gemini_service import is_gemini_available
-        from app.services.watchlist_ia_template import get_watchlist_ia_deep_brief
+        from app.services.watchlist_ia_template import (
+            delete_prior_watchlist_ia_reports_same_slot,
+            get_watchlist_ia_deep_brief,
+        )
 
         if not is_gemini_available():
             return jsonify({'success': False, 'error': 'GEMINI_API_KEY no configurada'}), 503
@@ -769,6 +774,7 @@ def watchlist_reports_generate_all():
         jobs = []
         base_enqueued = datetime.utcnow()
         for i, aid in enumerate(asset_ids):
+            delete_prior_watchlist_ia_reports_same_slot(user_id, aid, report_title)
             # Un ms entre informes ⇒ orden estable en la cola global (mismo criterio que otros informes).
             report = CompanyReport(
                 user_id=user_id,
@@ -825,7 +831,8 @@ def watchlist_reports_generate_all():
 def watchlist_reports_queue_dr_row():
     """
     Un activo: **Deep Research** con el briefing fijo de Informes IA, cola global como el resto.
-    Puede encolarse varias veces (varios clics). La extracción a la tabla respeta el origen **user**
+    Cada nuevo encolado sustituye el informe previo «Watchlist IA (Deep Research, fila)» del mismo activo.
+    La extracción a la tabla respeta el origen **user**
     igual que el lote Flash (para aplicar IA en un campo manual del usuario hay que resetear o vaciar antes).
     """
     try:
@@ -834,7 +841,10 @@ def watchlist_reports_queue_dr_row():
         from app.models import CompanyReport
         from app.services.company_report_deep_job import start_watchlist_row_deep_research_thread
         from app.services.gemini_service import is_gemini_available
-        from app.services.watchlist_ia_template import get_watchlist_ia_deep_brief
+        from app.services.watchlist_ia_template import (
+            delete_prior_watchlist_ia_reports_same_slot,
+            get_watchlist_ia_deep_brief,
+        )
 
         if not is_gemini_available():
             return jsonify({'success': False, 'error': 'GEMINI_API_KEY no configurada'}), 503
@@ -852,6 +862,8 @@ def watchlist_reports_queue_dr_row():
         description, points, report_title = get_watchlist_ia_deep_brief(use_dr_row_title=True)
         user_id = current_user.id
         app = current_app._get_current_object()
+
+        delete_prior_watchlist_ia_reports_same_slot(user_id, asset_id, report_title)
 
         report = CompanyReport(
             user_id=user_id,

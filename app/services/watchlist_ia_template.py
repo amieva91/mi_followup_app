@@ -28,6 +28,40 @@ def is_watchlist_ia_report_title(title: str | None) -> bool:
     return (title or "").strip() in _WATCHLIST_IA_TITLE_ALIASES
 
 
+# Títulos con «ranura» única por (usuario, activo): al generar otro del mismo tipo se borra el anterior.
+WATCHLIST_IA_UNIQUE_SLOT_TITLES = frozenset(
+    {
+        WATCHLIST_IA_REPORT_TITLE,
+        WATCHLIST_IA_REPORT_TITLE_DR_ROW,
+    }
+)
+
+
+def delete_prior_watchlist_ia_reports_same_slot(
+    user_id: int, asset_id: int, template_title: str
+) -> int:
+    """
+    Elimina informes previos con el mismo ``template_title`` para dejar como máximo uno
+    por activo (solo Flash y Deep Research fila). Libera huecos dentro del límite de 5 informes.
+    """
+    t = (template_title or "").strip()
+    if t not in WATCHLIST_IA_UNIQUE_SLOT_TITLES:
+        return 0
+    from app import db
+    from app.models.company_report import CompanyReport
+
+    q = CompanyReport.query.filter_by(
+        user_id=user_id, asset_id=asset_id, template_title=t
+    )
+    rows = q.all()
+    n = len(rows)
+    for r in rows:
+        db.session.delete(r)
+    if n:
+        db.session.flush()
+    return n
+
+
 # Briefing principal enviado al modelo (Flash o Deep Research) para Informes IA (español).
 WATCHLIST_IA_DEEP_DESCRIPTION = """\
 Objetivo **único**: obtener de fuentes públicas fiables **exactamente cinco** magnitudes para la empresa \
