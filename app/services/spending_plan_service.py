@@ -549,10 +549,10 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
                 + sch.initial_outlay_by_month[i]
             )
             quota_m = sch.mortgage_payments_monthly[i] + sch.generic_payments_monthly[i]
-            surplus_display = round(
-                income_avg - fixed_total - sch.initial_outlay_by_month[i] - quota_m, 2
-            )
-            cash_display = round(cash_display + surplus_display, 2)
+            # Superávit: flujo mensual (ingreso - fijos - cuotas). La entrada (initial_outlay)
+            # afecta al saldo acumulado (caja), pero no al superávit mensual.
+            surplus_display = round(income_avg - fixed_total - quota_m, 2)
+            cash_display = round(cash_display + surplus_display - sch.initial_outlay_by_month[i], 2)
             margin = round(
                 max_pay
                 - sch.mortgage_payments_monthly[i]
