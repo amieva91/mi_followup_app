@@ -597,10 +597,22 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
             avg_dsr_used_pct_5y = round((avg_quota_monthly_5y / max_pay) * 100.0, 1)
             dsr_free_total_5y = round(max(0.0, (max_pay - avg_quota_monthly_5y)) * PLAN_WINDOW_MONTHS, 2)
 
-    categories = ExpenseCategory.query.filter_by(user_id=user_id).order_by(
-        ExpenseCategory.name
-    ).all()
-    cat_options = [{"id": c.id, "label": c.full_name} for c in categories]
+    # Orden jerárquico para UI: padres (A-Z) y, debajo, sus hijas (A-Z) consecutivas.
+    parents = (
+        ExpenseCategory.query.filter_by(user_id=user_id, parent_id=None)
+        .order_by(ExpenseCategory.name)
+        .all()
+    )
+    cat_options: List[dict] = []
+    for p in parents:
+        cat_options.append({"id": p.id, "label": p.full_name})
+        children = (
+            ExpenseCategory.query.filter_by(user_id=user_id, parent_id=p.id)
+            .order_by(ExpenseCategory.name)
+            .all()
+        )
+        for c in children:
+            cat_options.append({"id": c.id, "label": c.full_name})
 
     generic_goals_modal = [
         {
