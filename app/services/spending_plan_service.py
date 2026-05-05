@@ -805,6 +805,8 @@ def add_goal(
     pr = int(priority)
     if pr < 1 or pr > 5:
         raise ValueError("La prioridad debe estar entre 1 y 5 (1 = más alta).")
+    if gt == "mortgage":
+        pr = 1
     gt = (goal_type or "generic").strip().lower()
     if gt not in ("generic", "mortgage"):
         gt = "generic"
@@ -991,6 +993,7 @@ def update_mortgage_goal(
     pr = int(priority)
     if pr < 1 or pr > 5:
         raise ValueError("La prioridad debe estar entre 1 y 5 (1 = más alta).")
+    pr = 1
     raw = str(extra_json or "").strip()
     if not raw:
         raise ValueError("Faltan datos de la simulación.")
