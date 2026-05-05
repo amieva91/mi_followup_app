@@ -102,6 +102,24 @@ def categories():
     )
 
 
+def _validate_parent_top_level_expense(parent_id: int):
+    """
+    Solo se permite jerarquía de 2 niveles: categoría principal -> subcategoría.
+    El padre debe ser de nivel superior (parent_id=None) y del usuario.
+    """
+    if not parent_id:
+        return None
+    parent = ExpenseCategory.query.filter_by(
+        id=int(parent_id),
+        user_id=current_user.id,
+    ).first()
+    if not parent:
+        return False, "Categoría padre no válida"
+    if parent.parent_id is not None:
+        return False, "No se permite un tercer nivel de categorías"
+    return True, parent
+
+
 @expenses_bp.route('/categories/quick-create', methods=['POST'])
 @login_required
 def quick_create_category():
@@ -112,9 +130,9 @@ def quick_create_category():
     if not name or not name.strip():
         return jsonify({'error': 'El nombre es requerido'}), 400
     if parent_id:
-        parent = ExpenseCategory.query.filter_by(id=parent_id, user_id=current_user.id).first()
-        if not parent:
-            return jsonify({'error': 'Categoría padre no válida'}), 400
+        ok, parent_or_msg = _validate_parent_top_level_expense(int(parent_id))
+        if ok is False:
+            return jsonify({'error': parent_or_msg}), 400
     cat = ExpenseCategory(
         name=name.strip(),
         icon=icon or '💰',
@@ -146,6 +164,11 @@ def new_category():
         if form.name.data.strip() == 'Ajustes':
             flash('El nombre "Ajustes" está reservado para el sistema', 'warning')
             return redirect(url_for('expenses.new_category'))
+        if form.parent_id.data and int(form.parent_id.data) != 0:
+            ok, parent_or_msg = _validate_parent_top_level_expense(int(form.parent_id.data))
+            if ok is False:
+                flash(parent_or_msg, 'error')
+                return redirect(url_for('expenses.new_category'))
         category = ExpenseCategory(
             name=form.name.data,
             icon=form.icon.data or '💰',
@@ -190,6 +213,19 @@ def edit_category(id):
         if form.name.data.strip() == 'Ajustes':
             flash('El nombre "Ajustes" está reservado para el sistema', 'warning')
             return redirect(url_for('expenses.categories'))
+        new_parent_id = int(form.parent_id.data or 0)
+        if new_parent_id:
+            ok, parent_or_msg = _validate_parent_top_level_expense(new_parent_id)
+            if ok is False:
+                flash(parent_or_msg, 'error')
+                return redirect(url_for('expenses.edit_category', id=id))
+            if category.children.count() > 0:
+                flash(
+                    'No puedes asignar una categoría con subcategorías a una categoría padre '
+                    '(crearía un tercer nivel).',
+                    'error',
+                )
+                return redirect(url_for('expenses.edit_category', id=id))
         category.name = form.name.data
         category.icon = form.icon.data or '💰'
         category.color = form.color.data
