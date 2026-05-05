@@ -669,13 +669,8 @@ let generatingReportId = null;
 let generatingFullPipeline = false;
 const reportStatusPolls = new Map();
 const audioStatusPolls = new Map();
-/** Límite de intentos de poll (~1 s). TTS (guion + síntesis) puede superar 15 min en casos pesados. */
-const AUDIO_POLL_MAX = 2400;
-/**
- * Deep Research en servidor: hasta GEMINI_DEEP_RESEARCH_MAX_WAIT_SECONDS (default 3600);
- * watchlist_minimal: GEMINI_WATCHLIST_IA_MAX_WAIT_SECONDS (default 1200). Margen extra para no cortar antes que el backend.
- */
-const REPORT_POLL_MAX = 4200;
+const AUDIO_POLL_MAX = 900;
+const REPORT_POLL_MAX = 900;
 /** Poll más frecuente para que la posición en cola (#n de t) se actualice casi en tiempo real. */
 const REPORT_STATUS_MS = 1000;
 const AUDIO_STATUS_MS = 1000;
