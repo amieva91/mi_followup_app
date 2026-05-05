@@ -89,61 +89,86 @@
     <div class="income-form-card mt-6 p-4" x-data>
         <p class="font-semibold text-gray-700 mb-3">💡 Haz clic en un emoji para usarlo:</p>
         {% set income_emojis = [
+            # Trabajo / nómina
             ('💼', 'Salario'),
-            ('💻', 'Freelance'),
-            ('📈', 'Inversiones'),
-            ('🏠', 'Alquiler'),
-            ('🎁', 'Bonos'),
-            ('🛍️', 'Venta'),
-            ('💰', 'Dividendos'),
-            ('💵', 'Otros'),
-            ('🎓', 'Beca'),
-            ('🏆', 'Premio'),
-            ('🎯', 'Comisión'),
-            ('💳', 'Reembolso'),
             ('🏢', 'Nómina empresa'),
-            ('🧾', 'Facturación'),
+            ('⏱️', 'Horas extra'),
+            ('🎯', 'Comisión'),
+            ('🎁', 'Bonos'),
+
+            # Servicios profesionales
+            ('💻', 'Freelance'),
             ('🤝', 'Consultoría'),
             ('🧠', 'Asesoría'),
+            ('🧭', 'Mentoría'),
             ('🧑‍🏫', 'Clases'),
             ('🎤', 'Ponencias'),
+            ('🧮', 'Contabilidad'),
+            ('🗂️', 'Gestión administrativa'),
+            ('🧑‍🔧', 'Servicios profesionales'),
+            ('🧑‍⚕️', 'Servicios salud'),
+
+            # Finanzas e inversión
+            ('📈', 'Inversiones'),
+            ('💰', 'Dividendos'),
+            ('🏦', 'Intereses bancarios'),
+            ('💹', 'Trading'),
+            ('🪙', 'Cripto ganancias'),
+            ('💱', 'Cambio de divisas'),
+
+            # Inmobiliario
+            ('🏠', 'Alquiler'),
+            ('🏘️', 'Renta inmobiliaria'),
+
+            # Ventas / comercio
+            ('🛍️', 'Venta'),
+            ('🏪', 'Comercio local'),
+            ('🛒', 'Ecommerce'),
+            ('📦', 'Dropshipping'),
+
+            # Creativo / contenido
             ('📚', 'Royalties'),
+            ('📝', 'Escritura'),
+            ('🎧', 'Podcast'),
             ('📹', 'Contenido en vídeo'),
             ('📸', 'Fotografía'),
             ('🎨', 'Diseño'),
             ('🎼', 'Composición musical'),
             ('🎹', 'Actuaciones'),
-            ('🏦', 'Intereses bancarios'),
-            ('💹', 'Trading'),
-            ('🪙', 'Cripto ganancias'),
-            ('🏘️', 'Renta inmobiliaria'),
-            ('🚚', 'Logística'),
-            ('🧰', 'Servicios técnicos'),
-            ('🛠️', 'Mantenimiento'),
-            ('🧮', 'Contabilidad'),
-            ('📊', 'Analítica'),
             ('🧵', 'Artesanía'),
-            ('🌐', 'Publicidad online'),
-            ('📦', 'Dropshipping'),
-            ('🛒', 'Ecommerce'),
+
+            # Tech / operaciones
+            ('📊', 'Analítica'),
             ('🤖', 'Automatizaciones'),
             ('🛰️', 'Servicios tecnológicos'),
             ('🔐', 'Ciberseguridad'),
             ('🧬', 'I+D'),
-            ('🏛️', 'Subvenciones públicas'),
-            ('💡', 'Licencias/Patentes'),
-            ('🔗', 'Afiliados/Referidos'),
-            ('🪪', 'Membresías'),
-            ('📬', 'Newsletter de pago'),
-            ('🗂️', 'Gestión administrativa'),
-            ('🧭', 'Mentoría'),
-            ('⏱️', 'Horas extra'),
-            ('🌟', 'Propinas'),
-            ('🏪', 'Comercio local'),
-            ('💱', 'Cambio de divisas'),
-            ('🏗️', 'Obras y reformas'),
             ('🧑‍💻', 'Desarrollo software'),
-            ('📢', 'Patrocinios')
+            ('🚚', 'Logística'),
+            ('🧰', 'Servicios técnicos'),
+            ('🛠️', 'Mantenimiento'),
+            ('🏗️', 'Obras y reformas'),
+            ('🏭', 'Industria'),
+            ('🪚', 'Carpintería'),
+            ('🌾', 'Agricultura'),
+            ('🧑‍🍳', 'Catering'),
+            ('🧑‍🔬', 'Investigación'),
+
+            # Marketing / comunidad
+            ('🌐', 'Publicidad online'),
+            ('🔗', 'Afiliados/Referidos'),
+            ('📬', 'Newsletter de pago'),
+            ('🪪', 'Membresías'),
+            ('📢', 'Patrocinios'),
+
+            # Otros
+            ('🎓', 'Beca'),
+            ('🏆', 'Premio'),
+            ('💳', 'Reembolso'),
+            ('🧾', 'Facturación'),
+            ('🛡️', 'Indemnización/Seguro'),
+            ('🌟', 'Propinas'),
+            ('💵', 'Otros')
         ] %}
         <div class="grid grid-cols-5 gap-3">
             {% for emoji, label in income_emojis %}

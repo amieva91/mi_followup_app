@@ -99,61 +99,90 @@
     <div class="mt-6 expense-form-card bg-gray-50/85 p-4" x-data>
         <p class="font-semibold text-gray-700 mb-3">💡 Haz clic en un emoji para usarlo:</p>
         {% set expense_emojis = [
+            # Alimentación
             ('🍔', 'Comida'),
-            ('🚗', 'Transporte'),
-            ('🏠', 'Hogar'),
-            ('💊', 'Salud'),
-            ('🎮', 'Ocio'),
-            ('👕', 'Ropa'),
-            ('📚', 'Educación'),
-            ('🐕', 'Mascotas'),
-            ('✈️', 'Viajes'),
-            ('📄', 'Facturas'),
-            ('📱', 'Suscripciones'),
-            ('💰', 'Otros'),
             ('🛒', 'Supermercado'),
             ('☕', 'Cafetería'),
-            ('💳', 'Tarjetas'),
-            ('🎬', 'Entretenimiento'),
-            ('🏋️', 'Gimnasio'),
-            ('💅', 'Belleza'),
-            ('🎁', 'Regalos'),
-            ('🔧', 'Reparaciones'),
-            ('⚡', 'Electricidad'),
-            ('💧', 'Agua'),
-            ('🔥', 'Gas/Calefacción'),
-            ('🛡️', 'Seguros'),
-            ('🧾', 'Impuestos'),
+            ('🍽️', 'Restaurante'),
+            ('🥡', 'Comida para llevar'),
+            ('🍕', 'Pizzería'),
+            ('🥗', 'Comida saludable'),
+            ('🍷', 'Bares'),
+
+            # Transporte
+            ('🚗', 'Transporte'),
             ('🚇', 'Metro'),
             ('⛽', 'Combustible'),
             ('🅿️', 'Parking'),
             ('🛵', 'Moto'),
             ('🚕', 'Taxi'),
             ('🚲', 'Bicicleta'),
+
+            # Hogar
+            ('🏠', 'Hogar'),
             ('🧹', 'Limpieza'),
-            ('🧴', 'Higiene'),
-            ('🪥', 'Aseo dental'),
             ('🧻', 'Papel y hogar'),
             ('🧺', 'Lavandería'),
             ('🛏️', 'Dormitorio'),
             ('🪑', 'Muebles'),
-            ('🍽️', 'Restaurante'),
-            ('🥡', 'Comida para llevar'),
-            ('👶', 'Bebé'),
-            ('🎒', 'Material escolar'),
-            ('🎟️', 'Eventos'),
-            ('🍷', 'Bares'),
-            ('🍕', 'Pizzería'),
-            ('🥗', 'Comida saludable'),
-            ('📦', 'Envíos'),
+            ('🔧', 'Reparaciones'),
             ('🧰', 'Mantenimiento'),
             ('🪛', 'Bricolaje'),
+
+            # Suministros / facturas
+            ('📄', 'Facturas'),
+            ('⚡', 'Electricidad'),
+            ('💧', 'Agua'),
+            ('🔥', 'Gas/Calefacción'),
+            ('📱', 'Suscripciones'),
+
+            # Salud / cuidado personal
+            ('💊', 'Salud'),
             ('🧪', 'Farmacia/Laboratorio'),
+            ('🧴', 'Higiene'),
+            ('🪥', 'Aseo dental'),
+            ('💅', 'Belleza'),
+
+            # Educación / familia / mascotas
+            ('📚', 'Educación'),
+            ('🎒', 'Material escolar'),
+            ('👶', 'Bebé'),
+            ('🐕', 'Mascotas'),
+
+            # Ocio / cultura
+            ('🎮', 'Ocio'),
+            ('🎬', 'Entretenimiento'),
+            ('🎟️', 'Eventos'),
+            ('🎭', 'Teatro'),
+
+            # Deportes
+            ('🏋️', 'Gimnasio'),
+            ('⚽', 'Fútbol'),
+            ('🏃', 'Running'),
+            ('🧘', 'Yoga'),
+            ('🥊', 'Boxeo'),
+            ('🥋', 'Artes marciales'),
+            ('🏸', 'Bádminton'),
             ('🎾', 'Tenis'),
             ('🏀', 'Baloncesto'),
             ('🏊', 'Piscina'),
             ('🧗', 'Escalada'),
-            ('🎭', 'Teatro')
+            ('🎿', 'Esquí'),
+            ('🏄', 'Surf'),
+            ('🎣', 'Pesca'),
+            ('🏌️', 'Golf'),
+
+            # Viajes / envíos
+            ('✈️', 'Viajes'),
+            ('📦', 'Envíos'),
+
+            # Compras / finanzas
+            ('👕', 'Ropa'),
+            ('🎁', 'Regalos'),
+            ('💳', 'Tarjetas'),
+            ('🛡️', 'Seguros'),
+            ('🧾', 'Impuestos'),
+            ('💰', 'Otros')
         ] %}
         <div class="grid grid-cols-5 gap-3">
             {% for emoji, label in expense_emojis %}
