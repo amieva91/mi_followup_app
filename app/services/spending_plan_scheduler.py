@@ -129,20 +129,22 @@ def _add_vec(a: Sequence[float], b: Sequence[float]) -> List[float]:
     return [float(a[i]) + float(b[i]) for i in range(len(a))]
 
 
-def _simulate_cash_initial_only(
+def _simulate_cash_full(
     cash0: float,
     income: float,
     fixed: float,
     initial: Sequence[float],
+    mortgage: Sequence[float],
+    generic: Sequence[float],
 ) -> bool:
     """
-    Saldo acumulado solo se ve afectado por ingresos, gastos fijos y entrada hipotecaria.
-    Las cuotas de préstamo y los objetivos genéricos no descuentan del efectivo (van por cupo DSR).
+    Simulación de saldo acumulado: el efectivo se ve afectado por ingresos, gastos fijos,
+    cuotas (hipoteca + objetivos genéricos) y la entrada hipotecaria (desembolso puntual).
     """
     W = len(initial)
     cash = cash0
     for m in range(W):
-        cash += income - fixed
+        cash += income - fixed - float(mortgage[m] or 0) - float(generic[m] or 0)
         cash -= initial[m]
         if cash < -1e-4:
             return False
@@ -320,7 +322,7 @@ def _try_generic_allocation(
         g = _add_vec(base_generic, extra)
         if not _dsr_within_cap(income, max_dsr_pct, mortgage, g):
             return False
-        return _simulate_cash_initial_only(cash0, income, fixed, initial)
+        return _simulate_cash_full(cash0, income, fixed, initial, mortgage, g)
 
     if amount <= 1e-6:
         z = _zero(W)
@@ -586,14 +588,15 @@ def compute_plan_schedule(
     cash_tr: List[float] = []
     cash = starting_cash
     for m in range(W):
-        s = income_avg - fixed_monthly - full_initial[m]
+        s = income_avg - fixed_monthly - combined_mortgage[m] - base[m]
         surplus.append(round(s, 2))
         cash += s
+        cash -= full_initial[m]
         cash_tr.append(round(cash, 2))
         if cash < -1e-4:
             out.ok = False
             out.error_message = (
-                "El efectivo disponible no cubre la entrada hipotecaria prevista; revisa datos o prioridades."
+                "El saldo acumulado se vuelve negativo en la proyección (entrada o cuotas no encajan con tus datos)."
             )
     out.surplus_monthly = surplus
     out.cash_balance_monthly = cash_tr
