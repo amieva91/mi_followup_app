@@ -802,14 +802,14 @@ def add_goal(
     amt = float(amount_total)
     if amt <= 0:
         raise ValueError("El importe debe ser mayor que cero.")
+    gt = (goal_type or "generic").strip().lower()
+    if gt not in ("generic", "mortgage"):
+        gt = "generic"
     pr = int(priority)
     if pr < 1 or pr > 5:
         raise ValueError("La prioridad debe estar entre 1 y 5 (1 = más alta).")
     if gt == "mortgage":
         pr = 1
-    gt = (goal_type or "generic").strip().lower()
-    if gt not in ("generic", "mortgage"):
-        gt = "generic"
     extra: Optional[str] = None
     if gt == "generic":
         extra = _set_generic_date_fixed(
