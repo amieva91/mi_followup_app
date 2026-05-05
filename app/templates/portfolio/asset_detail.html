@@ -509,9 +509,11 @@
                     Generando informe... Puede tardar varios minutos.
                 </div>
                 <div id="reportsList" class="space-y-3">
-                    <!-- Se carga vía JS -->
+                    <!-- Se carga vía JS; el detalle se inserta bajo la fila activa -->
                 </div>
-                <div id="reportDetail" class="hidden mt-4 p-4 asset-inner-panel">
+                <!-- Sin dimensiones cuando está vacío; si el panel queda aquí cerrado, no ocupa espacio -->
+                <div id="reportDetailStash">
+                <div id="reportDetail" class="hidden p-4 asset-inner-panel rounded-b-xl border-t-0 shadow-inner">
                     <div class="flex justify-between items-center mb-2">
                         <span class="text-sm text-gray-500" id="reportDetailDate"></span>
                         <button onclick="closeReportDetail()" class="text-gray-500 hover:text-gray-700 text-sm">Cerrar</button>
@@ -534,6 +536,7 @@
                         <button type="button" id="btnReportViewFull" class="portfolio-touch-btn px-3 py-1 rounded-xl text-sm bg-slate-200 text-slate-800 border border-slate-300">Informe completo</button>
                     </div>
                     <div id="reportDetailContent" class="prose max-w-none report-markdown report-content"></div>
+                </div>
                 </div>
             </div>
 
@@ -666,8 +669,13 @@ let generatingReportId = null;
 let generatingFullPipeline = false;
 const reportStatusPolls = new Map();
 const audioStatusPolls = new Map();
-const AUDIO_POLL_MAX = 900;
-const REPORT_POLL_MAX = 900;
+/** Límite de intentos de poll (~1 s). TTS (guion + síntesis) puede superar 15 min en casos pesados. */
+const AUDIO_POLL_MAX = 2400;
+/**
+ * Deep Research en servidor: hasta GEMINI_DEEP_RESEARCH_MAX_WAIT_SECONDS (default 3600);
+ * watchlist_minimal: GEMINI_WATCHLIST_IA_MAX_WAIT_SECONDS (default 1200). Margen extra para no cortar antes que el backend.
+ */
+const REPORT_POLL_MAX = 4200;
 /** Poll más frecuente para que la posición en cola (#n de t) se actualice casi en tiempo real. */
 const REPORT_STATUS_MS = 1000;
 const AUDIO_STATUS_MS = 1000;
@@ -687,6 +695,54 @@ function syncReportsListQueuePollTimer(data) {
         clearInterval(reportsListQueuePollTimer);
         reportsListQueuePollTimer = null;
     }
+}
+
+function moveReportDetailToStash() {
+    const stash = document.getElementById('reportDetailStash');
+    const panel = document.getElementById('reportDetail');
+    if (stash && panel && panel.parentElement !== stash) {
+        stash.appendChild(panel);
+    }
+}
+
+function restoreReportDetailAfterListRefresh() {
+    if (currentReportId == null) return;
+    const panel = document.getElementById('reportDetail');
+    if (!panel || panel.classList.contains('hidden')) return;
+    const host = document.querySelector('.report-detail-host[data-for="' + currentReportId + '"]');
+    if (host) {
+        host.classList.remove('hidden');
+        host.appendChild(panel);
+    } else {
+        moveReportDetailToStash();
+        panel.classList.add('hidden');
+        currentReportId = null;
+    }
+}
+
+/** Misma fila: comprime. Otra fila: mueve el panel justo debajo del encabezado pulsado. */
+function toggleReportRow(reportId, ev) {
+    if (ev) ev.stopPropagation();
+    const rid = Number(reportId);
+    const panel = document.getElementById('reportDetail');
+    const host = document.querySelector('.report-detail-host[data-for="' + rid + '"]');
+    if (!panel || !host) return;
+    if (currentReportId !== null && Number(currentReportId) === rid && !panel.classList.contains('hidden')) {
+        closeReportDetail();
+        return;
+    }
+    document.querySelectorAll('.report-detail-host').forEach(function(h) {
+        if (Number(h.getAttribute('data-for')) !== rid) h.classList.add('hidden');
+    });
+    host.classList.remove('hidden');
+    host.appendChild(panel);
+    panel.classList.remove('hidden');
+    loadReportDetail(rid);
+    requestAnimationFrame(function() {
+        try {
+            host.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } catch (e) {}
+    });
 }
 
 function formatQueueSuffix(data) {
@@ -1047,8 +1103,12 @@ function startReportStatusPolling(reportId) {
                         }
                         if (Number(currentReportId) === Number(reportId)) {
                             loadReportDetail(reportId);
-                            const panel = document.getElementById('reportDetail');
-                            if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                            const hostDone = document.querySelector('.report-detail-host[data-for="' + reportId + '"]');
+                            if (hostDone) {
+                                try {
+                                    hostDone.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                                } catch (e) {}
+                            }
                         }
                     }
                 }
@@ -1434,8 +1494,16 @@ function loadReports() {
                 syncReportsListQueuePollTimer(data);
                 return;
             }
+            const keepOpenId = currentReportId;
+            const panelEl = document.getElementById('reportDetail');
+            const detailWasVisible = !!(panelEl && !panelEl.classList.contains('hidden'));
+            moveReportDetailToStash();
             if (!data.reports || data.reports.length === 0) {
                 container.innerHTML = '<p class="text-gray-500 text-sm">No hay informes. Pulsa "Generar informe" para crear uno.</p>';
+                if (detailWasVisible && panelEl) {
+                    panelEl.classList.add('hidden');
+                    currentReportId = null;
+                }
                 syncReportsListQueuePollTimer(data);
                 return;
             }
@@ -1453,15 +1521,24 @@ function loadReports() {
                         )
                     );
                 return `
-                    <div class="p-3 asset-inner-panel hover:bg-slate-50/80 cursor-pointer transition-colors" onclick="loadReportDetail(${r.id})">
-                        <div class="flex justify-between items-center">
-                            <span class="text-sm font-medium">${(name || '').replace(/</g, '&lt;')}${audioBadge}</span>
-                            <span class="px-2 py-0.5 rounded text-xs ${statusBadge}">${reportStatusLabel(r.status, r.queue_position, data.queue_waiting_total, r.delivery_mode, r.delivery_phase_status)}</span>
+                    <div class="rounded-xl border border-slate-200/70 overflow-hidden bg-white/90 shadow-sm" data-report-row-id="${r.id}">
+                        <div class="p-3 hover:bg-slate-50/90 cursor-pointer transition-colors" role="button" tabindex="0"
+                             onclick="toggleReportRow(${r.id}, event)"
+                             onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleReportRow(${r.id},event);}">
+                            <div class="flex justify-between items-center gap-2">
+                                <span class="text-sm font-medium">${(name || '').replace(/</g, '&lt;')}${audioBadge}</span>
+                                <span class="px-2 py-0.5 rounded text-xs shrink-0 ${statusBadge}">${reportStatusLabel(r.status, r.queue_position, data.queue_waiting_total, r.delivery_mode, r.delivery_phase_status)}</span>
+                            </div>
+                            <div class="text-xs text-gray-500 mt-1">${date}</div>
                         </div>
-                        <div class="text-xs text-gray-500 mt-1">${date}</div>
+                        <div class="report-detail-host hidden border-t border-slate-200/60 bg-slate-50/40" data-for="${r.id}"></div>
                     </div>
                 `;
             }).join('');
+            if (detailWasVisible && keepOpenId != null) {
+                currentReportId = keepOpenId;
+                restoreReportDetailAfterListRefresh();
+            }
             syncReportsListQueuePollTimer(data);
         })
         .catch(function() { syncReportsListQueuePollTimer(null); });
@@ -1509,6 +1586,15 @@ function setupReportViewToggle(data) {
 
 function loadReportDetail(reportId) {
     currentReportId = reportId;
+    const panelPre = document.getElementById('reportDetail');
+    const hostPre = document.querySelector('.report-detail-host[data-for="' + reportId + '"]');
+    if (panelPre && hostPre) {
+        hostPre.classList.remove('hidden');
+        hostPre.appendChild(panelPre);
+        document.querySelectorAll('.report-detail-host').forEach(function(h) {
+            if (h !== hostPre) h.classList.add('hidden');
+        });
+    }
     fetch(`/portfolio/asset/${ASSET_ID}/reports/${reportId}?t=${Date.now()}`, { cache: 'no-store' })
         .then(r => r.json())
         .then(data => {
@@ -1716,7 +1802,14 @@ function generateReportAudio() {
 }
 function closeReportDetail() {
     const panel = document.getElementById('reportDetail');
-    if (panel) panel.classList.add('hidden');
+    const stash = document.getElementById('reportDetailStash');
+    if (panel && stash) {
+        stash.appendChild(panel);
+        panel.classList.add('hidden');
+    }
+    document.querySelectorAll('.report-detail-host').forEach(function(h) {
+        h.classList.add('hidden');
+    });
     currentReportId = null;
 }
 </script>
