@@ -113,6 +113,22 @@ def run_company_report_deep_research_job(
             asym = row[1] or ''
             aisn = row[2] or ''
 
+            def _save_interaction_id(iid: str) -> None:
+                """Igual que ficha/runner: persistir en cuanto Gemini devuelve la interacción."""
+                with engine.connect() as conn:
+                    conn.execute(
+                        text(
+                            'UPDATE company_reports SET gemini_interaction_id = :iid '
+                            'WHERE id = :rid AND status = :st'
+                        ),
+                        {
+                            'iid': (iid or '')[:100],
+                            'rid': report_id,
+                            'st': 'processing',
+                        },
+                    )
+                    conn.commit()
+
             if (
                 research_prompt_style == 'watchlist_minimal'
                 and watchlist_ia_prefers_flash()
@@ -135,6 +151,7 @@ def run_company_report_deep_research_job(
                     points,
                     extra_prompt_suffix=extra_prompt_suffix,
                     research_prompt_style=research_prompt_style,
+                    on_interaction_created=_save_interaction_id,
                 )
 
             content_val = content if status == 'completed' else None
