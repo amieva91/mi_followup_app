@@ -12,6 +12,7 @@ from dateutil.relativedelta import relativedelta
 
 from app import db
 from app.models import ExpenseCategory
+from app.models.bank import BankBalance
 from app.models.spending_plan import (
     SpendingPlanFixedCategory,
     SpendingPlanGoal,
@@ -122,6 +123,104 @@ def get_current_bank_cash(user_id: int) -> float:
     today = date.today()
     return float(BankService.get_total_cash_by_month(user_id, today.year, today.month) or 0)
 
+
+def _month_diff(a: tuple[int, int], b: tuple[int, int]) -> int:
+    """Meses entre a(y,m) y b(y,m): b - a."""
+    ay, am = int(a[0]), int(a[1])
+    by, bm = int(b[0]), int(b[1])
+    return (by - ay) * 12 + (bm - am)
+
+
+def _banks_month_has_rows(user_id: int, year: int, month: int) -> bool:
+    n = (
+        BankBalance.query.filter_by(user_id=user_id, year=int(year), month=int(month))
+        .limit(1)
+        .count()
+    )
+    return n > 0
+
+
+def _last_banks_month_with_rows(user_id: int) -> Optional[tuple[int, int]]:
+    row = (
+        db.session.query(BankBalance.year, BankBalance.month)
+        .filter(BankBalance.user_id == user_id)
+        .order_by(BankBalance.year.desc(), BankBalance.month.desc())
+        .first()
+    )
+    if not row:
+        return None
+    return int(row[0]), int(row[1])
+
+
+def _banks_months_with_rows_last_12(user_id: int, today: date) -> List[tuple[int, int]]:
+    months: List[tuple[int, int]] = []
+    for i in range(0, 12):
+        d = today - relativedelta(months=i)
+        if _banks_month_has_rows(user_id, d.year, d.month):
+            months.append((d.year, d.month))
+    return months
+
+
+def _estimate_starting_cash_for_current_month(
+    user_id: int,
+    *,
+    today: date,
+    income_avg: float,
+    fixed_total: float,
+    avg_quota_monthly: float,
+) -> tuple[float, dict]:
+    """
+    Estima starting_cash para el mes actual si no hay saldos guardados en Banks.
+    Regla:
+    - Si hay al menos 6 meses con saldos guardados en los últimos 12: proyecta desde el último saldo
+      real con un delta mensual medio (income_avg - fixed_total - avg_quota_monthly).
+    - Si no: usa el último saldo real sin proyectar.
+    """
+    info: dict = {
+        "bank_cash_is_estimated": False,
+        "bank_cash_method": None,
+        "bank_last_month": None,
+        "bank_last_updated_at": None,
+        "bank_month_needs_update": True,
+    }
+    current_ym = (today.year, today.month)
+
+    last_ym = _last_banks_month_with_rows(user_id)
+    if not last_ym:
+        # Sin datos nunca: no estimar.
+        info["bank_cash_is_estimated"] = True
+        info["bank_cash_method"] = "none"
+        return 0.0, info
+
+    info["bank_last_month"] = {"year": last_ym[0], "month": last_ym[1]}
+    try:
+        last_updated_at = (
+            db.session.query(db.func.max(BankBalance.updated_at))
+            .filter(BankBalance.user_id == user_id)
+            .scalar()
+        )
+        info["bank_last_updated_at"] = (
+            last_updated_at.isoformat() if last_updated_at else None
+        )
+    except Exception:
+        info["bank_last_updated_at"] = None
+
+    last_total = float(BankService.get_total_cash_by_month(user_id, last_ym[0], last_ym[1]) or 0)
+    k = _month_diff(last_ym, current_ym)
+    k = max(0, min(24, int(k)))
+
+    months_with_rows = _banks_months_with_rows_last_12(user_id, today)
+    if len(months_with_rows) < 6 or k <= 0:
+        # Fallback: último saldo real (aunque sea 0).
+        info["bank_cash_is_estimated"] = True
+        info["bank_cash_method"] = "last_known"
+        return round(last_total, 2), info
+
+    delta = float(income_avg or 0) - float(fixed_total or 0) - float(avg_quota_monthly or 0)
+    est = float(last_total) + float(k) * float(delta)
+    info["bank_cash_is_estimated"] = True
+    info["bank_cash_method"] = "flow_avg"
+    return round(est, 2), info
 
 def _sum_mortgage_initial_outlays(user_id: int) -> float:
     """Suma de `initial_outlay` en objetivos tipo hipoteca (entrada + tasación de simulador)."""
@@ -509,9 +608,8 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
     fixed_ids = get_fixed_category_ids(user_id)
     income_avg = get_avg_monthly_income(user_id, 12)
     fixed_total, fixed_lines = compute_fixed_expenses_monthly(user_id, fixed_ids)
-    bank_cash_gross = get_current_bank_cash(user_id)
+    raw_bank_cash_gross = get_current_bank_cash(user_id)
     mortgage_entry_outlays = _sum_mortgage_initial_outlays(user_id)
-    cash0 = max(0.0, round(bank_cash_gross - mortgage_entry_outlays, 2))
     goals_cash, goals_dsr, goal_lines = sum_goal_monthlies(
         user_id, min(settings.horizon_months, PLAN_WINDOW_MONTHS)
     )
@@ -522,8 +620,33 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
         .order_by(SpendingPlanGoal.priority.asc(), SpendingPlanGoal.id.asc())
         .all()
     )
+    today = date.today()
+    current_has_rows = _banks_month_has_rows(user_id, today.year, today.month)
+
+    bank_cash_gross = float(raw_bank_cash_gross or 0)
+    bank_cash_meta: dict = {
+        "bank_cash_is_estimated": False,
+        "bank_cash_method": None,
+        "bank_last_month": None,
+        "bank_last_updated_at": None,
+        "bank_month_needs_update": False,
+    }
+    if (not current_has_rows) and abs(bank_cash_gross) < 1e-9:
+        est, meta = _estimate_starting_cash_for_current_month(
+            user_id,
+            today=today,
+            income_avg=income_avg,
+            fixed_total=fixed_total,
+            avg_quota_monthly=0.0,
+        )
+        bank_cash_gross = float(est or 0)
+        bank_cash_meta.update(meta or {})
+        bank_cash_meta["bank_month_needs_update"] = True
+
+    cash0 = max(0.0, round(bank_cash_gross - mortgage_entry_outlays, 2))
+
     sch = compute_plan_schedule(
-        today=date.today(),
+        today=today,
         income_avg=income_avg,
         fixed_monthly=fixed_total,
         starting_cash=bank_cash_gross,
@@ -582,6 +705,52 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
         if max_pay > 0:
             avg_dsr_used_pct_5y = round((avg_quota_monthly_5y / max_pay) * 100.0, 1)
             dsr_free_total_5y = round(sum(max(0.0, max_pay - u) for u in used_vec), 2)
+        if bank_cash_meta.get("bank_cash_is_estimated") and bank_cash_meta.get("bank_cash_method") == "flow_avg":
+            est2, meta2 = _estimate_starting_cash_for_current_month(
+                user_id,
+                today=today,
+                income_avg=income_avg,
+                fixed_total=fixed_total,
+                avg_quota_monthly=avg_quota_monthly_5y,
+            )
+            bank_cash_gross = float(est2 or bank_cash_gross)
+            bank_cash_meta.update(meta2 or {})
+            cash0 = max(0.0, round(bank_cash_gross - mortgage_entry_outlays, 2))
+            # Recalcular tabla (display) con el starting_cash estimado final
+            cash_display = float(bank_cash_gross or 0)
+            months = []
+            for i in range(h):
+                d = today + relativedelta(months=i)
+                label = d.strftime("%b %Y")
+                g_m = (
+                    sch.mortgage_payments_monthly[i]
+                    + sch.generic_payments_monthly[i]
+                    + sch.initial_outlay_by_month[i]
+                )
+                quota_m = sch.mortgage_payments_monthly[i] + sch.generic_payments_monthly[i]
+                surplus_display = round(income_avg - fixed_total - quota_m, 2)
+                cash_display = round(
+                    cash_display + surplus_display - sch.initial_outlay_by_month[i], 2
+                )
+                margin = round(
+                    max_pay
+                    - sch.mortgage_payments_monthly[i]
+                    - sch.generic_payments_monthly[i],
+                    2,
+                )
+                months.append(
+                    MonthProjection(
+                        month_label=label,
+                        month_index=i + 1,
+                        income=income_avg,
+                        fixed_expenses=fixed_total,
+                        goals_monthly=round(g_m, 2),
+                        surplus=surplus_display,
+                        ending_cash=cash_display,
+                        max_debt_payment=max_pay,
+                        dsr_margin=margin,
+                    )
+                )
     else:
         months = build_monthly_projection(
             income_avg,
@@ -675,6 +844,7 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
         "fixed_lines": fixed_lines,
         "starting_cash": cash0,
         "bank_cash_gross": bank_cash_gross,
+        "bank_cash_meta": bank_cash_meta,
         "mortgage_entry_outlays_total": mortgage_entry_outlays,
         "goals_total_monthly": round(goals_cash + goals_dsr, 2),
         "goals_dsr_monthly": goals_dsr,
