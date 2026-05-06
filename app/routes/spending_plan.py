@@ -174,12 +174,13 @@ def add_goal():
                 )
                 return jsonify({"ok": False, "error_message": msg, "suggestions": sug}), 400
             if gtype_now == "mortgage":
+                update_id = request.form.get("update_goal_id", type=int)
                 td = _parse_target_date(request.form.get("target_date") or "")
                 extra = (request.form.get("extra_json") or "").strip() or ""
                 extra = _merge_mortgage_target_into_extra(extra, td)
                 sug = sps.suggest_adjustments_for_mortgage(
                     current_user.id,
-                    None,
+                    update_id,
                     request.form.get("title") or "",
                     float(request.form.get("amount_total") or 0),
                     td,
