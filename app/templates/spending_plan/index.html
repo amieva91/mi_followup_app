@@ -678,7 +678,7 @@ function spendingPlanGoals(cfg) {
                     <td class="px-4 py-2 font-medium text-slate-900">{{ m.month_label }}</td>
                     <td class="px-4 py-2 text-right tabular-nums text-slate-800">{{ "%.2f"|format(m.income) }}</td>
                     <td class="px-4 py-2 text-right tabular-nums text-slate-800">{{ "%.2f"|format(m.fixed_expenses) }}</td>
-                    <td class="px-4 py-2 text-right tabular-nums text-amber-800">{{ "%.2f"|format(m.goals_monthly) }}</td>
+                    <td class="px-4 py-2 text-right tabular-nums text-amber-800">{{ "%.2f"|format(m.quota_monthly) }}</td>
                     <td class="px-4 py-2">
                         {% set mm = month_goal_marks[loop.index0] if month_goal_marks and loop.index0 < month_goal_marks|length else [] %}
                         {% if mm %}

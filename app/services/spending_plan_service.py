@@ -561,6 +561,7 @@ class MonthProjection:
     month_index: int
     income: float
     fixed_expenses: float
+    quota_monthly: float
     goals_monthly: float
     surplus: float
     ending_cash: float
@@ -901,6 +902,7 @@ def build_monthly_projection(
                 month_index=i + 1,
                 income=income_avg,
                 fixed_expenses=fixed_monthly,
+                quota_monthly=goals_dsr_monthly,
                 goals_monthly=goals_monthly_display,
                 surplus=surplus,
                 ending_cash=cash,
@@ -1004,6 +1006,7 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
                     month_index=i + 1,
                     income=income_avg,
                     fixed_expenses=fixed_total,
+                    quota_monthly=round(quota_m, 2),
                     goals_monthly=round(g_m, 2),
                     surplus=surplus_display,
                     ending_cash=cash_display,
@@ -1060,6 +1063,7 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
                         month_index=i + 1,
                         income=income_avg,
                         fixed_expenses=fixed_total,
+                        quota_monthly=round(quota_m, 2),
                         goals_monthly=round(g_m, 2),
                         surplus=surplus_display,
                         ending_cash=cash_display,
