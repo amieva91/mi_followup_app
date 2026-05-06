@@ -321,8 +321,10 @@ def recover_stuck_pending_reports(app, app_logger=None) -> None:
             lock_fp = None
 
     try:
-        # Mismo marker: si recovery ya corrió en este arranque, no repetir barridos.
-        boot_marker = os.path.join(app.instance_path, "followup.recovery_boot_marker")
+        # Marker propio: este barrido NO debe quedar deshabilitado por el marker de
+        # `recover_processing_reports_after_restart`. Si comparten marker, el segundo
+        # se salta siempre durante los primeros 10 min del arranque.
+        boot_marker = os.path.join(app.instance_path, "followup.recovery_pending_boot_marker")
         try:
             if os.path.exists(boot_marker):
                 try:
@@ -372,6 +374,79 @@ def recover_stuck_pending_reports(app, app_logger=None) -> None:
                         )
 
                 threading.Thread(target=_run_full, args=(rid,), daemon=True).start()
+                kicked += 1
+                continue
+
+            # Watchlist IA (Flash / Deep Research fila): estos informes no tienen plantilla (template_id=None),
+            # por lo que `company_report_runner.run_report_only_by_id` no puede reconstruir `description/points`.
+            # Si el hilo daemon muere antes de adquirir el lock, quedarían en `pending` para siempre.
+            try:
+                from app.services.watchlist_ia_template import (
+                    WATCHLIST_IA_REPORT_TITLE_DR_ROW,
+                    get_watchlist_ia_deep_brief,
+                    is_watchlist_ia_report_title,
+                )
+
+                is_watchlist_ia = is_watchlist_ia_report_title(getattr(r, "template_title", None))
+            except Exception:
+                is_watchlist_ia = False
+
+            if is_watchlist_ia:
+                rid = int(r.id)
+                aid = int(getattr(r, "asset_id", 0) or 0)
+                uid = int(getattr(r, "user_id", 0) or 0)
+                title = (getattr(r, "template_title", None) or "").strip()
+                use_dr_row_title = title == WATCHLIST_IA_REPORT_TITLE_DR_ROW
+                description, points, _ = get_watchlist_ia_deep_brief(use_dr_row_title=use_dr_row_title)
+
+                def _run_watchlist_pending(rid_: int, uid_: int, aid_: int, desc_: str, pts_: list[str]) -> None:
+                    try:
+                        with app.app_context():
+                            from app import db
+                            from sqlalchemy import text
+                            import threading as _threading
+
+                            # Reclamar fila (pending -> processing) de forma atómica.
+                            # Si ya no está pending, salimos (evita dobles ejecuciones).
+                            with db.engine.connect() as conn:
+                                res = conn.execute(
+                                    text(
+                                        "UPDATE company_reports SET status='processing' "
+                                        "WHERE id=:rid AND status='pending'"
+                                    ),
+                                    {"rid": int(rid_)},
+                                )
+                                conn.commit()
+                                if int(getattr(res, "rowcount", 0) or 0) == 0:
+                                    return
+
+                            # Re-ejecutar bajo la misma cola global (fair lock) y extracción a watchlist.
+                            from app.services.company_report_deep_job import run_company_report_deep_research_job
+
+                            def _worker() -> None:
+                                run_company_report_deep_research_job(
+                                    app,
+                                    rid_,
+                                    uid_,
+                                    aid_,
+                                    desc_,
+                                    pts_,
+                                    extra_prompt_suffix=None,
+                                    post_watchlist_extract=True,
+                                    research_prompt_style="watchlist_minimal",
+                                    # Si el usuario pulsó 🔬 fila, forzamos Deep Research.
+                                    watchlist_force_deep_research=use_dr_row_title,
+                                )
+
+                            _threading.Thread(target=_worker, daemon=True).start()
+                    except Exception:
+                        log.exception("watchlist pending recovery: excepción report_id=%s", rid_)
+
+                threading.Thread(
+                    target=_run_watchlist_pending,
+                    args=(rid, uid, aid, description, points),
+                    daemon=True,
+                ).start()
                 kicked += 1
                 continue
 
