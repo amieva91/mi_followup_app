@@ -522,7 +522,7 @@ function spendingPlanGoals(cfg) {
             </ul>
         </div>
         <div class="rounded-xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50/95 to-slate-50/90 p-4 shadow-[0_8px_22px_rgba(15,23,42,0.07)] border-l-4 border-emerald-500">
-            <p class="text-sm font-medium text-emerald-800">Saldo total acumulado (5 años)</p>
+            <p class="text-sm font-medium text-emerald-800">Saldo total ahorrado (5 años)</p>
             <p class="text-2xl font-bold text-emerald-950 tabular-nums">
                 {% if balance_end_5y is not none %}
                 {{ "%.2f"|format(balance_end_5y) }} €
@@ -566,7 +566,7 @@ function spendingPlanGoals(cfg) {
                     <th class="px-4 py-3 text-right font-semibold">Cuota</th>
                     <th class="px-4 py-3 font-semibold">Pagos</th>
                     <th class="px-4 py-3 text-right font-semibold">Superávit</th>
-                    <th class="px-4 py-3 text-right font-semibold">Saldo acum.</th>
+                    <th class="px-4 py-3 text-right font-semibold">Saldo ahorr.</th>
                     <th class="px-4 py-3 text-right font-semibold">Margen DSR</th>
                 </tr>
             </thead>

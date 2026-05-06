@@ -138,7 +138,7 @@ def _simulate_cash_full(
     generic: Sequence[float],
 ) -> bool:
     """
-    Simulación de saldo acumulado: el efectivo se ve afectado por ingresos, gastos fijos,
+    Simulación de saldo ahorrado: el efectivo se ve afectado por ingresos, gastos fijos,
     cuotas (hipoteca + objetivos genéricos) y la entrada hipotecaria (desembolso puntual).
     """
     W = len(initial)
