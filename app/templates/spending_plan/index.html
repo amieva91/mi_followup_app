@@ -52,6 +52,8 @@ function spendingPlanGoals(cfg) {
         infoModalMessage: '',
         infoModalSuggestions: [],
         infoModalContext: 'create', // 'create' | 'edit'
+        fullReplanModalOpen: !!cfg.fullReplanOpen,
+        fullReplanRunning: false,
         deleteUrl: '',
         deleteTitle: '',
         editUrl: '',
@@ -74,6 +76,36 @@ function spendingPlanGoals(cfg) {
                     var q = u.searchParams.toString();
                     window.history.replaceState({}, '', u.pathname + (q ? '?' + q : '') + u.hash);
                 } catch (e) { /* ignore */ }
+            }
+        },
+        closeFullReplan() { this.fullReplanModalOpen = false; },
+        async runFullReplan() {
+            if (this.fullReplanRunning) return;
+            this.fullReplanRunning = true;
+            try {
+                var fd = new FormData();
+                fd.append('csrf_token', cfg.csrfToken || '');
+                var r = await fetch(base + '/replanificar_full', {
+                    method: 'POST',
+                    body: fd,
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                var data = await r.json().catch(function () { return null; });
+                if (r.ok && data && data.ok) {
+                    window.location.reload();
+                    return;
+                }
+                this.openInfo({
+                    title: 'Replanificación completa',
+                    message: (data && data.error_message) ? data.error_message : 'No ha sido posible replanificar.',
+                    suggestions: [],
+                    context: 'create',
+                });
+            } catch (e) {
+                this.openInfo({ title: 'Replanificación completa', message: 'No se pudo replanificar (error de red).', suggestions: [], context: 'create' });
+            } finally {
+                this.fullReplanRunning = false;
+                this.closeFullReplan();
             }
         },
         openDeleteModal(g) {
@@ -208,7 +240,7 @@ function spendingPlanGoals(cfg) {
 }
 </script>
 <div id="sp-planning" class="max-w-[92%] mx-auto px-1 sm:px-0 py-6"
-     x-data='spendingPlanGoals({ goals: {{ generic_goals_modal|tojson }}, openEditId: {{ open_edit_goal_id|tojson }}, basePath: {{ (url_for("spending_plan.index")|string).rstrip("/")|tojson }} })'>
+     x-data='spendingPlanGoals({ goals: {{ generic_goals_modal|tojson }}, openEditId: {{ open_edit_goal_id|tojson }}, basePath: {{ (url_for("spending_plan.index")|string).rstrip("/")|tojson }}, fullReplanOpen: {{ (plan_schedule and not plan_schedule.ok)|tojson }}, csrfToken: {{ csrf_token()|tojson }} })'>
     {% if needs_bank_update %}
     <div class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
         <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
@@ -245,6 +277,36 @@ function spendingPlanGoals(cfg) {
         <p class="mt-1">{{ plan_schedule.error_message }}</p>
     </div>
     {% endif %}
+
+    <template x-teleport="body">
+        <div x-show="fullReplanModalOpen" x-cloak x-transition
+             class="fixed inset-0 z-[85] flex items-center justify-center p-4"
+             style="display: none;">
+            <div class="absolute inset-0 bg-black/55" @click="closeFullReplan()" aria-hidden="true"></div>
+            <div class="followup-modal-surface relative z-10 max-w-lg w-full p-6" role="dialog" aria-modal="true" @click.stop>
+                <h3 class="text-lg font-semibold text-slate-900 mb-2">⚠️ Planificación no viable</h3>
+                <p class="text-sm text-slate-700 mb-4 whitespace-pre-line">
+                    Parece que tus datos han cambiado (cash, ingresos o gastos) y el plan ya no encaja.
+                    Puedes intentar una replanificación completa. Mantendremos las fechas inamovibles si son de este mes o futuras.
+                </p>
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <button type="button" @click="runFullReplan()" :disabled="fullReplanRunning"
+                            :class="fullReplanRunning ? 'opacity-80 cursor-not-allowed' : ''"
+                            class="sp-btn px-5 py-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 text-sm font-semibold w-full sm:w-auto">
+                        <span x-show="!fullReplanRunning">Iniciar replanificación completa</span>
+                        <span x-show="fullReplanRunning" class="inline-flex items-center gap-2">
+                            Replanificando
+                            <span class="inline-block w-4 h-4 border-2 border-white/70 border-t-transparent rounded-full animate-spin"></span>
+                        </span>
+                    </button>
+                    <button type="button" @click="closeFullReplan()"
+                            class="sp-btn px-5 py-2.5 border border-slate-300 bg-slate-200 rounded-xl text-sm text-slate-800 hover:bg-slate-300 w-full sm:w-auto">
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </template>
     <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
         <div>
             <div class="flex flex-wrap items-start gap-2">

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from dateutil.relativedelta import relativedelta
@@ -249,6 +249,295 @@ def _effective_bank_cash_for_planning(
         avg_quota_monthly=avg_quota_monthly,
     )
     return float(est or 0)
+
+
+def _extra_date_fixed(extra_json: Optional[str]) -> bool:
+    try:
+        d = json.loads(extra_json or "{}")
+    except (json.JSONDecodeError, TypeError):
+        return False
+    return bool(d.get("date_fixed")) if isinstance(d, dict) else False
+
+
+def _set_generic_pay_options(extra_json: str, pay_mode: str, installment_months: Optional[int]) -> str:
+    """Actualiza pay_mode / installment_months manteniendo date_fixed y claves extra conocidas."""
+    try:
+        d = json.loads(extra_json or "{}")
+    except (json.JSONDecodeError, TypeError):
+        d = {}
+    if not isinstance(d, dict):
+        d = {}
+    pm = (pay_mode or "auto").strip().lower()
+    if pm not in ("auto", "lump", "installments"):
+        pm = "auto"
+    d["pay_mode"] = pm
+    if pm == "installments":
+        try:
+            d["installment_months"] = max(1, int(installment_months)) if installment_months is not None else None
+        except (TypeError, ValueError):
+            d["installment_months"] = None
+    else:
+        d["installment_months"] = None
+    # no tocar date_fixed aquí
+    if "date_fixed" not in d:
+        d["date_fixed"] = False
+    return json.dumps(d, ensure_ascii=False)
+
+
+def _month_key(d: date) -> tuple[int, int]:
+    return int(d.year), int(d.month)
+
+
+def _is_before_current_month(d: Optional[date], today: date) -> bool:
+    if d is None:
+        return False
+    return _month_key(d) < _month_key(today)
+
+
+def full_replan_if_not_viable(user_id: int) -> dict:
+    """
+    Replanificación completa (solo se usa en el flujo explícito del modal).
+    Fase A: intenta respetar directrices del usuario (fechas, cuotas, etc).
+    Fase B: si falla, auto-aplica recomendaciones (cuotas/auto/fechas) con una única regla dura:
+      - Fechas inamovibles se respetan SI son >= mes actual; si están en el pasado, se convierten a automático.
+    """
+    today = date.today()
+    settings = _get_or_create_settings(user_id)
+    max_dsr_pct = float(settings.max_dsr_percent or 35.0)
+    fixed_ids = get_fixed_category_ids(user_id)
+    income_avg = get_avg_monthly_income(user_id, 12)
+    fixed_total, _ = compute_fixed_expenses_monthly(user_id, fixed_ids)
+    bank_gross = _effective_bank_cash_for_planning(
+        user_id,
+        today=today,
+        income_avg=income_avg,
+        fixed_total=fixed_total,
+        avg_quota_monthly=0.0,
+    )
+
+    goals = (
+        SpendingPlanGoal.query.filter_by(user_id=user_id)
+        .order_by(SpendingPlanGoal.priority.asc(), SpendingPlanGoal.id.asc())
+        .all()
+    )
+    changes: List[dict] = []
+
+    def compute_ok():
+        return compute_plan_schedule(
+            today=today,
+            income_avg=income_avg,
+            fixed_monthly=fixed_total,
+            starting_cash=bank_gross,
+            max_dsr_percent=max_dsr_pct,
+            goals=goals,
+        )
+
+    # Estado inicial
+    sch = compute_ok()
+    if sch.ok:
+        return {
+            "ok": True,
+            "changed": False,
+            "message": "El plan ya es viable. No se requiere replanificación.",
+            "changes": [],
+        }
+
+    # Normalización: fechas inamovibles en el pasado => automático
+    normalized = False
+    for g in goals:
+        if getattr(g, "goal_type", "") not in ("generic", "mortgage"):
+            continue
+        if not g.target_date:
+            continue
+        df = _extra_date_fixed(g.extra_json)
+        if df and _is_before_current_month(g.target_date, today):
+            before = g.target_date.isoformat()
+            g.target_date = None
+            if g.goal_type == "generic":
+                g.extra_json = _set_generic_date_fixed(g.extra_json or "{}", False)
+            else:
+                g.extra_json = _set_mortgage_date_fixed(g.extra_json or "{}", False)
+            normalized = True
+            changes.append(
+                {
+                    "goal_id": g.id,
+                    "title": g.title,
+                    "field": "target_date",
+                    "from": before,
+                    "to": None,
+                    "reason": "Fecha inamovible en el pasado → automático",
+                }
+            )
+    if normalized:
+        sch = compute_ok()
+        if sch.ok:
+            db.session.commit()
+            return {
+                "ok": True,
+                "changed": True,
+                "message": "Replanificación completada tras normalizar fechas inamovibles en el pasado.",
+                "changes": changes,
+            }
+
+    # Fase B: rescate aplicando recomendaciones (sin tocar fechas inamovibles >= hoy)
+    # Limitamos iteraciones para evitar bucles.
+    max_passes = 4
+    for _pass in range(max_passes):
+        sch = compute_ok()
+        if sch.ok:
+            break
+        progressed = False
+        for g in goals:
+            sch = compute_ok()
+            if sch.ok:
+                break
+            gt = getattr(g, "goal_type", "")
+            df = _extra_date_fixed(g.extra_json)
+            # Si es inamovible y está en futuro/actual, no mover fecha.
+            allow_move_date = not df
+
+            if gt == "generic":
+                pm, im = parse_generic_pay_options(g.extra_json)
+                raw_inst = installment_field_for_ui(pm, im)
+                sug = suggest_adjustments_for_generic(
+                    user_id,
+                    g.id,
+                    g.title,
+                    float(g.amount_total or 0),
+                    int(g.priority or 3),
+                    g.target_date,
+                    raw_inst,
+                    bool(df),
+                )
+                # Prioridad de auto-aceptación: 1) cuotas/auto, 2) fecha (si se permite mover)
+                picked = None
+                for s in sug:
+                    if s.get("type") == "set_field" and s.get("field") == "installment_months":
+                        picked = s
+                        break
+                if not picked and allow_move_date:
+                    for s in sug:
+                        if s.get("type") == "set_field" and s.get("field") == "target_date":
+                            picked = s
+                            break
+                if not picked:
+                    continue
+
+                if picked.get("field") == "installment_months":
+                    before_pm, before_im = pm, im
+                    val = (picked.get("value") or "").strip()
+                    if val == "":
+                        g.extra_json = _set_generic_pay_options(g.extra_json or "{}", "auto", None)
+                    else:
+                        try:
+                            k = int(val)
+                        except (TypeError, ValueError):
+                            k = None
+                        if k is None:
+                            continue
+                        g.extra_json = _set_generic_pay_options(g.extra_json or "{}", "installments", k)
+                    # reponer date_fixed a lo que fuese
+                    g.extra_json = _set_generic_date_fixed(g.extra_json or "{}", bool(df))
+                    progressed = True
+                    changes.append(
+                        {
+                            "goal_id": g.id,
+                            "title": g.title,
+                            "field": "installment_months",
+                            "from": installment_field_for_ui(before_pm, before_im),
+                            "to": (picked.get("value") or ""),
+                            "reason": "Auto-aceptar recomendación (cuotas/auto)",
+                        }
+                    )
+                elif picked.get("field") == "target_date" and allow_move_date:
+                    before = g.target_date.isoformat() if g.target_date else None
+                    v = (picked.get("value") or "").strip()[:10]
+                    td = None
+                    try:
+                        td = datetime.strptime(v, "%Y-%m-%d").date() if v else None
+                    except ValueError:
+                        td = None
+                    if td is None:
+                        continue
+                    # Regla: nunca mover a antes de la fecha indicada.
+                    if g.target_date and _month_key(td) < _month_key(g.target_date):
+                        continue
+                    g.target_date = td
+                    # date_fixed se mantiene False (allow_move_date implica no fijo)
+                    g.extra_json = _set_generic_date_fixed(g.extra_json or "{}", False)
+                    progressed = True
+                    changes.append(
+                        {
+                            "goal_id": g.id,
+                            "title": g.title,
+                            "field": "target_date",
+                            "from": before,
+                            "to": td.isoformat(),
+                            "reason": "Auto-aceptar recomendación (fecha)",
+                        }
+                    )
+            elif gt == "mortgage":
+                # Hipoteca: solo podemos sugerir/mover fecha si NO es inamovible, o si fue normalizada a auto.
+                if not allow_move_date:
+                    continue
+                if g.target_date is None:
+                    continue
+                extra = (g.extra_json or "").strip() or "{}"
+                sug = suggest_adjustments_for_mortgage(
+                    user_id,
+                    g.id,
+                    g.title,
+                    float(g.amount_total or 0),
+                    g.target_date,
+                    extra,
+                    priority=int(g.priority or 1),
+                )
+                if not sug:
+                    continue
+                s0 = sug[0]
+                if s0.get("type") == "set_field" and s0.get("field") == "target_date":
+                    before = g.target_date.isoformat() if g.target_date else None
+                    v = (s0.get("value") or "").strip()[:10]
+                    try:
+                        td = datetime.strptime(v, "%Y-%m-%d").date()
+                    except ValueError:
+                        continue
+                    if g.target_date and _month_key(td) < _month_key(g.target_date):
+                        continue
+                    g.target_date = td
+                    g.extra_json = _set_mortgage_date_fixed(g.extra_json or "{}", False)
+                    progressed = True
+                    changes.append(
+                        {
+                            "goal_id": g.id,
+                            "title": g.title,
+                            "field": "target_date",
+                            "from": before,
+                            "to": td.isoformat(),
+                            "reason": "Auto-aceptar recomendación (fecha hipoteca)",
+                        }
+                    )
+        if not progressed:
+            break
+
+    sch = compute_ok()
+    if sch.ok:
+        db.session.commit()
+        return {
+            "ok": True,
+            "changed": True,
+            "message": "Replanificación completa realizada.",
+            "changes": changes,
+        }
+
+    db.session.rollback()
+    return {
+        "ok": False,
+        "changed": False,
+        "message": sch.error_message
+        or "No ha sido posible replanificar todos los objetivos con las reglas actuales.",
+        "changes": changes,
+    }
 def _sum_mortgage_initial_outlays(user_id: int) -> float:
     """Suma de `initial_outlay` en objetivos tipo hipoteca (entrada + tasación de simulador)."""
     total = 0.0

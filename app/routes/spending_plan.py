@@ -86,6 +86,26 @@ def index():
     return resp
 
 
+@spending_plan_bp.route("/replanificar_full", methods=["POST"])
+@login_required
+def replanificar_full():
+    wants_json = "application/json" in (request.headers.get("Accept") or "") or request.headers.get(
+        "X-Requested-With"
+    ) == "XMLHttpRequest"
+    if not wants_json:
+        return redirect(url_for("spending_plan.index"))
+    if not request.form.get("csrf_token"):
+        return jsonify({"ok": False, "error_message": "Sesión expirada."}), 400
+    try:
+        res = sps.full_replan_if_not_viable(current_user.id)
+        if res.get("ok"):
+            return jsonify({"ok": True, "summary": res}), 200
+        return jsonify({"ok": False, "error_message": res.get("message") or "No fue posible replanificar.", "summary": res}), 400
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"ok": False, "error_message": f"No se pudo replanificar: {e}"}), 500
+
+
 @spending_plan_bp.route("/objetivo", methods=["POST"])
 @login_required
 def add_goal():
