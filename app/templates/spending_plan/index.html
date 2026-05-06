@@ -51,6 +51,7 @@ function spendingPlanGoals(cfg) {
         infoModalTitle: '',
         infoModalMessage: '',
         infoModalSuggestions: [],
+        infoModalContext: 'create', // 'create' | 'edit'
         deleteUrl: '',
         deleteTitle: '',
         editUrl: '',
@@ -115,27 +116,38 @@ function spendingPlanGoals(cfg) {
             try { document.body.style.overflow = ''; } catch (e) {}
         },
         openInfo(payload) {
-            // Si un modal de edición/borrado está abierto, cerrarlo para evitar stacking
-            // y problemas de z-index cuando mostramos recomendaciones.
-            this.editModalOpen = false;
-            this.deleteModalOpen = false;
             this.infoModalTitle = (payload && payload.title) ? payload.title : 'No se puede replanificar';
             this.infoModalMessage = (payload && payload.message) ? payload.message : '';
             this.infoModalSuggestions = (payload && payload.suggestions) ? payload.suggestions : [];
+            this.infoModalContext = (payload && payload.context) ? payload.context : 'create';
             this.infoModalOpen = true;
         },
         applySuggestion(s) {
             if (!s) return;
             if (s.type === 'set_field') {
                 if (s.field === 'target_date') {
-                    var el = document.getElementById('generic-target-date-input');
-                    if (el) { el.value = s.value || ''; el.dispatchEvent(new Event('change', { bubbles: true })); }
-                    if (this.editModalOpen) { this.editTargetDate = s.value || ''; }
+                    if (this.infoModalContext === 'edit') {
+                        this.editTargetDate = s.value || '';
+                        try {
+                            var ed = document.querySelector('form[data-edit-generic-form=\"1\"] input[name=\"target_date\"]');
+                            if (ed) { ed.value = s.value || ''; ed.dispatchEvent(new Event('input', { bubbles: true })); ed.dispatchEvent(new Event('change', { bubbles: true })); }
+                        } catch (e) { /* ignore */ }
+                    } else {
+                        var el = document.getElementById('generic-target-date-input');
+                        if (el) { el.value = s.value || ''; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); }
+                    }
                 }
                 if (s.field === 'installment_months') {
-                    var el2 = document.getElementById('generic-installments-input');
-                    if (el2) { el2.value = s.value || ''; el2.dispatchEvent(new Event('change', { bubbles: true })); }
-                    if (this.editModalOpen) { this.editInstallmentMonths = s.value || ''; }
+                    if (this.infoModalContext === 'edit') {
+                        this.editInstallmentMonths = s.value || '';
+                        try {
+                            var ei = document.querySelector('form[data-edit-generic-form=\"1\"] input[name=\"installment_months\"]');
+                            if (ei) { ei.value = s.value || ''; ei.dispatchEvent(new Event('input', { bubbles: true })); ei.dispatchEvent(new Event('change', { bubbles: true })); }
+                        } catch (e) { /* ignore */ }
+                    } else {
+                        var el2 = document.getElementById('generic-installments-input');
+                        if (el2) { el2.value = s.value || ''; el2.dispatchEvent(new Event('input', { bubbles: true })); el2.dispatchEvent(new Event('change', { bubbles: true })); }
+                    }
                 }
             }
             this.closeInfo();
@@ -156,11 +168,12 @@ function spendingPlanGoals(cfg) {
                 var data = await r.json().catch(function () { return null; });
                 if (r.ok && data && data.ok) { window.location.reload(); return; }
                 this.openInfo({
+                    context: 'create',
                     message: (data && data.error_message) ? data.error_message : 'No se pudo replanificar.',
                     suggestions: (data && data.suggestions) ? data.suggestions : [],
                 });
             } catch (e) {
-                this.openInfo({ message: 'No se pudo guardar (error de red).', suggestions: [] });
+                this.openInfo({ context: 'create', message: 'No se pudo guardar (error de red).', suggestions: [] });
             } finally {
                 this.addPlanning = false;
             }
@@ -181,11 +194,12 @@ function spendingPlanGoals(cfg) {
                 var data = await r.json().catch(function () { return null; });
                 if (r.ok && data && data.ok) { window.location.reload(); return; }
                 this.openInfo({
+                    context: 'edit',
                     message: (data && data.error_message) ? data.error_message : 'No se pudo replanificar.',
                     suggestions: (data && data.suggestions) ? data.suggestions : [],
                 });
             } catch (e) {
-                this.openInfo({ message: 'No se pudo guardar (error de red).', suggestions: [] });
+                this.openInfo({ context: 'edit', message: 'No se pudo guardar (error de red).', suggestions: [] });
             } finally {
                 this.editPlanning = false;
             }
