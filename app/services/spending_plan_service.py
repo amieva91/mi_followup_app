@@ -222,6 +222,33 @@ def _estimate_starting_cash_for_current_month(
     info["bank_cash_method"] = "flow_avg"
     return round(est, 2), info
 
+
+def _effective_bank_cash_for_planning(
+    user_id: int,
+    *,
+    today: date,
+    income_avg: float,
+    fixed_total: float,
+    avg_quota_monthly: float = 0.0,
+) -> float:
+    """
+    Efectivo inicial a usar en el planificador.
+    Si el mes actual no tiene filas en Banks y el total es 0€, estima starting cash
+    (mismo criterio que en get_spending_plan_page_data) para evitar falsos 0€.
+    """
+    raw = float(BankService.get_total_cash_by_month(user_id, today.year, today.month) or 0)
+    if _banks_month_has_rows(user_id, today.year, today.month):
+        return raw
+    if abs(raw) > 1e-9:
+        return raw
+    est, _meta = _estimate_starting_cash_for_current_month(
+        user_id,
+        today=today,
+        income_avg=income_avg,
+        fixed_total=fixed_total,
+        avg_quota_monthly=avg_quota_monthly,
+    )
+    return float(est or 0)
 def _sum_mortgage_initial_outlays(user_id: int) -> float:
     """Suma de `initial_outlay` en objetivos tipo hipoteca (entrada + tasación de simulador)."""
     total = 0.0
@@ -1256,7 +1283,13 @@ def _first_viable_mortgage_date(
     fixed_ids = get_fixed_category_ids(user_id)
     income_avg = get_avg_monthly_income(user_id, 12)
     fixed_total, _ = compute_fixed_expenses_monthly(user_id, fixed_ids)
-    bank_gross = get_current_bank_cash(user_id)
+    bank_gross = _effective_bank_cash_for_planning(
+        user_id,
+        today=today,
+        income_avg=income_avg,
+        fixed_total=fixed_total,
+        avg_quota_monthly=0.0,
+    )
     goals = SpendingPlanGoal.query.filter_by(user_id=user_id).all()
     others = [g for g in goals if exclude_goal_id is None or g.id != exclude_goal_id]
     pr = max(1, min(5, int(priority)))
@@ -1304,7 +1337,13 @@ def suggest_adjustments_for_generic(
     fixed_ids = get_fixed_category_ids(user_id)
     income_avg = get_avg_monthly_income(user_id, 12)
     fixed_total, _ = compute_fixed_expenses_monthly(user_id, fixed_ids)
-    bank_gross = get_current_bank_cash(user_id)
+    bank_gross = _effective_bank_cash_for_planning(
+        user_id,
+        today=today,
+        income_avg=income_avg,
+        fixed_total=fixed_total,
+        avg_quota_monthly=0.0,
+    )
     all_goals = SpendingPlanGoal.query.filter_by(user_id=user_id).all()
     others = [g for g in all_goals if goal_id is None or g.id != goal_id]
 
@@ -1435,7 +1474,13 @@ def suggest_adjustments_for_mortgage(
     fixed_ids = get_fixed_category_ids(user_id)
     income_avg = get_avg_monthly_income(user_id, 12)
     fixed_total, _ = compute_fixed_expenses_monthly(user_id, fixed_ids)
-    bank_gross = get_current_bank_cash(user_id)
+    bank_gross = _effective_bank_cash_for_planning(
+        user_id,
+        today=today,
+        income_avg=income_avg,
+        fixed_total=fixed_total,
+        avg_quota_monthly=0.0,
+    )
 
     all_goals = SpendingPlanGoal.query.filter_by(user_id=user_id).all()
     others = [g for g in all_goals if goal_id is None or g.id != goal_id]
@@ -1496,7 +1541,13 @@ def _assert_plan_viable_with_dsr(user_id: int, max_dsr_percent: float) -> None:
     fixed_ids = get_fixed_category_ids(user_id)
     income_avg = get_avg_monthly_income(user_id, 12)
     fixed_total, _ = compute_fixed_expenses_monthly(user_id, fixed_ids)
-    bank_gross = get_current_bank_cash(user_id)
+    bank_gross = _effective_bank_cash_for_planning(
+        user_id,
+        today=date.today(),
+        income_avg=income_avg,
+        fixed_total=fixed_total,
+        avg_quota_monthly=0.0,
+    )
     goals = SpendingPlanGoal.query.filter_by(user_id=user_id).all()
     sch = compute_plan_schedule(
         today=date.today(),
