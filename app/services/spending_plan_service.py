@@ -754,25 +754,31 @@ def _build_goal_color_and_schedule_meta(
         payments = getattr(gd, "payments_by_month", None) or []
 
         first_idx: Optional[int] = None
-        positive_months = 0
+        pay_points: List[tuple[int, float]] = []
         for mi, p in enumerate(payments):
             try:
                 pv = float(p or 0)
             except (TypeError, ValueError):
                 pv = 0.0
             if pv > 0.001:
-                positive_months += 1
                 if first_idx is None:
                     first_idx = mi
                 if 0 <= mi < len(marks):
-                    marks[mi].append(
-                        {
-                            "goal_id": int(gid),
-                            "title": str(getattr(gd, "title", "") or ""),
-                            "amount": round(pv, 2),
-                            "color": color,
-                        }
-                    )
+                    pay_points.append((mi, pv))
+
+        positive_months = len(pay_points)
+        for idx, (mi, pv) in enumerate(pay_points, start=1):
+            if 0 <= mi < len(marks):
+                marks[mi].append(
+                    {
+                        "goal_id": int(gid),
+                        "title": str(getattr(gd, "title", "") or ""),
+                        "amount": round(pv, 2),
+                        "color": color,
+                        "installment_idx": idx,
+                        "installments_total": positive_months,
+                    }
+                )
 
         start_label = (
             month_labels[first_idx]

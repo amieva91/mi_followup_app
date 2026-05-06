@@ -686,7 +686,7 @@ function spendingPlanGoals(cfg) {
                             {% for it in mm %}
                             <span class="inline-block w-2.5 h-2.5 rounded-full"
                                   style="background: {{ it.color }};"
-                                  title="{{ it.title }}: {{ '%.2f'|format(it.amount) }} €"></span>
+                                  title="{{ it.title }}: {{ '%.2f'|format(it.amount) }} €{% if it.installment_idx and it.installments_total %} ({{ it.installment_idx }}/{{ it.installments_total }}){% endif %}"></span>
                             {% endfor %}
                         </div>
                         {% else %}
@@ -702,7 +702,7 @@ function spendingPlanGoals(cfg) {
         </table>
     </div>
     <p class="text-xs text-slate-500 mt-2">
-        Columna Cuota: cuotas hipoteca + entradas en el mes + cuotas genéricas planificadas. Superávit = ingreso − fijos − cuotas (la entrada de hipoteca descuenta del saldo acumulado, no del superávit).
+        Columna Cuota: cuotas hipoteca + cuotas genéricas del mes (lo que compite por el DSR). La entrada de hipoteca solo descuenta del saldo ahorrado.
         Margen DSR = cuota máxima permitida − cuota hipoteca − objetivos genéricos del mes (todo lo que compite por el cupo). La columna “Pagos” marca con puntos los objetivos con cargo en ese mes.
     </p>
 
