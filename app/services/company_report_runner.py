@@ -45,10 +45,16 @@ def run_report_only_by_id(app, report_id: int) -> None:
         with engine.connect() as conn:
             r = conn.execute(
                 text(
-                    "UPDATE company_reports SET status='processing' "
+                    # Resetear reloj de encolado al relanzar pending viejo: evita que el
+                    # chequeo de stale timeout (basado en created_at/report_enqueued_at)
+                    # lo marque failed de inmediato tras volver a processing.
+                    "UPDATE company_reports SET status='processing', report_enqueued_at=:now "
                     "WHERE id=:rid AND status='pending'"
                 ),
-                {"rid": int(report_id)},
+                {
+                    "rid": int(report_id),
+                    "now": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+                },
             )
             conn.commit()
             if r.rowcount == 0:

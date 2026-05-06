@@ -411,10 +411,16 @@ def recover_stuck_pending_reports(app, app_logger=None) -> None:
                             with db.engine.connect() as conn:
                                 res = conn.execute(
                                     text(
-                                        "UPDATE company_reports SET status='processing' "
+                                        # Importante: si el pending es viejo (horas), al pasar a processing
+                                        # `expire_company_report_if_stale` podría marcarlo failed usando el
+                                        # reloj de encolado. Reiniciamos `report_enqueued_at` al relanzar.
+                                        "UPDATE company_reports SET status='processing', report_enqueued_at=:now "
                                         "WHERE id=:rid AND status='pending'"
                                     ),
-                                    {"rid": int(rid_)},
+                                    {
+                                        "rid": int(rid_),
+                                        "now": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+                                    },
                                 )
                                 conn.commit()
                                 if int(getattr(res, "rowcount", 0) or 0) == 0:
