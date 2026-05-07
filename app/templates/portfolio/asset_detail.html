@@ -780,12 +780,81 @@ function reportStatusLabel(status, queuePosition, queueWaitingTotal, deliveryMod
     if (status === 'failed') return 'error';
     return status || '—';
 }
-function reportProgressHtml(status) {
+function formatShortDuration(seconds) {
+    const s = Math.max(0, Number(seconds || 0));
+    const m = Math.floor(s / 60);
+    const h = Math.floor(m / 60);
+    if (h > 0) return `${h}h ${m % 60}m`;
+    if (m > 0) return `${m}m ${s % 60}s`;
+    return `${Math.floor(s)}s`;
+}
+function formatAgo(iso) {
+    if (!iso) return '';
+    try {
+        const dt = new Date(iso);
+        const now = new Date();
+        const diff = Math.floor((now.getTime() - dt.getTime()) / 1000);
+        if (!isFinite(diff)) return '';
+        if (diff < 5) return 'justo ahora';
+        return `hace ${formatShortDuration(diff)}`;
+    } catch (e) {
+        return '';
+    }
+}
+function humanJobPhase(phase) {
+    const p = (phase || '').trim();
+    if (!p) return '';
+    const map = {
+        waiting_turn: 'Esperando turno',
+        creating_interaction: 'Creando sesión (interaction_id)',
+        polling_provider: 'Esperando respuesta del proveedor',
+        completed: 'Completado',
+    };
+    return map[p] || p;
+}
+function buildReportTelemetryHintHtml(data) {
+    if (!data) return '';
+    const job = data.job || {};
+    const prov = data.provider || {};
+    const parts = [];
+    if (job.phase) parts.push('Fase: ' + humanJobPhase(job.phase));
+    if (typeof job.elapsed_s === 'number') parts.push('Tiempo: ' + formatShortDuration(job.elapsed_s));
+    if (prov.poll_count != null && prov.poll_count !== '') parts.push('Polls: ' + String(prov.poll_count));
+    if (prov.last_poll_at) {
+        const ago = formatAgo(prov.last_poll_at);
+        parts.push('Último poll: ' + (ago || '—'));
+    }
+    if (prov.create_attempt != null && Number(prov.create_attempt) > 0) parts.push('Intento: ' + String(prov.create_attempt));
+    if (prov.next_retry_at) {
+        const ago = formatAgo(prov.next_retry_at);
+        parts.push('Reintento: ' + (ago ? ('en ' + ago.replace(/^hace\s+/, '')) : 'programado'));
+    }
+    if (prov.last_error_kind) parts.push('Último error: ' + String(prov.last_error_kind));
+    if (job.possible_blocked) parts.push('Aviso: posible bloqueo (≥ ' + formatShortDuration(job.p95_s || 1800) + ')');
+    if (job.timed_out) parts.push('Aviso: timeout (≥ ' + formatShortDuration(job.timeout_s || 2700) + ')');
+    if (!parts.length) return '';
+    return '<div class="mt-1 text-xs text-slate-600 break-words">' + escapeHtml(parts.join(' · ')) + '</div>';
+}
+function reportProgressHtmlFromData(data) {
+    const status = data ? data.status : null;
     if (status === 'pending') {
-        return '<div class="flex items-start gap-2 text-amber-900"><span class="shrink-0 w-2 h-2 mt-1.5 rounded-full bg-amber-400"></span><span>Informe <strong>en cola</strong>. Se iniciará en unos segundos…</span></div>';
+        const qp = formatQueueSuffix(data);
+        return (
+            '<div class="flex items-start gap-2 text-amber-900">'
+            + '<span class="shrink-0 w-2 h-2 mt-1.5 rounded-full bg-amber-400"></span>'
+            + '<span>Informe <strong>en cola</strong>' + escapeHtml(qp) + '. Se iniciará cuando le toque…'
+            + buildReportTelemetryHintHtml(data)
+            + '</span></div>'
+        );
     }
     if (status === 'processing') {
-        return '<div class="flex items-start gap-2 text-amber-900"><span class="shrink-0 w-2 h-2 mt-1.5 rounded-full bg-amber-500 animate-pulse"></span><span>Investigando con <strong>Deep Research</strong> (puede tardar varios minutos)…</span></div>';
+        return (
+            '<div class="flex items-start gap-2 text-amber-900">'
+            + '<span class="shrink-0 w-2 h-2 mt-1.5 rounded-full bg-amber-500 animate-pulse"></span>'
+            + '<span>Investigando con <strong>Deep Research</strong> (puede tardar varios minutos)…'
+            + buildReportTelemetryHintHtml(data)
+            + '</span></div>'
+        );
     }
     return '<p class="text-gray-500">Cargando…</p>';
 }
@@ -801,9 +870,13 @@ function setReportGenerateBannerVisible(reportId, data) {
         return;
     }
     if (data.status === 'pending') {
-        el.innerHTML = 'Informe <strong>en cola</strong>… Puede empezar en segundos. <span class="text-slate-600">ID: ' + reportId + '</span>';
+        el.innerHTML =
+            'Informe <strong>en cola</strong>… Puede empezar en segundos. <span class="text-slate-600">ID: ' + reportId + '</span>'
+            + buildReportTelemetryHintHtml(data);
     } else if (data.status === 'processing') {
-        el.innerHTML = 'Investigando con <strong>Deep Research</strong>… (varios minutos) <span class="text-slate-600">ID: ' + reportId + '</span>';
+        el.innerHTML =
+            'Investigando con <strong>Deep Research</strong>… (varios minutos) <span class="text-slate-600">ID: ' + reportId + '</span>'
+            + buildReportTelemetryHintHtml(data);
     } else if (data.status === 'failed') {
         el.innerHTML = '<span class="text-red-800">' + (data.error_msg ? String(data.error_msg).replace(/</g, '&lt;') : 'Error al generar el informe') + '</span> <span class="text-slate-600">ID: ' + reportId + '</span>';
     } else if (data.status === 'completed' && (!data.audio_progress || (!data.audio_progress.full_pipeline && !data.audio_progress.report_stages))) {
@@ -1015,7 +1088,7 @@ function updateReportDetailFromStatusPoll(reportId, data) {
     if (data.status === 'pending' || data.status === 'processing') {
         panel.classList.remove('hidden');
         hideReportActionButtons();
-        content.innerHTML = reportProgressHtml(data.status);
+        content.innerHTML = reportProgressHtmlFromData(data);
         return;
     }
     if (data.status === 'failed') {
