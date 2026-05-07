@@ -13,6 +13,7 @@ from app import db, csrf
 from sqlalchemy import text, bindparam
 
 from app.services.company_report_queue import queue_metrics_for_report, sorted_active_queue_rows
+from app.services.company_report_telemetry import job_and_provider_json, status_visible_for_report
 from app.models import (
     BrokerAccount,
     Asset,
@@ -1072,6 +1073,8 @@ def asset_reports_generate_and_deliver(id):
             report_enqueued_at=datetime.utcnow(),
             delivery_mode='full_deliver',
             delivery_phase_status='processing',
+            job_kind='full_deliver',
+            job_phase='waiting_turn',
         )
         db.session.add(report)
         db.session.commit()
@@ -1119,10 +1122,18 @@ def asset_reports_generate_and_deliver(id):
                 pstate: dict = new_full_pipeline_progress_state()
                 try:
                     _persist(pstate)
+                    now_ts = datetime.utcnow()
                     with engine.connect() as conn:
                         r = conn.execute(
-                            text('UPDATE company_reports SET status = :st WHERE id = :rid'),
-                            {'st': 'processing', 'rid': report_id},
+                            text(
+                                """
+                                UPDATE company_reports SET status = :st,
+                                    job_started_at = COALESCE(job_started_at, :now),
+                                    job_status = 'running'
+                                WHERE id = :rid
+                                """
+                            ),
+                            {'st': 'processing', 'now': now_ts, 'rid': report_id},
                         )
                         conn.commit()
                         if r.rowcount == 0:
@@ -1151,22 +1162,35 @@ def asset_reports_generate_and_deliver(id):
                     asym = (row[1] or '')
                     aisn = (row[2] or '')
 
-                    def _save_iid(iid: str):
-                        with engine.connect() as conn:
-                            conn.execute(
-                                text(
-                                    "UPDATE company_reports SET gemini_interaction_id = :iid "
-                                    "WHERE id = :rid AND status = 'processing'"
-                                ),
-                                {'iid': (iid or '')[:100], 'rid': report_id},
-                            )
-                            conn.commit()
+                    def _infer_dr_job_phase(api_status: str, message: str) -> str | None:
+                        msg = (message or '').lower()
+                        if 'creando deep research' in msg or '(modo directo)' in msg:
+                            return 'creating_interaction'
+                        if api_status == 'completed':
+                            return None
+                        if 'estado:' in msg and 'interaction' in msg:
+                            return 'polling_provider'
+                        if 'interaction_id=' in msg or ' último_estado=' in msg:
+                            return 'polling_provider'
+                        return None
 
-                    def _on_report_subs(subs: list) -> None:
-                        nonlocal pstate
-                        for i in range(min(len(subs), len(pstate['steps']))):
-                            pstate['steps'][i] = dict(subs[i])
-                        _persist(pstate)
+                    def _on_dr_status(st: str, msg: str) -> None:
+                        from app.services.company_report_telemetry import persist_provider_poll
+
+                        jp = _infer_dr_job_phase(st or '', msg or '')
+                        persist_provider_poll(
+                            engine,
+                            report_id,
+                            st or '',
+                            msg,
+                            job_phase=jp,
+                            bump_poll=True,
+                        )
+
+                    def _save_iid(iid: str) -> None:
+                        from app.services.company_report_telemetry import persist_interaction_created
+
+                        persist_interaction_created(engine, report_id, iid)
 
                     current_app.logger.info(
                         'Deep Research worker: inicio pipeline informe+audio+correo report_id=%s asset_id=%s user_id=%s',
@@ -1183,6 +1207,7 @@ def asset_reports_generate_and_deliver(id):
                         points,
                         on_interaction_created=_save_iid,
                         on_report_substeps=_on_report_subs,
+                        on_status_update=_on_dr_status,
                     )
 
                     current_app.logger.info(
@@ -1347,15 +1372,6 @@ def asset_report_detail(id, report_id):
     except Exception:
         current_app.logger.exception('queue_metrics asset_report_detail')
 
-    # Compat worker DB-backed: si job_status indica cola, forzar status visible "pending"
-    status_visible = report.status
-    try:
-        js = getattr(report, 'job_status', None)
-        if js == 'queued' and report.status == 'processing':
-            status_visible = 'pending'
-    except Exception:
-        status_visible = report.status
-
     sm_raw = getattr(report, 'summary_content', None)
     if sm_raw is not None and str(sm_raw).strip():
         from app.services.gemini_service import sanitize_report_summary_markdown
@@ -1364,12 +1380,16 @@ def asset_report_detail(id, report_id):
     else:
         summary_out = sm_raw
 
+    status_visible = status_visible_for_report(report)
+    job_j, provider_j = job_and_provider_json(report)
+
     return jsonify({
         'id': report.id,
         'content': report.content,
         'summary_content': summary_out,
         'status': status_visible,
         'status_raw': report.status,
+        'delivery_mode': getattr(report, 'delivery_mode', None),
         'error_msg': report.error_msg,
         'template_title': report.template_title,
         'created_at': report.created_at.isoformat() if report.created_at else None,
@@ -1384,8 +1404,9 @@ def asset_report_detail(id, report_id):
         'email_status': getattr(report, 'email_status', None),
         'email_error_msg': getattr(report, 'email_error_msg', None),
         'email_completed_at': report.email_completed_at.isoformat() if getattr(report, 'email_completed_at', None) else None,
-        'delivery_mode': getattr(report, 'delivery_mode', None),
         'delivery_phase_status': getattr(report, 'delivery_phase_status', None),
+        'job': job_j,
+        'provider': provider_j,
     })
 
 
@@ -1738,46 +1759,14 @@ def api_report_status(report_id):
     except Exception:
         current_app.logger.exception('queue_metrics api_report_status')
 
-    # Telemetría de jobs largos (worker DB-backed)
-    def _iso(v):
-        try:
-            if not v:
-                return None
-            s = v.isoformat()
-            # Fechas naïve se interpretan como local en JS; forzamos UTC con 'Z'
-            if s.endswith('Z') or '+' in s:
-                return s
-            return s + 'Z'
-        except Exception:
-            return None
-
-    job_started_at = getattr(report, 'job_started_at', None)
-    elapsed_s = None
-    try:
-        if job_started_at:
-            elapsed_s = int((datetime.utcnow() - job_started_at).total_seconds())
-    except Exception:
-        elapsed_s = None
-
-    p95_s = 30 * 60
-    timeout_s = int(p95_s * 1.5)
-    possible_blocked = bool(elapsed_s is not None and elapsed_s >= p95_s and report.status == 'processing')
-    timed_out = bool(elapsed_s is not None and elapsed_s >= timeout_s and report.status == 'processing')
-
-    # Compat worker DB-backed: si job_status indica cola, forzar status visible "pending"
-    # (algunas filas legacy pueden quedar como status=processing aunque no estén ejecutándose).
-    status_visible = report.status
-    try:
-        js = getattr(report, 'job_status', None)
-        if js == 'queued' and report.status == 'processing':
-            status_visible = 'pending'
-    except Exception:
-        status_visible = report.status
+    status_visible = status_visible_for_report(report)
+    job_j, provider_j = job_and_provider_json(report)
 
     return jsonify({
         'id': report.id,
         'status': status_visible,
         'status_raw': report.status,
+        'delivery_mode': getattr(report, 'delivery_mode', None),
         'error_msg': report.error_msg,
         'completed_at': report.completed_at.isoformat() if report.completed_at else None,
         'audio_status': getattr(report, 'audio_status', None),
@@ -1789,29 +1778,8 @@ def api_report_status(report_id):
         'email_status': getattr(report, 'email_status', None),
         'email_error_msg': getattr(report, 'email_error_msg', None),
 
-        'job': {
-            'kind': getattr(report, 'job_kind', None),
-            'status': getattr(report, 'job_status', None),
-            'phase': getattr(report, 'job_phase', None),
-            'started_at': _iso(getattr(report, 'job_started_at', None)),
-            'finished_at': _iso(getattr(report, 'job_finished_at', None)),
-            'elapsed_s': elapsed_s,
-            'p95_s': p95_s,
-            'timeout_s': timeout_s,
-            'possible_blocked': possible_blocked,
-            'timed_out': timed_out,
-        },
-        'provider': {
-            'last_status': getattr(report, 'provider_last_status', None),
-            'last_poll_at': _iso(getattr(report, 'provider_last_poll_at', None)),
-            'poll_count': getattr(report, 'provider_poll_count', None),
-            'last_http_status': getattr(report, 'provider_last_http_status', None),
-            'last_error_kind': getattr(report, 'provider_last_error_kind', None),
-            'last_error_msg': getattr(report, 'provider_last_error_msg', None),
-            'create_attempt': getattr(report, 'provider_create_attempt', None),
-            'next_retry_at': _iso(getattr(report, 'provider_next_retry_at', None)),
-            'interaction_id': getattr(report, 'gemini_interaction_id', None),
-        },
+        'job': job_j,
+        'provider': provider_j,
     })
 
 

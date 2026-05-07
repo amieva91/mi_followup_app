@@ -1114,7 +1114,7 @@ function updateReportDetailFromStatusPoll(reportId, data) {
         // Importante: en "todo en uno" el informe puede estar ya COMPLETADO mientras audio/correo siguen.
         // No debemos machacar el HTML del informe/resumen con el spinner de progreso.
         if (data.status !== 'completed') {
-            content.innerHTML = reportProgressHtml(data.status);
+            content.innerHTML = reportProgressHtmlFromData(data);
         } else {
             // Si aún no hay contenido renderizado (p. ej. panel abierto por primera vez), dejamos el texto actual.
             // `loadReportDetail()` se encarga de pintar informe/resumen cuando hay content.
@@ -1126,7 +1126,10 @@ function updateReportDetailFromStatusPoll(reportId, data) {
                 const qp = formatQueueSuffix(data);
                 cap = 'Audio en cola' + qp + ' (se ejecutará cuando le toque; puedes salir y volver)';
             }
-            audioPb.innerHTML = buildAudioProgressBlockHtml(ap1.steps, cap);
+            const tailTel = (data.status === 'completed')
+                ? (buildReportTelemetryHintHtml(data) || '')
+                : '';
+            audioPb.innerHTML = tailTel + buildAudioProgressBlockHtml(ap1.steps, cap);
         }
         // Aunque haya bloque de pasos, mostrar siempre el aviso "Audio en cola" si aplica.
         if (legacyAudioStatus) {
@@ -1769,12 +1772,15 @@ function loadReportDetail(reportId) {
                         content.className = 'prose max-w-none report-markdown report-content';
                         setupReportViewToggle(data);
                     } else {
-                        content.innerHTML = reportProgressHtml(data.status);
+                        content.innerHTML = reportProgressHtmlFromData(data);
                     }
                     const audioPb = document.getElementById('reportAudioProgress');
                     if (audioPb) {
                         audioPb.classList.remove('hidden');
-                        audioPb.innerHTML = buildAudioProgressBlockHtml(fp0.steps, fp0.caption);
+                        const tailTel = (data.status === 'completed')
+                            ? (buildReportTelemetryHintHtml(data) || '')
+                            : '';
+                        audioPb.innerHTML = tailTel + buildAudioProgressBlockHtml(fp0.steps, fp0.caption);
                     }
                     if (btnEmail) btnEmail.classList.add('hidden');
                     if (btnAudio) btnAudio.classList.add('hidden');
@@ -1783,7 +1789,7 @@ function loadReportDetail(reportId) {
                 }
             }
             if (data.status === 'pending' || data.status === 'processing') {
-                content.innerHTML = reportProgressHtml(data.status);
+                content.innerHTML = reportProgressHtmlFromData(data);
                 startReportStatusPolling(reportId);
                 return;
             }

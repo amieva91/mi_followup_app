@@ -425,46 +425,14 @@ def run_once(app) -> bool:
     aisn = (ctx.get("isin") or "").strip()
 
     def on_interaction_created(iid: str) -> None:
-        now = _utcnow()
-        _update(
-            engine,
-            rid,
-            gemini_interaction_id=(iid or "")[:100],
-            job_phase="polling_provider",
-            provider_last_status=None,
-            provider_last_poll_at=now,
-        )
+        from app.services.company_report_telemetry import persist_interaction_created
+
+        persist_interaction_created(engine, rid, iid)
 
     def on_status_update(st: str, msg: str) -> None:
-        # `run_deep_research_report` llama a esto para mensajes de UI; persistimos lo mínimo.
-        now = _utcnow()
-        # Cada status_update corresponde a un poll (o avance de etapa) del provider.
-        # Lo usamos como contador visible en UI.
-        try:
-            with engine.connect() as conn:
-                conn.execute(
-                    text(
-                        """
-                        UPDATE company_reports
-                        SET provider_last_poll_at=:now,
-                            provider_last_status=:st,
-                            provider_poll_count=COALESCE(provider_poll_count, 0) + 1,
-                            provider_last_error_msg=:em
-                        WHERE id=:rid
-                        """
-                    ),
-                    {
-                        "now": now,
-                        "st": (st or "")[:40],
-                        # Guardar el último mensaje aunque no sea error (lo mostramos en UI)
-                        "em": (msg or "")[:2000] if (msg or "").strip() else None,
-                        "rid": int(rid),
-                    },
-                )
-                conn.commit()
-        except Exception:
-            # Nunca romper el job por un fallo de telemetría
-            pass
+        from app.services.company_report_telemetry import persist_provider_poll
+
+        persist_provider_poll(engine, rid, st or '', msg or '', bump_poll=True)
 
     try:
         _update(engine, rid, job_phase="creating_interaction")
