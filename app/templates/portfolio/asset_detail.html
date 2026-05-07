@@ -812,6 +812,42 @@ function humanJobPhase(phase) {
     };
     return map[p] || p;
 }
+function isPipelineFullDeliver(data) {
+    try {
+        if (!data) return false;
+        if (data.delivery_mode === 'full_deliver') return true;
+        const k = String((data.job && data.job.kind) || '').trim();
+        if (k === 'full_deliver') return true;
+        const ap = data.audio_progress;
+        if (ap && ap.full_pipeline) return true;
+    } catch (e) {}
+    return false;
+}
+function pendingQueueLineHtml(data) {
+    const qp = formatQueueSuffix(data);
+    const rid = data && data.id != null ? Number(data.id) : null;
+    const idTag = rid != null && !isNaN(rid) ? ' <span class="text-slate-600">(ID: ' + rid + ')</span>' : '';
+    if (isPipelineFullDeliver(data)) {
+        return 'Pipeline de entrega' + idTag + ' <strong>en cola</strong>' + escapeHtml(qp) + '. Se iniciará cuando le toque…';
+    }
+    const k = String((data.job || {}).kind || '').trim();
+    if (k === 'tts_only') {
+        return 'Audio resumen' + idTag + ' <strong>en cola</strong>' + escapeHtml(qp) + '. Se iniciará cuando le toque…';
+    }
+    return 'Informe' + idTag + ' <strong>en cola</strong>' + escapeHtml(qp) + '. Se iniciará cuando le toque…';
+}
+function processingProgressLineHtml(data) {
+    const rid = data && data.id != null ? Number(data.id) : null;
+    const idTag = rid != null && !isNaN(rid) ? ' <span class="text-slate-600">(ID: ' + rid + ')</span>' : '';
+    if (isPipelineFullDeliver(data)) {
+        return 'Ejecutando <strong>pipeline de entrega</strong>' + idTag + ' (informe Deep Research + audio + correo); puede tardar varios minutos…';
+    }
+    const k = String((data.job || {}).kind || '').trim();
+    if (k === 'tts_only') {
+        return 'Generando <strong>audio resumen</strong>' + idTag + '; puede tardar unos minutos…';
+    }
+    return 'Investigando con <strong>Deep Research</strong>' + idTag + ' (puede tardar varios minutos)…';
+}
 function buildReportTelemetryHintHtml(data) {
     if (!data) return '';
     const job = data.job || {};
@@ -820,8 +856,13 @@ function buildReportTelemetryHintHtml(data) {
     // Modelos (homogeneizado): para DR mostramos el modelo; para pipeline ya se ve por-step.
     try {
         const k = (job.kind || '').trim();
+        const dm = (data.delivery_mode || '').trim();
         if (k === 'dr_watchlist_min' || k === 'dr_full') {
             parts.push('Modelo: deep-research-max-preview-04-2026');
+        } else if (k === 'full_deliver' || dm === 'full_deliver') {
+            parts.push('Pipeline: DR + TTS + email');
+        } else if (k === 'tts_only') {
+            parts.push('Tipo: solo audio resumen');
         }
     } catch (e) {}
     if (job.phase) parts.push('Fase: ' + humanJobPhase(job.phase));
@@ -863,13 +904,10 @@ function buildUnifiedJobHeaderHtml(data, title) {
 function reportProgressHtmlFromData(data) {
     const status = data ? data.status : null;
     if (status === 'pending') {
-        const qp = formatQueueSuffix(data);
-        const rid = data && data.id != null ? Number(data.id) : null;
-        const idTag = rid != null && !isNaN(rid) ? ' <span class="text-slate-600">(ID: ' + rid + ')</span>' : '';
         return (
             '<div class="flex items-start gap-2 text-amber-900">'
             + '<span class="shrink-0 mt-1.5 text-amber-700" title="En cola">⏳</span>'
-            + '<span>Informe' + idTag + ' <strong>en cola</strong>' + escapeHtml(qp) + '. Se iniciará cuando le toque…'
+            + '<span>' + pendingQueueLineHtml(data)
             + buildReportTelemetryHintHtml(data)
             + '</span></div>'
         );
@@ -878,7 +916,7 @@ function reportProgressHtmlFromData(data) {
         return (
             '<div class="flex items-start gap-2 text-amber-900">'
             + '<span class="shrink-0 mt-1.5 text-amber-700" title="Generando">⏳</span>'
-            + '<span>Investigando con <strong>Deep Research</strong> (puede tardar varios minutos)…'
+            + '<span>' + processingProgressLineHtml(data)
             + buildReportTelemetryHintHtml(data)
             + '</span></div>'
         );
@@ -893,29 +931,29 @@ function setReportGenerateBannerVisible(reportId, data) {
     const el = document.getElementById('reportGenerateLoading');
     if (!el) return;
     if (generatingReportId == null || Number(generatingReportId) !== Number(reportId)) return;
+    const dd = Object.assign({}, data || {}, {
+        id: (data && data.id != null && data.id !== '') ? data.id : reportId,
+    });
     el.setAttribute('data-poll-id', String(reportId));
     el.classList.remove('hidden');
-    const ap0 = data.audio_progress;
+    const ap0 = dd.audio_progress;
     if (ap0 && ap0.steps && ap0.steps.length && (ap0.full_pipeline || ap0.report_stages)) {
-        el.innerHTML = buildUnifiedJobHeaderHtml(data, 'Estado del job') + buildAudioProgressBlockHtml(ap0.steps, ap0.caption);
+        el.innerHTML = buildUnifiedJobHeaderHtml(dd, 'Estado del job') + buildAudioProgressBlockHtml(ap0.steps, ap0.caption);
         return;
     }
-    if (data.status === 'pending') {
-        const qp = formatQueueSuffix(data);
+    if (dd.status === 'pending') {
         el.innerHTML =
-            '<span class="text-amber-700" aria-hidden="true">⏳</span> '
-            + 'Informe <span class="text-slate-600">(ID: ' + reportId + ')</span> <strong>en cola</strong>'
-            + escapeHtml(qp)
-            + '. Se iniciará cuando le toque…'
-            + buildReportTelemetryHintHtml(data);
-    } else if (data.status === 'processing') {
+            '<span class="text-amber-700 inline-block mr-1" aria-hidden="true">⏳</span>'
+            + pendingQueueLineHtml(dd)
+            + buildReportTelemetryHintHtml(dd);
+    } else if (dd.status === 'processing') {
         el.innerHTML =
-            '<span class="text-amber-700" aria-hidden="true">⏳</span> '
-            + 'Investigando con <strong>Deep Research</strong> <span class="text-slate-600">(ID: ' + reportId + ')</span>…'
-            + buildReportTelemetryHintHtml(data);
-    } else if (data.status === 'failed') {
-        el.innerHTML = '<span class="text-red-800">' + (data.error_msg ? String(data.error_msg).replace(/</g, '&lt;') : 'Error al generar el informe') + '</span> <span class="text-slate-600">ID: ' + reportId + '</span>';
-    } else if (data.status === 'completed' && (!data.audio_progress || (!data.audio_progress.full_pipeline && !data.audio_progress.report_stages))) {
+            '<span class="text-amber-700 inline-block mr-1" aria-hidden="true">⏳</span>'
+            + processingProgressLineHtml(dd)
+            + buildReportTelemetryHintHtml(dd);
+    } else if (dd.status === 'failed') {
+        el.innerHTML = '<span class="text-red-800">' + (dd.error_msg ? String(dd.error_msg).replace(/</g, '&lt;') : 'Error al generar el informe') + '</span> <span class="text-slate-600">ID: ' + reportId + '</span>';
+    } else if (dd.status === 'completed' && (!dd.audio_progress || (!dd.audio_progress.full_pipeline && !dd.audio_progress.report_stages))) {
         el.classList.add('hidden');
     }
 }
