@@ -505,7 +505,7 @@
                     <span class="text-sm text-gray-400">GEMINI_API_KEY no configurada</span>
                     {% endif %}
                 </div>
-                <div id="reportGenerateLoading" class="hidden mb-4 p-3 bg-sky-50/90 text-sky-900 border border-sky-200/80 rounded-xl text-sm" data-poll-id="">
+                <div id="reportGenerateLoading" class="hidden mb-4 p-3 bg-slate-50 text-slate-900 border border-slate-200 rounded-xl text-sm" data-poll-id="">
                     Generando informe... Puede tardar varios minutos.
                 </div>
                 <div id="reportsList" class="space-y-3">
@@ -903,13 +903,15 @@ function setReportGenerateBannerVisible(reportId, data) {
     if (data.status === 'pending') {
         const qp = formatQueueSuffix(data);
         el.innerHTML =
-            'Informe <span class="text-slate-600">(ID: ' + reportId + ')</span> <strong>en cola</strong>'
+            '<span class="text-amber-700" aria-hidden="true">⏳</span> '
+            + 'Informe <span class="text-slate-600">(ID: ' + reportId + ')</span> <strong>en cola</strong>'
             + escapeHtml(qp)
             + '. Se iniciará cuando le toque…'
             + buildReportTelemetryHintHtml(data);
     } else if (data.status === 'processing') {
         el.innerHTML =
-            'Investigando con <strong>Deep Research</strong> <span class="text-slate-600">(ID: ' + reportId + ')</span>…'
+            '<span class="text-amber-700" aria-hidden="true">⏳</span> '
+            + 'Investigando con <strong>Deep Research</strong> <span class="text-slate-600">(ID: ' + reportId + ')</span>…'
             + buildReportTelemetryHintHtml(data);
     } else if (data.status === 'failed') {
         el.innerHTML = '<span class="text-red-800">' + (data.error_msg ? String(data.error_msg).replace(/</g, '&lt;') : 'Error al generar el informe') + '</span> <span class="text-slate-600">ID: ' + reportId + '</span>';
