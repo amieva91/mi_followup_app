@@ -858,6 +858,10 @@ function reportProgressHtmlFromData(data) {
     }
     return '<p class="text-gray-500">Cargando…</p>';
 }
+// Compat: código existente llama `reportProgressHtml(status)`
+function reportProgressHtml(status) {
+    return reportProgressHtmlFromData({ status: status });
+}
 function setReportGenerateBannerVisible(reportId, data) {
     const el = document.getElementById('reportGenerateLoading');
     if (!el) return;
