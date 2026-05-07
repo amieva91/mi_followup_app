@@ -2321,8 +2321,7 @@ def generate_report_tts_audio(
             or ('503' in up and 'SERVICE' in up)
         )
 
-
-
+    try:
         from google import genai
 
         client = genai.Client(api_key=api_key)
