@@ -19,6 +19,16 @@ def execute_tts_only_job(app: Any, engine: Any, report_id: int) -> None:
     from app.services.gemini_service import generate_report_tts_audio
 
     rid = int(report_id)
+    # Ya tenemos ``background_tasks_lock``: dejar constar que corre ejecución real (no espera fairness).
+    with engine.connect() as conn:
+        conn.execute(
+            text(
+                """UPDATE company_reports SET job_phase = 'tts_active'
+                   WHERE id = :rid AND COALESCE(job_kind, '') = 'tts_only'"""
+            ),
+            {"rid": rid},
+        )
+        conn.commit()
 
     with engine.connect() as conn:
         row = conn.execute(

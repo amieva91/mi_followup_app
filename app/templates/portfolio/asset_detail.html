@@ -803,6 +803,7 @@ function humanJobPhase(phase) {
     if (!p) return '';
     const map = {
         waiting_turn: 'Esperando turno',
+        tts_active: 'Generando guion y síntesis TTS',
         creating_interaction: 'Creando sesión (interaction_id)',
         polling_provider: 'Esperando respuesta del proveedor',
         completed: 'Completado',
@@ -1005,11 +1006,17 @@ function escapeHtml(s) {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
 }
-/** Pasos audio/guion: en cola no mostrar spinners hasta que job_status ejecute el paso real. */
+/** Pasos audio/guion: hasta salir de «waiting_turn», no pintar loaders (solo cola/global lock real). */
 function prepareAudioStepsForUi(data, stepsIn) {
     var steps = stepsIn ? stepsIn.slice() : [];
     var apRoot = data && data.audio_progress ? data.audio_progress : {};
-    if (data && data.audio_status === 'queued' && steps.length && !apRoot.full_pipeline && !apRoot.report_stages) {
+    var solo = !!(steps.length && !apRoot.full_pipeline && !apRoot.report_stages);
+    var jp = solo && data ? String((data.job || {}).phase || '').trim() : '';
+    var queued = !!(data && String(data.audio_status || '') === 'queued');
+    /** Reclamado pero el worker espera turno «fair»: audio puede verse processing en BD antes de ejecutar */
+    var stillWaitingFair = !!(solo && jp === 'waiting_turn');
+    var hideLoadersUntilRun = !!(solo && (queued || stillWaitingFair));
+    if (hideLoadersUntilRun) {
         steps = steps.map(function (s) {
             if (!s || typeof s !== 'object') return s;
             if (s.status === 'loading') {
