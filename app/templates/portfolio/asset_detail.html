@@ -847,7 +847,7 @@ function reportProgressHtmlFromData(data) {
         const idTag = rid != null && !isNaN(rid) ? ' <span class="text-slate-600">(ID: ' + rid + ')</span>' : '';
         return (
             '<div class="flex items-start gap-2 text-amber-900">'
-            + '<span class="shrink-0 w-2 h-2 mt-1.5 rounded-full bg-amber-400"></span>'
+            + '<span class="shrink-0 mt-1.5 text-amber-700" title="En cola">⏳</span>'
             + '<span>Informe' + idTag + ' <strong>en cola</strong>' + escapeHtml(qp) + '. Se iniciará cuando le toque…'
             + buildReportTelemetryHintHtml(data)
             + '</span></div>'
@@ -856,7 +856,7 @@ function reportProgressHtmlFromData(data) {
     if (status === 'processing') {
         return (
             '<div class="flex items-start gap-2 text-amber-900">'
-            + '<span class="shrink-0 w-2 h-2 mt-1.5 rounded-full bg-amber-500 animate-pulse"></span>'
+            + '<span class="shrink-0 mt-1.5 text-amber-700" title="Generando">⏳</span>'
             + '<span>Investigando con <strong>Deep Research</strong> (puede tardar varios minutos)…'
             + buildReportTelemetryHintHtml(data)
             + '</span></div>'

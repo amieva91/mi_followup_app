@@ -390,8 +390,13 @@ def run_once(app) -> bool:
         _mark_failed(engine, rid, "Job no encontrado", kind="internal")
         return True
 
-    # Pasar a processing lo antes posible (compat con UI existente)
-    _set_processing(engine, rid)
+    # Serialización global con el mismo lock justo que el "todo-en-uno" y audio.
+    # Esto evita dos "generando" simultáneos (p.ej. full_deliver + DR) y preserva FIFO real.
+    from app.background_tasks_lock import background_tasks_lock
+
+    with background_tasks_lock(app, fair_report_id=int(rid)):
+        # Pasar a processing solo cuando ya tenemos el turno global.
+        _set_processing(engine, rid)
 
     # Preparar prompt según kind
     job_kind = (ctx.get("job_kind") or "").strip()
@@ -461,47 +466,45 @@ def run_once(app) -> bool:
             # Nunca romper el job por un fallo de telemetría
             pass
 
-    try:
-        _update(engine, rid, job_phase="creating_interaction")
-        status, content = run_deep_research_report(
-            aname,
-            asym,
-            aisn,
-            description,
-            points_list,
-            on_status_update=on_status_update,
-            on_interaction_created=on_interaction_created,
-            research_prompt_style=research_prompt_style,  # type: ignore[arg-type]
-        )
-        if status == "completed":
-            _mark_completed(engine, rid, content)
-            # DR watchlist_min: tras completar, extraer y aplicar los 5 campos en Watchlist
-            if job_kind == JOB_KIND_DR_WATCHLIST_MIN:
-                try:
-                    from app.services.watchlist_report_extract_service import (
-                        apply_extracted_watchlist_fields,
-                        extract_watchlist_fields_from_report_md,
-                    )
+        try:
+            _update(engine, rid, job_phase="creating_interaction")
+            status, content = run_deep_research_report(
+                aname,
+                asym,
+                aisn,
+                description,
+                points_list,
+                on_status_update=on_status_update,
+                on_interaction_created=on_interaction_created,
+                research_prompt_style=research_prompt_style,  # type: ignore[arg-type]
+            )
+            if status == "completed":
+                _mark_completed(engine, rid, content)
+                # DR watchlist_min: tras completar, extraer y aplicar los 5 campos en Watchlist
+                if job_kind == JOB_KIND_DR_WATCHLIST_MIN:
+                    try:
+                        from app.services.watchlist_report_extract_service import (
+                            apply_extracted_watchlist_fields,
+                            extract_watchlist_fields_from_report_md,
+                        )
 
-                    extracted = extract_watchlist_fields_from_report_md(content or "")
-                    apply_extracted_watchlist_fields(int(ctx.get("user_id") or 0), int(ctx.get("asset_id") or 0), extracted)
-                except Exception:
-                    logger.exception("watchlist extract/apply failed report_id=%s", rid)
+                        extracted = extract_watchlist_fields_from_report_md(content or "")
+                        apply_extracted_watchlist_fields(int(ctx.get("user_id") or 0), int(ctx.get("asset_id") or 0), extracted)
+                    except Exception:
+                        logger.exception("watchlist extract/apply failed report_id=%s", rid)
+                return True
+            if status == "timeout":
+                _mark_failed(engine, rid, str(content), kind="timeout")
+                return True
+            _mark_failed(engine, rid, str(content), kind="provider")
             return True
-        if status == "timeout":
-            # No cortar por timeout aquí todavía: el worker decide por su propio reloj.
-            # Si llegó 'timeout' desde gemini_service, lo tratamos como fallo del proveedor.
-            _mark_failed(engine, rid, str(content), kind="timeout")
+        except GeminiServiceError as e:
+            _mark_failed(engine, rid, str(e), kind="provider")
             return True
-        _mark_failed(engine, rid, str(content), kind="provider")
-        return True
-    except GeminiServiceError as e:
-        _mark_failed(engine, rid, str(e), kind="provider")
-        return True
-    except Exception as e:
-        logger.exception("company_report_jobs_worker: excepción report_id=%s", rid)
-        _mark_failed(engine, rid, str(e), kind="internal")
-        return True
+        except Exception as e:
+            logger.exception("company_report_jobs_worker: excepción report_id=%s", rid)
+            _mark_failed(engine, rid, str(e), kind="internal")
+            return True
 
 
 def run_forever(app) -> None:
