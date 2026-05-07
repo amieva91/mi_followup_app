@@ -264,12 +264,32 @@ def run_once(app) -> bool:
     def on_status_update(st: str, msg: str) -> None:
         # `run_deep_research_report` llama a esto para mensajes de UI; persistimos lo mínimo.
         now = _fmt_dt(_utcnow())
-        _update(
-            engine,
-            rid,
-            provider_last_poll_at=now,
-            provider_last_error_msg=(msg or "")[:2000] if st in ("failed", "timeout") else None,
-        )
+        # Cada status_update corresponde a un poll (o avance de etapa) del provider.
+        # Lo usamos como contador visible en UI.
+        try:
+            with engine.connect() as conn:
+                conn.execute(
+                    text(
+                        """
+                        UPDATE company_reports
+                        SET provider_last_poll_at=:now,
+                            provider_last_status=:st,
+                            provider_poll_count=COALESCE(provider_poll_count, 0) + 1,
+                            provider_last_error_msg=:em
+                        WHERE id=:rid
+                        """
+                    ),
+                    {
+                        "now": now,
+                        "st": (st or "")[:40],
+                        "em": (msg or "")[:2000] if st in ("failed", "timeout") else None,
+                        "rid": int(rid),
+                    },
+                )
+                conn.commit()
+        except Exception:
+            # Nunca romper el job por un fallo de telemetría
+            pass
 
     try:
         _update(engine, rid, job_phase="creating_interaction")
