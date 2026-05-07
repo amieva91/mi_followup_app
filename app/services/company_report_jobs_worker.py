@@ -12,7 +12,7 @@ import json
 import logging
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from sqlalchemy import text
@@ -41,6 +41,31 @@ def _p95_seconds() -> int:
 
 def _timeout_seconds() -> int:
     return int(_p95_seconds() * 1.5)
+
+
+def _stale_tts_running_cutoff() -> datetime:
+    """
+    Umbral de ``job_started_at`` para considerar un tts_only huérfano
+    (running + audio processing) y desbloquear la cola global.
+
+    Override: ``FOLLOWUP_STALE_TTS_RUNNING_SECONDS`` (mínimo 300).
+    Por defecto: max(2700, wall_timeout_TTS + 900s).
+    """
+    raw = os.environ.get("FOLLOWUP_STALE_TTS_RUNNING_SECONDS", "").strip()
+    if raw:
+        try:
+            sec = max(300, int(raw))
+        except ValueError:
+            sec = 2700
+        return _utcnow() - timedelta(seconds=sec)
+    try:
+        from app.services.gemini_service import _get_tts_synthesis_wall_timeout_seconds
+
+        w = int(_get_tts_synthesis_wall_timeout_seconds())
+    except Exception:
+        w = 1800
+    sec = max(2700, w + 900)
+    return _utcnow() - timedelta(seconds=sec)
 
 
 def _sleep_seconds_idle() -> float:
@@ -134,6 +159,40 @@ def _reconcile_company_report_job_rows(engine) -> None:
             ),
             {**jp, "now": now},
         )
+        # tts_only: proceso murió con audio en processing y job en running — desbloquear cola tras umbral.
+        try:
+            cutoff = _stale_tts_running_cutoff()
+            res_stale = conn.execute(
+                text(
+                    """
+                    UPDATE company_reports
+                    SET audio_status='failed',
+                        audio_error_msg='Generación de audio colgada o interrumpida (tiempo excedido sin completar). Pulsa «Regenerar audio».',
+                        job_status='failed',
+                        job_phase='failed',
+                        job_finished_at=COALESCE(job_finished_at, :now)
+                    WHERE job_kind = :k_tts
+                      AND status = 'completed'
+                      AND COALESCE(audio_status,'') = 'processing'
+                      AND job_status = 'running'
+                      AND job_started_at IS NOT NULL
+                      AND job_started_at < :cutoff
+                    """
+                ),
+                {**jp, "now": now, "cutoff": cutoff},
+            )
+            try:
+                rs = int(getattr(res_stale, "rowcount", 0) or 0)
+                if rs > 0:
+                    logger.warning(
+                        "company_report_jobs_worker: reconciliar %s tts_only running+processing huérfanos (job_started_at < %s)",
+                        rs,
+                        cutoff.isoformat(),
+                    )
+            except Exception:
+                pass
+        except Exception:
+            logger.exception("company_report_jobs_worker: stale tts_only reconcile error")
         # tts_only: audio en cola pero job quedó running (órfano)
         conn.execute(
             text(
