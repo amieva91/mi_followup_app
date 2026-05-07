@@ -466,45 +466,45 @@ def run_once(app) -> bool:
             # Nunca romper el job por un fallo de telemetría
             pass
 
-        try:
-            _update(engine, rid, job_phase="creating_interaction")
-            status, content = run_deep_research_report(
-                aname,
-                asym,
-                aisn,
-                description,
-                points_list,
-                on_status_update=on_status_update,
-                on_interaction_created=on_interaction_created,
-                research_prompt_style=research_prompt_style,  # type: ignore[arg-type]
-            )
-            if status == "completed":
-                _mark_completed(engine, rid, content)
-                # DR watchlist_min: tras completar, extraer y aplicar los 5 campos en Watchlist
-                if job_kind == JOB_KIND_DR_WATCHLIST_MIN:
-                    try:
-                        from app.services.watchlist_report_extract_service import (
-                            apply_extracted_watchlist_fields,
-                            extract_watchlist_fields_from_report_md,
-                        )
+    try:
+        _update(engine, rid, job_phase="creating_interaction")
+        status, content = run_deep_research_report(
+            aname,
+            asym,
+            aisn,
+            description,
+            points_list,
+            on_status_update=on_status_update,
+            on_interaction_created=on_interaction_created,
+            research_prompt_style=research_prompt_style,  # type: ignore[arg-type]
+        )
+        if status == "completed":
+            _mark_completed(engine, rid, content)
+            # DR watchlist_min: tras completar, extraer y aplicar los 5 campos en Watchlist
+            if job_kind == JOB_KIND_DR_WATCHLIST_MIN:
+                try:
+                    from app.services.watchlist_report_extract_service import (
+                        apply_extracted_watchlist_fields,
+                        extract_watchlist_fields_from_report_md,
+                    )
 
-                        extracted = extract_watchlist_fields_from_report_md(content or "")
-                        apply_extracted_watchlist_fields(int(ctx.get("user_id") or 0), int(ctx.get("asset_id") or 0), extracted)
-                    except Exception:
-                        logger.exception("watchlist extract/apply failed report_id=%s", rid)
-                return True
-            if status == "timeout":
-                _mark_failed(engine, rid, str(content), kind="timeout")
-                return True
-            _mark_failed(engine, rid, str(content), kind="provider")
+                    extracted = extract_watchlist_fields_from_report_md(content or "")
+                    apply_extracted_watchlist_fields(int(ctx.get("user_id") or 0), int(ctx.get("asset_id") or 0), extracted)
+                except Exception:
+                    logger.exception("watchlist extract/apply failed report_id=%s", rid)
             return True
-        except GeminiServiceError as e:
-            _mark_failed(engine, rid, str(e), kind="provider")
+        if status == "timeout":
+            _mark_failed(engine, rid, str(content), kind="timeout")
             return True
-        except Exception as e:
-            logger.exception("company_report_jobs_worker: excepción report_id=%s", rid)
-            _mark_failed(engine, rid, str(e), kind="internal")
-            return True
+        _mark_failed(engine, rid, str(content), kind="provider")
+        return True
+    except GeminiServiceError as e:
+        _mark_failed(engine, rid, str(e), kind="provider")
+        return True
+    except Exception as e:
+        logger.exception("company_report_jobs_worker: excepción report_id=%s", rid)
+        _mark_failed(engine, rid, str(e), kind="internal")
+        return True
 
 
 def run_forever(app) -> None:
