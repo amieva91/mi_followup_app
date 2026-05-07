@@ -1754,9 +1754,20 @@ def api_report_status(report_id):
     possible_blocked = bool(elapsed_s is not None and elapsed_s >= p95_s and report.status == 'processing')
     timed_out = bool(elapsed_s is not None and elapsed_s >= timeout_s and report.status == 'processing')
 
+    # Compat worker DB-backed: si job_status indica cola, forzar status visible "pending"
+    # (algunas filas legacy pueden quedar como status=processing aunque no estén ejecutándose).
+    status_visible = report.status
+    try:
+        js = getattr(report, 'job_status', None)
+        if js == 'queued' and report.status == 'processing':
+            status_visible = 'pending'
+    except Exception:
+        status_visible = report.status
+
     return jsonify({
         'id': report.id,
-        'status': report.status,
+        'status': status_visible,
+        'status_raw': report.status,
         'error_msg': report.error_msg,
         'completed_at': report.completed_at.isoformat() if report.completed_at else None,
         'audio_status': getattr(report, 'audio_status', None),

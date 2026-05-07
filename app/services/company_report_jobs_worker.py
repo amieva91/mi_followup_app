@@ -129,6 +129,19 @@ def _reconcile_company_report_job_rows(engine) -> None:
             ),
             {"k1": JOB_KIND_DR_WATCHLIST_MIN, "k2": JOB_KIND_DR_FULL, "now": now},
         )
+        # Si está en cola, no debe verse como processing: devolver a pending para UI legacy.
+        conn.execute(
+            text(
+                """
+                UPDATE company_reports
+                SET status='pending'
+                WHERE COALESCE(job_kind, '') IN (:k1, :k2)
+                  AND job_status='queued'
+                  AND status='processing'
+                """
+            ),
+            {"k1": JOB_KIND_DR_WATCHLIST_MIN, "k2": JOB_KIND_DR_FULL},
+        )
         conn.commit()
 
 
