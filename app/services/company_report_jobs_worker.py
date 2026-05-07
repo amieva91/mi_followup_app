@@ -1,38 +1,35 @@
 """
 Worker DB-backed para ejecutar jobs largos de `company_reports` de forma durable (sin hilos daemon de Gunicorn).
 
-- FIFO por `report_enqueued_at` (o `created_at` fallback)
+- FIFO por `COALESCE(audio_enqueued_at, report_enqueued_at, created_at)`
 - Concurrency=1 (un proceso systemd)
-- Persiste telemetría mínima en columnas de `company_reports`
+- Cubre Deep Research (watchlist/full), todo-en-uno (`full_deliver`) y audio solo (`tts_only`).
 """
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 
-
 JOB_KIND_DR_WATCHLIST_MIN = "dr_watchlist_min"
 JOB_KIND_DR_FULL = "dr_full"
+JOB_KIND_FULL_DELIVER = "full_deliver"
+JOB_KIND_TTS_ONLY = "tts_only"
 
 
 def _utcnow() -> datetime:
     return datetime.utcnow()
 
 
-def _fmt_dt(dt: datetime) -> str:
-    return dt.strftime("%Y-%m-%d %H:%M:%S")
-
-
 def _p95_seconds() -> int:
-    # P95 fijo inicial (30 min) configurable por env
     raw = os.environ.get("FOLLOWUP_DR_P95_SECONDS", "").strip()
     if not raw:
         return 30 * 60
@@ -43,7 +40,6 @@ def _p95_seconds() -> int:
 
 
 def _timeout_seconds() -> int:
-    # margen +50%
     return int(_p95_seconds() * 1.5)
 
 
@@ -57,18 +53,23 @@ def _sleep_seconds_idle() -> float:
         return 1.0
 
 
+def _job_kind_params() -> dict:
+    return {
+        "k_dr1": JOB_KIND_DR_WATCHLIST_MIN,
+        "k_dr2": JOB_KIND_DR_FULL,
+        "k_fd": JOB_KIND_FULL_DELIVER,
+        "k_tts": JOB_KIND_TTS_ONLY,
+    }
+
+
 def _reconcile_company_report_job_rows(engine) -> None:
     """
     Normaliza estados inconsistentes tras reinicios/deploys.
-
-    Invariantes:
-    - status=completed -> job_status=completed, job_phase=completed
-    - status=failed -> job_status=failed
-    - status=pending -> job_status=queued
     """
     now = _utcnow()
+    jp = _job_kind_params()
     with engine.connect() as conn:
-        # Completed pero job_status sigue running
+        # DR: completed pero job_status sigue running
         conn.execute(
             text(
                 """
@@ -76,14 +77,34 @@ def _reconcile_company_report_job_rows(engine) -> None:
                 SET job_status='completed',
                     job_phase='completed',
                     job_finished_at=COALESCE(job_finished_at, completed_at, :now)
-                WHERE COALESCE(job_kind, '') IN (:k1, :k2)
+                WHERE COALESCE(job_kind, '') IN (:k_dr1, :k_dr2)
                   AND status='completed'
                   AND job_status='running'
                 """
             ),
-            {"k1": JOB_KIND_DR_WATCHLIST_MIN, "k2": JOB_KIND_DR_FULL, "now": now},
+            {**jp, "now": now},
         )
-        # Failed pero job_status sigue running
+        # full_deliver: DR+tail terminado y fila sigue running
+        conn.execute(
+            text(
+                """
+                UPDATE company_reports
+                SET job_status='completed',
+                    job_phase=CASE
+                      WHEN delivery_phase_status IS NULL THEN COALESCE(job_phase,'completed')
+                      WHEN trim(CAST(delivery_phase_status AS text)) = 'completed' THEN 'completed'
+                      WHEN delivery_phase_status IN ('partial','failed') THEN delivery_phase_status
+                      ELSE COALESCE(job_phase,'completed') END,
+                    job_finished_at=COALESCE(job_finished_at, completed_at, :now)
+                WHERE job_kind = :k_fd
+                  AND status='completed'
+                  AND job_status='running'
+                  AND COALESCE(delivery_phase_status,'') IN ('completed','partial','failed')
+                """
+            ),
+            {**jp, "now": now},
+        )
+        # DR: failed pero job_status sigue running
         conn.execute(
             text(
                 """
@@ -91,14 +112,29 @@ def _reconcile_company_report_job_rows(engine) -> None:
                 SET job_status='failed',
                     job_phase=COALESCE(job_phase, 'failed'),
                     job_finished_at=COALESCE(job_finished_at, completed_at, :now)
-                WHERE COALESCE(job_kind, '') IN (:k1, :k2)
+                WHERE COALESCE(job_kind, '') IN (:k_dr1, :k_dr2)
                   AND status='failed'
                   AND job_status='running'
                 """
             ),
-            {"k1": JOB_KIND_DR_WATCHLIST_MIN, "k2": JOB_KIND_DR_FULL, "now": now},
+            {**jp, "now": now},
         )
-        # Pending marcado como running (no debería): devolver a cola
+        # full_deliver failed (DR o informe)
+        conn.execute(
+            text(
+                """
+                UPDATE company_reports
+                SET job_status='failed',
+                    job_phase='failed',
+                    job_finished_at=COALESCE(job_finished_at, completed_at, :now)
+                WHERE job_kind = :k_fd
+                  AND status='failed'
+                  AND job_status='running'
+                """
+            ),
+            {**jp, "now": now},
+        )
+        # tts_only: audio en cola pero job quedó running (órfano)
         conn.execute(
             text(
                 """
@@ -107,14 +143,31 @@ def _reconcile_company_report_job_rows(engine) -> None:
                     job_phase='waiting_turn',
                     job_started_at=NULL,
                     job_finished_at=NULL
-                WHERE COALESCE(job_kind, '') IN (:k1, :k2)
+                WHERE job_kind = :k_tts
+                  AND status='completed'
+                  AND COALESCE(audio_status,'') = 'queued'
+                  AND job_status='running'
+                """
+            ),
+            jp,
+        )
+        # Pending marcado como running: devolver a cola
+        conn.execute(
+            text(
+                """
+                UPDATE company_reports
+                SET job_status='queued',
+                    job_phase='waiting_turn',
+                    job_started_at=NULL,
+                    job_finished_at=NULL
+                WHERE COALESCE(job_kind, '') IN (:k_dr1, :k_dr2, :k_fd)
                   AND status='pending'
                   AND job_status='running'
                 """
             ),
-            {"k1": JOB_KIND_DR_WATCHLIST_MIN, "k2": JOB_KIND_DR_FULL},
+            jp,
         )
-        # Processing pero job_status está queued: marcar running (p.ej. filas antiguas)
+        # Processing pero job_status está queued: marcar running (filas antiguas)
         conn.execute(
             text(
                 """
@@ -122,69 +175,82 @@ def _reconcile_company_report_job_rows(engine) -> None:
                 SET job_status='running',
                     job_phase=COALESCE(job_phase, 'polling_provider'),
                     job_started_at=COALESCE(job_started_at, report_enqueued_at, created_at, :now)
-                WHERE COALESCE(job_kind, '') IN (:k1, :k2)
+                WHERE COALESCE(job_kind, '') IN (:k_dr1, :k_dr2, :k_fd)
                   AND status='processing'
                   AND COALESCE(job_status, 'queued')='queued'
                 """
             ),
-            {"k1": JOB_KIND_DR_WATCHLIST_MIN, "k2": JOB_KIND_DR_FULL, "now": now},
+            {**jp, "now": now},
         )
-        # Si está en cola, no debe verse como processing: devolver a pending para UI legacy.
+        # En cola con status processing (UI legacy): volver a pending
         conn.execute(
             text(
                 """
                 UPDATE company_reports
                 SET status='pending'
-                WHERE COALESCE(job_kind, '') IN (:k1, :k2)
+                WHERE COALESCE(job_kind, '') IN (:k_dr1, :k_dr2, :k_fd)
                   AND job_status='queued'
                   AND status='processing'
                 """
             ),
-            {"k1": JOB_KIND_DR_WATCHLIST_MIN, "k2": JOB_KIND_DR_FULL},
+            jp,
         )
         conn.commit()
 
 
+def _count_running_tracked_jobs(conn) -> int:
+    n = conn.execute(
+        text(
+            """
+            SELECT COUNT(*)
+            FROM company_reports
+            WHERE job_status = 'running'
+              AND COALESCE(job_kind, '') IN (:k_dr1, :k_dr2, :k_fd, :k_tts)
+            """
+        ),
+        _job_kind_params(),
+    ).scalar()
+    try:
+        return int(n or 0)
+    except Exception:
+        return 0
+
+
 def _claim_next_company_report_job(engine) -> Optional[int]:
     """
-    Reclama el siguiente `company_reports` encolado para DR.
-    Devuelve report_id o None si no hay.
+    Reclama el siguiente job encolado (DR, full_deliver o tts_only). Devuelve id o None.
     """
-    # Concurrency=1 global: si hay un DR marcado como running, no reclamar otro.
+    jp = _job_kind_params()
     with engine.connect() as conn:
-        n_running = conn.execute(
-            text(
-                """
-                SELECT COUNT(*)
-                FROM company_reports
-                WHERE job_status = 'running'
-                  AND COALESCE(job_kind, '') IN (:k1, :k2)
-                  AND COALESCE(status, '') IN ('processing', 'pending')
-                """
-            ),
-            {"k1": JOB_KIND_DR_WATCHLIST_MIN, "k2": JOB_KIND_DR_FULL},
-        ).scalar()
-        try:
-            if int(n_running or 0) > 0:
-                return None
-        except Exception:
-            pass
+        if _count_running_tracked_jobs(conn) > 0:
+            return None
 
-    # SQLite-friendly: seleccionar primero y hacer UPDATE condicional.
-    with engine.connect() as conn:
         row = conn.execute(
             text(
                 """
                 SELECT id
                 FROM company_reports
                 WHERE COALESCE(job_status, 'queued') = 'queued'
-                  AND COALESCE(status, 'pending') = 'pending'
-                  AND COALESCE(job_kind, '') IN (:k1, :k2)
-                ORDER BY COALESCE(report_enqueued_at, created_at) ASC, id ASC
+                  AND (
+                    (
+                      COALESCE(job_kind, '') IN (:k_dr1, :k_dr2)
+                      AND COALESCE(status, 'pending') = 'pending'
+                    )
+                    OR (
+                      job_kind = :k_fd
+                      AND COALESCE(status, 'pending') = 'pending'
+                    )
+                    OR (
+                      job_kind = :k_tts
+                      AND status = 'completed'
+                      AND COALESCE(audio_status, '') = 'queued'
+                    )
+                  )
+                ORDER BY COALESCE(audio_enqueued_at, report_enqueued_at, created_at) ASC, id ASC
                 LIMIT 1
                 """
             ),
-            {"k1": JOB_KIND_DR_WATCHLIST_MIN, "k2": JOB_KIND_DR_FULL},
+            jp,
         ).fetchone()
         if not row:
             return None
@@ -198,11 +264,13 @@ def _claim_next_company_report_job(engine) -> Optional[int]:
                     job_started_at=COALESCE(job_started_at, :now),
                     job_phase='waiting_turn',
                     provider_poll_count=COALESCE(provider_poll_count, 0),
-                    provider_create_attempt=COALESCE(provider_create_attempt, 0)
+                    provider_create_attempt=COALESCE(provider_create_attempt, 0),
+                    audio_status=CASE
+                      WHEN job_kind = :k_tts THEN 'processing' ELSE audio_status END
                 WHERE id=:rid AND COALESCE(job_status, 'queued')='queued'
                 """
             ),
-            {"rid": rid, "now": now},
+            {"rid": rid, "now": now, "k_tts": JOB_KIND_TTS_ONLY},
         )
         conn.commit()
         if int(getattr(res, "rowcount", 0) or 0) == 0:
@@ -253,6 +321,7 @@ def _mark_failed(engine, report_id: int, msg: str, *, kind: str = "unknown") -> 
         completed_at=now,
         job_status="failed",
         job_finished_at=now,
+        job_phase="failed",
         provider_last_error_kind=(kind or "unknown")[:40],
         provider_last_error_msg=(msg or "Error")[:8000],
     )
@@ -277,84 +346,131 @@ def _set_processing(engine, report_id: int) -> None:
     _update(engine, report_id, status="processing")
 
 
-def _maybe_timeout(engine, report_id: int) -> bool:
-    """
-    Devuelve True si marcó timeout.
-    """
-    with engine.connect() as conn:
-        row = conn.execute(
-            text(
-                "SELECT job_started_at, job_phase FROM company_reports WHERE id=:rid"
-            ),
-            {"rid": int(report_id)},
-        ).fetchone()
-    if not row:
-        return True
-    started = row[0]
-    if not started:
-        return False
-    try:
-        # started es string sqlite "YYYY-MM-DD HH:MM:SS"
-        dt = datetime.fromisoformat(str(started).replace(" ", "T"))
-    except Exception:
-        return False
-    elapsed = (_utcnow() - dt).total_seconds()
-    if elapsed <= _timeout_seconds():
-        return False
-    _mark_failed(
-        engine,
-        report_id,
-        "Tiempo máximo superado sin resultado (posible bloqueo silencioso en el proveedor). "
-        "Cuando el servidor corta la espera, genera el informe de nuevo.",
-        kind="timeout",
-    )
-    return True
-
-
 def run_once(app) -> bool:
     """
     Ejecuta un job si existe. Devuelve True si ejecutó algo.
     """
     from app import db
+    from app.background_tasks_lock import background_tasks_lock
+    from app.services.company_report_telemetry import sync_full_deliver_job_terminal
+    from app.services.company_report_tts_job import execute_tts_only_job
+    from app.services.full_deliver_continuation import continue_full_deliver_after_dr
     from app.services.gemini_service import (
         GeminiServiceError,
-        run_deep_research_report,
         resume_company_report_from_interaction_id,
+        run_deep_research_report,
     )
     from app.services.watchlist_ia_template import get_watchlist_ia_deep_brief, WATCHLIST_IA_REPORT_TITLE_DR_ROW
 
     engine = db.engine
+    jp = _job_kind_params()
 
-    # Si quedó un job `running` tras reinicio del worker, reanudarlo antes de reclamar uno nuevo.
+    # Reanudar job `running` tras reinicio del worker antes de reclamar uno nuevo.
     with engine.connect() as conn:
         rr = conn.execute(
             text(
                 """
-                SELECT id, gemini_interaction_id
+                SELECT id, COALESCE(job_kind,'') AS jk, COALESCE(gemini_interaction_id,'') AS iid
                 FROM company_reports
                 WHERE job_status = 'running'
-                  AND COALESCE(job_kind, '') IN (:k1, :k2)
-                  AND COALESCE(status, '') = 'processing'
+                  AND COALESCE(job_kind, '') IN (:k_dr1, :k_dr2, :k_fd, :k_tts)
                 ORDER BY COALESCE(job_started_at, report_enqueued_at, created_at) ASC, id ASC
                 LIMIT 1
                 """
             ),
-            {"k1": JOB_KIND_DR_WATCHLIST_MIN, "k2": JOB_KIND_DR_FULL},
+            jp,
         ).fetchone()
     if rr:
         rid_running = int(rr[0])
-        iid_running = (rr[1] or "").strip()
-        if iid_running:
+        kind_running = (rr[1] or "").strip()
+        iid_running = (rr[2] or "").strip()
+
+        if kind_running == JOB_KIND_TTS_ONLY:
+            with app.app_context(), background_tasks_lock(app, fair_report_id=rid_running):
+                execute_tts_only_job(app, engine, rid_running)
+            return True
+
+        if kind_running == JOB_KIND_FULL_DELIVER and not iid_running:
+            from app.services.full_deliver_continuation import _fail_full_deliver_report
+
+            _fail_full_deliver_report(
+                engine,
+                rid_running,
+                "Generación interrumpida antes de obtener respuesta de Gemini (sin interaction_id). Genera el informe de nuevo.",
+            )
+            return True
+
+        if kind_running in (JOB_KIND_DR_WATCHLIST_MIN, JOB_KIND_DR_FULL) and not iid_running:
+            _mark_failed(
+                engine,
+                rid_running,
+                "Generación interrumpida antes de obtener respuesta de Gemini (sin interaction_id). Genera el informe de nuevo.",
+                kind="orphan_no_iid",
+            )
+            return True
+
+        # DR o full_deliver con interaction_id: reanudar polling Gemini bajo lock global.
+        with app.app_context(), background_tasks_lock(app, fair_report_id=rid_running):
             try:
                 _update(engine, rid_running, job_phase="polling_provider")
                 resume_company_report_from_interaction_id(rid_running)
-                # Tras reanudar, normalizar job_status según status final
-                with engine.connect() as conn:
-                    st = conn.execute(
-                        text("SELECT status FROM company_reports WHERE id=:rid"),
-                        {"rid": int(rid_running)},
-                    ).scalar()
-                if st == "completed":
+            except Exception as e:
+                if kind_running == JOB_KIND_FULL_DELIVER:
+                    from app.services.full_deliver_continuation import _fail_full_deliver_report
+
+                    _fail_full_deliver_report(engine, rid_running, str(e))
+                else:
+                    _mark_failed(engine, rid_running, str(e), kind="provider")
+                return True
+
+            with engine.connect() as conn:
+                row2 = conn.execute(
+                    text(
+                        """
+                        SELECT status, job_kind, delivery_mode, delivery_phase_status
+                        FROM company_reports WHERE id=:rid
+                        """
+                    ),
+                    {"rid": rid_running},
+                ).mappings().first()
+            if not row2:
+                return True
+            st = row2.get("status")
+            jk = (row2.get("job_kind") or "").strip()
+            dm = row2.get("delivery_mode")
+            dps = row2.get("delivery_phase_status")
+
+            if st == "failed":
+                sync_full_deliver_job_terminal(engine, rid_running)
+            elif st == "completed":
+                is_fd = dm == "full_deliver" or jk == JOB_KIND_FULL_DELIVER
+                if is_fd and str(dps or "").strip() not in ("completed", "failed", "partial"):
+                    continue_full_deliver_after_dr(
+                        app, rid_running, skip_background_lock=True
+                    )
+                sync_full_deliver_job_terminal(engine, rid_running)
+                if not is_fd and jk == JOB_KIND_DR_WATCHLIST_MIN:
+                    try:
+                        from app.services.watchlist_report_extract_service import (
+                            apply_extracted_watchlist_fields,
+                            extract_watchlist_fields_from_report_md,
+                        )
+
+                        ctx2 = _load_job_context(engine, rid_running)
+                        with engine.connect() as conn:
+                            content = conn.execute(
+                                text("SELECT content FROM company_reports WHERE id=:rid"),
+                                {"rid": rid_running},
+                            ).scalar()
+                        extracted = extract_watchlist_fields_from_report_md(content or "")
+                        apply_extracted_watchlist_fields(
+                            int(ctx2.get("user_id") or 0),
+                            int(ctx2.get("asset_id") or 0),
+                            extracted,
+                        )
+                    except Exception:
+                        logger.exception("watchlist extract/apply failed report_id=%s", rid_running)
+                elif not is_fd:
                     _update(
                         engine,
                         rid_running,
@@ -362,24 +478,7 @@ def run_once(app) -> bool:
                         job_phase="completed",
                         job_finished_at=_utcnow(),
                     )
-                elif st == "failed":
-                    _update(
-                        engine,
-                        rid_running,
-                        job_status="failed",
-                        job_finished_at=_utcnow(),
-                    )
-            except Exception as e:
-                _mark_failed(engine, rid_running, str(e), kind="provider")
             return True
-        # Sin interaction_id: marcar failed y seguir
-        _mark_failed(
-            engine,
-            rid_running,
-            "Generación interrumpida antes de obtener respuesta de Gemini (sin interaction_id). Genera el informe de nuevo.",
-            kind="orphan_no_iid",
-        )
-        return True
 
     rid = _claim_next_company_report_job(engine)
     if rid is None:
@@ -390,16 +489,33 @@ def run_once(app) -> bool:
         _mark_failed(engine, rid, "Job no encontrado", kind="internal")
         return True
 
-    # Serialización global con el mismo lock justo que el "todo-en-uno" y audio.
-    # Esto evita dos "generando" simultáneos (p.ej. full_deliver + DR) y preserva FIFO real.
-    from app.background_tasks_lock import background_tasks_lock
-
-    with background_tasks_lock(app, fair_report_id=int(rid)):
-        # Pasar a processing solo cuando ya tenemos el turno global.
-        _set_processing(engine, rid)
-
-    # Preparar prompt según kind
     job_kind = (ctx.get("job_kind") or "").strip()
+
+    if job_kind == JOB_KIND_TTS_ONLY:
+        with app.app_context(), background_tasks_lock(app, fair_report_id=int(rid)):
+            execute_tts_only_job(app, engine, rid)
+        return True
+
+    if job_kind == JOB_KIND_FULL_DELIVER:
+        from app.services.company_report_full_deliver_runner import execute_full_deliver_job
+        from app.services.gemini_service import new_full_pipeline_progress_state
+
+        with app.app_context(), background_tasks_lock(app, fair_report_id=int(rid)):
+            _set_processing(engine, rid)
+            p0 = new_full_pipeline_progress_state()
+            with engine.connect() as conn:
+                conn.execute(
+                    text(
+                        "UPDATE company_reports SET audio_progress_json = :j, audio_error_msg = NULL WHERE id = :rid"
+                    ),
+                    {"j": json.dumps(p0, ensure_ascii=False), "rid": int(rid)},
+                )
+                conn.commit()
+            ok, _err = execute_full_deliver_job(app, engine, rid, ctx)
+            sync_full_deliver_job_terminal(engine, rid)
+        return True
+
+    # Deep Research (watchlist / full) — todo bajo lock global.
     template_title = (ctx.get("template_title") or "").strip()
     if job_kind == JOB_KIND_DR_WATCHLIST_MIN:
         use_dr_row_title = template_title == WATCHLIST_IA_REPORT_TITLE_DR_ROW
@@ -413,8 +529,6 @@ def run_once(app) -> bool:
         points_list = []
         if points_raw:
             try:
-                import json
-
                 points_list = json.loads(points_raw) if isinstance(points_raw, str) else []
             except Exception:
                 points_list = []
@@ -432,55 +546,60 @@ def run_once(app) -> bool:
     def on_status_update(st: str, msg: str) -> None:
         from app.services.company_report_telemetry import persist_provider_poll
 
-        persist_provider_poll(engine, rid, st or '', msg or '', bump_poll=True)
+        persist_provider_poll(engine, rid, st or "", msg or "", bump_poll=True)
 
-    try:
-        _update(engine, rid, job_phase="creating_interaction")
-        status, content = run_deep_research_report(
-            aname,
-            asym,
-            aisn,
-            description,
-            points_list,
-            on_status_update=on_status_update,
-            on_interaction_created=on_interaction_created,
-            research_prompt_style=research_prompt_style,  # type: ignore[arg-type]
-        )
-        if status == "completed":
-            _mark_completed(engine, rid, content)
-            # DR watchlist_min: tras completar, extraer y aplicar los 5 campos en Watchlist
-            if job_kind == JOB_KIND_DR_WATCHLIST_MIN:
-                try:
-                    from app.services.watchlist_report_extract_service import (
-                        apply_extracted_watchlist_fields,
-                        extract_watchlist_fields_from_report_md,
-                    )
+    with app.app_context(), background_tasks_lock(app, fair_report_id=int(rid)):
+        _set_processing(engine, rid)
+        try:
+            _update(engine, rid, job_phase="creating_interaction")
+            status, content = run_deep_research_report(
+                aname,
+                asym,
+                aisn,
+                description,
+                points_list,
+                on_status_update=on_status_update,
+                on_interaction_created=on_interaction_created,
+                research_prompt_style=research_prompt_style,  # type: ignore[arg-type]
+            )
+            if status == "completed":
+                _mark_completed(engine, rid, content)
+                if job_kind == JOB_KIND_DR_WATCHLIST_MIN:
+                    try:
+                        from app.services.watchlist_report_extract_service import (
+                            apply_extracted_watchlist_fields,
+                            extract_watchlist_fields_from_report_md,
+                        )
 
-                    extracted = extract_watchlist_fields_from_report_md(content or "")
-                    apply_extracted_watchlist_fields(int(ctx.get("user_id") or 0), int(ctx.get("asset_id") or 0), extracted)
-                except Exception:
-                    logger.exception("watchlist extract/apply failed report_id=%s", rid)
+                        extracted = extract_watchlist_fields_from_report_md(content or "")
+                        apply_extracted_watchlist_fields(
+                            int(ctx.get("user_id") or 0), int(ctx.get("asset_id") or 0), extracted
+                        )
+                    except Exception:
+                        logger.exception("watchlist extract/apply failed report_id=%s", rid)
+                return True
+            if status == "timeout":
+                _mark_failed(engine, rid, str(content), kind="timeout")
+                return True
+            _mark_failed(engine, rid, str(content), kind="provider")
             return True
-        if status == "timeout":
-            _mark_failed(engine, rid, str(content), kind="timeout")
+        except GeminiServiceError as e:
+            _mark_failed(engine, rid, str(e), kind="provider")
             return True
-        _mark_failed(engine, rid, str(content), kind="provider")
-        return True
-    except GeminiServiceError as e:
-        _mark_failed(engine, rid, str(e), kind="provider")
-        return True
-    except Exception as e:
-        logger.exception("company_report_jobs_worker: excepción report_id=%s", rid)
-        _mark_failed(engine, rid, str(e), kind="internal")
-        return True
+        except Exception as e:
+            logger.exception("company_report_jobs_worker: excepción report_id=%s", rid)
+            _mark_failed(engine, rid, str(e), kind="internal")
+            return True
 
 
 def run_forever(app) -> None:
-    """
-    Bucle principal del worker.
-    """
     idle = _sleep_seconds_idle()
-    logger.info("company_report_jobs_worker: start (p95=%ss timeout=%ss idle_sleep=%ss)", _p95_seconds(), _timeout_seconds(), idle)
+    logger.info(
+        "company_report_jobs_worker: start (p95=%ss timeout=%ss idle_sleep=%ss)",
+        _p95_seconds(),
+        _timeout_seconds(),
+        idle,
+    )
     with app.app_context():
         try:
             from app import db
@@ -490,7 +609,6 @@ def run_forever(app) -> None:
             logger.exception("company_report_jobs_worker: reconcile error")
         while True:
             try:
-                # Mantener invariantes incluso si otros flujos tocan `status` (p.ej. resume)
                 try:
                     from app import db
 
@@ -505,4 +623,3 @@ def run_forever(app) -> None:
             except Exception:
                 logger.exception("company_report_jobs_worker: loop error")
                 time.sleep(2.0)
-

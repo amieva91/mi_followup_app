@@ -169,3 +169,84 @@ def status_visible_for_report(report: Any) -> str:
     except Exception:
         pass
     return str(status_visible)
+
+
+def sync_full_deliver_job_terminal(engine: Any, report_id: int | Any) -> None:
+    """Alinea ``job_status`` / ``job_phase`` con estado final tras tail async o commit final."""
+    import logging as _logging
+
+    _log = _logging.getLogger(__name__)
+    rid: int | None = None
+    try:
+        rid = int(report_id)
+    except Exception:
+        return
+    now = datetime.utcnow()
+    try:
+        with engine.connect() as conn:
+            row = conn.execute(
+                text(
+                    """
+                    SELECT status, delivery_phase_status, job_kind
+                    FROM company_reports WHERE id=:rid
+                    """
+                ),
+                {"rid": rid},
+            ).fetchone()
+        if not row:
+            return
+        st, dps, jk = row[0], row[1], (row[2] or "").strip()
+        if jk != "full_deliver":
+            return
+        if st == "failed":
+            with engine.connect() as conn:
+                conn.execute(
+                    text(
+                        """
+                        UPDATE company_reports SET
+                          job_status='failed',
+                          job_phase='failed',
+                          job_finished_at=COALESCE(job_finished_at, :now)
+                        WHERE id=:rid
+                        """
+                    ),
+                    {"now": now, "rid": rid},
+                )
+                conn.commit()
+            return
+        if st == "completed" and (dps or "") == "completed":
+            with engine.connect() as conn:
+                conn.execute(
+                    text(
+                        """
+                        UPDATE company_reports SET
+                          job_status='completed',
+                          job_phase='completed',
+                          job_finished_at=COALESCE(job_finished_at, :now)
+                        WHERE id=:rid
+                        """
+                    ),
+                    {"now": now, "rid": rid},
+                )
+                conn.commit()
+            return
+        if st == "completed" and dps in ("partial", "failed"):
+            jp = str(dps).strip().lower()
+            if jp not in ("partial", "failed"):
+                jp = "partial"
+            with engine.connect() as conn:
+                conn.execute(
+                    text(
+                        """
+                        UPDATE company_reports SET
+                          job_status='completed',
+                          job_phase=COALESCE(job_phase,:jp),
+                          job_finished_at=COALESCE(job_finished_at, :now)
+                        WHERE id=:rid
+                        """
+                    ),
+                    {"now": now, "rid": rid, "jp": jp[:80]},
+                )
+                conn.commit()
+    except Exception:
+        _log.exception("sync_full_deliver_job_terminal rid=%s", rid)

@@ -1490,6 +1490,16 @@ def _persist_company_report_completed_resume(report_id: int, markdown: str) -> N
 
     if is_full_deliver and has_app_context():
         try:
+            import os
+
+            if os.environ.get("FOLLOWUP_IN_JOBS_WORKER", "").strip().lower() in (
+                "1",
+                "true",
+                "yes",
+                "on",
+            ):
+                # El proceso `followup-jobs` ejecuta el tail bajo lock tras volver del resume.
+                return
             app = current_app._get_current_object()
             from app.services.full_deliver_continuation import schedule_full_delivery_continuation
 
@@ -1513,6 +1523,12 @@ def _persist_company_report_failed_resume(report_id: int, msg: str) -> None:
     r.status = 'failed'
     r.error_msg = (msg or '')[:8000]
     r.completed_at = datetime.utcnow()
+    try:
+        r.job_status = 'failed'
+        r.job_phase = 'failed'
+        r.job_finished_at = datetime.utcnow()
+    except Exception:
+        pass
     db.session.commit()
 
 

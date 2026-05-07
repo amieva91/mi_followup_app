@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+from contextlib import nullcontext
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -65,12 +66,20 @@ def schedule_full_delivery_continuation(app: Flask, report_id: int) -> None:
     threading.Thread(target=_run, daemon=True).start()
 
 
-def continue_full_deliver_after_dr(app: Flask, report_id: int) -> None:
+def continue_full_deliver_after_dr(
+    app: Flask, report_id: int, *, skip_background_lock: bool = False
+) -> None:
     """
-    Ejecuta la cola de entrega bajo ``background_tasks_lock``.
+    Ejecuta la cola de entrega bajo ``background_tasks_lock`` (salvo ``skip_background_lock``,
+    cuando el caller ya tiene el lock global — p. ej. ``company_report_jobs_worker``).
     Idempotente: si ya hay resumen/audio/correo completos, sale sin duplicar trabajo.
     """
-    with background_tasks_lock(app, fair_report_id=report_id):
+    lock_cm = (
+        nullcontext()
+        if skip_background_lock
+        else background_tasks_lock(app, fair_report_id=report_id)
+    )
+    with lock_cm:
         report = CompanyReport.query.filter_by(id=report_id).first()
         if not report:
             return
@@ -152,6 +161,14 @@ def execute_full_deliver_tail(
 
     log = app.logger
 
+    def _sync_job_terminal() -> None:
+        try:
+            from app.services.company_report_telemetry import sync_full_deliver_job_terminal
+
+            sync_full_deliver_job_terminal(engine, report_id)
+        except Exception:
+            pass
+
     def _persist(obj: dict) -> None:
         with engine.connect() as conn:
             conn.execute(
@@ -178,6 +195,7 @@ def execute_full_deliver_tail(
 
     report = _reload_report()
     if not report:
+        _sync_job_terminal()
         return
 
     summary_md_pl = (report.summary_content or "").strip()
@@ -216,6 +234,7 @@ def execute_full_deliver_tail(
 
     report = _reload_report()
     if not report:
+        _sync_job_terminal()
         return
 
     with engine.connect() as conn:
@@ -298,6 +317,7 @@ def execute_full_deliver_tail(
                     {"e": str(tts_e)[:8000], "rid": report_id},
                 )
                 conn.commit()
+            _sync_job_terminal()
             return
 
         t_ok = datetime.utcnow().isoformat()
@@ -359,6 +379,7 @@ def execute_full_deliver_tail(
                 {"rid": report_id},
             )
             conn.commit()
+        _sync_job_terminal()
         return
 
     try:
@@ -388,6 +409,7 @@ def execute_full_deliver_tail(
                 {"e": str(em_e)[:8000], "rid": report_id},
             )
             conn.commit()
+        _sync_job_terminal()
         return
 
     pstate["steps"][6]["status"] = "ok"
@@ -409,6 +431,7 @@ def execute_full_deliver_tail(
             },
         )
         conn.commit()
+    _sync_job_terminal()
 
 
 def _fail_full_deliver_report(engine: Any, report_id: int, err: str) -> None:
@@ -418,7 +441,8 @@ def _fail_full_deliver_report(engine: Any, report_id: int, err: str) -> None:
             text(
                 """
                 UPDATE company_reports
-                SET status = 'failed', error_msg = :e, completed_at = :now
+                SET status = 'failed', error_msg = :e, completed_at = :now,
+                    job_status = 'failed', job_phase = 'failed', job_finished_at = :now
                 WHERE id = :rid
                 """
             ),

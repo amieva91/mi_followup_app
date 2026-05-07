@@ -2,7 +2,6 @@
 Rutas de asset registry, asset detail, reports y about
 """
 import json
-import threading
 from datetime import datetime
 from pathlib import Path
 from flask import render_template, redirect, url_for, flash, request, jsonify, current_app, send_file, make_response
@@ -1024,20 +1023,12 @@ def asset_reports_generate(id):
 def asset_reports_generate_and_deliver(id):
     """
     Un solo clic: genera informe Deep Research, audio TTS (es-ES) y envía informe + WAV por correo.
-    Muestra progreso ampliado en ``audio_progress_json`` (``full_pipeline``): plan, validación,
-    informe, guion, TTS y correo.
+    El trabajo se encola en BD; el proceso ``followup-jobs`` lo ejecuta en serie con el resto de informes.
     """
     try:
         from app.models import ReportTemplate, CompanyReport
-        from app.services.gemini_service import (
-            run_deep_research_report,
-            new_full_pipeline_progress_state,
-            GeminiServiceError,
-            is_gemini_available,
-        )
+        from app.services.gemini_service import is_gemini_available
         from flask import current_app
-        import threading
-        from datetime import datetime
 
         asset = Asset.query.get(id)
         if not asset:
@@ -1072,232 +1063,26 @@ def asset_reports_generate_and_deliver(id):
             status='pending',
             report_enqueued_at=datetime.utcnow(),
             delivery_mode='full_deliver',
-            delivery_phase_status='processing',
+            delivery_phase_status='queued',
             job_kind='full_deliver',
+            job_status='queued',
             job_phase='waiting_turn',
         )
         db.session.add(report)
         db.session.commit()
 
-        report_id = report.id
-        user_id = current_user.id
-        asset_id = id
-        description = template.description
-        points = template.get_points_list()
-        report_template_title = (template.title or f'Informe {report_id}')[:200]
-
-        app = current_app._get_current_object()
-
-        def run_full_deliver():
-            from app.background_tasks_lock import background_tasks_lock
-
-            # Serialización global: pipelines largos de uno en uno.
-            with app.app_context(), background_tasks_lock(app, fair_report_id=report_id):
-                engine = db.engine
-
-                def _persist(json_obj):
-                    with engine.connect() as conn:
-                        conn.execute(
-                            text(
-                                'UPDATE company_reports SET audio_progress_json = :j, audio_error_msg = NULL WHERE id = :rid'
-                            ),
-                            {'j': json.dumps(json_obj, ensure_ascii=False), 'rid': report_id},
-                        )
-                        conn.commit()
-
-                def _update_status_fail(err: str) -> None:
-                    now_str = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-                    with engine.connect() as conn:
-                        conn.execute(
-                            text(
-                                """
-                            UPDATE company_reports SET status = 'failed', error_msg = :e, completed_at = :now
-                            WHERE id = :rid
-                        """
-                            ),
-                            {'e': err[:8000], 'now': now_str, 'rid': report_id},
-                        )
-                        conn.commit()
-
-                pstate: dict = new_full_pipeline_progress_state()
-                try:
-                    _persist(pstate)
-                    now_ts = datetime.utcnow()
-                    with engine.connect() as conn:
-                        r = conn.execute(
-                            text(
-                                """
-                                UPDATE company_reports SET status = :st,
-                                    job_started_at = COALESCE(job_started_at, :now),
-                                    job_status = 'running'
-                                WHERE id = :rid
-                                """
-                            ),
-                            {'st': 'processing', 'now': now_ts, 'rid': report_id},
-                        )
-                        conn.commit()
-                        if r.rowcount == 0:
-                            return
-                except Exception as e:
-                    try:
-                        pstate['steps'][0]['status'] = 'error'
-                        pstate['steps'][0]['error'] = str(e)[:2000]
-                        _persist(pstate)
-                        _update_status_fail(str(e))
-                    except Exception:
-                        pass
-                    return
-
-                aname = asym = aisn = ''
-                try:
-                    with engine.connect() as conn:
-                        row = conn.execute(
-                            text('SELECT name, symbol, isin FROM assets WHERE id = :aid'),
-                            {'aid': asset_id},
-                        ).fetchone()
-                    if not row:
-                        _update_status_fail('Asset no encontrado')
-                        return
-                    aname = (row[0] or 'Desconocida')
-                    asym = (row[1] or '')
-                    aisn = (row[2] or '')
-
-                    def _infer_dr_job_phase(api_status: str, message: str) -> str | None:
-                        msg = (message or '').lower()
-                        if 'creando deep research' in msg or '(modo directo)' in msg:
-                            return 'creating_interaction'
-                        if api_status == 'completed':
-                            return None
-                        if 'estado:' in msg and 'interaction' in msg:
-                            return 'polling_provider'
-                        if 'interaction_id=' in msg or ' último_estado=' in msg:
-                            return 'polling_provider'
-                        return None
-
-                    def _on_dr_status(st: str, msg: str) -> None:
-                        from app.services.company_report_telemetry import persist_provider_poll
-
-                        jp = _infer_dr_job_phase(st or '', msg or '')
-                        persist_provider_poll(
-                            engine,
-                            report_id,
-                            st or '',
-                            msg,
-                            job_phase=jp,
-                            bump_poll=True,
-                        )
-
-                    def _save_iid(iid: str) -> None:
-                        from app.services.company_report_telemetry import persist_interaction_created
-
-                        persist_interaction_created(engine, report_id, iid)
-
-                    current_app.logger.info(
-                        'Deep Research worker: inicio pipeline informe+audio+correo report_id=%s asset_id=%s user_id=%s',
-                        report_id,
-                        asset_id,
-                        user_id,
-                    )
-
-                    st_dr, content_dr = run_deep_research_report(
-                        aname,
-                        asym,
-                        aisn,
-                        description,
-                        points,
-                        on_interaction_created=_save_iid,
-                        on_report_substeps=_on_report_subs,
-                        on_status_update=_on_dr_status,
-                    )
-
-                    current_app.logger.info(
-                        'Deep Research worker: fin fase DR en pipeline report_id=%s resultado=%s',
-                        report_id,
-                        st_dr,
-                    )
-
-                    if st_dr != 'completed':
-                        _persist(pstate)
-                        now_str = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-                        with engine.connect() as conn:
-                            conn.execute(
-                                text(
-                                    'UPDATE company_reports SET status = :st, error_msg = :err, completed_at = :now WHERE id = :rid'
-                                ),
-                                {
-                                    'st': 'failed',
-                                    'err': (content_dr or '')[:8000],
-                                    'now': now_str,
-                                    'rid': report_id,
-                                },
-                            )
-                            conn.commit()
-                        return
-
-                    from app.services.full_deliver_continuation import execute_full_deliver_tail
-
-                    execute_full_deliver_tail(
-                        app,
-                        engine=engine,
-                        report_id=report_id,
-                        user_id=user_id,
-                        asset_id=asset_id,
-                        aname=aname,
-                        report_template_title=report_template_title,
-                        content_dr=content_dr or '',
-                        pstate=pstate,
-                    )
-
-                except GeminiServiceError as e:
-                    try:
-                        pstate = new_full_pipeline_progress_state()
-                        pstate['steps'][0]['status'] = 'error'
-                        pstate['steps'][0]['error'] = str(e)[:4000]
-                        _persist(pstate)
-                        with engine.connect() as conn:
-                            conn.execute(
-                                text(
-                                    'UPDATE company_reports SET status = :st, error_msg = :e WHERE id = :rid'
-                                ),
-                                {'st': 'failed', 'e': str(e)[:8000], 'rid': report_id},
-                            )
-                            conn.commit()
-                    except Exception:
-                        pass
-                except Exception as e:
-                    import traceback
-
-                    current_app.logger.exception('generate-deliver: %s', e)
-                    try:
-                        pstate = new_full_pipeline_progress_state()
-                        pstate['steps'][0]['status'] = 'error'
-                        pstate['steps'][0]['error'] = str(e)[:2000]
-                        _persist(pstate)
-                        with engine.connect() as conn:
-                            conn.execute(
-                                text(
-                                    'UPDATE company_reports SET status = :st, error_msg = :e WHERE id = :rid'
-                                ),
-                                {'st': 'failed', 'e': str(e)[:8000], 'rid': report_id},
-                            )
-                            conn.commit()
-                    except Exception:
-                        pass
-                    print(traceback.format_exc())
-
-        # Sin cola global en servidor (véase también asset_reports_generate).
-        th = threading.Thread(target=run_full_deliver, daemon=True)
-        th.start()
-
         return jsonify(
             {
                 'success': True,
                 'report_id': report.id,
-                'message': 'Iniciado: informe, audio y envío por correo. Puedes salir; recibirás un email al terminar.',
+                'message': (
+                    'En cola: informe, audio y envío por correo. Puedes salir; recibirás un email al terminar.'
+                ),
             }
         )
     except Exception as e:
         import traceback
+
         db.session.rollback()
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -1477,14 +1262,8 @@ def asset_report_send_email(id, report_id):
 @login_required
 @csrf.exempt
 def asset_report_generate_audio(id, report_id):
-    """Iniciar generación de audio TTS en background"""
-    from app.services.gemini_service import (
-        generate_report_tts_audio,
-        is_gemini_available,
-        new_audio_progress_steps_state,
-    )
-    from flask import current_app
-    import threading
+    """Encola generación de audio TTS (proceso ``followup-jobs``)."""
+    from app.services.gemini_service import is_gemini_available, new_audio_progress_steps_state
 
     asset = Asset.query.get(id)
     if not asset:
@@ -1507,7 +1286,8 @@ def asset_report_generate_audio(id, report_id):
         return jsonify({'success': False, 'error': 'GEMINI_API_KEY no configurada'}), 503
 
     audio_status = getattr(report, 'audio_status', None)
-    if audio_status in ('processing', 'queued'):
+    js = getattr(report, 'job_status', None)
+    if audio_status in ('processing', 'queued') or js == 'queued':
         # Idempotente: si ya hay una generación en curso (o en cola), no fallar la UI.
         return jsonify(
             {
@@ -1519,14 +1299,6 @@ def asset_report_generate_audio(id, report_id):
     if audio_status == 'completed' and getattr(report, 'audio_path', None):
         return jsonify({'success': True, 'message': 'El audio ya existe', 'audio_ready': True})
 
-    output_folder = current_app.config.get('OUTPUT_FOLDER') or (Path(__file__).resolve().parent.parent.parent / 'output')
-    audio_dir = Path(output_folder).resolve() / 'reports_audio'
-    audio_path = audio_dir / f'report_{report_id}.wav'
-    report_content = report.content or ''
-    app_obj = current_app._get_current_object()
-
-    # Marcar inmediatamente en BD para que la UI refleje "en cola" aunque el hilo espere el lock.
-    # (El hilo setea processing al entrar en el lock; aquí solo aseguramos visibilidad y posición.)
     try:
         conn0 = db.engine.connect()
         try:
@@ -1537,7 +1309,10 @@ def asset_report_generate_audio(id, report_id):
                     UPDATE company_reports
                     SET audio_status = 'queued', audio_error_msg = NULL, audio_path = NULL,
                         audio_completed_at = NULL, audio_progress_json = :j,
-                        audio_enqueued_at = :now
+                        audio_enqueued_at = :now,
+                        job_kind = 'tts_only', job_status = 'queued',
+                        job_phase = 'waiting_turn',
+                        job_started_at = NULL, job_finished_at = NULL
                     WHERE id = :rid
                     """
                 ),
@@ -1551,8 +1326,8 @@ def asset_report_generate_audio(id, report_id):
         finally:
             conn0.close()
     except Exception:
-        # Best-effort: si falla, el hilo actualizará estado al entrar al lock.
-        pass
+        db.session.rollback()
+        raise
 
     current_app.logger.info(
         'Audio TTS encolado: report_id=%s asset_id=%s user_id=%s',
@@ -1561,91 +1336,9 @@ def asset_report_generate_audio(id, report_id):
         current_user.id,
     )
 
-    def _run_tts():
-        from app.background_tasks_lock import background_tasks_lock
-
-        # Serialización global: una tarea larga a la vez (incluye regeneraciones).
-        with app_obj.app_context(), background_tasks_lock(app_obj, fair_report_id=report_id):
-            from datetime import datetime
-
-            conn = db.engine.connect()
-            try:
-                conn.execute(text("""
-                    UPDATE company_reports SET audio_status = 'processing', audio_error_msg = NULL
-                    WHERE id = :rid
-                """), {'rid': report_id})
-                conn.commit()
-            except Exception:
-                conn.rollback()
-            finally:
-                conn.close()
-
-            app_obj.logger.info('Audio TTS en ejecución (lock adquirido): report_id=%s', report_id)
-
-            status = 'failed'
-            error_msg = None
-            final_path = f'reports_audio/report_{report_id}.wav'
-            now_str = datetime.utcnow().isoformat()
-            def _persist_audio_progress(pj: dict) -> None:
-                c = db.engine.connect()
-                try:
-                    c.execute(
-                        text('UPDATE company_reports SET audio_progress_json = :j WHERE id = :rid'),
-                        {'j': json.dumps(pj, ensure_ascii=False), 'rid': report_id},
-                    )
-                    c.commit()
-                except Exception:
-                    c.rollback()
-                finally:
-                    c.close()
-
-            try:
-                generate_report_tts_audio(
-                    report_content,
-                    str(audio_path),
-                    on_progress=_persist_audio_progress,
-                )
-                status = 'completed'
-            except Exception as e:
-                error_msg = str(e)
-                final_path = None
-                current_app.logger.exception('TTS falló: %s', e)
-
-            conn2 = db.engine.connect()
-            try:
-                if status == 'completed':
-                    conn2.execute(
-                        text("""
-                        UPDATE company_reports
-                        SET audio_status = :st, audio_error_msg = NULL, audio_path = :path,
-                            audio_completed_at = :now, audio_progress_json = NULL
-                        WHERE id = :rid
-                    """),
-                        {
-                            'st': status,
-                            'path': final_path,
-                            'now': now_str,
-                            'rid': report_id,
-                        },
-                    )
-                else:
-                    conn2.execute(
-                        text("""
-                        UPDATE company_reports
-                        SET audio_status = 'failed', audio_error_msg = :err, audio_path = NULL,
-                            audio_completed_at = NULL
-                        WHERE id = :rid
-                    """),
-                        {'err': error_msg, 'rid': report_id},
-                    )
-                conn2.commit()
-            except Exception:
-                conn2.rollback()
-            finally:
-                conn2.close()
-
-    threading.Thread(target=_run_tts, daemon=True).start()
-    return jsonify({'success': True, 'message': 'Generando audio en segundo plano. Puede tardar unos minutos.'})
+    return jsonify(
+        {'success': True, 'message': 'Audio en cola. Puede tardar unos minutos; el proceso del servidor lo generará.'}
+    )
 
 
 @portfolio_bp.route('/asset/<int:id>/reports/<int:report_id>/reset-audio', methods=['POST'])

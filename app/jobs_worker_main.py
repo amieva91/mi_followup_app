@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import logging
+import os
+
+os.environ.setdefault("FOLLOWUP_IN_JOBS_WORKER", "1")
 
 
 def main() -> None:
