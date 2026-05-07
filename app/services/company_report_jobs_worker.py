@@ -308,14 +308,15 @@ def run_forever(app) -> None:
     """
     idle = _sleep_seconds_idle()
     logger.info("company_report_jobs_worker: start (p95=%ss timeout=%ss idle_sleep=%ss)", _p95_seconds(), _timeout_seconds(), idle)
-    while True:
-        try:
-            did = run_once(app)
-            if not did:
-                time.sleep(idle)
-        except KeyboardInterrupt:
-            raise
-        except Exception:
-            logger.exception("company_report_jobs_worker: loop error")
-            time.sleep(2.0)
+    with app.app_context():
+        while True:
+            try:
+                did = run_once(app)
+                if not did:
+                    time.sleep(idle)
+            except KeyboardInterrupt:
+                raise
+            except Exception:
+                logger.exception("company_report_jobs_worker: loop error")
+                time.sleep(2.0)
 
