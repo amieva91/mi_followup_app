@@ -878,12 +878,15 @@ function setReportGenerateBannerVisible(reportId, data) {
         return;
     }
     if (data.status === 'pending') {
+        const qp = formatQueueSuffix(data);
         el.innerHTML =
-            'Informe <strong>en cola</strong>… Puede empezar en segundos. <span class="text-slate-600">ID: ' + reportId + '</span>'
+            'Informe <span class="text-slate-600">(ID: ' + reportId + ')</span> <strong>en cola</strong>'
+            + escapeHtml(qp)
+            + '. Se iniciará cuando le toque…'
             + buildReportTelemetryHintHtml(data);
     } else if (data.status === 'processing') {
         el.innerHTML =
-            'Investigando con <strong>Deep Research</strong>… (varios minutos) <span class="text-slate-600">ID: ' + reportId + '</span>'
+            'Investigando con <strong>Deep Research</strong> <span class="text-slate-600">(ID: ' + reportId + ')</span>…'
             + buildReportTelemetryHintHtml(data);
     } else if (data.status === 'failed') {
         el.innerHTML = '<span class="text-red-800">' + (data.error_msg ? String(data.error_msg).replace(/</g, '&lt;') : 'Error al generar el informe') + '</span> <span class="text-slate-600">ID: ' + reportId + '</span>';
