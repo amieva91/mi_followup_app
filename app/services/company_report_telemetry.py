@@ -120,10 +120,14 @@ def job_and_provider_json(report: Any) -> tuple[dict[str, Any], dict[str, Any]]:
     ``report`` es un modelo ``CompanyReport`` (o compatible).
     """
     job_started_at = getattr(report, "job_started_at", None)
+    job_finished_at = getattr(report, "job_finished_at", None)
     elapsed_s = None
     try:
         if job_started_at:
-            elapsed_s = int((datetime.utcnow() - job_started_at).total_seconds())
+            if job_finished_at:
+                elapsed_s = int((job_finished_at - job_started_at).total_seconds())
+            else:
+                elapsed_s = int((datetime.utcnow() - job_started_at).total_seconds())
     except Exception:
         elapsed_s = None
 

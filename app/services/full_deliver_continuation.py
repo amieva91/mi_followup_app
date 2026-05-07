@@ -337,6 +337,7 @@ def execute_full_deliver_tail(
                     SET audio_status = 'completed',
                         audio_path = :path,
                         audio_error_msg = NULL,
+                        audio_generation_attempt = NULL,
                         audio_completed_at = :ac,
                         email_status = 'processing',
                         email_error_msg = NULL,

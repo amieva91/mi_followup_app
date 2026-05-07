@@ -111,6 +111,8 @@ class CompanyReport(db.Model):
     audio_error_msg = db.Column(db.Text, nullable=True)
     audio_progress_json = db.Column(db.Text, nullable=True)  # JSON: pasos guion TTS (poll UI)
     audio_completed_at = db.Column(db.DateTime, nullable=True)
+    # Número del último encolado de síntesis TTS (solo audio / reintentos). Se pone a 0/NULL tras WAV ok.
+    audio_generation_attempt = db.Column(db.Integer, nullable=True)
 
     # Cola (orden real por petición, no por created_at).
     report_enqueued_at = db.Column(db.DateTime, nullable=True)

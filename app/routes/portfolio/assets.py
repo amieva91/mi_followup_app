@@ -45,6 +45,31 @@ def _parse_audio_progress_json(raw):
         return None
 
 
+# Encoladas de TTS tras «generar/regenerar audio» (solo informes ya completados). Se reinicia tras WAV ok.
+MAX_AUDIO_GENERATION_ATTEMPTS = 3
+
+
+def audio_attempt_bundle_for_report(report) -> dict:
+    """Sirve estado de intentos para `/status`, detalle y la UI."""
+    raw = getattr(report, "audio_generation_attempt", None)
+    try:
+        n = max(0, int(raw)) if raw is not None else 0
+    except (TypeError, ValueError):
+        n = 0
+    mx = MAX_AUDIO_GENERATION_ATTEMPTS
+    aus = getattr(report, "audio_status", None)
+    exhausted = False
+    if n >= mx and aus not in ("queued", "processing", "completed"):
+        exhausted = True
+    is_last_active = aus in ("queued", "processing") and n == mx and n > 0
+    return {
+        "current": n,
+        "max": mx,
+        "exhausted": exhausted,
+        "is_last_chance": bool(is_last_active),
+    }
+
+
 def _active_queue_timestamp(report) -> datetime | None:
     """Timestamp que representa el *momento de encolado* de la tarea activa de este informe.
 
@@ -1192,6 +1217,7 @@ def asset_report_detail(id, report_id):
         'delivery_phase_status': getattr(report, 'delivery_phase_status', None),
         'job': job_j,
         'provider': provider_j,
+        'audio_attempt': audio_attempt_bundle_for_report(report),
     })
 
 
@@ -1287,6 +1313,27 @@ def asset_report_generate_audio(id, report_id):
 
     audio_status = getattr(report, 'audio_status', None)
     js = getattr(report, 'job_status', None)
+    n_prev = getattr(report, 'audio_generation_attempt', None) or 0
+    try:
+        n_prev = int(n_prev)
+        if n_prev < 0:
+            n_prev = 0
+    except (TypeError, ValueError):
+        n_prev = 0
+    if n_prev >= MAX_AUDIO_GENERATION_ATTEMPTS:
+        if audio_status not in ('queued', 'processing', 'completed'):
+            return jsonify(
+                {
+                    'success': False,
+                    'error': (
+                        'Se alcanzaron el máximo de intentos automáticos de síntesis de audio ('
+                        f'{MAX_AUDIO_GENERATION_ATTEMPTS}). Si el fallo continúa, prueba más tarde '
+                        'o contacta con soporte.'
+                    ),
+                    'audio_attempt': audio_attempt_bundle_for_report(report),
+                }
+            ), 429
+
     if audio_status in ('processing', 'queued') or js == 'queued':
         # Idempotente: si ya hay una generación en curso (o en cola), no fallar la UI.
         return jsonify(
@@ -1294,10 +1341,18 @@ def asset_report_generate_audio(id, report_id):
                 'success': True,
                 'message': 'Audio ya en cola/generándose. Puede tardar unos minutos.',
                 'audio_ready': False,
+                'audio_attempt': audio_attempt_bundle_for_report(report),
             }
         )
     if audio_status == 'completed' and getattr(report, 'audio_path', None):
-        return jsonify({'success': True, 'message': 'El audio ya existe', 'audio_ready': True})
+        return jsonify(
+            {
+                'success': True,
+                'message': 'El audio ya existe',
+                'audio_ready': True,
+                'audio_attempt': audio_attempt_bundle_for_report(report),
+            }
+        )
 
     try:
         conn0 = db.engine.connect()
@@ -1312,7 +1367,13 @@ def asset_report_generate_audio(id, report_id):
                         audio_enqueued_at = :now,
                         job_kind = 'tts_only', job_status = 'queued',
                         job_phase = 'waiting_turn',
-                        job_started_at = NULL, job_finished_at = NULL
+                        job_started_at = NULL, job_finished_at = NULL,
+                        audio_generation_attempt = COALESCE(audio_generation_attempt, 0) + 1,
+                        provider_last_status = NULL, provider_last_poll_at = NULL,
+                        provider_poll_count = NULL,
+                        provider_last_http_status = NULL, provider_last_error_kind = NULL,
+                        provider_last_error_msg = NULL,
+                        provider_create_attempt = NULL, provider_next_retry_at = NULL
                     WHERE id = :rid
                     """
                 ),
@@ -1336,8 +1397,19 @@ def asset_report_generate_audio(id, report_id):
         current_user.id,
     )
 
+    db.session.expire_all()
+    report_ref = CompanyReport.query.filter_by(
+        id=report_id,
+        user_id=current_user.id,
+        asset_id=id,
+    ).first()
+
     return jsonify(
-        {'success': True, 'message': 'Audio en cola. Puede tardar unos minutos; el proceso del servidor lo generará.'}
+        {
+            'success': True,
+            'message': 'Audio en cola. Puede tardar unos minutos; el proceso del servidor lo generará.',
+            'audio_attempt': audio_attempt_bundle_for_report(report_ref) if report_ref else {},
+        }
     )
 
 
@@ -1369,7 +1441,15 @@ def asset_report_reset_audio(id, report_id):
             text("""
             UPDATE company_reports
             SET audio_status = NULL, audio_path = NULL, audio_error_msg = NULL,
-                audio_completed_at = NULL, audio_progress_json = NULL
+                audio_completed_at = NULL, audio_progress_json = NULL,
+                audio_generation_attempt = NULL,
+                job_kind = NULL, job_status = NULL, job_phase = NULL,
+                job_started_at = NULL, job_finished_at = NULL,
+                provider_last_status = NULL, provider_last_poll_at = NULL,
+                provider_poll_count = NULL,
+                provider_last_http_status = NULL, provider_last_error_kind = NULL,
+                provider_last_error_msg = NULL,
+                provider_create_attempt = NULL, provider_next_retry_at = NULL
             WHERE id = :rid
         """),
             {'rid': report_id},
@@ -1473,6 +1553,7 @@ def api_report_status(report_id):
 
         'job': job_j,
         'provider': provider_j,
+        'audio_attempt': audio_attempt_bundle_for_report(report),
     })
 
 

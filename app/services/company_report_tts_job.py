@@ -73,6 +73,7 @@ def execute_tts_only_job(app: Any, engine: Any, report_id: int) -> None:
                         audio_path = :path,
                         audio_completed_at = :now,
                         audio_progress_json = NULL,
+                        audio_generation_attempt = NULL,
                         job_status = 'completed', job_phase = 'completed',
                         job_finished_at = :now
                     WHERE id = :rid

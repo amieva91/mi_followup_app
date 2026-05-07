@@ -223,6 +223,11 @@ def recover_processing_reports_after_restart(app, app_logger=None) -> None:
                 continue
             r.audio_status = 'failed'
             r.audio_error_msg = (_MSG_AUDIO_ORPHAN[:2000])
+            # Alinear telemetría del job con el fallo (evita "running/TTS activo + audio failed"
+            # y tiempo transcurrido creciendo para siempre en la UI).
+            r.job_status = 'failed'
+            r.job_phase = 'failed'
+            r.job_finished_at = now
             # Si había un panel de progreso (pipeline completo), evitar que se quede "atascado" en loading.
             # Marcamos el paso TTS como error para que la UI muestre el fallo real y permita reintentar.
             try:
