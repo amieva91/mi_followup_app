@@ -817,6 +817,13 @@ function buildReportTelemetryHintHtml(data) {
     const job = data.job || {};
     const prov = data.provider || {};
     const parts = [];
+    // Modelos (homogeneizado): para DR mostramos el modelo; para pipeline ya se ve por-step.
+    try {
+        const k = (job.kind || '').trim();
+        if (k === 'dr_watchlist_min' || k === 'dr_full') {
+            parts.push('Modelo: deep-research-max-preview-04-2026');
+        }
+    } catch (e) {}
     if (job.phase) parts.push('Fase: ' + humanJobPhase(job.phase));
     if (typeof job.elapsed_s === 'number') parts.push('Tiempo: ' + formatShortDuration(job.elapsed_s));
     if (prov.poll_count != null && prov.poll_count !== '') parts.push('Polls: ' + String(prov.poll_count));
@@ -838,6 +845,20 @@ function buildReportTelemetryHintHtml(data) {
     if (job.timed_out) parts.push('Aviso: timeout (≥ ' + formatShortDuration(job.timeout_s || 2700) + ')');
     if (!parts.length) return '';
     return '<div class="mt-1 text-xs text-slate-600 break-words">' + escapeHtml(parts.join(' · ')) + '</div>';
+}
+
+function buildUnifiedJobHeaderHtml(data, title) {
+    const t = title || 'Estado del job';
+    const hint = buildReportTelemetryHintHtml(data);
+    return (
+        '<div class="mb-2">'
+        + '<div class="flex items-center gap-2 text-slate-800 font-semibold">'
+        + '<span class="text-amber-700" aria-hidden="true">⏳</span>'
+        + escapeHtml(t)
+        + '</div>'
+        + hint
+        + '</div>'
+    );
 }
 function reportProgressHtmlFromData(data) {
     const status = data ? data.status : null;
@@ -876,7 +897,7 @@ function setReportGenerateBannerVisible(reportId, data) {
     el.classList.remove('hidden');
     const ap0 = data.audio_progress;
     if (ap0 && ap0.steps && ap0.steps.length && (ap0.full_pipeline || ap0.report_stages)) {
-        el.innerHTML = buildAudioProgressBlockHtml(ap0.steps, ap0.caption);
+        el.innerHTML = buildUnifiedJobHeaderHtml(data, 'Estado del job') + buildAudioProgressBlockHtml(ap0.steps, ap0.caption);
         return;
     }
     if (data.status === 'pending') {
@@ -1017,7 +1038,7 @@ function updateReportAudioProgressUI(data) {
             const qp = formatQueueSuffix(data);
             cap = 'Audio en cola' + qp + ' (se ejecutará cuando le toque; puedes salir y volver)';
         }
-        pb.innerHTML = buildAudioProgressBlockHtml(stepsOut, cap);
+        pb.innerHTML = buildUnifiedJobHeaderHtml(data, 'Estado del job') + buildAudioProgressBlockHtml(stepsOut, cap);
         return;
     }
     // Anti-parpadeo: si el audio está en cola/en curso y por timing llega un poll sin `audio_progress`,
