@@ -830,6 +830,10 @@ function buildReportTelemetryHintHtml(data) {
         parts.push('Reintento: ' + (ago ? ('en ' + ago.replace(/^hace\s+/, '')) : 'programado'));
     }
     if (prov.last_error_kind) parts.push('Último error: ' + String(prov.last_error_kind));
+    if (prov.last_error_msg) {
+        const msg = String(prov.last_error_msg || '').trim();
+        if (msg) parts.push('Mensaje: ' + msg.substring(0, 140));
+    }
     if (job.possible_blocked) parts.push('Aviso: posible bloqueo (≥ ' + formatShortDuration(job.p95_s || 1800) + ')');
     if (job.timed_out) parts.push('Aviso: timeout (≥ ' + formatShortDuration(job.timeout_s || 2700) + ')');
     if (!parts.length) return '';
