@@ -1347,6 +1347,15 @@ def asset_report_detail(id, report_id):
     except Exception:
         current_app.logger.exception('queue_metrics asset_report_detail')
 
+    # Compat worker DB-backed: si job_status indica cola, forzar status visible "pending"
+    status_visible = report.status
+    try:
+        js = getattr(report, 'job_status', None)
+        if js == 'queued' and report.status == 'processing':
+            status_visible = 'pending'
+    except Exception:
+        status_visible = report.status
+
     sm_raw = getattr(report, 'summary_content', None)
     if sm_raw is not None and str(sm_raw).strip():
         from app.services.gemini_service import sanitize_report_summary_markdown
@@ -1359,7 +1368,8 @@ def asset_report_detail(id, report_id):
         'id': report.id,
         'content': report.content,
         'summary_content': summary_out,
-        'status': report.status,
+        'status': status_visible,
+        'status_raw': report.status,
         'error_msg': report.error_msg,
         'template_title': report.template_title,
         'created_at': report.created_at.isoformat() if report.created_at else None,

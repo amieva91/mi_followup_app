@@ -843,10 +843,12 @@ function reportProgressHtmlFromData(data) {
     const status = data ? data.status : null;
     if (status === 'pending') {
         const qp = formatQueueSuffix(data);
+        const rid = data && data.id != null ? Number(data.id) : null;
+        const idTag = rid != null && !isNaN(rid) ? ' <span class="text-slate-600">(ID: ' + rid + ')</span>' : '';
         return (
             '<div class="flex items-start gap-2 text-amber-900">'
             + '<span class="shrink-0 w-2 h-2 mt-1.5 rounded-full bg-amber-400"></span>'
-            + '<span>Informe <strong>en cola</strong>' + escapeHtml(qp) + '. Se iniciará cuando le toque…'
+            + '<span>Informe' + idTag + ' <strong>en cola</strong>' + escapeHtml(qp) + '. Se iniciará cuando le toque…'
             + buildReportTelemetryHintHtml(data)
             + '</span></div>'
         );
