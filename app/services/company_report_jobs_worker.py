@@ -62,6 +62,26 @@ def _claim_next_company_report_job(engine) -> Optional[int]:
     Reclama el siguiente `company_reports` encolado para DR.
     Devuelve report_id o None si no hay.
     """
+    # Concurrency=1 global: si hay un DR marcado como running, no reclamar otro.
+    with engine.connect() as conn:
+        n_running = conn.execute(
+            text(
+                """
+                SELECT COUNT(*)
+                FROM company_reports
+                WHERE job_status = 'running'
+                  AND COALESCE(job_kind, '') IN (:k1, :k2)
+                  AND COALESCE(status, '') IN ('processing', 'pending')
+                """
+            ),
+            {"k1": JOB_KIND_DR_WATCHLIST_MIN, "k2": JOB_KIND_DR_FULL},
+        ).scalar()
+        try:
+            if int(n_running or 0) > 0:
+                return None
+        except Exception:
+            pass
+
     # SQLite-friendly: seleccionar primero y hacer UPDATE condicional.
     with engine.connect() as conn:
         row = conn.execute(
@@ -208,10 +228,50 @@ def run_once(app) -> bool:
     Ejecuta un job si existe. Devuelve True si ejecutó algo.
     """
     from app import db
-    from app.services.gemini_service import GeminiServiceError, run_deep_research_report
+    from app.services.gemini_service import (
+        GeminiServiceError,
+        run_deep_research_report,
+        resume_company_report_from_interaction_id,
+    )
     from app.services.watchlist_ia_template import get_watchlist_ia_deep_brief, WATCHLIST_IA_REPORT_TITLE_DR_ROW
 
     engine = db.engine
+
+    # Si quedó un job `running` tras reinicio del worker, reanudarlo antes de reclamar uno nuevo.
+    with engine.connect() as conn:
+        rr = conn.execute(
+            text(
+                """
+                SELECT id, gemini_interaction_id
+                FROM company_reports
+                WHERE job_status = 'running'
+                  AND COALESCE(job_kind, '') IN (:k1, :k2)
+                  AND COALESCE(status, '') = 'processing'
+                ORDER BY COALESCE(job_started_at, report_enqueued_at, created_at) ASC, id ASC
+                LIMIT 1
+                """
+            ),
+            {"k1": JOB_KIND_DR_WATCHLIST_MIN, "k2": JOB_KIND_DR_FULL},
+        ).fetchone()
+    if rr:
+        rid_running = int(rr[0])
+        iid_running = (rr[1] or "").strip()
+        if iid_running:
+            try:
+                _update(engine, rid_running, job_phase="polling_provider")
+                resume_company_report_from_interaction_id(rid_running)
+            except Exception as e:
+                _mark_failed(engine, rid_running, str(e), kind="provider")
+            return True
+        # Sin interaction_id: marcar failed y seguir
+        _mark_failed(
+            engine,
+            rid_running,
+            "Generación interrumpida antes de obtener respuesta de Gemini (sin interaction_id). Genera el informe de nuevo.",
+            kind="orphan_no_iid",
+        )
+        return True
+
     rid = _claim_next_company_report_job(engine)
     if rid is None:
         return False
