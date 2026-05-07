@@ -348,6 +348,27 @@ def run_once(app) -> bool:
             try:
                 _update(engine, rid_running, job_phase="polling_provider")
                 resume_company_report_from_interaction_id(rid_running)
+                # Tras reanudar, normalizar job_status según status final
+                with engine.connect() as conn:
+                    st = conn.execute(
+                        text("SELECT status FROM company_reports WHERE id=:rid"),
+                        {"rid": int(rid_running)},
+                    ).scalar()
+                if st == "completed":
+                    _update(
+                        engine,
+                        rid_running,
+                        job_status="completed",
+                        job_phase="completed",
+                        job_finished_at=_utcnow(),
+                    )
+                elif st == "failed":
+                    _update(
+                        engine,
+                        rid_running,
+                        job_status="failed",
+                        job_finished_at=_utcnow(),
+                    )
             except Exception as e:
                 _mark_failed(engine, rid_running, str(e), kind="provider")
             return True
@@ -498,6 +519,13 @@ def run_forever(app) -> None:
             logger.exception("company_report_jobs_worker: reconcile error")
         while True:
             try:
+                # Mantener invariantes incluso si otros flujos tocan `status` (p.ej. resume)
+                try:
+                    from app import db
+
+                    _reconcile_company_report_job_rows(db.engine)
+                except Exception:
+                    pass
                 did = run_once(app)
                 if not did:
                     time.sleep(idle)
