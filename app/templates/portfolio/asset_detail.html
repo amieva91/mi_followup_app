@@ -1043,6 +1043,54 @@ function prepareAudioStepsForUi(data, stepsIn) {
     }
     return steps;
 }
+/** Solo pipeline guion→TTS: no mostrar cinta de pasos hasta que ejecute generación real. */
+function shouldHideSoloAudioPipelineSteps(data) {
+    if (!data) return false;
+    var ap = data.audio_progress || {};
+    if (!ap.steps || !ap.steps.length) return false;
+    if (ap.full_pipeline || ap.report_stages) return false;
+    var jp = String((data.job || {}).phase || '').trim();
+    var js = String((data.job || {}).status || '').trim();
+    var aSt = String(data.audio_status || '').trim();
+    if (aSt === 'queued') return true;
+    if (js === 'queued') return true;
+    if (jp === 'waiting_turn') return true;
+    return false;
+}
+function soloAudioQueuePlainCaption(data) {
+    var qp = formatQueueSuffix(data);
+    return (
+        'Este audio está en la cola global' +
+        qp +
+        '. Cuando empiece la generación se mostrarán aquí los pasos (guion Flash y síntesis TTS) y el avance de cada uno.'
+    );
+}
+/**
+ * Une cabecera de telemetría + contenido de progreso. Para »solo audio« en cola, sin cinta de pasos (homogéneo con informes pendientes).
+ * opt.caption opcional sólo cuando conviene pisar caption (cola tail de full_pipeline).
+ */
+function buildSoloAudioProgressPanelInnerHtml(data, ap, opt) {
+    opt = opt || {};
+    var header = buildUnifiedJobHeaderHtml(data, jobTelemetrySectionTitle(data));
+    if (!ap || !ap.steps || !ap.steps.length) return header;
+    if (ap.full_pipeline || ap.report_stages) {
+        var stepsFp = prepareAudioStepsForUi(data, ap.steps.slice());
+        var capF = opt.caption;
+        if (capF == null || capF === '') capF = ap.caption || 'Pipeline en curso';
+        return header + buildAudioProgressBlockHtml(stepsFp, capF);
+    }
+    if (shouldHideSoloAudioPipelineSteps(data)) {
+        return header
+            + '<div class="bg-slate-50 border border-slate-200/90 rounded-xl p-3 shadow-sm">'
+            + '<p class="text-xs text-slate-600 leading-relaxed">'
+            + escapeHtml(soloAudioQueuePlainCaption(data))
+            + '</p></div>';
+    }
+    var stepsS = prepareAudioStepsForUi(data, ap.steps.slice());
+    var capS = opt.caption;
+    if (capS == null || capS === '') capS = ap.caption || 'Generando audio (segundo plano; puedes salir y volver)';
+    return header + buildAudioProgressBlockHtml(stepsS, capS);
+}
 function buildAudioProgressBlockHtml(steps, caption) {
     if (!steps || !steps.length) return '';
     var cap = caption || 'Generando audio (segundo plano; puedes salir y volver)';
@@ -1094,17 +1142,12 @@ function updateReportAudioProgressUI(data) {
             legacy.textContent = '';
         }
         pb.classList.remove('hidden');
-        var stepsOut = prepareAudioStepsForUi(data, ap.steps || []);
-        var cap = ap.caption;
-        if (data.audio_status === 'queued') {
+        var optCap = null;
+        if (data.audio_status === 'queued' && (ap.full_pipeline || ap.report_stages)) {
             const qp = formatQueueSuffix(data);
-            if (!ap.full_pipeline && !ap.report_stages) {
-                cap = 'En cola' + qp + '. Cuando el servidor tome este trabajo verás aquí cada paso (guion flash → TTS).';
-            } else {
-                cap = 'Audio en cola' + qp + ' (se ejecutará cuando le toque; puedes salir y volver)';
-            }
+            optCap = 'Audio en cola' + qp + ' (se ejecutará cuando le toque; puedes salir y volver)';
         }
-        pb.innerHTML = buildUnifiedJobHeaderHtml(data, jobTelemetrySectionTitle(data)) + buildAudioProgressBlockHtml(stepsOut, cap);
+        pb.innerHTML = buildSoloAudioProgressPanelInnerHtml(data, ap, { caption: optCap });
         return;
     }
     // Anti-parpadeo: si el audio está en cola/en curso y por timing llega un poll sin `audio_progress`,
@@ -1147,15 +1190,12 @@ function updateReportDetailFromStatusPoll(reportId, data) {
         }
         if (audioPb) {
             audioPb.classList.remove('hidden');
-            var stepsP = prepareAudioStepsForUi(data, ap1.steps || []);
-            let cap = ap1.caption;
+            var optCapPoll = null;
             if (data.audio_status === 'queued') {
                 const qp = formatQueueSuffix(data);
-                cap = 'Audio en cola' + qp + ' (se ejecutará cuando le toque; puedes salir y volver)';
+                optCapPoll = 'Audio en cola' + qp + ' (se ejecutará cuando le toque; puedes salir y volver)';
             }
-            audioPb.innerHTML =
-                buildUnifiedJobHeaderHtml(data, jobTelemetrySectionTitle(data))
-                + buildAudioProgressBlockHtml(stepsP, cap);
+            audioPb.innerHTML = buildSoloAudioProgressPanelInnerHtml(data, ap1, { caption: optCapPoll });
         }
         if (legacyAudioStatus) {
             legacyAudioStatus.classList.add('hidden');
@@ -1805,10 +1845,7 @@ function loadReportDetail(reportId) {
                     const audioPb = document.getElementById('reportAudioProgress');
                     if (audioPb) {
                         audioPb.classList.remove('hidden');
-                        var stepsL = prepareAudioStepsForUi(data, fp0.steps || []);
-                        audioPb.innerHTML =
-                            buildUnifiedJobHeaderHtml(data, jobTelemetrySectionTitle(data))
-                            + buildAudioProgressBlockHtml(stepsL, fp0.caption);
+                        audioPb.innerHTML = buildSoloAudioProgressPanelInnerHtml(data, fp0, {});
                     }
                     if (btnEmail) btnEmail.classList.add('hidden');
                     if (btnAudio) btnAudio.classList.add('hidden');
