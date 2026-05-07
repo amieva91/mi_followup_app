@@ -2174,7 +2174,7 @@ def new_audio_progress_steps_state() -> list:
         {
             'id': 'script',
             'title': 'Guion 3 actos (obj. ~750 pal., máx. borrador 900, ~5 min)',
-            'status': 'loading',
+            'status': 'pending',
             'model': _get_model_podcast_script(),
             'error': None,
         },

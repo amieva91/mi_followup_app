@@ -748,33 +748,30 @@ function formatQueueSuffix(data) {
     if (typeof t === 'number' && t > 0) return ` (#${p} de ${t})`;
     return ` (#${p})`;
 }
-function reportStatusLabel(status, queuePosition, queueWaitingTotal, deliveryMode, deliveryPhase) {
+function _queueSnippet(queuePosition, queueWaitingTotal) {
+    if (!queuePosition) return '';
+    if (typeof queueWaitingTotal === 'number' && queueWaitingTotal > 0) {
+        return ` (#${queuePosition} de ${queueWaitingTotal})`;
+    }
+    return ` (#${queuePosition})`;
+}
+function reportStatusLabel(status, queuePosition, queueWaitingTotal, deliveryMode, deliveryPhase, audioStatus) {
     if (status === 'pending') {
-        let qp = '';
-        if (queuePosition) {
-            if (typeof queueWaitingTotal === 'number' && queueWaitingTotal > 0) {
-                qp = ` (#${queuePosition} de ${queueWaitingTotal})`;
-            } else {
-                qp = ` (#${queuePosition})`;
-            }
-        }
-        return 'en cola' + qp;
+        return 'en cola' + _queueSnippet(queuePosition, queueWaitingTotal);
     }
     if (status === 'processing') return 'generando';
     if (status === 'completed' && deliveryMode === 'full_deliver') {
         const ph = deliveryPhase == null ? '' : String(deliveryPhase);
-        if (ph === 'processing' || ph === '') {
-            let qp = '';
-            if (queuePosition) {
-                if (typeof queueWaitingTotal === 'number' && queueWaitingTotal > 0) {
-                    qp = ` (#${queuePosition} de ${queueWaitingTotal})`;
-                } else {
-                    qp = ` (#${queuePosition})`;
-                }
-            }
-            return 'entregando' + qp;
+        if (ph === 'processing' || ph === '' || ph === 'queued') {
+            return 'entregando' + _queueSnippet(queuePosition, queueWaitingTotal);
         }
         if (ph === 'partial') return 'entrega incompleta';
+    }
+    /* Informe texto listo pero audio cola tipo tts_only: no mostrar «listo» hasta terminar el job de audio. */
+    if (status === 'completed' && (audioStatus === 'queued' || audioStatus === 'processing')) {
+        const qp = _queueSnippet(queuePosition, queueWaitingTotal);
+        if (audioStatus === 'processing') return 'generando audio' + qp;
+        return 'audio en cola' + qp;
     }
     if (status === 'completed') return 'listo';
     if (status === 'failed') return 'error';
@@ -832,7 +829,7 @@ function pendingQueueLineHtml(data) {
     }
     const k = String((data.job || {}).kind || '').trim();
     if (k === 'tts_only') {
-        return 'Audio resumen' + idTag + ' <strong>en cola</strong>' + escapeHtml(qp) + '. Se iniciará cuando le toque…';
+        return 'Pipeline de audio resumen' + idTag + ' <strong>en cola</strong>' + escapeHtml(qp) + '. Se iniciará cuando le toque…';
     }
     return 'Informe' + idTag + ' <strong>en cola</strong>' + escapeHtml(qp) + '. Se iniciará cuando le toque…';
 }
@@ -862,7 +859,7 @@ function buildReportTelemetryHintHtml(data) {
         } else if (k === 'full_deliver' || dm === 'full_deliver') {
             parts.push('Pipeline: DR + TTS + email');
         } else if (k === 'tts_only') {
-            parts.push('Tipo: solo audio resumen');
+            parts.push('Pipeline: guion Flash + síntesis TTS (es-ES)');
         }
     } catch (e) {}
     if (job.phase) parts.push('Fase: ' + humanJobPhase(job.phase));
@@ -891,15 +888,25 @@ function buildReportTelemetryHintHtml(data) {
 function buildUnifiedJobHeaderHtml(data, title) {
     const t = title || 'Estado del job';
     const hint = buildReportTelemetryHintHtml(data);
+    const rid = data && data.id != null ? Number(data.id) : null;
+    const idLbl = rid != null && !isNaN(rid) ? ` <span class="text-slate-600 font-medium">(ID: ${rid})</span>` : '';
     return (
         '<div class="mb-2">'
-        + '<div class="flex items-center gap-2 text-slate-800 font-semibold">'
+        + '<div class="flex items-center gap-2 text-slate-800 font-semibold flex-wrap">'
         + '<span class="text-amber-700" aria-hidden="true">⏳</span>'
-        + escapeHtml(t)
+        + '<span>' + escapeHtml(t) + idLbl + '</span>'
         + '</div>'
         + hint
         + '</div>'
     );
+}
+/** Título del bloque de telemetría (alineado con listado tipo «Pipeline de entrega …»). */
+function jobTelemetrySectionTitle(data) {
+    if (!data) return 'Estado del job';
+    if (isPipelineFullDeliver(data)) return 'Pipeline de entrega';
+    var k = String((data.job || {}).kind || '').trim();
+    if (k === 'tts_only') return 'Pipeline de audio resumen';
+    return 'Estado del job';
 }
 function reportProgressHtmlFromData(data) {
     const status = data ? data.status : null;
@@ -938,7 +945,7 @@ function setReportGenerateBannerVisible(reportId, data) {
     el.classList.remove('hidden');
     const ap0 = dd.audio_progress;
     if (ap0 && ap0.steps && ap0.steps.length && (ap0.full_pipeline || ap0.report_stages)) {
-        el.innerHTML = buildUnifiedJobHeaderHtml(dd, 'Estado del job') + buildAudioProgressBlockHtml(ap0.steps, ap0.caption);
+        el.innerHTML = buildUnifiedJobHeaderHtml(dd, jobTelemetrySectionTitle(dd)) + buildAudioProgressBlockHtml(ap0.steps, ap0.caption);
         return;
     }
     if (dd.status === 'pending') {
@@ -998,6 +1005,37 @@ function escapeHtml(s) {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
 }
+/** Pasos audio/guion: en cola no mostrar spinners hasta que job_status ejecute el paso real. */
+function prepareAudioStepsForUi(data, stepsIn) {
+    var steps = stepsIn ? stepsIn.slice() : [];
+    var apRoot = data && data.audio_progress ? data.audio_progress : {};
+    if (data && data.audio_status === 'queued' && steps.length && !apRoot.full_pipeline && !apRoot.report_stages) {
+        steps = steps.map(function (s) {
+            if (!s || typeof s !== 'object') return s;
+            if (s.status === 'loading') {
+                var c = {}; for (var k in s) { if (Object.prototype.hasOwnProperty.call(s, k)) { c[k] = s[k]; } }
+                c.status = 'pending';
+                return c;
+            }
+            return s;
+        });
+    }
+    if (data && data.audio_status === 'failed' && typeof data.audio_error_msg === 'string' && data.audio_error_msg.trim()) {
+        try {
+            steps = steps.map(function (s) {
+                if (!s || typeof s !== 'object') return s;
+                if (s.id === 'tts' && (s.status === 'loading' || s.status === 'pending')) {
+                    var c2 = {}; for (var k2 in s) { if (Object.prototype.hasOwnProperty.call(s, k2)) { c2[k2] = s[k2]; } }
+                    c2.status = 'error';
+                    c2.error = data.audio_error_msg;
+                    return c2;
+                }
+                return s;
+            });
+        } catch (e) {}
+    }
+    return steps;
+}
 function buildAudioProgressBlockHtml(steps, caption) {
     if (!steps || !steps.length) return '';
     var cap = caption || 'Generando audio (segundo plano; puedes salir y volver)';
@@ -1044,41 +1082,22 @@ function updateReportAudioProgressUI(data) {
     const ap = data.audio_progress;
     const hasSteps = ap && ap.steps && ap.steps.length;
     if (hasSteps && (data.audio_status === 'queued' || data.audio_status === 'processing' || data.audio_status === 'failed' || (ap.full_pipeline && data.status === 'completed'))) {
-        // Mostrar "en cola" aunque haya pasos (si no, parece que ya está ejecutando).
         if (legacy) {
-            if (data.audio_status === 'queued') {
-                const qp = formatQueueSuffix(data);
-                legacy.classList.remove('hidden');
-                legacy.className = 'px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-800';
-                legacy.textContent = 'Audio en cola' + qp + '…';
-            } else {
-                legacy.classList.add('hidden');
-                legacy.textContent = '';
-            }
+            legacy.classList.add('hidden');
+            legacy.textContent = '';
         }
         pb.classList.remove('hidden');
-        // Compat: si tras un reinicio el backend marcó audio_status=failed pero el JSON quedó con "tts: loading",
-        // forzamos el paso TTS a error para reflejar la realidad y evitar estados "eternos".
-        let stepsOut = ap.steps;
-        if (data.audio_status === 'failed' && typeof data.audio_error_msg === 'string' && data.audio_error_msg.trim()) {
-            try {
-                stepsOut = (ap.steps || []).map(s => {
-                    if (!s || typeof s !== 'object') return s;
-                    if (s.id === 'tts' && (s.status === 'loading' || s.status === 'pending')) {
-                        return { ...s, status: 'error', error: data.audio_error_msg };
-                    }
-                    return s;
-                });
-            } catch (e) {
-                stepsOut = ap.steps;
-            }
-        }
-        let cap = ap.caption;
+        var stepsOut = prepareAudioStepsForUi(data, ap.steps || []);
+        var cap = ap.caption;
         if (data.audio_status === 'queued') {
             const qp = formatQueueSuffix(data);
-            cap = 'Audio en cola' + qp + ' (se ejecutará cuando le toque; puedes salir y volver)';
+            if (!ap.full_pipeline && !ap.report_stages) {
+                cap = 'En cola' + qp + '. Cuando el servidor tome este trabajo verás aquí cada paso (guion flash → TTS).';
+            } else {
+                cap = 'Audio en cola' + qp + ' (se ejecutará cuando le toque; puedes salir y volver)';
+            }
         }
-        pb.innerHTML = buildUnifiedJobHeaderHtml(data, 'Estado del job') + buildAudioProgressBlockHtml(stepsOut, cap);
+        pb.innerHTML = buildUnifiedJobHeaderHtml(data, jobTelemetrySectionTitle(data)) + buildAudioProgressBlockHtml(stepsOut, cap);
         return;
     }
     // Anti-parpadeo: si el audio está en cola/en curso y por timing llega un poll sin `audio_progress`,
@@ -1121,27 +1140,19 @@ function updateReportDetailFromStatusPoll(reportId, data) {
         }
         if (audioPb) {
             audioPb.classList.remove('hidden');
+            var stepsP = prepareAudioStepsForUi(data, ap1.steps || []);
             let cap = ap1.caption;
             if (data.audio_status === 'queued') {
                 const qp = formatQueueSuffix(data);
                 cap = 'Audio en cola' + qp + ' (se ejecutará cuando le toque; puedes salir y volver)';
             }
-            const tailTel = (data.status === 'completed')
-                ? (buildReportTelemetryHintHtml(data) || '')
-                : '';
-            audioPb.innerHTML = tailTel + buildAudioProgressBlockHtml(ap1.steps, cap);
+            audioPb.innerHTML =
+                buildUnifiedJobHeaderHtml(data, jobTelemetrySectionTitle(data))
+                + buildAudioProgressBlockHtml(stepsP, cap);
         }
-        // Aunque haya bloque de pasos, mostrar siempre el aviso "Audio en cola" si aplica.
         if (legacyAudioStatus) {
-            if (data.audio_status === 'queued') {
-                const qp = formatQueueSuffix(data);
-                legacyAudioStatus.classList.remove('hidden');
-                legacyAudioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-800';
-                legacyAudioStatus.textContent = 'Audio en cola' + qp + '…';
-            } else {
-                legacyAudioStatus.classList.add('hidden');
-                legacyAudioStatus.textContent = '';
-            }
+            legacyAudioStatus.classList.add('hidden');
+            legacyAudioStatus.textContent = '';
         }
         return;
     }
@@ -1304,10 +1315,8 @@ function startAudioStatusPolling(reportId) {
                     updateReportAudioProgressUI(data);
                     if (btnAudio) btnAudio.classList.add('hidden');
                     if (audioStatus) {
-                        const qp = formatQueueSuffix(data);
-                        audioStatus.classList.remove('hidden');
-                        audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-800';
-                        audioStatus.textContent = 'Audio en cola' + qp + '…';
+                        audioStatus.classList.add('hidden');
+                        audioStatus.textContent = '';
                     }
                     return;
                 }
@@ -1654,7 +1663,19 @@ function loadReports() {
             }
             container.innerHTML = data.reports.map(r => {
                 const date = r.completed_at ? new Date(r.completed_at).toLocaleDateString('es-ES') : (r.created_at ? new Date(r.created_at).toLocaleDateString('es-ES') : '');
-                const statusBadge = r.status === 'completed' ? 'bg-green-100 text-green-800' : r.status === 'failed' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800';
+                const statusBadge = (() => {
+                    if (r.status === 'failed') return 'bg-red-100 text-red-800';
+                    if (r.status === 'pending' || r.status === 'processing') return 'bg-yellow-100 text-yellow-800';
+                    if (r.status === 'completed' && r.delivery_mode === 'full_deliver') {
+                        const ph = r.delivery_phase_status == null ? '' : String(r.delivery_phase_status);
+                        if (ph === 'processing' || ph === '' || ph === 'queued') return 'bg-yellow-100 text-yellow-800';
+                    }
+                    if (r.status === 'completed' && (r.audio_status === 'queued' || r.audio_status === 'processing')) {
+                        return 'bg-yellow-100 text-yellow-800';
+                    }
+                    if (r.status === 'completed') return 'bg-green-100 text-green-800';
+                    return 'bg-yellow-100 text-yellow-800';
+                })();
                 const name = r.template_title || ('Informe ' + r.id);
                 const audioBadge = r.audio_status === 'completed'
                     ? ' <span class="text-green-600" title="Audio disponible">🔊</span>'
@@ -1672,7 +1693,7 @@ function loadReports() {
                              onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleReportRow(${r.id},event);}">
                             <div class="flex justify-between items-center gap-2">
                                 <span class="text-sm font-medium">${(name || '').replace(/</g, '&lt;')}${audioBadge}</span>
-                                <span class="px-2 py-0.5 rounded text-xs shrink-0 ${statusBadge}">${reportStatusLabel(r.status, r.queue_position, data.queue_waiting_total, r.delivery_mode, r.delivery_phase_status)}</span>
+                                <span class="px-2 py-0.5 rounded text-xs shrink-0 ${statusBadge}">${reportStatusLabel(r.status, r.queue_position, data.queue_waiting_total, r.delivery_mode, r.delivery_phase_status, r.audio_status)}</span>
                             </div>
                             <div class="text-xs text-gray-500 mt-1">${date}</div>
                         </div>
@@ -1777,10 +1798,10 @@ function loadReportDetail(reportId) {
                     const audioPb = document.getElementById('reportAudioProgress');
                     if (audioPb) {
                         audioPb.classList.remove('hidden');
-                        const tailTel = (data.status === 'completed')
-                            ? (buildReportTelemetryHintHtml(data) || '')
-                            : '';
-                        audioPb.innerHTML = tailTel + buildAudioProgressBlockHtml(fp0.steps, fp0.caption);
+                        var stepsL = prepareAudioStepsForUi(data, fp0.steps || []);
+                        audioPb.innerHTML =
+                            buildUnifiedJobHeaderHtml(data, jobTelemetrySectionTitle(data))
+                            + buildAudioProgressBlockHtml(stepsL, fp0.caption);
                     }
                     if (btnEmail) btnEmail.classList.add('hidden');
                     if (btnAudio) btnAudio.classList.add('hidden');
@@ -1818,10 +1839,8 @@ function loadReportDetail(reportId) {
                     if (btnAudio) btnAudio.classList.add('hidden');
                     updateReportAudioProgressUI(data);
                     if (audioStatus) {
-                        const qp = formatQueueSuffix(data);
-                        audioStatus.classList.remove('hidden');
-                        audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-800';
-                        audioStatus.textContent = 'Audio en cola' + qp + '…';
+                        audioStatus.classList.add('hidden');
+                        audioStatus.textContent = '';
                     }
                     stopReportStatusPolling(reportId);
                     startAudioStatusPolling(reportId);
