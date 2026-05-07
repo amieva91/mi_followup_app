@@ -57,6 +57,81 @@ def _sleep_seconds_idle() -> float:
         return 1.0
 
 
+def _reconcile_company_report_job_rows(engine) -> None:
+    """
+    Normaliza estados inconsistentes tras reinicios/deploys.
+
+    Invariantes:
+    - status=completed -> job_status=completed, job_phase=completed
+    - status=failed -> job_status=failed
+    - status=pending -> job_status=queued
+    """
+    now = _utcnow()
+    with engine.connect() as conn:
+        # Completed pero job_status sigue running
+        conn.execute(
+            text(
+                """
+                UPDATE company_reports
+                SET job_status='completed',
+                    job_phase='completed',
+                    job_finished_at=COALESCE(job_finished_at, completed_at, :now)
+                WHERE COALESCE(job_kind, '') IN (:k1, :k2)
+                  AND status='completed'
+                  AND job_status='running'
+                """
+            ),
+            {"k1": JOB_KIND_DR_WATCHLIST_MIN, "k2": JOB_KIND_DR_FULL, "now": now},
+        )
+        # Failed pero job_status sigue running
+        conn.execute(
+            text(
+                """
+                UPDATE company_reports
+                SET job_status='failed',
+                    job_phase=COALESCE(job_phase, 'failed'),
+                    job_finished_at=COALESCE(job_finished_at, completed_at, :now)
+                WHERE COALESCE(job_kind, '') IN (:k1, :k2)
+                  AND status='failed'
+                  AND job_status='running'
+                """
+            ),
+            {"k1": JOB_KIND_DR_WATCHLIST_MIN, "k2": JOB_KIND_DR_FULL, "now": now},
+        )
+        # Pending marcado como running (no debería): devolver a cola
+        conn.execute(
+            text(
+                """
+                UPDATE company_reports
+                SET job_status='queued',
+                    job_phase='waiting_turn',
+                    job_started_at=NULL,
+                    job_finished_at=NULL
+                WHERE COALESCE(job_kind, '') IN (:k1, :k2)
+                  AND status='pending'
+                  AND job_status='running'
+                """
+            ),
+            {"k1": JOB_KIND_DR_WATCHLIST_MIN, "k2": JOB_KIND_DR_FULL},
+        )
+        # Processing pero job_status está queued: marcar running (p.ej. filas antiguas)
+        conn.execute(
+            text(
+                """
+                UPDATE company_reports
+                SET job_status='running',
+                    job_phase=COALESCE(job_phase, 'polling_provider'),
+                    job_started_at=COALESCE(job_started_at, report_enqueued_at, created_at, :now)
+                WHERE COALESCE(job_kind, '') IN (:k1, :k2)
+                  AND status='processing'
+                  AND COALESCE(job_status, 'queued')='queued'
+                """
+            ),
+            {"k1": JOB_KIND_DR_WATCHLIST_MIN, "k2": JOB_KIND_DR_FULL, "now": now},
+        )
+        conn.commit()
+
+
 def _claim_next_company_report_job(engine) -> Optional[int]:
     """
     Reclama el siguiente `company_reports` encolado para DR.
@@ -402,6 +477,12 @@ def run_forever(app) -> None:
     idle = _sleep_seconds_idle()
     logger.info("company_report_jobs_worker: start (p95=%ss timeout=%ss idle_sleep=%ss)", _p95_seconds(), _timeout_seconds(), idle)
     with app.app_context():
+        try:
+            from app import db
+
+            _reconcile_company_report_job_rows(db.engine)
+        except Exception:
+            logger.exception("company_report_jobs_worker: reconcile error")
         while True:
             try:
                 did = run_once(app)
