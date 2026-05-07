@@ -966,9 +966,6 @@ def asset_reports_generate(id):
     try:
         from app.models import ReportTemplate, CompanyReport
         from app.services.gemini_service import (
-            run_deep_research_report,
-            new_report_stages_progress_state,
-            GeminiServiceError,
             is_gemini_available,
         )
         from flask import current_app
@@ -1001,243 +998,12 @@ def asset_reports_generate(id):
             template_title=template.title,
             status='pending',
             report_enqueued_at=datetime.utcnow(),
+            job_kind='dr_full',
+            job_status='queued',
+            job_phase='waiting_turn',
         )
         db.session.add(report)
         db.session.commit()
-
-        report_id = report.id
-        user_id = current_user.id
-        asset_id = id
-        description = template.description
-        points = template.get_points_list()
-
-        app = current_app._get_current_object()
-
-        def run_report_background():
-            """Hilo: usa conexión raw (sin sesión ORM) para evitar 'Instance is not bound to a Session'."""
-            from datetime import datetime
-
-            from app.background_tasks_lock import background_tasks_lock
-
-            # Serialización global: informes/audio se ejecutan de uno en uno.
-            with app.app_context(), background_tasks_lock(app, fair_report_id=report_id):
-                engine = db.engine
-
-                def _update_status(st, content_val=None, error_val=None, clear_progress=False):
-                    now_str = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-                    with engine.connect() as conn:
-                        if clear_progress and st == 'completed':
-                            conn.execute(
-                                text("""
-                            UPDATE company_reports SET status = :st, completed_at = :now
-                            , content = :content, error_msg = :error, audio_progress_json = NULL
-                            WHERE id = :rid
-                        """),
-                                {
-                                    'st': st,
-                                    'now': now_str,
-                                    'content': content_val,
-                                    'error': error_val,
-                                    'rid': report_id,
-                                },
-                            )
-                        else:
-                            conn.execute(
-                                text("""
-                            UPDATE company_reports SET status = :st, completed_at = :now
-                            , content = :content, error_msg = :error WHERE id = :rid
-                        """),
-                                {
-                                    'st': st,
-                                    'now': now_str,
-                                    'content': content_val,
-                                    'error': error_val,
-                                    'rid': report_id,
-                                },
-                            )
-                        conn.commit()
-
-                try:
-                    with engine.connect() as conn:
-                        # Si solo se hace WHERE status='pending', SQLite/condiciones de carrera
-                        # pueden dejar rowcount=0 y el hilo sale sin tocar el informe → queda "pending" para siempre.
-                        r = conn.execute(text("""
-                            UPDATE company_reports SET status = 'processing' WHERE id = :rid
-                        """), {'rid': report_id})
-                        conn.commit()
-                        if r.rowcount == 0:
-                            current_app.logger.error(
-                                'Deep Research: no existe company_reports id=%s al pasar a processing',
-                                report_id,
-                            )
-                            return
-                except Exception as e:
-                    import traceback
-                    try:
-                        _update_status('failed', error_val=str(e))
-                    except Exception:
-                        pass
-                    print(traceback.format_exc())
-                    return
-
-                try:
-                    with engine.connect() as conn:
-                        row = conn.execute(text(
-                            "SELECT name, symbol, isin FROM assets WHERE id = :aid"
-                        ), {'aid': asset_id}).fetchone()
-                    if not row:
-                        _update_status('failed', error_val='Asset no encontrado')
-                        return
-                    aname = (row[0] or 'Desconocida')
-                    asym = (row[1] or '')
-                    aisn = (row[2] or '')
-
-                    def _save_interaction_id(iid: str):
-                        with engine.connect() as conn:
-                            conn.execute(
-                                text(
-                                    "UPDATE company_reports SET gemini_interaction_id = :iid "
-                                    "WHERE id = :rid AND status = 'processing'"
-                                ),
-                                {'iid': (iid or '')[:100], 'rid': report_id},
-                            )
-                            conn.commit()
-
-                    def _persist_report_stages(subs: list) -> None:
-                        base = new_report_stages_progress_state()
-                        base['steps'] = subs
-                        with engine.connect() as conn:
-                            conn.execute(
-                                text(
-                                    'UPDATE company_reports SET audio_progress_json = :j WHERE id = :rid'
-                                ),
-                                {
-                                    'j': json.dumps(base, ensure_ascii=False),
-                                    'rid': report_id,
-                                },
-                            )
-                            conn.commit()
-
-                    with engine.connect() as conn:
-                        conn.execute(
-                            text(
-                                'UPDATE company_reports SET audio_progress_json = :j WHERE id = :rid'
-                            ),
-                            {
-                                'j': json.dumps(new_report_stages_progress_state(), ensure_ascii=False),
-                                'rid': report_id,
-                            },
-                        )
-                        conn.commit()
-
-                    current_app.logger.info(
-                        'Deep Research worker: inicio informe solo texto report_id=%s asset_id=%s user_id=%s',
-                        report_id,
-                        asset_id,
-                        user_id,
-                    )
-
-                    status, content = run_deep_research_report(
-                        aname,
-                        asym,
-                        aisn,
-                        description,
-                        points,
-                        on_interaction_created=_save_interaction_id,
-                        on_report_substeps=_persist_report_stages,
-                        extra_prompt_suffix=None,
-                    )
-
-                    current_app.logger.info(
-                        'Deep Research worker: fin informe solo texto report_id=%s resultado=%s',
-                        report_id,
-                        status,
-                    )
-
-                    content_val = content if status == 'completed' else None
-                    error_val = content if status == 'failed' else None
-
-                    if status == 'completed':
-                        from app.services.gemini_service import (
-                            generate_report_email_summary,
-                            fallback_report_summary_markdown,
-                            report_substeps_after_dr_ok,
-                            _get_auto_collab_loop,
-                        )
-
-                        single_shot = not _get_auto_collab_loop()
-                        _persist_report_stages_from_steps(
-                            engine,
-                            report_id,
-                            report_substeps_after_dr_ok(single_shot, 'loading'),
-                        )
-                        try:
-                            summary_md = generate_report_email_summary(content or '')
-                        except Exception:
-                            summary_md = fallback_report_summary_markdown(content or '')
-                        _persist_report_stages_from_steps(
-                            engine,
-                            report_id,
-                            report_substeps_after_dr_ok(single_shot, 'ok'),
-                        )
-                        now_str = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-                        with engine.connect() as conn:
-                            conn.execute(
-                                text("""
-                                    UPDATE company_reports SET status = 'completed', completed_at = :now,
-                                    content = :content, summary_content = :sm, error_msg = NULL,
-                                    audio_progress_json = NULL
-                                    WHERE id = :rid
-                                """),
-                                {
-                                    'now': now_str,
-                                    'content': content,
-                                    'sm': summary_md,
-                                    'rid': report_id,
-                                },
-                            )
-                            conn.commit()
-                        with engine.connect() as conn:
-                            cnt = conn.execute(text(
-                                "SELECT COUNT(*) FROM company_reports WHERE user_id = :uid AND asset_id = :aid"
-                            ), {'uid': user_id, 'aid': asset_id}).scalar()
-                            if cnt and cnt > 5:
-                                lim = int(cnt) - 5
-                                ids = [r[0] for r in conn.execute(text("""
-                                    SELECT id FROM company_reports
-                                    WHERE user_id = :uid AND asset_id = :aid
-                                    ORDER BY created_at ASC LIMIT :lim
-                                """), {'uid': user_id, 'aid': asset_id, 'lim': lim}).fetchall()]
-                                if ids:
-                                    stmt = text("DELETE FROM company_reports WHERE id IN :ids").bindparams(
-                                        bindparam('ids', expanding=True)
-                                    )
-                                    conn.execute(stmt, {'ids': ids})
-                            conn.commit()
-                    else:
-                        _update_status(
-                            status,
-                            content_val=content_val,
-                            error_val=error_val,
-                            clear_progress=False,
-                        )
-
-                except GeminiServiceError as e:
-                    try:
-                        _update_status('failed', error_val=str(e))
-                    except Exception:
-                        pass
-                except Exception as e:
-                    import traceback
-                    try:
-                        _update_status('failed', error_val=str(e))
-                    except Exception:
-                        pass
-                    print(traceback.format_exc())
-
-        # Cola global + lock justo: un informe largo a la vez; orden por report_enqueued_at (ver company_report_queue).
-        thread = threading.Thread(target=run_report_background, daemon=True)
-        thread.start()
 
         return jsonify({
             'success': True,
@@ -1962,6 +1728,26 @@ def api_report_status(report_id):
     except Exception:
         current_app.logger.exception('queue_metrics api_report_status')
 
+    # Telemetría de jobs largos (worker DB-backed)
+    def _iso(v):
+        try:
+            return v.isoformat() if v else None
+        except Exception:
+            return None
+
+    job_started_at = getattr(report, 'job_started_at', None)
+    elapsed_s = None
+    try:
+        if job_started_at:
+            elapsed_s = int((datetime.utcnow() - job_started_at).total_seconds())
+    except Exception:
+        elapsed_s = None
+
+    p95_s = 30 * 60
+    timeout_s = int(p95_s * 1.5)
+    possible_blocked = bool(elapsed_s is not None and elapsed_s >= p95_s and report.status == 'processing')
+    timed_out = bool(elapsed_s is not None and elapsed_s >= timeout_s and report.status == 'processing')
+
     return jsonify({
         'id': report.id,
         'status': report.status,
@@ -1975,6 +1761,30 @@ def api_report_status(report_id):
         'queue_waiting_total': queue_waiting_total,
         'email_status': getattr(report, 'email_status', None),
         'email_error_msg': getattr(report, 'email_error_msg', None),
+
+        'job': {
+            'kind': getattr(report, 'job_kind', None),
+            'status': getattr(report, 'job_status', None),
+            'phase': getattr(report, 'job_phase', None),
+            'started_at': _iso(getattr(report, 'job_started_at', None)),
+            'finished_at': _iso(getattr(report, 'job_finished_at', None)),
+            'elapsed_s': elapsed_s,
+            'p95_s': p95_s,
+            'timeout_s': timeout_s,
+            'possible_blocked': possible_blocked,
+            'timed_out': timed_out,
+        },
+        'provider': {
+            'last_status': getattr(report, 'provider_last_status', None),
+            'last_poll_at': _iso(getattr(report, 'provider_last_poll_at', None)),
+            'poll_count': getattr(report, 'provider_poll_count', None),
+            'last_http_status': getattr(report, 'provider_last_http_status', None),
+            'last_error_kind': getattr(report, 'provider_last_error_kind', None),
+            'last_error_msg': getattr(report, 'provider_last_error_msg', None),
+            'create_attempt': getattr(report, 'provider_create_attempt', None),
+            'next_retry_at': _iso(getattr(report, 'provider_next_retry_at', None)),
+            'interaction_id': getattr(report, 'gemini_interaction_id', None),
+        },
     })
 
 

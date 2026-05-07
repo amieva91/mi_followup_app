@@ -859,7 +859,6 @@ def watchlist_reports_queue_dr_row():
         from flask import current_app
 
         from app.models import CompanyReport
-        from app.services.company_report_deep_job import start_watchlist_row_deep_research_thread
         from app.services.gemini_service import is_gemini_available
         from app.services.watchlist_ia_template import (
             delete_prior_watchlist_ia_reports_same_slot,
@@ -892,18 +891,12 @@ def watchlist_reports_queue_dr_row():
             template_title=report_title,
             status='pending',
             report_enqueued_at=datetime.utcnow(),
+            job_kind='dr_watchlist_min',
+            job_status='queued',
+            job_phase='waiting_turn',
         )
         db.session.add(report)
         db.session.commit()
-
-        start_watchlist_row_deep_research_thread(
-            app,
-            report.id,
-            user_id,
-            asset_id,
-            description,
-            points,
-        )
 
         return jsonify(
             {

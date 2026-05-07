@@ -89,6 +89,22 @@ class CompanyReport(db.Model):
     error_msg = db.Column(db.Text, nullable=True)
     gemini_interaction_id = db.Column(db.String(100), nullable=True)
 
+    # Telemetría de jobs largos (worker DB-backed)
+    job_kind = db.Column(db.String(40), nullable=True)  # dr_watchlist_min | dr_full | tts_only | full_deliver
+    job_status = db.Column(db.String(20), nullable=True)  # queued | running | completed | failed | cancelled
+    job_phase = db.Column(db.String(40), nullable=True)  # waiting_turn | creating_interaction | polling_provider | ...
+    job_started_at = db.Column(db.DateTime, nullable=True)
+    job_finished_at = db.Column(db.DateTime, nullable=True)
+
+    provider_last_status = db.Column(db.String(40), nullable=True)
+    provider_last_poll_at = db.Column(db.DateTime, nullable=True)
+    provider_poll_count = db.Column(db.Integer, nullable=True)
+    provider_last_http_status = db.Column(db.Integer, nullable=True)
+    provider_last_error_kind = db.Column(db.String(40), nullable=True)
+    provider_last_error_msg = db.Column(db.Text, nullable=True)
+    provider_create_attempt = db.Column(db.Integer, nullable=True)
+    provider_next_retry_at = db.Column(db.DateTime, nullable=True)
+
     # Audio TTS resumen
     audio_path = db.Column(db.String(500), nullable=True)  # ruta al archivo WAV
     audio_status = db.Column(db.String(20), nullable=True)  # pending, processing, completed, failed
