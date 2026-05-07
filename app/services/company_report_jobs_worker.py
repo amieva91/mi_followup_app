@@ -81,7 +81,7 @@ def _claim_next_company_report_job(engine) -> Optional[int]:
         if not row:
             return None
         rid = int(row[0])
-        now = _fmt_dt(_utcnow())
+        now = _utcnow()
         res = conn.execute(
             text(
                 """
@@ -136,7 +136,7 @@ def _update(engine, report_id: int, **fields) -> None:
 
 
 def _mark_failed(engine, report_id: int, msg: str, *, kind: str = "unknown") -> None:
-    now = _fmt_dt(_utcnow())
+    now = _utcnow()
     _update(
         engine,
         report_id,
@@ -151,7 +151,7 @@ def _mark_failed(engine, report_id: int, msg: str, *, kind: str = "unknown") -> 
 
 
 def _mark_completed(engine, report_id: int, content: str) -> None:
-    now = _fmt_dt(_utcnow())
+    now = _utcnow()
     _update(
         engine,
         report_id,
@@ -251,7 +251,7 @@ def run_once(app) -> bool:
     aisn = (ctx.get("isin") or "").strip()
 
     def on_interaction_created(iid: str) -> None:
-        now = _fmt_dt(_utcnow())
+        now = _utcnow()
         _update(
             engine,
             rid,
@@ -263,7 +263,7 @@ def run_once(app) -> bool:
 
     def on_status_update(st: str, msg: str) -> None:
         # `run_deep_research_report` llama a esto para mensajes de UI; persistimos lo mínimo.
-        now = _fmt_dt(_utcnow())
+        now = _utcnow()
         # Cada status_update corresponde a un poll (o avance de etapa) del provider.
         # Lo usamos como contador visible en UI.
         try:
@@ -282,7 +282,8 @@ def run_once(app) -> bool:
                     {
                         "now": now,
                         "st": (st or "")[:40],
-                        "em": (msg or "")[:2000] if st in ("failed", "timeout") else None,
+                        # Guardar el último mensaje aunque no sea error (lo mostramos en UI)
+                        "em": (msg or "")[:2000] if (msg or "").strip() else None,
                         "rid": int(rid),
                     },
                 )
@@ -305,6 +306,18 @@ def run_once(app) -> bool:
         )
         if status == "completed":
             _mark_completed(engine, rid, content)
+            # DR watchlist_min: tras completar, extraer y aplicar los 5 campos en Watchlist
+            if job_kind == JOB_KIND_DR_WATCHLIST_MIN:
+                try:
+                    from app.services.watchlist_report_extract_service import (
+                        apply_extracted_watchlist_fields,
+                        extract_watchlist_fields_from_report_md,
+                    )
+
+                    extracted = extract_watchlist_fields_from_report_md(content or "")
+                    apply_extracted_watchlist_fields(int(ctx.get("user_id") or 0), int(ctx.get("asset_id") or 0), extracted)
+                except Exception:
+                    logger.exception("watchlist extract/apply failed report_id=%s", rid)
             return True
         if status == "timeout":
             # No cortar por timeout aquí todavía: el worker decide por su propio reloj.

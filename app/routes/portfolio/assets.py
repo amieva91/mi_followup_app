@@ -1731,7 +1731,13 @@ def api_report_status(report_id):
     # Telemetría de jobs largos (worker DB-backed)
     def _iso(v):
         try:
-            return v.isoformat() if v else None
+            if not v:
+                return None
+            s = v.isoformat()
+            # Fechas naïve se interpretan como local en JS; forzamos UTC con 'Z'
+            if s.endswith('Z') or '+' in s:
+                return s
+            return s + 'Z'
         except Exception:
             return None
 
