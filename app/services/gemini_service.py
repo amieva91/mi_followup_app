@@ -2231,6 +2231,12 @@ def new_full_pipeline_progress_state() -> dict:
 def merge_full_pipeline_with_tts_progress(full_state: dict, tts_progress: dict) -> dict:
     """Incorpora guion + TTS en los índices 4 y 5 del pipeline completo (tras plan→informe→resumen)."""
     out = {**full_state, 'full_pipeline': True}
+    if isinstance(tts_progress, dict):
+        kr = tts_progress.get('tts_http_retry')
+        if kr is None and 'tts_http_retry' in tts_progress:
+            out.pop('tts_http_retry', None)
+        elif kr is not None:
+            out['tts_http_retry'] = kr
     steps = [dict(s) for s in (out.get('steps') or [])]
     tts_steps = (tts_progress or {}).get('steps') or []
     if len(steps) >= 6 and len(tts_steps) >= 1:
@@ -2265,8 +2271,8 @@ def generate_report_tts_audio(
     Args:
         report_content: Contenido Markdown del informe
         output_path: Ruta absoluta donde guardar el WAV
-        on_progress: Opcional. Recibe ``{"steps": [{id, title, status, model, error}, ...]}``
-            en cada transición (``status``: pending, loading, ok, error).
+        on_progress: Opcional. Recibe ``{\"steps\": [...]}`` y opcionalmente
+            ``tts_http_retry`` durante reintentos automáticos ante 500/503 (persistido para la UI).
 
     Raises:
         GeminiServiceError: Si falla la generación
@@ -2275,15 +2281,48 @@ def generate_report_tts_audio(
     if not api_key:
         raise GeminiServiceError('GEMINI_API_KEY no configurada')
 
-    def emit(steps: list[Any]) -> None:
-        if on_progress:
-            on_progress({'steps': [dict(s) for s in steps]})
+    def emit(steps: list[Any], *, extra: dict[str, Any] | None = None) -> None:
+        if not on_progress:
+            return
+        payload: dict[str, Any] = {'steps': [dict(s) for s in steps]}
+        if extra:
+            payload.update(extra)
+        on_progress(payload)
 
     def _is_no_interaction_id_error(err: Exception) -> bool:
         s = (str(err) or '').lower()
         return ('sin interaction_id' in s) or ('without interaction_id' in s)
 
-    try:
+    def _http_status_from_exc(err: Exception) -> int | None:
+        try:
+            from google.genai import errors as ge
+
+            if isinstance(err, ge.ServerError):
+                c = getattr(err, 'status_code', None)
+                if c is None:
+                    return None
+                return int(c)
+        except Exception:
+            pass
+        return None
+
+    def _tts_transient_retryable(err: Exception) -> bool:
+        if _is_no_interaction_id_error(err):
+            return True
+        c = _http_status_from_exc(err)
+        if c in (500, 503):
+            return True
+        s = str(err) or ''
+        up = s.upper().replace(' ', '')
+        return (
+            ('500INTERNAL' in up)
+            or ('"CODE":500' in up.replace(' ', ''))
+            or ('SERVICE_UNAVAILABLE' in up)
+            or ('503' in up and 'SERVICE' in up)
+        )
+
+
+
         from google import genai
 
         client = genai.Client(api_key=api_key)
@@ -2308,50 +2347,83 @@ def generate_report_tts_audio(
         steps[0]['status'] = 'ok'
         steps[0]['error'] = None
         steps[1]['status'] = 'loading'
-        emit(steps)
+        emit(steps, extra={'tts_http_retry': None})
 
         tts_client = _make_tts_genai_client(api_key)
 
-        # Reintentos: si Gemini falla antes de devolver respuesta (sin interaction_id), reintentar sin perder turno.
+        # Reintentos (máx. 3 llamadas HTTP de síntesis): sin interaction_id, 500 / 503 del proveedor, etc.
         max_attempts = 3
-        retry_delay_seconds = 30
+        retry_delay_seconds_no_iid = 30
         last_tts_err: Optional[Exception] = None
         for attempt in range(1, max_attempts + 1):
             try:
                 _synthesize_multispeaker_podcast_wav(tts_client, script, output_path)
                 last_tts_err = None
                 break
+            except GeminiTTSSynthesisTimeoutError as e_timeout:
+                last_tts_err = e_timeout
+                steps[1]['status'] = 'error'
+                steps[1]['error'] = (str(e_timeout) or 'Error')[:4000]
+                emit(steps, extra={'tts_http_retry': None})
+                raise
             except Exception as e:
                 last_tts_err = e
-                if (attempt < max_attempts) and _is_no_interaction_id_error(e):
+                if attempt < max_attempts and _tts_transient_retryable(e):
+                    delay = (
+                        retry_delay_seconds_no_iid
+                        if _is_no_interaction_id_error(e)
+                        else min(120, max(6, int(6 * (2 ** (attempt - 1)))))
+                    )
+                    hc = _http_status_from_exc(e)
+                    kind = (
+                        'sin interaction_id'
+                        if _is_no_interaction_id_error(e)
+                        else (f'HTTP {hc}' if hc is not None else 'error proveedor')
+                    )
                     logger.warning(
-                        'TTS: error sin interaction_id (intento %s/%s). Reintento en %ss. err=%s',
+                        'TTS síntesis: fallo recuperable (%s), intento HTTP %s/%s, esperando %ss antes de reintentar. err=%s',
+                        kind,
                         attempt,
                         max_attempts,
-                        retry_delay_seconds,
+                        delay,
                         e,
                     )
-                    # Mantener en loading pero informar del reintento en el tooltip/error del paso.
+                    next_try_num = attempt + 1
                     steps[1]['status'] = 'loading'
-                    steps[1]['error'] = (
-                        f'Fallo transitorio (sin interaction_id). Reintentando en {retry_delay_seconds}s… '
-                        f'({attempt}/{max_attempts})'
-                    )[:4000]
-                    emit(steps)
-                    time.sleep(retry_delay_seconds)
+                    if _is_no_interaction_id_error(e):
+                        steps[1]['error'] = (
+                            f'Transitorio ({kind}). Siguiente intento automático {next_try_num}/{max_attempts} '
+                            f'en {delay}s…'
+                        )[:4000]
+                    else:
+                        steps[1]['error'] = (
+                            f'Transitorio del proveedor ({kind}). Siguiente intento automático {next_try_num}/{max_attempts} '
+                            f'en {delay}s…'
+                        )[:4000]
+                    emit(
+                        steps,
+                        extra={
+                            'tts_http_retry': {
+                                'attempt': next_try_num,
+                                'max': max_attempts,
+                                'next_in_s': delay,
+                                'last_http_status': hc,
+                                'phase': kind,
+                            }
+                        },
+                    )
+                    time.sleep(delay)
                     continue
-                # No reintetable o agotado
                 steps[1]['status'] = 'error'
                 steps[1]['error'] = (str(e) or 'Error')[:4000]
-                emit(steps)
+                emit(steps, extra={'tts_http_retry': None})
                 raise
         if last_tts_err is not None:
-            # debería estar cubierto por raise anterior, pero por seguridad
             raise last_tts_err
 
         steps[1]['status'] = 'ok'
         steps[1]['error'] = None
-        emit(steps)
+        emit(steps, extra={'tts_http_retry': None})
 
         logger.info(
             'TTS podcast completado: %s (palabras habladas ~%s)',

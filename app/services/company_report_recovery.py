@@ -1,10 +1,10 @@
 """
-Informes ``company_reports`` en ``processing`` tras reinicio del proceso web.
+Recuperación de informes tras reinicios y estados inconsistentes.
 
-- Sin ``gemini_interaction_id``: no hay nada que reanudar → ``failed``.
-- Con ``gemini_interaction_id``: se lanza un hilo que vuelve a hacer polling a Gemini
-  (:func:`resume_company_report_from_interaction_id`) para no perder trabajo que sigue en curso
-  en el proveedor.
+- Deep Research sin ``gemini_interaction_id``: marcar fallido desde cualquier proceso que arranca Flask.
+- Marcar como fallido el audio en ``processing`` (huérfano de TTS) **solo cuando arranca**
+  ``followup-jobs`` (`FOLLOWUP_IN_JOBS_WORKER=1`), no desde Gunicorn: evita falsos positivos
+  si sólo reinicia la web pero el worker de colas sigue generando WAV.
 """
 from __future__ import annotations
 
@@ -214,7 +214,15 @@ def recover_processing_reports_after_restart(app, app_logger=None) -> None:
 
         audio_n = 0
         tail_resume_ids: list[int] = []
-        rows_a = CompanyReport.query.filter(CompanyReport.audio_status == 'processing').all()
+        # Solo el worker de colas (followup-jobs) debe marcar audio en «processing» como huérfano.
+        # Si Gunicorn reinicia un worker web, create_app() corría esto y marcaba fallo aunque
+        # followup-jobs siguiera generando TTS (falso positivo del mensaje «reinicio … fin del worker»).
+        mark_audio_processing_orphans = str(os.environ.get("FOLLOWUP_IN_JOBS_WORKER", "")).strip() == "1"
+        rows_a = (
+            CompanyReport.query.filter(CompanyReport.audio_status == "processing").all()
+            if mark_audio_processing_orphans
+            else []
+        )
         for r in rows_a:
             if getattr(r, 'created_at', None) and r.created_at > min_age_threshold:
                 continue

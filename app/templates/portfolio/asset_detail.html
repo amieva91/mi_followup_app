@@ -897,6 +897,32 @@ function buildReportTelemetryHintHtml(data) {
             parts.push('Intento de síntesis: ' + String(curA) + ' de ' + String(mxA) + '.' + lastS);
         }
     }
+    try {
+        var apr = data.audio_progress || {};
+        var tr = apr.tts_http_retry;
+        if (tr && tr.max != null && tr.attempt != null) {
+            var nin = '';
+            try {
+                if (tr.next_in_s != null && !isNaN(Number(tr.next_in_s))) {
+                    nin = ' Espera ~' + String(tr.next_in_s) + 's hasta el siguiente intento automático.';
+                }
+            } catch (eN) {}
+            parts.push(
+                'Reintentos ante error de API durante la síntesis: siguiente intento ' +
+                    String(tr.attempt) +
+                    ' de ' +
+                    String(tr.max) +
+                    '.' +
+                    nin
+            );
+            if (tr.last_http_status != null && tr.last_http_status !== '') {
+                parts.push('Último código HTTP observado en síntesis: ' + String(tr.last_http_status));
+            }
+            if (tr.phase != null && String(tr.phase).trim()) {
+                parts.push('Tipo: ' + String(tr.phase).trim());
+            }
+        }
+    } catch (eT) {}
     if (!parts.length) return '';
     return '<div class="mt-1 text-xs text-slate-600 break-words">' + escapeHtml(parts.join(' · ')) + '</div>';
 }
