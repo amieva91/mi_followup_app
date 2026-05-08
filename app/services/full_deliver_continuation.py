@@ -151,7 +151,6 @@ def execute_full_deliver_tail(
     from app.services.gemini_service import (
         _get_auto_collab_loop,
         fallback_report_summary_markdown,
-        generate_report_email_summary,
         new_full_pipeline_progress_state,
         report_substeps_after_dr_ok,
     )
@@ -196,23 +195,12 @@ def execute_full_deliver_tail(
         _sync_job_terminal()
         return
 
-    summary_md_pl = (report.summary_content or "").strip()
-
-    if not summary_md_pl:
-        subs_ld = report_substeps_after_dr_ok(single_shot, "loading")
-        for i in range(min(len(subs_ld), len(pstate["steps"]))):
-            pstate["steps"][i] = subs_ld[i]
-        _persist(pstate)
-        try:
-            summary_md_pl = generate_report_email_summary(content_dr or "")
-        except Exception:
-            summary_md_pl = fallback_report_summary_markdown(content_dr or "")
-        if not isinstance(summary_md_pl, str) or not summary_md_pl.strip():
-            summary_md_pl = fallback_report_summary_markdown(content_dr or "")
-        subs_ok2 = report_substeps_after_dr_ok(single_shot, "ok")
-        for i in range(min(len(subs_ok2), len(pstate["steps"]))):
-            pstate["steps"][i] = subs_ok2[i]
-        _persist(pstate)
+    # Sin resumen Flash: el cuerpo del correo será el informe completo.
+    summary_md_pl = ""
+    subs_ok2 = report_substeps_after_dr_ok(single_shot, "ok")
+    for i in range(min(len(subs_ok2), len(pstate["steps"]))):
+        pstate["steps"][i] = subs_ok2[i]
+    _persist(pstate)
 
     now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     with engine.connect() as conn:
@@ -220,13 +208,13 @@ def execute_full_deliver_tail(
             text(
                 """
                 UPDATE company_reports
-                SET status = 'completed', content = :c, summary_content = :sm,
+                SET status = 'completed', content = :c, summary_content = NULL,
                     error_msg = NULL, completed_at = :now,
                     delivery_mode = 'full_deliver', delivery_phase_status = 'processing'
                 WHERE id = :rid
                 """
             ),
-            {"c": content_dr, "sm": summary_md_pl, "now": now_str, "rid": report_id},
+            {"c": content_dr, "now": now_str, "rid": report_id},
         )
         conn.commit()
 
@@ -318,7 +306,7 @@ def execute_full_deliver_tail(
             user=u,
             asset_name=aname,
             report_title=report_template_title,
-            email_body_markdown=summary_md_pl,
+            email_body_markdown=content_dr or "",
             full_report_markdown_for_pdf=content_dr or "",
         )
     except Exception as em_e:

@@ -1128,13 +1128,7 @@ def asset_report_detail(id, report_id):
     except Exception:
         current_app.logger.exception('queue_metrics asset_report_detail')
 
-    sm_raw = getattr(report, 'summary_content', None)
-    if sm_raw is not None and str(sm_raw).strip():
-        from app.services.gemini_service import sanitize_report_summary_markdown
-
-        summary_out = sanitize_report_summary_markdown(str(sm_raw))
-    else:
-        summary_out = sm_raw
+    summary_out = None
 
     status_visible = status_visible_for_report(report)
     job_j, provider_j = job_and_provider_json(report)
@@ -1174,7 +1168,6 @@ def asset_report_detail(id, report_id):
 def asset_report_send_email(id, report_id):
     """Enviar informe por correo al usuario registrado"""
     from app.utils.email import send_report_email
-    from app.services.gemini_service import sanitize_report_summary_markdown
 
     asset = Asset.query.get(id)
     if not asset:
@@ -1200,11 +1193,7 @@ def asset_report_send_email(id, report_id):
         return jsonify({'success': False, 'error': 'El correo no está configurado en el servidor'}), 503
 
     try:
-        sm = (getattr(report, 'summary_content', None) or '').strip()
-        if sm:
-            email_body_md = sanitize_report_summary_markdown(sm)
-        else:
-            email_body_md = report.content or ''
+        email_body_md = report.content or ''
 
         send_report_email(
             user=current_user,

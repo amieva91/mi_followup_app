@@ -183,14 +183,10 @@ def run_report_only_by_id(app, report_id: int) -> None:
             _update_status("failed", error_val=str(content)[:8000], clear_progress=False)
             return
 
-        # Generar resumen Flash (best-effort)
-        try:
-            single_shot = not _get_auto_collab_loop()
-            _persist_report_stages(report_substeps_after_dr_ok(single_shot, "loading"))
-            summary_md = generate_report_email_summary(content or "")
-            _persist_report_stages(report_substeps_after_dr_ok(single_shot, "ok"))
-        except Exception:
-            summary_md = fallback_report_summary_markdown(content or "")
+        # Sin resumen Flash: el correo (si aplica) usará el informe completo; evitamos coste extra.
+        single_shot = not _get_auto_collab_loop()
+        _persist_report_stages(report_substeps_after_dr_ok(single_shot, "ok"))
+        summary_md = None
 
         now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
         with engine.connect() as conn:

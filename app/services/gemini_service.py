@@ -236,16 +236,8 @@ DEEP_RESEARCH_APPROVE_INPUT = (
 
 
 def _report_substep_rows(single_shot: bool) -> list:
-    """Subpasos para la UI: plan → validar → informe → resumen Flash."""
+    """Subpasos para la UI: plan → validar → informe (sin resumen)."""
     ag = _get_agent_deep_research()
-    flash_m = _get_model_flash()
-    summary_row = {
-        'id': 'summary',
-        'title': 'Generando resumen (Flash)',
-        'status': 'pending',
-        'model': flash_m,
-        'error': None,
-    }
     if single_shot:
         return [
             {
@@ -269,7 +261,6 @@ def _report_substep_rows(single_shot: bool) -> list:
                 'model': ag,
                 'error': None,
             },
-            summary_row,
         ]
     return [
         {
@@ -293,7 +284,6 @@ def _report_substep_rows(single_shot: bool) -> list:
             'model': ag,
             'error': None,
         },
-        summary_row,
     ]
 
 
@@ -301,8 +291,7 @@ def report_substeps_after_dr_ok(
     single_shot: bool, summary_phase: str, summary_error: Optional[str] = None
 ) -> list:
     """
-    Tras completar Deep Research: primeros pasos en ok/skipped; paso ``summary`` según ``summary_phase``
-    (``loading``, ``ok``, ``error``).
+    Tras completar Deep Research: primeros pasos en ok/skipped; informe en ok.
     """
     subs = _report_substep_rows(single_shot)
     if single_shot:
@@ -313,8 +302,6 @@ def report_substeps_after_dr_ok(
         for i in range(3):
             subs[i]['status'] = 'ok'
             subs[i]['error'] = None
-    subs[3]['status'] = summary_phase
-    subs[3]['error'] = summary_error
     return subs
 
 
@@ -327,8 +314,8 @@ def new_report_stages_progress_state() -> dict:
         'report_stages': True,
         'full_pipeline': False,
         'caption': (
-            'Investigación en segundo plano: plan (colaborativo), confirmación, informe Deep Research '
-            'y resumen para correo/vista. Puedes salir; el estado se actualizará al volver.'
+            'Investigación en segundo plano: plan (colaborativo), confirmación e informe Deep Research. '
+            'Puedes salir; el estado se actualizará al volver.'
         ),
         'steps': _report_substep_rows(not _get_auto_collab_loop()),
     }
