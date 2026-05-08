@@ -1,9 +1,9 @@
 """
 Worker DB-backed para ejecutar jobs largos de `company_reports` de forma durable (sin hilos daemon de Gunicorn).
 
-- FIFO por `COALESCE(audio_enqueued_at, report_enqueued_at, created_at)`
+- FIFO por `COALESCE(report_enqueued_at, created_at)`
 - Concurrency=1 (un proceso systemd)
-- Cubre Deep Research (watchlist/full), todo-en-uno (`full_deliver`) y audio solo (`tts_only`).
+- Cubre Deep Research (watchlist/full) y todo-en-uno (`full_deliver`).
 """
 
 from __future__ import annotations
@@ -22,7 +22,6 @@ logger = logging.getLogger(__name__)
 JOB_KIND_DR_WATCHLIST_MIN = "dr_watchlist_min"
 JOB_KIND_DR_FULL = "dr_full"
 JOB_KIND_FULL_DELIVER = "full_deliver"
-JOB_KIND_TTS_ONLY = "tts_only"
 
 
 def _utcnow() -> datetime:
@@ -43,31 +42,6 @@ def _timeout_seconds() -> int:
     return int(_p95_seconds() * 1.5)
 
 
-def _stale_tts_running_cutoff() -> datetime:
-    """
-    Umbral de ``job_started_at`` para considerar un tts_only huérfano
-    (running + audio processing) y desbloquear la cola global.
-
-    Override: ``FOLLOWUP_STALE_TTS_RUNNING_SECONDS`` (mínimo 300).
-    Por defecto: max(2700, wall_timeout_TTS + 900s).
-    """
-    raw = os.environ.get("FOLLOWUP_STALE_TTS_RUNNING_SECONDS", "").strip()
-    if raw:
-        try:
-            sec = max(300, int(raw))
-        except ValueError:
-            sec = 2700
-        return _utcnow() - timedelta(seconds=sec)
-    try:
-        from app.services.gemini_service import _get_tts_synthesis_wall_timeout_seconds
-
-        w = int(_get_tts_synthesis_wall_timeout_seconds())
-    except Exception:
-        w = 1800
-    sec = max(2700, w + 900)
-    return _utcnow() - timedelta(seconds=sec)
-
-
 def _sleep_seconds_idle() -> float:
     raw = os.environ.get("FOLLOWUP_JOBS_WORKER_IDLE_SLEEP_SECONDS", "").strip()
     if not raw:
@@ -83,7 +57,6 @@ def _job_kind_params() -> dict:
         "k_dr1": JOB_KIND_DR_WATCHLIST_MIN,
         "k_dr2": JOB_KIND_DR_FULL,
         "k_fd": JOB_KIND_FULL_DELIVER,
-        "k_tts": JOB_KIND_TTS_ONLY,
     }
 
 
@@ -94,6 +67,27 @@ def _reconcile_company_report_job_rows(engine) -> None:
     now = _utcnow()
     jp = _job_kind_params()
     with engine.connect() as conn:
+        # Audio resumen (TTS) deshabilitado: cancelar cualquier job tts_only que quedara en BD.
+        conn.execute(
+            text(
+                """
+                UPDATE company_reports
+                SET job_status='cancelled',
+                    job_phase='cancelled',
+                    job_finished_at=COALESCE(job_finished_at, :now),
+                    audio_status=CASE
+                      WHEN COALESCE(audio_status,'') IN ('queued','processing') THEN 'failed'
+                      ELSE audio_status END,
+                    audio_error_msg=CASE
+                      WHEN COALESCE(audio_status,'') IN ('queued','processing') THEN 'Audio resumen deshabilitado temporalmente.'
+                      ELSE audio_error_msg END,
+                    audio_progress_json=NULL
+                WHERE COALESCE(job_kind,'') = 'tts_only'
+                  AND COALESCE(job_status,'') IN ('queued','running')
+                """
+            ),
+            {"now": now},
+        )
         # DR: completed pero job_status sigue running
         conn.execute(
             text(
@@ -159,57 +153,6 @@ def _reconcile_company_report_job_rows(engine) -> None:
             ),
             {**jp, "now": now},
         )
-        # tts_only: proceso murió con audio en processing y job en running — desbloquear cola tras umbral.
-        try:
-            cutoff = _stale_tts_running_cutoff()
-            res_stale = conn.execute(
-                text(
-                    """
-                    UPDATE company_reports
-                    SET audio_status='failed',
-                        audio_error_msg='Generación de audio colgada o interrumpida (tiempo excedido sin completar). Pulsa «Regenerar audio».',
-                        job_status='failed',
-                        job_phase='failed',
-                        job_finished_at=COALESCE(job_finished_at, :now)
-                    WHERE job_kind = :k_tts
-                      AND status = 'completed'
-                      AND COALESCE(audio_status,'') = 'processing'
-                      AND job_status = 'running'
-                      AND job_started_at IS NOT NULL
-                      AND job_started_at < :cutoff
-                    """
-                ),
-                {**jp, "now": now, "cutoff": cutoff},
-            )
-            try:
-                rs = int(getattr(res_stale, "rowcount", 0) or 0)
-                if rs > 0:
-                    logger.warning(
-                        "company_report_jobs_worker: reconciliar %s tts_only running+processing huérfanos (job_started_at < %s)",
-                        rs,
-                        cutoff.isoformat(),
-                    )
-            except Exception:
-                pass
-        except Exception:
-            logger.exception("company_report_jobs_worker: stale tts_only reconcile error")
-        # tts_only: audio en cola pero job quedó running (órfano)
-        conn.execute(
-            text(
-                """
-                UPDATE company_reports
-                SET job_status='queued',
-                    job_phase='waiting_turn',
-                    job_started_at=NULL,
-                    job_finished_at=NULL
-                WHERE job_kind = :k_tts
-                  AND status='completed'
-                  AND COALESCE(audio_status,'') = 'queued'
-                  AND job_status='running'
-                """
-            ),
-            jp,
-        )
         # Pending marcado como running: devolver a cola
         conn.execute(
             text(
@@ -264,7 +207,7 @@ def _count_running_tracked_jobs(conn) -> int:
             SELECT COUNT(*)
             FROM company_reports
             WHERE job_status = 'running'
-              AND COALESCE(job_kind, '') IN (:k_dr1, :k_dr2, :k_fd, :k_tts)
+              AND COALESCE(job_kind, '') IN (:k_dr1, :k_dr2, :k_fd)
             """
         ),
         _job_kind_params(),
@@ -277,7 +220,7 @@ def _count_running_tracked_jobs(conn) -> int:
 
 def _claim_next_company_report_job(engine) -> Optional[int]:
     """
-    Reclama el siguiente job encolado (DR, full_deliver o tts_only). Devuelve id o None.
+    Reclama el siguiente job encolado (DR o full_deliver). Devuelve id o None.
     """
     jp = _job_kind_params()
     with engine.connect() as conn:
@@ -299,13 +242,8 @@ def _claim_next_company_report_job(engine) -> Optional[int]:
                       job_kind = :k_fd
                       AND COALESCE(status, 'pending') = 'pending'
                     )
-                    OR (
-                      job_kind = :k_tts
-                      AND status = 'completed'
-                      AND COALESCE(audio_status, '') = 'queued'
-                    )
                   )
-                ORDER BY COALESCE(audio_enqueued_at, report_enqueued_at, created_at) ASC, id ASC
+                ORDER BY COALESCE(report_enqueued_at, created_at) ASC, id ASC
                 LIMIT 1
                 """
             ),
@@ -323,13 +261,11 @@ def _claim_next_company_report_job(engine) -> Optional[int]:
                     job_started_at=COALESCE(job_started_at, :now),
                     job_phase='waiting_turn',
                     provider_poll_count=COALESCE(provider_poll_count, 0),
-                    provider_create_attempt=COALESCE(provider_create_attempt, 0),
-                    audio_status=CASE
-                      WHEN job_kind = :k_tts THEN 'processing' ELSE audio_status END
+                    provider_create_attempt=COALESCE(provider_create_attempt, 0)
                 WHERE id=:rid AND COALESCE(job_status, 'queued')='queued'
                 """
             ),
-            {"rid": rid, "now": now, "k_tts": JOB_KIND_TTS_ONLY},
+            {"rid": rid, "now": now},
         )
         conn.commit()
         if int(getattr(res, "rowcount", 0) or 0) == 0:
@@ -412,7 +348,6 @@ def run_once(app) -> bool:
     from app import db
     from app.background_tasks_lock import background_tasks_lock
     from app.services.company_report_telemetry import sync_full_deliver_job_terminal
-    from app.services.company_report_tts_job import execute_tts_only_job
     from app.services.full_deliver_continuation import continue_full_deliver_after_dr
     from app.services.gemini_service import (
         GeminiServiceError,
@@ -432,7 +367,7 @@ def run_once(app) -> bool:
                 SELECT id, COALESCE(job_kind,'') AS jk, COALESCE(gemini_interaction_id,'') AS iid
                 FROM company_reports
                 WHERE job_status = 'running'
-                  AND COALESCE(job_kind, '') IN (:k_dr1, :k_dr2, :k_fd, :k_tts)
+                  AND COALESCE(job_kind, '') IN (:k_dr1, :k_dr2, :k_fd)
                 ORDER BY COALESCE(job_started_at, report_enqueued_at, created_at) ASC, id ASC
                 LIMIT 1
                 """
@@ -443,11 +378,6 @@ def run_once(app) -> bool:
         rid_running = int(rr[0])
         kind_running = (rr[1] or "").strip()
         iid_running = (rr[2] or "").strip()
-
-        if kind_running == JOB_KIND_TTS_ONLY:
-            with app.app_context(), background_tasks_lock(app, fair_report_id=rid_running):
-                execute_tts_only_job(app, engine, rid_running)
-            return True
 
         if kind_running == JOB_KIND_FULL_DELIVER and not iid_running:
             from app.services.full_deliver_continuation import _fail_full_deliver_report
@@ -549,11 +479,6 @@ def run_once(app) -> bool:
         return True
 
     job_kind = (ctx.get("job_kind") or "").strip()
-
-    if job_kind == JOB_KIND_TTS_ONLY:
-        with app.app_context(), background_tasks_lock(app, fair_report_id=int(rid)):
-            execute_tts_only_job(app, engine, rid)
-        return True
 
     if job_kind == JOB_KIND_FULL_DELIVER:
         from app.services.company_report_full_deliver_runner import execute_full_deliver_job

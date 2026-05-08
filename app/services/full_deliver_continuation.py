@@ -147,13 +147,11 @@ def execute_full_deliver_tail(
     content_dr: str,
     pstate: dict | None,
 ) -> None:
-    """Resumen + TTS + correo. Actualiza ``delivery_phase_status`` y pasos en JSON."""
+    """Resumen + correo (TTS deshabilitado). Actualiza ``delivery_phase_status`` y pasos en JSON."""
     from app.services.gemini_service import (
         _get_auto_collab_loop,
         fallback_report_summary_markdown,
         generate_report_email_summary,
-        generate_report_tts_audio,
-        merge_full_pipeline_with_tts_progress,
         new_full_pipeline_progress_state,
         report_substeps_after_dr_ok,
     )
@@ -264,103 +262,34 @@ def execute_full_deliver_tail(
                 conn.execute(stmt, {"ids": ids})
         conn.commit()
 
-    output_folder = app.config.get("OUTPUT_FOLDER") or (
-        Path(__file__).resolve().parent.parent.parent / "output"
-    )
-    audio_dir = Path(output_folder).resolve() / "reports_audio"
-    audio_path = audio_dir / f"report_{report_id}.wav"
-
-    au_st = getattr(report, "audio_status", None)
-    if au_st != "completed":
-        with engine.connect() as conn:
-            conn.execute(
-                text(
-                    """
-                    UPDATE company_reports
-                    SET audio_status = 'processing', audio_error_msg = NULL, audio_path = NULL, audio_completed_at = NULL
-                    WHERE id = :rid
-                    """
-                ),
-                {"rid": report_id},
-            )
-            conn.commit()
-
-        pstate["steps"][4]["status"] = "loading"
-        pstate["steps"][4]["error"] = None
-        _persist(pstate)
-
-        def on_tts(tj: dict) -> None:
-            nonlocal pstate
-            pstate = merge_full_pipeline_with_tts_progress(pstate, tj)
+    # TTS deshabilitado: marcar pasos de audio como ok/skipped y continuar a email.
+    # (El progreso legacy tenía pasos [4] y [5] reservados para TTS.)
+    try:
+        if isinstance(pstate.get("steps"), list) and len(pstate["steps"]) > 6:
+            pstate["steps"][4]["status"] = "ok"
+            pstate["steps"][4]["error"] = None
+            pstate["steps"][5]["status"] = "ok"
+            pstate["steps"][5]["error"] = None
+            pstate["steps"][6]["status"] = "loading"
+            pstate["steps"][6]["error"] = None
             _persist(pstate)
+    except Exception:
+        pass
 
-        try:
-            generate_report_tts_audio(content_dr or "", str(audio_path), on_progress=on_tts)
-        except Exception as tts_e:
-            log.exception("TTS en full_deliver_tail: %s", tts_e)
-            pstate["steps"][4]["status"] = "error"
-            pstate["steps"][4]["error"] = str(tts_e)[:4000]
-            pstate["steps"][5]["status"] = "error"
-            pstate["steps"][5]["error"] = str(tts_e)[:4000]
-            _persist(pstate)
-            # Informe y resumen Flash ya persistidos: el usuario puede leer el texto; audio falló → entrega incompleta.
-            with engine.connect() as conn:
-                conn.execute(
-                    text(
-                        """
-                        UPDATE company_reports
-                        SET audio_status = 'failed', audio_error_msg = :e,
-                            delivery_phase_status = 'partial'
-                        WHERE id = :rid
-                        """
-                    ),
-                    {"e": str(tts_e)[:8000], "rid": report_id},
-                )
-                conn.commit()
-            _sync_job_terminal()
-            return
-
-        t_ok = datetime.utcnow().isoformat()
-        pstate["steps"][4]["status"] = "ok"
-        pstate["steps"][4]["error"] = None
-        pstate["steps"][5]["status"] = "ok"
-        pstate["steps"][5]["error"] = None
-        pstate["steps"][6]["status"] = "loading"
-        pstate["steps"][6]["error"] = None
-        _persist(pstate)
-
-        with engine.connect() as conn:
-            conn.execute(
-                text(
-                    """
-                    UPDATE company_reports
-                    SET audio_status = 'completed',
-                        audio_path = :path,
-                        audio_error_msg = NULL,
-                        audio_generation_attempt = NULL,
-                        audio_completed_at = :ac,
-                        email_status = 'processing',
-                        email_error_msg = NULL,
-                        email_completed_at = NULL
-                    WHERE id = :rid
-                    """
-                ),
-                {
-                    "path": f"reports_audio/report_{report_id}.wav",
-                    "ac": t_ok,
-                    "rid": report_id,
-                },
-            )
-            conn.commit()
-    else:
-        rel = (getattr(report, "audio_path", None) or "").strip()
-        if rel:
-            audio_path = Path(output_folder).resolve() / rel
-        pstate["steps"][4]["status"] = "ok"
-        pstate["steps"][5]["status"] = "ok"
-        pstate["steps"][6]["status"] = "loading"
-        pstate["steps"][6]["error"] = None
-        _persist(pstate)
+    with engine.connect() as conn:
+        conn.execute(
+            text(
+                """
+                UPDATE company_reports
+                SET email_status = 'processing',
+                    email_error_msg = NULL,
+                    email_completed_at = NULL
+                WHERE id = :rid
+                """
+            ),
+            {"rid": report_id},
+        )
+        conn.commit()
 
     u = User.query.get(user_id)
     if not u or not u.email:
@@ -372,8 +301,9 @@ def execute_full_deliver_tail(
                 text(
                     """
                     UPDATE company_reports
-                    SET audio_status = 'failed', audio_error_msg = 'Usuario sin email',
-                        delivery_phase_status = 'failed'
+                    SET delivery_phase_status = 'failed',
+                        email_status = 'failed',
+                        email_error_msg = 'Usuario sin email'
                     WHERE id = :rid
                     """
                 ),
@@ -389,7 +319,6 @@ def execute_full_deliver_tail(
             asset_name=aname,
             report_title=report_template_title,
             email_body_markdown=summary_md_pl,
-            audio_file_path=str(audio_path),
             full_report_markdown_for_pdf=content_dr or "",
         )
     except Exception as em_e:

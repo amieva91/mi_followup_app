@@ -250,20 +250,9 @@ def send_report_email(
 
     fragment_cid, inline_images = _extract_data_uri_images_for_cid(fragment)
 
+    # Audio resumen (TTS) deshabilitado: ignorar cualquier ruta de audio que llegue.
+    # Se mantiene el parámetro por compatibilidad con llamadas antiguas.
     audio_note = ''
-    audio_attached = False
-    wav_bytes = None
-    wav_filename = None
-    if audio_file_path:
-        from pathlib import Path
-
-        p = Path(audio_file_path)
-        if p.exists() and p.is_file():
-            wav_filename = f'resumen_audio_{"".join(c if c.isalnum() or c in " -_" else "_" for c in asset_name)[:50].strip() or "informe"}.wav'
-            with open(p, 'rb') as f:
-                wav_bytes = f.read()
-            audio_attached = True
-            audio_note = 'Se adjunta el audio resumen (archivo WAV).'
 
     pdf_note = ''
     pdf_bytes = None
@@ -322,7 +311,6 @@ El equipo de FollowUp
 <div class="content">
 <p>Hola <strong>{safe_username}</strong>,</p>
 {intro_pdf if intro_pdf else '<p>Aquí tienes el contenido solicitado.</p>'}
-{f'<p style="color:#4338ca;font-size:14px;">🎧 Se adjunta el audio resumen (WAV).</p>' if audio_attached else ''}
 {inner_report_html}
 </div>
 <div class="footer">
@@ -358,11 +346,6 @@ El equipo de FollowUp
         alt.attach(MIMEText(html_document, 'html', 'utf-8'))
 
     root.attach(alt)
-
-    if wav_bytes and wav_filename:
-        wav_part = MIMEAudio(wav_bytes, _subtype='wav')
-        wav_part.add_header('Content-Disposition', 'attachment', filename=wav_filename)
-        root.attach(wav_part)
 
     if pdf_bytes and pdf_filename:
         pdf_part = MIMEBase('application', 'pdf')

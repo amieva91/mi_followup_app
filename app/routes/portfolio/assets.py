@@ -1253,14 +1253,6 @@ def asset_report_send_email(id, report_id):
         return jsonify({'success': False, 'error': 'El correo no está configurado en el servidor'}), 503
 
     try:
-        audio_path_arg = None
-        audio_path_obj = _get_report_audio_path(report)
-        if audio_path_obj:
-            audio_path_arg = str(audio_path_obj)
-            current_app.logger.info('Enviando informe con audio adjunto: %s', audio_path_arg)
-        else:
-            current_app.logger.info('Enviando informe sin audio (no encontrado o no generado): report_id=%s, audio_status=%s, audio_path=%s',
-                report_id, getattr(report, 'audio_status', None), getattr(report, 'audio_path', None))
         sm = (getattr(report, 'summary_content', None) or '').strip()
         if sm:
             email_body_md = sanitize_report_summary_markdown(sm)
@@ -1272,12 +1264,9 @@ def asset_report_send_email(id, report_id):
             asset_name=asset.name or asset.symbol or asset.isin or 'Activo',
             report_title=report.template_title or f'Informe {report.id}',
             email_body_markdown=email_body_md,
-            audio_file_path=audio_path_arg,
             full_report_markdown_for_pdf=report.content or '',
         )
         msg = 'Informe enviado a ' + current_user.email
-        if audio_path_arg:
-            msg += ' (con audio adjunto)'
         return jsonify({'success': True, 'message': msg})
     except Exception as e:
         current_app.logger.exception('Error enviando informe por correo')
@@ -1288,8 +1277,8 @@ def asset_report_send_email(id, report_id):
 @login_required
 @csrf.exempt
 def asset_report_generate_audio(id, report_id):
-    """Encola generación de audio TTS (proceso ``followup-jobs``)."""
-    from app.services.gemini_service import is_gemini_available, new_audio_progress_steps_state
+    """Audio resumen (TTS) deshabilitado."""
+    return jsonify({'success': False, 'error': 'Audio resumen deshabilitado temporalmente'}), 410
 
     asset = Asset.query.get(id)
     if not asset:
@@ -1417,64 +1406,14 @@ def asset_report_generate_audio(id, report_id):
 @login_required
 @csrf.exempt
 def asset_report_reset_audio(id, report_id):
-    """Resetear estado de audio para permitir reintentar (cuando falló o se quedó colgado)"""
-    asset = Asset.query.get(id)
-    if not asset:
-        return jsonify({'success': False, 'error': 'Asset no encontrado'}), 404
-    if not _user_can_access_asset_reports(current_user.id, id):
-        return jsonify({'success': False, 'error': 'No autorizado'}), 403
-
-    report = CompanyReport.query.filter_by(
-        id=report_id,
-        user_id=current_user.id,
-        asset_id=id
-    ).first()
-    if not report:
-        return jsonify({'success': False, 'error': 'Informe no encontrado'}), 404
-
-    if report.status != 'completed':
-        return jsonify({'success': False, 'error': 'Solo se puede resetear audio de informes completados'}), 400
-
-    conn = db.engine.connect()
-    try:
-        conn.execute(
-            text("""
-            UPDATE company_reports
-            SET audio_status = NULL, audio_path = NULL, audio_error_msg = NULL,
-                audio_completed_at = NULL, audio_progress_json = NULL,
-                audio_generation_attempt = NULL,
-                job_kind = NULL, job_status = NULL, job_phase = NULL,
-                job_started_at = NULL, job_finished_at = NULL,
-                provider_last_status = NULL, provider_last_poll_at = NULL,
-                provider_poll_count = NULL,
-                provider_last_http_status = NULL, provider_last_error_kind = NULL,
-                provider_last_error_msg = NULL,
-                provider_create_attempt = NULL, provider_next_retry_at = NULL
-            WHERE id = :rid
-        """),
-            {'rid': report_id},
-        )
-        conn.commit()
-    except Exception:
-        conn.rollback()
-    finally:
-        conn.close()
-
-    current_app.logger.info(
-        'Informe audio reseteado (reintentar): report_id=%s asset_id=%s user_id=%s',
-        report_id,
-        id,
-        current_user.id,
-    )
-    return jsonify({'success': True, 'message': 'Audio reseteado. Puedes generar de nuevo.'})
+    """Audio resumen (TTS) deshabilitado."""
+    return jsonify({'success': False, 'error': 'Audio resumen deshabilitado temporalmente'}), 410
 
 
 @portfolio_bp.route('/asset/<int:id>/reports/<int:report_id>/audio')
 @login_required
 def asset_report_audio(id, report_id):
-    """Descargar o reproducir el audio TTS del informe.
-    No usar first_or_404: el <audio> del navegador no debe recibir HTML de error (provoca 0:00 y play desactivado)."""
-    from flask import send_file
+    """Audio resumen (TTS) deshabilitado."""
 
     def _plain(msg: str, code: int):
         r = make_response(msg, code)
@@ -1495,19 +1434,7 @@ def asset_report_audio(id, report_id):
     if not report:
         return _plain('Not found', 404)
 
-    full_path = _get_report_audio_path(report)
-    if not full_path:
-        return _plain('Audio not available or file missing', 404)
-
-    # download=1 en query → forzar descarga; sin param → permitir reproducción en navegador
-    force_download = request.args.get('download') == '1'
-    download_name = f'informe_{report.template_title or report_id}_{asset.name or asset.symbol or "report"}.wav'.replace(' ', '_')
-    return send_file(
-        str(full_path),
-        mimetype='audio/wav',
-        as_attachment=force_download,
-        download_name=download_name
-    )
+    return _plain('Audio disabled', 410)
 
 
 @portfolio_bp.route('/api/reports/<int:report_id>/status')
@@ -1522,7 +1449,6 @@ def api_report_status(report_id):
         return jsonify({'error': 'Informe no encontrado'}), 404
 
     _maybe_expire_stale_report(report)
-    _maybe_expire_stale_audio_queued()
     db.session.refresh(report)
 
     queue_position: int | None = None
@@ -1542,10 +1468,6 @@ def api_report_status(report_id):
         'delivery_mode': getattr(report, 'delivery_mode', None),
         'error_msg': report.error_msg,
         'completed_at': report.completed_at.isoformat() if report.completed_at else None,
-        'audio_status': getattr(report, 'audio_status', None),
-        'audio_path': getattr(report, 'audio_path', None),
-        'audio_error_msg': getattr(report, 'audio_error_msg', None),
-        'audio_progress': _parse_audio_progress_json(getattr(report, 'audio_progress_json', None)),
         'queue_position': queue_position,
         'queue_waiting_total': queue_waiting_total,
         'email_status': getattr(report, 'email_status', None),
@@ -1553,7 +1475,12 @@ def api_report_status(report_id):
 
         'job': job_j,
         'provider': provider_j,
-        'audio_attempt': audio_attempt_bundle_for_report(report),
+        # Audio resumen (TTS) deshabilitado: mantener contrato estable sin exponer campos de audio.
+        'audio_status': None,
+        'audio_path': None,
+        'audio_error_msg': None,
+        'audio_progress': None,
+        'audio_attempt': {},
     })
 
 
