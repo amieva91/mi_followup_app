@@ -33,69 +33,18 @@ def _maybe_expire_stale_report(report: CompanyReport) -> None:
         db.session.refresh(report)
 
 
-def _parse_audio_progress_json(raw):
-    """Parsea ``audio_progress_json`` de company_reports para la API / UI."""
-    if raw is None or raw == '':
-        return None
-    if isinstance(raw, dict):
-        return raw
-    try:
-        return json.loads(raw)
-    except (json.JSONDecodeError, TypeError, ValueError):
-        return None
-
-
-# Encoladas de TTS tras «generar/regenerar audio» (solo informes ya completados). Se reinicia tras WAV ok.
-MAX_AUDIO_GENERATION_ATTEMPTS = 3
-
-
-def audio_attempt_bundle_for_report(report) -> dict:
-    """Sirve estado de intentos para `/status`, detalle y la UI."""
-    raw = getattr(report, "audio_generation_attempt", None)
-    try:
-        n = max(0, int(raw)) if raw is not None else 0
-    except (TypeError, ValueError):
-        n = 0
-    mx = MAX_AUDIO_GENERATION_ATTEMPTS
-    aus = getattr(report, "audio_status", None)
-    exhausted = False
-    if n >= mx and aus not in ("queued", "processing", "completed"):
-        exhausted = True
-    is_last_active = aus in ("queued", "processing") and n == mx and n > 0
-    return {
-        "current": n,
-        "max": mx,
-        "exhausted": exhausted,
-        "is_last_chance": bool(is_last_active),
-    }
-
-
 def _active_queue_timestamp(report) -> datetime | None:
     """Timestamp que representa el *momento de encolado* de la tarea activa de este informe.
 
-    - Si hay audio en cola/en curso: usa ``audio_enqueued_at`` (fallback created_at).
     - Si hay informe en cola/en curso: usa ``report_enqueued_at`` (fallback created_at).
     """
     try:
-        a_st = getattr(report, "audio_status", None)
         r_st = getattr(report, "status", None)
-        if a_st in ("queued", "processing"):
-            return getattr(report, "audio_enqueued_at", None) or getattr(report, "created_at", None)
         if r_st in ("pending", "processing"):
             return getattr(report, "report_enqueued_at", None) or getattr(report, "created_at", None)
     except Exception:
         return None
     return None
-
-
-def _maybe_expire_stale_audio_queued() -> None:
-    """Limpia encolados de audio irreales (informe listo, sin WAV, demasiado tiempo en cola)."""
-    try:
-        from app.services.company_report_recovery import expire_stale_audio_queued_rows
-
-        expire_stale_audio_queued_rows(getattr(current_app, 'logger', None))
-    except Exception:
-        current_app.logger.exception('expire_stale_audio_queued_rows')
 
 
 def _maybe_expire_stale_full_delivery_tail() -> None:
@@ -1101,7 +1050,7 @@ def asset_reports_generate_and_deliver(id):
                 'success': True,
                 'report_id': report.id,
                 'message': (
-                    'En cola: informe, audio y envío por correo. Puedes salir; recibirás un email al terminar.'
+                    'En cola: informe y envío por correo. Puedes salir; recibirás un email al terminar.'
                 ),
             }
         )
@@ -1124,7 +1073,6 @@ def asset_reports_list(id):
         return jsonify({'error': 'No autorizado'}), 403
 
     _maybe_expire_stale_full_delivery_tail()
-    _maybe_expire_stale_audio_queued()
     pairs = sorted_active_queue_rows()
     pos_by_id = {qid: i + 1 for i, (_k, qid) in enumerate(pairs)}
 
@@ -1139,7 +1087,6 @@ def asset_reports_list(id):
             {
                 'id': r.id,
                 'status': r.status,
-                'audio_status': getattr(r, 'audio_status', None),
                 'delivery_mode': getattr(r, 'delivery_mode', None),
                 'delivery_phase_status': getattr(r, 'delivery_phase_status', None),
                 'template_title': r.template_title or f'Informe {r.id}',
@@ -1172,7 +1119,6 @@ def asset_report_detail(id, report_id):
 
     _maybe_expire_stale_report(report)
     _maybe_expire_stale_full_delivery_tail()
-    _maybe_expire_stale_audio_queued()
     db.session.refresh(report)
 
     qp_detail: int | None = None
@@ -1204,11 +1150,12 @@ def asset_report_detail(id, report_id):
         'template_title': report.template_title,
         'created_at': report.created_at.isoformat() if report.created_at else None,
         'completed_at': report.completed_at.isoformat() if report.completed_at else None,
-        'audio_status': getattr(report, 'audio_status', None),
-        'audio_path': getattr(report, 'audio_path', None),
-        'audio_error_msg': getattr(report, 'audio_error_msg', None),
-        'audio_completed_at': report.audio_completed_at.isoformat() if getattr(report, 'audio_completed_at', None) else None,
-        'audio_progress': _parse_audio_progress_json(getattr(report, 'audio_progress_json', None)),
+        # Audio resumen deshabilitado: contrato estable para UI legacy.
+        'audio_status': None,
+        'audio_path': None,
+        'audio_error_msg': None,
+        'audio_completed_at': None,
+        'audio_progress': None,
         'queue_position': qp_detail,
         'queue_waiting_total': qwait_detail,
         'email_status': getattr(report, 'email_status', None),
@@ -1217,7 +1164,7 @@ def asset_report_detail(id, report_id):
         'delivery_phase_status': getattr(report, 'delivery_phase_status', None),
         'job': job_j,
         'provider': provider_j,
-        'audio_attempt': audio_attempt_bundle_for_report(report),
+        'audio_attempt': {},
     })
 
 
