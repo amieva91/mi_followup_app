@@ -13,6 +13,7 @@ Esta carpeta contiene toda la documentación del proyecto FollowUp v2.0.
 - **[WORKFLOW_DEV_A_PRODUCCION.md](../WORKFLOW_DEV_A_PRODUCCION.md)** - Deploy y Git
 - **[DESIGN_SYSTEM.md](../DESIGN_SYSTEM.md)** - Sistema de diseño
 - **[GEMINI_IA.md](../GEMINI_IA.md)** - Integración Gemini AI
+  - **[GEMINI_INFORMES_ESTADO_ACTUAL_2026_05.md](implementaciones/GEMINI_INFORMES_ESTADO_ACTUAL_2026_05.md)** - Estado actual y justificación (informes)
 
 #### **Otras Guías**
 - **[INICIO_RAPIDO.md](archivo/INICIO_RAPIDO.md)** - Guía de inicio rápido
