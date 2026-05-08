@@ -175,6 +175,21 @@ def _get_deep_research_max_wait_seconds() -> int:
         return 3600
 
 
+def _get_deep_research_max_citations() -> int:
+    """
+    Límite blando (instrucción al modelo) para reducir coste y verbosidad:
+    número máximo de citas `[cite: ...]` a incluir en el informe final.
+    Override: GEMINI_DEEP_RESEARCH_MAX_CITATIONS (por defecto 0 = sin límite).
+    """
+    raw = os.environ.get("GEMINI_DEEP_RESEARCH_MAX_CITATIONS", "").strip()
+    if not raw:
+        return 0
+    try:
+        return max(0, int(raw))
+    except ValueError:
+        return 0
+
+
 def _get_watchlist_ia_max_wait_seconds() -> int:
     """
     Presupuesto de polling por activo para Informes IA (watchlist, ``watchlist_minimal``).
@@ -360,44 +375,29 @@ Requisitos (español, sin saludos; salida en **Markdown mínimo** legible en pan
         from google.genai import types
 
         client = genai.Client(api_key=api_key)
-        last_error = None
-        max_retries = 3
-        retry_delay = 65  # segundos (la API suele indicar ~60s)
-
-        for attempt in range(max_retries):
-            try:
-                response = client.models.generate_content(
-                    model=_get_model_flash(),
-                    contents=prompt,
-                    config=types.GenerateContentConfig(
-                        temperature=0.35,
-                        # 2.5 Flash cuenta el razonamiento interno contra max_output_tokens; si
-                        # no se limita, la respuesta visible puede quedar truncada a mitad de frase.
-                        max_output_tokens=1024,
-                        thinking_config=types.ThinkingConfig(thinking_budget=0),
-                    ),
+        response = client.models.generate_content(
+            model=_get_model_flash(),
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                temperature=0.35,
+                # 2.5 Flash cuenta el razonamiento interno contra max_output_tokens; si
+                # no se limita, la respuesta visible puede quedar truncada a mitad de frase.
+                max_output_tokens=1024,
+                thinking_config=types.ThinkingConfig(thinking_budget=0),
+            ),
+        )
+        if response and response.text:
+            out = response.text.strip()
+            cands = getattr(response, "candidates", None) or []
+            if cands and cands[0].finish_reason and "MAX_TOKENS" in str(
+                cands[0].finish_reason
+            ).upper():
+                logger.warning(
+                    "Resumen About: finish_reason=MAX_TOKENS (%s chars).",
+                    len(out),
                 )
-                if response and response.text:
-                    out = response.text.strip()
-                    cands = getattr(response, "candidates", None) or []
-                    if cands and cands[0].finish_reason and "MAX_TOKENS" in str(
-                        cands[0].finish_reason
-                    ).upper():
-                        logger.warning(
-                            "Resumen About: finish_reason=MAX_TOKENS (%s chars).",
-                            len(out),
-                        )
-                    return out
-                raise GeminiServiceError('Respuesta vacía de Gemini')
-            except Exception as e:
-                last_error = e
-                err_str = str(e).upper()
-                # 429 RESOURCE_EXHAUSTED: reintentar tras esperar
-                if attempt < max_retries - 1 and ('429' in err_str or 'RESOURCE_EXHAUSTED' in err_str):
-                    logger.warning('Gemini 429, reintento %s/%s en %ss: %s', attempt + 1, max_retries, retry_delay, e)
-                    time.sleep(retry_delay)
-                else:
-                    raise
+            return out
+        raise GeminiServiceError('Respuesta vacía de Gemini')
 
     except ImportError as e:
         raise GeminiServiceError(f'Paquete google-genai no instalado: {e}')
@@ -467,40 +467,22 @@ usa `null` en el JSON como indique el briefing; **no inventes** cifras ni fechas
 
         client = genai.Client(api_key=api_key)
         model = _get_model_flash()
-        max_retries = 3
-        retry_delay = 65
-
-        for attempt in range(max_retries):
-            try:
-                response = client.models.generate_content(
-                    model=model,
-                    contents=prompt,
-                    config=types.GenerateContentConfig(
-                        temperature=0.2,
-                        max_output_tokens=8192,
-                        thinking_config=types.ThinkingConfig(thinking_budget=0),
-                    ),
-                )
-                if response and response.text and str(response.text).strip():
-                    out = str(response.text).strip()
-                    logger.info('Watchlist IA Flash: model=%s chars=%s', model, len(out))
-                    if on_status_update:
-                        on_status_update('completed', 'Informe completado')
-                    return ('completed', out)
-                raise GeminiServiceError('Respuesta vacía de Gemini Flash')
-            except Exception as e:
-                err_str = str(e).upper()
-                if attempt < max_retries - 1 and ('429' in err_str or 'RESOURCE_EXHAUSTED' in err_str):
-                    logger.warning(
-                        'Watchlist IA Flash 429, reintento %s/%s en %ss: %s',
-                        attempt + 1,
-                        max_retries,
-                        retry_delay,
-                        e,
-                    )
-                    time.sleep(retry_delay)
-                else:
-                    raise
+        response = client.models.generate_content(
+            model=model,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                temperature=0.2,
+                max_output_tokens=8192,
+                thinking_config=types.ThinkingConfig(thinking_budget=0),
+            ),
+        )
+        if response and response.text and str(response.text).strip():
+            out = str(response.text).strip()
+            logger.info('Watchlist IA Flash: model=%s chars=%s', model, len(out))
+            if on_status_update:
+                on_status_update('completed', 'Informe completado')
+            return ('completed', out)
+        raise GeminiServiceError('Respuesta vacía de Gemini Flash')
 
     except ImportError as e:
         raise GeminiServiceError(f'Paquete google-genai no instalado: {e}')
@@ -979,8 +961,8 @@ def _interactions_create_deep_research_with_retries(
     agent_name: str,
     collab: bool,
     previous_interaction_id: Optional[str] = None,
-    max_attempts: int = 3,
-    retry_delay_seconds: int = 30,
+    max_attempts: int = 1,
+    retry_delay_seconds: int = 0,
     on_status_update=None,
     status_label: str = 'Creando Deep Research',
 ) -> Any:
@@ -988,40 +970,14 @@ def _interactions_create_deep_research_with_retries(
     Reintentos de `interactions.create` cuando falla **antes** de tener `interaction_id`.
     Mantiene el turno en la cola (el caller suele estar bajo lock de background).
     """
-    attempts = max(1, int(max_attempts or 1))
-    last_err: Optional[Exception] = None
-    for attempt in range(1, attempts + 1):
-        try:
-            return _interactions_create_deep_research(
-                client,
-                input_text=input_text,
-                agent_name=agent_name,
-                collab=collab,
-                previous_interaction_id=previous_interaction_id,
-            )
-        except Exception as ex:
-            last_err = ex
-            if attempt >= attempts:
-                break
-            logger.warning(
-                'Deep Research: interactions.create falló (intento %s/%s). Reintento en %ss. error=%s',
-                attempt,
-                attempts,
-                retry_delay_seconds,
-                ex,
-            )
-            if on_status_update:
-                try:
-                    on_status_update(
-                        'processing',
-                        f'{status_label} falló (intento {attempt}/{attempts}); reintentando en {retry_delay_seconds}s…',
-                    )
-                except Exception:
-                    pass
-            time.sleep(max(1, int(retry_delay_seconds or 1)))
-    if last_err:
-        raise last_err
-    raise GeminiServiceError('interactions.create falló (sin error capturable)')
+    # Sin reintentos: si falla antes de obtener interaction_id, devolvemos error y liberamos la cola.
+    return _interactions_create_deep_research(
+        client,
+        input_text=input_text,
+        agent_name=agent_name,
+        collab=collab,
+        previous_interaction_id=previous_interaction_id,
+    )
 
 
 def _poll_interaction_once(
@@ -1186,6 +1142,14 @@ no escribas un informe de inversión largo.
 - Citas o fuentes: basta con lo necesario en la tabla del briefing; no hace falta bibliografía larga.{extra_tail}
 """
     else:
+        max_cites = _get_deep_research_max_citations()
+        cites_hint = ""
+        if max_cites and max_cites > 0:
+            cites_hint = (
+                f"\n- **Eficiencia de fuentes (obligatorio):** usa como máximo **{max_cites}** citas del tipo "
+                "`[cite: X]` en todo el informe final. Prioriza las **mejores** fuentes (IR de la empresa, "
+                "regulador, filings oficiales, bolsa) y evita duplicar citas para el mismo dato.\n"
+            )
         prompt = f"""Actúa como un **Analista Senior de Equity Research** con enfoque en diseño editorial profesional.
 
 **Empresa y contexto de investigación**
@@ -1210,6 +1174,7 @@ Con ``visualization: auto`` debes entregar **solo imágenes raster finales** inc
 - **Prohibido** el rellano genérico. Cada **dato numérico** relevante debe ir acompañado de una cita en texto con el formato **`[cite: X]`** (documento, CNMV, informe, prensa verificable, etc.) cuando exista. No inventes la cita.
 - **Protocolo de datos faltantes:** si una métrica (EBITDA, PER actual, márgenes, deuda, guidance, etc.) **no aparece** en las fuentes, declara **«Dato no disponible»** y explica en una frase breve el motivo. **Prohibido** estimar, interpolar o inventar sin base.
 - Prioriza análisis accionable; contrapón oportunidad y riesgo.
+{cites_hint}
 
 **CODIFICACIÓN Y ENTREGA**
 - Responde en **español (España)**. Salida en texto **UTF-8** con tildes y eñes correctas en el carácter; **no** uses secuencias escapadas tipo ``\\u00f3``.
@@ -1263,8 +1228,8 @@ Con ``visualization: auto`` debes entregar **solo imágenes raster finales** inc
                     agent_name=agent_name,
                     collab=False,
                     previous_interaction_id=None,
-                    max_attempts=3,
-                    retry_delay_seconds=30,
+                    max_attempts=1,
+                    retry_delay_seconds=0,
                     on_status_update=on_status_update,
                     status_label='Creando Deep Research (modo directo)',
                 )
@@ -1324,8 +1289,8 @@ Con ``visualization: auto`` debes entregar **solo imágenes raster finales** inc
                 agent_name=agent_name,
                 collab=True,
                 previous_interaction_id=None,
-                max_attempts=3,
-                retry_delay_seconds=30,
+                max_attempts=1,
+                retry_delay_seconds=0,
                 on_status_update=on_status_update,
                 status_label='Creando plan Deep Research',
             )
@@ -1378,8 +1343,8 @@ Con ``visualization: auto`` debes entregar **solo imágenes raster finales** inc
                 agent_name=agent_name,
                 collab=False,
                 previous_interaction_id=str(id1)[:200],
-                max_attempts=3,
-                retry_delay_seconds=30,
+                max_attempts=1,
+                retry_delay_seconds=0,
                 on_status_update=on_status_update,
                 status_label='Confirmando plan Deep Research',
             )
@@ -1879,43 +1844,29 @@ def generate_podcast_script_from_report(report_content: str, client) -> str:
 --- INFORME (markdown) ---
 {body[:50000]}"""
 
-    max_retries = 3
-    retry_delay = 65
-    for attempt in range(max_retries):
-        try:
-            response = client.models.generate_content(
-                model=model,
-                contents=user_block,
-                config=types.GenerateContentConfig(
-                    temperature=_get_podcast_script_temperature(),
-                    max_output_tokens=8192,
-                    thinking_config=types.ThinkingConfig(thinking_budget=0),
-                ),
-            )
-            if not response or not response.text:
-                raise GeminiServiceError('Respuesta vacía al generar el guion de podcast')
-            script = _strip_markdown_fences(response.text.strip())
-            if not script or _count_script_words_for_budget(script) < 40:
-                raise GeminiServiceError('Guion de podcast demasiado corto o inválido')
-            if f'{PODCAST_SPEAKER_1}:' not in script or f'{PODCAST_SPEAKER_2}:' not in script:
-                raise GeminiServiceError(
-                    f'El guion debe incluir diálogos con prefijos "{PODCAST_SPEAKER_1}:" y "{PODCAST_SPEAKER_2}:"'
-                )
-            script = _ensure_script_ready_for_tts(client, script, model)
-            if f'{PODCAST_SPEAKER_1}:' not in script or f'{PODCAST_SPEAKER_2}:' not in script:
-                raise GeminiServiceError('Tras re-escribir, el guion perdió el formato de hablantes')
-            return script
-        except GeminiServiceError:
-            raise
-        except Exception as e:
-            last_error = e
-            err_str = str(e).upper()
-            if attempt < max_retries - 1 and ('429' in err_str or 'RESOURCE_EXHAUSTED' in err_str):
-                logger.warning('Gemini guion podcast 429, reintento %s/%s: %s', attempt + 1, max_retries, e)
-                time.sleep(retry_delay)
-            else:
-                raise GeminiServiceError(str(e)) from e
-    raise GeminiServiceError('No se pudo generar el guion de podcast')
+    # Sin reintentos: si falla, el caller debe registrar error y liberar cola.
+    response = client.models.generate_content(
+        model=model,
+        contents=user_block,
+        config=types.GenerateContentConfig(
+            temperature=_get_podcast_script_temperature(),
+            max_output_tokens=8192,
+            thinking_config=types.ThinkingConfig(thinking_budget=0),
+        ),
+    )
+    if not response or not response.text:
+        raise GeminiServiceError('Respuesta vacía al generar el guion de podcast')
+    script = _strip_markdown_fences(response.text.strip())
+    if not script or _count_script_words_for_budget(script) < 40:
+        raise GeminiServiceError('Guion de podcast demasiado corto o inválido')
+    if f'{PODCAST_SPEAKER_1}:' not in script or f'{PODCAST_SPEAKER_2}:' not in script:
+        raise GeminiServiceError(
+            f'El guion debe incluir diálogos con prefijos "{PODCAST_SPEAKER_1}:" y "{PODCAST_SPEAKER_2}:"'
+        )
+    script = _ensure_script_ready_for_tts(client, script, model)
+    if f'{PODCAST_SPEAKER_1}:' not in script or f'{PODCAST_SPEAKER_2}:' not in script:
+        raise GeminiServiceError('Tras re-escribir, el guion perdió el formato de hablantes')
+    return script
 
 
 def _pcm_from_tts_response(response) -> Tuple[bytes, Any]:

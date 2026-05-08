@@ -52,6 +52,20 @@ def _sleep_seconds_idle() -> float:
         return 1.0
 
 
+def _sleep_seconds_between_jobs() -> float:
+    """
+    Pausa artificial tras completar un job (éxito o fallo) para limitar ritmo/coste.
+    Override: FOLLOWUP_JOBS_WORKER_DELAY_BETWEEN_JOBS_SECONDS (por defecto 0).
+    """
+    raw = os.environ.get("FOLLOWUP_JOBS_WORKER_DELAY_BETWEEN_JOBS_SECONDS", "").strip()
+    if not raw:
+        return 0.0
+    try:
+        return max(0.0, float(raw))
+    except ValueError:
+        return 0.0
+
+
 def _job_kind_params() -> dict:
     return {
         "k_dr1": JOB_KIND_DR_WATCHLIST_MIN,
@@ -578,11 +592,13 @@ def run_once(app) -> bool:
 
 def run_forever(app) -> None:
     idle = _sleep_seconds_idle()
+    delay = _sleep_seconds_between_jobs()
     logger.info(
-        "company_report_jobs_worker: start (p95=%ss timeout=%ss idle_sleep=%ss)",
+        "company_report_jobs_worker: start (p95=%ss timeout=%ss idle_sleep=%ss delay_between_jobs=%ss)",
         _p95_seconds(),
         _timeout_seconds(),
         idle,
+        delay,
     )
     with app.app_context():
         try:
@@ -602,6 +618,8 @@ def run_forever(app) -> None:
                 did = run_once(app)
                 if not did:
                     time.sleep(idle)
+                elif delay and delay > 0:
+                    time.sleep(delay)
             except KeyboardInterrupt:
                 raise
             except Exception:
