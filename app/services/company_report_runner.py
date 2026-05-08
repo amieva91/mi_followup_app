@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 def run_report_only_by_id(app, report_id: int) -> None:
     """
-    (Re)ejecuta un informe "solo informe" (Deep Research + resumen Flash) si sigue en `pending`.
+    (Re)ejecuta un informe "solo informe" (Deep Research) si sigue en `pending`.
 
     No toca pipelines `full_pipeline` (todo-en-uno).
     """
@@ -31,8 +31,6 @@ def run_report_only_by_id(app, report_id: int) -> None:
     from app.services.gemini_service import (
         run_deep_research_report,
         new_report_stages_progress_state,
-        generate_report_email_summary,
-        fallback_report_summary_markdown,
         report_substeps_after_dr_ok,
         _get_auto_collab_loop,
         GeminiServiceError,
@@ -69,7 +67,7 @@ def run_report_only_by_id(app, report_id: int) -> None:
                             """
                             UPDATE company_reports
                             SET status=:st, completed_at=:now, content=:content, error_msg=:error,
-                                audio_progress_json=NULL
+                                job_progress_json=NULL
                             WHERE id=:rid
                             """
                         ),
@@ -147,7 +145,7 @@ def run_report_only_by_id(app, report_id: int) -> None:
             base["steps"] = subs
             with engine.connect() as conn:
                 conn.execute(
-                    text("UPDATE company_reports SET audio_progress_json=:j WHERE id=:rid"),
+                    text("UPDATE company_reports SET job_progress_json=:j WHERE id=:rid"),
                     {"j": json.dumps(base, ensure_ascii=False), "rid": int(report_id)},
                 )
                 conn.commit()
@@ -155,7 +153,7 @@ def run_report_only_by_id(app, report_id: int) -> None:
         # Inicializar progreso (si faltaba)
         with engine.connect() as conn:
             conn.execute(
-                text("UPDATE company_reports SET audio_progress_json=:j WHERE id=:rid"),
+                text("UPDATE company_reports SET job_progress_json=:j WHERE id=:rid"),
                 {"j": json.dumps(new_report_stages_progress_state(), ensure_ascii=False), "rid": int(report_id)},
             )
             conn.commit()
@@ -195,7 +193,7 @@ def run_report_only_by_id(app, report_id: int) -> None:
                     """
                     UPDATE company_reports
                     SET status='completed', completed_at=:now, content=:content, summary_content=:sm,
-                        error_msg=NULL, audio_progress_json=NULL
+                        error_msg=NULL, job_progress_json=NULL
                     WHERE id=:rid
                     """
                 ),

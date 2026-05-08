@@ -2,9 +2,6 @@
 Recuperación de informes tras reinicios y estados inconsistentes.
 
 - Deep Research sin ``gemini_interaction_id``: marcar fallido desde cualquier proceso que arranca Flask.
-- Marcar como fallido el audio en ``processing`` (huérfano de TTS) **solo cuando arranca**
-  ``followup-jobs`` (`FOLLOWUP_IN_JOBS_WORKER=1`), no desde Gunicorn: evita falsos positivos
-  si sólo reinicia la web pero el worker de colas sigue generando WAV.
 """
 from __future__ import annotations
 
@@ -21,68 +18,10 @@ _MSG_ORPHAN_NO_IID = (
     'Genera el informe de nuevo.'
 )
 
-# El TTS no usa interaction_id; este mensaje evita confundir al usuario cuando falla solo el audio.
-_MSG_AUDIO_ORPHAN = (
-    'La generación de audio se interrumpió (reinicio del servidor o fin del worker). '
-    'Pulsa «Regenerar audio».'
-)
-
 _MSG_TIMEOUT_STALE = (
     'Tiempo máximo superado sin resultado (posible bloqueo silencioso en el proveedor). '
     'Cuando el servidor corta la espera, genera el informe de nuevo.'
 )
-
-
-def _stale_audio_queued_seconds() -> int:
-    """Segundos tras los cuales un ``audio_status=queued`` (informe ya OK, sin WAV) se considera abandonado."""
-    try:
-        return max(300, int(str(os.environ.get('STALE_AUDIO_QUEUED_SECONDS', '3600')).strip()))
-    except ValueError:
-        return 3600
-
-
-def expire_stale_audio_queued_rows(app_logger=None) -> int:
-    """
-    Informe ya ``completed``, audio en ``queued``, sin fichero y con antigüedad de encolado alta:
-    no hay worker real esperando — ensucian la cola global y la numeración.
-
-    Marca ``audio_status=failed`` con mensaje claro para que el usuario pulse «Regenerar audio».
-    """
-    from app import db
-    from sqlalchemy import text
-
-    log = app_logger or logger
-    sec = _stale_audio_queued_seconds()
-    cutoff = datetime.utcnow() - timedelta(seconds=sec)
-    msg = (
-        'La petición de audio quedó demasiado tiempo en cola sin ejecutarse. '
-        'Pulsa «Regenerar audio».'
-    )
-    try:
-        res = db.session.execute(
-            text(
-                """
-                UPDATE company_reports
-                SET audio_status = 'failed', audio_error_msg = :msg
-                WHERE audio_status = 'queued'
-                  AND status = 'completed'
-                  AND (audio_path IS NULL OR TRIM(COALESCE(audio_path, '')) = '')
-                  AND COALESCE(audio_enqueued_at, created_at) < :cutoff
-                """
-            ),
-            {'cutoff': cutoff, 'msg': msg[:8000]},
-        )
-        n = int(getattr(res, 'rowcount', 0) or 0)
-        if n:
-            db.session.commit()
-            log.info('company_reports: expiradas %s peticiones de audio encoladas obsoletas (cutoff %ss)', n, sec)
-        else:
-            db.session.rollback()
-        return n
-    except Exception:
-        db.session.rollback()
-        log.exception('expire_stale_audio_queued_rows: error')
-        return 0
 
 
 def _stale_queue_grace_seconds() -> int:
@@ -212,55 +151,11 @@ def recover_processing_reports_after_restart(app, app_logger=None) -> None:
             r.error_msg = _MSG_ORPHAN_NO_IID
             r.completed_at = now
 
-        audio_n = 0
-        tail_resume_ids: list[int] = []
-        # Solo el worker de colas (followup-jobs) debe marcar audio en «processing» como huérfano.
-        # Si Gunicorn reinicia un worker web, create_app() corría esto y marcaba fallo aunque
-        # followup-jobs siguiera generando TTS (falso positivo del mensaje «reinicio … fin del worker»).
-        mark_audio_processing_orphans = str(os.environ.get("FOLLOWUP_IN_JOBS_WORKER", "")).strip() == "1"
-        rows_a = (
-            CompanyReport.query.filter(CompanyReport.audio_status == "processing").all()
-            if mark_audio_processing_orphans
-            else []
-        )
-        for r in rows_a:
-            if getattr(r, 'created_at', None) and r.created_at > min_age_threshold:
-                continue
-            if getattr(r, 'delivery_mode', None) == 'full_deliver' and (r.status or '') == 'completed':
-                tail_resume_ids.append(int(r.id))
-                continue
-            r.audio_status = 'failed'
-            r.audio_error_msg = (_MSG_AUDIO_ORPHAN[:2000])
-            # Alinear telemetría del job con el fallo (evita "running/TTS activo + audio failed"
-            # y tiempo transcurrido creciendo para siempre en la UI).
-            r.job_status = 'failed'
-            r.job_phase = 'failed'
-            r.job_finished_at = now
-            # Si había un panel de progreso (pipeline completo), evitar que se quede "atascado" en loading.
-            # Marcamos el paso TTS como error para que la UI muestre el fallo real y permita reintentar.
-            try:
-                ap_raw = getattr(r, 'audio_progress_json', None)
-                if ap_raw and str(ap_raw).strip():
-                    ap = json.loads(str(ap_raw))
-                    steps = ap.get('steps') if isinstance(ap, dict) else None
-                    if isinstance(steps, list):
-                        for st in steps:
-                            if isinstance(st, dict) and st.get('id') == 'tts':
-                                st['status'] = 'error'
-                                st['error'] = _MSG_AUDIO_ORPHAN[:2000]
-                        ap['caption'] = ap.get('caption') or ''
-                        r.audio_progress_json = json.dumps(ap, ensure_ascii=False)
-            except Exception:
-                pass
-            audio_n += 1
-
-        if fail_no_iid or audio_n:
+        if fail_no_iid:
             db.session.commit()
             log.warning(
-                'company_reports: %s informes huérfanos (sin interaction_id) y %s audios marcados failed; '
-                '%s informes con reanudación programada (si procede)',
+                'company_reports: %s informes huérfanos (sin interaction_id); %s informes con reanudación programada',
                 len(fail_no_iid),
-                audio_n,
                 len(resume_ids),
             )
         elif resume_ids:
@@ -292,15 +187,6 @@ def recover_processing_reports_after_restart(app, app_logger=None) -> None:
                 log.exception('Deep Research resume: excepción no controlada report_id=%s', rid_)
 
         threading.Thread(target=_run, args=(rid,), daemon=True).start()
-
-    for rid in tail_resume_ids:
-        try:
-            from app.services.full_deliver_continuation import schedule_full_delivery_continuation
-
-            schedule_full_delivery_continuation(app, rid)
-        except Exception:
-            log.exception('full_deliver: reanudación tras audio processing report_id=%s', rid)
-
 
 def recover_stuck_pending_reports(app, app_logger=None) -> None:
     """
@@ -354,7 +240,7 @@ def recover_stuck_pending_reports(app, app_logger=None) -> None:
         except Exception:
             pass
 
-        # Solo "solo informe": se identifica por NO tener full_pipeline en audio_progress_json.
+        # Solo "solo informe": se identifica por NO tener full_pipeline en job_progress_json.
         rows = (
             CompanyReport.query.filter(CompanyReport.status == "pending")
             .filter(CompanyReport.created_at < threshold)
@@ -368,7 +254,7 @@ def recover_stuck_pending_reports(app, app_logger=None) -> None:
         for r in rows:
             is_fd = getattr(r, "delivery_mode", None) == "full_deliver"
             if not is_fd:
-                ap = getattr(r, "audio_progress_json", None)
+                ap = getattr(r, "job_progress_json", None)
                 if ap and str(ap).strip() and "full_pipeline" in str(ap):
                     is_fd = True
             if is_fd:
@@ -469,7 +355,7 @@ def recover_stuck_pending_reports(app, app_logger=None) -> None:
                 kicked += 1
                 continue
 
-            ap = getattr(r, "audio_progress_json", None)
+            ap = getattr(r, "job_progress_json", None)
             is_full = False
             if ap and str(ap).strip():
                 try:
@@ -515,7 +401,7 @@ def recover_stuck_pending_reports(app, app_logger=None) -> None:
 def clean_company_report_queues(app_logger=None) -> dict:
     """
     Operación de mantenimiento: marca como fallidos informes ``pending``/``processing``,
-    audios ``queued`` huérfanos, y corta colas ``full_deliver`` en ``processing``.
+    y corta colas ``full_deliver`` en ``processing``.
     """
     from sqlalchemy import text
 
@@ -527,14 +413,11 @@ def clean_company_report_queues(app_logger=None) -> dict:
         "Cola de informes limpiada manualmente (pendiente o en curso). "
         "Vuelve a lanzar la generación si aún lo necesitas."
     )
-    msg_au = (
-        "Cola de audio limpiada manualmente. Pulsa «Regenerar audio» si quieres un nuevo fichero."
-    )
     msg_fd = (
         "Entrega todo-en-uno interrumpida (limpieza manual). "
-        "El informe puede estar listo en la app; reenvía correo o regenera audio si hace falta."
+        "El informe puede estar listo en la app; reenvía correo si hace falta."
     )
-    out = {"reports_pending_failed": 0, "audio_queued_failed": 0, "full_deliver_partial": 0}
+    out = {"reports_pending_failed": 0, "full_deliver_partial": 0}
     try:
         r1 = db.session.execute(
             text(
@@ -547,18 +430,6 @@ def clean_company_report_queues(app_logger=None) -> dict:
             {"msg": msg_rep[:8000], "now": now},
         )
         out["reports_pending_failed"] = int(getattr(r1, "rowcount", 0) or 0)
-
-        r2 = db.session.execute(
-            text(
-                """
-                UPDATE company_reports
-                SET audio_status = 'failed', audio_error_msg = :msg
-                WHERE audio_status = 'queued' AND status = 'completed'
-                """
-            ),
-            {"msg": msg_au[:8000]},
-        )
-        out["audio_queued_failed"] = int(getattr(r2, "rowcount", 0) or 0)
 
         r3 = db.session.execute(
             text(

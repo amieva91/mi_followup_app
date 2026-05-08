@@ -3,9 +3,6 @@ Servicio para integración con Google Gemini API.
 - Resumen "About the Company": generate_content (rápido, síncrono)
 - Informes IA watchlist: por defecto Gemini Flash (``generate_content``); opcional Deep Research.
 - Informe largo (ficha): Interactions API Deep Research (background, poll)
-- Audio informe: guion estilo podcast (texto) + TTS multi-locutor ``gemini-3.1-flash-tts-preview``
-  (API ``generateContent`` del SDK; no es el producto independiente «NotebookLM / Podcasts» de Google,
-  pero replica el patrón guion → audio multispeaker de la documentación oficial).
 """
 import os
 import re
@@ -25,12 +22,6 @@ class GeminiServiceError(Exception):
     pass
 
 
-class GeminiTTSSynthesisTimeoutError(GeminiServiceError):
-    """La llamada de síntesis TTS superó el tiempo máximo configurado (wall-clock)."""
-
-    pass
-
-
 def _get_api_key() -> Optional[str]:
     """Obtener API key de Gemini desde variables de entorno"""
     raw = os.environ.get('GEMINI_API_KEY')
@@ -40,93 +31,6 @@ def _get_api_key() -> Optional[str]:
 def _get_model_flash() -> str:
     """Modelo para texto (About, resumen TTS). Default: gemini-2.5-flash"""
     return os.environ.get('GEMINI_MODEL_FLASH') or 'gemini-2.5-flash'
-
-
-def _get_model_tts() -> str:
-    """Modelo para generación de audio TTS. Default: gemini-3.1-flash-tts-preview"""
-    return os.environ.get('GEMINI_MODEL_TTS') or 'gemini-3.1-flash-tts-preview'
-
-
-def _get_model_podcast_script() -> str:
-    """Modelo de texto para guion estilo podcast (dos locutores). Default: mismo que flash."""
-    return os.environ.get('GEMINI_MODEL_PODCAST_SCRIPT') or _get_model_flash()
-
-
-def _get_tts_max_output_tokens() -> int:
-    """
-    Presupuesto de salida para TTS (modalidad AUDIO). Valores bajos provocan
-    ``finish_reason=MAX_TOKENS``: el modelo corta la locución y el resto del PCM
-    suele ser silencio (~16 min de fichero con ~3 min de voz). Override:
-    ``GEMINI_TTS_MAX_OUTPUT_TOKENS`` (acotado 8192–262144).
-    """
-    raw = os.environ.get('GEMINI_TTS_MAX_OUTPUT_TOKENS')
-    if raw is not None and str(raw).strip() != '':
-        try:
-            return max(8192, min(262144, int(str(raw).strip())))
-        except ValueError:
-            pass
-    return 65536
-
-
-def _get_tts_synthesis_temperature() -> float:
-    """
-    Temperatura solo en la llamada al modelo TTS (audio), no al guion.
-    Valores altos en audio largo pueden aumentar artefactos; por defecto 0,65.
-    Override: GEMINI_TTS_TEMPERATURE.
-    """
-    raw = os.environ.get('GEMINI_TTS_TEMPERATURE')
-    if raw is None or str(raw).strip() == '':
-        return 0.65
-    try:
-        return max(0.0, min(1.0, float(str(raw).strip().replace(',', '.'))))
-    except ValueError:
-        return 0.65
-
-
-def _get_tts_synthesis_wall_timeout_seconds() -> int:
-    """
-    Tiempo máximo (reloj de pared) para la fase de síntesis TTS: una o dos llamadas
-    a la API de audio + escritura WAV. Por defecto 30 minutos.
-    Override: GEMINI_TTS_SYNTHESIS_TIMEOUT_SECONDS (mínimo 120, máximo 7200).
-    """
-    raw = os.environ.get('GEMINI_TTS_SYNTHESIS_TIMEOUT_SECONDS')
-    if raw is not None and str(raw).strip() != '':
-        try:
-            return max(120, min(7200, int(str(raw).strip())))
-        except ValueError:
-            pass
-    return 1800
-
-
-def _make_tts_genai_client(api_key: str):
-    """
-    Cliente sólo para síntesis: ``HttpOptions.timeout`` en milisegundos un poco por encima
-    del wall-timeout para que no aborte httpx antes que el límite global del hilo.
-    """
-    from google import genai
-    from google.genai import types
-
-    sec = _get_tts_synthesis_wall_timeout_seconds()
-    ms = max(60_000, int((sec + 120) * 1000))
-    try:
-        return genai.Client(api_key=api_key, http_options=types.HttpOptions(timeout=ms))
-    except Exception:
-        logger.warning('genai.Client(http_options=...) no disponible; TTS con cliente por defecto', exc_info=True)
-        return genai.Client(api_key=api_key)
-
-
-def _get_podcast_script_temperature() -> float:
-    """
-    Temperatura para el guion (NotebookLM). Por defecto ~0,82 (más natural; el límite va en el prompt).
-    Rango recomendado 0,7–1,0. Override: GEMINI_PODCAST_SCRIPT_TEMPERATURE.
-    """
-    raw = os.environ.get('GEMINI_PODCAST_SCRIPT_TEMPERATURE')
-    if raw is None or str(raw).strip() == '':
-        return 0.82
-    try:
-        return max(0.0, min(1.0, float(str(raw).strip().replace(',', '.'))))
-    except ValueError:
-        return 0.82
 
 
 def _get_agent_deep_research() -> str:
@@ -308,7 +212,7 @@ def report_substeps_after_dr_ok(
 def new_report_stages_progress_state() -> dict:
     """
     Progreso en la pestaña de informes para la generación **solo del informe** (plan → … → informe → resumen).
-    Se guarda en ``company_reports.audio_progress_json`` con ``report_stages: true``.
+    Se guarda en ``company_reports.job_progress_json`` con ``report_stages: true``.
     """
     return {
         'report_stages': True,
@@ -1418,7 +1322,7 @@ def _persist_company_report_completed_resume(report_id: int, markdown: str) -> N
     r.error_msg = None
     r.completed_at = datetime.utcnow()
     if not is_full_deliver:
-        r.audio_progress_json = None
+        r.job_progress_json = None
     else:
         r.delivery_phase_status = 'processing'
     db.session.commit()
@@ -2129,7 +2033,7 @@ def new_audio_progress_steps_state() -> list:
 def new_full_pipeline_progress_state() -> dict:
     """
     Progreso unificado: subpasos del informe (plan / validación / informe) + correo.
-    Se persiste en ``company_reports.audio_progress_json`` con ``full_pipeline: true``.
+    Se persiste en ``company_reports.job_progress_json`` con ``full_pipeline: true``.
     """
     first = _report_substep_rows(not _get_auto_collab_loop())
     return {
@@ -2201,6 +2105,8 @@ def generate_report_tts_audio(
     Raises:
         GeminiServiceError: Si falla la generación
     """
+    raise GeminiServiceError("Audio/TTS eliminado del producto")
+
     api_key = _get_api_key()
     if not api_key:
         raise GeminiServiceError('GEMINI_API_KEY no configurada')

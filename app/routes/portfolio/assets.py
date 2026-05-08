@@ -70,7 +70,7 @@ def _persist_report_stages_from_steps(engine, report_id, steps_list):
     base['steps'] = steps_list
     with engine.connect() as conn:
         conn.execute(
-            text('UPDATE company_reports SET audio_progress_json = :j WHERE id = :rid'),
+            text('UPDATE company_reports SET job_progress_json = :j WHERE id = :rid'),
             {'j': json.dumps(base, ensure_ascii=False), 'rid': report_id},
         )
         conn.commit()
@@ -799,21 +799,16 @@ def asset_detail(id):
 
 # ==================== GEMINI INFORMES (API) ====================
 
-def _get_report_audio_path(report):
-    """Devuelve la ruta absoluta del archivo WAV del informe si existe, o None."""
-    if getattr(report, 'audio_status', None) != 'completed' or not getattr(report, 'audio_path', None):
-        return None
-    output_folder = current_app.config.get('OUTPUT_FOLDER') or (Path(__file__).resolve().parent.parent.parent / 'output')
-    full_path = (Path(output_folder).resolve() / report.audio_path).resolve()
-    if not full_path.exists() or not full_path.is_file():
+
+def _parse_job_progress_json(report: CompanyReport) -> dict | None:
+    raw = getattr(report, "job_progress_json", None)
+    if not raw:
         return None
     try:
-        if full_path.stat().st_size < 256:
-            current_app.logger.warning('WAV demasiado pequeño o vacío: %s bytes %s', full_path.stat().st_size, full_path)
-            return None
-    except OSError:
+        obj = json.loads(str(raw))
+        return obj if isinstance(obj, dict) else None
+    except Exception:
         return None
-    return full_path
 
 
 def _user_can_access_asset_reports(user_id, asset_id):
@@ -1132,6 +1127,7 @@ def asset_report_detail(id, report_id):
 
     status_visible = status_visible_for_report(report)
     job_j, provider_j = job_and_provider_json(report)
+    job_progress = _parse_job_progress_json(report)
 
     return jsonify({
         'id': report.id,
@@ -1149,7 +1145,7 @@ def asset_report_detail(id, report_id):
         'audio_path': None,
         'audio_error_msg': None,
         'audio_completed_at': None,
-        'audio_progress': None,
+        'audio_progress': job_progress,
         'queue_position': qp_detail,
         'queue_waiting_total': qwait_detail,
         'email_status': getattr(report, 'email_status', None),
@@ -1275,6 +1271,7 @@ def api_report_status(report_id):
 
     status_visible = status_visible_for_report(report)
     job_j, provider_j = job_and_provider_json(report)
+    job_progress = _parse_job_progress_json(report)
 
     return jsonify({
         'id': report.id,
@@ -1294,7 +1291,7 @@ def api_report_status(report_id):
         'audio_status': None,
         'audio_path': None,
         'audio_error_msg': None,
-        'audio_progress': None,
+        'audio_progress': job_progress,
         'audio_attempt': {},
     })
 

@@ -1,5 +1,5 @@
 """
-Ejecución del pipeline «informe + audio + correo» (full_deliver) sin hilos daemon.
+Ejecución del pipeline «informe + correo» (full_deliver) sin hilos daemon.
 
 Caller debe tener ``app.app_context()`` y **debe tener adquirido**
 ``background_tasks_lock(app, fair_report_id=...)`` antes de llamar aquí para cola global FIFO.
@@ -49,7 +49,7 @@ def execute_full_deliver_job(app: Any, engine: Any, report_id: int, ctx: dict) -
         with engine.connect() as conn:
             conn.execute(
                 text(
-                    "UPDATE company_reports SET audio_progress_json = :j, audio_error_msg = NULL WHERE id = :rid"
+                    "UPDATE company_reports SET job_progress_json = :j WHERE id = :rid"
                 ),
                 {"j": json.dumps(obj, ensure_ascii=False), "rid": rid},
             )

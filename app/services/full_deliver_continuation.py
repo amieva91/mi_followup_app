@@ -29,7 +29,7 @@ def _legacy_incomplete_full_deliver_tail(report: CompanyReport) -> bool:
     if (report.status or "") != "completed" or not (report.content or "").strip():
         return False
     em = getattr(report, "email_status", None)
-    raw = str(getattr(report, "audio_progress_json", None) or "")
+    raw = str(getattr(report, "job_progress_json", None) or "")
     if '"full_pipeline"' in raw or "'full_pipeline'" in raw:
         return True
     if em is not None:
@@ -107,7 +107,7 @@ def continue_full_deliver_after_dr(
             pass
 
         pstate = None
-        raw = getattr(report, "audio_progress_json", None)
+        raw = getattr(report, "job_progress_json", None)
         if raw:
             try:
                 obj = json.loads(str(raw))
@@ -144,7 +144,6 @@ def execute_full_deliver_tail(
     """Correo (cuerpo con informe completo + PDF adjunto). Actualiza ``delivery_phase_status`` y pasos en JSON."""
     from app.services.gemini_service import (
         _get_auto_collab_loop,
-        fallback_report_summary_markdown,
         new_full_pipeline_progress_state,
         report_substeps_after_dr_ok,
     )
@@ -164,7 +163,7 @@ def execute_full_deliver_tail(
         with engine.connect() as conn:
             conn.execute(
                 text(
-                    "UPDATE company_reports SET audio_progress_json = :j, audio_error_msg = NULL WHERE id = :rid"
+                    "UPDATE company_reports SET job_progress_json = :j WHERE id = :rid"
                 ),
                 {"j": json.dumps(obj, ensure_ascii=False), "rid": report_id},
             )
@@ -190,7 +189,6 @@ def execute_full_deliver_tail(
         return
 
     # Sin resumen Flash: el cuerpo del correo será el informe completo.
-    summary_md_pl = ""
     subs_ok2 = report_substeps_after_dr_ok(single_shot, "ok")
     for i in range(min(len(subs_ok2), len(pstate["steps"]))):
         pstate["steps"][i] = subs_ok2[i]
@@ -339,7 +337,7 @@ def execute_full_deliver_tail(
                 """
                 UPDATE company_reports
                 SET email_status = 'completed', email_error_msg = NULL, email_completed_at = :ec,
-                    audio_progress_json = NULL,
+                    job_progress_json = NULL,
                     delivery_phase_status = 'completed'
                 WHERE id = :rid
                 """
@@ -393,7 +391,7 @@ def run_full_deliver_pending_recovery(app: Flask, report_id: int) -> None:
                         delivery_mode = 'full_deliver'
                         OR (
                           delivery_mode IS NULL
-                          AND audio_progress_json LIKE '%full_pipeline%'
+                          AND job_progress_json LIKE '%full_pipeline%'
                         )
                       )
                     """
@@ -440,7 +438,7 @@ def run_full_deliver_pending_recovery(app: Flask, report_id: int) -> None:
             with engine.connect() as conn:
                 conn.execute(
                     text(
-                        "UPDATE company_reports SET audio_progress_json = :j, audio_error_msg = NULL WHERE id = :rid"
+                        "UPDATE company_reports SET job_progress_json = :j WHERE id = :rid"
                     ),
                     {"j": json.dumps(obj, ensure_ascii=False), "rid": rid},
                 )
@@ -544,7 +542,7 @@ def expire_stale_full_delivery_tails(app_logger=None) -> int:
     sec = _full_deliver_tail_timeout_seconds()
     cutoff = datetime.utcnow() - timedelta(seconds=sec)
     msg = (
-        f"Tiempo máximo ({sec}s) superado en la entrega todo-en-uno (resumen/audio/correo). "
+        f"Tiempo máximo ({sec}s) superado en la entrega todo-en-uno (correo). "
         "Revisa el informe o vuelve a lanzar la entrega."
     )
     try:
@@ -559,9 +557,7 @@ def expire_stale_full_delivery_tails(app_logger=None) -> int:
                   AND completed_at IS NOT NULL
                   AND completed_at < :cutoff
                   AND (
-                    summary_content IS NULL OR TRIM(summary_content) = ''
-                    OR audio_status IS NULL OR audio_status NOT IN ('completed','failed')
-                    OR email_status IS NULL OR email_status NOT IN ('completed','failed')
+                    email_status IS NULL OR email_status NOT IN ('completed','failed')
                   )
                 """
             ),

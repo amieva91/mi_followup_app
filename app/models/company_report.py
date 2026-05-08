@@ -90,7 +90,7 @@ class CompanyReport(db.Model):
     gemini_interaction_id = db.Column(db.String(100), nullable=True)
 
     # Telemetría de jobs largos (worker DB-backed)
-    job_kind = db.Column(db.String(40), nullable=True)  # dr_watchlist_min | dr_full | tts_only | full_deliver
+    job_kind = db.Column(db.String(40), nullable=True)  # dr_watchlist_min | dr_full | full_deliver
     job_status = db.Column(db.String(20), nullable=True)  # queued | running | completed | failed | cancelled
     job_phase = db.Column(db.String(40), nullable=True)  # waiting_turn | creating_interaction | polling_provider | ...
     job_started_at = db.Column(db.DateTime, nullable=True)
@@ -105,18 +105,11 @@ class CompanyReport(db.Model):
     provider_create_attempt = db.Column(db.Integer, nullable=True)
     provider_next_retry_at = db.Column(db.DateTime, nullable=True)
 
-    # Audio TTS resumen
-    audio_path = db.Column(db.String(500), nullable=True)  # ruta al archivo WAV
-    audio_status = db.Column(db.String(20), nullable=True)  # pending, processing, completed, failed
-    audio_error_msg = db.Column(db.Text, nullable=True)
-    audio_progress_json = db.Column(db.Text, nullable=True)  # JSON: pasos guion TTS (poll UI)
-    audio_completed_at = db.Column(db.DateTime, nullable=True)
-    # Número del último encolado de síntesis TTS (solo audio / reintentos). Se pone a 0/NULL tras WAV ok.
-    audio_generation_attempt = db.Column(db.Integer, nullable=True)
+    # Progreso de jobs/pipelines (JSON serializado) para la UI.
+    job_progress_json = db.Column(db.Text, nullable=True)
 
     # Cola (orden real por petición, no por created_at).
     report_enqueued_at = db.Column(db.DateTime, nullable=True)
-    audio_enqueued_at = db.Column(db.DateTime, nullable=True)
 
     # Email (pipeline todo-en-uno): separar fallo de envío del estado del audio.
     email_status = db.Column(db.String(20), nullable=True)  # processing, completed, failed

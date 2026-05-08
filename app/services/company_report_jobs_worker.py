@@ -81,7 +81,7 @@ def _reconcile_company_report_job_rows(engine) -> None:
     now = _utcnow()
     jp = _job_kind_params()
     with engine.connect() as conn:
-        # Audio resumen (TTS) deshabilitado: cancelar cualquier job tts_only que quedara en BD.
+        # Audio resumen (TTS) eliminado: cancelar cualquier job legacy tts_only que quedara en BD.
         conn.execute(
             text(
                 """
@@ -89,13 +89,6 @@ def _reconcile_company_report_job_rows(engine) -> None:
                 SET job_status='cancelled',
                     job_phase='cancelled',
                     job_finished_at=COALESCE(job_finished_at, :now),
-                    audio_status=CASE
-                      WHEN COALESCE(audio_status,'') IN ('queued','processing') THEN 'failed'
-                      ELSE audio_status END,
-                    audio_error_msg=CASE
-                      WHEN COALESCE(audio_status,'') IN ('queued','processing') THEN 'Audio resumen deshabilitado temporalmente.'
-                      ELSE audio_error_msg END,
-                    audio_progress_json=NULL
                 WHERE COALESCE(job_kind,'') = 'tts_only'
                   AND COALESCE(job_status,'') IN ('queued','running')
                 """
@@ -504,7 +497,7 @@ def run_once(app) -> bool:
             with engine.connect() as conn:
                 conn.execute(
                     text(
-                        "UPDATE company_reports SET audio_progress_json = :j, audio_error_msg = NULL WHERE id = :rid"
+                        "UPDATE company_reports SET job_progress_json = :j WHERE id = :rid"
                     ),
                     {"j": json.dumps(p0, ensure_ascii=False), "rid": int(rid)},
                 )
