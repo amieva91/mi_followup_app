@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 def execute_full_deliver_job(app: Any, engine: Any, report_id: int, ctx: dict) -> tuple[bool, str | None]:
     """
-    Ejecuta DR + tail (resumen Flash, TTS, correo).
+    Ejecuta DR + tail (correo; cuerpo con informe completo + PDF adjunto).
 
     Devuelve (ok, error_msg).
     Assume la fila ya está ``status='processing'`` (y lock global activo si aplica).

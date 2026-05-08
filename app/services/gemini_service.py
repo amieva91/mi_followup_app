@@ -2128,7 +2128,7 @@ def new_audio_progress_steps_state() -> list:
 
 def new_full_pipeline_progress_state() -> dict:
     """
-    Progreso unificado: subpasos del informe (plan / validación / informe / resumen) + guion + TTS + correo.
+    Progreso unificado: subpasos del informe (plan / validación / informe) + correo.
     Se persiste en ``company_reports.audio_progress_json`` con ``full_pipeline: true``.
     """
     first = _report_substep_rows(not _get_auto_collab_loop())
@@ -2136,28 +2136,14 @@ def new_full_pipeline_progress_state() -> dict:
         'full_pipeline': True,
         'report_stages': False,
         'caption': (
-            'Proceso completo: Deep Research, resumen Flash, audio (es-ES) y envío por correo '
-            '(cuerpo con resumen + PDF del informe completo). Puedes salir.'
+            'Proceso completo: Deep Research y envío por correo (cuerpo con informe completo + PDF adjunto). '
+            'Puedes salir.'
         ),
         'steps': first
         + [
             {
-                'id': 'script',
-                'title': 'Guion 3 actos (obj. ~750 pal., máx. borrador 900, ~5 min)',
-                'status': 'pending',
-                'model': _get_model_podcast_script(),
-                'error': None,
-            },
-            {
-                'id': 'tts',
-                'title': 'Síntesis TTS (Charon + Kore, es-ES)',
-                'status': 'pending',
-                'model': _get_model_tts(),
-                'error': None,
-            },
-            {
                 'id': 'email',
-                'title': 'Enviar informe y audio por correo',
+                'title': 'Enviar informe por correo (con PDF adjunto)',
                 'status': 'pending',
                 'model': None,
                 'error': None,

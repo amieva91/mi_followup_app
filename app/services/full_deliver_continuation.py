@@ -1,5 +1,5 @@
 """
-Cola de entrega del flujo «todo en uno» (resumen Flash → TTS → correo) tras Deep Research.
+Cola de entrega del flujo «todo en uno» (Deep Research → correo) tras Deep Research.
 
 Se reutiliza desde ``generate-deliver`` y desde la reanudación tras reinicio de workers,
 cuando Deep Research ya quedó persistido pero la cola larga se interrumpió.
@@ -28,17 +28,11 @@ def _legacy_incomplete_full_deliver_tail(report: CompanyReport) -> bool:
     """Heurística para informes antiguos sin ``delivery_mode`` pero con cola de entrega a medias."""
     if (report.status or "") != "completed" or not (report.content or "").strip():
         return False
-    sm = (report.summary_content or "").strip()
-    au = getattr(report, "audio_status", None)
     em = getattr(report, "email_status", None)
-    if sm and au == "completed" and em == "completed":
-        return False
     raw = str(getattr(report, "audio_progress_json", None) or "")
     if '"full_pipeline"' in raw or "'full_pipeline'" in raw:
         return True
     if em is not None:
-        return True
-    if au in ("processing", "completed", "failed", "queued"):
         return True
     return False
 
@@ -72,7 +66,7 @@ def continue_full_deliver_after_dr(
     """
     Ejecuta la cola de entrega bajo ``background_tasks_lock`` (salvo ``skip_background_lock``,
     cuando el caller ya tiene el lock global — p. ej. ``company_report_jobs_worker``).
-    Idempotente: si ya hay resumen/audio/correo completos, sale sin duplicar trabajo.
+    Idempotente: si la entrega ya terminó (correo ok/error), sale sin duplicar trabajo.
     """
     lock_cm = (
         nullcontext()
@@ -147,7 +141,7 @@ def execute_full_deliver_tail(
     content_dr: str,
     pstate: dict | None,
 ) -> None:
-    """Resumen + correo (TTS deshabilitado). Actualiza ``delivery_phase_status`` y pasos en JSON."""
+    """Correo (cuerpo con informe completo + PDF adjunto). Actualiza ``delivery_phase_status`` y pasos en JSON."""
     from app.services.gemini_service import (
         _get_auto_collab_loop,
         fallback_report_summary_markdown,
@@ -250,16 +244,11 @@ def execute_full_deliver_tail(
                 conn.execute(stmt, {"ids": ids})
         conn.commit()
 
-    # TTS deshabilitado: marcar pasos de audio como ok/skipped y continuar a email.
-    # (El progreso legacy tenía pasos [4] y [5] reservados para TTS.)
+    # Pipeline actual: informe ya listo; avanzar a email.
     try:
-        if isinstance(pstate.get("steps"), list) and len(pstate["steps"]) > 6:
-            pstate["steps"][4]["status"] = "ok"
-            pstate["steps"][4]["error"] = None
-            pstate["steps"][5]["status"] = "ok"
-            pstate["steps"][5]["error"] = None
-            pstate["steps"][6]["status"] = "loading"
-            pstate["steps"][6]["error"] = None
+        if isinstance(pstate.get("steps"), list) and len(pstate["steps"]) >= 4:
+            pstate["steps"][3]["status"] = "loading"
+            pstate["steps"][3]["error"] = None
             _persist(pstate)
     except Exception:
         pass
@@ -281,8 +270,12 @@ def execute_full_deliver_tail(
 
     u = User.query.get(user_id)
     if not u or not u.email:
-        pstate["steps"][6]["status"] = "error"
-        pstate["steps"][6]["error"] = "Usuario sin email"
+        try:
+            if isinstance(pstate.get("steps"), list) and len(pstate["steps"]) >= 4:
+                pstate["steps"][3]["status"] = "error"
+                pstate["steps"][3]["error"] = "Usuario sin email"
+        except Exception:
+            pass
         _persist(pstate)
         with engine.connect() as conn:
             conn.execute(
@@ -311,8 +304,12 @@ def execute_full_deliver_tail(
         )
     except Exception as em_e:
         log.exception("Correo en full_deliver_tail: %s", em_e)
-        pstate["steps"][6]["status"] = "error"
-        pstate["steps"][6]["error"] = str(em_e)[:4000]
+        try:
+            if isinstance(pstate.get("steps"), list) and len(pstate["steps"]) >= 4:
+                pstate["steps"][3]["status"] = "error"
+                pstate["steps"][3]["error"] = str(em_e)[:4000]
+        except Exception:
+            pass
         _persist(pstate)
         with engine.connect() as conn:
             conn.execute(
@@ -330,8 +327,12 @@ def execute_full_deliver_tail(
         _sync_job_terminal()
         return
 
-    pstate["steps"][6]["status"] = "ok"
-    pstate["steps"][6]["error"] = None
+    try:
+        if isinstance(pstate.get("steps"), list) and len(pstate["steps"]) >= 4:
+            pstate["steps"][3]["status"] = "ok"
+            pstate["steps"][3]["error"] = None
+    except Exception:
+        pass
     with engine.connect() as conn:
         conn.execute(
             text(
