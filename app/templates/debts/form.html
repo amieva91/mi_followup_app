@@ -31,11 +31,35 @@
         filter: brightness(0.96);
     }
 </style>
+<script>
+(function () {
+    window.followupParseEuroAmount = function (raw) {
+        if (raw == null || raw === '') return 0;
+        var s = String(raw).trim().replace(/\s/g, '');
+        if (!s) return 0;
+        var hasComma = s.indexOf(',') !== -1;
+        var hasDot = s.indexOf('.') !== -1;
+        if (hasComma && hasDot) {
+            var lastComma = s.lastIndexOf(',');
+            var lastDot = s.lastIndexOf('.');
+            if (lastComma > lastDot) {
+                s = s.replace(/\./g, '').replace(',', '.');
+            } else {
+                s = s.replace(/,/g, '');
+            }
+        } else if (hasComma) {
+            s = s.replace(',', '.');
+        }
+        var n = parseFloat(s);
+        return Number.isFinite(n) ? n : 0;
+    };
+})();
+</script>
 <div class="max-w-5xl mx-auto px-4 py-8">
     <h1 class="debt-form-title text-3xl mb-6">📋 {{ title }}</h1>
 
     <div class="debt-form-card p-6">
-        <form method="POST" action="" id="debt-form" novalidate x-data="{ total: {{ form.total_amount.data or 0 }}, months: {{ form.months.data or 12 }} }">
+        <form method="POST" action="" id="debt-form" novalidate x-data="{ totalNum: {{ form.total_amount.data or 0 }}, months: {{ form.months.data or 12 }} }">
             {{ form.hidden_tag() }}
             {% if next_page %}<input type="hidden" name="next" value="{{ next_page }}">{% endif %}
 
@@ -51,7 +75,7 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         {{ form.total_amount.label(class="block text-gray-700 font-semibold mb-2") }}
-                        {{ form.total_amount(class="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500", **{'x-model': 'total', '@input': 'total = parseFloat($event.target.value) || 0'}) }}
+                        {{ form.total_amount(class="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500", **{'@input': 'totalNum = followupParseEuroAmount($event.target.value)'}) }}
                         {% if form.total_amount.errors %}
                             <div class="text-red-600 text-sm mt-1">
                                 {% for e in form.total_amount.errors %}<p>{{ e }}</p>{% endfor %}
@@ -71,7 +95,7 @@
 
                 <div class="bg-slate-50 p-4 rounded-xl text-sm text-gray-700 border border-slate-200" x-show="months > 0">
                     <strong>Cuota mensual aproximada:</strong>
-                    <span x-text="(total / (months || 1)).toFixed(2) + ' €'"></span>
+                    <span x-text="(totalNum / (months || 1)).toFixed(2) + ' €'"></span>
                 </div>
 
                 {{ form.category_id.label(class="block text-gray-700 font-semibold mb-2") }}

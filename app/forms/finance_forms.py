@@ -306,13 +306,18 @@ class DebtPlanForm(FlaskForm):
         render_kw={'placeholder': 'Ej: Ordenador portátil, TV Samsung...', 'class': 'form-input'}
     )
 
-    total_amount = FloatField(
+    total_amount = FlexibleFloatField(
         'Importe total (€)',
         validators=[
             DataRequired(message='El importe es requerido'),
             NumberRange(min=0.01, message='El importe debe ser mayor a 0')
         ],
-        render_kw={'placeholder': '0.00', 'step': '0.01', 'class': 'form-input'}
+        render_kw={
+            'placeholder': '0,00',
+            'inputmode': 'decimal',
+            'autocomplete': 'off',
+            'class': 'form-input',
+        }
     )
 
     months = IntegerField(
@@ -370,13 +375,18 @@ class DebtPlanEditForm(FlaskForm):
         render_kw={'placeholder': 'Ej: Ordenador portátil, TV Samsung...', 'class': 'form-input'}
     )
 
-    total_amount = FloatField(
+    total_amount = FlexibleFloatField(
         'Importe total (€)',
         validators=[
             DataRequired(message='El importe es requerido'),
             NumberRange(min=0.01, message='El importe debe ser mayor a 0')
         ],
-        render_kw={'placeholder': '0.00', 'step': '0.01', 'class': 'form-input'}
+        render_kw={
+            'placeholder': '0,00',
+            'inputmode': 'decimal',
+            'autocomplete': 'off',
+            'class': 'form-input',
+        }
     )
 
     months = IntegerField(
