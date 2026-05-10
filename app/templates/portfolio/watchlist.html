@@ -226,7 +226,7 @@
                             <span class="flex flex-col items-center gap-0.5">
                                 <span class="leading-tight">Inputs</span>
                                 <span class="text-[10px] font-semibold normal-case text-slate-500">▼</span>
-                                <span class="cursor-help text-gray-400" title="Expande la fila para ver todos los campos manuales (núcleo, general, banco y REIT). Por defecto contraído. Usuario = negrita · IA = azul cursiva.">ⓘ</span>
+                                <span class="cursor-help text-gray-400" title="Expande para ver el núcleo común más los campos del modo de valoración aplicado (general, banco o REIT). Por defecto contraído. Usuario = negrita · IA = azul cursiva.">ⓘ</span>
                             </span>
                         </th>
                         <th class="px-4 py-3 text-center font-semibold uppercase">
@@ -524,7 +524,7 @@
                                 aria-controls="wl-inputs-expand-{{ watchlist_item.id }}"
                                 data-watchlist-id="{{ watchlist_item.id }}"
                                 onclick="toggleWatchlistInputsRow({{ watchlist_item.id }})"
-                                title="Ver todos los inputs manuales (contraído por defecto)">
+                                title="Ver inputs del modo aplicado + núcleo (contraído por defecto)">
                                 <span class="wl-chevron text-base leading-none select-none" aria-hidden="true">▸</span>
                             </button>
                             {% else %}
@@ -553,13 +553,13 @@
                         </td>
                     </tr>
                     {% if watchlist_item %}
-                    <tr class="wl-inputs-expand-row hidden bg-slate-50/90" data-watchlist-parent="{{ watchlist_item.id }}" id="wl-inputs-expand-{{ watchlist_item.id }}" role="region" aria-label="Todos los inputs manuales">
+                    <tr class="wl-inputs-expand-row hidden bg-slate-50/90" data-watchlist-parent="{{ watchlist_item.id }}" id="wl-inputs-expand-{{ watchlist_item.id }}" role="region" aria-label="Inputs manuales: núcleo y modo {{ vm_label }}">
                         <td colspan="13" class="px-4 py-4 border-t border-slate-200 align-top">
                             <div class="text-xs text-slate-600 mb-3 flex flex-wrap items-center gap-x-4 gap-y-1">
                                 <span>Modo valoración aplicado: <strong class="text-slate-800">{{ vm_label }}</strong></span>
                                 <span><span class="watchlist-val-user">Negrita</span> = usuario</span>
                                 <span><span class="watchlist-val-ai">Cursiva azul</span> = IA</span>
-                                <span class="text-slate-500">Editar ✏️ para cambiar valores.</span>
+                                <span class="text-slate-500">Solo bloques que aplican a este modo (además del núcleo). Editar ✏️ para cambiar valores.</span>
                             </div>
                             <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-4 gap-y-5">
                                 <div class="sm:col-span-2 lg:col-span-3 xl:col-span-5">
@@ -570,6 +570,7 @@
                                 {{ wl_manual_cell(watchlist_item, 'ntm_dividend_yield', 'Div. yield NTM', 'pct') }}
                                 {{ wl_manual_cell(watchlist_item, 'eps', 'EPS NTM', 'num4') }}
                                 {{ wl_manual_cell(watchlist_item, 'cagr_revenue_yoy', 'CAGR ingresos 2–3y', 'pct') }}
+                                {% if vm == 'general' %}
                                 <div class="sm:col-span-2 lg:col-span-3 xl:col-span-5 mt-2">
                                     <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wide mb-2 border-b border-slate-200 pb-1">Modo general — precisión y calidad</h4>
                                 </div>
@@ -580,6 +581,8 @@
                                 {{ wl_manual_cell(watchlist_item, 'ebitda_margin_pct', 'Margen EBITDA', 'pct') }}
                                 {{ wl_manual_cell(watchlist_item, 'operating_margin_pct', 'Margen operativo', 'pct') }}
                                 {{ wl_manual_cell(watchlist_item, 'roic_pct', 'ROIC', 'pct') }}
+                                {% endif %}
+                                {% if vm == 'banks' %}
                                 <div class="sm:col-span-2 lg:col-span-3 xl:col-span-5 mt-2">
                                     <h4 class="text-xs font-bold text-amber-900 uppercase tracking-wide mb-2 border-b border-amber-100 pb-1">Modo banco</h4>
                                 </div>
@@ -594,6 +597,8 @@
                                 {{ wl_manual_cell(watchlist_item, 'loan_to_deposit_pct', 'LDR', 'pct') }}
                                 {{ wl_manual_cell(watchlist_item, 'cost_of_risk_pct', 'Cost of risk', 'pct') }}
                                 {{ wl_manual_cell(watchlist_item, 'bvps_cagr_yoy', 'CAGR BVPS', 'pct') }}
+                                {% endif %}
+                                {% if vm == 'realestate' %}
                                 <div class="sm:col-span-2 lg:col-span-3 xl:col-span-5 mt-2">
                                     <h4 class="text-xs font-bold text-violet-900 uppercase tracking-wide mb-2 border-b border-violet-100 pb-1">Modo REIT</h4>
                                 </div>
@@ -609,6 +614,7 @@
                                 {{ wl_manual_cell(watchlist_item, 'same_store_growth_pct', 'Same-store growth', 'pct') }}
                                 {{ wl_manual_cell(watchlist_item, 'ffo_interest_coverage', 'FFO / intereses', 'num') }}
                                 {{ wl_manual_cell(watchlist_item, 'ffo_to_total_debt', 'FFO / deuda', 'num') }}
+                                {% endif %}
                             </div>
                         </td>
                     </tr>
