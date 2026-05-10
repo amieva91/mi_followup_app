@@ -48,6 +48,8 @@ WATCHLIST_MANUAL_FIELD_KEYS = WATCHLIST_IA_BATCH_FIELD_KEYS + (
     "occupancy_pct",
     "walt_years",
     "same_store_growth_pct",
+    "ffo_interest_coverage",
+    "ffo_to_total_debt",
 )
 
 
@@ -103,6 +105,8 @@ class Watchlist(db.Model):
     occupancy_pct = db.Column(db.Float)
     walt_years = db.Column(db.Float)
     same_store_growth_pct = db.Column(db.Float)
+    ffo_interest_coverage = db.Column(db.Float)  # FFO / gastos financieros (×)
+    ffo_to_total_debt = db.Column(db.Float)  # FFO a deuda total (×), convención TIKR
 
     # Origen por campo manual: "user" | "ai" | omitido (null en BD = sin marcar / vacío tras reset)
     manual_field_sources = db.Column(db.JSON, nullable=True)

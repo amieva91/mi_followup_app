@@ -89,7 +89,7 @@ def factor_reit_nd_ebitda(x: Optional[float]) -> float:
 
 
 def factor_ffo_interest_coverage(x: Optional[float]) -> float:
-    """Reservado para input futuro; sin dato → 1,00."""
+    """FFO / intereses (×). Sin dato → 1,00."""
     if x is None:
         return 1.0
     if x >= 4.5:
@@ -102,7 +102,7 @@ def factor_ffo_interest_coverage(x: Optional[float]) -> float:
 
 
 def factor_ffo_to_total_debt(x: Optional[float]) -> float:
-    """Reservado para input futuro; sin dato → 1,00."""
+    """FFO / deuda total (×). Sin dato → 1,00."""
     if x is None:
         return 1.0
     if x >= 0.15:
@@ -147,7 +147,7 @@ def factor_reit_walt(years: Optional[float]) -> float:
 
 
 def compute_f_re_final(wl: Watchlist) -> float:
-    f_cov = reit_f_cov(None, None)
+    f_cov = reit_f_cov(wl.ffo_interest_coverage, wl.ffo_to_total_debt)
     f = (
         factor_reit_nd_ebitda(wl.reit_leverage_ratio)
         * f_cov
