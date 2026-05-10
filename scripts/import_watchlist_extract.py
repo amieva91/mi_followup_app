@@ -1,14 +1,35 @@
 #!/usr/bin/env python3
 """
-Importa bloques `=== TICKER [modo] ===` con líneas `campo: valor` (salida tipo Gem / Deep Research)
-en los campos manuales de watchlist. Marca todo como origen `ai`.
+Importa bloques de texto con formato FollowUp / Gem en la watchlist (campos manuales, origen ``ai``).
 
-Solo actualiza `next_earnings_date` si el informe incluye una línea `next_earnings_date: YYYY-MM-DD`
-en ese ticker; si la omite, la fecha que ya hubiera en FollowUp **no se borra** (evita perder datos).
+Formato esperado (modo entre corchetes en mayúsculas o minúsculas):
 
-Uso (desde la raíz del repo, con venv activo):
-  python scripts/import_gem_watchlist_extract.py --user-id 3 /ruta/al/informe.txt
-  python scripts/import_gem_watchlist_extract.py --user-id 3 --dry-run /ruta/al/informe.txt
+    === ONDS [GENERAL] ===
+    next_earnings_date: 2026-05-14
+    per_ntm: -1.2
+    ...
+
+    === HSBK [BANKS] ===
+    next_earnings_date: 2026-05-18
+    price_to_book: 1.18
+    ...
+
+    === O [REALESTATE] ===
+    ffo_per_share: 4.28
+    ...
+
+    === FUENTES ===
+    * [título](https://...)
+
+La sección ``=== FUENTES ===`` (con o sin lista markdown) no se importa; puede ir al final del fichero.
+El modo del bloque no filtra campos: deben usarse los identificadores que acepta la app.
+
+Solo escribe ``next_earnings_date`` si viene en el bloque del ticker; si falta, no borra la fecha ya guardada.
+
+Uso (raíz del repo, venv activo):
+
+    python scripts/import_watchlist_extract.py --user-id 3 /ruta/datos.txt
+    python scripts/import_watchlist_extract.py --user-id 3 --dry-run /ruta/datos.txt
 """
 from __future__ import annotations
 
@@ -18,14 +39,15 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-# Raíz del proyecto
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-
-BLOCK_RE = re.compile(r"^===\s+(\S+)\s+\[(\w+)\]\s*===\s*$", re.MULTILINE)
+# Acepta GENERAL, BANKS, REALESTATE, general, etc.
+BLOCK_RE = re.compile(r"^===\s+(\S+)\s+\[([^\]]+)\]\s*===\s*$", re.MULTILINE)
 FIELD_RE = re.compile(r"^([a-z][a-z0-9_]*)\s*:\s*(.*)$", re.I)
+
+FUENTES_LINE_RE = re.compile(r"^===\s*FUENTES\s*===\s*$", re.I)
 
 
 def norm_symbol(sym: str) -> str:
@@ -36,21 +58,29 @@ def norm_symbol(sym: str) -> str:
     return s
 
 
-def parse_gem_file(text: str) -> dict[str, dict[str, str]]:
-    """Por ticker, último valor gana (bloques duplicados p. ej. SPR)."""
+def parse_extract_file(text: str) -> dict[str, dict[str, str]]:
+    """
+    Por ticker, último bloque gana si hay duplicados.
+    Ignora bloques cuyo nombre sea FUENTES (si algún día usara [x]).
+    Dentro de cada bloque, deja de leer al llegar a ``=== FUENTES ===`` sin modo (pie del informe).
+    """
     matches = list(BLOCK_RE.finditer(text))
     out: dict[str, dict[str, str]] = {}
     for i, m in enumerate(matches):
         ticker = m.group(1).strip()
+        if ticker.upper() == "FUENTES":
+            continue
         start = m.end()
         end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
         chunk = text[start:end]
         row = out.setdefault(ticker, {})
         for line in chunk.splitlines():
-            line = line.strip()
-            if not line:
+            line_raw = line.strip()
+            if not line_raw:
                 continue
-            fm = FIELD_RE.match(line)
+            if FUENTES_LINE_RE.match(line_raw.strip()):
+                break
+            fm = FIELD_RE.match(line_raw)
             if not fm:
                 continue
             k = fm.group(1).lower()
@@ -62,7 +92,6 @@ def parse_gem_file(text: str) -> dict[str, dict[str, str]]:
 
 
 def _parse_manual_date(raw: str):
-    """ISO preferente; si falla, dateutil (textos del Gem con notas al final)."""
     raw = raw.strip()
     iso_m = re.match(r"^(\d{4}-\d{2}-\d{2})", raw)
     if iso_m:
@@ -86,11 +115,7 @@ def coerce_value(key: str, raw: str):
     return float(raw.replace(",", ".").replace(" ", ""))
 
 
-def build_watchlist_index(user_id: int) -> dict[str, tuple]:
-    """
-    norm(symbol) -> (Watchlist, Asset).
-    Si hay colisión de norm, preferir coincidencia exacta de símbolo al resolver.
-    """
+def build_watchlist_index(user_id: int) -> dict[str, list]:
     from app.models import Asset, Watchlist
 
     items = (
@@ -104,15 +129,14 @@ def build_watchlist_index(user_id: int) -> dict[str, tuple]:
     return by_norm
 
 
-def resolve_watchlist(gem_ticker: str, by_norm: dict[str, list]):
-    g = norm_symbol(gem_ticker)
+def resolve_watchlist(file_ticker: str, by_norm: dict[str, list]):
+    g = norm_symbol(file_ticker)
     cands = by_norm.get(g)
     if not cands:
         return None
     if len(cands) == 1:
         return cands[0][0]
-    # Colisión: intentar símbolo exacto (mayús)
-    gt = gem_ticker.upper().strip()
+    gt = file_ticker.upper().strip()
     for wl, asset in cands:
         if (asset.symbol or "").upper() == gt:
             return wl
@@ -120,14 +144,16 @@ def resolve_watchlist(gem_ticker: str, by_norm: dict[str, list]):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Importar extracción Gem → watchlist")
-    parser.add_argument("file", type=Path, help="Fichero de texto del Gem")
+    parser = argparse.ArgumentParser(
+        description="Importar bloques === TICKER [MODO] === → watchlist FollowUp"
+    )
+    parser.add_argument("file", type=Path, help="Fichero .txt con bloques campo: valor")
     parser.add_argument("--user-id", type=int, required=True)
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
     text = args.file.read_text(encoding="utf-8", errors="replace")
-    blocks = parse_gem_file(text)
+    blocks = parse_extract_file(text)
     if not blocks:
         print("No se encontraron bloques === TICKER [modo] ===", file=sys.stderr)
         sys.exit(1)
@@ -147,10 +173,10 @@ def main():
         fields_applied = 0
         errors = []
 
-        for gem_ticker, raw_fields in sorted(blocks.items(), key=lambda x: x[0]):
-            wl = resolve_watchlist(gem_ticker, by_norm)
+        for fticker, raw_fields in sorted(blocks.items(), key=lambda x: x[0]):
+            wl = resolve_watchlist(fticker, by_norm)
             if not wl:
-                skipped_tickers.append(gem_ticker)
+                skipped_tickers.append(fticker)
                 continue
 
             sources_update = {}
@@ -160,7 +186,7 @@ def main():
                 try:
                     val = coerce_value(key, raw)
                 except (ValueError, TypeError) as e:
-                    errors.append(f"{gem_ticker}.{key}={raw!r} ({e})")
+                    errors.append(f"{fticker}.{key}={raw!r} ({e})")
                     continue
                 setattr(wl, key, val)
                 sources_update[key] = "ai"
@@ -170,9 +196,9 @@ def main():
                 wl.merge_manual_field_sources(sources_update)
                 WatchlistMetricsService.update_all_metrics(wl, config=config, asset=wl.asset)
                 updated += 1
-                print(f"OK {gem_ticker} → watchlist_id={wl.id} asset={wl.asset.symbol} fields={len(sources_update)}")
+                print(f"OK {fticker} → watchlist_id={wl.id} asset={wl.asset.symbol} fields={len(sources_update)}")
             else:
-                print(f"— {gem_ticker}: sin campos reconocidos")
+                print(f"— {fticker}: sin campos reconocidos")
 
         earnings_in_file = [t for t, flds in blocks.items() if "next_earnings_date" in flds]
         print(
@@ -186,11 +212,11 @@ def main():
         else:
             db.session.commit()
             print(
-                f"\nHecho: filas watchlist actualizadas={updated}, campos escritos={fields_applied}, errores parse={len(errors)}"
+                f"\nHecho: filas actualizadas={updated}, campos escritos={fields_applied}, errores parse={len(errors)}"
             )
 
         if skipped_tickers:
-            print(f"\nTickers no encontrados en tu watchlist ({len(skipped_tickers)}):", ", ".join(skipped_tickers))
+            print(f"\nTickers no encontrados en watchlist ({len(skipped_tickers)}):", ", ".join(skipped_tickers))
         if errors:
             print("\nValores omitidos:", *errors[:30], sep="\n")
             if len(errors) > 30:

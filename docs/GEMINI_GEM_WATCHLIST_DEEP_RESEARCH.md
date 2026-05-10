@@ -187,10 +187,23 @@ Puedes condensar lo anterior en:
 
 ---
 
-## 8. Nota para el usuario (FollowUp)
+## 8. Importar el bloque en FollowUp (script)
+
+Con el repositorio en local y el entorno virtual activado, desde la **raíz del proyecto**:
+
+```bash
+python scripts/import_watchlist_extract.py --user-id TU_ID ruta/archivo.txt
+```
+
+Añade `--dry-run` para simular sin guardar. El fichero puede incluir al final `=== FUENTES ===` y listas en Markdown; el script **no** importa esas líneas, solo bloques `=== TICKER [MODO] ===` con `campo: valor`. Los modos pueden ir en mayúsculas (`GENERAL`, `BANKS`, `REALESTATE`).
+
+---
+
+## 9. Nota para el usuario (FollowUp)
 
 Las listas **Bancos** / **Real Estate** en Ajustes → **Clasificación sectorial** determinan qué modo aplica la aplicación por **Sector + Industria** del activo. El modo que indiques en el paréntesis del Gem debe ser **coherente** con esa clasificación para que los datos se usen en los motores de valoración; si no coincide, la app puede seguir tratando el activo como **general** hasta que corrijas la ficha o las reglas.
 
 ---
 
 *Documento generado para uso con Gemini Gems / Deep Research y la aplicación FollowUp (rama experimental watchlist valoración).*
+
