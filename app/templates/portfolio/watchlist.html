@@ -3,6 +3,29 @@
 {% block title %}Watchlist - FollowUp{% endblock %}
 
 {% block content %}
+{# Celda de solo lectura: inputs manuales con origen IA vs usuario #}
+{% macro wl_manual_cell(wl, key, label, kind='num') -%}
+{% if wl %}
+{% set src = wl.get_manual_field_source(key) %}
+{% set raw = attribute(wl, key) %}
+<div class="min-w-0 break-words">
+    <div class="text-[11px] font-medium text-slate-500 leading-snug">{{ label }}</div>
+    <div class="text-sm tabular-nums mt-0.5 {% if src == 'ai' %}watchlist-val-ai{% elif src == 'user' %}watchlist-val-user{% else %}text-slate-600{% endif %}">
+        {% if kind == 'date' %}
+            {% if raw %}{{ raw.strftime('%Y-%m-%d') }}{% else %}—{% endif %}
+        {% elif kind == 'text' %}
+            {% if raw %}{{ raw }}{% else %}—{% endif %}
+        {% elif raw is not none %}
+            {% if kind == 'pct' %}{{ raw|decimal_eu(2) }}%
+            {% elif kind == 'num4' %}{{ raw|decimal_eu(4) }}
+            {% else %}{{ raw|decimal_eu(2) }}{% endif %}
+        {% else %}
+            —
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{%- endmacro %}
 <style>
     /* Los modales viven FUERA del cierre de #portfolio-watch; hace falta regla global para el panel opaco */
     .watchlist-modal-surface {
@@ -199,28 +222,11 @@
                                 <span class="cursor-help text-gray-400" title="Calculado: (Valor actual del asset / Valor total del portfolio) * 100. Colores: Verde (< umbral+10%), Amarillo (umbral+10% a umbral+25%), Rojo (≥ umbral+25%)">ⓘ</span>
                             </span>
                         </th>
-                        <th class="px-4 py-3 text-right font-semibold uppercase">
-                            <span class="flex items-center justify-end gap-1">
-                                <span class="leading-tight text-left">PER NTM<br><span class="text-[10px] font-semibold normal-case text-slate-500">(P/E forward)</span></span>
-                                <span class="cursor-help text-gray-400 shrink-0" title="Precio / beneficio NTM (próximos 12 meses), mismo convenio que tu fuente (p. ej. TIKR). Modo general: núcleo del PEGY y del PER objetivo. Modo banco: referencia y ayuda al reparto dividendos en el crecimiento BVPS si no hay CAGR BVPS. Modo REIT: secundario (el núcleo del REIT es FFO/AFFO en Editar).">ⓘ</span>
-                            </span>
-                        </th>
-                        <th class="px-4 py-3 text-right font-semibold uppercase">
-                            <span class="flex items-center justify-end gap-1">
-                                <span class="leading-tight text-left">Div. yield<br><span class="text-[10px] font-semibold normal-case text-slate-500">NTM (%)</span></span>
-                                <span class="cursor-help text-gray-400 shrink-0" title="Rendimiento por dividendo NTM (% numérico). Entra en el denominador del PEGY (modo general) y en las rentabilidades 5y/anual con el target. En banco puede usarse junto al PER para estimar payout implícito.">ⓘ</span>
-                            </span>
-                        </th>
-                        <th class="px-4 py-3 text-right font-semibold uppercase">
-                            <span class="flex items-center justify-end gap-1">
-                                <span class="leading-tight text-left">EPS<br><span class="text-[10px] font-semibold normal-case text-slate-500">NTM · GAAP</span></span>
-                                <span class="cursor-help text-gray-400 shrink-0" title="Beneficio por acción NTM en la moneda del ticker; misma definición que el PER (GAAP u otra si tu fuente lo indica). Modo general: fair PER×EPS y trayectoria 5y. Modo banco: referencia y payout si hay PER y yield. Modo REIT: la valoración principal va por FFO/AFFO en Editar; este EPS puede ser contexto GAAP.">ⓘ</span>
-                            </span>
-                        </th>
-                        <th class="px-4 py-3 text-right font-semibold uppercase">
-                            <span class="flex items-center justify-end gap-1">
-                                <span class="leading-tight text-left">CAGR rev.<br><span class="text-[10px] font-semibold normal-case text-slate-500">2–3y YoY (%)</span></span>
-                                <span class="cursor-help text-gray-400 shrink-0" title="CAGR de ingresos (ventas) a 2–3 años, % anual. Modo general: entra en el PEGY (con CAGR EPS si lo tienes en Editar) y en el crecimiento del target 5y. Modo banco: no se usa en el motor P/B actual. Modo REIT: no sustituye al CAGR FFO ni same-store.">ⓘ</span>
+                        <th class="px-2 py-3 text-center font-semibold uppercase w-[4.5rem]">
+                            <span class="flex flex-col items-center gap-0.5">
+                                <span class="leading-tight">Inputs</span>
+                                <span class="text-[10px] font-semibold normal-case text-slate-500">▼</span>
+                                <span class="cursor-help text-gray-400" title="Expande la fila para ver todos los campos manuales (núcleo, general, banco y REIT). Por defecto contraído. Usuario = negrita · IA = azul cursiva.">ⓘ</span>
                             </span>
                         </th>
                         <th class="px-4 py-3 text-center font-semibold uppercase">
@@ -233,7 +239,9 @@
                     {% set asset = item.asset %}
                     {% set watchlist_item = item.watchlist_item %}
                     {% set holding = item.holding %}
-                    <tr class="hover:bg-teal-50/45 transition-colors">
+                    {% set vm = item.valuation_mode|default('general') %}
+                    {% set vm_label = 'Banco' if vm == 'banks' else ('Real Estate / REIT' if vm == 'realestate' else 'General') %}
+                    <tr class="wl-main-row hover:bg-teal-50/45 transition-colors" {% if watchlist_item %}data-watchlist-id="{{ watchlist_item.id }}"{% endif %}>
                         <!-- Nombre (con icono, symbol y país) -->
                         <td class="px-4 py-3">
                             <div class="text-sm font-medium text-gray-900 flex items-center gap-2">
@@ -506,43 +514,21 @@
                             {% endif %}
                         </td>
                         
-                        <!-- PER o NTM P/E -->
-                        <td class="px-4 py-3 whitespace-nowrap text-right">
-                            {% if watchlist_item and watchlist_item.per_ntm is not none %}
-                                {% set src_per = watchlist_item.get_manual_field_source('per_ntm') %}
-                                <span class="text-sm text-gray-900{% if src_per == 'ai' %} watchlist-val-ai{% elif src_per == 'user' %} watchlist-val-user{% endif %}">{{ watchlist_item.per_ntm|decimal_eu(2) }}</span>
+                        <!-- Expandir inputs (todos los modos) -->
+                        <td class="px-1 py-3 whitespace-nowrap text-center align-middle">
+                            {% if watchlist_item %}
+                            <button type="button"
+                                class="wl-inputs-toggle inline-flex items-center justify-center min-w-[2.25rem] h-9 px-1 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 shadow-sm"
+                                id="wl-inputs-btn-{{ watchlist_item.id }}"
+                                aria-expanded="false"
+                                aria-controls="wl-inputs-expand-{{ watchlist_item.id }}"
+                                data-watchlist-id="{{ watchlist_item.id }}"
+                                onclick="toggleWatchlistInputsRow({{ watchlist_item.id }})"
+                                title="Ver todos los inputs manuales (contraído por defecto)">
+                                <span class="wl-chevron text-base leading-none select-none" aria-hidden="true">▸</span>
+                            </button>
                             {% else %}
-                                <span class="text-xs text-gray-400">—</span>
-                            {% endif %}
-                        </td>
-                        
-                        <!-- NTM Dividend Yield (%) -->
-                        <td class="px-4 py-3 whitespace-nowrap text-right">
-                            {% if watchlist_item and watchlist_item.ntm_dividend_yield is not none %}
-                                {% set src_dy = watchlist_item.get_manual_field_source('ntm_dividend_yield') %}
-                                <span class="text-sm text-gray-900{% if src_dy == 'ai' %} watchlist-val-ai{% elif src_dy == 'user' %} watchlist-val-user{% endif %}">{{ watchlist_item.ntm_dividend_yield|decimal_eu(2) }}%</span>
-                            {% else %}
-                                <span class="text-xs text-gray-400">—</span>
-                            {% endif %}
-                        </td>
-                        
-                        <!-- EPS -->
-                        <td class="px-4 py-3 whitespace-nowrap text-right">
-                            {% if watchlist_item and watchlist_item.eps is not none %}
-                                {% set src_eps = watchlist_item.get_manual_field_source('eps') %}
-                                <span class="text-sm text-gray-900{% if src_eps == 'ai' %} watchlist-val-ai{% elif src_eps == 'user' %} watchlist-val-user{% endif %}">{{ watchlist_item.eps|decimal_eu(2) }}</span>
-                            {% else %}
-                                <span class="text-xs text-gray-400">—</span>
-                            {% endif %}
-                        </td>
-                        
-                        <!-- CAGR Revenue YoY (%) -->
-                        <td class="px-4 py-3 whitespace-nowrap text-right">
-                            {% if watchlist_item and watchlist_item.cagr_revenue_yoy is not none %}
-                                {% set src_cagr = watchlist_item.get_manual_field_source('cagr_revenue_yoy') %}
-                                <span class="text-sm text-gray-900{% if src_cagr == 'ai' %} watchlist-val-ai{% elif src_cagr == 'user' %} watchlist-val-user{% endif %}">{{ watchlist_item.cagr_revenue_yoy|decimal_eu(2) }}%</span>
-                            {% else %}
-                                <span class="text-xs text-gray-400">—</span>
+                            <span class="text-xs text-gray-400">—</span>
                             {% endif %}
                         </td>
                         
@@ -566,6 +552,67 @@
                             {% endif %}
                         </td>
                     </tr>
+                    {% if watchlist_item %}
+                    <tr class="wl-inputs-expand-row hidden bg-slate-50/90" data-watchlist-parent="{{ watchlist_item.id }}" id="wl-inputs-expand-{{ watchlist_item.id }}" role="region" aria-label="Todos los inputs manuales">
+                        <td colspan="13" class="px-4 py-4 border-t border-slate-200 align-top">
+                            <div class="text-xs text-slate-600 mb-3 flex flex-wrap items-center gap-x-4 gap-y-1">
+                                <span>Modo valoración aplicado: <strong class="text-slate-800">{{ vm_label }}</strong></span>
+                                <span><span class="watchlist-val-user">Negrita</span> = usuario</span>
+                                <span><span class="watchlist-val-ai">Cursiva azul</span> = IA</span>
+                                <span class="text-slate-500">Editar ✏️ para cambiar valores.</span>
+                            </div>
+                            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-4 gap-y-5">
+                                <div class="sm:col-span-2 lg:col-span-3 xl:col-span-5">
+                                    <h4 class="text-xs font-bold text-teal-900 uppercase tracking-wide mb-2 border-b border-teal-100 pb-1">Núcleo (todos los modos)</h4>
+                                </div>
+                                {{ wl_manual_cell(watchlist_item, 'next_earnings_date', 'Fecha próximos resultados', 'date') }}
+                                {{ wl_manual_cell(watchlist_item, 'per_ntm', 'PER NTM', 'num') }}
+                                {{ wl_manual_cell(watchlist_item, 'ntm_dividend_yield', 'Div. yield NTM', 'pct') }}
+                                {{ wl_manual_cell(watchlist_item, 'eps', 'EPS NTM', 'num4') }}
+                                {{ wl_manual_cell(watchlist_item, 'cagr_revenue_yoy', 'CAGR ingresos 2–3y', 'pct') }}
+                                <div class="sm:col-span-2 lg:col-span-3 xl:col-span-5 mt-2">
+                                    <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wide mb-2 border-b border-slate-200 pb-1">Modo general — precisión y calidad</h4>
+                                </div>
+                                {{ wl_manual_cell(watchlist_item, 'per_fair', 'PER fair', 'num') }}
+                                {{ wl_manual_cell(watchlist_item, 'cagr_eps_yoy', 'CAGR EPS 2–3y', 'pct') }}
+                                {{ wl_manual_cell(watchlist_item, 'net_debt_to_ebitda', 'Net debt / EBITDA', 'num') }}
+                                {{ wl_manual_cell(watchlist_item, 'fcf_to_net_income', 'FCF / beneficio neto', 'num') }}
+                                {{ wl_manual_cell(watchlist_item, 'ebitda_margin_pct', 'Margen EBITDA', 'pct') }}
+                                {{ wl_manual_cell(watchlist_item, 'operating_margin_pct', 'Margen operativo', 'pct') }}
+                                {{ wl_manual_cell(watchlist_item, 'roic_pct', 'ROIC', 'pct') }}
+                                <div class="sm:col-span-2 lg:col-span-3 xl:col-span-5 mt-2">
+                                    <h4 class="text-xs font-bold text-amber-900 uppercase tracking-wide mb-2 border-b border-amber-100 pb-1">Modo banco</h4>
+                                </div>
+                                {{ wl_manual_cell(watchlist_item, 'price_to_book', 'P/B actual', 'num') }}
+                                {{ wl_manual_cell(watchlist_item, 'pb_fair', 'P/B fair', 'num') }}
+                                {{ wl_manual_cell(watchlist_item, 'roe_pct', 'ROE', 'pct') }}
+                                {{ wl_manual_cell(watchlist_item, 'cet1_ratio_pct', 'CET1', 'pct') }}
+                                {{ wl_manual_cell(watchlist_item, 'npl_ratio_pct', 'NPL', 'pct') }}
+                                {{ wl_manual_cell(watchlist_item, 'cost_to_income_pct', 'Cost-to-income', 'pct') }}
+                                {{ wl_manual_cell(watchlist_item, 'nim_pct', 'NIM', 'pct') }}
+                                {{ wl_manual_cell(watchlist_item, 'bvps', 'BVPS', 'num4') }}
+                                {{ wl_manual_cell(watchlist_item, 'loan_to_deposit_pct', 'LDR', 'pct') }}
+                                {{ wl_manual_cell(watchlist_item, 'cost_of_risk_pct', 'Cost of risk', 'pct') }}
+                                {{ wl_manual_cell(watchlist_item, 'bvps_cagr_yoy', 'CAGR BVPS', 'pct') }}
+                                <div class="sm:col-span-2 lg:col-span-3 xl:col-span-5 mt-2">
+                                    <h4 class="text-xs font-bold text-violet-900 uppercase tracking-wide mb-2 border-b border-violet-100 pb-1">Modo REIT</h4>
+                                </div>
+                                {{ wl_manual_cell(watchlist_item, 'ffo_per_share', 'FFO / acción', 'num4') }}
+                                {{ wl_manual_cell(watchlist_item, 'affo_per_share', 'AFFO / acción', 'num4') }}
+                                {{ wl_manual_cell(watchlist_item, 'price_to_ffo', 'P/FFO', 'num') }}
+                                {{ wl_manual_cell(watchlist_item, 'p_ffo_fair', 'P/FFO fair', 'num') }}
+                                {{ wl_manual_cell(watchlist_item, 'cagr_ffo_yoy', 'CAGR FFO', 'pct') }}
+                                {{ wl_manual_cell(watchlist_item, 'reit_leverage_ratio', 'Apalancamiento (ratio)', 'num') }}
+                                {{ wl_manual_cell(watchlist_item, 'reit_leverage_kind', 'Tipo ratio apalanc.', 'text') }}
+                                {{ wl_manual_cell(watchlist_item, 'occupancy_pct', 'Ocupación', 'pct') }}
+                                {{ wl_manual_cell(watchlist_item, 'walt_years', 'WALT (años)', 'num') }}
+                                {{ wl_manual_cell(watchlist_item, 'same_store_growth_pct', 'Same-store growth', 'pct') }}
+                                {{ wl_manual_cell(watchlist_item, 'ffo_interest_coverage', 'FFO / intereses', 'num') }}
+                                {{ wl_manual_cell(watchlist_item, 'ffo_to_total_debt', 'FFO / deuda', 'num') }}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endif %}
                     {% endfor %}
                 </tbody>
             </table>
@@ -2248,13 +2295,25 @@ async function deleteWatchlistItem(watchlistId) {
     );
 }
 
+function toggleWatchlistInputsRow(watchlistId) {
+    const panel = document.getElementById('wl-inputs-expand-' + watchlistId);
+    const btn = document.getElementById('wl-inputs-btn-' + watchlistId);
+    if (!panel || !btn) return;
+    panel.classList.toggle('hidden');
+    const isOpen = !panel.classList.contains('hidden');
+    btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    const chev = btn.querySelector('.wl-chevron');
+    if (chev) chev.textContent = isOpen ? '▾' : '▸';
+}
+
 // Función de ordenamiento de tabla
 let sortDirection = {}; // Guardar dirección de ordenamiento por columna
 
 function sortTable(columnIndex, type) {
-    const table = document.querySelector('.min-w-full');
+    const table = document.querySelector('#portfolio-watch .min-w-full');
+    if (!table) return;
     const tbody = table.querySelector('tbody');
-    const rows = Array.from(tbody.querySelectorAll('tr'));
+    const rows = Array.from(tbody.querySelectorAll('tr.wl-main-row'));
     
     // Alternar dirección
     if (!sortDirection[columnIndex]) {
@@ -2306,8 +2365,15 @@ function sortTable(columnIndex, type) {
         return direction === 'asc' ? comparison : -comparison;
     });
     
-    // Reordenar filas en el DOM
-    rows.forEach(row => tbody.appendChild(row));
+    // Reordenar filas en el DOM (cada fila principal va seguida de su panel de inputs)
+    rows.forEach(main => {
+        tbody.appendChild(main);
+        const wid = main.getAttribute('data-watchlist-id');
+        if (wid) {
+            const detail = tbody.querySelector('tr.wl-inputs-expand-row[data-watchlist-parent="' + wid + '"]');
+            if (detail) tbody.appendChild(detail);
+        }
+    });
 }
 
 // Ordenar por fecha por defecto al cargar

@@ -40,6 +40,7 @@ def watchlist():
     
     # Obtener configuración de watchlist
     config = WatchlistService.get_or_create_config(current_user.id)
+    from app.services.valuation_mode_service import resolve_valuation_mode
     
     # ========== PARTE 1: HOLDINGS EN CARTERA ==========
     # Obtener todos los holdings individuales (igual que dashboard), solo Stock y ETF
@@ -169,6 +170,11 @@ def watchlist():
             
             db.session.flush()  # Flush para tener datos actualizados
         
+        vm = (
+            resolve_valuation_mode(asset, config)
+            if asset and watchlist_item
+            else "general"
+        )
         table_data.append({
             'type': 'portfolio',
             'asset': asset,
@@ -176,7 +182,8 @@ def watchlist():
             'holding': holding,
             'watchlist_item': watchlist_item,
             'weight_pct': holding.get('weight_pct', 0),
-            'current_value_eur': holding.get('current_value_eur', 0)
+            'current_value_eur': holding.get('current_value_eur', 0),
+            'valuation_mode': vm,
         })
     
     # Segundo: Assets solo en watchlist (no en cartera) - solo Stock y ETF
@@ -196,6 +203,7 @@ def watchlist():
             )
             db.session.flush()
             
+            vm = resolve_valuation_mode(asset, config)
             table_data.append({
                 'type': 'watchlist_only',
                 'asset': asset,
@@ -203,7 +211,8 @@ def watchlist():
                 'holding': None,
                 'watchlist_item': watchlist_item,
                 'weight_pct': None,
-                'current_value_eur': None
+                'current_value_eur': None,
+                'valuation_mode': vm,
             })
     
     # Guardar cambios en BD
