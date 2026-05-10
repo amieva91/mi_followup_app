@@ -177,7 +177,7 @@
                         <th class="px-4 py-3 text-center font-semibold uppercase">
                             <span class="flex items-center justify-center gap-1">
                                 Tier
-                                <span class="cursor-help text-gray-400" title="Calculado: Tier 1-5 según Valoración actual 12 meses (%). Colores configurables en Ajustes: Verde (dentro umbral configurado), Amarillo (fuera umbral pero dentro umbral amarillo), Rojo (fuera umbral amarillo)">ⓘ</span>
+                                <span class="cursor-help text-gray-400" title="Calculado: Tier 1-5 según Valoración actual 12 meses (%). La desviación respecto al objetivo del Tier se muestra en color en «Cantidad a aumentar/reducir».">ⓘ</span>
                             </span>
                         </th>
                         <th class="px-4 py-3 text-right font-semibold uppercase">
@@ -304,33 +304,10 @@
                             {% endif %}
                         </td>
                         
-                        <!-- Tier (1-5) con colores si está en cartera -->
+                        <!-- Tier (1-5): sin semáforo; la desviación va en «Cantidad a aumentar/reducir» -->
                         <td class="px-4 py-3 whitespace-nowrap text-center">
                             {% if watchlist_item and watchlist_item.tier %}
-                                {% if item.type == 'portfolio' and item.current_value_eur is not none %}
-                                    {% set tier_key = 'tier_' ~ watchlist_item.tier %}
-                                    {% set tier_amount = tier_amounts[tier_key] if tier_key in tier_amounts else 0 %}
-                                    {% set tier_thresholds = color_thresholds.tier if color_thresholds and color_thresholds.tier else {} %}
-                                    {% set tier_green_pct = tier_thresholds.green_pct if tier_thresholds.green_pct is defined else 25.0 %}
-                                    {% set tier_yellow_pct = tier_thresholds.yellow_pct if tier_thresholds.yellow_pct is defined else 50.0 %}
-                                    {% if tier_amount > 0 %}
-                                        {% set desviacion = (item.current_value_eur - tier_amount) | abs %}
-                                        {# Usar current_value como base para que el porcentaje sea simétrico #}
-                                        {# Así ±1000€ da el mismo porcentaje independientemente de si tier_amount es mayor o menor #}
-                                        {% set desviacion_pct = (desviacion / item.current_value_eur * 100) %}
-                                    {% else %}
-                                        {% set desviacion_pct = 0 %}
-                                    {% endif %}
-                                    {% if desviacion_pct <= tier_green_pct %}
-                                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">{{ watchlist_item.tier }}</span>
-                                    {% elif desviacion_pct <= tier_yellow_pct %}
-                                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">{{ watchlist_item.tier }}</span>
-                                    {% else %}
-                                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">{{ watchlist_item.tier }}</span>
-                                    {% endif %}
-                                {% else %}
-                                    <span class="px-2 py-1 text-xs font-medium rounded bg-gray-100 text-gray-700">{{ watchlist_item.tier }}</span>
-                                {% endif %}
+                                <span class="px-2 py-1 text-xs font-medium rounded bg-gray-100 text-gray-700">{{ watchlist_item.tier }}</span>
                             {% else %}
                                 <span class="text-xs text-gray-400">—</span>
                             {% endif %}
