@@ -541,7 +541,7 @@
                                 {% if gemini_available %}
                                 <button type="button" onclick="queueWatchlistRowDeepResearch({{ asset.id }})" class="text-violet-700 hover:text-violet-900 text-sm font-semibold" title="Informe IA exhaustivo (Deep Research). No sustituye campos con origen tuyo; resetea o vacía antes si quieres que la IA los rellene. Puedes encolar varias filas">🔬</button>
                                 {% endif %}
-                                <button type="button" onclick="resetWatchlistManualFields({{ watchlist_item.id }})" class="text-amber-600 hover:text-amber-800 text-sm" title="Borrar los 5 datos manuales (origen usuario o IA)">⟲</button>
+                                <button type="button" onclick="resetWatchlistManualFields({{ watchlist_item.id }})" class="text-amber-600 hover:text-amber-800 text-sm" title="Borrar todos los inputs manuales de valoración (origen usuario o IA)">⟲</button>
                                 <button onclick="editWatchlistItem({{ watchlist_item.id }}, {{ asset.id }})" class="text-blue-600 hover:text-blue-800 text-sm" title="Editar">
                                     ✏️
                                 </button>
@@ -1701,7 +1701,7 @@ function startWatchlistJobPoll(jobId, reportIdsOpt) {
 async function resetWatchlistManualFields(watchlistId) {
     showConfirmModal(
         'Reiniciar datos manuales',
-        '¿Borrar los cinco campos (fecha resultados, PER, dividend yield NTM, EPS, CAGR) y sus orígenes (usuario o IA)?',
+        '¿Borrar todos los campos manuales de valoración y sus orígenes (usuario o IA)?',
         async function () {
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
             try {

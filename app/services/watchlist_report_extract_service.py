@@ -234,7 +234,9 @@ def apply_extracted_watchlist_fields(
         else:
             current_value_eur = cost_eur
 
-    WatchlistMetricsService.update_all_metrics(wl, config, current_value_eur=current_value_eur)
+    WatchlistMetricsService.update_all_metrics(
+        wl, config, current_value_eur=current_value_eur, asset=wl.asset
+    )
     db.session.commit()
     return {"applied": applied, "skipped": False}
 

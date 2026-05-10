@@ -163,7 +163,9 @@ def watchlist():
             
             # Calcular métricas con cantidad invertida actual
             current_value_eur = holding.get('current_value_eur', 0)
-            WatchlistMetricsService.update_all_metrics(watchlist_item, config, current_value_eur=current_value_eur)
+            WatchlistMetricsService.update_all_metrics(
+                watchlist_item, config, current_value_eur=current_value_eur, asset=asset
+            )
             
             db.session.flush()  # Flush para tener datos actualizados
         
@@ -189,7 +191,9 @@ def watchlist():
                 watchlist_item.precio_actual = asset.current_price
             
             # Actualizar métricas (sin cantidad invertida)
-            WatchlistMetricsService.update_all_metrics(watchlist_item, config, current_value_eur=None)
+            WatchlistMetricsService.update_all_metrics(
+                watchlist_item, config, current_value_eur=None, asset=asset
+            )
             db.session.flush()
             
             table_data.append({
@@ -504,18 +508,17 @@ def watchlist_get(watchlist_id):
         if watchlist_item.user_id != current_user.id:
             return jsonify({'success': False, 'error': 'No autorizado'}), 403
         
-        return jsonify({
-            'success': True,
-            'data': {
-                'id': watchlist_item.id,
-                'asset_id': watchlist_item.asset_id,
-                'next_earnings_date': watchlist_item.next_earnings_date.strftime('%Y-%m-%d') if watchlist_item.next_earnings_date else None,
-                'per_ntm': watchlist_item.per_ntm,
-                'ntm_dividend_yield': watchlist_item.ntm_dividend_yield,
-                'eps': watchlist_item.eps,
-                'cagr_revenue_yoy': watchlist_item.cagr_revenue_yoy
-            }
-        })
+        from app.models.watchlist import WATCHLIST_MANUAL_DATE_KEYS, WATCHLIST_MANUAL_FIELD_KEYS
+
+        payload = {"id": watchlist_item.id, "asset_id": watchlist_item.asset_id}
+        for k in WATCHLIST_MANUAL_FIELD_KEYS:
+            v = getattr(watchlist_item, k, None)
+            if k in WATCHLIST_MANUAL_DATE_KEYS and v is not None:
+                payload[k] = v.strftime("%Y-%m-%d")
+            else:
+                payload[k] = v
+
+        return jsonify({"success": True, "data": payload})
     
     except Exception as e:
         import traceback
@@ -539,24 +542,12 @@ def watchlist_update(watchlist_id):
         # Debug: Log de datos recibidos
         print(f"DEBUG watchlist_update: Datos recibidos: {data}")
 
-        # Filtrar solo campos permitidos y convertir a float si es necesario
-        allowed_fields = ['next_earnings_date', 'per_ntm', 'ntm_dividend_yield', 'eps', 'cagr_revenue_yoy']
+        from app.models.watchlist import WATCHLIST_MANUAL_FIELD_KEYS
+
         update_data = {}
         for k, v in data.items():
-            if k in allowed_fields:
-                # Asegurar que los valores numéricos sean float (no string)
-                if k != 'next_earnings_date' and v is not None:
-                    try:
-                        update_data[k] = float(v) if v != '' else None
-                    except (ValueError, TypeError):
-                        update_data[k] = None
-                else:
-                    update_data[k] = v
-        
-        # Convertir next_earnings_date de string a date si viene
-        if 'next_earnings_date' in update_data and update_data['next_earnings_date']:
-            if isinstance(update_data['next_earnings_date'], str):
-                update_data['next_earnings_date'] = datetime.strptime(update_data['next_earnings_date'], '%Y-%m-%d').date()
+            if k in WATCHLIST_MANUAL_FIELD_KEYS:
+                update_data[k] = WatchlistService.coerce_watchlist_manual_value(k, v)
         
         # Actualizar campos manuales SIN commit para poder recalcular después
         watchlist_item = WatchlistService.update_watchlist_asset(watchlist_id, update_data, commit=False)
@@ -569,7 +560,7 @@ def watchlist_update(watchlist_id):
             return jsonify({'success': False, 'error': 'No autorizado'}), 403
 
         source_updates = {}
-        for k in allowed_fields:
+        for k in WATCHLIST_MANUAL_FIELD_KEYS:
             if k not in data:
                 continue
             raw = data.get(k)
@@ -610,7 +601,12 @@ def watchlist_update(watchlist_id):
         print(f"  Tier antes: {watchlist_item.tier}")
         print(f"  Cantidad antes: {watchlist_item.cantidad_aumentar_reducir}")
         
-        WatchlistMetricsService.update_all_metrics(watchlist_item, config, current_value_eur=current_value_eur)
+        WatchlistMetricsService.update_all_metrics(
+            watchlist_item,
+            config,
+            current_value_eur=current_value_eur,
+            asset=watchlist_item.asset,
+        )
         
         # Debug: Log de valores después del cálculo
         print(f"  Valoración 12m después: {watchlist_item.valoracion_12m}")
@@ -710,7 +706,9 @@ def watchlist_update_prices():
         
         for item in watchlist_items:
             current_value_eur = holdings_by_asset_id.get(item.asset_id)
-            WatchlistMetricsService.update_all_metrics(item, config, current_value_eur=current_value_eur)
+            WatchlistMetricsService.update_all_metrics(
+                item, config, current_value_eur=current_value_eur, asset=item.asset
+            )
         
         db.session.commit()
         
@@ -983,7 +981,7 @@ def watchlist_ai_job_status(job_id):
 @login_required
 @csrf.exempt
 def watchlist_reset_manual_fields(watchlist_id):
-    """Borra los 5 campos manuales y el origen (usuario/IA) para poder volver a rellenar."""
+    """Borra todos los inputs manuales de valoración y el origen (usuario/IA)."""
     try:
         from app.services.watchlist_metrics_service import WatchlistMetricsService
         from app.services.watchlist_service import WatchlistService
@@ -992,11 +990,11 @@ def watchlist_reset_manual_fields(watchlist_id):
         if not wl or wl.user_id != current_user.id:
             return jsonify({'success': False, 'error': 'No encontrado o no autorizado'}), 404
 
-        wl.next_earnings_date = None
-        wl.per_ntm = None
-        wl.ntm_dividend_yield = None
-        wl.eps = None
-        wl.cagr_revenue_yoy = None
+        from app.models.watchlist import WATCHLIST_MANUAL_FIELD_KEYS
+
+        for k in WATCHLIST_MANUAL_FIELD_KEYS:
+            if hasattr(wl, k):
+                setattr(wl, k, None)
         wl.manual_field_sources = None
 
         config = WatchlistService.get_or_create_config(current_user.id)
@@ -1015,7 +1013,7 @@ def watchlist_reset_manual_fields(watchlist_id):
                 current_value_eur = cost_eur
 
         WatchlistMetricsService.update_all_metrics(
-            wl, config, current_value_eur=current_value_eur
+            wl, config, current_value_eur=current_value_eur, asset=wl.asset
         )
         db.session.commit()
         return jsonify({'success': True, 'message': 'Campos manuales reiniciados'})

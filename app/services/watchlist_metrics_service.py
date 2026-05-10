@@ -1,9 +1,12 @@
 """
 Watchlist Metrics Service - Cálculos de métricas para watchlist
 """
-from typing import Optional, Dict, Any
+import logging
+from typing import Any, Dict, Optional
+
 from app.models import Watchlist, WatchlistConfig
-import math
+
+logger = logging.getLogger(__name__)
 
 
 class WatchlistMetricsService:
@@ -417,7 +420,12 @@ class WatchlistMetricsService:
             return 'red'
     
     @staticmethod
-    def update_all_metrics(watchlist_item: Watchlist, config: Optional[WatchlistConfig] = None, current_value_eur: Optional[float] = None) -> Watchlist:
+    def update_all_metrics(
+        watchlist_item: Watchlist,
+        config: Optional[WatchlistConfig] = None,
+        current_value_eur: Optional[float] = None,
+        asset=None,
+    ) -> Watchlist:
         """
         Actualiza todas las métricas calculadas de un item de watchlist
         
@@ -425,15 +433,27 @@ class WatchlistMetricsService:
             watchlist_item: Item de watchlist a actualizar
             config: Configuración del usuario (opcional, se obtiene si no se proporciona)
             current_value_eur: Valor actual invertido en EUR (opcional, para assets en cartera)
+            asset: Activo (opcional; por defecto ``watchlist_item.asset``). Usado para el modo de valoración.
         
         Returns:
             Watchlist item actualizado
         """
+        from app.services.valuation_mode_service import resolve_valuation_mode
         from app.services.watchlist_service import WatchlistService
         
         # Obtener configuración si no se proporciona
         if config is None:
             config = WatchlistService.get_or_create_config(watchlist_item.user_id)
+
+        eff_asset = asset if asset is not None else watchlist_item.asset
+        mode = resolve_valuation_mode(eff_asset, config)
+        logger.debug(
+            "watchlist metrics user=%s asset_id=%s valuation_mode=%s",
+            watchlist_item.user_id,
+            watchlist_item.asset_id,
+            mode,
+        )
+        # Fase 2.2: ramificar cálculos para banks / realestate; hoy solo lógica «general».
         
         # 1. Calcular Target Price (5 yr)
         target_price_5yr = WatchlistMetricsService.calculate_target_price_5yr(
