@@ -530,8 +530,15 @@ def watchlist_get(watchlist_id):
             return jsonify({'success': False, 'error': 'No autorizado'}), 403
         
         from app.models.watchlist import WATCHLIST_MANUAL_DATE_KEYS, WATCHLIST_MANUAL_FIELD_KEYS
+        from app.services.valuation_mode_service import resolve_valuation_mode
+        from app.services.watchlist_service import WatchlistService
 
-        payload = {"id": watchlist_item.id, "asset_id": watchlist_item.asset_id}
+        cfg = WatchlistService.get_or_create_config(current_user.id)
+        payload = {
+            "id": watchlist_item.id,
+            "asset_id": watchlist_item.asset_id,
+            "valuation_mode": resolve_valuation_mode(watchlist_item.asset, cfg),
+        }
         for k in WATCHLIST_MANUAL_FIELD_KEYS:
             v = getattr(watchlist_item, k, None)
             if k in WATCHLIST_MANUAL_DATE_KEYS and v is not None:

@@ -446,7 +446,7 @@ F_{\text{bank,final}} = \min(1{,}06,\; \max(0{,}72,\; F_{\text{bank}}))
 
 ### 13.6 Estado de implementación
 
-- Documentado en este plan; **código y migración BD pendientes** (fase 2.2).
+- **Implementado (v1 motor):** `app/services/watchlist_bank_valuation.py` + rama `banks` en `WatchlistMetricsService.update_all_metrics`. Umbrales F_bank por defecto según tablas §13.4; inputs en modal edición watchlist.
 
 ---
 
@@ -638,6 +638,8 @@ Estos valores son **defaults** en `WatchlistConfig` (`re_risk_adjustment_rules`)
 |-----------|--------|
 | **~12m** | \(P_{\text{fair}} = \text{AFFO}_{\text{NTM}} \times M_T\); opción **\(P_{1y}\)** con \(g_{1y}\) (same-store + FFO) y convergencia de múltiplo. |
 | **5y** | \(P_{5y} = \text{AFFO}_{\text{base}} (1+g_{\text{eff}})^5 M_T \times F_{\text{RE}}\) con \(g_{\text{eff}}\) = blend CAGR FFO/AFFO + same-store, caps REIT. |
+
+**Implementación v1 motor:** `app/services/watchlist_reit_valuation.py` + rama `realestate` en `update_all_metrics`. Proyección ~1y explícita del plan no está en código aún; núcleo 12m/5y + \(F_{\text{RE}}\) con tablas §14.E (cobertura FFO/interés y FFO/deuda = 1,00 hasta haber columnas).
 
 ---
 

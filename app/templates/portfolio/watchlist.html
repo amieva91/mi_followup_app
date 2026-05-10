@@ -949,12 +949,13 @@
 <div id="editWatchlistModal" class="hidden fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55 overflow-y-auto" onclick="if(event.target===this) closeEditWatchlistModal()">
     <div class="watchlist-modal-surface w-full max-w-2xl p-5 sm:p-6 max-h-[min(92vh,40rem)] overflow-y-auto" onclick="event.stopPropagation()">
         <div>
-            <h3 class="text-lg font-semibold text-slate-900 mb-4">✏️ Editar métricas</h3>
+            <h3 class="text-lg font-semibold text-slate-900 mb-2">✏️ Editar métricas</h3>
+            <p id="editValuationModeHint" class="text-xs text-slate-600 mb-4"></p>
             <form id="editWatchlistForm">
                 <input type="hidden" id="editWatchlistId">
                 <input type="hidden" id="editAssetId">
                 
-                <div class="space-y-4">
+                <div id="editBlockGeneral" class="space-y-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Fecha próximos resultados</label>
                         <input type="date" id="editNextEarningsDate" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500">
@@ -963,7 +964,7 @@
                         <label class="block text-sm font-medium text-slate-700 mb-1">PER o NTM P/E</label>
                         <input type="number" step="0.01" id="editPerNtm" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500">
                     </div>
-                    <div>
+                    <div id="editRowPerFair">
                         <label class="block text-sm font-medium text-slate-700 mb-1">PER fair (opcional, objetivo a 5y si lo rellenas)</label>
                         <input type="number" step="0.01" id="editPerFair" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500">
                     </div>
@@ -1008,6 +1009,102 @@
                             </div>
                         </div>
                     </details>
+                </div>
+
+                <div id="editBlockBanks" class="hidden mt-4 space-y-3 rounded-xl border border-amber-200/80 bg-amber-50/40 p-3">
+                    <h4 class="text-xs font-semibold text-amber-900 uppercase tracking-wide">Banco — valoración (P/B)</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1">P/B actual (×)</label>
+                            <input type="number" step="0.01" id="editPriceToBook" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1">P/B fair / objetivo (×)</label>
+                            <input type="number" step="0.01" id="editPbFair" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1">ROE (%)</label>
+                            <input type="number" step="0.01" id="editRoePct" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1">CET1 ratio (%)</label>
+                            <input type="number" step="0.01" id="editCet1Ratio" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1">NPL ratio (%)</label>
+                            <input type="number" step="0.01" id="editNplRatio" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1">Cost-to-income / eficiencia (%)</label>
+                            <input type="number" step="0.01" id="editCostToIncome" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500" title="Menor % = más eficiente (convención habitual)">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1">NIM (%)</label>
+                            <input type="number" step="0.01" id="editNimPct" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1">BVPS (opcional)</label>
+                            <input type="number" step="0.01" id="editBvps" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1">Préstamos / depósitos LDR (%)</label>
+                            <input type="number" step="0.01" id="editLoanToDeposit" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1">Cost of risk (%)</label>
+                            <input type="number" step="0.01" id="editCostOfRisk" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1">CAGR BVPS 2–3y (%)</label>
+                            <input type="number" step="0.01" id="editBvpsCagr" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                        </div>
+                    </div>
+                </div>
+
+                <div id="editBlockReit" class="hidden mt-4 space-y-3 rounded-xl border border-violet-200/80 bg-violet-50/40 p-3">
+                    <h4 class="text-xs font-semibold text-violet-900 uppercase tracking-wide">REIT — FFO / AFFO</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1">FFO / acción</label>
+                            <input type="number" step="0.01" id="editFfoPerShare" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1">AFFO / acción (preferido si hay dato)</label>
+                            <input type="number" step="0.01" id="editAffoPerShare" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1">P/FFO o P/AFFO (×)</label>
+                            <input type="number" step="0.01" id="editPriceToFfo" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1">P/FFO fair (×)</label>
+                            <input type="number" step="0.01" id="editPFfoFair" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1">CAGR FFO/AFFO 2–3y (%)</label>
+                            <input type="number" step="0.01" id="editCagrFfoYoy" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1">Net debt / EBITDA (ratio REIT)</label>
+                            <input type="number" step="0.01" id="editReitLeverageRatio" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="block text-xs font-medium text-slate-700 mb-1">Tipo ratio apalancamiento (nota)</label>
+                            <input type="text" id="editReitLeverageKind" maxlength="32" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500" placeholder="Ej. TIKR ND/EBITDA">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1">Ocupación (%)</label>
+                            <input type="number" step="0.01" id="editOccupancyPct" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1">WALT (años)</label>
+                            <input type="number" step="0.01" id="editWaltYears" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1">Same-store growth (%)</label>
+                            <input type="number" step="0.01" id="editSameStoreGrowthPct" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                        </div>
+                    </div>
                 </div>
                 
                 <div class="flex flex-col-reverse sm:flex-row justify-end gap-2 mt-6">
@@ -1199,6 +1296,29 @@ function watchlistSetNumInput(id, val) {
     el.value = (val !== null && val !== undefined && val !== '') ? val : '';
 }
 
+function watchlistSetStrInput(id, val) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.value = (val !== null && val !== undefined && String(val) !== '') ? String(val) : '';
+}
+
+function layoutEditWatchlistForm(mode) {
+    const hint = document.getElementById('editValuationModeHint');
+    const rowPerFair = document.getElementById('editRowPerFair');
+    const bb = document.getElementById('editBlockBanks');
+    const br = document.getElementById('editBlockReit');
+    if (!hint || !bb || !br) return;
+    const labels = {
+        general: 'Modo valoración: general (PEGY / PER fair).',
+        banks: 'Modo valoración: banco. Usa P/B fair debajo (no PER fair). Ratios CET1, NPL, etc. ajustan el target 5y.',
+        realestate: 'Modo valoración: REIT. Núcleo: FFO o AFFO por acción y P/FFO; crecimiento vía CAGR FFO y/o same-store.'
+    };
+    hint.textContent = labels[mode] || labels.general;
+    bb.classList.toggle('hidden', mode !== 'banks');
+    br.classList.toggle('hidden', mode !== 'realestate');
+    if (rowPerFair) rowPerFair.classList.toggle('hidden', mode === 'banks');
+}
+
 // Funciones para editar watchlist item
 async function editWatchlistItem(watchlistId, assetId) {
     document.getElementById('editWatchlistId').value = watchlistId;
@@ -1216,13 +1336,36 @@ async function editWatchlistItem(watchlistId, assetId) {
     watchlistSetNumInput('editEbitdaMargin', null);
     watchlistSetNumInput('editOpMargin', null);
     watchlistSetNumInput('editRoicPct', null);
-    
+    watchlistSetNumInput('editPriceToBook', null);
+    watchlistSetNumInput('editPbFair', null);
+    watchlistSetNumInput('editRoePct', null);
+    watchlistSetNumInput('editCet1Ratio', null);
+    watchlistSetNumInput('editNplRatio', null);
+    watchlistSetNumInput('editCostToIncome', null);
+    watchlistSetNumInput('editNimPct', null);
+    watchlistSetNumInput('editBvps', null);
+    watchlistSetNumInput('editLoanToDeposit', null);
+    watchlistSetNumInput('editCostOfRisk', null);
+    watchlistSetNumInput('editBvpsCagr', null);
+    watchlistSetNumInput('editFfoPerShare', null);
+    watchlistSetNumInput('editAffoPerShare', null);
+    watchlistSetNumInput('editPriceToFfo', null);
+    watchlistSetNumInput('editPFfoFair', null);
+    watchlistSetNumInput('editCagrFfoYoy', null);
+    watchlistSetNumInput('editReitLeverageRatio', null);
+    watchlistSetStrInput('editReitLeverageKind', '');
+    watchlistSetNumInput('editOccupancyPct', null);
+    watchlistSetNumInput('editWaltYears', null);
+    watchlistSetNumInput('editSameStoreGrowthPct', null);
+
+    let mode = 'general';
     try {
         const response = await fetch(`/portfolio/watchlist/${watchlistId}`);
         const data = await response.json();
         
         if (data.success) {
             const item = data.data;
+            mode = item.valuation_mode || 'general';
             if (item.next_earnings_date) {
                 document.getElementById('editNextEarningsDate').value = item.next_earnings_date;
             }
@@ -1237,11 +1380,33 @@ async function editWatchlistItem(watchlistId, assetId) {
             watchlistSetNumInput('editEbitdaMargin', item.ebitda_margin_pct);
             watchlistSetNumInput('editOpMargin', item.operating_margin_pct);
             watchlistSetNumInput('editRoicPct', item.roic_pct);
+            watchlistSetNumInput('editPriceToBook', item.price_to_book);
+            watchlistSetNumInput('editPbFair', item.pb_fair);
+            watchlistSetNumInput('editRoePct', item.roe_pct);
+            watchlistSetNumInput('editCet1Ratio', item.cet1_ratio_pct);
+            watchlistSetNumInput('editNplRatio', item.npl_ratio_pct);
+            watchlistSetNumInput('editCostToIncome', item.cost_to_income_pct);
+            watchlistSetNumInput('editNimPct', item.nim_pct);
+            watchlistSetNumInput('editBvps', item.bvps);
+            watchlistSetNumInput('editLoanToDeposit', item.loan_to_deposit_pct);
+            watchlistSetNumInput('editCostOfRisk', item.cost_of_risk_pct);
+            watchlistSetNumInput('editBvpsCagr', item.bvps_cagr_yoy);
+            watchlistSetNumInput('editFfoPerShare', item.ffo_per_share);
+            watchlistSetNumInput('editAffoPerShare', item.affo_per_share);
+            watchlistSetNumInput('editPriceToFfo', item.price_to_ffo);
+            watchlistSetNumInput('editPFfoFair', item.p_ffo_fair);
+            watchlistSetNumInput('editCagrFfoYoy', item.cagr_ffo_yoy);
+            watchlistSetNumInput('editReitLeverageRatio', item.reit_leverage_ratio);
+            watchlistSetStrInput('editReitLeverageKind', item.reit_leverage_kind);
+            watchlistSetNumInput('editOccupancyPct', item.occupancy_pct);
+            watchlistSetNumInput('editWaltYears', item.walt_years);
+            watchlistSetNumInput('editSameStoreGrowthPct', item.same_store_growth_pct);
         }
     } catch (error) {
         console.error('Error cargando datos:', error);
     }
-    
+
+    layoutEditWatchlistForm(mode);
     document.getElementById('editWatchlistModal').classList.remove('hidden');
     document.body.style.overflow = 'hidden';
 }
@@ -1281,6 +1446,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 const v = document.getElementById(id).value;
                 return v === '' ? null : parseFloat(v);
             };
+            const strOrNull = (id) => {
+                const el = document.getElementById(id);
+                if (!el) return null;
+                const t = (el.value || '').trim();
+                return t === '' ? null : t;
+            };
             const data = {
                 next_earnings_date: document.getElementById('editNextEarningsDate').value || null,
                 per_ntm: num('editPerNtm'),
@@ -1294,6 +1465,27 @@ document.addEventListener('DOMContentLoaded', function() {
                 ebitda_margin_pct: num('editEbitdaMargin'),
                 operating_margin_pct: num('editOpMargin'),
                 roic_pct: num('editRoicPct'),
+                price_to_book: num('editPriceToBook'),
+                pb_fair: num('editPbFair'),
+                roe_pct: num('editRoePct'),
+                cet1_ratio_pct: num('editCet1Ratio'),
+                npl_ratio_pct: num('editNplRatio'),
+                cost_to_income_pct: num('editCostToIncome'),
+                nim_pct: num('editNimPct'),
+                bvps: num('editBvps'),
+                loan_to_deposit_pct: num('editLoanToDeposit'),
+                cost_of_risk_pct: num('editCostOfRisk'),
+                bvps_cagr_yoy: num('editBvpsCagr'),
+                ffo_per_share: num('editFfoPerShare'),
+                affo_per_share: num('editAffoPerShare'),
+                price_to_ffo: num('editPriceToFfo'),
+                p_ffo_fair: num('editPFfoFair'),
+                cagr_ffo_yoy: num('editCagrFfoYoy'),
+                reit_leverage_ratio: num('editReitLeverageRatio'),
+                reit_leverage_kind: strOrNull('editReitLeverageKind'),
+                occupancy_pct: num('editOccupancyPct'),
+                walt_years: num('editWaltYears'),
+                same_store_growth_pct: num('editSameStoreGrowthPct'),
             };
             
             try {

@@ -454,7 +454,7 @@ class WatchlistMetricsService:
             mode,
         )
         # Modo general: blend CAGR, PER fair terminal, target bruto + estilo B (plan §8–9).
-        # Banks / RE: fase 2.2; se mantiene la fórmula histórica (solo CAGR revenue) sin ajuste B.
+        # Modo banks / REIT: P/B + BVPS o FFO/AFFO + P/FFO y ajustes F_bank / F_RE (plan §13–14).
         if mode == "general":
             from app.services.watchlist_general_valuation import general_profitable_pipeline
 
@@ -487,6 +487,26 @@ class WatchlistMetricsService:
                     f_fin if bruto is not None else None
                 )
                 watchlist_item.target_price_5yr = adj
+        elif mode == "banks":
+            from app.services.watchlist_bank_valuation import bank_valuation_pipeline
+
+            v12, bruto, f_fin, adj = bank_valuation_pipeline(watchlist_item)
+            watchlist_item.valoracion_12m = v12
+            watchlist_item.target_price_5yr_gross = bruto
+            watchlist_item.valuation_adjustment_factor = (
+                f_fin if bruto is not None else None
+            )
+            watchlist_item.target_price_5yr = adj
+        elif mode == "realestate":
+            from app.services.watchlist_reit_valuation import reit_valuation_pipeline
+
+            v12, bruto, f_fin, adj = reit_valuation_pipeline(watchlist_item)
+            watchlist_item.valoracion_12m = v12
+            watchlist_item.target_price_5yr_gross = bruto
+            watchlist_item.valuation_adjustment_factor = (
+                f_fin if bruto is not None else None
+            )
+            watchlist_item.target_price_5yr = adj
         else:
             watchlist_item.target_price_5yr_gross = None
             watchlist_item.valuation_adjustment_factor = None
