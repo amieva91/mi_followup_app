@@ -296,7 +296,18 @@ def recover_stuck_pending_reports(app, app_logger=None) -> None:
                 uid = int(getattr(r, "user_id", 0) or 0)
                 title = (getattr(r, "template_title", None) or "").strip()
                 use_dr_row_title = title == WATCHLIST_IA_REPORT_TITLE_DR_ROW
-                description, points, _ = get_watchlist_ia_deep_brief(use_dr_row_title=use_dr_row_title)
+                from app.services.valuation_mode_service import (
+                    resolve_watchlist_valuation_mode_for_user_asset,
+                )
+
+                wl_mode = (
+                    resolve_watchlist_valuation_mode_for_user_asset(uid, aid)
+                    if uid and aid
+                    else "general"
+                )
+                description, points, _ = get_watchlist_ia_deep_brief(
+                    use_dr_row_title=use_dr_row_title, valuation_mode=wl_mode
+                )
 
                 def _run_watchlist_pending(rid_: int, uid_: int, aid_: int, desc_: str, pts_: list[str]) -> None:
                     try:

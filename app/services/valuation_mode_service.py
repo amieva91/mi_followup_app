@@ -64,3 +64,15 @@ def resolve_valuation_mode(
     if in_re:
         return "realestate"
     return "general"
+
+
+def resolve_watchlist_valuation_mode_for_user_asset(
+    user_id: int, asset_id: int,
+) -> ValuationMode:
+    """Modo de valoración para la fila watchlist (usuario + activo)."""
+    from app.models import Asset
+    from app.services.watchlist_service import WatchlistService
+
+    asset = Asset.query.get(asset_id)
+    config = WatchlistService.get_or_create_config(user_id)
+    return resolve_valuation_mode(asset, config)

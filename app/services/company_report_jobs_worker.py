@@ -458,12 +458,12 @@ def run_once(app) -> bool:
                                 text("SELECT content FROM company_reports WHERE id=:rid"),
                                 {"rid": rid_running},
                             ).scalar()
-                        extracted = extract_watchlist_fields_from_report_md(content or "")
-                        apply_extracted_watchlist_fields(
-                            int(ctx2.get("user_id") or 0),
-                            int(ctx2.get("asset_id") or 0),
-                            extracted,
+                        uid_ = int(ctx2.get("user_id") or 0)
+                        aid_ = int(ctx2.get("asset_id") or 0)
+                        extracted = extract_watchlist_fields_from_report_md(
+                            content or "", user_id=uid_, asset_id=aid_
                         )
+                        apply_extracted_watchlist_fields(uid_, aid_, extracted)
                     except Exception:
                         logger.exception("watchlist extract/apply failed report_id=%s", rid_running)
                 elif not is_fd:
@@ -510,7 +510,21 @@ def run_once(app) -> bool:
     template_title = (ctx.get("template_title") or "").strip()
     if job_kind == JOB_KIND_DR_WATCHLIST_MIN:
         use_dr_row_title = template_title == WATCHLIST_IA_REPORT_TITLE_DR_ROW
-        desc, points, _ = get_watchlist_ia_deep_brief(use_dr_row_title=use_dr_row_title)
+        with app.app_context():
+            from app.services.valuation_mode_service import (
+                resolve_watchlist_valuation_mode_for_user_asset,
+            )
+
+            uid_ctx = int(ctx.get("user_id") or 0)
+            aid_ctx = int(ctx.get("asset_id") or 0)
+            wl_mode = (
+                resolve_watchlist_valuation_mode_for_user_asset(uid_ctx, aid_ctx)
+                if uid_ctx and aid_ctx
+                else "general"
+            )
+        desc, points, _ = get_watchlist_ia_deep_brief(
+            use_dr_row_title=use_dr_row_title, valuation_mode=wl_mode
+        )
         description = desc
         points_list = points
         research_prompt_style = "watchlist_minimal"
@@ -562,10 +576,12 @@ def run_once(app) -> bool:
                             extract_watchlist_fields_from_report_md,
                         )
 
-                        extracted = extract_watchlist_fields_from_report_md(content or "")
-                        apply_extracted_watchlist_fields(
-                            int(ctx.get("user_id") or 0), int(ctx.get("asset_id") or 0), extracted
+                        uid_c = int(ctx.get("user_id") or 0)
+                        aid_c = int(ctx.get("asset_id") or 0)
+                        extracted = extract_watchlist_fields_from_report_md(
+                            content or "", user_id=uid_c, asset_id=aid_c
                         )
+                        apply_extracted_watchlist_fields(uid_c, aid_c, extracted)
                     except Exception:
                         logger.exception("watchlist extract/apply failed report_id=%s", rid)
                 return True

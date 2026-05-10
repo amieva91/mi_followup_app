@@ -772,6 +772,9 @@ def watchlist_reports_generate_all():
         from app.models.watchlist import WatchlistAiJob
         from app.services.company_report_deep_job import start_watchlist_batch_reports_thread
         from app.services.gemini_service import is_gemini_available
+        from app.services.valuation_mode_service import (
+            resolve_watchlist_valuation_mode_for_user_asset,
+        )
         from app.services.watchlist_ia_template import (
             delete_prior_watchlist_ia_reports_same_slot,
             get_watchlist_ia_deep_brief,
@@ -780,7 +783,7 @@ def watchlist_reports_generate_all():
         if not is_gemini_available():
             return jsonify({'success': False, 'error': 'GEMINI_API_KEY no configurada'}), 503
 
-        description, points, report_title = get_watchlist_ia_deep_brief()
+        _, _, report_title = get_watchlist_ia_deep_brief(valuation_mode="general")
 
         busy = WatchlistAiJob.query.filter_by(
             user_id=current_user.id, status='running'
@@ -821,6 +824,8 @@ def watchlist_reports_generate_all():
         base_enqueued = datetime.utcnow()
         for i, aid in enumerate(asset_ids):
             delete_prior_watchlist_ia_reports_same_slot(user_id, aid, report_title)
+            wl_mode = resolve_watchlist_valuation_mode_for_user_asset(user_id, aid)
+            description, points, _ = get_watchlist_ia_deep_brief(valuation_mode=wl_mode)
             # Un ms entre informes ⇒ orden estable en la cola global (mismo criterio que otros informes).
             report = CompanyReport(
                 user_id=user_id,
@@ -886,6 +891,9 @@ def watchlist_reports_queue_dr_row():
 
         from app.models import CompanyReport
         from app.services.gemini_service import is_gemini_available
+        from app.services.valuation_mode_service import (
+            resolve_watchlist_valuation_mode_for_user_asset,
+        )
         from app.services.watchlist_ia_template import (
             delete_prior_watchlist_ia_reports_same_slot,
             get_watchlist_ia_deep_brief,
@@ -904,7 +912,10 @@ def watchlist_reports_queue_dr_row():
         if not row:
             return jsonify({'success': False, 'error': 'El activo no está en tu watchlist'}), 404
 
-        description, points, report_title = get_watchlist_ia_deep_brief(use_dr_row_title=True)
+        wl_mode = resolve_watchlist_valuation_mode_for_user_asset(current_user.id, asset_id)
+        description, points, report_title = get_watchlist_ia_deep_brief(
+            use_dr_row_title=True, valuation_mode=wl_mode
+        )
         user_id = current_user.id
         app = current_app._get_current_object()
 
