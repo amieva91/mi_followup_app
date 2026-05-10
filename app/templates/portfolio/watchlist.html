@@ -642,6 +642,26 @@
                     <input type="number" step="0.1" id="settingsMaxWeightThreshold" class="w-full px-3 py-2 border border-gray-300 rounded-lg" value="{{ max_weight_threshold }}">
                 </div>
                 
+                <!-- Clasificación sectorial (modo valoración banco / RE) -->
+                <div class="mb-4 p-4 bg-cyan-50/90 rounded-lg border border-cyan-200/80">
+                    <div class="settings-section-head mb-2">
+                        <h4 class="text-sm font-semibold text-gray-700">Clasificación sectorial (valoración)</h4>
+                        <button type="button" class="pf-info" onclick="openSettingsHelp('sectorRules')" title="Ayuda" aria-label="Ayuda clasificación sectorial">i</button>
+                    </div>
+                    <p class="text-xs text-gray-600 mb-2">Pares <strong>Sector + Industria</strong> como en la ficha del activo. Coincidencia → modo Banco o Real Estate; si no, modo general. Si un par está en ambas listas, gana Banco.</p>
+                    <p id="vsrCatalogHint" class="text-xs text-amber-900 mb-2 hidden"></p>
+                    <div class="mb-3">
+                        <div class="text-xs font-semibold text-gray-800 mb-1">Bancos</div>
+                        <div id="vsrBanksRows" class="space-y-2"></div>
+                        <button type="button" class="mt-1 text-xs font-semibold text-teal-800 hover:underline" onclick="addVsrRow('banks')">+ Añadir fila</button>
+                    </div>
+                    <div>
+                        <div class="text-xs font-semibold text-gray-800 mb-1">Real Estate / REIT</div>
+                        <div id="vsrReRows" class="space-y-2"></div>
+                        <button type="button" class="mt-1 text-xs font-semibold text-teal-800 hover:underline" onclick="addVsrRow('realestate')">+ Añadir fila</button>
+                    </div>
+                </div>
+                
                 <!-- Umbrales de colores: Valoración 12m -->
                 <div class="mb-4 p-4 bg-gray-50 rounded-lg">
                     <div class="settings-section-head mb-3">
@@ -1329,6 +1349,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     green_min: parseFloat(document.getElementById('settingsRentabilidadAnualGreenMin').value) || 10.0,
                     yellow_min: parseFloat(document.getElementById('settingsRentabilidadAnualYellowMin').value) || 0.0
                 },
+                valuation_sector_rules: collectValuationSectorRules(),
                 operativa_rules: {
                     buy: {
                         valoracion_12m: (function() {
@@ -1508,6 +1529,10 @@ const SETTINGS_HELP_CONTENT = {
     tierAmounts: {
         title: 'Cantidades por Tier (EUR)',
         html: '<p>Define la <strong>cantidad en euros</strong> objetivo de cada Tier. El sistema compara con tu inversión actual para sugerir compras o ventas.</p>'
+    },
+    sectorRules: {
+        title: 'Clasificación sectorial (valoración)',
+        html: '<p><strong>Banco</strong> y <strong>Real Estate</strong> se aplican si el activo tiene el mismo <strong>Sector</strong> e <strong>Industria</strong> que una fila (texto como en la ficha del activo). Si no coincide nada, modo <strong>general</strong>. Si un par está en ambas listas, gana <strong>Banco</strong>.</p><p>Los desplegables listan valores ya presentes en tu watchlist o cartera; si no hay catálogo, puedes escribir a mano.</p>'
     }
 };
 
@@ -1531,10 +1556,141 @@ function closeSettingsHelpModal() {
     document.body.style.overflow = '';
 }
 
+// Catálogo sector/industria (watchlist ∪ cartera) + filas de reglas de valoración
+window.watchlistSectorCatalog = { sectors: [], by_sector: {} };
+
+function fillVsrIndustrySelect(selectEl, sector, selectedIndustry) {
+    while (selectEl.firstChild) selectEl.removeChild(selectEl.firstChild);
+    const o0 = document.createElement('option');
+    o0.value = '';
+    o0.textContent = '— Industria —';
+    selectEl.appendChild(o0);
+    const list = (window.watchlistSectorCatalog.by_sector && window.watchlistSectorCatalog.by_sector[sector]) || [];
+    list.forEach(function(ind) {
+        const o = document.createElement('option');
+        o.value = ind;
+        o.textContent = ind;
+        if (selectedIndustry && ind === selectedIndustry) o.selected = true;
+        selectEl.appendChild(o);
+    });
+}
+
+function fillVsrSectorSelect(selectEl, selectedSector) {
+    while (selectEl.firstChild) selectEl.removeChild(selectEl.firstChild);
+    const o0 = document.createElement('option');
+    o0.value = '';
+    o0.textContent = '— Sector —';
+    selectEl.appendChild(o0);
+    (window.watchlistSectorCatalog.sectors || []).forEach(function(s) {
+        const o = document.createElement('option');
+        o.value = s;
+        o.textContent = s;
+        if (selectedSector && s === selectedSector) o.selected = true;
+        selectEl.appendChild(o);
+    });
+}
+
+function addVsrRow(listKey, sectorOpt, industryOpt) {
+    const containerId = listKey === 'banks' ? 'vsrBanksRows' : 'vsrReRows';
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const row = document.createElement('div');
+    row.className = 'valuation-rule-row flex flex-wrap gap-2 items-center';
+    row.dataset.list = listKey;
+    const sVal = sectorOpt != null ? String(sectorOpt) : '';
+    const iVal = industryOpt != null ? String(industryOpt) : '';
+    const hasCat = (window.watchlistSectorCatalog.sectors || []).length > 0;
+    if (hasCat) {
+        const selS = document.createElement('select');
+        selS.className = 'wl-vsr-sector border border-gray-300 rounded text-sm flex-1 min-w-[8rem] px-2 py-1';
+        fillVsrSectorSelect(selS, sVal);
+        const selI = document.createElement('select');
+        selI.className = 'wl-vsr-industry border border-gray-300 rounded text-sm flex-1 min-w-[8rem] px-2 py-1';
+        const secForInd = selS.value || sVal;
+        fillVsrIndustrySelect(selI, secForInd, iVal);
+        selS.addEventListener('change', function() {
+            fillVsrIndustrySelect(selI, selS.value, '');
+        });
+        row.appendChild(selS);
+        row.appendChild(selI);
+    } else {
+        const inpS = document.createElement('input');
+        inpS.type = 'text';
+        inpS.className = 'wl-vsr-sector border border-gray-300 rounded text-sm flex-1 min-w-[6rem] px-2 py-1';
+        inpS.placeholder = 'Sector (ej. Financials)';
+        inpS.value = sVal;
+        const inpI = document.createElement('input');
+        inpI.type = 'text';
+        inpI.className = 'wl-vsr-industry border border-gray-300 rounded text-sm flex-1 min-w-[6rem] px-2 py-1';
+        inpI.placeholder = 'Industria (ej. Banks)';
+        inpI.value = iVal;
+        row.appendChild(inpS);
+        row.appendChild(inpI);
+    }
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'text-rose-600 text-sm px-2 shrink-0';
+    btn.textContent = '✕';
+    btn.title = 'Quitar fila';
+    btn.addEventListener('click', function() { row.remove(); });
+    row.appendChild(btn);
+    container.appendChild(row);
+}
+
+function renderValuationSectorRules(vsr) {
+    const banksEl = document.getElementById('vsrBanksRows');
+    const reEl = document.getElementById('vsrReRows');
+    if (!banksEl || !reEl) return;
+    banksEl.innerHTML = '';
+    reEl.innerHTML = '';
+    const hint = document.getElementById('vsrCatalogHint');
+    if (hint) {
+        if (!(window.watchlistSectorCatalog.sectors || []).length) {
+            hint.textContent = 'No hay pares sector/industria en tus activos de watchlist o cartera: puedes escribir texto libre en cada fila o completar la ficha de los activos.';
+            hint.classList.remove('hidden');
+        } else {
+            hint.classList.add('hidden');
+        }
+    }
+    const bl = (vsr && vsr.banks) ? vsr.banks : [];
+    const rl = (vsr && vsr.realestate) ? vsr.realestate : [];
+    if (!bl.length) addVsrRow('banks', '', '');
+    else bl.forEach(function(p) { addVsrRow('banks', p.sector, p.industry); });
+    if (!rl.length) addVsrRow('realestate', '', '');
+    else rl.forEach(function(p) { addVsrRow('realestate', p.sector, p.industry); });
+}
+
+function collectValuationSectorRules() {
+    function fromContainer(containerId) {
+        const root = document.getElementById(containerId);
+        if (!root) return [];
+        const out = [];
+        root.querySelectorAll('.valuation-rule-row').forEach(function(row) {
+            const sEl = row.querySelector('.wl-vsr-sector');
+            const iEl = row.querySelector('.wl-vsr-industry');
+            if (!sEl || !iEl) return;
+            const s = (sEl.value || '').trim();
+            const i = (iEl.value || '').trim();
+            if (s && i) out.push({ sector: s, industry: i });
+        });
+        return out;
+    }
+    return {
+        banks: fromContainer('vsrBanksRows'),
+        realestate: fromContainer('vsrReRows'),
+    };
+}
+
 // Funciones para modal de ajustes
 function openSettingsModal() {
-    // Cargar configuración actual
-    fetch('/portfolio/watchlist/api/config')
+    fetch('/portfolio/watchlist/api/sector-industry-catalog')
+        .then(function(r) { return r.json(); })
+        .then(function(cat) {
+            window.watchlistSectorCatalog = (cat.success)
+                ? { sectors: cat.sectors || [], by_sector: cat.by_sector || {} }
+                : { sectors: [], by_sector: {} };
+            return fetch('/portfolio/watchlist/api/config');
+        })
         .then(response => response.json())
         .then(data => {
             if (data.success && data.config) {
@@ -1651,14 +1807,19 @@ function openSettingsModal() {
                 document.getElementById('settingsTier3Amount').value = tierAmounts.tier_3 || 2000.0;
                 document.getElementById('settingsTier4Amount').value = tierAmounts.tier_4 || 5000.0;
                 document.getElementById('settingsTier5Amount').value = tierAmounts.tier_5 || 10000.0;
+
+                const vsr = colorThresholds.valuation_sector_rules || { banks: [], realestate: [] };
+                renderValuationSectorRules(vsr);
             }
+            document.getElementById('settingsModal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
         })
         .catch(error => {
             console.error('Error cargando configuración:', error);
+            window.watchlistSectorCatalog = { sectors: [], by_sector: {} };
+            document.getElementById('settingsModal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
         });
-    
-    document.getElementById('settingsModal').classList.remove('hidden');
-    document.body.style.overflow = 'hidden';
 }
 
 function closeSettingsModal() {

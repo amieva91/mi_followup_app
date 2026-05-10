@@ -14,6 +14,7 @@ Esta carpeta contiene toda la documentación del proyecto FollowUp v2.0.
 - **[DESIGN_SYSTEM.md](../DESIGN_SYSTEM.md)** - Sistema de diseño
 - **[GEMINI_IA.md](../GEMINI_IA.md)** - Integración Gemini AI
   - **[GEMINI_INFORMES_ESTADO_ACTUAL_2026_05.md](implementaciones/GEMINI_INFORMES_ESTADO_ACTUAL_2026_05.md)** - Estado actual y justificación (informes)
+  - **[WATCHLIST_VALORACION_PLAN_IMPLEMENTACION.md](implementaciones/WATCHLIST_VALORACION_PLAN_IMPLEMENTACION.md)** - Plan watchlist: inputs, fórmulas, ajuste B, banks/RE, UI
 
 #### **Otras Guías**
 - **[INICIO_RAPIDO.md](archivo/INICIO_RAPIDO.md)** - Guía de inicio rápido

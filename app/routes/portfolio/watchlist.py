@@ -272,6 +272,27 @@ def watchlist_get_config():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@portfolio_bp.route("/watchlist/api/sector-industry-catalog", methods=["GET"])
+@login_required
+def watchlist_sector_industry_catalog():
+    """
+    Pares (sector, industria) distintos de activos en watchlist ∪ cartera del usuario.
+    """
+    try:
+        from app.services.watchlist_sector_catalog_service import (
+            get_sector_industry_catalog_for_user,
+        )
+
+        cat = get_sector_industry_catalog_for_user(current_user.id)
+        return jsonify({"success": True, **cat})
+    except Exception as e:
+        import traceback
+
+        print(f"Error en watchlist_sector_industry_catalog: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @portfolio_bp.route('/watchlist/api/config', methods=['POST'])
 @login_required
 @csrf.exempt
