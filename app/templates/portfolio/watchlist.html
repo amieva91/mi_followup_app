@@ -7,7 +7,7 @@
 {% macro wl_manual_cell(wl, key, label, kind='num') -%}
 {% if wl %}
 {% set src = wl.get_manual_field_source(key) %}
-{% set raw = attribute(wl, key) %}
+{% set raw = wl|model_attr(key) %}
 <div class="min-w-0 break-words">
     <div class="text-[11px] font-medium text-slate-500 leading-snug">{{ label }}</div>
     <div class="text-sm tabular-nums mt-0.5 {% if src == 'ai' %}watchlist-val-ai{% elif src == 'user' %}watchlist-val-user{% else %}text-slate-600{% endif %}">
