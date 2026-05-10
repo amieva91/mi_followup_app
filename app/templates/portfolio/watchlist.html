@@ -172,7 +172,7 @@
                         <th class="px-4 py-3 text-right font-semibold uppercase">
                             <span class="flex items-center justify-end gap-1">
                                 Valoración 12m (%)
-                                <span class="cursor-help text-gray-400" title="Calculado (PEGY Ratio): -((PER / (CAGR% + Dividend Yield%)) - 1) * 100. Positivo = infravalorado (bueno), Negativo = sobrevalorado (malo). Colores: Verde ≥ 10% (infravalorado), Amarillo 0-10%, Rojo < 0% (sobrevalorado)">ⓘ</span>
+                                <span class="cursor-help text-gray-400" title="Modo general: PEGY con g = media aritmética de CAGR revenue y CAGR EPS (si falta uno, el otro). Mismos colores que antes. Sin beneficio por acción positivo o sin ningún CAGR: vacío.">ⓘ</span>
                             </span>
                         </th>
                         <th class="px-4 py-3 text-right font-semibold uppercase">
@@ -184,7 +184,7 @@
                         <th class="px-4 py-3 text-right font-semibold uppercase">
                             <span class="flex items-center justify-end gap-1">
                                 Target Price (5 yr)
-                                <span class="cursor-help text-gray-400" title="Calculado: EPS * (1 + CAGR Revenue YoY%)^5 * PER">ⓘ</span>
+                                <span class="cursor-help text-gray-400" title="Modo general: EPS × (1 + g)^5 × PER (fair si existe; si no NTM), con g = media revenue/EPS CAGR; precio mostrado = objetivo tras ajuste estilo B (deuda, FCF/BN, márgenes, ROIC). Otros modos: fórmula histórica revenue + PER NTM.">ⓘ</span>
                             </span>
                         </th>
                         <th class="px-4 py-3 text-right font-semibold uppercase">
@@ -927,7 +927,7 @@
 
 <!-- Modal para editar watchlist item -->
 <div id="editWatchlistModal" class="hidden fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55 overflow-y-auto" onclick="if(event.target===this) closeEditWatchlistModal()">
-    <div class="watchlist-modal-surface w-full max-w-md p-5 sm:p-6" onclick="event.stopPropagation()">
+    <div class="watchlist-modal-surface w-full max-w-2xl p-5 sm:p-6 max-h-[min(92vh,40rem)] overflow-y-auto" onclick="event.stopPropagation()">
         <div>
             <h3 class="text-lg font-semibold text-slate-900 mb-4">✏️ Editar métricas</h3>
             <form id="editWatchlistForm">
@@ -944,6 +944,10 @@
                         <input type="number" step="0.01" id="editPerNtm" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500">
                     </div>
                     <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">PER fair (opcional, objetivo a 5y si lo rellenas)</label>
+                        <input type="number" step="0.01" id="editPerFair" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500">
+                    </div>
+                    <div>
                         <label class="block text-sm font-medium text-slate-700 mb-1">NTM Dividend Yield (%)</label>
                         <input type="number" step="0.01" id="editNtmDividendYield" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500">
                     </div>
@@ -955,6 +959,35 @@
                         <label class="block text-sm font-medium text-slate-700 mb-1">CAGR Revenue YoY (%)</label>
                         <input type="number" step="0.01" id="editCagrRevenueYoy" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500">
                     </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">CAGR EPS YoY (%)</label>
+                        <input type="number" step="0.01" id="editCagrEpsYoy" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500" title="Si falta, PEGY y target usan solo el CAGR de ingresos">
+                    </div>
+                    <details class="rounded-xl border border-slate-200/90 bg-white/60 px-3 py-2">
+                        <summary class="cursor-pointer text-sm font-medium text-slate-800 select-none">Precisión y calidad (ajuste estilo B, opcional)</summary>
+                        <div class="space-y-3 mt-3 pb-1">
+                            <div>
+                                <label class="block text-xs font-medium text-slate-600 mb-1">Net debt / EBITDA (×)</label>
+                                <input type="number" step="0.01" id="editNetDebtEbitda" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-600 mb-1">FCF / Beneficio neto (ratio)</label>
+                                <input type="number" step="0.01" id="editFcfNetIncome" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-600 mb-1">Margen EBITDA (%)</label>
+                                <input type="number" step="0.01" id="editEbitdaMargin" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-600 mb-1">Margen operativo (%)</label>
+                                <input type="number" step="0.01" id="editOpMargin" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-600 mb-1">ROIC (%)</label>
+                                <input type="number" step="0.01" id="editRoicPct" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                            </div>
+                        </div>
+                    </details>
                 </div>
                 
                 <div class="flex flex-col-reverse sm:flex-row justify-end gap-2 mt-6">
@@ -1140,19 +1173,30 @@ async function selectAssetFromSearch(assetRegistryId) {
     }
 }
 
+function watchlistSetNumInput(id, val) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.value = (val !== null && val !== undefined && val !== '') ? val : '';
+}
+
 // Funciones para editar watchlist item
 async function editWatchlistItem(watchlistId, assetId) {
     document.getElementById('editWatchlistId').value = watchlistId;
     document.getElementById('editAssetId').value = assetId;
     
-    // Limpiar campos
     document.getElementById('editNextEarningsDate').value = '';
-    document.getElementById('editPerNtm').value = '';
-    document.getElementById('editNtmDividendYield').value = '';
-    document.getElementById('editEps').value = '';
-    document.getElementById('editCagrRevenueYoy').value = '';
+    watchlistSetNumInput('editPerNtm', null);
+    watchlistSetNumInput('editPerFair', null);
+    watchlistSetNumInput('editNtmDividendYield', null);
+    watchlistSetNumInput('editEps', null);
+    watchlistSetNumInput('editCagrRevenueYoy', null);
+    watchlistSetNumInput('editCagrEpsYoy', null);
+    watchlistSetNumInput('editNetDebtEbitda', null);
+    watchlistSetNumInput('editFcfNetIncome', null);
+    watchlistSetNumInput('editEbitdaMargin', null);
+    watchlistSetNumInput('editOpMargin', null);
+    watchlistSetNumInput('editRoicPct', null);
     
-    // Cargar datos actuales
     try {
         const response = await fetch(`/portfolio/watchlist/${watchlistId}`);
         const data = await response.json();
@@ -1162,18 +1206,17 @@ async function editWatchlistItem(watchlistId, assetId) {
             if (item.next_earnings_date) {
                 document.getElementById('editNextEarningsDate').value = item.next_earnings_date;
             }
-            if (item.per_ntm) {
-                document.getElementById('editPerNtm').value = item.per_ntm;
-            }
-            if (item.ntm_dividend_yield) {
-                document.getElementById('editNtmDividendYield').value = item.ntm_dividend_yield;
-            }
-            if (item.eps) {
-                document.getElementById('editEps').value = item.eps;
-            }
-            if (item.cagr_revenue_yoy) {
-                document.getElementById('editCagrRevenueYoy').value = item.cagr_revenue_yoy;
-            }
+            watchlistSetNumInput('editPerNtm', item.per_ntm);
+            watchlistSetNumInput('editPerFair', item.per_fair);
+            watchlistSetNumInput('editNtmDividendYield', item.ntm_dividend_yield);
+            watchlistSetNumInput('editEps', item.eps);
+            watchlistSetNumInput('editCagrRevenueYoy', item.cagr_revenue_yoy);
+            watchlistSetNumInput('editCagrEpsYoy', item.cagr_eps_yoy);
+            watchlistSetNumInput('editNetDebtEbitda', item.net_debt_to_ebitda);
+            watchlistSetNumInput('editFcfNetIncome', item.fcf_to_net_income);
+            watchlistSetNumInput('editEbitdaMargin', item.ebitda_margin_pct);
+            watchlistSetNumInput('editOpMargin', item.operating_margin_pct);
+            watchlistSetNumInput('editRoicPct', item.roic_pct);
         }
     } catch (error) {
         console.error('Error cargando datos:', error);
@@ -1214,12 +1257,23 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             
             const watchlistId = document.getElementById('editWatchlistId').value;
+            const num = (id) => {
+                const v = document.getElementById(id).value;
+                return v === '' ? null : parseFloat(v);
+            };
             const data = {
                 next_earnings_date: document.getElementById('editNextEarningsDate').value || null,
-                per_ntm: document.getElementById('editPerNtm').value ? parseFloat(document.getElementById('editPerNtm').value) : null,
-                ntm_dividend_yield: document.getElementById('editNtmDividendYield').value ? parseFloat(document.getElementById('editNtmDividendYield').value) : null,
-                eps: document.getElementById('editEps').value ? parseFloat(document.getElementById('editEps').value) : null,
-                cagr_revenue_yoy: document.getElementById('editCagrRevenueYoy').value ? parseFloat(document.getElementById('editCagrRevenueYoy').value) : null
+                per_ntm: num('editPerNtm'),
+                per_fair: num('editPerFair'),
+                ntm_dividend_yield: num('editNtmDividendYield'),
+                eps: num('editEps'),
+                cagr_revenue_yoy: num('editCagrRevenueYoy'),
+                cagr_eps_yoy: num('editCagrEpsYoy'),
+                net_debt_to_ebitda: num('editNetDebtEbitda'),
+                fcf_to_net_income: num('editFcfNetIncome'),
+                ebitda_margin_pct: num('editEbitdaMargin'),
+                operating_margin_pct: num('editOpMargin'),
+                roic_pct: num('editRoicPct'),
             };
             
             try {
