@@ -3,6 +3,9 @@
 Importa bloques `=== TICKER [modo] ===` con líneas `campo: valor` (salida tipo Gem / Deep Research)
 en los campos manuales de watchlist. Marca todo como origen `ai`.
 
+Solo actualiza `next_earnings_date` si el informe incluye una línea `next_earnings_date: YYYY-MM-DD`
+en ese ticker; si la omite, la fecha que ya hubiera en FollowUp **no se borra** (evita perder datos).
+
 Uso (desde la raíz del repo, con venv activo):
   python scripts/import_gem_watchlist_extract.py --user-id 3 /ruta/al/informe.txt
   python scripts/import_gem_watchlist_extract.py --user-id 3 --dry-run /ruta/al/informe.txt
@@ -58,12 +61,26 @@ def parse_gem_file(text: str) -> dict[str, dict[str, str]]:
     return out
 
 
+def _parse_manual_date(raw: str):
+    """ISO preferente; si falla, dateutil (textos del Gem con notas al final)."""
+    raw = raw.strip()
+    iso_m = re.match(r"^(\d{4}-\d{2}-\d{2})", raw)
+    if iso_m:
+        try:
+            return datetime.strptime(iso_m.group(1), "%Y-%m-%d").date()
+        except ValueError:
+            pass
+    from dateutil.parser import parse as du_parse
+
+    return du_parse(raw, dayfirst=False).date()
+
+
 def coerce_value(key: str, raw: str):
     from app.models.watchlist import WATCHLIST_MANUAL_DATE_KEYS, WATCHLIST_MANUAL_STRING_KEYS
 
     raw = raw.strip()
     if key in WATCHLIST_MANUAL_DATE_KEYS:
-        return datetime.strptime(raw[:10], "%Y-%m-%d").date()
+        return _parse_manual_date(raw)
     if key in WATCHLIST_MANUAL_STRING_KEYS:
         return str(raw)[:32]
     return float(raw.replace(",", ".").replace(" ", ""))
@@ -156,6 +173,12 @@ def main():
                 print(f"OK {gem_ticker} → watchlist_id={wl.id} asset={wl.asset.symbol} fields={len(sources_update)}")
             else:
                 print(f"— {gem_ticker}: sin campos reconocidos")
+
+        earnings_in_file = [t for t, flds in blocks.items() if "next_earnings_date" in flds]
+        print(
+            f"\nnext_earnings_date en el archivo: {len(earnings_in_file)} ticker(s): "
+            + (", ".join(sorted(earnings_in_file, key=str.lower)) if earnings_in_file else "(ninguno)")
+        )
 
         if args.dry_run:
             db.session.rollback()
