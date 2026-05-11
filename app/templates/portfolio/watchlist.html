@@ -539,17 +539,23 @@
                                 <span>Modo valoración aplicado: <strong class="text-slate-800">{{ vm_label }}</strong></span>
                                 <span><span class="watchlist-val-user">Negrita oscura</span> = usuario · <span class="watchlist-val-ai">Azul cursiva</span> = IA (solo en este panel)</span>
                                 <span class="text-slate-500">En la columna fija «Fecha próximos resultados» de la tabla: verde/amarillo/rojo = días hasta la fecha; negrita o cursiva encima indica usuario o IA sin cambiar ese color.</span>
-                                <span class="text-slate-500">Solo bloques que aplican a este modo (además del núcleo). Editar ✏️ para cambiar valores.</span>
+                                <span class="text-slate-500">Solo inputs que el modo de valoración usa en cálculos (más fecha de resultados y div. yield donde aplique). Editar ✏️ para cambiar valores.</span>
                             </div>
                             <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-4 gap-y-5">
                                 <div class="sm:col-span-2 lg:col-span-3 xl:col-span-5">
-                                    <h4 class="text-xs font-bold text-teal-900 uppercase tracking-wide mb-2 border-b border-teal-100 pb-1">Núcleo (todos los modos)</h4>
+                                    <h4 class="text-xs font-bold text-teal-900 uppercase tracking-wide mb-2 border-b border-teal-100 pb-1">{% if vm == 'general' %}Núcleo (todos los modos){% elif vm == 'banks' %}Núcleo — banco (PER/EPS para payout; div. yield){% else %}Núcleo — REIT (solo lo que aplica al modo){% endif %}</h4>
                                 </div>
                                 {{ wl_manual_cell(watchlist_item, 'next_earnings_date', 'Fecha próximos resultados', 'date') }}
+                                {% if vm != 'realestate' %}
                                 {{ wl_manual_cell(watchlist_item, 'per_ntm', 'PER NTM', 'num') }}
+                                {% endif %}
                                 {{ wl_manual_cell(watchlist_item, 'ntm_dividend_yield', 'Div. yield NTM', 'pct') }}
+                                {% if vm == 'general' %}
                                 {{ wl_manual_cell(watchlist_item, 'eps', 'EPS NTM', 'num4') }}
                                 {{ wl_manual_cell(watchlist_item, 'cagr_revenue_yoy', 'CAGR ingresos 2–3y', 'pct') }}
+                                {% elif vm == 'banks' %}
+                                {{ wl_manual_cell(watchlist_item, 'eps', 'EPS NTM', 'num4') }}
+                                {% endif %}
                                 {% if vm == 'general' %}
                                 <div class="sm:col-span-2 lg:col-span-3 xl:col-span-5 mt-2">
                                     <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wide mb-2 border-b border-slate-200 pb-1">Modo general — precisión y calidad</h4>
@@ -590,7 +596,6 @@
                                 {{ wl_manual_cell(watchlist_item, 'p_ffo_fair', 'P/FFO fair', 'num') }}
                                 {{ wl_manual_cell(watchlist_item, 'cagr_ffo_yoy', 'CAGR FFO', 'pct') }}
                                 {{ wl_manual_cell(watchlist_item, 'reit_leverage_ratio', 'Apalancamiento (ratio)', 'num') }}
-                                {{ wl_manual_cell(watchlist_item, 'reit_leverage_kind', 'Tipo ratio apalanc.', 'text') }}
                                 {{ wl_manual_cell(watchlist_item, 'occupancy_pct', 'Ocupación', 'pct') }}
                                 {{ wl_manual_cell(watchlist_item, 'walt_years', 'WALT (años)', 'num') }}
                                 {{ wl_manual_cell(watchlist_item, 'same_store_growth_pct', 'Same-store growth', 'pct') }}
@@ -1008,7 +1013,7 @@
                         <label class="block text-sm font-medium text-gray-700 mb-1">Fecha próximos resultados</label>
                         <input type="date" id="editNextEarningsDate" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500">
                     </div>
-                    <div>
+                    <div id="editRowNucleusPerNtm">
                         <label class="block text-sm font-medium text-slate-700 mb-1">PER NTM (P/E forward 12m)</label>
                         <input type="number" step="0.01" id="editPerNtm" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500" title="Mismo convenio que tu fuente de datos (NTM)">
                     </div>
@@ -1020,19 +1025,19 @@
                         <label class="block text-sm font-medium text-slate-700 mb-1">Dividend yield NTM (%)</label>
                         <input type="number" step="0.01" id="editNtmDividendYield" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500" title="Porcentaje como número (ej. 3,25 → 3.25)">
                     </div>
-                    <div>
+                    <div id="editRowNucleusEps">
                         <label class="block text-sm font-medium text-slate-700 mb-1">EPS NTM (GAAP o convención de tu fuente)</label>
                         <input type="number" step="0.01" id="editEps" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500" title="Debe cuadrar con el PER NTM (misma base). No es FFO: en REIT usa los campos FFO/AFFO en el bloque REIT.">
                     </div>
-                    <div>
+                    <div id="editRowNucleusCagrRevenue">
                         <label class="block text-sm font-medium text-slate-700 mb-1">CAGR ingresos 2–3 años YoY (%)</label>
                         <input type="number" step="0.01" id="editCagrRevenueYoy" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500" title="Crecimiento anual compuesto de ventas; modo general lo mezcla con CAGR EPS si existe">
                     </div>
-                    <div>
+                    <div id="editRowNucleusCagrEps">
                         <label class="block text-sm font-medium text-slate-700 mb-1">CAGR EPS YoY (%)</label>
                         <input type="number" step="0.01" id="editCagrEpsYoy" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500" title="Si falta, PEGY y target usan solo el CAGR de ingresos">
                     </div>
-                    <details class="rounded-xl border border-slate-200/90 bg-white/60 px-3 py-2">
+                    <details id="editDetailsGeneralPrecision" class="rounded-xl border border-slate-200/90 bg-white/60 px-3 py-2">
                         <summary class="cursor-pointer text-sm font-medium text-slate-800 select-none">Precisión y calidad (ajuste estilo B, opcional)</summary>
                         <div class="space-y-3 mt-3 pb-1">
                             <div>
@@ -1145,6 +1150,10 @@
                             <label class="block text-xs font-medium text-slate-700 mb-1">Net debt / EBITDA (ratio REIT)</label>
                             <input type="number" step="0.01" id="editReitLeverageRatio" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
                         </div>
+                        <div id="editRowReitLeverageKind" class="sm:col-span-2">
+                            <label class="block text-xs font-medium text-slate-700 mb-1">Tipo ratio apalancamiento (nota, opcional)</label>
+                            <input type="text" id="editReitLeverageKind" maxlength="32" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500" placeholder="Ej. TIKR ND/EBITDA" title="No entra en fórmulas; solo referencia. Oculto en modo REIT al editar.">
+                        </div>
                         <div>
                             <label class="block text-xs font-medium text-slate-700 mb-1">FFO / intereses (× cobertura)</label>
                             <input type="number" step="0.01" id="editFfoInterestCoverage" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500" title="Opcional; entra en F_RE vía media geométrica con FFO/deuda">
@@ -1152,10 +1161,6 @@
                         <div>
                             <label class="block text-xs font-medium text-slate-700 mb-1">FFO / deuda total (×)</label>
                             <input type="number" step="0.01" id="editFfoToTotalDebt" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500" title="Convención TIKR; opcional">
-                        </div>
-                        <div class="sm:col-span-2">
-                            <label class="block text-xs font-medium text-slate-700 mb-1">Tipo ratio apalancamiento (nota)</label>
-                            <input type="text" id="editReitLeverageKind" maxlength="32" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500" placeholder="Ej. TIKR ND/EBITDA">
                         </div>
                         <div>
                             <label class="block text-xs font-medium text-slate-700 mb-1">Ocupación (%)</label>
@@ -1373,15 +1378,24 @@ function layoutEditWatchlistForm(mode) {
     const bb = document.getElementById('editBlockBanks');
     const br = document.getElementById('editBlockReit');
     if (!hint || !bb || !br) return;
+    const m = mode || 'general';
     const labels = {
         general: 'Modo valoración: general (PEGY / PER fair).',
         banks: 'Modo valoración: banco. Usa P/B fair debajo (no PER fair). Ratios CET1, NPL, etc. ajustan el target 5y.',
-        realestate: 'Modo valoración: REIT. Núcleo: FFO o AFFO por acción y P/FFO; crecimiento vía CAGR FFO y/o same-store.'
+        realestate: 'Modo valoración: REIT. Solo se muestran inputs que el motor usa (FFO/AFFO, P/FFO, ocupación, etc.); PER/EPS/CAGR ingresos del núcleo general no aplican.'
     };
-    hint.textContent = labels[mode] || labels.general;
-    bb.classList.toggle('hidden', mode !== 'banks');
-    br.classList.toggle('hidden', mode !== 'realestate');
-    if (rowPerFair) rowPerFair.classList.toggle('hidden', mode === 'banks');
+    hint.textContent = labels[m] || labels.general;
+    bb.classList.toggle('hidden', m !== 'banks');
+    br.classList.toggle('hidden', m !== 'realestate');
+    if (rowPerFair) rowPerFair.classList.toggle('hidden', m === 'banks' || m === 'realestate');
+    const hideStockMultiples = m === 'realestate';
+    document.getElementById('editRowNucleusPerNtm')?.classList.toggle('hidden', hideStockMultiples);
+    document.getElementById('editRowNucleusEps')?.classList.toggle('hidden', hideStockMultiples);
+    const hideCagrCore = m === 'banks' || m === 'realestate';
+    document.getElementById('editRowNucleusCagrRevenue')?.classList.toggle('hidden', hideCagrCore);
+    document.getElementById('editRowNucleusCagrEps')?.classList.toggle('hidden', hideCagrCore);
+    document.getElementById('editDetailsGeneralPrecision')?.classList.toggle('hidden', m !== 'general');
+    document.getElementById('editRowReitLeverageKind')?.classList.toggle('hidden', m === 'realestate');
 }
 
 // Funciones para editar watchlist item
@@ -1516,7 +1530,9 @@ document.addEventListener('DOMContentLoaded', function() {
             
             const watchlistId = document.getElementById('editWatchlistId').value;
             const num = (id) => {
-                const v = document.getElementById(id).value;
+                const el = document.getElementById(id);
+                if (!el) return null;
+                const v = el.value;
                 return v === '' ? null : parseFloat(v);
             };
             const strOrNull = (id) => {
