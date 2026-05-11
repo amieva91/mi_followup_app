@@ -125,8 +125,8 @@ Siempre intentar completar cuando el modo lo use. **Prioridad 1:** `next_earning
 | `per_fair` | PER objetivo / fair (múltiplo) |
 | `cagr_eps_yoy` | CAGR EPS 2–3 años **% numérico** |
 | `net_debt_to_ebitda` | Net debt / EBITDA (×) |
-| `fcf_margin_pct` | FCF / ventas **% numérico** (convención igual que otros márgenes) |
-| `net_income_margin_pct` | Beneficio neto / ventas **% numérico** |
+| `fcf_margin_pct` | TIKR **Levered Free Cash Flow Margin %**, columna **LTM** (Ratios → Margin analysis); % numérico |
+| `net_income_margin_pct` | TIKR **Normalized Net Income Margin %**, columna **LTM** (Ratios → Margin analysis); % numérico |
 | `fcf_to_net_income` | FCF / beneficio neto como **ratio** (legado / Gem); si hay los dos márgenes anteriores, la app usa su cociente |
 | `ebitda_margin_pct` | Margen EBITDA **%** |
 | `operating_margin_pct` | Margen operativo **%** |

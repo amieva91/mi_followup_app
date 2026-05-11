@@ -76,8 +76,8 @@ class Watchlist(db.Model):
     per_fair = db.Column(db.Float)
     cagr_eps_yoy = db.Column(db.Float)
     net_debt_to_ebitda = db.Column(db.Float)
-    fcf_margin_pct = db.Column(db.Float)  # FCF / ventas (%)
-    net_income_margin_pct = db.Column(db.Float)  # Beneficio neto / ventas (%)
+    fcf_margin_pct = db.Column(db.Float)  # TIKR Levered Free Cash Flow Margin %, LTM
+    net_income_margin_pct = db.Column(db.Float)  # TIKR Normalized Net Income Margin %, LTM
     fcf_to_net_income = db.Column(db.Float)
     ebitda_margin_pct = db.Column(db.Float)
     operating_margin_pct = db.Column(db.Float)

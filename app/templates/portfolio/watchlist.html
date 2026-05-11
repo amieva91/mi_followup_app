@@ -554,8 +554,8 @@
                                 {{ wl_manual_cell(watchlist_item, 'per_fair', 'PER fair', 'num') }}
                                 {{ wl_manual_cell(watchlist_item, 'cagr_eps_yoy', 'CAGR EPS 2–3y', 'pct') }}
                                 {{ wl_manual_cell(watchlist_item, 'net_debt_to_ebitda', 'Net debt / EBITDA', 'num') }}
-                                {{ wl_manual_cell(watchlist_item, 'fcf_margin_pct', 'Margen FCF / ventas', 'pct') }}
-                                {{ wl_manual_cell(watchlist_item, 'net_income_margin_pct', 'Margen BN / ventas', 'pct') }}
+                                {{ wl_manual_cell(watchlist_item, 'fcf_margin_pct', 'Levered Free Cash Flow Margin % (LTM, TIKR)', 'pct') }}
+                                {{ wl_manual_cell(watchlist_item, 'net_income_margin_pct', 'Normalized Net Income Margin % (LTM, TIKR)', 'pct') }}
                                 {{ wl_manual_cell(watchlist_item, 'fcf_to_net_income', 'FCF / BN (ratio legado)', 'num') }}
                                 {{ wl_manual_cell(watchlist_item, 'ebitda_margin_pct', 'Margen EBITDA', 'pct') }}
                                 {{ wl_manual_cell(watchlist_item, 'operating_margin_pct', 'Margen operativo', 'pct') }}
@@ -1037,12 +1037,12 @@
                                 <input type="number" step="0.01" id="editNetDebtEbitda" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
                             </div>
                             <div>
-                                <label class="block text-xs font-medium text-slate-600 mb-1">Margen FCF / ventas (%)</label>
-                                <input type="number" step="0.01" id="editFcfMarginPct" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500" title="Mismo convenio que otros % (ej. 12,5 = 12,5%). Con margen BN/ventas deriva FCF/BN para el ajuste estilo B.">
+                                <label class="block text-xs font-medium text-slate-600 mb-1">Levered Free Cash Flow Margin % (LTM)</label>
+                                <input type="number" step="0.01" id="editFcfMarginPct" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500" title="TIKR.com → pestaña Ratios → Margin analysis: fila «Levered Free Cash Flow Margin %», columna LTM. Mismo convenio % que el resto de la watchlist (ej. 7,3 = 7,3%). Con el margen de BN LTM de la fila siguiente deriva FCF/BN para el ajuste estilo B.">
                             </div>
                             <div>
-                                <label class="block text-xs font-medium text-slate-600 mb-1">Margen beneficio neto / ventas (%)</label>
-                                <input type="number" step="0.01" id="editNetIncomeMarginPct" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500" title="Si ambos márgenes están rellenos, el ratio FCF/BN ≈ FCF% / BN%; si no, usa el campo ratio siguiente.">
+                                <label class="block text-xs font-medium text-slate-600 mb-1">Normalized Net Income Margin % (LTM)</label>
+                                <input type="number" step="0.01" id="editNetIncomeMarginPct" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500" title="TIKR.com → Ratios → Margin analysis: fila «Normalized Net Income Margin %», columna LTM. Si ambos márgenes LTM están rellenos, FCF/BN ≈ Levered FCF margin / Normalized NI margin; si no, usa el ratio manual debajo.">
                             </div>
                             <div>
                                 <label class="block text-xs font-medium text-slate-600 mb-1">FCF / Beneficio neto (ratio, alternativa)</label>
