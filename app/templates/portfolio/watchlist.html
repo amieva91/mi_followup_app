@@ -26,6 +26,38 @@
 </div>
 {% endif %}
 {%- endmacro %}
+
+{# FCF/BN: valor guardado o cociente implícito desde márgenes LTM (misma lógica que valoración). #}
+{% macro wl_fcf_bn_ratio_cell(wl) -%}
+{% if wl %}
+{% set src = wl.get_manual_field_source('fcf_to_net_income') %}
+{% set raw = wl|model_attr('fcf_to_net_income') %}
+{% set fm = wl|model_attr('fcf_margin_pct') %}
+{% set nim = wl|model_attr('net_income_margin_pct') %}
+{% set derived = none %}
+{% if raw is none and fm is not none and nim is not none %}
+    {% set nimv = nim|float %}
+    {% if nimv|abs > 0.0000001 %}
+        {% set fmv = fm|float %}
+        {% if not (fmv < 0 and nimv < 0) %}
+            {% set derived = fmv / nimv %}
+        {% endif %}
+    {% endif %}
+{% endif %}
+<div class="min-w-0 break-words">
+    <div class="text-[11px] font-medium text-slate-500 leading-snug">FCF / BN (ratio; alternativa si no están ambos: Levered Free Cash Flow Margin % (LTM) y Normalized Net Income Margin % (LTM))</div>
+    <div class="text-sm tabular-nums mt-0.5 {% if raw is not none %}{% if src == 'ai' %}watchlist-val-ai{% elif src == 'user' %}watchlist-val-user{% else %}text-slate-600{% endif %}{% elif derived is not none %}text-slate-600 italic{% else %}text-slate-600{% endif %}">
+        {% if raw is not none %}
+            {{ raw|decimal_eu(2) }}
+        {% elif derived is not none %}
+            ≈ {{ derived|decimal_eu(2) }}<span class="text-[10px] not-italic text-slate-500 font-normal"> (de márgenes LTM)</span>
+        {% else %}
+            —
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{%- endmacro %}
 <style>
     /* Los modales viven FUERA del cierre de #portfolio-watch; hace falta regla global para el panel opaco */
     .watchlist-modal-surface {
@@ -565,7 +597,7 @@
                                 {{ wl_manual_cell(watchlist_item, 'net_debt_to_ebitda', 'Net debt / EBITDA', 'num') }}
                                 {{ wl_manual_cell(watchlist_item, 'fcf_margin_pct', 'Levered Free Cash Flow Margin % (LTM, TIKR)', 'pct') }}
                                 {{ wl_manual_cell(watchlist_item, 'net_income_margin_pct', 'Normalized Net Income Margin % (LTM, TIKR)', 'pct') }}
-                                {{ wl_manual_cell(watchlist_item, 'fcf_to_net_income', 'FCF / BN (ratio; alternativa si no están ambos: Levered Free Cash Flow Margin % (LTM) y Normalized Net Income Margin % (LTM))', 'num') }}
+                                {{ wl_fcf_bn_ratio_cell(watchlist_item) }}
                                 {{ wl_manual_cell(watchlist_item, 'ebitda_margin_pct', 'Margen EBITDA', 'pct') }}
                                 {{ wl_manual_cell(watchlist_item, 'operating_margin_pct', 'Margen operativo', 'pct') }}
                                 {{ wl_manual_cell(watchlist_item, 'roic_pct', 'ROIC', 'pct') }}
