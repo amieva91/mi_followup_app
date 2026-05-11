@@ -224,7 +224,7 @@
                         <th class="px-4 py-3 text-right font-semibold uppercase">
                             <span class="flex items-center justify-end gap-1">
                                 Rent. 5 años (%)
-                                <span class="cursor-help text-gray-400" title="Calculado: (Target Price - Precio actual) / Precio actual * 100 + (Dividend Yield * 5 años). Basado en Target Price (5 yr)">ⓘ</span>
+                                <span class="cursor-help text-gray-400" title="Calculado: (Target Price - Precio actual) / Precio actual * 100 + (Dividend Yield * 5 años). Basado en Target Price (5 yr). Modo general con EPS≤0: el target se extrapola desde Valoración 12m (ver columna Target).">ⓘ</span>
                             </span>
                         </th>
                         <th class="px-4 py-3 text-right font-semibold uppercase">
@@ -236,13 +236,13 @@
                         <th class="px-4 py-3 text-right font-semibold uppercase">
                             <span class="flex items-center justify-end gap-1">
                                 Rent. Anual (%)
-                                <span class="cursor-help text-gray-400" title="Calculado: Rentabilidad anualizada a 5 años + Dividend Yield anual. Basado en Target Price (5 yr)">ⓘ</span>
+                                <span class="cursor-help text-gray-400" title="Calculado: Rentabilidad anualizada a 5 años + Dividend Yield anual. Basado en Target Price (5 yr). Modo general con EPS≤0: mismo target extrapolado desde Valoración 12m.">ⓘ</span>
                             </span>
                         </th>
                         <th class="px-4 py-3 text-right font-semibold uppercase">
                             <span class="flex items-center justify-end gap-1">
                                 Target Price (5 yr)
-                                <span class="cursor-help text-gray-400" title="Modo general: EPS × (1 + g)^5 × PER (fair si existe; si no NTM), con g = media revenue/EPS CAGR; precio mostrado = objetivo tras ajuste estilo B. Modo banco: trayectoria BVPS × P/B objetivo y factor banco. Modo REIT: AFFO/FFO × (1+g)^5 × P/FFO y factor RE.">ⓘ</span>
+                                <span class="cursor-help text-gray-400" title="Modo general con EPS&gt;0: EPS × (1 + g)^5 × PER (fair si existe; si no NTM), con g = media revenue/EPS CAGR; precio mostrado = objetivo tras ajuste estilo B. Modo general con EPS≤0: precio actual × (1 + Valoración 12m % / 100)^5 (extrapolación del PEGY mostrado). Modo banco: trayectoria BVPS × P/B objetivo y factor banco. Modo REIT: AFFO/FFO × (1+g)^5 × P/FFO y factor RE.">ⓘ</span>
                             </span>
                         </th>
                         <th class="px-4 py-3 text-right font-semibold uppercase">
@@ -276,10 +276,11 @@
                     {% set holding = item.holding %}
                     {% set vm = item.valuation_mode|default('general') %}
                     {% set vm_label = 'Banco' if vm == 'banks' else ('Real Estate / REIT' if vm == 'realestate' else 'General') %}
+                    {% set wl_eps_loss = watchlist_item and watchlist_item.eps is not none and watchlist_item.eps <= 0 %}
                     <tr class="wl-main-row hover:bg-teal-50/45 transition-colors" {% if watchlist_item %}data-watchlist-id="{{ watchlist_item.id }}"{% endif %}>
                         <!-- Nombre (con icono, symbol y país) -->
                         <td class="px-4 py-3">
-                            <div class="text-sm font-medium text-gray-900 flex items-center gap-2">
+                            <div class="text-sm font-medium text-gray-900 flex items-center gap-2 flex-wrap">
                                 {% if item.type == 'portfolio' %}
                                     <span title="En cartera">💼</span>
                                 {% else %}
@@ -288,6 +289,10 @@
                                 <a href="{{ url_for('portfolio.asset_detail', id=asset.id) }}" class="text-teal-800 hover:underline font-medium">
                                     {{ asset.name or asset.symbol or '—' }}
                                 </a>
+                                {% if wl_eps_loss %}
+                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-amber-50 text-amber-900 border border-amber-200/90"
+                                    title="{% if vm == 'general' %}EPS negativo o cero. Target 5y y rentas se calculan extrapolando la Valoración 12m cinco años (heurística; no hay proyección de beneficio).{% else %}EPS negativo o cero. El motor de valoración sigue el modo {{ vm_label }}; revisa inputs del modo.{% endif %}">Pérdidas</span>
+                                {% endif %}
                             </div>
                             {% if asset.asset_type or asset.symbol or asset.country %}
                             <div class="text-xs text-gray-400">
@@ -486,7 +491,7 @@
                         <!-- Target Price (5 yr) -->
                         <td class="px-4 py-3 whitespace-nowrap text-right">
                             {% if watchlist_item and watchlist_item.target_price_5yr is not none %}
-                                <span class="text-sm text-gray-900">{{ watchlist_item.target_price_5yr|decimal_eu(2) }}</span>
+                                <span class="text-sm text-gray-900"{% if vm == 'general' and wl_eps_loss %} title="Heurística: precio actual × (1 + Valoración 12m % / 100)^5. No proyecta beneficios."{% endif %}>{{ watchlist_item.target_price_5yr|decimal_eu(2) }}</span>
                             {% else %}
                                 <span class="text-xs text-gray-400">—</span>
                             {% endif %}

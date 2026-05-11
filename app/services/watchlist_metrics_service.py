@@ -98,6 +98,31 @@ class WatchlistMetricsService:
         return valoracion
     
     @staticmethod
+    def calculate_target_price_5yr_from_valoracion_extrapolation(
+        precio_actual: Optional[float],
+        valoracion_12m_pct: Optional[float],
+    ) -> Optional[float]:
+        """
+        Heurística para empresas en pérdidas (modo general): extrapola la señal de
+        Valoración 12m (%) como tasa anual compuesta sobre 5 años sobre el precio actual.
+
+        ``precio_final ≈ precio_actual × (1 + valoracion_12m/100)^5``
+
+        No es un DCF ni un PER sobre EPS; solo coherencia interna con el PEGY ya mostrado
+        en Valoración 12m para rellenar target y rentas cuando EPS ≤ 0.
+        """
+        if precio_actual is None or valoracion_12m_pct is None:
+            return None
+        if precio_actual <= 0:
+            return None
+        r = valoracion_12m_pct / 100.0
+        base = 1.0 + r
+        if base <= 0:
+            return None
+        target = precio_actual * (base**5.0)
+        return round(target, 6)
+    
+    @staticmethod
     def calculate_rentabilidad_5yr(target_price: Optional[float], current_price: Optional[float], 
                                    dividend_yield: Optional[float]) -> Optional[float]:
         """
@@ -446,6 +471,8 @@ class WatchlistMetricsService:
             config = WatchlistService.get_or_create_config(watchlist_item.user_id)
 
         eff_asset = asset if asset is not None else watchlist_item.asset
+        if eff_asset is not None and getattr(eff_asset, "current_price", None) is not None:
+            watchlist_item.precio_actual = float(eff_asset.current_price)
         mode = resolve_valuation_mode(eff_asset, config)
         logger.debug(
             "watchlist metrics user=%s asset_id=%s valuation_mode=%s",
@@ -459,9 +486,8 @@ class WatchlistMetricsService:
             from app.services.watchlist_general_valuation import general_profitable_pipeline
 
             if watchlist_item.eps is not None and watchlist_item.eps <= 0:
-                # Sin target 5y fiable (EPS×(1+g)^5×PER no aplica con pérdidas). Sí PEGY «solo crecimiento»
-                # si hay múltiplo positivo: alimenta Valoración 12m → Tier / cantidad / operativa por Tier.
-                watchlist_item.target_price_5yr = None
+                # PEGY «solo crecimiento» si hay PER positivo + CAGR → Valoración 12m → Tier / cantidad.
+                # Target 5y: extrapolación heurística desde Valoración 12m (no EPS×(1+g)^5×PER).
                 watchlist_item.target_price_5yr_gross = None
                 watchlist_item.valuation_adjustment_factor = None
                 per_for_pegy = None
@@ -480,6 +506,12 @@ class WatchlistMetricsService:
                     )
                 else:
                     watchlist_item.valoracion_12m = None
+                watchlist_item.target_price_5yr = (
+                    WatchlistMetricsService.calculate_target_price_5yr_from_valoracion_extrapolation(
+                        watchlist_item.precio_actual,
+                        watchlist_item.valoracion_12m,
+                    )
+                )
             elif watchlist_item.eps is None:
                 # Sin EPS: mismo PEGY que antes (solo CAGR revenue); target sigue sin calcular sin EPS.
                 watchlist_item.target_price_5yr_gross = None
