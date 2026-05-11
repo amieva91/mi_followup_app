@@ -132,6 +132,8 @@ Siempre intentar completar cuando el modo lo use. **Prioridad 1:** `next_earning
 | `operating_margin_pct` | Margen operativo **%** |
 | `roic_pct` | ROIC **%** |
 
+**Caso borde (márgenes LTM):** si `fcf_margin_pct` y `net_income_margin_pct` son **ambos negativos**, el cociente sería positivo y **no** representa bien el FCF/BN; la valoración **no** usa ese cociente y aplica el ratio manual `fcf_to_net_income` si existe (si no, ratio nulo en ese tramo). El resto de combinaciones (uno negativo, signos distintos, ambos positivos) sigue el cociente o el fallback ya descritos.
+
 ### 5.3 Modo `banks` — campos adicionales
 
 | Campo | Descripción breve |

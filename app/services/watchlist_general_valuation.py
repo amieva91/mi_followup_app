@@ -75,12 +75,20 @@ def effective_fcf_to_net_income_ratio(wl: "Watchlist") -> Optional[float]:
     """
     Si existen ambos márgenes (FCF/ventas y BN/ventas, en % numérico), FCF/BN ≈ cociente.
     Si falta alguno o el denominador es ~0, se usa ``fcf_to_net_income`` (ratio directo).
+
+    Si **ambos** márgenes son negativos, el cociente es matemáticamente positivo pero no
+    refleja “calidad” FCF/BN; en ese caso **no** se usa el cociente y se aplica el mismo
+    fallback que cuando falta algún margen (``fcf_to_net_income`` o ``None``).
     """
     fm = getattr(wl, "fcf_margin_pct", None)
     nim = getattr(wl, "net_income_margin_pct", None)
+    legacy = getattr(wl, "fcf_to_net_income", None)
     if fm is not None and nim is not None and abs(float(nim)) > 1e-9:
-        return float(fm) / float(nim)
-    return getattr(wl, "fcf_to_net_income", None)
+        fmv, nimv = float(fm), float(nim)
+        if fmv < 0 and nimv < 0:
+            return legacy
+        return fmv / nimv
+    return legacy
 
 
 def factor_fcf_to_net_income(ratio: Optional[float], eps: Optional[float]) -> float:

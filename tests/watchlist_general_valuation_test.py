@@ -79,6 +79,25 @@ def test_effective_fcf_bn_falls_back_to_ratio():
     assert effective_fcf_to_net_income_ratio(wl) == 0.85
 
 
+def test_effective_fcf_bn_both_negative_margins_skips_misleading_quotient():
+    # (-5)/(-2) = +2.5 sería engañoso; se ignora y se usa ratio legado
+    wl = SimpleNamespace(
+        fcf_margin_pct=-5.0,
+        net_income_margin_pct=-2.0,
+        fcf_to_net_income=0.6,
+    )
+    assert effective_fcf_to_net_income_ratio(wl) == 0.6
+
+
+def test_effective_fcf_bn_both_negative_without_legacy():
+    wl = SimpleNamespace(
+        fcf_margin_pct=-5.0,
+        net_income_margin_pct=-2.0,
+        fcf_to_net_income=None,
+    )
+    assert effective_fcf_to_net_income_ratio(wl) is None
+
+
 def test_style_b_uses_margin_derived_ratio_for_fcf_factor():
     # ratio 2.0 from margins → factor_fcf 1.00 (domina sobre fcf_to_net_income legado)
     wl = SimpleNamespace(
