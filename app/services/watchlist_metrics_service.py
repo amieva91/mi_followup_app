@@ -459,10 +459,27 @@ class WatchlistMetricsService:
             from app.services.watchlist_general_valuation import general_profitable_pipeline
 
             if watchlist_item.eps is not None and watchlist_item.eps <= 0:
-                watchlist_item.valoracion_12m = None
+                # Sin target 5y fiable (EPS×(1+g)^5×PER no aplica con pérdidas). Sí PEGY «solo crecimiento»
+                # si hay múltiplo positivo: alimenta Valoración 12m → Tier / cantidad / operativa por Tier.
                 watchlist_item.target_price_5yr = None
                 watchlist_item.target_price_5yr_gross = None
                 watchlist_item.valuation_adjustment_factor = None
+                per_for_pegy = None
+                if watchlist_item.per_ntm is not None and watchlist_item.per_ntm > 0:
+                    per_for_pegy = watchlist_item.per_ntm
+                elif watchlist_item.per_fair is not None and watchlist_item.per_fair > 0:
+                    per_for_pegy = watchlist_item.per_fair
+                if (
+                    per_for_pegy is not None
+                    and watchlist_item.cagr_revenue_yoy is not None
+                ):
+                    watchlist_item.valoracion_12m = WatchlistMetricsService.calculate_valoracion_12m(
+                        per_for_pegy,
+                        watchlist_item.ntm_dividend_yield,
+                        watchlist_item.cagr_revenue_yoy,
+                    )
+                else:
+                    watchlist_item.valoracion_12m = None
             elif watchlist_item.eps is None:
                 # Sin EPS: mismo PEGY que antes (solo CAGR revenue); target sigue sin calcular sin EPS.
                 watchlist_item.target_price_5yr_gross = None
