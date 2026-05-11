@@ -71,6 +71,18 @@ def factor_net_debt_to_ebitda(ratio: Optional[float]) -> float:
     return 0.80
 
 
+def effective_fcf_to_net_income_ratio(wl: "Watchlist") -> Optional[float]:
+    """
+    Si existen ambos márgenes (FCF/ventas y BN/ventas, en % numérico), FCF/BN ≈ cociente.
+    Si falta alguno o el denominador es ~0, se usa ``fcf_to_net_income`` (ratio directo).
+    """
+    fm = getattr(wl, "fcf_margin_pct", None)
+    nim = getattr(wl, "net_income_margin_pct", None)
+    if fm is not None and nim is not None and abs(float(nim)) > 1e-9:
+        return float(fm) / float(nim)
+    return getattr(wl, "fcf_to_net_income", None)
+
+
 def factor_fcf_to_net_income(ratio: Optional[float], eps: Optional[float]) -> float:
     if ratio is None:
         return 1.0
@@ -158,9 +170,10 @@ def compute_style_b_factor_final(wl: Watchlist) -> float:
     """
     F = f_debt * f_fcf * f_margin * f_roic; F_final en [0,72 .. 1,06].
     """
+    ratio_fcf_bn = effective_fcf_to_net_income_ratio(wl)
     f = (
         factor_net_debt_to_ebitda(wl.net_debt_to_ebitda)
-        * factor_fcf_to_net_income(wl.fcf_to_net_income, wl.eps)
+        * factor_fcf_to_net_income(ratio_fcf_bn, wl.eps)
         * combine_margin_factors(wl.ebitda_margin_pct, wl.operating_margin_pct)
         * factor_roic(wl.roic_pct)
     )

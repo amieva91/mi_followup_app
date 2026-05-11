@@ -554,7 +554,9 @@
                                 {{ wl_manual_cell(watchlist_item, 'per_fair', 'PER fair', 'num') }}
                                 {{ wl_manual_cell(watchlist_item, 'cagr_eps_yoy', 'CAGR EPS 2–3y', 'pct') }}
                                 {{ wl_manual_cell(watchlist_item, 'net_debt_to_ebitda', 'Net debt / EBITDA', 'num') }}
-                                {{ wl_manual_cell(watchlist_item, 'fcf_to_net_income', 'FCF / beneficio neto', 'num') }}
+                                {{ wl_manual_cell(watchlist_item, 'fcf_margin_pct', 'Margen FCF / ventas', 'pct') }}
+                                {{ wl_manual_cell(watchlist_item, 'net_income_margin_pct', 'Margen BN / ventas', 'pct') }}
+                                {{ wl_manual_cell(watchlist_item, 'fcf_to_net_income', 'FCF / BN (ratio legado)', 'num') }}
                                 {{ wl_manual_cell(watchlist_item, 'ebitda_margin_pct', 'Margen EBITDA', 'pct') }}
                                 {{ wl_manual_cell(watchlist_item, 'operating_margin_pct', 'Margen operativo', 'pct') }}
                                 {{ wl_manual_cell(watchlist_item, 'roic_pct', 'ROIC', 'pct') }}
@@ -1035,8 +1037,16 @@
                                 <input type="number" step="0.01" id="editNetDebtEbitda" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
                             </div>
                             <div>
-                                <label class="block text-xs font-medium text-slate-600 mb-1">FCF / Beneficio neto (ratio)</label>
-                                <input type="number" step="0.01" id="editFcfNetIncome" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                                <label class="block text-xs font-medium text-slate-600 mb-1">Margen FCF / ventas (%)</label>
+                                <input type="number" step="0.01" id="editFcfMarginPct" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500" title="Mismo convenio que otros % (ej. 12,5 = 12,5%). Con margen BN/ventas deriva FCF/BN para el ajuste estilo B.">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-600 mb-1">Margen beneficio neto / ventas (%)</label>
+                                <input type="number" step="0.01" id="editNetIncomeMarginPct" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500" title="Si ambos márgenes están rellenos, el ratio FCF/BN ≈ FCF% / BN%; si no, usa el campo ratio siguiente.">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-600 mb-1">FCF / Beneficio neto (ratio, alternativa)</label>
+                                <input type="number" step="0.01" id="editFcfNetIncome" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500" title="Solo si no usas los dos márgenes anteriores; importaciones Gem legadas.">
                             </div>
                             <div>
                                 <label class="block text-xs font-medium text-slate-600 mb-1">Margen EBITDA (%)</label>
@@ -1383,6 +1393,8 @@ async function editWatchlistItem(watchlistId, assetId) {
     watchlistSetNumInput('editCagrRevenueYoy', null);
     watchlistSetNumInput('editCagrEpsYoy', null);
     watchlistSetNumInput('editNetDebtEbitda', null);
+    watchlistSetNumInput('editFcfMarginPct', null);
+    watchlistSetNumInput('editNetIncomeMarginPct', null);
     watchlistSetNumInput('editFcfNetIncome', null);
     watchlistSetNumInput('editEbitdaMargin', null);
     watchlistSetNumInput('editOpMargin', null);
@@ -1429,6 +1441,8 @@ async function editWatchlistItem(watchlistId, assetId) {
             watchlistSetNumInput('editCagrRevenueYoy', item.cagr_revenue_yoy);
             watchlistSetNumInput('editCagrEpsYoy', item.cagr_eps_yoy);
             watchlistSetNumInput('editNetDebtEbitda', item.net_debt_to_ebitda);
+            watchlistSetNumInput('editFcfMarginPct', item.fcf_margin_pct);
+            watchlistSetNumInput('editNetIncomeMarginPct', item.net_income_margin_pct);
             watchlistSetNumInput('editFcfNetIncome', item.fcf_to_net_income);
             watchlistSetNumInput('editEbitdaMargin', item.ebitda_margin_pct);
             watchlistSetNumInput('editOpMargin', item.operating_margin_pct);
@@ -1516,6 +1530,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 cagr_revenue_yoy: num('editCagrRevenueYoy'),
                 cagr_eps_yoy: num('editCagrEpsYoy'),
                 net_debt_to_ebitda: num('editNetDebtEbitda'),
+                fcf_margin_pct: num('editFcfMarginPct'),
+                net_income_margin_pct: num('editNetIncomeMarginPct'),
                 fcf_to_net_income: num('editFcfNetIncome'),
                 ebitda_margin_pct: num('editEbitdaMargin'),
                 operating_margin_pct: num('editOpMargin'),

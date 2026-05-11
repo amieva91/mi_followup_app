@@ -23,6 +23,8 @@ WATCHLIST_MANUAL_FIELD_KEYS = WATCHLIST_IA_BATCH_FIELD_KEYS + (
     "per_fair",
     "cagr_eps_yoy",
     "net_debt_to_ebitda",
+    "fcf_margin_pct",
+    "net_income_margin_pct",
     "fcf_to_net_income",
     "ebitda_margin_pct",
     "operating_margin_pct",
@@ -74,6 +76,8 @@ class Watchlist(db.Model):
     per_fair = db.Column(db.Float)
     cagr_eps_yoy = db.Column(db.Float)
     net_debt_to_ebitda = db.Column(db.Float)
+    fcf_margin_pct = db.Column(db.Float)  # FCF / ventas (%)
+    net_income_margin_pct = db.Column(db.Float)  # Beneficio neto / ventas (%)
     fcf_to_net_income = db.Column(db.Float)
     ebitda_margin_pct = db.Column(db.Float)
     operating_margin_pct = db.Column(db.Float)

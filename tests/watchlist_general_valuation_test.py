@@ -5,6 +5,7 @@ from app.services.watchlist_general_valuation import (
     blend_growth_pct,
     calculate_target_price_5yr_bruto,
     compute_style_b_factor_final,
+    effective_fcf_to_net_income_ratio,
     general_profitable_pipeline,
     per_terminal_ntm_or_fair,
 )
@@ -35,6 +36,8 @@ def test_target_bruto_numeric():
 def test_style_b_all_missing_is_clamped_neutral():
     wl = SimpleNamespace(
         net_debt_to_ebitda=None,
+        fcf_margin_pct=None,
+        net_income_margin_pct=None,
         fcf_to_net_income=None,
         ebitda_margin_pct=None,
         operating_margin_pct=None,
@@ -47,6 +50,8 @@ def test_style_b_all_missing_is_clamped_neutral():
 def test_style_b_penalizes_high_leverage():
     wl = SimpleNamespace(
         net_debt_to_ebitda=6.0,
+        fcf_margin_pct=None,
+        net_income_margin_pct=None,
         fcf_to_net_income=None,
         ebitda_margin_pct=None,
         operating_margin_pct=None,
@@ -54,6 +59,39 @@ def test_style_b_penalizes_high_leverage():
         eps=1.0,
     )
     assert compute_style_b_factor_final(wl) == 0.80
+
+
+def test_effective_fcf_bn_prefers_margin_quotient():
+    wl = SimpleNamespace(
+        fcf_margin_pct=10.0,
+        net_income_margin_pct=5.0,
+        fcf_to_net_income=0.5,
+    )
+    assert effective_fcf_to_net_income_ratio(wl) == 2.0
+
+
+def test_effective_fcf_bn_falls_back_to_ratio():
+    wl = SimpleNamespace(
+        fcf_margin_pct=10.0,
+        net_income_margin_pct=None,
+        fcf_to_net_income=0.85,
+    )
+    assert effective_fcf_to_net_income_ratio(wl) == 0.85
+
+
+def test_style_b_uses_margin_derived_ratio_for_fcf_factor():
+    # ratio 2.0 from margins → factor_fcf 1.00 (domina sobre fcf_to_net_income legado)
+    wl = SimpleNamespace(
+        net_debt_to_ebitda=None,
+        fcf_margin_pct=10.0,
+        net_income_margin_pct=5.0,
+        fcf_to_net_income=0.5,
+        ebitda_margin_pct=None,
+        operating_margin_pct=None,
+        roic_pct=None,
+        eps=1.0,
+    )
+    assert compute_style_b_factor_final(wl) == 1.0
 
 
 def test_general_pipeline_minimal():
@@ -65,6 +103,8 @@ def test_general_pipeline_minimal():
         cagr_revenue_yoy=10.0,
         cagr_eps_yoy=10.0,
         net_debt_to_ebitda=None,
+        fcf_margin_pct=None,
+        net_income_margin_pct=None,
         fcf_to_net_income=None,
         ebitda_margin_pct=None,
         operating_margin_pct=None,
@@ -86,6 +126,8 @@ def test_general_pipeline_eps_negative():
         cagr_revenue_yoy=5.0,
         cagr_eps_yoy=5.0,
         net_debt_to_ebitda=None,
+        fcf_margin_pct=None,
+        net_income_margin_pct=None,
         fcf_to_net_income=None,
         ebitda_margin_pct=None,
         operating_margin_pct=None,

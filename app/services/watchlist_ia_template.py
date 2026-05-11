@@ -78,6 +78,8 @@ WATCHLIST_IA_EXTRA_KEYS_ORDER: dict[str, tuple[str, ...]] = {
         "per_fair",
         "cagr_eps_yoy",
         "net_debt_to_ebitda",
+        "fcf_margin_pct",
+        "net_income_margin_pct",
         "fcf_to_net_income",
         "ebitda_margin_pct",
         "operating_margin_pct",
@@ -117,7 +119,9 @@ _IA_EXTRA_KEY_HELP: dict[str, dict[str, str]] = {
         "per_fair": "PER fair u objetivo (múltiplo ×), número o null.",
         "cagr_eps_yoy": "CAGR EPS 2–3 años, **porcentaje numérico** (ej. 10.0) o null.",
         "net_debt_to_ebitda": "Net debt / EBITDA (×) o null.",
-        "fcf_to_net_income": "FCF / beneficio neto (ratio 0–1 típico) o null.",
+        "fcf_margin_pct": "FCF / ventas **% numérico** (mismo convenio que otros márgenes) o null.",
+        "net_income_margin_pct": "Beneficio neto / ventas **% numérico** o null.",
+        "fcf_to_net_income": "FCF / beneficio neto como **ratio directo** (0–1 típico) si no hay ambos márgenes; si hay `fcf_margin_pct` y `net_income_margin_pct`, puede ser null.",
         "ebitda_margin_pct": "Margen EBITDA **% numérico** o null.",
         "operating_margin_pct": "Margen operativo **% numérico** o null.",
         "roic_pct": "ROIC **% numérico** o null.",
@@ -244,6 +248,6 @@ def get_watchlist_ia_deep_brief(
         )
     else:
         points.append(
-            "Modo general: si hay deuda neta/EBITDA, FCF/BN, márgenes o ROIC verificables, inclúyelos en tabla y JSON ampliado."
+            "Modo general: deuda neta/EBITDA; FCF/ventas y BN/ventas en % (o ratio FCF/BN legado); márgenes EBITDA/operativo y ROIC si constan."
         )
     return (description, points, title)
