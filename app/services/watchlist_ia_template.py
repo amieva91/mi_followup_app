@@ -121,7 +121,7 @@ _IA_EXTRA_KEY_HELP: dict[str, dict[str, str]] = {
         "net_debt_to_ebitda": "Net debt / EBITDA (×) o null.",
         "fcf_margin_pct": "TIKR **Levered Free Cash Flow Margin %**, columna **LTM** (Ratios → Margin analysis), **% numérico** o null.",
         "net_income_margin_pct": "TIKR **Normalized Net Income Margin %**, columna **LTM** (Ratios → Margin analysis), **% numérico** o null.",
-        "fcf_to_net_income": "FCF / beneficio neto como **ratio directo** (0–1 típico) si no hay ambos márgenes; si hay `fcf_margin_pct` y `net_income_margin_pct`, puede ser null.",
+        "fcf_to_net_income": "Ratio FCF/BN directo (0–1 típico) **solo** si no hay ambos márgenes LTM (`Levered Free Cash Flow Margin %` y `Normalized Net Income Margin %`); si ambos vienen, preferir null aquí.",
         "ebitda_margin_pct": "Margen EBITDA **% numérico** o null.",
         "operating_margin_pct": "Margen operativo **% numérico** o null.",
         "roic_pct": "ROIC **% numérico** o null.",
