@@ -85,9 +85,12 @@
         justify-content: space-between;
         gap: 0.5rem;
     }
-    /* Origen manual: usuario vs IA */
+    /* Origen manual: usuario vs IA (panel expandido y valores sin semáforo propio) */
     #portfolio-watch .watchlist-val-ai { color: #075985; font-style: italic; }
     #portfolio-watch .watchlist-val-user { color: #0f172a; font-weight: 600; }
+    /* Columna fija «Fecha próximos resultados»: no pisar verde/amarillo/rojo — solo marcar origen */
+    #portfolio-watch .watchlist-src-ai { font-style: italic; font-weight: 500; }
+    #portfolio-watch .watchlist-src-user { font-weight: 700; }
     #watchlistJobBanner {
         display: none;
         align-items: center;
@@ -164,7 +167,7 @@
                         <th class="px-4 py-3 text-left font-semibold uppercase cursor-pointer hover:bg-slate-200/60" onclick="sortTable(1, 'date')">
                             <span class="flex items-center gap-1">
                                 Fecha próximos resultados
-                                <span class="cursor-help text-gray-400" title="Manual: Fecha de presentación de resultados. Colores: Verde (futuro), Amarillo (pasado reciente, días configurables en Ajustes), Rojo (pasado lejano)">ⓘ</span>
+                                <span class="cursor-help text-gray-400" title="Fecha de presentación de resultados. Color del texto: verde (futuro), amarillo (pasado dentro del umbral de días en Ajustes), rojo (más antiguo). Encima de ese color: negrita = origen usuario, cursiva = origen IA.">ⓘ</span>
                                 <span class="sort-arrow">⇅</span>
                             </span>
                         </th>
@@ -268,7 +271,7 @@
                             {% if watchlist_item and watchlist_item.next_earnings_date %}
                                 {% set earnings_date = watchlist_item.next_earnings_date %}
                                 {% set src_ed = watchlist_item.get_manual_field_source('next_earnings_date') %}
-                                {% set src_ed_cls = ' watchlist-val-ai' if src_ed == 'ai' else (' watchlist-val-user' if src_ed == 'user' else '') %}
+                                {% set src_ed_cls = ' watchlist-src-ai' if src_ed == 'ai' else (' watchlist-src-user' if src_ed == 'user' else '') %}
                                 {% set days_diff = (earnings_date - today).days %}
                                 {% set yellow_days = color_thresholds.fecha_resultados.yellow_days if color_thresholds and color_thresholds.fecha_resultados and color_thresholds.fecha_resultados.yellow_days else 15 %}
                                 {% if days_diff > 0 %}
@@ -534,8 +537,8 @@
                         <td colspan="13" class="px-4 py-4 border-t border-slate-200 align-top">
                             <div class="text-xs text-slate-600 mb-3 flex flex-wrap items-center gap-x-4 gap-y-1">
                                 <span>Modo valoración aplicado: <strong class="text-slate-800">{{ vm_label }}</strong></span>
-                                <span><span class="watchlist-val-user">Negrita</span> = usuario</span>
-                                <span><span class="watchlist-val-ai">Cursiva azul</span> = IA</span>
+                                <span><span class="watchlist-val-user">Negrita oscura</span> = usuario · <span class="watchlist-val-ai">Azul cursiva</span> = IA (solo en este panel)</span>
+                                <span class="text-slate-500">En la columna fija «Fecha próximos resultados» de la tabla: verde/amarillo/rojo = días hasta la fecha; negrita o cursiva encima indica usuario o IA sin cambiar ese color.</span>
                                 <span class="text-slate-500">Solo bloques que aplican a este modo (además del núcleo). Editar ✏️ para cambiar valores.</span>
                             </div>
                             <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-4 gap-y-5">
