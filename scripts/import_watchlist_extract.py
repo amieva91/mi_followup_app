@@ -85,7 +85,11 @@ def parse_extract_file(text: str) -> dict[str, dict[str, str]]:
                 continue
             if FUENTES_LINE_RE.match(line_raw.strip()):
                 break
-            fm = FIELD_RE.match(line_raw)
+            # Markdown (**campo:**) y encabezados; quitar * para reconocer clave: valor
+            line_clean = re.sub(r"\*+", "", line_raw).strip()
+            if not line_clean or line_clean.startswith("#") or line_clean.startswith("---"):
+                continue
+            fm = FIELD_RE.match(line_clean)
             if not fm:
                 continue
             k = fm.group(1).lower()
@@ -117,7 +121,8 @@ def coerce_value(key: str, raw: str):
         return _parse_manual_date(raw)
     if key in WATCHLIST_MANUAL_STRING_KEYS:
         return str(raw)[:32]
-    return float(raw.replace(",", ".").replace(" ", ""))
+    s = re.sub(r"\s*%$", "", raw.strip()).replace(",", ".").replace(" ", "")
+    return float(s)
 
 
 def build_watchlist_index(user_id: int) -> dict[str, list]:
