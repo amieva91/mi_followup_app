@@ -7,7 +7,12 @@ Formato esperado (modo entre corchetes en mayúsculas o minúsculas):
     === ONDS [GENERAL] ===
     next_earnings_date: 2026-05-14
     per_ntm: -1.2
+    fcf_margin_pct: 7.3
+    net_income_margin_pct: 4.2
     ...
+
+    Las claves válidas son las de ``WATCHLIST_MANUAL_FIELD_KEYS`` en ``app.models.watchlist``
+    (incluye p. ej. ``fcf_margin_pct``, ``net_income_margin_pct``, ``fcf_to_net_income``, …).
 
     === HSBK [BANKS] ===
     next_earnings_date: 2026-05-18
