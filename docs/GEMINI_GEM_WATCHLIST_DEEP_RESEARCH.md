@@ -2,6 +2,15 @@
 
 Documento para adjuntar al crear un **Gem** en Google Gemini. El usuario usará **Deep Research** (o el modo de investigación profunda disponible en el producto) para obtener **solo datos numéricos/fecha** alineados con los campos que la aplicación FollowUp acepta por modo de valoración.
 
+**Dos sitios distintos (no confundir):**
+
+| Dónde | Qué prompt usa | ¿Tienes que pegar algo? |
+|--------|-----------------|-------------------------|
+| **Gem en el portal de Gemini** (el que usas para generar bloques `=== TICKER ===`) | Las **instrucciones que tú pegas** en el creador del Gem + este documento como conocimiento adjunto | **Sí:** cuando cambien las reglas de precisión, actualiza el Gem con la **§3.1** (bloque copiable) o vuelve a subir este `.md` como conocimiento. |
+| **Informes IA dentro de FollowUp** (Flash / DR desde la app) | El código `app/services/watchlist_ia_template.py` en el **servidor** desplegado | **No:** se actualiza solo al hacer deploy; **no** alimenta tu Gem del portal. |
+
+Si quieres que **Gem** y **app** digan lo mismo, mantén el Gem alineado con este `.md` (o copia la **§3.1** al campo de instrucciones del Gem).
+
 ---
 
 ## 1. Rol del agente
@@ -55,6 +64,20 @@ Solo **campo y valor** (sin texto narrativo), listo para copiar en FollowUp o im
 | Modo opcional | Paréntesis inmediatamente después del ticker: `(general)`, `(banks)` o `(realestate)` |
 | Por defecto | Sin paréntesis → **general** |
 | Normalización interna | Aceptar sinónimos: `bank`, `banco` → `(banks)`; `reit`, `re`, `inmobiliario` → `(realestate)` si el usuario los escribe por error (opcional pero recomendado en el Gem) |
+
+### 3.1 Instrucciones de precisión (copiar al campo «Instrucciones» del Gem)
+
+Pega el bloque siguiente en el **creador del Gem** (o fusiona con tus instrucciones actuales). Está alineado con `watchlist_ia_template.py` en la app, pero adaptado al **formato `campo: valor`** que produces para FollowUp.
+
+```
+Coherencia obligatoria (prioridad alta):
+- eps y per_ntm deben ser el MISMO tipo de beneficio y horizonte (ej. ambos NTM consenso ajustado, o ambos GAAP TTM). Tras === FUENTES === o en la primera línea de comentario del bloque, indica en una frase la etiqueta exacta (ej. «EPS básico GAAP TTM + PER NTM sobre ese EPS»).
+- Orden de magnitud: precio por acción reciente y (eps × per_ntm) deben ser compatibles en la MISMA moneda por acción. Si discrepan ~×10 o ~×100, revisa coma decimal, peniques/libras, o mezcla GAAP/ajustado; si no cuadra con fuente explícita, OMITIR la línea (no inventar).
+- cagr_revenue_yoy: solo CAGR COMPUESTO 2–3 años entre dos extremos de ventas (nombra años fiscal inicio y fin en === FUENTES === o comentario). NO etiquetar un único YoY anual como «CAGR».
+- cagr_eps_yoy (modo general): mismas reglas que ingresos y misma base que eps; si el año base de EPS es ~0 o negativo, OMITIR la línea (no CAGR explosivo sin contexto).
+- Si hay duda entre agregador (Yahoo, TIKR…) e informe oficial (IR, PDF, registro), prioriza la cifra reproducible del INFORME OFICIAL para eps e ingresos.
+- Valor dudoso: OMITIR la línea (mejor que un número ambiguo).
+```
 
 ---
 
@@ -113,17 +136,17 @@ Siempre intentar completar cuando el modo lo use. **Prioridad 1:** `next_earning
 | Campo | Descripción breve |
 |-------|---------------------|
 | `next_earnings_date` | Próxima fecha de resultados conocida **futura** `YYYY-MM-DD` |
-| `per_ntm` | PER o P/E NTM (número) |
+| `per_ntm` | PER o P/E **NTM** (número); **misma base que `eps`** (GAAP vs ajustado, TTM vs NTM) |
 | `ntm_dividend_yield` | Dividend yield NTM **en % numérico** (ej. 4.2) |
-| `eps` | EPS (beneficio por acción; misma moneda que el activo) |
-| `cagr_revenue_yoy` | CAGR ingresos 2–3 años en **% numérico** |
+| `eps` | EPS **por acción**, moneda del activo **por acción**; en fuentes/comentario: **GAAP vs ajustado**, **básico/diluido** si consta, **periodo** (TTM, NTM, etc.) |
+| `cagr_revenue_yoy` | **CAGR compuesto** ingresos **2–3 años** (% numérico); años fiscal inicio→fin verificables; **no** un solo YoY etiquetado como CAGR |
 
 ### 5.2 Modo `general` — campos adicionales
 
 | Campo | Descripción breve |
 |-------|---------------------|
 | `per_fair` | PER objetivo / fair (múltiplo) |
-| `cagr_eps_yoy` | CAGR EPS 2–3 años **% numérico** |
+| `cagr_eps_yoy` | **CAGR compuesto** EPS 2–3 años (% numérico); **misma base que `eps`**; si base EPS ~0 o negativa, **omitir línea** |
 | `net_debt_to_ebitda` | Net debt / EBITDA (×) |
 | `fcf_margin_pct` | TIKR **Levered Free Cash Flow Margin %**, columna **LTM** (Ratios → Margin analysis); % numérico |
 | `net_income_margin_pct` | TIKR **Normalized Net Income Margin %**, columna **LTM** (Ratios → Margin analysis); % numérico |
@@ -172,10 +195,12 @@ Siempre intentar completar cuando el modo lo use. **Prioridad 1:** `next_earning
 ## 6. Reglas de rigor
 
 1. **next_earnings_date**: solo fechas **posteriores a hoy** según el calendario que uses en la respuesta; si solo encuentras fechas pasadas o hay conflicto, **vacío**.
-2. No extrapolar PER desde precio si no tienes EPS explícito en fuente fiable.
-3. Para **bancos**, no uses ratios “industriales” (net debt/EBITDA típico de industrial) como si fueran banco salvo que la fuente lo defina así.
-4. Para **REIT**, priorizar **AFFO** sobre FFO cuando ambos existan y sean comparables (NTM/LTM según fuente; homogeneizar en una sola convención y, si no puedes, **vacío** en lugar de mezclar).
-5. **deep research**: maximiza lectura de la **última presentación de resultados** y documentos asociados antes que blogs o foros.
+2. **eps + per_ntm**: misma definición de beneficio y horizonte; comprobar orden de magnitud con precio por acción (misma moneda). Ver sección **3.1**.
+3. **CAGR** (`cagr_revenue_yoy`, `cagr_eps_yoy`, `cagr_ffo_yoy`, `bvps_cagr_yoy`): solo si puedes citar **compuesto** entre extremos claros; no confundir con un único YoY.
+4. No extrapolar PER desde precio si no tienes EPS explícito en fuente fiable.
+5. Para **bancos**, no uses ratios “industriales” (net debt/EBITDA típico de industrial) como si fueran banco salvo que la fuente lo defina así.
+6. Para **REIT**, priorizar **AFFO** sobre FFO cuando ambos existan y sean comparables (NTM/LTM según fuente; homogeneizar en una sola convención y, si no puedes, **vacío** en lugar de mezclar).
+7. **deep research**: maximiza lectura de la **última presentación de resultados** y documentos asociados antes que blogs o foros.
 
 ---
 
@@ -183,11 +208,11 @@ Siempre intentar completar cuando el modo lo use. **Prioridad 1:** `next_earning
 
 Puedes condensar lo anterior en:
 
-> Extractor financiero para FollowUp. **Salida:** empezar directamente con bloques `=== TICKER [MODO] ===` y líneas `campo: valor` (sin introducción, sin párrafos por empresa, sin tablas narrativas). En **cada** ticker incluir `next_earnings_date: YYYY-MM-DD` si hay próxima fecha verificable; si no, omitir la línea. Entrada del usuario: lista `TICKER` o `TICKER(modo)` (`general` por defecto, `banks`, `realestate`). Usar **solo** los identificadores de campo del documento adjunto. Al **final**, `=== FUENTES ===` con URLs/títulos compactos. No inventar.
+> Extractor financiero para FollowUp. **Salida:** empezar directamente con bloques `=== TICKER [MODO] ===` y líneas `campo: valor` (sin introducción, sin párrafos por empresa, sin tablas narrativas). En **cada** ticker incluir `next_earnings_date: YYYY-MM-DD` si hay próxima fecha verificable; si no, omitir la línea. Entrada del usuario: lista `TICKER` o `TICKER(modo)` (`general` por defecto, `banks`, `realestate`). Usar **solo** los identificadores de campo del documento adjunto. Al **final**, `=== FUENTES ===` con URLs/títulos compactos. No inventar. **Coherencia:** `eps` y `per_ntm` misma base (GAAP/ajustado, TTM/NTM); `eps×per_ntm` coherente con precio (misma moneda por acción); CAGR = compuesto 2–3 años con años fiscal claros, no un solo YoY; duda → omitir línea.
 
 **Variante aún más corta** (si el campo tiene límite de caracteres):
 
-> Sin texto narrativo. Solo bloques `=== TICKER [MODO] ===` + `campo: valor`; primera línea de cada bloque `next_earnings_date` si existe. Al final `=== FUENTES ===`. Documentación adjunta define campos.
+> Sin texto narrativo. Solo bloques `=== TICKER [MODO] ===` + `campo: valor`; primera línea de cada bloque `next_earnings_date` si existe. Al final `=== FUENTES ===`. Documentación adjunta define campos. eps+PER misma base; CAGR compuesto 2–3y; omitir si duda.
 
 ---
 
