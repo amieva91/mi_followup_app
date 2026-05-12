@@ -179,35 +179,24 @@
     {% endif %}
 
     <!-- Resumen por categoría (12 meses) -->
-    {% if category_summary %}
+    {% if category_summary_chips %}
     <div class="expense-card p-4 mb-6">
         <h2 class="expense-title text-lg mb-3">📊 Resumen por categoría (últimos 12 meses)</h2>
         <div class="flex flex-wrap gap-3">
-            {% for parent in category_summary %}
-            {% if parent.children %}
-            {% for child in parent.children %}
-            <a href="{{ url_for('expenses.list', category=child.id) }}"
-               class="expense-chip inline-flex items-center gap-2 px-4 py-2 hover:border-red-300 transition">
-                <span class="text-xl">{{ child.icon }}</span>
-                <span class="font-medium text-gray-800">{{ child.name }}</span>
-                <span class="text-red-600 font-semibold">-{{ '%.2f'|format(child.average) }} €/mes ({{ '%.2f'|format(child.total) }} €)</span>
-            </a>
-            {% endfor %}
-            {% else %}
-            {% if parent.name == 'Ajustes' %}
+            {% for chip in category_summary_chips %}
+            {% if chip.is_ajustes %}
             <span class="expense-chip inline-flex items-center gap-2 px-4 py-2 border-gray-200 bg-gray-50" title="Ajuste de cierre calculado a partir de saldos bancarios (solo lectura)">
-                <span class="text-xl">{{ parent.icon }}</span>
-                <span class="font-medium text-gray-800">{{ parent.name }}</span>
-                <span class="text-red-600 font-semibold">-{{ '%.2f'|format(parent.average) }} €/mes ({{ '%.2f'|format(parent.total) }} €)</span>
+                <span class="text-xl">{{ chip.icon }}</span>
+                <span class="font-medium text-gray-800">{{ chip.name }}</span>
+                <span class="text-red-600 font-semibold">-{{ '%.2f'|format(chip.average) }} €/mes ({{ '%.2f'|format(chip.total) }} €)</span>
             </span>
             {% else %}
-            <a href="{{ url_for('expenses.list', category=parent.id) }}"
+            <a href="{{ url_for('expenses.list', category=chip.id) }}"
                class="expense-chip inline-flex items-center gap-2 px-4 py-2 hover:border-red-300 transition">
-                <span class="text-xl">{{ parent.icon }}</span>
-                <span class="font-medium text-gray-800">{{ parent.name }}</span>
-                <span class="text-red-600 font-semibold">-{{ '%.2f'|format(parent.average) }} €/mes ({{ '%.2f'|format(parent.total) }} €)</span>
+                <span class="text-xl">{{ chip.icon }}</span>
+                <span class="font-medium text-gray-800">{{ chip.name }}</span>
+                <span class="text-red-600 font-semibold">-{{ '%.2f'|format(chip.average) }} €/mes ({{ '%.2f'|format(chip.total) }} €)</span>
             </a>
-            {% endif %}
             {% endif %}
             {% endfor %}
         </div>
