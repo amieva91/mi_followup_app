@@ -174,6 +174,29 @@ def calculate_valoracion_12m_from_g(
     return round(-((pegy - 1.0) * 100.0), 2)
 
 
+def general_loss_valoracion_12m(wl: "Watchlist") -> Optional[float]:
+    """
+    Modo ``general`` con EPS ≤ 0: PEGY usando la misma media de CAGRs que el camino rentable
+    (``blend_growth_pct``: revenue + EPS). PER: NTM si > 0, si no ``per_fair`` > 0.
+
+    El target a 5 años sigue derivándose en ``WatchlistMetricsService`` de la extrapolación
+    sobre el precio a partir de esta valoración (no PER × EPS con pérdidas).
+    """
+    per_for_pegy = None
+    if wl.per_ntm is not None and wl.per_ntm > 0:
+        per_for_pegy = wl.per_ntm
+    elif wl.per_fair is not None and wl.per_fair > 0:
+        per_for_pegy = wl.per_fair
+    g_eff = blend_growth_pct(wl.cagr_revenue_yoy, wl.cagr_eps_yoy)
+    if per_for_pegy is None or g_eff is None:
+        return None
+    return calculate_valoracion_12m_from_g(
+        per_for_pegy,
+        wl.ntm_dividend_yield,
+        g_eff,
+    )
+
+
 def compute_style_b_factor_final(wl: Watchlist) -> float:
     """
     F = f_debt * f_fcf * f_margin * f_roic; F_final en [0,72 .. 1,06].

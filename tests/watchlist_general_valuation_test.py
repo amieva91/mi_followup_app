@@ -4,8 +4,10 @@ from types import SimpleNamespace
 from app.services.watchlist_general_valuation import (
     blend_growth_pct,
     calculate_target_price_5yr_bruto,
+    calculate_valoracion_12m_from_g,
     compute_style_b_factor_final,
     effective_fcf_to_net_income_ratio,
+    general_loss_valoracion_12m,
     general_profitable_pipeline,
     per_terminal_ntm_or_fair,
 )
@@ -154,3 +156,44 @@ def test_general_pipeline_eps_negative():
     )
     v, bruto, f_fin, adj = general_profitable_pipeline(wl)
     assert v is None and bruto is None and f_fin is None and adj is None
+
+
+def test_general_loss_valoracion_revenue_only_matches_pegy_on_revenue():
+    wl = SimpleNamespace(
+        eps=-0.5,
+        per_ntm=12.0,
+        per_fair=18.0,
+        ntm_dividend_yield=1.0,
+        cagr_revenue_yoy=8.0,
+        cagr_eps_yoy=None,
+    )
+    v_loss = general_loss_valoracion_12m(wl)
+    v_ref = calculate_valoracion_12m_from_g(12.0, 1.0, 8.0)
+    assert v_loss == v_ref
+
+
+def test_general_loss_valoracion_uses_blend_when_both_cagrs():
+    wl = SimpleNamespace(
+        eps=-0.5,
+        per_ntm=20.0,
+        per_fair=None,
+        ntm_dividend_yield=2.0,
+        cagr_revenue_yoy=10.0,
+        cagr_eps_yoy=30.0,
+    )
+    g = blend_growth_pct(10.0, 30.0)
+    assert g == 20.0
+    v = general_loss_valoracion_12m(wl)
+    assert v == calculate_valoracion_12m_from_g(20.0, 2.0, 20.0)
+
+
+def test_general_loss_valoracion_fair_per_when_ntm_missing():
+    wl = SimpleNamespace(
+        eps=-1.0,
+        per_ntm=None,
+        per_fair=15.0,
+        ntm_dividend_yield=0.0,
+        cagr_revenue_yoy=5.0,
+        cagr_eps_yoy=None,
+    )
+    assert general_loss_valoracion_12m(wl) == calculate_valoracion_12m_from_g(15.0, 0.0, 5.0)

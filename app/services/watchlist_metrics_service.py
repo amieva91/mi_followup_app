@@ -109,7 +109,8 @@ class WatchlistMetricsService:
         ``precio_final ≈ precio_actual × (1 + valoracion_12m/100)^5``
 
         No es un DCF ni un PER sobre EPS; solo coherencia interna con el PEGY ya mostrado
-        en Valoración 12m para rellenar target y rentas cuando EPS ≤ 0.
+        en Valoración 12m para rellenar target y rentas cuando EPS ≤ 0 (PEGY con blend
+        revenue+EPS vía ``general_loss_valoracion_12m``).
         """
         if precio_actual is None or valoracion_12m_pct is None:
             return None
@@ -483,29 +484,17 @@ class WatchlistMetricsService:
         # Modo general: blend CAGR, PER fair terminal, target bruto + estilo B (plan §8–9).
         # Modo banks / REIT: P/B + BVPS o FFO/AFFO + P/FFO y ajustes F_bank / F_RE (plan §13–14).
         if mode == "general":
-            from app.services.watchlist_general_valuation import general_profitable_pipeline
+            from app.services.watchlist_general_valuation import (
+                general_loss_valoracion_12m,
+                general_profitable_pipeline,
+            )
 
             if watchlist_item.eps is not None and watchlist_item.eps <= 0:
-                # PEGY «solo crecimiento» si hay PER positivo + CAGR → Valoración 12m → Tier / cantidad.
-                # Target 5y: extrapolación heurística desde Valoración 12m (no EPS×(1+g)^5×PER).
+                # PEGY con blend revenue+EPS (misma filosofía que rentable); target 5y: extrapolación
+                # desde esa valoración sobre el precio (no EPS×(1+g)^5×PER con EPS negativo).
                 watchlist_item.target_price_5yr_gross = None
                 watchlist_item.valuation_adjustment_factor = None
-                per_for_pegy = None
-                if watchlist_item.per_ntm is not None and watchlist_item.per_ntm > 0:
-                    per_for_pegy = watchlist_item.per_ntm
-                elif watchlist_item.per_fair is not None and watchlist_item.per_fair > 0:
-                    per_for_pegy = watchlist_item.per_fair
-                if (
-                    per_for_pegy is not None
-                    and watchlist_item.cagr_revenue_yoy is not None
-                ):
-                    watchlist_item.valoracion_12m = WatchlistMetricsService.calculate_valoracion_12m(
-                        per_for_pegy,
-                        watchlist_item.ntm_dividend_yield,
-                        watchlist_item.cagr_revenue_yoy,
-                    )
-                else:
-                    watchlist_item.valoracion_12m = None
+                watchlist_item.valoracion_12m = general_loss_valoracion_12m(watchlist_item)
                 watchlist_item.target_price_5yr = (
                     WatchlistMetricsService.calculate_target_price_5yr_from_valoracion_extrapolation(
                         watchlist_item.precio_actual,
