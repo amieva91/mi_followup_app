@@ -117,7 +117,7 @@ WATCHLIST_IA_EXTRA_KEYS_ORDER: dict[str, tuple[str, ...]] = {
 _IA_EXTRA_KEY_HELP: dict[str, dict[str, str]] = {
     "general": {
         "per_fair": "PER fair u objetivo (múltiplo ×), número o null.",
-        "cagr_eps_yoy": "CAGR EPS 2–3 años, **porcentaje numérico** (ej. 10.0) o null.",
+        "cagr_eps_yoy": "CAGR **compuesto** EPS **2–3 años** (años fiscal inicio→fin en la tabla), **misma base que `eps`** (GAAP o ajustado); % numérico o null. Si el año base tiene EPS ~0 o negativo, null (no CAGR «explosivo» sin contexto).",
         "net_debt_to_ebitda": "Net debt / EBITDA (×) o null.",
         "fcf_margin_pct": "TIKR **Levered Free Cash Flow Margin %**, columna **LTM** (Ratios → Margin analysis), **% numérico** o null.",
         "net_income_margin_pct": "TIKR **Normalized Net Income Margin %**, columna **LTM** (Ratios → Margin analysis), **% numérico** o null.",
@@ -207,15 +207,22 @@ usa `null` si no hay dato verificable, nunca inventes). El objeto debe incluir *
 {"next_earnings_date": "YYYY-MM-DD o null", "per_ntm": null, "ntm_dividend_yield": null, "eps": null, "cagr_revenue_yoy": null}
 ```
 
+**Coherencia obligatoria (prioridad alta):**
+- `eps` y `per_ntm` deben corresponder al **mismo tipo de beneficio y horizonte** (p. ej. ambos **NTM consenso ajustado**, o ambos **GAAP TTM**). En la tabla, columna fuente: indica en texto breve la etiqueta exacta (ej. «EPS básico GAAP TTM», «EPS NTM ajustado FY26»).
+- **Orden de magnitud:** precio por acción reciente y `eps × per_ntm` deben ser **compatibles** (misma moneda **por acción**). Si discrepan por factor ~10 o ~100, revisa **coma decimal**, **unidades** (p. ej. peniques vs libras) o **mezcla GAAP/ajustado** antes de cerrar el JSON; si no cuadra con fuente explícita, `null`.
+- **CAGR vs YoY:** `cagr_revenue_yoy` es **crecimiento compuesto anual entre dos extremos** (ventas), típicamente **2–3 ejercicios fiscales** con años nombrados en la tabla. **No** etiquetar un único **YoY** de un año como «CAGR» sin compuesto.
+- Fuentes: ante duda entre agregador (Yahoo, TIKR, etc.) e **informe oficial** (IR, registro, PDF), prioriza la **cifra reproducible del informe** para EPS/ingresos; el agregador solo si cita el mismo periodo y definición.
+
 **Las cinco claves núcleo (significado y formato):**
 - `next_earnings_date`: próxima fecha de presentación de resultados (earnings), string `YYYY-MM-DD` o `null`.
-- `per_ntm`: PER o P/E **NTM** (número decimal, sin texto).
+- `per_ntm`: PER o P/E **NTM** (número decimal, sin texto), **misma base que `eps`** (ver coherencia arriba).
 - `ntm_dividend_yield`: dividend yield **NTM** en **porcentaje como número** (ej. `2.3` = 2,3 %) o `null`.
-- `eps`: beneficio por acción (EPS), número en la moneda del activo o `null`.
-- `cagr_revenue_yoy`: CAGR de ingresos interanual en **porcentaje como número** (ej. `8.0`) o `null` estimado de los próximos 2 años.
+- `eps`: beneficio **por acción**, número en **moneda del activo por acción** o `null`. Especificar en tabla: **GAAP vs ajustado/normalizado**, **básico vs diluido** si consta, y **periodo** (TTM, NTM, último trimestre anualizado, etc.).
+- `cagr_revenue_yoy`: **CAGR compuesto** de ingresos **2–3 años** en **% numérico** (extremos fiscales indicados en la tabla) o `null` si no hay serie clara; no inventes.
 
 **Reglas:** si las fuentes contradicen, prioriza la más reciente con cita y una sola frase de nota. \
 Los porcentajes en el JSON son siempre **números** (ej. 12.5 para 12,5 %), salvo `reit_leverage_kind` que es texto. \
+Si un campo no es verificable con definición clara, usa **`null`** (mejor que un número ambiguo). \
 Mantén el cuerpo **breve** (prioriza la tabla + JSON; evita capítulos largos).
 """
 
@@ -223,10 +230,12 @@ Mantén el cuerpo **breve** (prioriza la tabla + JSON; evita capítulos largos).
 WATCHLIST_IA_DEEP_POINTS: list[str] = [
     "Verificar empresa = símbolo/ISIN del contexto (no confundir con homónimos).",
     "Earnings: fecha explícita de próximos resultados (IR, exchange, o prensa verificable).",
-    "PER NTM: indicar en la tabla si es forward/NTM y la fuente del dato.",
+    "PER NTM: misma base que EPS (GAAP vs ajustado, TTM vs NTM); fuente y etiqueta en la tabla.",
     "Dividend yield NTM: mismo convenio (NTM); en JSON como porcentaje numérico.",
-    "EPS: unidad y moneda coherentes con el activo.",
-    "CAGR ingresos YoY: definición (periodo) y fuente; en JSON como % numérico.",
+    "EPS: moneda por acción; GAAP vs ajustado; básico/diluido si consta; periodo (TTM/NTM/…).",
+    "CAGR ingresos: compuesto 2–3 años con años fiscal inicio/fin en la tabla; no confundir con un solo YoY.",
+    "CAGR EPS (modo general): mismas reglas que ingresos y misma base que `eps`; si base ~0 o negativa, null en JSON.",
+    "Sanidad: si PER×EPS y precio no son del mismo orden (misma moneda), revisar antes de cerrar el JSON.",
 ]
 
 
