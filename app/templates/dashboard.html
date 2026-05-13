@@ -890,12 +890,23 @@
         if (!L) return;
         var hasAny = (L.wide && L.wide.length) || (L.tail && L.tail.length) || (L.normal && L.normal.length);
         if (!hasAny) return;
+        function collectById() {
+            var wide = document.getElementById('sortable-widgets-wide');
+            var tail = document.getElementById('sortable-widgets-tail');
+            var normal = document.getElementById('sortable-widgets-normal');
+            var byId = {};
+            [wide, tail, normal].forEach(function (container) {
+                if (!container) return;
+                Array.prototype.forEach.call(container.querySelectorAll(':scope > [data-card-id]'), function (c) {
+                    var id = c.getAttribute('data-card-id');
+                    if (id) byId[id] = c;
+                });
+            });
+            return byId;
+        }
         function apply(container, order) {
             if (!container || !order || !order.length) return;
-            var byId = {};
-            Array.prototype.forEach.call(container.querySelectorAll('[data-card-id]'), function (c) {
-                byId[c.getAttribute('data-card-id')] = c;
-            });
+            var byId = collectById();
             order.forEach(function (id) {
                 var el = byId[id];
                 if (el) container.appendChild(el);
@@ -1144,15 +1155,40 @@ function selectPeriod(months, btn) {
 const DASHBOARD_LAYOUT_PERSIST_URL = {{ url_for("main.dashboard_layout") | tojson }};
 const DASHBOARD_LAYOUT_PERSIST_CSRF = {{ csrf_token() | tojson }};
 
+/** Mapa id → nodo de tarjeta buscando en los 3 carriles (tail suele llegar vacío en el HTML). */
+function dashboardLayoutCardsById() {
+    const wide = document.getElementById('sortable-widgets-wide');
+    const tail = document.getElementById('sortable-widgets-tail');
+    const normal = document.getElementById('sortable-widgets-normal');
+    const byId = {};
+    [wide, tail, normal].forEach((container) => {
+        if (!container) return;
+        container.querySelectorAll(':scope > [data-card-id]').forEach((el) => {
+            const id = el.dataset.cardId;
+            if (id) byId[id] = el;
+        });
+    });
+    return byId;
+}
+
+function dashboardLayoutApplyOrder(container, order) {
+    if (!container || !order || !order.length) return;
+    const byId = dashboardLayoutCardsById();
+    order.forEach((id) => {
+        const el = byId[id];
+        if (el) container.appendChild(el);
+    });
+}
+
 function persistDashboardLayoutFromDom() {
     const wide = document.getElementById('sortable-widgets-wide');
     const tail = document.getElementById('sortable-widgets-tail');
     const normal = document.getElementById('sortable-widgets-normal');
     if (!wide || !tail || !normal) return Promise.resolve();
 
-    const w = Array.from(wide.querySelectorAll('[data-card-id]')).map(function (c) { return c.dataset.cardId; }).filter(Boolean);
-    const t = Array.from(tail.querySelectorAll('[data-card-id]')).map(function (c) { return c.dataset.cardId; }).filter(Boolean);
-    const n = Array.from(normal.querySelectorAll('[data-card-id]')).map(function (c) { return c.dataset.cardId; }).filter(Boolean);
+    const w = Array.from(wide.querySelectorAll(':scope > [data-card-id]')).map(function (c) { return c.dataset.cardId; }).filter(Boolean);
+    const t = Array.from(tail.querySelectorAll(':scope > [data-card-id]')).map(function (c) { return c.dataset.cardId; }).filter(Boolean);
+    const n = Array.from(normal.querySelectorAll(':scope > [data-card-id]')).map(function (c) { return c.dataset.cardId; }).filter(Boolean);
 
     try {
         localStorage.setItem('dashboard_card_order_wide', JSON.stringify(w));
@@ -1221,18 +1257,8 @@ function dashboardConfig() {
             const savedNormal = localStorage.getItem('dashboard_card_order_normal');
             const savedLegacy = localStorage.getItem('dashboard_card_order');
 
-            const applyOrder = (container, order) => {
-                const cards = container.querySelectorAll('[data-card-id]');
-                const byId = {};
-                cards.forEach(c => { byId[c.dataset.cardId] = c; });
-                order.forEach(id => {
-                    const el = byId[id];
-                    if (el) container.appendChild(el);
-                });
-            };
-
             const splitLegacy = (order) => {
-                const wideIds = new Set(Array.from(wide.querySelectorAll('[data-card-id]')).map(c => c.dataset.cardId));
+                const wideIds = new Set(Array.from(wide.querySelectorAll(':scope > [data-card-id]')).map(c => c.dataset.cardId));
                 const w = [], n = [];
                 order.forEach(id => (wideIds.has(id) ? w : n).push(id));
                 return { w, n };
@@ -1240,26 +1266,19 @@ function dashboardConfig() {
 
             try {
                 if (savedWide && savedNormal) {
-                    applyOrder(wide, JSON.parse(savedWide));
-                    if (savedTail) applyOrder(tail, JSON.parse(savedTail));
-                    applyOrder(normal, JSON.parse(savedNormal));
+                    this.applyOrder(wide, JSON.parse(savedWide));
+                    if (savedTail) this.applyOrder(tail, JSON.parse(savedTail));
+                    this.applyOrder(normal, JSON.parse(savedNormal));
                 } else if (savedLegacy) {
                     const legacy = JSON.parse(savedLegacy);
                     const { w, n } = splitLegacy(legacy);
-                    applyOrder(wide, w);
-                    applyOrder(normal, n);
+                    this.applyOrder(wide, w);
+                    this.applyOrder(normal, n);
                 }
             } catch (e) { /* ignore */ }
         },
         applyOrder(container, order) {
-            if (!container) return;
-            const cards = container.querySelectorAll('[data-card-id]');
-            const byId = {};
-            cards.forEach(c => { byId[c.dataset.cardId] = c; });
-            (order || []).forEach(id => {
-                const el = byId[id];
-                if (el) container.appendChild(el);
-            });
+            dashboardLayoutApplyOrder(container, order);
         },
         async loadWidgetOrderFromServer(options) {
             const opts = options || {};
@@ -1520,7 +1539,7 @@ function dashboardConfig() {
             if (!wide || !tail || !normal) return;
 
             // Solo balancear si todavía no hay nada en tail
-            if (tail.querySelector('[data-card-id]')) return;
+            if (tail.querySelector(':scope > [data-card-id]')) return;
 
             // Medimos alturas actuales
             const wideHeight = wide.getBoundingClientRect().height;
@@ -2179,7 +2198,7 @@ async function pollDashboardState() {
         if (!resp.ok) return;
         const data = await resp.json();
         if (!data.has_cache) {
-            // Cache invalidado o caducado: los datos en pantalla pueden estar obsoletos hasta F5
+            // Cache invalidado o caducado: datos en pantalla pueden estar obsoletos hasta F5
             return;
         }
         const meta = data.meta || {};
@@ -2215,7 +2234,25 @@ async function pollDashboardState() {
             }
         }
     } catch (e) {
-        /* red; reintento en siguiente ciclo */
+        /* siguiente ciclo */
+    }
+}
+
+/** GET /dashboard/state: refresco ligero (patrimonio NOW, precios). Una petición en vuelo; el siguiente tick tras terminar (evita colas como con setInterval). */
+const DASHBOARD_STATE_POLL_MS = 30000;
+let _dashboardStatePollTimer = null;
+
+function scheduleDashboardStatePoll(delayMs) {
+    if (_dashboardStatePollTimer) clearTimeout(_dashboardStatePollTimer);
+    _dashboardStatePollTimer = setTimeout(runDashboardStatePollChain, delayMs);
+}
+
+async function runDashboardStatePollChain() {
+    _dashboardStatePollTimer = null;
+    try {
+        await pollDashboardState();
+    } finally {
+        scheduleDashboardStatePoll(DASHBOARD_STATE_POLL_MS);
     }
 }
 
@@ -2250,8 +2287,8 @@ async function pollDashboardState() {
     });
 })();
 
-// Polling cada 30s mientras la pestaña está abierta
-setInterval(pollDashboardState, 30000);
+// Primer poll a los 30s; los siguientes siempre N ms después de que termine la petición anterior (no se encolan).
+scheduleDashboardStatePoll(DASHBOARD_STATE_POLL_MS);
 
 // Pintar staleness inicial (si viene en summary)
 try {
