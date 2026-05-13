@@ -1249,8 +1249,8 @@
     </div>
 </div>
 
-<!-- Modal de Confirmación -->
-<div id="confirmModal" class="hidden fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55" onclick="if(event.target===this) closeConfirmModal(false)">
+<!-- Modal de Confirmación (z alto para poder confirmar sobre el modal de notas) -->
+<div id="confirmModal" class="hidden fixed inset-0 z-[75] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55" onclick="if(event.target===this) closeConfirmModal(false)">
     <div class="watchlist-modal-surface w-full max-w-md p-5 sm:p-6" onclick="event.stopPropagation()">
         <h3 class="text-lg font-semibold text-slate-900 mb-2" id="confirmModalTitle">Confirmar acción</h3>
         <p class="text-sm text-slate-600 mb-6" id="confirmModalMessage">¿Estás seguro de que quieres realizar esta acción?</p>
@@ -1609,13 +1609,22 @@ function buildWatchlistCommentRow(c) {
         span.textContent = '(editado)';
         dtWrap.appendChild(span);
     }
+    const actions = document.createElement('div');
+    actions.className = 'flex flex-wrap items-center gap-2';
     const editBtn = document.createElement('button');
     editBtn.type = 'button';
     editBtn.className = 'text-xs font-semibold text-teal-700 hover:text-teal-900';
     editBtn.textContent = 'Editar';
     editBtn.onclick = function () { startWatchlistCommentEdit(c.id); };
+    const delBtn = document.createElement('button');
+    delBtn.type = 'button';
+    delBtn.className = 'text-xs font-semibold text-rose-600 hover:text-rose-800';
+    delBtn.textContent = 'Borrar';
+    delBtn.onclick = function () { requestDeleteWatchlistComment(c.id); };
+    actions.appendChild(editBtn);
+    actions.appendChild(delBtn);
     head.appendChild(dtWrap);
-    head.appendChild(editBtn);
+    head.appendChild(actions);
 
     const view = document.createElement('div');
     view.className = 'wl-comment-view text-sm text-slate-800 whitespace-pre-wrap';
@@ -1752,6 +1761,34 @@ function cancelWatchlistCommentEdit(commentId) {
     if (e) e.classList.add('hidden');
 }
 
+async function requestDeleteWatchlistComment(commentId) {
+    const widEl = document.getElementById('watchlistCommentsWatchlistId');
+    const wid = widEl && widEl.value;
+    if (!wid) return;
+    showConfirmModal(
+        'Borrar comentario',
+        '¿Eliminar este comentario? No se puede deshacer.',
+        async function () {
+            watchlistCommentsShowError('');
+            try {
+                const response = await fetch(
+                    '/portfolio/watchlist/' + encodeURIComponent(wid) + '/comments/' + encodeURIComponent(commentId),
+                    { method: 'DELETE' }
+                );
+                const data = await response.json();
+                if (!data.success) {
+                    watchlistCommentsShowError(data.error || 'No se pudo borrar');
+                    return;
+                }
+                await refreshWatchlistCommentsList();
+            } catch (e) {
+                console.error(e);
+                watchlistCommentsShowError('Error de red al borrar');
+            }
+        }
+    );
+}
+
 async function saveWatchlistCommentEdit(commentId) {
     const widEl = document.getElementById('watchlistCommentsWatchlistId');
     const wid = widEl && widEl.value;
@@ -1830,6 +1867,13 @@ function showConfirmModal(title, message, callback) {
 function closeConfirmModal(confirmed) {
     document.getElementById('confirmModal').classList.add('hidden');
     document.body.style.overflow = '';
+    const commentsOpen = document.getElementById('watchlistCommentsModal') &&
+        !document.getElementById('watchlistCommentsModal').classList.contains('hidden');
+    const editOpen = document.getElementById('editWatchlistModal') &&
+        !document.getElementById('editWatchlistModal').classList.contains('hidden');
+    if (commentsOpen || editOpen) {
+        document.body.style.overflow = 'hidden';
+    }
     if (confirmed && confirmCallback) {
         confirmCallback();
     }

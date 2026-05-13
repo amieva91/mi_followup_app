@@ -1080,11 +1080,12 @@ def watchlist_comments_create(watchlist_id):
 
 
 @portfolio_bp.route(
-    "/watchlist/<int:watchlist_id>/comments/<int:comment_id>", methods=["PATCH"]
+    "/watchlist/<int:watchlist_id>/comments/<int:comment_id>",
+    methods=["PATCH", "DELETE"],
 )
 @login_required
 @csrf.exempt
-def watchlist_comments_update(watchlist_id, comment_id):
+def watchlist_comments_item(watchlist_id, comment_id):
     wl = _watchlist_owned_or_404(watchlist_id)
     if not wl:
         return jsonify({"success": False, "error": "No encontrado o no autorizado"}), 404
@@ -1093,6 +1094,11 @@ def watchlist_comments_update(watchlist_id, comment_id):
     ).first()
     if not c or c.user_id != current_user.id:
         return jsonify({"success": False, "error": "Comentario no encontrado"}), 404
+    if request.method == "DELETE":
+        db.session.delete(c)
+        db.session.commit()
+        return jsonify({"success": True})
+
     data = request.get_json(silent=True) or {}
     body = (data.get("body") or "").strip()
     if not body:
