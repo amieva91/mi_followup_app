@@ -556,7 +556,12 @@
                                 {% if gemini_available %}
                                 <button type="button" onclick="queueWatchlistRowDeepResearch({{ asset.id }})" class="text-violet-700 hover:text-violet-900 text-sm font-semibold" title="Informe IA exhaustivo (Deep Research). No sustituye campos con origen tuyo; resetea o vacía antes si quieres que la IA los rellene. Puedes encolar varias filas">🔬</button>
                                 {% endif %}
-                                <button type="button" onclick="openWatchlistCommentsModal({{ watchlist_item.id }}, {{ (asset.symbol or asset.name or '')|tojson }})" class="text-slate-600 hover:text-slate-900 text-sm" title="Notas y comentarios (fecha y hora; estilo hilo)">💬</button>
+                                <button type="button"
+                                    class="text-slate-600 hover:text-slate-900 text-sm"
+                                    title="Notas y comentarios (fecha y hora; estilo hilo)"
+                                    data-watchlist-id="{{ watchlist_item.id }}"
+                                    data-asset-label="{{ (asset.symbol or asset.name or '')|e }}"
+                                    onclick="openWatchlistCommentsModalFromBtn(this)">💬</button>
                                 <button type="button" onclick="resetWatchlistManualFields({{ watchlist_item.id }})" class="text-amber-600 hover:text-amber-800 text-sm" title="Borrar todos los inputs manuales de valoración (origen usuario o IA)">⟲</button>
                                 <button onclick="editWatchlistItem({{ watchlist_item.id }}, {{ asset.id }})" class="text-blue-600 hover:text-blue-800 text-sm" title="Editar">
                                     ✏️
@@ -1680,6 +1685,14 @@ async function refreshWatchlistCommentsList() {
         watchlistCommentsShowError('Error de red al cargar comentarios');
         renderWatchlistCommentsList([]);
     }
+}
+
+function openWatchlistCommentsModalFromBtn(btn) {
+    if (!btn) return;
+    const wid = parseInt(btn.getAttribute('data-watchlist-id') || '', 10);
+    const label = btn.getAttribute('data-asset-label') || '';
+    if (!wid) return;
+    openWatchlistCommentsModal(wid, label);
 }
 
 async function openWatchlistCommentsModal(watchlistId, assetLabel) {
