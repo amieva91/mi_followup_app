@@ -1,7 +1,7 @@
 """
 Rutas de transacciones
 """
-from datetime import datetime
+from datetime import date, datetime
 from flask import render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
 
@@ -9,6 +9,25 @@ from app.routes import portfolio_bp
 from app import db
 from app.models import BrokerAccount, Asset, Transaction, PortfolioHolding
 from app.forms import ManualTransactionForm
+
+
+def _touch_portfolio_evolution_cache_for_txn_dates(user_id: int, dates) -> None:
+    """Hoy → dirty_now en caché performance; pasado → needs_full_rebuild (HIST+NOW en próximo get_state)."""
+    from app.services.portfolio_evolution_cache import PortfolioEvolutionCacheService
+
+    norm: list[date] = []
+    for d in dates:
+        if d is None:
+            continue
+        if isinstance(d, datetime):
+            d = d.date()
+        if isinstance(d, date):
+            norm.append(d)
+    if not norm:
+        return
+    unique = list(dict.fromkeys(norm))
+    PortfolioEvolutionCacheService.touch_for_dates(user_id, unique)
+
 
 @portfolio_bp.route('/transactions')
 @login_required
@@ -195,6 +214,11 @@ def transaction_edit(id):
     ]
     
     if form.validate_on_submit():
+        old_txn_date = (
+            transaction.transaction_date.date()
+            if isinstance(transaction.transaction_date, datetime)
+            else transaction.transaction_date
+        )
         # Actualizar datos del asset si cambió
         asset = transaction.asset
         if asset:
@@ -246,7 +270,8 @@ def transaction_edit(id):
         from app.services.cache_rebuild_state_service import CacheRebuildStateService
         txn_date = transaction.transaction_date.date() if isinstance(transaction.transaction_date, datetime) else transaction.transaction_date
         CacheRebuildStateService.mark_for_dates(current_user.id, dates=[txn_date])
-        
+        _touch_portfolio_evolution_cache_for_txn_dates(current_user.id, [old_txn_date, txn_date])
+
         flash('✅ Transacción actualizada correctamente. Holdings recalculados.', 'success')
         return redirect(url_for('portfolio.transactions_list'))
     
@@ -308,8 +333,9 @@ def transaction_delete(id):
     # Encolar rebuild para worker (criterio unificado por fecha)
     from app.services.cache_rebuild_state_service import CacheRebuildStateService
     CacheRebuildStateService.mark_for_dates(current_user.id, dates=[txn_date])
-    
-    flash(f'✅ Transacción de {asset_symbol} eliminada correctamente. Holdings recalculados.', 'success')
+    _touch_portfolio_evolution_cache_for_txn_dates(current_user.id, [txn_date])
+
+    flash(f'✅ Transacción de {asset_symbol} eliminada correctamente', 'success')
     next_url = (request.form.get('next') or '').strip()
     if next_url.startswith('/') and not next_url.startswith('//') and '..' not in next_url:
         return redirect(next_url)
@@ -489,7 +515,8 @@ def transaction_new():
         from app.services.cache_rebuild_state_service import CacheRebuildStateService
         d = form.transaction_date.data
         CacheRebuildStateService.mark_for_dates(current_user.id, dates=[d])
-        
+        _touch_portfolio_evolution_cache_for_txn_dates(current_user.id, [d])
+
         action_text = 'compra' if form.transaction_type.data == 'BUY' else 'venta'
         flash(f'✅ {form.transaction_type.data} de {form.symbol.data} registrada correctamente', 'success')
         return redirect(url_for('portfolio.holdings_list'))
