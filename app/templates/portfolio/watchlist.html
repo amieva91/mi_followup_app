@@ -221,22 +221,25 @@
                                 <span class="cursor-help text-gray-400" title="Calculado: diferencia en EUR entre tu valor en cartera y la cantidad objetivo del Tier. Positivo = comprar, negativo = vender. Verde / amarillo / rojo según desviación % respecto al objetivo (umbrales en Ajustes → «Cantidad vs objetivo del Tier»).">ⓘ</span>
                             </span>
                         </th>
-                        <th class="px-4 py-3 text-right font-semibold uppercase">
+                        <th class="px-4 py-3 text-right font-semibold uppercase cursor-pointer hover:bg-slate-200/60" onclick="sortTable(5, 'number')">
                             <span class="flex items-center justify-end gap-1">
                                 Rent. 5 años (%)
-                                <span class="cursor-help text-gray-400" title="Calculado: (Target Price - Precio actual) / Precio actual * 100 + (Dividend Yield * 5 años). Basado en Target Price (5 yr). Modo general con EPS≤0: el target se extrapola desde Valoración 12m (ver columna Target).">ⓘ</span>
+                                <span class="cursor-help text-gray-400" onclick="event.stopPropagation()" title="Calculado: (Target Price - Precio actual) / Precio actual * 100 + (Dividend Yield * 5 años). Basado en Target Price (5 yr). Modo general con EPS≤0: el target se extrapola desde Valoración 12m (ver columna Target).">ⓘ</span>
+                                <span class="sort-arrow">⇅</span>
                             </span>
                         </th>
-                        <th class="px-4 py-3 text-right font-semibold uppercase">
+                        <th class="px-4 py-3 text-right font-semibold uppercase cursor-pointer hover:bg-slate-200/60" onclick="sortTable(6, 'number')">
                             <span class="flex items-center justify-end gap-1">
                                 Valoración 12m (%)
-                                <span class="cursor-help text-gray-400" title="Modo general: PEGY con g = media de CAGR revenue y CAGR EPS. Modo banco: desviación vs precio fair P/B. Modo REIT: vs fair P/FFO sobre AFFO/FFO. Sin datos suficientes: vacío.">ⓘ</span>
+                                <span class="cursor-help text-gray-400" onclick="event.stopPropagation()" title="Modo general: PEGY con g = media de CAGR revenue y CAGR EPS. Modo banco: desviación vs precio fair P/B. Modo REIT: vs fair P/FFO sobre AFFO/FFO. Sin datos suficientes: vacío.">ⓘ</span>
+                                <span class="sort-arrow">⇅</span>
                             </span>
                         </th>
-                        <th class="px-4 py-3 text-right font-semibold uppercase">
+                        <th class="px-4 py-3 text-right font-semibold uppercase cursor-pointer hover:bg-slate-200/60" onclick="sortTable(7, 'number')">
                             <span class="flex items-center justify-end gap-1">
                                 Rent. Anual (%)
-                                <span class="cursor-help text-gray-400" title="Calculado: Rentabilidad anualizada a 5 años + Dividend Yield anual. Basado en Target Price (5 yr). Modo general con EPS≤0: mismo target extrapolado desde Valoración 12m.">ⓘ</span>
+                                <span class="cursor-help text-gray-400" onclick="event.stopPropagation()" title="Calculado: Rentabilidad anualizada a 5 años + Dividend Yield anual. Basado en Target Price (5 yr). Modo general con EPS≤0: mismo target extrapolado desde Valoración 12m.">ⓘ</span>
+                                <span class="sort-arrow">⇅</span>
                             </span>
                         </th>
                         <th class="px-4 py-3 text-right font-semibold uppercase">
@@ -439,7 +442,7 @@
                         </td>
                         
                         <!-- Rentabilidad a 5 años (%) -->
-                        <td class="px-4 py-3 whitespace-nowrap text-right">
+                        <td class="px-4 py-3 whitespace-nowrap text-right" data-sort-value="{% if watchlist_item and watchlist_item.rentabilidad_5yr is not none %}{{ watchlist_item.rentabilidad_5yr }}{% endif %}">
                             {% if watchlist_item and watchlist_item.rentabilidad_5yr is not none %}
                                 {% set rent5yr = watchlist_item.rentabilidad_5yr %}
                                 {% set r5yr_thresholds = color_thresholds.rentabilidad_5yr if color_thresholds and color_thresholds.rentabilidad_5yr else {} %}
@@ -458,7 +461,7 @@
                         </td>
                         
                         <!-- Valoración actual 12 meses (%) con colores -->
-                        <td class="px-4 py-3 whitespace-nowrap text-right">
+                        <td class="px-4 py-3 whitespace-nowrap text-right" data-sort-value="{% if watchlist_item and watchlist_item.valoracion_12m is not none %}{{ watchlist_item.valoracion_12m }}{% endif %}">
                             {% if watchlist_item and watchlist_item.valoracion_12m is not none %}
                                 {% set valoracion = watchlist_item.valoracion_12m %}
                                 {% set v_thresholds = color_thresholds.valoracion_12m if color_thresholds and color_thresholds.valoracion_12m else {} %}
@@ -477,7 +480,7 @@
                         </td>
                         
                         <!-- Rentabilidad Anual (%) -->
-                        <td class="px-4 py-3 whitespace-nowrap text-right">
+                        <td class="px-4 py-3 whitespace-nowrap text-right" data-sort-value="{% if watchlist_item and watchlist_item.rentabilidad_anual is not none %}{{ watchlist_item.rentabilidad_anual }}{% endif %}">
                             {% if watchlist_item and watchlist_item.rentabilidad_anual is not none %}
                                 {% set rentAnual = watchlist_item.rentabilidad_anual %}
                                 {% set rAnual_thresholds = color_thresholds.rentabilidad_anual if color_thresholds and color_thresholds.rentabilidad_anual else {} %}
@@ -2770,8 +2773,38 @@ function sortTable(columnIndex, type) {
             valueA = (cellA.textContent || '').trim().toLowerCase();
             valueB = (cellB.textContent || '').trim().toLowerCase();
         } else if (type === 'number') {
-            valueA = parseFloat(cellA.textContent.replace(/[^\d.,-]/g, '').replace(',', '.')) || 0;
-            valueB = parseFloat(cellB.textContent.replace(/[^\d.,-]/g, '').replace(',', '.')) || 0;
+            const attrA = cellA.getAttribute('data-sort-value');
+            const attrB = cellB.getAttribute('data-sort-value');
+            let numA = null;
+            let numB = null;
+            if (attrA !== null && attrA !== '') {
+                const p = parseFloat(attrA);
+                if (Number.isFinite(p)) numA = p;
+            }
+            if (attrB !== null && attrB !== '') {
+                const p = parseFloat(attrB);
+                if (Number.isFinite(p)) numB = p;
+            }
+            if (numA === null) {
+                const t = (cellA.textContent || '').trim();
+                if (t && t !== '—') {
+                    const p = parseFloat(t.replace(/[^\d.,-]/g, '').replace(',', '.'));
+                    if (Number.isFinite(p)) numA = p;
+                }
+            }
+            if (numB === null) {
+                const t = (cellB.textContent || '').trim();
+                if (t && t !== '—') {
+                    const p = parseFloat(t.replace(/[^\d.,-]/g, '').replace(',', '.'));
+                    if (Number.isFinite(p)) numB = p;
+                }
+            }
+            const emptyA = numA === null;
+            const emptyB = numB === null;
+            const sentA = emptyA ? (direction === 'asc' ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY) : numA;
+            const sentB = emptyB ? (direction === 'asc' ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY) : numB;
+            valueA = sentA;
+            valueB = sentB;
         } else {
             valueA = cellA.textContent || '';
             valueB = cellB.textContent || '';
