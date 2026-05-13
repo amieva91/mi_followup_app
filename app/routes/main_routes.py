@@ -1,6 +1,8 @@
 """
 Rutas principales de la aplicación
 """
+import json
+
 from flask import render_template, redirect, url_for, request, jsonify, flash
 from flask_login import login_required, current_user
 from datetime import datetime, date
@@ -387,13 +389,22 @@ def dashboard_layout():
     Persistencia del orden de tarjetas del Dashboard global por usuario.
 
     - GET: devuelve {wide:[], tail:[], normal:[]}
-    - POST: recibe {wide:[], tail:[], normal:[]} y persiste posiciones
+    - POST: recibe {wide:[], tail:[], normal:[]} y persiste posiciones.
+      También acepta multipart/form (sendBeacon): csrf_token + layout (JSON string).
     """
     if request.method == 'GET':
         out = UserDashboardLayout.get_layout_dict(current_user.id)
         return jsonify({'success': True, 'layout': out}), 200
 
-    data = request.get_json(silent=True) or {}
+    data = None
+    layout_raw = request.form.get('layout')
+    if layout_raw:
+        try:
+            data = json.loads(layout_raw)
+        except (TypeError, ValueError):
+            data = None
+    if data is None:
+        data = request.get_json(silent=True) or {}
     wide = data.get('wide') or []
     tail = data.get('tail') or []
     normal = data.get('normal') or []

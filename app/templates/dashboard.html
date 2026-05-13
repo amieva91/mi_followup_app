@@ -1125,7 +1125,8 @@ function selectPeriod(months, btn) {
     evolutionChart.update();
 }
 
-// Orden del dashboard: fetch normal se puede abortar al recargar; keepalive + pagehide lo evitan.
+// Orden del dashboard: sendBeacon (multipart + csrf) + fetch keepalive en paralelo;
+// el beacon está pensado para sobrevivir a F5/cierre; el POST JSON sirve de respaldo.
 const DASHBOARD_LAYOUT_PERSIST_URL = {{ url_for("main.dashboard_layout") | tojson }};
 const DASHBOARD_LAYOUT_PERSIST_CSRF = {{ csrf_token() | tojson }};
 
@@ -1145,6 +1146,17 @@ function persistDashboardLayoutFromDom() {
         localStorage.setItem('dashboard_card_order_normal', JSON.stringify(n));
     } catch (e) { /* ignore */ }
 
+    const payload = JSON.stringify({ wide: w, tail: t, normal: n });
+
+    if (typeof navigator.sendBeacon === 'function') {
+        try {
+            const fd = new FormData();
+            fd.append('csrf_token', DASHBOARD_LAYOUT_PERSIST_CSRF);
+            fd.append('layout', payload);
+            navigator.sendBeacon(DASHBOARD_LAYOUT_PERSIST_URL, fd);
+        } catch (e) { /* ignore */ }
+    }
+
     try {
         return fetch(DASHBOARD_LAYOUT_PERSIST_URL, {
             method: 'POST',
@@ -1154,7 +1166,7 @@ function persistDashboardLayoutFromDom() {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': DASHBOARD_LAYOUT_PERSIST_CSRF
             },
-            body: JSON.stringify({ wide: w, tail: t, normal: n })
+            body: payload
         }).catch(function () {});
     } catch (e) {
         return Promise.resolve();
