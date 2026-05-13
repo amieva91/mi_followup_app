@@ -192,7 +192,8 @@ def run_poll_one() -> Optional[Dict[str, Any]]:
 def _invalidate_caches_for_asset(asset_id: int) -> None:
     """
     Caches que dependen del precio del activo.
-    Benchmarks: solo dirty_now (no borrar serie HIST global en caché por usuario).
+    Evolución del portfolio y benchmarks: solo dirty_now (no borrar la serie HIST
+    en caché; el último punto se recalcula en get_state vía _recompute_now_last_point).
     """
     from app.services.portfolio_evolution_cache import PortfolioEvolutionCacheService
     from app.services.portfolio_benchmarks_cache import PortfolioBenchmarksCacheService
@@ -207,7 +208,7 @@ def _invalidate_caches_for_asset(asset_id: int) -> None:
         user_ids.add(row[0])
 
     for uid in user_ids:
-        PortfolioEvolutionCacheService.invalidate(uid)
+        PortfolioEvolutionCacheService.touch_for_prices_update(uid)
         PortfolioBenchmarksCacheService.touch_for_prices_update(uid)
         from app.services.dashboard_summary_cache import DashboardSummaryCacheService
 
