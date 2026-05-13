@@ -13,6 +13,8 @@
 #
 # Volver a la rama de producción habitual (main): ./subidaPRO.sh
 #
+# Tras pull/migraciones reinicia followup.service y followup-jobs.service (worker de informes/TTS/cola DB).
+#
 set -euo pipefail
 
 PROJECT="gen-lang-client-0658912226"
@@ -75,10 +77,13 @@ sudo -u followup bash -lc 'cd /var/www/followup && ./scripts/install_analyst_con
 echo "   ✓ Cron consenso OK"
 INNER
 
-echo "🔄 Reiniciando aplicación..."
+echo "🔄 Reiniciando aplicación y worker de colas (informes)..."
 sudo systemctl restart followup.service
 sleep 2
 sudo systemctl is-active followup.service
+sudo systemctl restart followup-jobs.service
+sleep 1
+sudo systemctl is-active followup-jobs.service
 echo ""
 echo "=========================================="
 echo "✅ Rama experimental desplegada: ${BRANCH}"

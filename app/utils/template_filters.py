@@ -89,6 +89,13 @@ def about_markdown_to_html(value):
         return s.replace('\n', '<br>\n')
 
 
+def model_attr(obj, name):
+    """Acceso dinámico a un atributo por nombre (p. ej. columnas de Watchlist en macros Jinja)."""
+    if obj is None or name is None:
+        return None
+    return getattr(obj, str(name), None)
+
+
 def register_filters(app):
     """
     Registra los filtros personalizados en la aplicación Flask
@@ -98,4 +105,5 @@ def register_filters(app):
     app.jinja_env.filters['month_es'] = format_month_es
     app.jinja_env.filters['user_has_module'] = user_has_module
     app.jinja_env.filters['about_markdown'] = about_markdown_to_html
+    app.jinja_env.filters['model_attr'] = model_attr
 

@@ -468,7 +468,7 @@
             <div x-show="activeTab === 'reports'" x-cloak>
                 <div class="mb-4">
                     <h3 class="text-lg font-medium text-gray-900">Informes de investigación</h3>
-                    <p class="text-sm text-slate-600 mt-1 max-w-3xl">Aquí se genera el informe con <strong>Deep Research</strong> (Gemini). Elige plantilla: <strong class="text-teal-800">Generar informe</strong> solo el texto, o <strong class="text-indigo-800">Informe + audio + correo</strong> (un solo clic: investigación, resumen de voz y envío a tu email).</p>
+                    <p class="text-sm text-slate-600 mt-1 max-w-3xl">Aquí se genera el informe con <strong>Deep Research</strong> (Gemini). Elige plantilla: <strong class="text-teal-800">Generar informe</strong> solo el texto, o <strong class="text-indigo-800">Informe + correo</strong> (un solo clic: investigación y envío a tu email).</p>
                 </div>
                 <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-start">
                     {% if gemini_available and has_valid_templates %}
@@ -486,8 +486,8 @@
                         <button type="button" onclick="generateReport()" id="btnGenerateReport" class="portfolio-touch-btn px-4 py-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 shadow-[0_8px_16px_rgba(13,148,136,0.25)] w-full sm:w-auto text-center">
                             Solo generar informe
                         </button>
-                        <button type="button" onclick="generateReportAndDeliver()" id="btnGenerateReportDeliver" class="portfolio-touch-btn px-4 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 shadow-[0_8px_16px_rgba(79,70,229,0.2)] w-full sm:w-auto text-center ring-2 ring-indigo-300/50" title="Un solo clic: informe Deep Research, audio resumen (es-ES) y envío a tu correo. Puedes salir de la pantalla.">
-                            Todo en uno: informe + audio + correo
+                        <button type="button" onclick="generateReportAndDeliver()" id="btnGenerateReportDeliver" class="portfolio-touch-btn px-4 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 shadow-[0_8px_16px_rgba(79,70,229,0.2)] w-full sm:w-auto text-center ring-2 ring-indigo-300/50" title="Un solo clic: informe Deep Research y envío a tu correo. Puedes salir de la pantalla.">
+                            Todo en uno: informe + correo
                         </button>
                         </div>
                         </div>
@@ -498,42 +498,37 @@
                         Solo generar informe
                     </button>
                     <button type="button" disabled title="Crea al menos una plantilla en Ajustes de informes" class="px-4 py-2 bg-slate-200 text-slate-500 rounded-xl cursor-not-allowed border border-slate-300 w-full sm:w-auto">
-                        Todo en uno: informe + audio + correo
+                        Todo en uno: informe + correo
                     </button>
                     </div>
                     {% else %}
                     <span class="text-sm text-gray-400">GEMINI_API_KEY no configurada</span>
                     {% endif %}
                 </div>
-                <div id="reportGenerateLoading" class="hidden mb-4 p-3 bg-sky-50/90 text-sky-900 border border-sky-200/80 rounded-xl text-sm" data-poll-id="">
+                <div id="reportGenerateLoading" class="hidden mb-4 p-3 bg-slate-50 text-slate-900 border border-slate-200 rounded-xl text-sm" data-poll-id="">
                     Generando informe... Puede tardar varios minutos.
                 </div>
                 <div id="reportsList" class="space-y-3">
-                    <!-- Se carga vía JS -->
+                    <!-- Se carga vía JS; el detalle se inserta bajo la fila activa -->
                 </div>
-                <div id="reportDetail" class="hidden mt-4 p-4 asset-inner-panel">
+                <!-- Sin dimensiones cuando está vacío; si el panel queda aquí cerrado, no ocupa espacio -->
+                <div id="reportDetailStash">
+                <div id="reportDetail" class="hidden p-4 asset-inner-panel rounded-b-xl border-t-0 shadow-inner">
                     <div class="flex justify-between items-center mb-2">
                         <span class="text-sm text-gray-500" id="reportDetailDate"></span>
                         <button onclick="closeReportDetail()" class="text-gray-500 hover:text-gray-700 text-sm">Cerrar</button>
                     </div>
                     <div id="reportDetailActions" class="flex flex-wrap gap-2 mb-3">
                         <button type="button" onclick="sendReportEmail()" id="btnSendReportEmail" class="hidden portfolio-touch-btn px-3 py-1.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 text-sm">Enviar por correo</button>
-                        <button type="button" onclick="generateReportAudio()" id="btnGenerateAudio" class="hidden portfolio-touch-btn px-3 py-1.5 bg-slate-600 text-white rounded-xl hover:bg-slate-700 text-sm">Generar audio resumen</button>
-                        <button type="button" onclick="retryReportAudio()" id="btnRetryAudio" class="hidden portfolio-touch-btn px-3 py-1.5 bg-amber-500 text-white rounded-xl hover:bg-amber-600 text-sm" title="Borra el audio actual y genera de nuevo (p. ej. versión larga)">Reintentar / regenerar audio</button>
-                        <span id="reportAudioStatus" class="hidden px-3 py-1.5 rounded-xl text-sm"></span>
-                        <a id="btnDownloadAudio" href="#" class="hidden portfolio-touch-btn px-3 py-1.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 text-sm no-underline" download>Descargar audio</a>
                     </div>
                     <div id="reportAudioProgress" class="hidden mb-3 w-full text-sm" aria-live="polite"></div>
-                    <div id="reportAudioPlayer" class="hidden mb-3">
-                        <p class="text-sm text-gray-600 mb-1">Escuchar audio resumen:</p>
-                        <audio id="audioPlayer" controls class="w-full max-w-md" preload="metadata"></audio>
-                    </div>
                     <div id="reportViewToggle" class="hidden mb-3 flex flex-wrap gap-2 items-center">
                         <span class="text-xs text-slate-600">Vista:</span>
                         <button type="button" id="btnReportViewSummary" class="portfolio-touch-btn px-3 py-1 rounded-xl text-sm bg-teal-600 text-white">Resumen</button>
                         <button type="button" id="btnReportViewFull" class="portfolio-touch-btn px-3 py-1 rounded-xl text-sm bg-slate-200 text-slate-800 border border-slate-300">Informe completo</button>
                     </div>
                     <div id="reportDetailContent" class="prose max-w-none report-markdown report-content"></div>
+                </div>
                 </div>
             </div>
 
@@ -689,6 +684,54 @@ function syncReportsListQueuePollTimer(data) {
     }
 }
 
+function moveReportDetailToStash() {
+    const stash = document.getElementById('reportDetailStash');
+    const panel = document.getElementById('reportDetail');
+    if (stash && panel && panel.parentElement !== stash) {
+        stash.appendChild(panel);
+    }
+}
+
+function restoreReportDetailAfterListRefresh() {
+    if (currentReportId == null) return;
+    const panel = document.getElementById('reportDetail');
+    if (!panel || panel.classList.contains('hidden')) return;
+    const host = document.querySelector('.report-detail-host[data-for="' + currentReportId + '"]');
+    if (host) {
+        host.classList.remove('hidden');
+        host.appendChild(panel);
+    } else {
+        moveReportDetailToStash();
+        panel.classList.add('hidden');
+        currentReportId = null;
+    }
+}
+
+/** Misma fila: comprime. Otra fila: mueve el panel justo debajo del encabezado pulsado. */
+function toggleReportRow(reportId, ev) {
+    if (ev) ev.stopPropagation();
+    const rid = Number(reportId);
+    const panel = document.getElementById('reportDetail');
+    const host = document.querySelector('.report-detail-host[data-for="' + rid + '"]');
+    if (!panel || !host) return;
+    if (currentReportId !== null && Number(currentReportId) === rid && !panel.classList.contains('hidden')) {
+        closeReportDetail();
+        return;
+    }
+    document.querySelectorAll('.report-detail-host').forEach(function(h) {
+        if (Number(h.getAttribute('data-for')) !== rid) h.classList.add('hidden');
+    });
+    host.classList.remove('hidden');
+    host.appendChild(panel);
+    panel.classList.remove('hidden');
+    loadReportDetail(rid);
+    requestAnimationFrame(function() {
+        try {
+            host.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } catch (e) {}
+    });
+}
+
 function formatQueueSuffix(data) {
     if (!data) return '';
     const p = data.queue_position;
@@ -697,31 +740,22 @@ function formatQueueSuffix(data) {
     if (typeof t === 'number' && t > 0) return ` (#${p} de ${t})`;
     return ` (#${p})`;
 }
+function _queueSnippet(queuePosition, queueWaitingTotal) {
+    if (!queuePosition) return '';
+    if (typeof queueWaitingTotal === 'number' && queueWaitingTotal > 0) {
+        return ` (#${queuePosition} de ${queueWaitingTotal})`;
+    }
+    return ` (#${queuePosition})`;
+}
 function reportStatusLabel(status, queuePosition, queueWaitingTotal, deliveryMode, deliveryPhase) {
     if (status === 'pending') {
-        let qp = '';
-        if (queuePosition) {
-            if (typeof queueWaitingTotal === 'number' && queueWaitingTotal > 0) {
-                qp = ` (#${queuePosition} de ${queueWaitingTotal})`;
-            } else {
-                qp = ` (#${queuePosition})`;
-            }
-        }
-        return 'en cola' + qp;
+        return 'en cola' + _queueSnippet(queuePosition, queueWaitingTotal);
     }
     if (status === 'processing') return 'generando';
     if (status === 'completed' && deliveryMode === 'full_deliver') {
         const ph = deliveryPhase == null ? '' : String(deliveryPhase);
-        if (ph === 'processing' || ph === '') {
-            let qp = '';
-            if (queuePosition) {
-                if (typeof queueWaitingTotal === 'number' && queueWaitingTotal > 0) {
-                    qp = ` (#${queuePosition} de ${queueWaitingTotal})`;
-                } else {
-                    qp = ` (#${queuePosition})`;
-                }
-            }
-            return 'entregando' + qp;
+        if (ph === 'processing' || ph === '' || ph === 'queued') {
+            return 'entregando' + _queueSnippet(queuePosition, queueWaitingTotal);
         }
         if (ph === 'partial') return 'entrega incompleta';
     }
@@ -729,33 +763,179 @@ function reportStatusLabel(status, queuePosition, queueWaitingTotal, deliveryMod
     if (status === 'failed') return 'error';
     return status || '—';
 }
-function reportProgressHtml(status) {
+function formatShortDuration(seconds) {
+    const s = Math.max(0, Number(seconds || 0));
+    const m = Math.floor(s / 60);
+    const h = Math.floor(m / 60);
+    if (h > 0) return `${h}h ${m % 60}m`;
+    if (m > 0) return `${m}m ${s % 60}s`;
+    return `${Math.floor(s)}s`;
+}
+function formatAgo(iso) {
+    if (!iso) return '';
+    try {
+        const dt = new Date(iso);
+        const now = new Date();
+        const diff = Math.floor((now.getTime() - dt.getTime()) / 1000);
+        if (!isFinite(diff)) return '';
+        if (diff < 5) return 'justo ahora';
+        return `hace ${formatShortDuration(diff)}`;
+    } catch (e) {
+        return '';
+    }
+}
+function humanJobPhase(phase) {
+    const p = (phase || '').trim();
+    if (!p) return '';
+    const map = {
+        waiting_turn: 'Esperando turno',
+        tts_active: 'Generando guion y síntesis TTS',
+        creating_interaction: 'Creando sesión (interaction_id)',
+        polling_provider: 'Esperando respuesta del proveedor',
+        completed: 'Completado',
+    };
+    return map[p] || p;
+}
+function isPipelineFullDeliver(data) {
+    try {
+        if (!data) return false;
+        if (data.delivery_mode === 'full_deliver') return true;
+        const k = String((data.job && data.job.kind) || '').trim();
+        if (k === 'full_deliver') return true;
+        const ap = data.audio_progress;
+        if (ap && ap.full_pipeline) return true;
+    } catch (e) {}
+    return false;
+}
+function pendingQueueLineHtml(data) {
+    const qp = formatQueueSuffix(data);
+    const rid = data && data.id != null ? Number(data.id) : null;
+    const idTag = rid != null && !isNaN(rid) ? ' <span class="text-slate-600">(ID: ' + rid + ')</span>' : '';
+    if (isPipelineFullDeliver(data)) {
+        return 'Pipeline de entrega' + idTag + ' <strong>en cola</strong>' + escapeHtml(qp) + '. Se iniciará cuando le toque…';
+    }
+    return 'Informe' + idTag + ' <strong>en cola</strong>' + escapeHtml(qp) + '. Se iniciará cuando le toque…';
+}
+function processingProgressLineHtml(data) {
+    const rid = data && data.id != null ? Number(data.id) : null;
+    const idTag = rid != null && !isNaN(rid) ? ' <span class="text-slate-600">(ID: ' + rid + ')</span>' : '';
+    if (isPipelineFullDeliver(data)) {
+        return 'Ejecutando <strong>pipeline de entrega</strong>' + idTag + ' (informe Deep Research + correo); puede tardar varios minutos…';
+    }
+    return 'Investigando con <strong>Deep Research</strong>' + idTag + ' (puede tardar varios minutos)…';
+}
+function buildReportTelemetryHintHtml(data) {
+    if (!data) return '';
+    const job = data.job || {};
+    const prov = data.provider || {};
+    const parts = [];
+    // Modelos (homogeneizado): para DR mostramos el modelo; para pipeline ya se ve por-step.
+    try {
+        const k = (job.kind || '').trim();
+        const dm = (data.delivery_mode || '').trim();
+        if (k === 'dr_watchlist_min' || k === 'dr_full') {
+            parts.push('Modelo: deep-research-max-preview-04-2026');
+        } else if (k === 'full_deliver' || dm === 'full_deliver') {
+            parts.push('Pipeline: DR + email');
+        }
+    } catch (e) {}
+    if (job.phase) parts.push('Fase: ' + humanJobPhase(job.phase));
+    if (typeof job.elapsed_s === 'number') parts.push('Tiempo: ' + formatShortDuration(job.elapsed_s));
+    if (prov.poll_count != null && prov.poll_count !== '') parts.push('Polls: ' + String(prov.poll_count));
+    if (prov.last_poll_at) {
+        const ago = formatAgo(prov.last_poll_at);
+        parts.push('Último poll: ' + (ago || '—'));
+    }
+    if (prov.create_attempt != null && Number(prov.create_attempt) > 0) parts.push('Intento: ' + String(prov.create_attempt));
+    if (prov.next_retry_at) {
+        const ago = formatAgo(prov.next_retry_at);
+        parts.push('Reintento: ' + (ago ? ('en ' + ago.replace(/^hace\s+/, '')) : 'programado'));
+    }
+    if (prov.last_error_kind) parts.push('Último error: ' + String(prov.last_error_kind));
+    if (prov.last_error_msg) {
+        const msg = String(prov.last_error_msg || '').trim();
+        if (msg) parts.push('Mensaje: ' + msg.substring(0, 140));
+    }
+    if (job.possible_blocked) parts.push('Aviso: posible bloqueo (≥ ' + formatShortDuration(job.p95_s || 1800) + ')');
+    if (job.timed_out) parts.push('Aviso: timeout (≥ ' + formatShortDuration(job.timeout_s || 2700) + ')');
+    if (!parts.length) return '';
+    return '<div class="mt-1 text-xs text-slate-600 break-words">' + escapeHtml(parts.join(' · ')) + '</div>';
+}
+
+function buildUnifiedJobHeaderHtml(data, title) {
+    const t = title || 'Estado del job';
+    const hint = buildReportTelemetryHintHtml(data);
+    const rid = data && data.id != null ? Number(data.id) : null;
+    const idLbl = rid != null && !isNaN(rid) ? ` <span class="text-slate-600 font-medium">(ID: ${rid})</span>` : '';
+    return (
+        '<div class="mb-2">'
+        + '<div class="flex items-center gap-2 text-slate-800 font-semibold flex-wrap">'
+        + '<span class="text-amber-700" aria-hidden="true">⏳</span>'
+        + '<span>' + escapeHtml(t) + idLbl + '</span>'
+        + '</div>'
+        + hint
+        + '</div>'
+    );
+}
+/** Título del bloque de telemetría (alineado con listado tipo «Pipeline de entrega …»). */
+function jobTelemetrySectionTitle(data) {
+    if (!data) return 'Estado del job';
+    if (isPipelineFullDeliver(data)) return 'Pipeline de entrega';
+    return 'Estado del job';
+}
+function reportProgressHtmlFromData(data) {
+    const status = data ? data.status : null;
     if (status === 'pending') {
-        return '<div class="flex items-start gap-2 text-amber-900"><span class="shrink-0 w-2 h-2 mt-1.5 rounded-full bg-amber-400"></span><span>Informe <strong>en cola</strong>. Se iniciará en unos segundos…</span></div>';
+        return (
+            '<div class="flex items-start gap-2 text-amber-900">'
+            + '<span class="shrink-0 mt-1.5 text-amber-700" title="En cola">⏳</span>'
+            + '<span>' + pendingQueueLineHtml(data)
+            + buildReportTelemetryHintHtml(data)
+            + '</span></div>'
+        );
     }
     if (status === 'processing') {
-        return '<div class="flex items-start gap-2 text-amber-900"><span class="shrink-0 w-2 h-2 mt-1.5 rounded-full bg-amber-500 animate-pulse"></span><span>Investigando con <strong>Deep Research</strong> (puede tardar varios minutos)…</span></div>';
+        return (
+            '<div class="flex items-start gap-2 text-amber-900">'
+            + '<span class="shrink-0 mt-1.5 text-amber-700" title="Generando">⏳</span>'
+            + '<span>' + processingProgressLineHtml(data)
+            + buildReportTelemetryHintHtml(data)
+            + '</span></div>'
+        );
     }
     return '<p class="text-gray-500">Cargando…</p>';
+}
+// Compat: código existente llama `reportProgressHtml(status)`
+function reportProgressHtml(status) {
+    return reportProgressHtmlFromData({ status: status });
 }
 function setReportGenerateBannerVisible(reportId, data) {
     const el = document.getElementById('reportGenerateLoading');
     if (!el) return;
     if (generatingReportId == null || Number(generatingReportId) !== Number(reportId)) return;
+    const dd = Object.assign({}, data || {}, {
+        id: (data && data.id != null && data.id !== '') ? data.id : reportId,
+    });
     el.setAttribute('data-poll-id', String(reportId));
     el.classList.remove('hidden');
-    const ap0 = data.audio_progress;
+    const ap0 = dd.audio_progress;
     if (ap0 && ap0.steps && ap0.steps.length && (ap0.full_pipeline || ap0.report_stages)) {
-        el.innerHTML = buildAudioProgressBlockHtml(ap0.steps, ap0.caption);
+        el.innerHTML = buildUnifiedJobHeaderHtml(dd, jobTelemetrySectionTitle(dd)) + buildAudioProgressBlockHtml(ap0.steps, ap0.caption);
         return;
     }
-    if (data.status === 'pending') {
-        el.innerHTML = 'Informe <strong>en cola</strong>… Puede empezar en segundos. <span class="text-slate-600">ID: ' + reportId + '</span>';
-    } else if (data.status === 'processing') {
-        el.innerHTML = 'Investigando con <strong>Deep Research</strong>… (varios minutos) <span class="text-slate-600">ID: ' + reportId + '</span>';
-    } else if (data.status === 'failed') {
-        el.innerHTML = '<span class="text-red-800">' + (data.error_msg ? String(data.error_msg).replace(/</g, '&lt;') : 'Error al generar el informe') + '</span> <span class="text-slate-600">ID: ' + reportId + '</span>';
-    } else if (data.status === 'completed' && (!data.audio_progress || (!data.audio_progress.full_pipeline && !data.audio_progress.report_stages))) {
+    if (dd.status === 'pending') {
+        el.innerHTML =
+            '<span class="text-amber-700 inline-block mr-1" aria-hidden="true">⏳</span>'
+            + pendingQueueLineHtml(dd)
+            + buildReportTelemetryHintHtml(dd);
+    } else if (dd.status === 'processing') {
+        el.innerHTML =
+            '<span class="text-amber-700 inline-block mr-1" aria-hidden="true">⏳</span>'
+            + processingProgressLineHtml(dd)
+            + buildReportTelemetryHintHtml(dd);
+    } else if (dd.status === 'failed') {
+        el.innerHTML = '<span class="text-red-800">' + (dd.error_msg ? String(dd.error_msg).replace(/</g, '&lt;') : 'Error al generar el informe') + '</span> <span class="text-slate-600">ID: ' + reportId + '</span>';
+    } else if (dd.status === 'completed' && (!dd.audio_progress || (!dd.audio_progress.full_pipeline && !dd.audio_progress.report_stages))) {
         el.classList.add('hidden');
     }
 }
@@ -776,19 +956,7 @@ function fullPipelinePollTerminal(data) {
 }
 function hideReportActionButtons() {
     const btnEmail = document.getElementById('btnSendReportEmail');
-    const btnAudio = document.getElementById('btnGenerateAudio');
-    const btnRetry = document.getElementById('btnRetryAudio');
-    const audioStatus = document.getElementById('reportAudioStatus');
-    const btnDownload = document.getElementById('btnDownloadAudio');
     if (btnEmail) btnEmail.classList.add('hidden');
-    if (btnAudio) btnAudio.classList.add('hidden');
-    if (btnRetry) btnRetry.classList.add('hidden');
-    if (audioStatus) { audioStatus.classList.add('hidden'); audioStatus.textContent = ''; }
-    if (btnDownload) btnDownload.classList.add('hidden');
-    const audioPlayerWrap = document.getElementById('reportAudioPlayer');
-    const audioEl = document.getElementById('audioPlayer');
-    if (audioPlayerWrap) audioPlayerWrap.classList.add('hidden');
-    if (audioEl) { audioEl.src = ''; try { audioEl.load(); } catch (e) {} }
     const ap = document.getElementById('reportAudioProgress');
     if (ap) { ap.classList.add('hidden'); ap.innerHTML = ''; }
 }
@@ -800,9 +968,34 @@ function escapeHtml(s) {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
 }
+function prepareAudioStepsForUi(data, stepsIn) {
+    return stepsIn ? stepsIn.slice() : [];
+}
+function shouldHideSoloAudioPipelineSteps(data) {
+    return false;
+}
+function soloAudioQueuePlainCaption(data) {
+    return '';
+}
+/**
+ * Une cabecera de telemetría + contenido de progreso. Para »solo audio« en cola, sin cinta de pasos (homogéneo con informes pendientes).
+ * opt.caption opcional sólo cuando conviene pisar caption (cola tail de full_pipeline).
+ */
+function buildSoloAudioProgressPanelInnerHtml(data, ap, opt) {
+    opt = opt || {};
+    var header = buildUnifiedJobHeaderHtml(data, jobTelemetrySectionTitle(data));
+    if (!ap || !ap.steps || !ap.steps.length) return header;
+    if (ap.full_pipeline || ap.report_stages) {
+        var stepsFp = prepareAudioStepsForUi(data, ap.steps.slice());
+        var capF = opt.caption;
+        if (capF == null || capF === '') capF = ap.caption || 'Pipeline en curso';
+        return header + buildAudioProgressBlockHtml(stepsFp, capF);
+    }
+    return header;
+}
 function buildAudioProgressBlockHtml(steps, caption) {
     if (!steps || !steps.length) return '';
-    var cap = caption || 'Generando audio (segundo plano; puedes salir y volver)';
+    var cap = caption || 'Pipeline en curso';
     var out = [];
     for (var i = 0; i < steps.length; i++) {
         if (i > 0) {
@@ -845,62 +1038,17 @@ function updateReportAudioProgressUI(data) {
     if (!data || !pb) return;
     const ap = data.audio_progress;
     const hasSteps = ap && ap.steps && ap.steps.length;
-    if (hasSteps && (data.audio_status === 'queued' || data.audio_status === 'processing' || data.audio_status === 'failed' || (ap.full_pipeline && data.status === 'completed'))) {
-        // Mostrar "en cola" aunque haya pasos (si no, parece que ya está ejecutando).
+    if (hasSteps && (ap.full_pipeline || ap.report_stages)) {
         if (legacy) {
-            if (data.audio_status === 'queued') {
-                const qp = formatQueueSuffix(data);
-                legacy.classList.remove('hidden');
-                legacy.className = 'px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-800';
-                legacy.textContent = 'Audio en cola' + qp + '…';
-            } else {
-                legacy.classList.add('hidden');
-                legacy.textContent = '';
-            }
+            legacy.classList.add('hidden');
+            legacy.textContent = '';
         }
         pb.classList.remove('hidden');
-        // Compat: si tras un reinicio el backend marcó audio_status=failed pero el JSON quedó con "tts: loading",
-        // forzamos el paso TTS a error para reflejar la realidad y evitar estados "eternos".
-        let stepsOut = ap.steps;
-        if (data.audio_status === 'failed' && typeof data.audio_error_msg === 'string' && data.audio_error_msg.trim()) {
-            try {
-                stepsOut = (ap.steps || []).map(s => {
-                    if (!s || typeof s !== 'object') return s;
-                    if (s.id === 'tts' && (s.status === 'loading' || s.status === 'pending')) {
-                        return { ...s, status: 'error', error: data.audio_error_msg };
-                    }
-                    return s;
-                });
-            } catch (e) {
-                stepsOut = ap.steps;
-            }
-        }
-        let cap = ap.caption;
-        if (data.audio_status === 'queued') {
-            const qp = formatQueueSuffix(data);
-            cap = 'Audio en cola' + qp + ' (se ejecutará cuando le toque; puedes salir y volver)';
-        }
-        pb.innerHTML = buildAudioProgressBlockHtml(stepsOut, cap);
+        pb.innerHTML = buildSoloAudioProgressPanelInnerHtml(data, ap, {});
         return;
     }
-    // Anti-parpadeo: si el audio está en cola/en curso y por timing llega un poll sin `audio_progress`,
-    // no vaciamos un bloque ya renderizado (evita "aparece/desaparece" indefinidamente).
-    if ((data.audio_status === 'queued' || data.audio_status === 'processing') && !pb.classList.contains('hidden') && pb.innerHTML.trim()) {
-        // mantenemos el bloque actual
-    } else {
-        pb.classList.add('hidden');
-        pb.innerHTML = '';
-    }
-    if ((data.audio_status === 'queued' || data.audio_status === 'processing') && legacy) {
-        legacy.classList.remove('hidden');
-        legacy.className = 'px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-800';
-        if (data.audio_status === 'queued') {
-            const qp = formatQueueSuffix(data);
-            legacy.textContent = 'Audio en cola' + qp + '…';
-        } else {
-            legacy.textContent = 'Generando audio…';
-        }
-    }
+    pb.classList.add('hidden');
+    pb.innerHTML = '';
 }
 function updateReportDetailFromStatusPoll(reportId, data) {
     if (Number(currentReportId) !== Number(reportId)) return;
@@ -916,55 +1064,26 @@ function updateReportDetailFromStatusPoll(reportId, data) {
         // Importante: en "todo en uno" el informe puede estar ya COMPLETADO mientras audio/correo siguen.
         // No debemos machacar el HTML del informe/resumen con el spinner de progreso.
         if (data.status !== 'completed') {
-            content.innerHTML = reportProgressHtml(data.status);
+            content.innerHTML = reportProgressHtmlFromData(data);
         } else {
             // Si aún no hay contenido renderizado (p. ej. panel abierto por primera vez), dejamos el texto actual.
             // `loadReportDetail()` se encarga de pintar informe/resumen cuando hay content.
         }
         if (audioPb) {
             audioPb.classList.remove('hidden');
-            let cap = ap1.caption;
-            if (data.audio_status === 'queued') {
-                const qp = formatQueueSuffix(data);
-                cap = 'Audio en cola' + qp + ' (se ejecutará cuando le toque; puedes salir y volver)';
-            }
-            audioPb.innerHTML = buildAudioProgressBlockHtml(ap1.steps, cap);
+            audioPb.innerHTML = buildSoloAudioProgressPanelInnerHtml(data, ap1, {});
         }
-        // Aunque haya bloque de pasos, mostrar siempre el aviso "Audio en cola" si aplica.
         if (legacyAudioStatus) {
-            if (data.audio_status === 'queued') {
-                const qp = formatQueueSuffix(data);
-                legacyAudioStatus.classList.remove('hidden');
-                legacyAudioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-800';
-                legacyAudioStatus.textContent = 'Audio en cola' + qp + '…';
-            } else {
-                legacyAudioStatus.classList.add('hidden');
-                legacyAudioStatus.textContent = '';
-            }
+            legacyAudioStatus.classList.add('hidden');
+            legacyAudioStatus.textContent = '';
         }
-        return;
-    }
-    // Regenerar audio: JSON solo con steps (sin full_pipeline/report_stages). El poll de informe
-    // no debe vaciar el bloque de audio (competía con startAudioStatusPolling y parpadeaba).
-    if (
-        data.status === 'completed' &&
-        ap1 &&
-        ap1.steps &&
-        ap1.steps.length &&
-        !ap1.full_pipeline &&
-        !ap1.report_stages &&
-        (data.audio_status === 'queued' ||
-            data.audio_status === 'processing' ||
-            data.audio_status === 'failed')
-    ) {
-        updateReportAudioProgressUI(data);
         return;
     }
     if (audioPb) { audioPb.classList.add('hidden'); audioPb.innerHTML = ''; }
     if (data.status === 'pending' || data.status === 'processing') {
         panel.classList.remove('hidden');
         hideReportActionButtons();
-        content.innerHTML = reportProgressHtml(data.status);
+        content.innerHTML = reportProgressHtmlFromData(data);
         return;
     }
     if (data.status === 'failed') {
@@ -1047,8 +1166,12 @@ function startReportStatusPolling(reportId) {
                         }
                         if (Number(currentReportId) === Number(reportId)) {
                             loadReportDetail(reportId);
-                            const panel = document.getElementById('reportDetail');
-                            if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                            const hostDone = document.querySelector('.report-detail-host[data-for="' + reportId + '"]');
+                            if (hostDone) {
+                                try {
+                                    hostDone.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                                } catch (e) {}
+                            }
                         }
                     }
                 }
@@ -1091,6 +1214,7 @@ function startAudioStatusPolling(reportId) {
             .then(data => {
                 if (!data) return;
                 loadReports();
+                try {
                 if (Number(currentReportId) !== Number(reportId)) return;
                 const audioStatus = document.getElementById('reportAudioStatus');
                 const btnAudio = document.getElementById('btnGenerateAudio');
@@ -1099,10 +1223,8 @@ function startAudioStatusPolling(reportId) {
                     updateReportAudioProgressUI(data);
                     if (btnAudio) btnAudio.classList.add('hidden');
                     if (audioStatus) {
-                        const qp = formatQueueSuffix(data);
-                        audioStatus.classList.remove('hidden');
-                        audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-800';
-                        audioStatus.textContent = 'Audio en cola' + qp + '…';
+                        audioStatus.classList.add('hidden');
+                        audioStatus.textContent = '';
                     }
                     return;
                 }
@@ -1129,6 +1251,11 @@ function startAudioStatusPolling(reportId) {
                     const btnRetry = document.getElementById('btnRetryAudio');
                     if (btnRetry) { btnRetry.textContent = 'Reintentar audio'; btnRetry.classList.remove('hidden'); }
                     if (btnAudio) btnAudio.classList.add('hidden');
+                }
+                } finally {
+                    if (data && Number(currentReportId) === Number(reportId)) {
+                        syncAudioGenerationButtons(data);
+                    }
                 }
             })
             .catch(() => {});
@@ -1434,34 +1561,51 @@ function loadReports() {
                 syncReportsListQueuePollTimer(data);
                 return;
             }
+            const keepOpenId = currentReportId;
+            const panelEl = document.getElementById('reportDetail');
+            const detailWasVisible = !!(panelEl && !panelEl.classList.contains('hidden'));
+            moveReportDetailToStash();
             if (!data.reports || data.reports.length === 0) {
                 container.innerHTML = '<p class="text-gray-500 text-sm">No hay informes. Pulsa "Generar informe" para crear uno.</p>';
+                if (detailWasVisible && panelEl) {
+                    panelEl.classList.add('hidden');
+                    currentReportId = null;
+                }
                 syncReportsListQueuePollTimer(data);
                 return;
             }
             container.innerHTML = data.reports.map(r => {
                 const date = r.completed_at ? new Date(r.completed_at).toLocaleDateString('es-ES') : (r.created_at ? new Date(r.created_at).toLocaleDateString('es-ES') : '');
-                const statusBadge = r.status === 'completed' ? 'bg-green-100 text-green-800' : r.status === 'failed' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800';
+                const statusBadge = (() => {
+                    if (r.status === 'failed') return 'bg-red-100 text-red-800';
+                    if (r.status === 'pending' || r.status === 'processing') return 'bg-yellow-100 text-yellow-800';
+                    if (r.status === 'completed' && r.delivery_mode === 'full_deliver') {
+                        const ph = r.delivery_phase_status == null ? '' : String(r.delivery_phase_status);
+                        if (ph === 'processing' || ph === '' || ph === 'queued') return 'bg-yellow-100 text-yellow-800';
+                    }
+                    if (r.status === 'completed') return 'bg-green-100 text-green-800';
+                    return 'bg-yellow-100 text-yellow-800';
+                })();
                 const name = r.template_title || ('Informe ' + r.id);
-                const audioBadge = r.audio_status === 'completed'
-                    ? ' <span class="text-green-600" title="Audio disponible">🔊</span>'
-                    : (r.audio_status === 'queued'
-                        ? ' <span class="text-yellow-600" title="Audio en cola…">⏳</span>'
-                        : (r.audio_status === 'processing'
-                            ? ' <span class="text-yellow-600" title="Generando audio…">⏳</span>'
-                            : ''
-                        )
-                    );
                 return `
-                    <div class="p-3 asset-inner-panel hover:bg-slate-50/80 cursor-pointer transition-colors" onclick="loadReportDetail(${r.id})">
-                        <div class="flex justify-between items-center">
-                            <span class="text-sm font-medium">${(name || '').replace(/</g, '&lt;')}${audioBadge}</span>
-                            <span class="px-2 py-0.5 rounded text-xs ${statusBadge}">${reportStatusLabel(r.status, r.queue_position, data.queue_waiting_total, r.delivery_mode, r.delivery_phase_status)}</span>
+                    <div class="rounded-xl border border-slate-200/70 overflow-hidden bg-white/90 shadow-sm" data-report-row-id="${r.id}">
+                        <div class="p-3 hover:bg-slate-50/90 cursor-pointer transition-colors" role="button" tabindex="0"
+                             onclick="toggleReportRow(${r.id}, event)"
+                             onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleReportRow(${r.id},event);}">
+                            <div class="flex justify-between items-center gap-2">
+                                <span class="text-sm font-medium">${(name || '').replace(/</g, '&lt;')}</span>
+                                <span class="px-2 py-0.5 rounded text-xs shrink-0 ${statusBadge}">${reportStatusLabel(r.status, r.queue_position, data.queue_waiting_total, r.delivery_mode, r.delivery_phase_status)}</span>
+                            </div>
+                            <div class="text-xs text-gray-500 mt-1">${date}</div>
                         </div>
-                        <div class="text-xs text-gray-500 mt-1">${date}</div>
+                        <div class="report-detail-host hidden border-t border-slate-200/60 bg-slate-50/40" data-for="${r.id}"></div>
                     </div>
                 `;
             }).join('');
+            if (detailWasVisible && keepOpenId != null) {
+                currentReportId = keepOpenId;
+                restoreReportDetailAfterListRefresh();
+            }
             syncReportsListQueuePollTimer(data);
         })
         .catch(function() { syncReportsListQueuePollTimer(null); });
@@ -1507,11 +1651,25 @@ function setupReportViewToggle(data) {
     updateReportViewButtons();
 }
 
+function syncAudioGenerationButtons(data) {
+    return;
+}
+
 function loadReportDetail(reportId) {
     currentReportId = reportId;
+    const panelPre = document.getElementById('reportDetail');
+    const hostPre = document.querySelector('.report-detail-host[data-for="' + reportId + '"]');
+    if (panelPre && hostPre) {
+        hostPre.classList.remove('hidden');
+        hostPre.appendChild(panelPre);
+        document.querySelectorAll('.report-detail-host').forEach(function(h) {
+            if (h !== hostPre) h.classList.add('hidden');
+        });
+    }
     fetch(`/portfolio/asset/${ASSET_ID}/reports/${reportId}?t=${Date.now()}`, { cache: 'no-store' })
         .then(r => r.json())
         .then(data => {
+            try {
             const panel = document.getElementById('reportDetail');
             const content = document.getElementById('reportDetailContent');
             const dateEl = document.getElementById('reportDetailDate');
@@ -1541,12 +1699,12 @@ function loadReportDetail(reportId) {
                         content.className = 'prose max-w-none report-markdown report-content';
                         setupReportViewToggle(data);
                     } else {
-                        content.innerHTML = reportProgressHtml(data.status);
+                        content.innerHTML = reportProgressHtmlFromData(data);
                     }
                     const audioPb = document.getElementById('reportAudioProgress');
                     if (audioPb) {
                         audioPb.classList.remove('hidden');
-                        audioPb.innerHTML = buildAudioProgressBlockHtml(fp0.steps, fp0.caption);
+                        audioPb.innerHTML = buildSoloAudioProgressPanelInnerHtml(data, fp0, {});
                     }
                     if (btnEmail) btnEmail.classList.add('hidden');
                     if (btnAudio) btnAudio.classList.add('hidden');
@@ -1555,7 +1713,7 @@ function loadReportDetail(reportId) {
                 }
             }
             if (data.status === 'pending' || data.status === 'processing') {
-                content.innerHTML = reportProgressHtml(data.status);
+                content.innerHTML = reportProgressHtmlFromData(data);
                 startReportStatusPolling(reportId);
                 return;
             }
@@ -1584,10 +1742,8 @@ function loadReportDetail(reportId) {
                     if (btnAudio) btnAudio.classList.add('hidden');
                     updateReportAudioProgressUI(data);
                     if (audioStatus) {
-                        const qp = formatQueueSuffix(data);
-                        audioStatus.classList.remove('hidden');
-                        audioStatus.className = 'px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-800';
-                        audioStatus.textContent = 'Audio en cola' + qp + '…';
+                        audioStatus.classList.add('hidden');
+                        audioStatus.textContent = '';
                     }
                     stopReportStatusPolling(reportId);
                     startAudioStatusPolling(reportId);
@@ -1637,6 +1793,9 @@ function loadReportDetail(reportId) {
                         btnRetry.classList.remove('hidden');
                     }
                 }
+            }
+            } finally {
+                syncAudioGenerationButtons(data);
             }
         });
 }
@@ -1696,11 +1855,17 @@ function generateReportAudio() {
     .then(r => {
         const ct = r.headers.get('Content-Type') || '';
         if (!ct.includes('application/json')) {
-            return r.text().then(() => { throw new Error('El servidor no devolvió JSON (código ' + r.status + '). ¿Sesión caducada o ruta inválida? Recarga e inténtalo de nuevo.'); });
+            return r.text().then(() => ({ ok: false, status: r.status, data: {} }));
         }
-        return r.json();
+        return r.json().then(data => ({ ok: r.ok, status: r.status, data: data }));
     })
-    .then(data => {
+    .then(res => {
+        const data = res && res.data ? res.data : {};
+        if (!res.ok) {
+            showToast(data.error || ('Error al encolar audio (código ' + (res.status || '') + ').'), 'error');
+            loadReportDetail(currentReportId);
+            return;
+        }
         if (data.success) {
             if (data.audio_ready) {
                 loadReportDetail(currentReportId);
@@ -1716,7 +1881,14 @@ function generateReportAudio() {
 }
 function closeReportDetail() {
     const panel = document.getElementById('reportDetail');
-    if (panel) panel.classList.add('hidden');
+    const stash = document.getElementById('reportDetailStash');
+    if (panel && stash) {
+        stash.appendChild(panel);
+        panel.classList.add('hidden');
+    }
+    document.querySelectorAll('.report-detail-host').forEach(function(h) {
+        h.classList.add('hidden');
+    });
     currentReportId = null;
 }
 </script>

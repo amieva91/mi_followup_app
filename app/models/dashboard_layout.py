@@ -29,3 +29,16 @@ class UserDashboardLayout(db.Model):
         db.UniqueConstraint("user_id", "card_id", name="uq_user_dashboard_layout_user_card"),
     )
 
+    @classmethod
+    def get_layout_dict(cls, user_id: int) -> dict:
+        """Orden persistido por carril; mismas claves que la API GET /dashboard/layout."""
+        rows = (
+            cls.query.filter_by(user_id=user_id).order_by(cls.lane.asc(), cls.position.asc()).all()
+        )
+        out = {"wide": [], "tail": [], "normal": []}
+        for r in rows:
+            lane = (r.lane or "").strip().lower()
+            if lane in out:
+                out[lane].append(r.card_id)
+        return out
+

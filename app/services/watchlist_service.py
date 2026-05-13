@@ -4,7 +4,7 @@ Watchlist Service - Gestión de watchlist (CRUD básico)
 from typing import List, Optional, Dict, Any
 from app import db
 from app.models import Watchlist, WatchlistConfig, Asset, User
-from datetime import datetime
+from datetime import datetime, date
 from pathlib import Path
 
 
@@ -40,6 +40,30 @@ class WatchlistService:
         """
         return Watchlist.query.filter_by(user_id=user_id, asset_id=asset_id).first()
     
+    @staticmethod
+    def coerce_watchlist_manual_value(key: str, raw: Any) -> Any:
+        """Normaliza un valor enviado por API/formulario a tipos de columna watchlist."""
+        from app.models.watchlist import WATCHLIST_MANUAL_DATE_KEYS, WATCHLIST_MANUAL_STRING_KEYS
+
+        if raw is None or raw == "":
+            return None
+        if key in WATCHLIST_MANUAL_DATE_KEYS:
+            if isinstance(raw, date):
+                return raw
+            if isinstance(raw, str) and len(raw) >= 10:
+                try:
+                    return datetime.strptime(raw[:10], "%Y-%m-%d").date()
+                except ValueError:
+                    return None
+            return None
+        if key in WATCHLIST_MANUAL_STRING_KEYS:
+            s = str(raw).strip()
+            return s or None
+        try:
+            return float(raw)
+        except (TypeError, ValueError):
+            return None
+
     @staticmethod
     def add_to_watchlist(user_id: int, asset_id: int, datos_manuales: Optional[Dict[str, Any]] = None) -> Watchlist:
         """
@@ -83,25 +107,15 @@ class WatchlistService:
         if datos_manuales:
             from app.models.watchlist import WATCHLIST_MANUAL_FIELD_KEYS
 
-            if 'next_earnings_date' in datos_manuales:
-                watchlist_item.next_earnings_date = datos_manuales['next_earnings_date']
-            if 'per_ntm' in datos_manuales:
-                watchlist_item.per_ntm = datos_manuales['per_ntm']
-            if 'ntm_dividend_yield' in datos_manuales:
-                watchlist_item.ntm_dividend_yield = datos_manuales['ntm_dividend_yield']
-            if 'eps' in datos_manuales:
-                watchlist_item.eps = datos_manuales['eps']
-            if 'cagr_revenue_yoy' in datos_manuales:
-                watchlist_item.cagr_revenue_yoy = datos_manuales['cagr_revenue_yoy']
             src_updates = {}
             for k in WATCHLIST_MANUAL_FIELD_KEYS:
                 if k not in datos_manuales:
                     continue
-                v = datos_manuales.get(k)
-                if v in (None, ''):
-                    src_updates[k] = None
-                else:
-                    src_updates[k] = 'user'
+                coerced = WatchlistService.coerce_watchlist_manual_value(
+                    k, datos_manuales.get(k)
+                )
+                setattr(watchlist_item, k, coerced)
+                src_updates[k] = "user" if coerced is not None else None
             if src_updates:
                 watchlist_item.merge_manual_field_sources(src_updates)
 
@@ -180,11 +194,10 @@ class WatchlistService:
         if not watchlist_item:
             return None
         
-        # Actualizar solo campos manuales permitidos
-        campos_permitidos = ['next_earnings_date', 'per_ntm', 'ntm_dividend_yield', 'eps', 'cagr_revenue_yoy']
-        
+        from app.models.watchlist import WATCHLIST_MANUAL_FIELD_KEYS
+
         for campo, valor in datos.items():
-            if campo in campos_permitidos and hasattr(watchlist_item, campo):
+            if campo in WATCHLIST_MANUAL_FIELD_KEYS and hasattr(watchlist_item, campo):
                 setattr(watchlist_item, campo, valor)
         
         watchlist_item.updated_at = datetime.utcnow()

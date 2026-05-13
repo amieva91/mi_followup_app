@@ -8,7 +8,9 @@ from flask_login import login_required, current_user
 
 from app.routes import portfolio_bp
 from app import db, csrf
-from app.models import BrokerAccount, Asset, PortfolioHolding, Watchlist, AssetRegistry
+from app.models import BrokerAccount, Asset, PortfolioHolding, Watchlist, WatchlistComment, AssetRegistry
+
+WATCHLIST_COMMENT_MAX_LEN = 16000
 from app.services.currency_service import convert_to_eur
 
 
@@ -40,6 +42,7 @@ def watchlist():
     
     # Obtener configuración de watchlist
     config = WatchlistService.get_or_create_config(current_user.id)
+    from app.services.valuation_mode_service import resolve_valuation_mode
     
     # ========== PARTE 1: HOLDINGS EN CARTERA ==========
     # Obtener todos los holdings individuales (igual que dashboard), solo Stock y ETF
@@ -163,10 +166,17 @@ def watchlist():
             
             # Calcular métricas con cantidad invertida actual
             current_value_eur = holding.get('current_value_eur', 0)
-            WatchlistMetricsService.update_all_metrics(watchlist_item, config, current_value_eur=current_value_eur)
+            WatchlistMetricsService.update_all_metrics(
+                watchlist_item, config, current_value_eur=current_value_eur, asset=asset
+            )
             
             db.session.flush()  # Flush para tener datos actualizados
         
+        vm = (
+            resolve_valuation_mode(asset, config)
+            if asset and watchlist_item
+            else "general"
+        )
         table_data.append({
             'type': 'portfolio',
             'asset': asset,
@@ -174,7 +184,8 @@ def watchlist():
             'holding': holding,
             'watchlist_item': watchlist_item,
             'weight_pct': holding.get('weight_pct', 0),
-            'current_value_eur': holding.get('current_value_eur', 0)
+            'current_value_eur': holding.get('current_value_eur', 0),
+            'valuation_mode': vm,
         })
     
     # Segundo: Assets solo en watchlist (no en cartera) - solo Stock y ETF
@@ -189,9 +200,12 @@ def watchlist():
                 watchlist_item.precio_actual = asset.current_price
             
             # Actualizar métricas (sin cantidad invertida)
-            WatchlistMetricsService.update_all_metrics(watchlist_item, config, current_value_eur=None)
+            WatchlistMetricsService.update_all_metrics(
+                watchlist_item, config, current_value_eur=None, asset=asset
+            )
             db.session.flush()
             
+            vm = resolve_valuation_mode(asset, config)
             table_data.append({
                 'type': 'watchlist_only',
                 'asset': asset,
@@ -199,7 +213,8 @@ def watchlist():
                 'holding': None,
                 'watchlist_item': watchlist_item,
                 'weight_pct': None,
-                'current_value_eur': None
+                'current_value_eur': None,
+                'valuation_mode': vm,
             })
     
     # Guardar cambios en BD
@@ -266,6 +281,27 @@ def watchlist_get_config():
         print(f"Error en watchlist_get_config: {str(e)}")
         print(traceback.format_exc())
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@portfolio_bp.route("/watchlist/api/sector-industry-catalog", methods=["GET"])
+@login_required
+def watchlist_sector_industry_catalog():
+    """
+    Pares (sector, industria) distintos de activos en watchlist ∪ cartera del usuario.
+    """
+    try:
+        from app.services.watchlist_sector_catalog_service import (
+            get_sector_industry_catalog_for_user,
+        )
+
+        cat = get_sector_industry_catalog_for_user(current_user.id)
+        return jsonify({"success": True, **cat})
+    except Exception as e:
+        import traceback
+
+        print(f"Error en watchlist_sector_industry_catalog: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @portfolio_bp.route('/watchlist/api/config', methods=['POST'])
@@ -504,18 +540,27 @@ def watchlist_get(watchlist_id):
         if watchlist_item.user_id != current_user.id:
             return jsonify({'success': False, 'error': 'No autorizado'}), 403
         
-        return jsonify({
-            'success': True,
-            'data': {
-                'id': watchlist_item.id,
-                'asset_id': watchlist_item.asset_id,
-                'next_earnings_date': watchlist_item.next_earnings_date.strftime('%Y-%m-%d') if watchlist_item.next_earnings_date else None,
-                'per_ntm': watchlist_item.per_ntm,
-                'ntm_dividend_yield': watchlist_item.ntm_dividend_yield,
-                'eps': watchlist_item.eps,
-                'cagr_revenue_yoy': watchlist_item.cagr_revenue_yoy
-            }
-        })
+        from app.models.watchlist import WATCHLIST_MANUAL_DATE_KEYS, WATCHLIST_MANUAL_FIELD_KEYS
+        from app.services.valuation_mode_service import resolve_valuation_mode
+        from app.services.watchlist_service import WatchlistService
+
+        cfg = WatchlistService.get_or_create_config(current_user.id)
+        asset = watchlist_item.asset
+        payload = {
+            "id": watchlist_item.id,
+            "asset_id": watchlist_item.asset_id,
+            "valuation_mode": resolve_valuation_mode(asset, cfg),
+            "user_price_target": watchlist_item.user_price_target,
+            "asset_currency": (asset.currency or "").strip() if asset else "",
+        }
+        for k in WATCHLIST_MANUAL_FIELD_KEYS:
+            v = getattr(watchlist_item, k, None)
+            if k in WATCHLIST_MANUAL_DATE_KEYS and v is not None:
+                payload[k] = v.strftime("%Y-%m-%d")
+            else:
+                payload[k] = v
+
+        return jsonify({"success": True, "data": payload})
     
     except Exception as e:
         import traceback
@@ -539,24 +584,12 @@ def watchlist_update(watchlist_id):
         # Debug: Log de datos recibidos
         print(f"DEBUG watchlist_update: Datos recibidos: {data}")
 
-        # Filtrar solo campos permitidos y convertir a float si es necesario
-        allowed_fields = ['next_earnings_date', 'per_ntm', 'ntm_dividend_yield', 'eps', 'cagr_revenue_yoy']
+        from app.models.watchlist import WATCHLIST_MANUAL_FIELD_KEYS
+
         update_data = {}
         for k, v in data.items():
-            if k in allowed_fields:
-                # Asegurar que los valores numéricos sean float (no string)
-                if k != 'next_earnings_date' and v is not None:
-                    try:
-                        update_data[k] = float(v) if v != '' else None
-                    except (ValueError, TypeError):
-                        update_data[k] = None
-                else:
-                    update_data[k] = v
-        
-        # Convertir next_earnings_date de string a date si viene
-        if 'next_earnings_date' in update_data and update_data['next_earnings_date']:
-            if isinstance(update_data['next_earnings_date'], str):
-                update_data['next_earnings_date'] = datetime.strptime(update_data['next_earnings_date'], '%Y-%m-%d').date()
+            if k in WATCHLIST_MANUAL_FIELD_KEYS:
+                update_data[k] = WatchlistService.coerce_watchlist_manual_value(k, v)
         
         # Actualizar campos manuales SIN commit para poder recalcular después
         watchlist_item = WatchlistService.update_watchlist_asset(watchlist_id, update_data, commit=False)
@@ -568,8 +601,25 @@ def watchlist_update(watchlist_id):
         if watchlist_item.user_id != current_user.id:
             return jsonify({'success': False, 'error': 'No autorizado'}), 403
 
+        if "user_price_target" in data:
+            raw_tp = data.get("user_price_target")
+            if raw_tp in (None, ""):
+                watchlist_item.user_price_target = None
+            else:
+                try:
+                    v_tp = float(raw_tp)
+                except (TypeError, ValueError):
+                    return jsonify(
+                        {"success": False, "error": "Precio objetivo personal no válido"}
+                    ), 400
+                if v_tp < 0 or v_tp > 1e12:
+                    return jsonify(
+                        {"success": False, "error": "Precio objetivo personal fuera de rango"}
+                    ), 400
+                watchlist_item.user_price_target = v_tp
+
         source_updates = {}
-        for k in allowed_fields:
+        for k in WATCHLIST_MANUAL_FIELD_KEYS:
             if k not in data:
                 continue
             raw = data.get(k)
@@ -610,7 +660,12 @@ def watchlist_update(watchlist_id):
         print(f"  Tier antes: {watchlist_item.tier}")
         print(f"  Cantidad antes: {watchlist_item.cantidad_aumentar_reducir}")
         
-        WatchlistMetricsService.update_all_metrics(watchlist_item, config, current_value_eur=current_value_eur)
+        WatchlistMetricsService.update_all_metrics(
+            watchlist_item,
+            config,
+            current_value_eur=current_value_eur,
+            asset=watchlist_item.asset,
+        )
         
         # Debug: Log de valores después del cálculo
         print(f"  Valoración 12m después: {watchlist_item.valoracion_12m}")
@@ -710,7 +765,9 @@ def watchlist_update_prices():
         
         for item in watchlist_items:
             current_value_eur = holdings_by_asset_id.get(item.asset_id)
-            WatchlistMetricsService.update_all_metrics(item, config, current_value_eur=current_value_eur)
+            WatchlistMetricsService.update_all_metrics(
+                item, config, current_value_eur=current_value_eur, asset=item.asset
+            )
         
         db.session.commit()
         
@@ -746,6 +803,9 @@ def watchlist_reports_generate_all():
         from app.models.watchlist import WatchlistAiJob
         from app.services.company_report_deep_job import start_watchlist_batch_reports_thread
         from app.services.gemini_service import is_gemini_available
+        from app.services.valuation_mode_service import (
+            resolve_watchlist_valuation_mode_for_user_asset,
+        )
         from app.services.watchlist_ia_template import (
             delete_prior_watchlist_ia_reports_same_slot,
             get_watchlist_ia_deep_brief,
@@ -754,7 +814,7 @@ def watchlist_reports_generate_all():
         if not is_gemini_available():
             return jsonify({'success': False, 'error': 'GEMINI_API_KEY no configurada'}), 503
 
-        description, points, report_title = get_watchlist_ia_deep_brief()
+        _, _, report_title = get_watchlist_ia_deep_brief(valuation_mode="general")
 
         busy = WatchlistAiJob.query.filter_by(
             user_id=current_user.id, status='running'
@@ -795,6 +855,8 @@ def watchlist_reports_generate_all():
         base_enqueued = datetime.utcnow()
         for i, aid in enumerate(asset_ids):
             delete_prior_watchlist_ia_reports_same_slot(user_id, aid, report_title)
+            wl_mode = resolve_watchlist_valuation_mode_for_user_asset(user_id, aid)
+            description, points, _ = get_watchlist_ia_deep_brief(valuation_mode=wl_mode)
             # Un ms entre informes ⇒ orden estable en la cola global (mismo criterio que otros informes).
             report = CompanyReport(
                 user_id=user_id,
@@ -859,8 +921,10 @@ def watchlist_reports_queue_dr_row():
         from flask import current_app
 
         from app.models import CompanyReport
-        from app.services.company_report_deep_job import start_watchlist_row_deep_research_thread
         from app.services.gemini_service import is_gemini_available
+        from app.services.valuation_mode_service import (
+            resolve_watchlist_valuation_mode_for_user_asset,
+        )
         from app.services.watchlist_ia_template import (
             delete_prior_watchlist_ia_reports_same_slot,
             get_watchlist_ia_deep_brief,
@@ -879,7 +943,10 @@ def watchlist_reports_queue_dr_row():
         if not row:
             return jsonify({'success': False, 'error': 'El activo no está en tu watchlist'}), 404
 
-        description, points, report_title = get_watchlist_ia_deep_brief(use_dr_row_title=True)
+        wl_mode = resolve_watchlist_valuation_mode_for_user_asset(current_user.id, asset_id)
+        description, points, report_title = get_watchlist_ia_deep_brief(
+            use_dr_row_title=True, valuation_mode=wl_mode
+        )
         user_id = current_user.id
         app = current_app._get_current_object()
 
@@ -892,18 +959,12 @@ def watchlist_reports_queue_dr_row():
             template_title=report_title,
             status='pending',
             report_enqueued_at=datetime.utcnow(),
+            job_kind='dr_watchlist_min',
+            job_status='queued',
+            job_phase='waiting_turn',
         )
         db.session.add(report)
         db.session.commit()
-
-        start_watchlist_row_deep_research_thread(
-            app,
-            report.id,
-            user_id,
-            asset_id,
-            description,
-            points,
-        )
 
         return jsonify(
             {
@@ -986,11 +1047,103 @@ def watchlist_ai_job_status(job_id):
     return jsonify(payload)
 
 
+def _watchlist_owned_or_404(watchlist_id: int):
+    wl = Watchlist.query.get(watchlist_id)
+    if not wl or wl.user_id != current_user.id:
+        return None
+    return wl
+
+
+@portfolio_bp.route("/watchlist/<int:watchlist_id>/comments", methods=["GET"])
+@login_required
+def watchlist_comments_list(watchlist_id):
+    wl = _watchlist_owned_or_404(watchlist_id)
+    if not wl:
+        return jsonify({"success": False, "error": "No encontrado o no autorizado"}), 404
+    rows = (
+        WatchlistComment.query.filter_by(watchlist_id=watchlist_id)
+        .order_by(WatchlistComment.created_at.desc())
+        .all()
+    )
+    return jsonify({"success": True, "comments": [c.to_dict() for c in rows]})
+
+
+@portfolio_bp.route("/watchlist/<int:watchlist_id>/comments", methods=["POST"])
+@login_required
+@csrf.exempt
+def watchlist_comments_create(watchlist_id):
+    wl = _watchlist_owned_or_404(watchlist_id)
+    if not wl:
+        return jsonify({"success": False, "error": "No encontrado o no autorizado"}), 404
+    data = request.get_json(silent=True) or {}
+    body = (data.get("body") or "").strip()
+    if not body:
+        return jsonify({"success": False, "error": "El comentario no puede estar vacío"}), 400
+    if len(body) > WATCHLIST_COMMENT_MAX_LEN:
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": f"Máximo {WATCHLIST_COMMENT_MAX_LEN} caracteres",
+                }
+            ),
+            400,
+        )
+    c = WatchlistComment(
+        watchlist_id=watchlist_id,
+        user_id=current_user.id,
+        body=body,
+    )
+    db.session.add(c)
+    db.session.commit()
+    return jsonify({"success": True, "comment": c.to_dict()})
+
+
+@portfolio_bp.route(
+    "/watchlist/<int:watchlist_id>/comments/<int:comment_id>",
+    methods=["PATCH", "DELETE"],
+)
+@login_required
+@csrf.exempt
+def watchlist_comments_item(watchlist_id, comment_id):
+    wl = _watchlist_owned_or_404(watchlist_id)
+    if not wl:
+        return jsonify({"success": False, "error": "No encontrado o no autorizado"}), 404
+    c = WatchlistComment.query.filter_by(
+        id=comment_id, watchlist_id=watchlist_id
+    ).first()
+    if not c or c.user_id != current_user.id:
+        return jsonify({"success": False, "error": "Comentario no encontrado"}), 404
+    if request.method == "DELETE":
+        db.session.delete(c)
+        db.session.commit()
+        return jsonify({"success": True})
+
+    data = request.get_json(silent=True) or {}
+    body = (data.get("body") or "").strip()
+    if not body:
+        return jsonify({"success": False, "error": "El comentario no puede estar vacío"}), 400
+    if len(body) > WATCHLIST_COMMENT_MAX_LEN:
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": f"Máximo {WATCHLIST_COMMENT_MAX_LEN} caracteres",
+                }
+            ),
+            400,
+        )
+    c.body = body
+    c.updated_at = datetime.utcnow()
+    db.session.commit()
+    return jsonify({"success": True, "comment": c.to_dict()})
+
+
 @portfolio_bp.route('/watchlist/<int:watchlist_id>/reset-manual-fields', methods=['POST'])
 @login_required
 @csrf.exempt
 def watchlist_reset_manual_fields(watchlist_id):
-    """Borra los 5 campos manuales y el origen (usuario/IA) para poder volver a rellenar."""
+    """Borra todos los inputs manuales de valoración y el origen (usuario/IA)."""
     try:
         from app.services.watchlist_metrics_service import WatchlistMetricsService
         from app.services.watchlist_service import WatchlistService
@@ -999,11 +1152,11 @@ def watchlist_reset_manual_fields(watchlist_id):
         if not wl or wl.user_id != current_user.id:
             return jsonify({'success': False, 'error': 'No encontrado o no autorizado'}), 404
 
-        wl.next_earnings_date = None
-        wl.per_ntm = None
-        wl.ntm_dividend_yield = None
-        wl.eps = None
-        wl.cagr_revenue_yoy = None
+        from app.models.watchlist import WATCHLIST_MANUAL_FIELD_KEYS
+
+        for k in WATCHLIST_MANUAL_FIELD_KEYS:
+            if hasattr(wl, k):
+                setattr(wl, k, None)
         wl.manual_field_sources = None
 
         config = WatchlistService.get_or_create_config(current_user.id)
@@ -1022,7 +1175,7 @@ def watchlist_reset_manual_fields(watchlist_id):
                 current_value_eur = cost_eur
 
         WatchlistMetricsService.update_all_metrics(
-            wl, config, current_value_eur=current_value_eur
+            wl, config, current_value_eur=current_value_eur, asset=wl.asset
         )
         db.session.commit()
         return jsonify({'success': True, 'message': 'Campos manuales reiniciados'})

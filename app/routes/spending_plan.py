@@ -86,6 +86,26 @@ def index():
     return resp
 
 
+@spending_plan_bp.route("/replanificar_full", methods=["POST"])
+@login_required
+def replanificar_full():
+    wants_json = "application/json" in (request.headers.get("Accept") or "") or request.headers.get(
+        "X-Requested-With"
+    ) == "XMLHttpRequest"
+    if not wants_json:
+        return redirect(url_for("spending_plan.index"))
+    if not request.form.get("csrf_token"):
+        return jsonify({"ok": False, "error_message": "Sesión expirada."}), 400
+    try:
+        res = sps.full_replan_if_not_viable(current_user.id)
+        if res.get("ok"):
+            return jsonify({"ok": True, "summary": res}), 200
+        return jsonify({"ok": False, "error_message": res.get("message") or "No fue posible replanificar.", "summary": res}), 400
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"ok": False, "error_message": f"No se pudo replanificar: {e}"}), 500
+
+
 @spending_plan_bp.route("/objetivo", methods=["POST"])
 @login_required
 def add_goal():
@@ -174,12 +194,13 @@ def add_goal():
                 )
                 return jsonify({"ok": False, "error_message": msg, "suggestions": sug}), 400
             if gtype_now == "mortgage":
+                update_id = request.form.get("update_goal_id", type=int)
                 td = _parse_target_date(request.form.get("target_date") or "")
                 extra = (request.form.get("extra_json") or "").strip() or ""
                 extra = _merge_mortgage_target_into_extra(extra, td)
                 sug = sps.suggest_adjustments_for_mortgage(
                     current_user.id,
-                    None,
+                    update_id,
                     request.form.get("title") or "",
                     float(request.form.get("amount_total") or 0),
                     td,

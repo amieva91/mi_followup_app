@@ -3,9 +3,6 @@ Servicio para integración con Google Gemini API.
 - Resumen "About the Company": generate_content (rápido, síncrono)
 - Informes IA watchlist: por defecto Gemini Flash (``generate_content``); opcional Deep Research.
 - Informe largo (ficha): Interactions API Deep Research (background, poll)
-- Audio informe: guion estilo podcast (texto) + TTS multi-locutor ``gemini-3.1-flash-tts-preview``
-  (API ``generateContent`` del SDK; no es el producto independiente «NotebookLM / Podcasts» de Google,
-  pero replica el patrón guion → audio multispeaker de la documentación oficial).
 """
 import os
 import re
@@ -25,12 +22,6 @@ class GeminiServiceError(Exception):
     pass
 
 
-class GeminiTTSSynthesisTimeoutError(GeminiServiceError):
-    """La llamada de síntesis TTS superó el tiempo máximo configurado (wall-clock)."""
-
-    pass
-
-
 def _get_api_key() -> Optional[str]:
     """Obtener API key de Gemini desde variables de entorno"""
     raw = os.environ.get('GEMINI_API_KEY')
@@ -40,93 +31,6 @@ def _get_api_key() -> Optional[str]:
 def _get_model_flash() -> str:
     """Modelo para texto (About, resumen TTS). Default: gemini-2.5-flash"""
     return os.environ.get('GEMINI_MODEL_FLASH') or 'gemini-2.5-flash'
-
-
-def _get_model_tts() -> str:
-    """Modelo para generación de audio TTS. Default: gemini-3.1-flash-tts-preview"""
-    return os.environ.get('GEMINI_MODEL_TTS') or 'gemini-3.1-flash-tts-preview'
-
-
-def _get_model_podcast_script() -> str:
-    """Modelo de texto para guion estilo podcast (dos locutores). Default: mismo que flash."""
-    return os.environ.get('GEMINI_MODEL_PODCAST_SCRIPT') or _get_model_flash()
-
-
-def _get_tts_max_output_tokens() -> int:
-    """
-    Presupuesto de salida para TTS (modalidad AUDIO). Valores bajos provocan
-    ``finish_reason=MAX_TOKENS``: el modelo corta la locución y el resto del PCM
-    suele ser silencio (~16 min de fichero con ~3 min de voz). Override:
-    ``GEMINI_TTS_MAX_OUTPUT_TOKENS`` (acotado 8192–262144).
-    """
-    raw = os.environ.get('GEMINI_TTS_MAX_OUTPUT_TOKENS')
-    if raw is not None and str(raw).strip() != '':
-        try:
-            return max(8192, min(262144, int(str(raw).strip())))
-        except ValueError:
-            pass
-    return 65536
-
-
-def _get_tts_synthesis_temperature() -> float:
-    """
-    Temperatura solo en la llamada al modelo TTS (audio), no al guion.
-    Valores altos en audio largo pueden aumentar artefactos; por defecto 0,65.
-    Override: GEMINI_TTS_TEMPERATURE.
-    """
-    raw = os.environ.get('GEMINI_TTS_TEMPERATURE')
-    if raw is None or str(raw).strip() == '':
-        return 0.65
-    try:
-        return max(0.0, min(1.0, float(str(raw).strip().replace(',', '.'))))
-    except ValueError:
-        return 0.65
-
-
-def _get_tts_synthesis_wall_timeout_seconds() -> int:
-    """
-    Tiempo máximo (reloj de pared) para la fase de síntesis TTS: una o dos llamadas
-    a la API de audio + escritura WAV. Por defecto 30 minutos.
-    Override: GEMINI_TTS_SYNTHESIS_TIMEOUT_SECONDS (mínimo 120, máximo 7200).
-    """
-    raw = os.environ.get('GEMINI_TTS_SYNTHESIS_TIMEOUT_SECONDS')
-    if raw is not None and str(raw).strip() != '':
-        try:
-            return max(120, min(7200, int(str(raw).strip())))
-        except ValueError:
-            pass
-    return 1800
-
-
-def _make_tts_genai_client(api_key: str):
-    """
-    Cliente sólo para síntesis: ``HttpOptions.timeout`` en milisegundos un poco por encima
-    del wall-timeout para que no aborte httpx antes que el límite global del hilo.
-    """
-    from google import genai
-    from google.genai import types
-
-    sec = _get_tts_synthesis_wall_timeout_seconds()
-    ms = max(60_000, int((sec + 120) * 1000))
-    try:
-        return genai.Client(api_key=api_key, http_options=types.HttpOptions(timeout=ms))
-    except Exception:
-        logger.warning('genai.Client(http_options=...) no disponible; TTS con cliente por defecto', exc_info=True)
-        return genai.Client(api_key=api_key)
-
-
-def _get_podcast_script_temperature() -> float:
-    """
-    Temperatura para el guion (NotebookLM). Por defecto ~0,82 (más natural; el límite va en el prompt).
-    Rango recomendado 0,7–1,0. Override: GEMINI_PODCAST_SCRIPT_TEMPERATURE.
-    """
-    raw = os.environ.get('GEMINI_PODCAST_SCRIPT_TEMPERATURE')
-    if raw is None or str(raw).strip() == '':
-        return 0.82
-    try:
-        return max(0.0, min(1.0, float(str(raw).strip().replace(',', '.'))))
-    except ValueError:
-        return 0.82
 
 
 def _get_agent_deep_research() -> str:
@@ -175,6 +79,21 @@ def _get_deep_research_max_wait_seconds() -> int:
         return 3600
 
 
+def _get_deep_research_max_citations() -> int:
+    """
+    Límite blando (instrucción al modelo) para reducir coste y verbosidad:
+    número máximo de citas `[cite: ...]` a incluir en el informe final.
+    Override: GEMINI_DEEP_RESEARCH_MAX_CITATIONS (por defecto 0 = sin límite).
+    """
+    raw = os.environ.get("GEMINI_DEEP_RESEARCH_MAX_CITATIONS", "").strip()
+    if not raw:
+        return 0
+    try:
+        return max(0, int(raw))
+    except ValueError:
+        return 0
+
+
 def _get_watchlist_ia_max_wait_seconds() -> int:
     """
     Presupuesto de polling por activo para Informes IA (watchlist, ``watchlist_minimal``).
@@ -221,16 +140,8 @@ DEEP_RESEARCH_APPROVE_INPUT = (
 
 
 def _report_substep_rows(single_shot: bool) -> list:
-    """Subpasos para la UI: plan → validar → informe → resumen Flash."""
+    """Subpasos para la UI: plan → validar → informe (sin resumen)."""
     ag = _get_agent_deep_research()
-    flash_m = _get_model_flash()
-    summary_row = {
-        'id': 'summary',
-        'title': 'Generando resumen (Flash)',
-        'status': 'pending',
-        'model': flash_m,
-        'error': None,
-    }
     if single_shot:
         return [
             {
@@ -254,7 +165,6 @@ def _report_substep_rows(single_shot: bool) -> list:
                 'model': ag,
                 'error': None,
             },
-            summary_row,
         ]
     return [
         {
@@ -278,7 +188,6 @@ def _report_substep_rows(single_shot: bool) -> list:
             'model': ag,
             'error': None,
         },
-        summary_row,
     ]
 
 
@@ -286,8 +195,7 @@ def report_substeps_after_dr_ok(
     single_shot: bool, summary_phase: str, summary_error: Optional[str] = None
 ) -> list:
     """
-    Tras completar Deep Research: primeros pasos en ok/skipped; paso ``summary`` según ``summary_phase``
-    (``loading``, ``ok``, ``error``).
+    Tras completar Deep Research: primeros pasos en ok/skipped; informe en ok.
     """
     subs = _report_substep_rows(single_shot)
     if single_shot:
@@ -298,22 +206,20 @@ def report_substeps_after_dr_ok(
         for i in range(3):
             subs[i]['status'] = 'ok'
             subs[i]['error'] = None
-    subs[3]['status'] = summary_phase
-    subs[3]['error'] = summary_error
     return subs
 
 
 def new_report_stages_progress_state() -> dict:
     """
     Progreso en la pestaña de informes para la generación **solo del informe** (plan → … → informe → resumen).
-    Se guarda en ``company_reports.audio_progress_json`` con ``report_stages: true``.
+    Se guarda en ``company_reports.job_progress_json`` con ``report_stages: true``.
     """
     return {
         'report_stages': True,
         'full_pipeline': False,
         'caption': (
-            'Investigación en segundo plano: plan (colaborativo), confirmación, informe Deep Research '
-            'y resumen para correo/vista. Puedes salir; el estado se actualizará al volver.'
+            'Investigación en segundo plano: plan (colaborativo), confirmación e informe Deep Research. '
+            'Puedes salir; el estado se actualizará al volver.'
         ),
         'steps': _report_substep_rows(not _get_auto_collab_loop()),
     }
@@ -360,44 +266,29 @@ Requisitos (español, sin saludos; salida en **Markdown mínimo** legible en pan
         from google.genai import types
 
         client = genai.Client(api_key=api_key)
-        last_error = None
-        max_retries = 3
-        retry_delay = 65  # segundos (la API suele indicar ~60s)
-
-        for attempt in range(max_retries):
-            try:
-                response = client.models.generate_content(
-                    model=_get_model_flash(),
-                    contents=prompt,
-                    config=types.GenerateContentConfig(
-                        temperature=0.35,
-                        # 2.5 Flash cuenta el razonamiento interno contra max_output_tokens; si
-                        # no se limita, la respuesta visible puede quedar truncada a mitad de frase.
-                        max_output_tokens=1024,
-                        thinking_config=types.ThinkingConfig(thinking_budget=0),
-                    ),
+        response = client.models.generate_content(
+            model=_get_model_flash(),
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                temperature=0.35,
+                # 2.5 Flash cuenta el razonamiento interno contra max_output_tokens; si
+                # no se limita, la respuesta visible puede quedar truncada a mitad de frase.
+                max_output_tokens=1024,
+                thinking_config=types.ThinkingConfig(thinking_budget=0),
+            ),
+        )
+        if response and response.text:
+            out = response.text.strip()
+            cands = getattr(response, "candidates", None) or []
+            if cands and cands[0].finish_reason and "MAX_TOKENS" in str(
+                cands[0].finish_reason
+            ).upper():
+                logger.warning(
+                    "Resumen About: finish_reason=MAX_TOKENS (%s chars).",
+                    len(out),
                 )
-                if response and response.text:
-                    out = response.text.strip()
-                    cands = getattr(response, "candidates", None) or []
-                    if cands and cands[0].finish_reason and "MAX_TOKENS" in str(
-                        cands[0].finish_reason
-                    ).upper():
-                        logger.warning(
-                            "Resumen About: finish_reason=MAX_TOKENS (%s chars).",
-                            len(out),
-                        )
-                    return out
-                raise GeminiServiceError('Respuesta vacía de Gemini')
-            except Exception as e:
-                last_error = e
-                err_str = str(e).upper()
-                # 429 RESOURCE_EXHAUSTED: reintentar tras esperar
-                if attempt < max_retries - 1 and ('429' in err_str or 'RESOURCE_EXHAUSTED' in err_str):
-                    logger.warning('Gemini 429, reintento %s/%s en %ss: %s', attempt + 1, max_retries, retry_delay, e)
-                    time.sleep(retry_delay)
-                else:
-                    raise
+            return out
+        raise GeminiServiceError('Respuesta vacía de Gemini')
 
     except ImportError as e:
         raise GeminiServiceError(f'Paquete google-genai no instalado: {e}')
@@ -467,40 +358,22 @@ usa `null` en el JSON como indique el briefing; **no inventes** cifras ni fechas
 
         client = genai.Client(api_key=api_key)
         model = _get_model_flash()
-        max_retries = 3
-        retry_delay = 65
-
-        for attempt in range(max_retries):
-            try:
-                response = client.models.generate_content(
-                    model=model,
-                    contents=prompt,
-                    config=types.GenerateContentConfig(
-                        temperature=0.2,
-                        max_output_tokens=8192,
-                        thinking_config=types.ThinkingConfig(thinking_budget=0),
-                    ),
-                )
-                if response and response.text and str(response.text).strip():
-                    out = str(response.text).strip()
-                    logger.info('Watchlist IA Flash: model=%s chars=%s', model, len(out))
-                    if on_status_update:
-                        on_status_update('completed', 'Informe completado')
-                    return ('completed', out)
-                raise GeminiServiceError('Respuesta vacía de Gemini Flash')
-            except Exception as e:
-                err_str = str(e).upper()
-                if attempt < max_retries - 1 and ('429' in err_str or 'RESOURCE_EXHAUSTED' in err_str):
-                    logger.warning(
-                        'Watchlist IA Flash 429, reintento %s/%s en %ss: %s',
-                        attempt + 1,
-                        max_retries,
-                        retry_delay,
-                        e,
-                    )
-                    time.sleep(retry_delay)
-                else:
-                    raise
+        response = client.models.generate_content(
+            model=model,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                temperature=0.2,
+                max_output_tokens=8192,
+                thinking_config=types.ThinkingConfig(thinking_budget=0),
+            ),
+        )
+        if response and response.text and str(response.text).strip():
+            out = str(response.text).strip()
+            logger.info('Watchlist IA Flash: model=%s chars=%s', model, len(out))
+            if on_status_update:
+                on_status_update('completed', 'Informe completado')
+            return ('completed', out)
+        raise GeminiServiceError('Respuesta vacía de Gemini Flash')
 
     except ImportError as e:
         raise GeminiServiceError(f'Paquete google-genai no instalado: {e}')
@@ -979,8 +852,8 @@ def _interactions_create_deep_research_with_retries(
     agent_name: str,
     collab: bool,
     previous_interaction_id: Optional[str] = None,
-    max_attempts: int = 3,
-    retry_delay_seconds: int = 30,
+    max_attempts: int = 1,
+    retry_delay_seconds: int = 0,
     on_status_update=None,
     status_label: str = 'Creando Deep Research',
 ) -> Any:
@@ -988,40 +861,14 @@ def _interactions_create_deep_research_with_retries(
     Reintentos de `interactions.create` cuando falla **antes** de tener `interaction_id`.
     Mantiene el turno en la cola (el caller suele estar bajo lock de background).
     """
-    attempts = max(1, int(max_attempts or 1))
-    last_err: Optional[Exception] = None
-    for attempt in range(1, attempts + 1):
-        try:
-            return _interactions_create_deep_research(
-                client,
-                input_text=input_text,
-                agent_name=agent_name,
-                collab=collab,
-                previous_interaction_id=previous_interaction_id,
-            )
-        except Exception as ex:
-            last_err = ex
-            if attempt >= attempts:
-                break
-            logger.warning(
-                'Deep Research: interactions.create falló (intento %s/%s). Reintento en %ss. error=%s',
-                attempt,
-                attempts,
-                retry_delay_seconds,
-                ex,
-            )
-            if on_status_update:
-                try:
-                    on_status_update(
-                        'processing',
-                        f'{status_label} falló (intento {attempt}/{attempts}); reintentando en {retry_delay_seconds}s…',
-                    )
-                except Exception:
-                    pass
-            time.sleep(max(1, int(retry_delay_seconds or 1)))
-    if last_err:
-        raise last_err
-    raise GeminiServiceError('interactions.create falló (sin error capturable)')
+    # Sin reintentos: si falla antes de obtener interaction_id, devolvemos error y liberamos la cola.
+    return _interactions_create_deep_research(
+        client,
+        input_text=input_text,
+        agent_name=agent_name,
+        collab=collab,
+        previous_interaction_id=previous_interaction_id,
+    )
 
 
 def _poll_interaction_once(
@@ -1186,6 +1033,14 @@ no escribas un informe de inversión largo.
 - Citas o fuentes: basta con lo necesario en la tabla del briefing; no hace falta bibliografía larga.{extra_tail}
 """
     else:
+        max_cites = _get_deep_research_max_citations()
+        cites_hint = ""
+        if max_cites and max_cites > 0:
+            cites_hint = (
+                f"\n- **Eficiencia de fuentes (obligatorio):** usa como máximo **{max_cites}** citas del tipo "
+                "`[cite: X]` en todo el informe final. Prioriza las **mejores** fuentes (IR de la empresa, "
+                "regulador, filings oficiales, bolsa) y evita duplicar citas para el mismo dato.\n"
+            )
         prompt = f"""Actúa como un **Analista Senior de Equity Research** con enfoque en diseño editorial profesional.
 
 **Empresa y contexto de investigación**
@@ -1210,6 +1065,7 @@ Con ``visualization: auto`` debes entregar **solo imágenes raster finales** inc
 - **Prohibido** el rellano genérico. Cada **dato numérico** relevante debe ir acompañado de una cita en texto con el formato **`[cite: X]`** (documento, CNMV, informe, prensa verificable, etc.) cuando exista. No inventes la cita.
 - **Protocolo de datos faltantes:** si una métrica (EBITDA, PER actual, márgenes, deuda, guidance, etc.) **no aparece** en las fuentes, declara **«Dato no disponible»** y explica en una frase breve el motivo. **Prohibido** estimar, interpolar o inventar sin base.
 - Prioriza análisis accionable; contrapón oportunidad y riesgo.
+{cites_hint}
 
 **CODIFICACIÓN Y ENTREGA**
 - Responde en **español (España)**. Salida en texto **UTF-8** con tildes y eñes correctas en el carácter; **no** uses secuencias escapadas tipo ``\\u00f3``.
@@ -1263,8 +1119,8 @@ Con ``visualization: auto`` debes entregar **solo imágenes raster finales** inc
                     agent_name=agent_name,
                     collab=False,
                     previous_interaction_id=None,
-                    max_attempts=3,
-                    retry_delay_seconds=30,
+                    max_attempts=1,
+                    retry_delay_seconds=0,
                     on_status_update=on_status_update,
                     status_label='Creando Deep Research (modo directo)',
                 )
@@ -1324,8 +1180,8 @@ Con ``visualization: auto`` debes entregar **solo imágenes raster finales** inc
                 agent_name=agent_name,
                 collab=True,
                 previous_interaction_id=None,
-                max_attempts=3,
-                retry_delay_seconds=30,
+                max_attempts=1,
+                retry_delay_seconds=0,
                 on_status_update=on_status_update,
                 status_label='Creando plan Deep Research',
             )
@@ -1378,8 +1234,8 @@ Con ``visualization: auto`` debes entregar **solo imágenes raster finales** inc
                 agent_name=agent_name,
                 collab=False,
                 previous_interaction_id=str(id1)[:200],
-                max_attempts=3,
-                retry_delay_seconds=30,
+                max_attempts=1,
+                retry_delay_seconds=0,
                 on_status_update=on_status_update,
                 status_label='Confirmando plan Deep Research',
             )
@@ -1466,7 +1322,7 @@ def _persist_company_report_completed_resume(report_id: int, markdown: str) -> N
     r.error_msg = None
     r.completed_at = datetime.utcnow()
     if not is_full_deliver:
-        r.audio_progress_json = None
+        r.job_progress_json = None
     else:
         r.delivery_phase_status = 'processing'
     db.session.commit()
@@ -1490,6 +1346,16 @@ def _persist_company_report_completed_resume(report_id: int, markdown: str) -> N
 
     if is_full_deliver and has_app_context():
         try:
+            import os
+
+            if os.environ.get("FOLLOWUP_IN_JOBS_WORKER", "").strip().lower() in (
+                "1",
+                "true",
+                "yes",
+                "on",
+            ):
+                # El proceso `followup-jobs` ejecuta el tail bajo lock tras volver del resume.
+                return
             app = current_app._get_current_object()
             from app.services.full_deliver_continuation import schedule_full_delivery_continuation
 
@@ -1513,6 +1379,12 @@ def _persist_company_report_failed_resume(report_id: int, msg: str) -> None:
     r.status = 'failed'
     r.error_msg = (msg or '')[:8000]
     r.completed_at = datetime.utcnow()
+    try:
+        r.job_status = 'failed'
+        r.job_phase = 'failed'
+        r.job_finished_at = datetime.utcnow()
+    except Exception:
+        pass
     db.session.commit()
 
 
@@ -1863,43 +1735,29 @@ def generate_podcast_script_from_report(report_content: str, client) -> str:
 --- INFORME (markdown) ---
 {body[:50000]}"""
 
-    max_retries = 3
-    retry_delay = 65
-    for attempt in range(max_retries):
-        try:
-            response = client.models.generate_content(
-                model=model,
-                contents=user_block,
-                config=types.GenerateContentConfig(
-                    temperature=_get_podcast_script_temperature(),
-                    max_output_tokens=8192,
-                    thinking_config=types.ThinkingConfig(thinking_budget=0),
-                ),
-            )
-            if not response or not response.text:
-                raise GeminiServiceError('Respuesta vacía al generar el guion de podcast')
-            script = _strip_markdown_fences(response.text.strip())
-            if not script or _count_script_words_for_budget(script) < 40:
-                raise GeminiServiceError('Guion de podcast demasiado corto o inválido')
-            if f'{PODCAST_SPEAKER_1}:' not in script or f'{PODCAST_SPEAKER_2}:' not in script:
-                raise GeminiServiceError(
-                    f'El guion debe incluir diálogos con prefijos "{PODCAST_SPEAKER_1}:" y "{PODCAST_SPEAKER_2}:"'
-                )
-            script = _ensure_script_ready_for_tts(client, script, model)
-            if f'{PODCAST_SPEAKER_1}:' not in script or f'{PODCAST_SPEAKER_2}:' not in script:
-                raise GeminiServiceError('Tras re-escribir, el guion perdió el formato de hablantes')
-            return script
-        except GeminiServiceError:
-            raise
-        except Exception as e:
-            last_error = e
-            err_str = str(e).upper()
-            if attempt < max_retries - 1 and ('429' in err_str or 'RESOURCE_EXHAUSTED' in err_str):
-                logger.warning('Gemini guion podcast 429, reintento %s/%s: %s', attempt + 1, max_retries, e)
-                time.sleep(retry_delay)
-            else:
-                raise GeminiServiceError(str(e)) from e
-    raise GeminiServiceError('No se pudo generar el guion de podcast')
+    # Sin reintentos: si falla, el caller debe registrar error y liberar cola.
+    response = client.models.generate_content(
+        model=model,
+        contents=user_block,
+        config=types.GenerateContentConfig(
+            temperature=_get_podcast_script_temperature(),
+            max_output_tokens=8192,
+            thinking_config=types.ThinkingConfig(thinking_budget=0),
+        ),
+    )
+    if not response or not response.text:
+        raise GeminiServiceError('Respuesta vacía al generar el guion de podcast')
+    script = _strip_markdown_fences(response.text.strip())
+    if not script or _count_script_words_for_budget(script) < 40:
+        raise GeminiServiceError('Guion de podcast demasiado corto o inválido')
+    if f'{PODCAST_SPEAKER_1}:' not in script or f'{PODCAST_SPEAKER_2}:' not in script:
+        raise GeminiServiceError(
+            f'El guion debe incluir diálogos con prefijos "{PODCAST_SPEAKER_1}:" y "{PODCAST_SPEAKER_2}:"'
+        )
+    script = _ensure_script_ready_for_tts(client, script, model)
+    if f'{PODCAST_SPEAKER_1}:' not in script or f'{PODCAST_SPEAKER_2}:' not in script:
+        raise GeminiServiceError('Tras re-escribir, el guion perdió el formato de hablantes')
+    return script
 
 
 def _pcm_from_tts_response(response) -> Tuple[bytes, Any]:
@@ -2158,7 +2016,7 @@ def new_audio_progress_steps_state() -> list:
         {
             'id': 'script',
             'title': 'Guion 3 actos (obj. ~750 pal., máx. borrador 900, ~5 min)',
-            'status': 'loading',
+            'status': 'pending',
             'model': _get_model_podcast_script(),
             'error': None,
         },
@@ -2174,36 +2032,22 @@ def new_audio_progress_steps_state() -> list:
 
 def new_full_pipeline_progress_state() -> dict:
     """
-    Progreso unificado: subpasos del informe (plan / validación / informe / resumen) + guion + TTS + correo.
-    Se persiste en ``company_reports.audio_progress_json`` con ``full_pipeline: true``.
+    Progreso unificado: subpasos del informe (plan / validación / informe) + correo.
+    Se persiste en ``company_reports.job_progress_json`` con ``full_pipeline: true``.
     """
     first = _report_substep_rows(not _get_auto_collab_loop())
     return {
         'full_pipeline': True,
         'report_stages': False,
         'caption': (
-            'Proceso completo: Deep Research, resumen Flash, audio (es-ES) y envío por correo '
-            '(cuerpo con resumen + PDF del informe completo). Puedes salir.'
+            'Proceso completo: Deep Research y envío por correo (cuerpo con informe completo + PDF adjunto). '
+            'Puedes salir.'
         ),
         'steps': first
         + [
             {
-                'id': 'script',
-                'title': 'Guion 3 actos (obj. ~750 pal., máx. borrador 900, ~5 min)',
-                'status': 'pending',
-                'model': _get_model_podcast_script(),
-                'error': None,
-            },
-            {
-                'id': 'tts',
-                'title': 'Síntesis TTS (Charon + Kore, es-ES)',
-                'status': 'pending',
-                'model': _get_model_tts(),
-                'error': None,
-            },
-            {
                 'id': 'email',
-                'title': 'Enviar informe y audio por correo',
+                'title': 'Enviar informe por correo (con PDF adjunto)',
                 'status': 'pending',
                 'model': None,
                 'error': None,
@@ -2215,6 +2059,12 @@ def new_full_pipeline_progress_state() -> dict:
 def merge_full_pipeline_with_tts_progress(full_state: dict, tts_progress: dict) -> dict:
     """Incorpora guion + TTS en los índices 4 y 5 del pipeline completo (tras plan→informe→resumen)."""
     out = {**full_state, 'full_pipeline': True}
+    if isinstance(tts_progress, dict):
+        kr = tts_progress.get('tts_http_retry')
+        if kr is None and 'tts_http_retry' in tts_progress:
+            out.pop('tts_http_retry', None)
+        elif kr is not None:
+            out['tts_http_retry'] = kr
     steps = [dict(s) for s in (out.get('steps') or [])]
     tts_steps = (tts_progress or {}).get('steps') or []
     if len(steps) >= 6 and len(tts_steps) >= 1:
@@ -2249,23 +2099,57 @@ def generate_report_tts_audio(
     Args:
         report_content: Contenido Markdown del informe
         output_path: Ruta absoluta donde guardar el WAV
-        on_progress: Opcional. Recibe ``{"steps": [{id, title, status, model, error}, ...]}``
-            en cada transición (``status``: pending, loading, ok, error).
+        on_progress: Opcional. Recibe ``{\"steps\": [...]}`` y opcionalmente
+            ``tts_http_retry`` durante reintentos automáticos ante 500/503 (persistido para la UI).
 
     Raises:
         GeminiServiceError: Si falla la generación
     """
+    raise GeminiServiceError("Audio/TTS eliminado del producto")
+
     api_key = _get_api_key()
     if not api_key:
         raise GeminiServiceError('GEMINI_API_KEY no configurada')
 
-    def emit(steps: list[Any]) -> None:
-        if on_progress:
-            on_progress({'steps': [dict(s) for s in steps]})
+    def emit(steps: list[Any], *, extra: dict[str, Any] | None = None) -> None:
+        if not on_progress:
+            return
+        payload: dict[str, Any] = {'steps': [dict(s) for s in steps]}
+        if extra:
+            payload.update(extra)
+        on_progress(payload)
 
     def _is_no_interaction_id_error(err: Exception) -> bool:
         s = (str(err) or '').lower()
         return ('sin interaction_id' in s) or ('without interaction_id' in s)
+
+    def _http_status_from_exc(err: Exception) -> int | None:
+        try:
+            from google.genai import errors as ge
+
+            if isinstance(err, ge.ServerError):
+                c = getattr(err, 'status_code', None)
+                if c is None:
+                    return None
+                return int(c)
+        except Exception:
+            pass
+        return None
+
+    def _tts_transient_retryable(err: Exception) -> bool:
+        if _is_no_interaction_id_error(err):
+            return True
+        c = _http_status_from_exc(err)
+        if c in (500, 503):
+            return True
+        s = str(err) or ''
+        up = s.upper().replace(' ', '')
+        return (
+            ('500INTERNAL' in up)
+            or ('"CODE":500' in up.replace(' ', ''))
+            or ('SERVICE_UNAVAILABLE' in up)
+            or ('503' in up and 'SERVICE' in up)
+        )
 
     try:
         from google import genai
@@ -2292,50 +2176,83 @@ def generate_report_tts_audio(
         steps[0]['status'] = 'ok'
         steps[0]['error'] = None
         steps[1]['status'] = 'loading'
-        emit(steps)
+        emit(steps, extra={'tts_http_retry': None})
 
         tts_client = _make_tts_genai_client(api_key)
 
-        # Reintentos: si Gemini falla antes de devolver respuesta (sin interaction_id), reintentar sin perder turno.
+        # Reintentos (máx. 3 llamadas HTTP de síntesis): sin interaction_id, 500 / 503 del proveedor, etc.
         max_attempts = 3
-        retry_delay_seconds = 30
+        retry_delay_seconds_no_iid = 30
         last_tts_err: Optional[Exception] = None
         for attempt in range(1, max_attempts + 1):
             try:
                 _synthesize_multispeaker_podcast_wav(tts_client, script, output_path)
                 last_tts_err = None
                 break
+            except GeminiTTSSynthesisTimeoutError as e_timeout:
+                last_tts_err = e_timeout
+                steps[1]['status'] = 'error'
+                steps[1]['error'] = (str(e_timeout) or 'Error')[:4000]
+                emit(steps, extra={'tts_http_retry': None})
+                raise
             except Exception as e:
                 last_tts_err = e
-                if (attempt < max_attempts) and _is_no_interaction_id_error(e):
+                if attempt < max_attempts and _tts_transient_retryable(e):
+                    delay = (
+                        retry_delay_seconds_no_iid
+                        if _is_no_interaction_id_error(e)
+                        else min(120, max(6, int(6 * (2 ** (attempt - 1)))))
+                    )
+                    hc = _http_status_from_exc(e)
+                    kind = (
+                        'sin interaction_id'
+                        if _is_no_interaction_id_error(e)
+                        else (f'HTTP {hc}' if hc is not None else 'error proveedor')
+                    )
                     logger.warning(
-                        'TTS: error sin interaction_id (intento %s/%s). Reintento en %ss. err=%s',
+                        'TTS síntesis: fallo recuperable (%s), intento HTTP %s/%s, esperando %ss antes de reintentar. err=%s',
+                        kind,
                         attempt,
                         max_attempts,
-                        retry_delay_seconds,
+                        delay,
                         e,
                     )
-                    # Mantener en loading pero informar del reintento en el tooltip/error del paso.
+                    next_try_num = attempt + 1
                     steps[1]['status'] = 'loading'
-                    steps[1]['error'] = (
-                        f'Fallo transitorio (sin interaction_id). Reintentando en {retry_delay_seconds}s… '
-                        f'({attempt}/{max_attempts})'
-                    )[:4000]
-                    emit(steps)
-                    time.sleep(retry_delay_seconds)
+                    if _is_no_interaction_id_error(e):
+                        steps[1]['error'] = (
+                            f'Transitorio ({kind}). Siguiente intento automático {next_try_num}/{max_attempts} '
+                            f'en {delay}s…'
+                        )[:4000]
+                    else:
+                        steps[1]['error'] = (
+                            f'Transitorio del proveedor ({kind}). Siguiente intento automático {next_try_num}/{max_attempts} '
+                            f'en {delay}s…'
+                        )[:4000]
+                    emit(
+                        steps,
+                        extra={
+                            'tts_http_retry': {
+                                'attempt': next_try_num,
+                                'max': max_attempts,
+                                'next_in_s': delay,
+                                'last_http_status': hc,
+                                'phase': kind,
+                            }
+                        },
+                    )
+                    time.sleep(delay)
                     continue
-                # No reintetable o agotado
                 steps[1]['status'] = 'error'
                 steps[1]['error'] = (str(e) or 'Error')[:4000]
-                emit(steps)
+                emit(steps, extra={'tts_http_retry': None})
                 raise
         if last_tts_err is not None:
-            # debería estar cubierto por raise anterior, pero por seguridad
             raise last_tts_err
 
         steps[1]['status'] = 'ok'
         steps[1]['error'] = None
-        emit(steps)
+        emit(steps, extra={'tts_http_retry': None})
 
         logger.info(
             'TTS podcast completado: %s (palabras habladas ~%s)',

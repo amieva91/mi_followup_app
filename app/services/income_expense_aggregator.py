@@ -63,6 +63,46 @@ def _add_expense_average_fields(summary, period_months: int):
             )
 
 
+def _sort_income_category_summary_by_total(summary: List[Dict[str, Any]]) -> None:
+    """Mayor total a menor (últimos N meses)."""
+    summary.sort(key=lambda x: float(x.get("total") or 0), reverse=True)
+
+
+def flatten_expense_category_chips_sorted(summary: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Filas listas para la UI de resumen (un chip por categoría mostrada),
+    ordenadas por total descendente (mayor gasto primero).
+    """
+    rows: List[Dict[str, Any]] = []
+    for parent in summary:
+        children = parent.get("children") or []
+        if children:
+            for c in children:
+                rows.append(
+                    {
+                        "id": c["id"],
+                        "name": c["name"],
+                        "icon": c.get("icon"),
+                        "total": c["total"],
+                        "average": c["average"],
+                        "is_ajustes": False,
+                    }
+                )
+        else:
+            rows.append(
+                {
+                    "id": parent["id"],
+                    "name": parent["name"],
+                    "icon": parent.get("icon"),
+                    "total": parent["total"],
+                    "average": parent["average"],
+                    "is_ajustes": parent.get("name") == "Ajustes",
+                }
+            )
+    rows.sort(key=lambda r: float(r.get("total") or 0), reverse=True)
+    return rows
+
+
 def get_income_category_summary_with_adjustment(user_id, months=12):
     """Resumen por categoría de ingresos incluyendo ajuste y retiradas broker (Stock Market)."""
     today = date.today()
@@ -114,6 +154,7 @@ def get_income_category_summary_with_adjustment(user_id, months=12):
             round(total / period_months, 2) if period_months > 0 and total else 0.0
         )
 
+    _sort_income_category_summary_by_total(summary)
     return summary
 
 

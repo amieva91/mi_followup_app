@@ -36,6 +36,7 @@
     }
     #sp-planning .pf-info:focus { outline: 2px solid rgba(20, 184, 166, 0.5); outline-offset: 1px; }
 </style>
+{% set needs_bank_update = bank_cash_meta and bank_cash_meta.bank_month_needs_update %}
 <script>
 function spendingPlanGoals(cfg) {
     const base = cfg.basePath;
@@ -50,6 +51,10 @@ function spendingPlanGoals(cfg) {
         infoModalTitle: '',
         infoModalMessage: '',
         infoModalSuggestions: [],
+        infoModalContext: 'create', // 'create' | 'edit'
+        fullReplanModalOpen: !!cfg.fullReplanOpen,
+        fullReplanRunning: false,
+        fullReplanResult: null,
         deleteUrl: '',
         deleteTitle: '',
         editUrl: '',
@@ -72,6 +77,32 @@ function spendingPlanGoals(cfg) {
                     var q = u.searchParams.toString();
                     window.history.replaceState({}, '', u.pathname + (q ? '?' + q : '') + u.hash);
                 } catch (e) { /* ignore */ }
+            }
+        },
+        closeFullReplan() { this.fullReplanModalOpen = false; },
+        resetFullReplanResult() { this.fullReplanResult = null; },
+        reloadAfterFullReplan() { window.location.reload(); },
+        async runFullReplan() {
+            if (this.fullReplanRunning) return;
+            this.fullReplanRunning = true;
+            try {
+                var fd = new FormData();
+                fd.append('csrf_token', cfg.csrfToken || '');
+                var r = await fetch(base + '/replanificar_full', {
+                    method: 'POST',
+                    body: fd,
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                var data = await r.json().catch(function () { return null; });
+                if (r.ok && data && data.ok) {
+                    this.fullReplanResult = (data && data.summary) ? data.summary : { ok: true, changed: true, message: 'Replanificación completa realizada.', changes: [] };
+                    return;
+                }
+                this.fullReplanResult = (data && data.summary) ? data.summary : { ok: false, changed: false, message: (data && data.error_message) ? data.error_message : 'No ha sido posible replanificar.', changes: [] };
+            } catch (e) {
+                this.fullReplanResult = { ok: false, changed: false, message: 'No se pudo replanificar (error de red).', changes: [] };
+            } finally {
+                this.fullReplanRunning = false;
             }
         },
         openDeleteModal(g) {
@@ -117,20 +148,35 @@ function spendingPlanGoals(cfg) {
             this.infoModalTitle = (payload && payload.title) ? payload.title : 'No se puede replanificar';
             this.infoModalMessage = (payload && payload.message) ? payload.message : '';
             this.infoModalSuggestions = (payload && payload.suggestions) ? payload.suggestions : [];
+            this.infoModalContext = (payload && payload.context) ? payload.context : 'create';
             this.infoModalOpen = true;
         },
         applySuggestion(s) {
             if (!s) return;
             if (s.type === 'set_field') {
                 if (s.field === 'target_date') {
-                    var el = document.getElementById('generic-target-date-input');
-                    if (el) { el.value = s.value || ''; el.dispatchEvent(new Event('change', { bubbles: true })); }
-                    if (this.editModalOpen) { this.editTargetDate = s.value || ''; }
+                    if (this.infoModalContext === 'edit') {
+                        this.editTargetDate = s.value || '';
+                        try {
+                            var ed = document.querySelector('form[data-edit-generic-form=\"1\"] input[name=\"target_date\"]');
+                            if (ed) { ed.value = s.value || ''; ed.dispatchEvent(new Event('input', { bubbles: true })); ed.dispatchEvent(new Event('change', { bubbles: true })); }
+                        } catch (e) { /* ignore */ }
+                    } else {
+                        var el = document.getElementById('generic-target-date-input');
+                        if (el) { el.value = s.value || ''; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); }
+                    }
                 }
                 if (s.field === 'installment_months') {
-                    var el2 = document.getElementById('generic-installments-input');
-                    if (el2) { el2.value = s.value || ''; el2.dispatchEvent(new Event('change', { bubbles: true })); }
-                    if (this.editModalOpen) { this.editInstallmentMonths = s.value || ''; }
+                    if (this.infoModalContext === 'edit') {
+                        this.editInstallmentMonths = s.value || '';
+                        try {
+                            var ei = document.querySelector('form[data-edit-generic-form=\"1\"] input[name=\"installment_months\"]');
+                            if (ei) { ei.value = s.value || ''; ei.dispatchEvent(new Event('input', { bubbles: true })); ei.dispatchEvent(new Event('change', { bubbles: true })); }
+                        } catch (e) { /* ignore */ }
+                    } else {
+                        var el2 = document.getElementById('generic-installments-input');
+                        if (el2) { el2.value = s.value || ''; el2.dispatchEvent(new Event('input', { bubbles: true })); el2.dispatchEvent(new Event('change', { bubbles: true })); }
+                    }
                 }
             }
             this.closeInfo();
@@ -151,11 +197,12 @@ function spendingPlanGoals(cfg) {
                 var data = await r.json().catch(function () { return null; });
                 if (r.ok && data && data.ok) { window.location.reload(); return; }
                 this.openInfo({
+                    context: 'create',
                     message: (data && data.error_message) ? data.error_message : 'No se pudo replanificar.',
                     suggestions: (data && data.suggestions) ? data.suggestions : [],
                 });
             } catch (e) {
-                this.openInfo({ message: 'No se pudo guardar (error de red).', suggestions: [] });
+                this.openInfo({ context: 'create', message: 'No se pudo guardar (error de red).', suggestions: [] });
             } finally {
                 this.addPlanning = false;
             }
@@ -176,11 +223,12 @@ function spendingPlanGoals(cfg) {
                 var data = await r.json().catch(function () { return null; });
                 if (r.ok && data && data.ok) { window.location.reload(); return; }
                 this.openInfo({
+                    context: 'edit',
                     message: (data && data.error_message) ? data.error_message : 'No se pudo replanificar.',
                     suggestions: (data && data.suggestions) ? data.suggestions : [],
                 });
             } catch (e) {
-                this.openInfo({ message: 'No se pudo guardar (error de red).', suggestions: [] });
+                this.openInfo({ context: 'edit', message: 'No se pudo guardar (error de red).', suggestions: [] });
             } finally {
                 this.editPlanning = false;
             }
@@ -189,13 +237,116 @@ function spendingPlanGoals(cfg) {
 }
 </script>
 <div id="sp-planning" class="max-w-[92%] mx-auto px-1 sm:px-0 py-6"
-     x-data='spendingPlanGoals({ goals: {{ generic_goals_modal|tojson }}, openEditId: {{ open_edit_goal_id|tojson }}, basePath: {{ (url_for("spending_plan.index")|string).rstrip("/")|tojson }} })'>
+     x-data='spendingPlanGoals({ goals: {{ generic_goals_modal|tojson }}, openEditId: {{ open_edit_goal_id|tojson }}, basePath: {{ (url_for("spending_plan.index")|string).rstrip("/")|tojson }}, fullReplanOpen: {{ (plan_schedule and not plan_schedule.ok)|tojson }}, csrfToken: {{ csrf_token()|tojson }} })'>
+    {% if needs_bank_update %}
+    <div class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+            <div class="min-w-0">
+                <span class="font-semibold">Saldos bancarios no actualizados este mes.</span>
+                {% if bank_cash_meta.bank_last_month %}
+                    <span class="text-amber-800">
+                        Último mes con saldo guardado: {{ bank_cash_meta.bank_last_month.month }}/{{ bank_cash_meta.bank_last_month.year }}.
+                    </span>
+                {% endif %}
+                {% if bank_cash_meta.bank_cash_is_estimated %}
+                    <span class="text-amber-800">
+                        Usando saldo {{ 'estimado' if bank_cash_meta.bank_cash_method == 'flow_avg' else 'último conocido' }} para planificar.
+                    </span>
+                {% endif %}
+            </div>
+            <div class="shrink-0">
+                <a href="{{ url_for('banks.dashboard') }}"
+                   class="inline-flex items-center gap-2 rounded-xl bg-amber-600 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-700">
+                    Actualizar saldos en Bancos
+                </a>
+            </div>
+        </div>
+        {% if bank_cash_meta.bank_last_updated_at %}
+        <div class="mt-1 text-xs text-amber-800">
+            Última actualización: {{ bank_cash_meta.bank_last_updated_at }}
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
     {% if plan_schedule and not plan_schedule.ok %}
     <div class="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
         <p class="font-semibold">Plan no viable con la configuración actual</p>
         <p class="mt-1">{{ plan_schedule.error_message }}</p>
     </div>
     {% endif %}
+
+    <template x-teleport="body">
+        <div x-show="fullReplanModalOpen" x-cloak x-transition
+             class="fixed inset-0 z-[85] flex items-center justify-center p-4"
+             style="display: none;">
+            <div class="absolute inset-0 bg-black/55" @click="closeFullReplan()" aria-hidden="true"></div>
+            <div class="followup-modal-surface relative z-10 max-w-lg w-full p-6" role="dialog" aria-modal="true" @click.stop>
+                <template x-if="!fullReplanResult">
+                    <div>
+                        <h3 class="text-lg font-semibold text-slate-900 mb-2">⚠️ Planificación no viable</h3>
+                        <p class="text-sm text-slate-700 mb-4 whitespace-pre-line">
+                            Parece que tus datos han cambiado (cash, ingresos o gastos) y el plan ya no encaja.
+                            Puedes intentar una replanificación completa. Mantendremos las fechas inamovibles si son de este mes o futuras.
+                        </p>
+                        <div class="flex flex-col sm:flex-row gap-3">
+                            <button type="button" @click="runFullReplan()" :disabled="fullReplanRunning"
+                                    :class="fullReplanRunning ? 'opacity-80 cursor-not-allowed' : ''"
+                                    class="sp-btn px-5 py-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 text-sm font-semibold w-full sm:w-auto">
+                                <span x-show="!fullReplanRunning">Iniciar replanificación completa</span>
+                                <span x-show="fullReplanRunning" class="inline-flex items-center gap-2">
+                                    Replanificando
+                                    <span class="inline-block w-4 h-4 border-2 border-white/70 border-t-transparent rounded-full animate-spin"></span>
+                                </span>
+                            </button>
+                            <button type="button" @click="closeFullReplan()"
+                                    class="sp-btn px-5 py-2.5 border border-slate-300 bg-slate-200 rounded-xl text-sm text-slate-800 hover:bg-slate-300 w-full sm:w-auto">
+                                Cerrar
+                            </button>
+                        </div>
+                    </div>
+                </template>
+
+                <template x-if="fullReplanResult">
+                    <div>
+                        <h3 class="text-lg font-semibold text-slate-900 mb-1">
+                            <span x-text="(fullReplanResult && fullReplanResult.ok) ? '✅ Replanificación completada' : '❌ No se pudo replanificar'"></span>
+                        </h3>
+                        <p class="text-sm text-slate-700 mb-4 whitespace-pre-line" x-text="fullReplanResult.message || ''"></p>
+
+                        <div x-show="fullReplanResult.changes && fullReplanResult.changes.length" class="mb-4">
+                            <p class="text-xs font-semibold text-slate-600 mb-2">Resumen de cambios aplicados</p>
+                            <div class="max-h-56 overflow-y-auto rounded-xl border border-slate-200/80 bg-slate-50/60 p-3 space-y-2">
+                                <template x-for="(c, idx) in fullReplanResult.changes" :key="idx">
+                                    <div class="text-xs text-slate-800">
+                                        <span class="font-semibold" x-text="c.title || ('Objetivo #' + (c.goal_id || ''))"></span>
+                                        <span class="text-slate-500">·</span>
+                                        <span class="text-slate-700" x-text="(c.field || 'cambio')"></span>
+                                        <span class="text-slate-500">:</span>
+                                        <span class="tabular-nums" x-text="(c.from === null || c.from === undefined || c.from === '') ? '—' : String(c.from)"></span>
+                                        <span class="text-slate-500">→</span>
+                                        <span class="tabular-nums" x-text="(c.to === null || c.to === undefined || c.to === '') ? '—' : String(c.to)"></span>
+                                        <span class="text-slate-500" x-show="c.reason">·</span>
+                                        <span class="text-slate-500" x-text="c.reason || ''"></span>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col sm:flex-row gap-3">
+                            <button type="button" @click="reloadAfterFullReplan()"
+                                    class="sp-btn px-5 py-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 text-sm font-semibold w-full sm:w-auto">
+                                Recargar para ver el nuevo plan
+                            </button>
+                            <button type="button" @click="resetFullReplanResult(); closeFullReplan();"
+                                    class="sp-btn px-5 py-2.5 border border-slate-300 bg-slate-200 rounded-xl text-sm text-slate-800 hover:bg-slate-300 w-full sm:w-auto">
+                                Cerrar
+                            </button>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </template>
     <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
         <div>
             <div class="flex flex-wrap items-start gap-2">
@@ -473,7 +624,7 @@ function spendingPlanGoals(cfg) {
             </ul>
         </div>
         <div class="rounded-xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50/95 to-slate-50/90 p-4 shadow-[0_8px_22px_rgba(15,23,42,0.07)] border-l-4 border-emerald-500">
-            <p class="text-sm font-medium text-emerald-800">Saldo total acumulado (5 años)</p>
+            <p class="text-sm font-medium text-emerald-800">Saldo total ahorrado (5 años)</p>
             <p class="text-2xl font-bold text-emerald-950 tabular-nums">
                 {% if balance_end_5y is not none %}
                 {{ "%.2f"|format(balance_end_5y) }} €
@@ -517,7 +668,7 @@ function spendingPlanGoals(cfg) {
                     <th class="px-4 py-3 text-right font-semibold">Cuota</th>
                     <th class="px-4 py-3 font-semibold">Pagos</th>
                     <th class="px-4 py-3 text-right font-semibold">Superávit</th>
-                    <th class="px-4 py-3 text-right font-semibold">Saldo acum.</th>
+                    <th class="px-4 py-3 text-right font-semibold">Saldo ahorr.</th>
                     <th class="px-4 py-3 text-right font-semibold">Margen DSR</th>
                 </tr>
             </thead>
@@ -527,7 +678,7 @@ function spendingPlanGoals(cfg) {
                     <td class="px-4 py-2 font-medium text-slate-900">{{ m.month_label }}</td>
                     <td class="px-4 py-2 text-right tabular-nums text-slate-800">{{ "%.2f"|format(m.income) }}</td>
                     <td class="px-4 py-2 text-right tabular-nums text-slate-800">{{ "%.2f"|format(m.fixed_expenses) }}</td>
-                    <td class="px-4 py-2 text-right tabular-nums text-amber-800">{{ "%.2f"|format(m.goals_monthly) }}</td>
+                    <td class="px-4 py-2 text-right tabular-nums text-amber-800">{{ "%.2f"|format(m.quota_monthly) }}</td>
                     <td class="px-4 py-2">
                         {% set mm = month_goal_marks[loop.index0] if month_goal_marks and loop.index0 < month_goal_marks|length else [] %}
                         {% if mm %}
@@ -535,7 +686,7 @@ function spendingPlanGoals(cfg) {
                             {% for it in mm %}
                             <span class="inline-block w-2.5 h-2.5 rounded-full"
                                   style="background: {{ it.color }};"
-                                  title="{{ it.title }}: {{ '%.2f'|format(it.amount) }} €"></span>
+                                  title="{{ it.title }}: {{ '%.2f'|format(it.amount) }} €{% if it.installment_idx and it.installments_total %} ({{ it.installment_idx }}/{{ it.installments_total }}){% endif %}"></span>
                             {% endfor %}
                         </div>
                         {% else %}
@@ -551,7 +702,7 @@ function spendingPlanGoals(cfg) {
         </table>
     </div>
     <p class="text-xs text-slate-500 mt-2">
-        Columna Cuota: cuotas hipoteca + entradas en el mes + cuotas genéricas planificadas. Superávit = ingreso − fijos − cuotas (la entrada de hipoteca descuenta del saldo acumulado, no del superávit).
+        Columna Cuota: cuotas hipoteca + cuotas genéricas del mes (lo que compite por el DSR). Superávit = ingreso − fijos − cuota. La entrada de hipoteca (desembolso puntual) no suma a la cuota ni al superávit, pero sí reduce el saldo ahorrado.
         Margen DSR = cuota máxima permitida − cuota hipoteca − objetivos genéricos del mes (todo lo que compite por el cupo). La columna “Pagos” marca con puntos los objetivos con cargo en ese mes.
     </p>
 
@@ -603,7 +754,7 @@ function spendingPlanGoals(cfg) {
 
     <template x-teleport="body">
         <div x-show="infoModalOpen" x-cloak x-transition
-             class="fixed inset-0 z-[70] flex items-center justify-center p-4"
+             class="fixed inset-0 z-[90] flex items-center justify-center p-4"
              style="display: none;">
             <div class="absolute inset-0 bg-black/55" @click="closeInfo()" aria-hidden="true"></div>
             <div class="followup-modal-surface relative z-10 max-w-lg w-full p-6" role="dialog" aria-modal="true" @click.stop>

@@ -1,9 +1,9 @@
 """
-Rellena los 5 campos editables de watchlist a partir del texto devuelto por **Deep Research**.
+Rellena campos editables de watchlist a partir del texto devuelto por **Flash / Deep Research**.
 
 Flujo:
-1. Si el markdown incluye un bloque ``json`` con las cinco claves (lo pide el briefing fijo
-   en ``watchlist_ia_template``), se parsea aquí **sin llamar a Flash**.
+1. Si el markdown incluye un bloque ``json`` con claves conocidas (briefing en
+   ``watchlist_ia_template``), se parsea aquí **sin llamar a Flash**.
 2. Si no, **Gemini Flash** lee el markdown y devuelve el mismo JSON (normalizador/rescate).
 
 Los valores se escriben con :func:`apply_extracted_watchlist_fields`, que **nunca** sustituye campos con origen ``user``.
@@ -14,15 +14,9 @@ import re
 from datetime import date, datetime
 from typing import Any, Dict, Optional
 
-logger = logging.getLogger(__name__)
+from app.services.watchlist_ia_template import watchlist_ia_all_keys_for_mode
 
-_WATCHLIST_JSON_KEYS = (
-    "next_earnings_date",
-    "per_ntm",
-    "ntm_dividend_yield",
-    "eps",
-    "cagr_revenue_yoy",
-)
+logger = logging.getLogger(__name__)
 
 
 def _parse_json_object(text: str) -> Optional[dict]:
@@ -77,10 +71,11 @@ def _sanitize_next_earnings_candidate(raw: Any) -> Any:
     return s[:10]
 
 
-def _normalize_watchlist_five(data: dict) -> Dict[str, Any]:
-    """Normaliza las cinco claves; valores desconocidos → None donde aplique."""
+def _normalize_watchlist_extract(data: dict, mode: str) -> Dict[str, Any]:
+    """Normaliza claves del modo; valores desconocidos → None donde aplique."""
+    keys = watchlist_ia_all_keys_for_mode(mode)
     out: Dict[str, Any] = {}
-    for key in _WATCHLIST_JSON_KEYS:
+    for key in keys:
         if key not in data:
             out[key] = None
             continue
@@ -89,36 +84,61 @@ def _normalize_watchlist_five(data: dict) -> Dict[str, Any]:
             out[key] = None
         elif key == "next_earnings_date":
             out[key] = _sanitize_next_earnings_candidate(v)
+        elif key == "reit_leverage_kind":
+            if isinstance(v, str) and v.strip():
+                out[key] = v.strip()[:32]
+            else:
+                out[key] = None
         else:
             out[key] = v
     return out
 
 
-def _try_inline_json_from_report_md(report_markdown: str) -> Optional[Dict[str, Any]]:
+def _try_inline_json_from_report_md(
+    report_markdown: str, mode: str
+) -> Optional[Dict[str, Any]]:
     """
-    Busca bloques ```json en el markdown (p. ej. devueltos por Deep Research).
+    Busca bloques ```json en el markdown.
     Devuelve dict normalizado si hay al menos una clave conocida con contenido parseable.
     """
     if not report_markdown or not str(report_markdown).strip():
         return None
+    keys_known = set(watchlist_ia_all_keys_for_mode(mode))
     for fence in re.finditer(r"```(?:json)?\s*([\s\S]*?)```", report_markdown, re.I):
         inner = fence.group(1).strip()
         data = _parse_json_object(inner)
         if not data:
             continue
-        if not any(k in data for k in _WATCHLIST_JSON_KEYS):
+        if not any(k in data for k in keys_known):
             continue
-        norm = _normalize_watchlist_five(data)
-        if any(norm.get(k) is not None for k in _WATCHLIST_JSON_KEYS):
+        norm = _normalize_watchlist_extract(data, mode)
+        if any(norm.get(k) is not None for k in keys_known):
             return norm
     return None
 
 
-def extract_watchlist_fields_from_report_md(report_markdown: str) -> Dict[str, Any]:
+def extract_watchlist_fields_from_report_md(
+    report_markdown: str,
+    *,
+    user_id: Optional[int] = None,
+    asset_id: Optional[int] = None,
+) -> Dict[str, Any]:
     """
-    Obtiene JSON con los 5 campos: primero desde bloque embebido; si no, Gemini Flash.
+    Obtiene JSON con claves del briefing: primero desde bloque embebido; si no, Gemini Flash.
+
+    Si se pasan ``user_id`` y ``asset_id``, el conjunto de claves sigue el modo de valoración
+    (general / banks / realestate). Si no, se usa modo ``general`` (solo núcleo + extras general).
     """
-    inline = _try_inline_json_from_report_md(report_markdown)
+    from app.services.valuation_mode_service import (
+        resolve_watchlist_valuation_mode_for_user_asset,
+    )
+
+    if user_id and asset_id:
+        mode = resolve_watchlist_valuation_mode_for_user_asset(int(user_id), int(asset_id))
+    else:
+        mode = "general"
+
+    inline = _try_inline_json_from_report_md(report_markdown, mode)
     if inline is not None:
         return inline
 
@@ -130,20 +150,21 @@ def extract_watchlist_fields_from_report_md(report_markdown: str) -> Dict[str, A
 
     body = (report_markdown or "")[:120000]
     ref_today = datetime.utcnow().strftime("%Y-%m-%d")
+    keys = watchlist_ia_all_keys_for_mode(mode)
+    keys_bullet = "\n".join(f'- "{k}"' for k in keys)
     prompt = f"""Eres un extractor estricto. Tienes un informe de investigación en markdown (puede incluir la sección "Datos watchlist (extracción)").
 
 Devuelve ÚNICAMENTE un objeto JSON válido, sin markdown ni texto adicional, con exactamente estas claves:
-- "next_earnings_date": string en formato YYYY-MM-DD o null
-- "per_ntm": número o null
-- "ntm_dividend_yield": número (porcentaje como número, ej. 2.5 para 2,5%) o null
-- "eps": número o null
-- "cagr_revenue_yoy": número (porcentaje como número) o null
+{keys_bullet}
 
-Reglas:
-- null si el informe no da un valor claro y explícito para esa magnitud.
-- No inventes ni estimes: solo copia o deriva de cifras explícitas del texto.
-- Si hay conflicto entre secciones, prioriza la sección "Datos watchlist (extracción)" si existe.
-- **next_earnings_date** = solo la próxima divulgación **en el futuro** respecto a {ref_today} (UTC). Fechas anteriores o años claramente pasados → null.
+Reglas de tipos:
+- "next_earnings_date": string YYYY-MM-DD o null
+- "reit_leverage_kind": string breve (máx. 32 caracteres) o null
+- resto numérico cuando aplique: número o null (porcentajes como número, ej. 2.5 para 2,5%)
+- null si el informe no da un valor claro y explícito para esa magnitud
+- No inventes ni estimes: solo copia o deriva de cifras explícitas del texto
+- Si hay conflicto entre secciones, prioriza "Datos watchlist (extracción)" si existe
+- **next_earnings_date** = solo la próxima divulgación **en el futuro** respecto a {ref_today} (UTC). Fechas anteriores → null
 
 Informe:
 ---
@@ -158,14 +179,14 @@ Informe:
     resp = client.models.generate_content(
         model=_get_model_flash(),
         contents=prompt,
-        config=types.GenerateContentConfig(temperature=0.1, max_output_tokens=1024),
+        config=types.GenerateContentConfig(temperature=0.1, max_output_tokens=2048),
     )
     raw = (resp.text or "").strip() if resp else ""
     data = _parse_json_object(raw)
     if not data:
         logger.warning("extract_watchlist_fields: no se pudo parsear JSON de la respuesta")
         return {}
-    return _normalize_watchlist_five(data)
+    return _normalize_watchlist_extract(data, mode)
 
 
 def apply_extracted_watchlist_fields(
@@ -180,6 +201,9 @@ def apply_extracted_watchlist_fields(
     from app import db
     from app.models import Watchlist, PortfolioHolding
     from app.services.currency_service import convert_to_eur
+    from app.services.valuation_mode_service import (
+        resolve_watchlist_valuation_mode_for_user_asset,
+    )
     from app.services.watchlist_metrics_service import WatchlistMetricsService
     from app.services.watchlist_service import WatchlistService
 
@@ -187,32 +211,37 @@ def apply_extracted_watchlist_fields(
     if not wl:
         return {"skipped": True, "reason": "no_watchlist_row"}
 
+    mode = resolve_watchlist_valuation_mode_for_user_asset(user_id, asset_id)
+    allowed = frozenset(watchlist_ia_all_keys_for_mode(mode))
+
     applied = {}
     src_updates = {}
 
-    if wl.get_manual_field_source("next_earnings_date") != "user":
-        raw_d = extracted.get("next_earnings_date")
-        san = _sanitize_next_earnings_candidate(raw_d)
-        if san:
-            try:
-                wl.next_earnings_date = datetime.strptime(san, "%Y-%m-%d").date()
-                applied["next_earnings_date"] = str(wl.next_earnings_date)
-                src_updates["next_earnings_date"] = "ai"
-            except (ValueError, TypeError):
-                pass
-
-    for key in ("per_ntm", "ntm_dividend_yield", "eps", "cagr_revenue_yoy"):
+    for key in allowed:
         if wl.get_manual_field_source(key) == "user":
             continue
-        v = extracted.get(key)
-        if v is None:
+        if key not in extracted:
             continue
-        try:
-            fv = float(v)
-        except (TypeError, ValueError):
+        raw = extracted.get(key)
+        if raw in (None, "", "null", "no disponible", "n/d", "N/A"):
             continue
-        setattr(wl, key, fv)
-        applied[key] = fv
+
+        if key == "next_earnings_date":
+            san = _sanitize_next_earnings_candidate(raw)
+            if san:
+                try:
+                    wl.next_earnings_date = datetime.strptime(san, "%Y-%m-%d").date()
+                    applied["next_earnings_date"] = str(wl.next_earnings_date)
+                    src_updates["next_earnings_date"] = "ai"
+                except (ValueError, TypeError):
+                    pass
+            continue
+
+        coerced = WatchlistService.coerce_watchlist_manual_value(key, raw)
+        if coerced is None:
+            continue
+        setattr(wl, key, coerced)
+        applied[key] = coerced
         src_updates[key] = "ai"
 
     if src_updates:
@@ -234,7 +263,9 @@ def apply_extracted_watchlist_fields(
         else:
             current_value_eur = cost_eur
 
-    WatchlistMetricsService.update_all_metrics(wl, config, current_value_eur=current_value_eur)
+    WatchlistMetricsService.update_all_metrics(
+        wl, config, current_value_eur=current_value_eur, asset=wl.asset
+    )
     db.session.commit()
     return {"applied": applied, "skipped": False}
 
@@ -242,10 +273,18 @@ def apply_extracted_watchlist_fields(
 def try_apply_report_to_watchlist(user_id: int, asset_id: int, report_markdown: str) -> None:
     """No lanza si falla extracción: solo log."""
     try:
-        extracted = extract_watchlist_fields_from_report_md(report_markdown)
+        from app.services.valuation_mode_service import (
+            resolve_watchlist_valuation_mode_for_user_asset,
+        )
+
+        extracted = extract_watchlist_fields_from_report_md(
+            report_markdown, user_id=user_id, asset_id=asset_id
+        )
         if not extracted:
             return
-        if not any(extracted.get(k) is not None for k in _WATCHLIST_JSON_KEYS):
+        mode = resolve_watchlist_valuation_mode_for_user_asset(user_id, asset_id)
+        allowed = frozenset(watchlist_ia_all_keys_for_mode(mode))
+        if not any(extracted.get(k) is not None for k in allowed):
             logger.info(
                 "watchlist extract: sin valores no nulos tras normalizar (asset_id=%s); "
                 "suele indicar que el modelo no encontró cifras verificables, no un fallo de API.",

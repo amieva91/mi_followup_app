@@ -65,11 +65,25 @@
         transform: translateY(-2px);
     }
     .card-drag-handle {
-        cursor: grab; opacity: 0.4; padding: 4px 8px; border-radius: 8px;
-        font-size: 11px; transition: opacity 0.2s, background 0.2s;
+        cursor: grab;
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 2.25rem;
+        min-height: 2.25rem;
+        padding: 6px 10px;
+        border-radius: 10px;
+        font-size: 12px;
+        line-height: 1;
+        opacity: 0.55;
+        touch-action: none;
+        -webkit-user-select: none;
+        user-select: none;
+        transition: opacity 0.2s, background 0.2s;
     }
-    .card-drag-handle:hover { opacity: 0.8; background: rgba(99,102,241,0.08); }
-    .card-drag-handle:active { cursor: grabbing; }
+    .card-drag-handle:hover { opacity: 0.95; background: rgba(99,102,241,0.1); }
+    .card-drag-handle:active { cursor: grabbing; opacity: 1; }
     .expand-btn {
         padding: 6px 12px; border-radius: 10px; font-size: 12px;
         transition: background 0.2s, color 0.2s;
@@ -189,7 +203,7 @@
     {% set onboarding_popup = onboarding.show_next_step_popup|default(false) %}
     {% set onboarding_has_data = onboarding.has_economic_data|default(false) %}
     {% set onboarding_new_keys = (onboarding.newly_completed_milestones|default([]) | map(attribute='key') | list) %}
-    <div class="w-full px-4 sm:px-5 lg:px-6 py-6" x-data="dashboardConfig()" x-init="initSortable()">
+    <div class="w-full px-4 sm:px-5 lg:px-6 py-6" x-data="dashboardConfig()" x-init="$nextTick(() => initSortable())">
     
     {% if onboarding_has_data %}
     <!-- Header Patrimonio -->
@@ -779,8 +793,8 @@
         {% endif %}
 
         <!-- Ingresos/Gastos medios por categoría (últimos 12 meses) -->
-        {% set expense_cats = (summary.expense_category_summary | default([]) | selectattr('average', 'defined') | selectattr('average', 'gt', 0) | list | sort(attribute='average', reverse=True))[:10] %}
-        {% set income_cats = (summary.income_category_summary | default([]) | selectattr('average', 'defined') | selectattr('average', 'gt', 0) | list | sort(attribute='average', reverse=True))[:10] %}
+        {% set expense_cats = (summary.expense_category_summary | default([]) | selectattr('average', 'defined') | selectattr('average', 'gt', 0) | list | sort(attribute='average', reverse=True))[:8] %}
+        {% set income_cats = (summary.income_category_summary | default([]) | selectattr('average', 'defined') | selectattr('average', 'gt', 0) | list | sort(attribute='average', reverse=True))[:8] %}
         {% if expense_cats or income_cats %}
         <div class="dashboard-card p-5" data-card-id="expense_by_category">
             <div class="flex items-center justify-between mb-2">
@@ -869,6 +883,43 @@
       </div>
     </div>
     </div><!-- Fin dashboard-lanes -->
+    {# Reordenación síncrona: evita parpadeo HTML-default → fetch Alpine #}
+    <script>
+    (function () {
+        var L = {{ dashboard_initial_layout | tojson }};
+        if (!L) return;
+        var hasAny = (L.wide && L.wide.length) || (L.tail && L.tail.length) || (L.normal && L.normal.length);
+        if (!hasAny) return;
+        function collectById() {
+            var wide = document.getElementById('sortable-widgets-wide');
+            var tail = document.getElementById('sortable-widgets-tail');
+            var normal = document.getElementById('sortable-widgets-normal');
+            var byId = {};
+            [wide, tail, normal].forEach(function (container) {
+                if (!container) return;
+                Array.prototype.forEach.call(container.querySelectorAll(':scope > [data-card-id]'), function (c) {
+                    var id = c.getAttribute('data-card-id');
+                    if (id) byId[id] = c;
+                });
+            });
+            return byId;
+        }
+        function apply(container, order) {
+            if (!container || !order || !order.length) return;
+            var byId = collectById();
+            order.forEach(function (id) {
+                var el = byId[id];
+                if (el) container.appendChild(el);
+            });
+        }
+        var wide = document.getElementById('sortable-widgets-wide');
+        var tail = document.getElementById('sortable-widgets-tail');
+        var normal = document.getElementById('sortable-widgets-normal');
+        apply(wide, L.wide || []);
+        apply(tail, L.tail || []);
+        apply(normal, L.normal || []);
+    })();
+    </script>
     {% endif %}
 
     {# Empty state: evitar sensación de vacío para usuarios nuevos #}
@@ -1099,6 +1150,85 @@ function selectPeriod(months, btn) {
     evolutionChart.update();
 }
 
+// Orden del dashboard: sendBeacon (multipart + csrf) + fetch keepalive en paralelo;
+// el beacon está pensado para sobrevivir a F5/cierre; el POST JSON sirve de respaldo.
+const DASHBOARD_LAYOUT_PERSIST_URL = {{ url_for("main.dashboard_layout") | tojson }};
+const DASHBOARD_LAYOUT_PERSIST_CSRF = {{ csrf_token() | tojson }};
+
+/** Mapa id → nodo de tarjeta buscando en los 3 carriles (tail suele llegar vacío en el HTML). */
+function dashboardLayoutCardsById() {
+    const wide = document.getElementById('sortable-widgets-wide');
+    const tail = document.getElementById('sortable-widgets-tail');
+    const normal = document.getElementById('sortable-widgets-normal');
+    const byId = {};
+    [wide, tail, normal].forEach((container) => {
+        if (!container) return;
+        container.querySelectorAll(':scope > [data-card-id]').forEach((el) => {
+            const id = el.dataset.cardId;
+            if (id) byId[id] = el;
+        });
+    });
+    return byId;
+}
+
+function dashboardLayoutApplyOrder(container, order) {
+    if (!container || !order || !order.length) return;
+    const byId = dashboardLayoutCardsById();
+    order.forEach((id) => {
+        const el = byId[id];
+        if (el) container.appendChild(el);
+    });
+}
+
+function persistDashboardLayoutFromDom() {
+    const wide = document.getElementById('sortable-widgets-wide');
+    const tail = document.getElementById('sortable-widgets-tail');
+    const normal = document.getElementById('sortable-widgets-normal');
+    if (!wide || !tail || !normal) return Promise.resolve();
+
+    const w = Array.from(wide.querySelectorAll(':scope > [data-card-id]')).map(function (c) { return c.dataset.cardId; }).filter(Boolean);
+    const t = Array.from(tail.querySelectorAll(':scope > [data-card-id]')).map(function (c) { return c.dataset.cardId; }).filter(Boolean);
+    const n = Array.from(normal.querySelectorAll(':scope > [data-card-id]')).map(function (c) { return c.dataset.cardId; }).filter(Boolean);
+
+    try {
+        localStorage.setItem('dashboard_card_order_wide', JSON.stringify(w));
+        localStorage.setItem('dashboard_card_order_tail', JSON.stringify(t));
+        localStorage.setItem('dashboard_card_order_normal', JSON.stringify(n));
+    } catch (e) { /* ignore */ }
+
+    const payload = JSON.stringify({ wide: w, tail: t, normal: n });
+
+    if (typeof navigator.sendBeacon === 'function') {
+        try {
+            const fd = new FormData();
+            fd.append('csrf_token', DASHBOARD_LAYOUT_PERSIST_CSRF);
+            fd.append('layout', payload);
+            navigator.sendBeacon(DASHBOARD_LAYOUT_PERSIST_URL, fd);
+        } catch (e) { /* ignore */ }
+    }
+
+    try {
+        return fetch(DASHBOARD_LAYOUT_PERSIST_URL, {
+            method: 'POST',
+            credentials: 'same-origin',
+            keepalive: true,
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': DASHBOARD_LAYOUT_PERSIST_CSRF
+            },
+            body: payload
+        }).catch(function () {});
+    } catch (e) {
+        return Promise.resolve();
+    }
+}
+
+window.addEventListener('pagehide', function () {
+    if (document.getElementById('sortable-widgets-wide')) {
+        persistDashboardLayoutFromDom();
+    }
+});
+
 function dashboardConfig() {
     return {
         showConfig: false,
@@ -1108,6 +1238,8 @@ function dashboardConfig() {
         _hasServerLayout: false,
         _serverLayoutIds: new Set(),
         _layoutEndpoint: '{{ url_for("main.dashboard_layout") }}',
+        _layoutHydratedFromServer: {{ (((dashboard_initial_layout.wide | length) + (dashboard_initial_layout.tail | length) + (dashboard_initial_layout.normal | length)) > 0) | tojson }},
+        _serverLayoutIdsInitial: {{ (dashboard_initial_layout.wide + dashboard_initial_layout.tail + dashboard_initial_layout.normal) | tojson }},
         healthModalOpen: false,
         healthModalKey: null,
         healthModalTitle: '',
@@ -1125,18 +1257,8 @@ function dashboardConfig() {
             const savedNormal = localStorage.getItem('dashboard_card_order_normal');
             const savedLegacy = localStorage.getItem('dashboard_card_order');
 
-            const applyOrder = (container, order) => {
-                const cards = container.querySelectorAll('[data-card-id]');
-                const byId = {};
-                cards.forEach(c => { byId[c.dataset.cardId] = c; });
-                order.forEach(id => {
-                    const el = byId[id];
-                    if (el) container.appendChild(el);
-                });
-            };
-
             const splitLegacy = (order) => {
-                const wideIds = new Set(Array.from(wide.querySelectorAll('[data-card-id]')).map(c => c.dataset.cardId));
+                const wideIds = new Set(Array.from(wide.querySelectorAll(':scope > [data-card-id]')).map(c => c.dataset.cardId));
                 const w = [], n = [];
                 order.forEach(id => (wideIds.has(id) ? w : n).push(id));
                 return { w, n };
@@ -1144,35 +1266,31 @@ function dashboardConfig() {
 
             try {
                 if (savedWide && savedNormal) {
-                    applyOrder(wide, JSON.parse(savedWide));
-                    if (savedTail) applyOrder(tail, JSON.parse(savedTail));
-                    applyOrder(normal, JSON.parse(savedNormal));
+                    this.applyOrder(wide, JSON.parse(savedWide));
+                    if (savedTail) this.applyOrder(tail, JSON.parse(savedTail));
+                    this.applyOrder(normal, JSON.parse(savedNormal));
                 } else if (savedLegacy) {
                     const legacy = JSON.parse(savedLegacy);
                     const { w, n } = splitLegacy(legacy);
-                    applyOrder(wide, w);
-                    applyOrder(normal, n);
+                    this.applyOrder(wide, w);
+                    this.applyOrder(normal, n);
                 }
             } catch (e) { /* ignore */ }
         },
         applyOrder(container, order) {
-            if (!container) return;
-            const cards = container.querySelectorAll('[data-card-id]');
-            const byId = {};
-            cards.forEach(c => { byId[c.dataset.cardId] = c; });
-            (order || []).forEach(id => {
-                const el = byId[id];
-                if (el) container.appendChild(el);
-            });
+            dashboardLayoutApplyOrder(container, order);
         },
-        async loadWidgetOrderFromServer() {
+        async loadWidgetOrderFromServer(options) {
+            const opts = options || {};
             const wide = document.getElementById('sortable-widgets-wide');
             const tail = document.getElementById('sortable-widgets-tail');
             const normal = document.getElementById('sortable-widgets-normal');
             if (!wide || !tail || !normal) return false;
 
             try {
-                const resp = await fetch(this._layoutEndpoint, { credentials: 'same-origin' });
+                const fetchOpts = { credentials: 'same-origin' };
+                if (opts.signal) fetchOpts.signal = opts.signal;
+                const resp = await fetch(this._layoutEndpoint, fetchOpts);
                 if (!resp.ok) return false;
                 const data = await resp.json();
                 const layout = data && data.layout ? data.layout : null;
@@ -1191,18 +1309,18 @@ function dashboardConfig() {
             }
         },
         async initSortable() {
-            // 1) Prefer server layout (multi-dispositivo). 2) Fallback a localStorage (migración).
-            const gotServer = await this.loadWidgetOrderFromServer();
-            if (!gotServer) {
-                this.loadWidgetOrder();
-            }
             const wide = document.getElementById('sortable-widgets-wide');
             const tail = document.getElementById('sortable-widgets-tail');
             const normal = document.getElementById('sortable-widgets-normal');
             if (!wide || !tail || !normal) return;
 
-            // Si la tarjeta de recomendaciones aparece por primera vez, ubicarla arriba del carril simple.
-            // A partir de ahí queda persistida y el usuario manda con drag&drop.
+            // Coherente con el HTML servido (script inline + BD): no bloquear Sortable esperando fetch.
+            this._serverLayoutIds = new Set(this._serverLayoutIdsInitial || []);
+            this._hasServerLayout = !!this._layoutHydratedFromServer;
+            if (!this._hasServerLayout) {
+                this.loadWidgetOrder();
+            }
+
             const recCard = normal.querySelector('[data-card-id="health_tips"]');
             if (recCard) {
                 const parseSaved = (k) => {
@@ -1215,50 +1333,61 @@ function dashboardConfig() {
                 const serverHasRecommendations = this._serverLayoutIds && this._serverLayoutIds.has('health_tips');
                 if (!localHasRecommendations && !serverHasRecommendations && normal.firstElementChild !== recCard) {
                     normal.prepend(recCard);
-                    try { await this.saveWidgetOrder(); } catch (e) { /* ignore */ }
+                    void this.saveWidgetOrder();
                 }
             }
 
             if (typeof Sortable === 'undefined') return;
 
+            [wide, normal, tail].forEach((el) => {
+                const inst = Sortable.get(el);
+                if (inst) inst.destroy();
+            });
+
             const common = {
                 animation: 150,
+                handle: '.card-drag-handle',
+                delay: 0,
+                delayOnTouchOnly: true,
+                touchStartThreshold: 4,
                 ghostClass: 'sortable-ghost',
                 chosenClass: 'sortable-chosen',
                 emptyInsertThreshold: 120,
                 invertSwap: true,
                 swapThreshold: 0.65,
-                // Permite arrastrar desde el fondo de la tarjeta, pero respeta controles interactivos.
                 filter: 'a,button,input,textarea,select,option,label,[role="button"],[contenteditable="true"],canvas,.no-drag',
                 preventOnFilter: false,
                 onEnd: () => this.saveWidgetOrder()
             };
 
-            // Restricción: el carril wide es exclusivo. Las simples pueden moverse entre "normal" y "tail".
             new Sortable(wide, { ...common, group: { name: 'lane-wide', pull: false, put: false } });
             new Sortable(normal, { ...common, group: { name: 'lane-simple', pull: true, put: ['lane-simple'] } });
             new Sortable(tail, { ...common, group: { name: 'lane-simple', pull: true, put: ['lane-simple'] } });
 
-            // Auto-balance solo “primera vez”: si no hay orden guardado, rellenar tail para igualar alturas.
             const hasAnySaved =
                 !!localStorage.getItem('dashboard_card_order_wide') ||
                 !!localStorage.getItem('dashboard_card_order_tail') ||
                 !!localStorage.getItem('dashboard_card_order_normal') ||
                 !!localStorage.getItem('dashboard_card_order');
 
-            // Si no hay layout en servidor pero sí en localStorage, migrarlo al servidor.
             if (!this._hasServerLayout && hasAnySaved) {
-                try { await this.saveWidgetOrder(); } catch (e) { /* ignore */ }
+                void this.saveWidgetOrder();
                 this._hasServerLayout = true;
             }
 
-            if (!hasAnySaved) {
+            if (!this._hasServerLayout && !hasAnySaved) {
                 const rebalance = () => this.autoBalanceTail();
-                // esperar a que charts / fuentes ajusten alturas
                 setTimeout(rebalance, 300);
                 window.addEventListener('load', () => setTimeout(rebalance, 50), { once: true });
                 setTimeout(rebalance, 1200);
             }
+
+            const ac = new AbortController();
+            const tid = setTimeout(() => ac.abort(), 8000);
+            void this.loadWidgetOrderFromServer({ signal: ac.signal })
+                .finally(() => {
+                    clearTimeout(tid);
+                });
         },
         
         async saveConfig() {
@@ -1273,30 +1402,7 @@ function dashboardConfig() {
         },
         
         async saveWidgetOrder() {
-            const wide = document.getElementById('sortable-widgets-wide');
-            const tail = document.getElementById('sortable-widgets-tail');
-            const normal = document.getElementById('sortable-widgets-normal');
-            if (!wide || !tail || !normal) return;
-
-            const w = Array.from(wide.querySelectorAll('[data-card-id]')).map(c => c.dataset.cardId).filter(Boolean);
-            const t = Array.from(tail.querySelectorAll('[data-card-id]')).map(c => c.dataset.cardId).filter(Boolean);
-            const n = Array.from(normal.querySelectorAll('[data-card-id]')).map(c => c.dataset.cardId).filter(Boolean);
-
-            localStorage.setItem('dashboard_card_order_wide', JSON.stringify(w));
-            localStorage.setItem('dashboard_card_order_tail', JSON.stringify(t));
-            localStorage.setItem('dashboard_card_order_normal', JSON.stringify(n));
-
-            try {
-                await fetch(this._layoutEndpoint, {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': '{{ csrf_token() }}'
-                    },
-                    body: JSON.stringify({ wide: w, tail: t, normal: n })
-                });
-            } catch (e) { /* ignore */ }
+            await persistDashboardLayoutFromDom();
         },
 
         closeHealthModal() {
@@ -1433,7 +1539,7 @@ function dashboardConfig() {
             if (!wide || !tail || !normal) return;
 
             // Solo balancear si todavía no hay nada en tail
-            if (tail.querySelector('[data-card-id]')) return;
+            if (tail.querySelector(':scope > [data-card-id]')) return;
 
             // Medimos alturas actuales
             const wideHeight = wide.getBoundingClientRect().height;
@@ -2092,7 +2198,7 @@ async function pollDashboardState() {
         if (!resp.ok) return;
         const data = await resp.json();
         if (!data.has_cache) {
-            // Cache invalidado o caducado: los datos en pantalla pueden estar obsoletos hasta F5
+            // Cache invalidado o caducado: datos en pantalla pueden estar obsoletos hasta F5
             return;
         }
         const meta = data.meta || {};
@@ -2128,7 +2234,25 @@ async function pollDashboardState() {
             }
         }
     } catch (e) {
-        /* red; reintento en siguiente ciclo */
+        /* siguiente ciclo */
+    }
+}
+
+/** GET /dashboard/state: refresco ligero (patrimonio NOW, precios). Una petición en vuelo; el siguiente tick tras terminar (evita colas como con setInterval). */
+const DASHBOARD_STATE_POLL_MS = 30000;
+let _dashboardStatePollTimer = null;
+
+function scheduleDashboardStatePoll(delayMs) {
+    if (_dashboardStatePollTimer) clearTimeout(_dashboardStatePollTimer);
+    _dashboardStatePollTimer = setTimeout(runDashboardStatePollChain, delayMs);
+}
+
+async function runDashboardStatePollChain() {
+    _dashboardStatePollTimer = null;
+    try {
+        await pollDashboardState();
+    } finally {
+        scheduleDashboardStatePoll(DASHBOARD_STATE_POLL_MS);
     }
 }
 
@@ -2163,8 +2287,8 @@ async function pollDashboardState() {
     });
 })();
 
-// Polling cada 30s mientras la pestaña está abierta
-setInterval(pollDashboardState, 30000);
+// Primer poll a los 30s; los siguientes siempre N ms después de que termine la petición anterior (no se encolan).
+scheduleDashboardStatePoll(DASHBOARD_STATE_POLL_MS);
 
 // Pintar staleness inicial (si viene en summary)
 try {

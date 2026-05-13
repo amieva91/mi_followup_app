@@ -4,7 +4,52 @@ Formularios para gastos e ingresos
 from flask_wtf import FlaskForm
 from wtforms import StringField, FloatField, IntegerField, TextAreaField, DateField, BooleanField, SelectField, SubmitField
 from wtforms.validators import DataRequired, Optional, Length, NumberRange, ValidationError
+from wtforms.widgets import TextInput
 from datetime import date
+
+
+class FlexibleFloatField(FloatField):
+    """
+    FloatField que acepta coma o punto como separador decimal.
+    También tolera separadores de miles típicos: 1.234,56 o 1,234.56.
+    """
+
+    widget = TextInput()
+
+    def process_formdata(self, valuelist):
+        if not valuelist:
+            return super().process_formdata(valuelist)
+
+        raw = valuelist[0]
+        if raw is None:
+            return super().process_formdata(valuelist)
+
+        if not isinstance(raw, str):
+            return super().process_formdata(valuelist)
+
+        s = raw.strip().replace(" ", "")
+        if not s:
+            return super().process_formdata([s])
+
+        has_comma = "," in s
+        has_dot = "." in s
+
+        if has_comma and has_dot:
+            # Si aparecen ambos, asumimos que el último separador es el decimal.
+            last_comma = s.rfind(",")
+            last_dot = s.rfind(".")
+            if last_comma > last_dot:
+                # 1.234,56 -> miles='.' decimal=','
+                s = s.replace(".", "")
+                s = s.replace(",", ".")
+            else:
+                # 1,234.56 -> miles=',' decimal='.'
+                s = s.replace(",", "")
+        elif has_comma:
+            # 12,34 -> 12.34
+            s = s.replace(",", ".")
+
+        return super().process_formdata([s])
 
 
 class ExpenseCategoryForm(FlaskForm):
@@ -104,13 +149,18 @@ class ExpenseForm(FlaskForm):
         render_kw={'class': 'form-input'}
     )
     
-    amount = FloatField(
+    amount = FlexibleFloatField(
         'Monto (€)',
         validators=[
             DataRequired(message='El monto es requerido'),
             NumberRange(min=0.01, message='El monto debe ser mayor a 0')
         ],
-        render_kw={'placeholder': '0.00', 'step': '0.01', 'class': 'form-input'}
+        render_kw={
+            'placeholder': '0,00',
+            'inputmode': 'decimal',
+            'autocomplete': 'off',
+            'class': 'form-input',
+        }
     )
     
     description = StringField(
@@ -177,13 +227,18 @@ class IncomeForm(FlaskForm):
         render_kw={'class': 'form-input'}
     )
     
-    amount = FloatField(
+    amount = FlexibleFloatField(
         'Monto (€)',
         validators=[
             DataRequired(message='El monto es requerido'),
             NumberRange(min=0.01, message='El monto debe ser mayor a 0')
         ],
-        render_kw={'placeholder': '0.00', 'step': '0.01', 'class': 'form-input'}
+        render_kw={
+            'placeholder': '0,00',
+            'inputmode': 'decimal',
+            'autocomplete': 'off',
+            'class': 'form-input',
+        }
     )
     
     description = StringField(
@@ -251,13 +306,18 @@ class DebtPlanForm(FlaskForm):
         render_kw={'placeholder': 'Ej: Ordenador portátil, TV Samsung...', 'class': 'form-input'}
     )
 
-    total_amount = FloatField(
+    total_amount = FlexibleFloatField(
         'Importe total (€)',
         validators=[
             DataRequired(message='El importe es requerido'),
             NumberRange(min=0.01, message='El importe debe ser mayor a 0')
         ],
-        render_kw={'placeholder': '0.00', 'step': '0.01', 'class': 'form-input'}
+        render_kw={
+            'placeholder': '0,00',
+            'inputmode': 'decimal',
+            'autocomplete': 'off',
+            'class': 'form-input',
+        }
     )
 
     months = IntegerField(
@@ -315,13 +375,18 @@ class DebtPlanEditForm(FlaskForm):
         render_kw={'placeholder': 'Ej: Ordenador portátil, TV Samsung...', 'class': 'form-input'}
     )
 
-    total_amount = FloatField(
+    total_amount = FlexibleFloatField(
         'Importe total (€)',
         validators=[
             DataRequired(message='El importe es requerido'),
             NumberRange(min=0.01, message='El importe debe ser mayor a 0')
         ],
-        render_kw={'placeholder': '0.00', 'step': '0.01', 'class': 'form-input'}
+        render_kw={
+            'placeholder': '0,00',
+            'inputmode': 'decimal',
+            'autocomplete': 'off',
+            'class': 'form-input',
+        }
     )
 
     months = IntegerField(

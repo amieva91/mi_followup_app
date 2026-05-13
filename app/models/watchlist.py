@@ -6,13 +6,52 @@ from datetime import datetime, date
 from app import db
 
 
-# Campos manuales editables / rellenables por IA (mismo orden que en rutas y plantillas)
-WATCHLIST_MANUAL_FIELD_KEYS = (
+# Campos que el lote «Informes IA» (Flash / DR fila) rellena hoy; no marcan «completo» otros inputs.
+WATCHLIST_IA_BATCH_FIELD_KEYS = (
     "next_earnings_date",
     "per_ntm",
     "ntm_dividend_yield",
     "eps",
     "cagr_revenue_yoy",
+)
+
+WATCHLIST_MANUAL_DATE_KEYS = frozenset({"next_earnings_date"})
+WATCHLIST_MANUAL_STRING_KEYS = frozenset({"reit_leverage_kind"})
+
+# Todos los inputs persistidos con origen user/ai (orden: lote IA primero, luego plan valoración)
+WATCHLIST_MANUAL_FIELD_KEYS = WATCHLIST_IA_BATCH_FIELD_KEYS + (
+    "per_fair",
+    "cagr_eps_yoy",
+    "net_debt_to_ebitda",
+    "fcf_margin_pct",
+    "net_income_margin_pct",
+    "fcf_to_net_income",
+    "ebitda_margin_pct",
+    "operating_margin_pct",
+    "roic_pct",
+    "price_to_book",
+    "pb_fair",
+    "roe_pct",
+    "cet1_ratio_pct",
+    "npl_ratio_pct",
+    "cost_to_income_pct",
+    "nim_pct",
+    "bvps",
+    "loan_to_deposit_pct",
+    "cost_of_risk_pct",
+    "bvps_cagr_yoy",
+    "ffo_per_share",
+    "affo_per_share",
+    "price_to_ffo",
+    "p_ffo_fair",
+    "cagr_ffo_yoy",
+    "reit_leverage_ratio",
+    "reit_leverage_kind",
+    "occupancy_pct",
+    "walt_years",
+    "same_store_growth_pct",
+    "ffo_interest_coverage",
+    "ffo_to_total_debt",
 )
 
 
@@ -33,6 +72,46 @@ class Watchlist(db.Model):
     eps = db.Column(db.Float)  # Earnings Per Share
     cagr_revenue_yoy = db.Column(db.Float)  # CAGR Revenue YoY (%)
 
+    # --- Plan valoración: modo general ---
+    per_fair = db.Column(db.Float)
+    cagr_eps_yoy = db.Column(db.Float)
+    net_debt_to_ebitda = db.Column(db.Float)
+    fcf_margin_pct = db.Column(db.Float)  # TIKR Levered Free Cash Flow Margin %, LTM
+    net_income_margin_pct = db.Column(db.Float)  # TIKR Normalized Net Income Margin %, LTM
+    fcf_to_net_income = db.Column(db.Float)
+    ebitda_margin_pct = db.Column(db.Float)
+    operating_margin_pct = db.Column(db.Float)
+    roic_pct = db.Column(db.Float)
+    target_price_5yr_gross = db.Column(db.Float)
+    valuation_adjustment_factor = db.Column(db.Float)
+
+    # --- Modo banks ---
+    price_to_book = db.Column(db.Float)
+    pb_fair = db.Column(db.Float)
+    roe_pct = db.Column(db.Float)
+    cet1_ratio_pct = db.Column(db.Float)
+    npl_ratio_pct = db.Column(db.Float)
+    cost_to_income_pct = db.Column(db.Float)
+    nim_pct = db.Column(db.Float)
+    bvps = db.Column(db.Float)
+    loan_to_deposit_pct = db.Column(db.Float)
+    cost_of_risk_pct = db.Column(db.Float)
+    bvps_cagr_yoy = db.Column(db.Float)
+
+    # --- Modo REIT ---
+    ffo_per_share = db.Column(db.Float)
+    affo_per_share = db.Column(db.Float)
+    price_to_ffo = db.Column(db.Float)
+    p_ffo_fair = db.Column(db.Float)
+    cagr_ffo_yoy = db.Column(db.Float)
+    reit_leverage_ratio = db.Column(db.Float)
+    reit_leverage_kind = db.Column(db.String(32))
+    occupancy_pct = db.Column(db.Float)
+    walt_years = db.Column(db.Float)
+    same_store_growth_pct = db.Column(db.Float)
+    ffo_interest_coverage = db.Column(db.Float)  # FFO / gastos financieros (×)
+    ffo_to_total_debt = db.Column(db.Float)  # FFO a deuda total (×), convención TIKR
+
     # Origen por campo manual: "user" | "ai" | omitido (null en BD = sin marcar / vacío tras reset)
     manual_field_sources = db.Column(db.JSON, nullable=True)
     
@@ -45,6 +124,8 @@ class Watchlist(db.Model):
     valoracion_12m = db.Column(db.Float)  # Valoración actual 12 meses (%)
     target_price_5yr = db.Column(db.Float)  # Target Price (5 yr)
     precio_actual = db.Column(db.Float)  # Precio actual (caché)
+    # Referencia opcional del usuario (misma divisa que la cotización); no la recalcula la app
+    user_price_target = db.Column(db.Float)
     
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
@@ -53,6 +134,13 @@ class Watchlist(db.Model):
     # Relaciones
     user = db.relationship('User', backref=db.backref('watchlist_items', lazy=True))
     asset = db.relationship('Asset', backref=db.backref('watchlist_items', lazy=True))
+    comments = db.relationship(
+        "WatchlistComment",
+        backref="watchlist",
+        lazy="dynamic",
+        cascade="all, delete-orphan",
+        order_by="WatchlistComment.created_at.desc()",
+    )
     
     # Constraint: Un usuario no puede tener el mismo asset dos veces en watchlist
     __table_args__ = (
@@ -86,7 +174,9 @@ class Watchlist(db.Model):
         False cuando los cinco campos manuales tienen origen explícito ``user``:
         en ese caso no se gasta API ni se crea informe (no hay huecos que IA deba rellenar).
         """
-        return not all(self.get_manual_field_source(k) == 'user' for k in WATCHLIST_MANUAL_FIELD_KEYS)
+        return not all(
+            self.get_manual_field_source(k) == "user" for k in WATCHLIST_IA_BATCH_FIELD_KEYS
+        )
 
     def merge_manual_field_sources(self, updates: dict):
         cur = self.get_manual_field_sources_dict()
@@ -99,6 +189,35 @@ class Watchlist(db.Model):
             else:
                 cur[k] = val
         self.manual_field_sources = cur if cur else None
+
+
+class WatchlistComment(db.Model):
+    """
+    Comentarios tipo hilo (fecha/hora) por fila de watchlist; solo el propietario.
+    """
+
+    __tablename__ = "watchlist_comments"
+
+    id = db.Column(db.Integer, primary_key=True)
+    watchlist_id = db.Column(
+        db.Integer, db.ForeignKey("watchlist.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    body = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    user = db.relationship("User", backref=db.backref("watchlist_comments", lazy=True))
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "body": self.body,
+            "created_at": self.created_at.isoformat() + "Z" if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() + "Z" if self.updated_at else None,
+        }
 
 
 class WatchlistAiJob(db.Model):
@@ -196,6 +315,30 @@ class WatchlistConfig(db.Model):
         """Guardar color_thresholds como JSON string"""
         import json
         self.color_thresholds = json.dumps(data)
+
+    def get_valuation_sector_rules(self) -> dict:
+        """
+        Listas Sector+Industria por modo (banks / realestate), dentro de color_thresholds JSON.
+        Estructura: {"banks": [{"sector": "...", "industry": "..."}, ...], "realestate": [...]}
+        """
+        d = self.get_color_thresholds_dict()
+        raw = d.get("valuation_sector_rules")
+        if not isinstance(raw, dict):
+            return {"banks": [], "realestate": []}
+        banks = raw.get("banks") or []
+        re_l = raw.get("realestate") or []
+        return {
+            "banks": banks if isinstance(banks, list) else [],
+            "realestate": re_l if isinstance(re_l, list) else [],
+        }
+
+    def set_valuation_sector_rules(self, rules: dict) -> None:
+        d = self.get_color_thresholds_dict()
+        d["valuation_sector_rules"] = {
+            "banks": list((rules or {}).get("banks") or []),
+            "realestate": list((rules or {}).get("realestate") or []),
+        }
+        self.set_color_thresholds_dict(d)
     
     @staticmethod
     def _default_color_thresholds():
@@ -225,6 +368,7 @@ class WatchlistConfig(db.Model):
                 "green_min": 10.0,  # Verde si >= 10%
                 "yellow_min": 0.0   # Amarillo si >= 0% y < 10%, Rojo si < 0%
             },
+            "valuation_sector_rules": {"banks": [], "realestate": []},
             # Reglas para indicador de operativa global (BUY/SELL)
             "operativa_rules": {
                 "buy": {

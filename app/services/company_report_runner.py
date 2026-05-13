@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 def run_report_only_by_id(app, report_id: int) -> None:
     """
-    (Re)ejecuta un informe "solo informe" (Deep Research + resumen Flash) si sigue en `pending`.
+    (Re)ejecuta un informe "solo informe" (Deep Research) si sigue en `pending`.
 
     No toca pipelines `full_pipeline` (todo-en-uno).
     """
@@ -31,8 +31,6 @@ def run_report_only_by_id(app, report_id: int) -> None:
     from app.services.gemini_service import (
         run_deep_research_report,
         new_report_stages_progress_state,
-        generate_report_email_summary,
-        fallback_report_summary_markdown,
         report_substeps_after_dr_ok,
         _get_auto_collab_loop,
         GeminiServiceError,
@@ -45,10 +43,16 @@ def run_report_only_by_id(app, report_id: int) -> None:
         with engine.connect() as conn:
             r = conn.execute(
                 text(
-                    "UPDATE company_reports SET status='processing' "
+                    # Resetear reloj de encolado al relanzar pending viejo: evita que el
+                    # chequeo de stale timeout (basado en created_at/report_enqueued_at)
+                    # lo marque failed de inmediato tras volver a processing.
+                    "UPDATE company_reports SET status='processing', report_enqueued_at=:now "
                     "WHERE id=:rid AND status='pending'"
                 ),
-                {"rid": int(report_id)},
+                {
+                    "rid": int(report_id),
+                    "now": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+                },
             )
             conn.commit()
             if r.rowcount == 0:
@@ -63,7 +67,7 @@ def run_report_only_by_id(app, report_id: int) -> None:
                             """
                             UPDATE company_reports
                             SET status=:st, completed_at=:now, content=:content, error_msg=:error,
-                                audio_progress_json=NULL
+                                job_progress_json=NULL
                             WHERE id=:rid
                             """
                         ),
@@ -141,7 +145,7 @@ def run_report_only_by_id(app, report_id: int) -> None:
             base["steps"] = subs
             with engine.connect() as conn:
                 conn.execute(
-                    text("UPDATE company_reports SET audio_progress_json=:j WHERE id=:rid"),
+                    text("UPDATE company_reports SET job_progress_json=:j WHERE id=:rid"),
                     {"j": json.dumps(base, ensure_ascii=False), "rid": int(report_id)},
                 )
                 conn.commit()
@@ -149,7 +153,7 @@ def run_report_only_by_id(app, report_id: int) -> None:
         # Inicializar progreso (si faltaba)
         with engine.connect() as conn:
             conn.execute(
-                text("UPDATE company_reports SET audio_progress_json=:j WHERE id=:rid"),
+                text("UPDATE company_reports SET job_progress_json=:j WHERE id=:rid"),
                 {"j": json.dumps(new_report_stages_progress_state(), ensure_ascii=False), "rid": int(report_id)},
             )
             conn.commit()
@@ -177,14 +181,10 @@ def run_report_only_by_id(app, report_id: int) -> None:
             _update_status("failed", error_val=str(content)[:8000], clear_progress=False)
             return
 
-        # Generar resumen Flash (best-effort)
-        try:
-            single_shot = not _get_auto_collab_loop()
-            _persist_report_stages(report_substeps_after_dr_ok(single_shot, "loading"))
-            summary_md = generate_report_email_summary(content or "")
-            _persist_report_stages(report_substeps_after_dr_ok(single_shot, "ok"))
-        except Exception:
-            summary_md = fallback_report_summary_markdown(content or "")
+        # Sin resumen Flash: el correo (si aplica) usará el informe completo; evitamos coste extra.
+        single_shot = not _get_auto_collab_loop()
+        _persist_report_stages(report_substeps_after_dr_ok(single_shot, "ok"))
+        summary_md = None
 
         now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
         with engine.connect() as conn:
@@ -193,7 +193,7 @@ def run_report_only_by_id(app, report_id: int) -> None:
                     """
                     UPDATE company_reports
                     SET status='completed', completed_at=:now, content=:content, summary_content=:sm,
-                        error_msg=NULL, audio_progress_json=NULL
+                        error_msg=NULL, job_progress_json=NULL
                     WHERE id=:rid
                     """
                 ),

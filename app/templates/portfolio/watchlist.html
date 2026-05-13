@@ -3,6 +3,100 @@
 {% block title %}Watchlist - FollowUp{% endblock %}
 
 {% block content %}
+{# Tooltip TIKR (ⓘ); title escapado para HTML #}
+{% macro wl_tikr_i(title) -%}
+<span class="cursor-help text-slate-400 shrink-0 select-none text-[11px] leading-none" role="note" title="{{ title|e }}" tabindex="0" onclick="event.stopPropagation()">ⓘ</span>
+{%- endmacro %}
+{% set tikr_cagr_fechas %}Convención (preferente, referencia en tres años t+1, t y t−1: estimado / último cerrado / previo): t = último año fiscal cerrado o publicado; t−1 = anterior; t+1 = primera columna estimada en TIKR. CAGR 2 años entre el valor en t−1 y el valor en t+1: ((V(t+1)/V(t−1))^(1/2)−1)×100. Si no hay columna t+1: entre t y t−2. Si no aplica: entre t y t−3 (CAGR 3 años, solo actuales).{% endset %}
+{% set tikr_per_ntm %}TIKR → Multiples → Forward Multiples → fila «NTM Price / Normalized Earnings (P/E)». Columna con la fecha más reciente al copiar.{% endset %}
+{% set tikr_eps_ntm %}TIKR → Multiples → Forward Factors → «NTM Normalized Earnings Per Share». Alinear fecha y base (GAAP/normalized) con el PER NTM.{% endset %}
+{% set tikr_div_ntm %}TIKR → Multiples → Forward Multiples → «NTM Dividend Yield». Misma fecha que otros NTM. En FollowUp el % es número (2,5 = 2,5%).{% endset %}
+{% set tikr_cagr_revenue_full %}TIKR → Income Statement → «Total Revenues». {{ tikr_cagr_fechas }}{% endset %}
+{% set tikr_cagr_eps_full %}TIKR → Income Statement → Supplementary → «Diluted EPS Excl Extra Items» (o «EPS Normalized» en Actuals & Forward Estimates). {{ tikr_cagr_fechas }}{% endset %}
+{% set tikr_net_debt %}TIKR → Ratios → Long-Term Solvency → «Net Debt / EBITDA». LTM o último año según convengas.{% endset %}
+{% set tikr_fcf_margin %}TIKR → Ratios → Margin analysis → «Levered Free Cash Flow Margin %», columna LTM. Con el margen BN LTM siguiente deriva FCF/BN si no pones ratio manual.{% endset %}
+{% set tikr_ni_margin %}TIKR → Ratios → Margin analysis → «Normalized Net Income Margin %», columna LTM.{% endset %}
+{% set tikr_fcf_bn %}TIKR no suele mostrar este ratio en una sola fila: úsalo si no tienes los dos márgenes LTM de arriba; alternativa coherente Levered Free Cash Flow ÷ beneficio neto del mismo periodo (Cash Flow vs Income Statement).{% endset %}
+{% set tikr_ebitda_m %}TIKR → Ratios → Margin analysis → «EBITDA Margin %» (alternativa: Income Statement → «% EBITDA Margins»).{% endset %}
+{% set tikr_op_m %}TIKR → Ratios → Margin analysis → «EBIT Margin %» (alternativa: Income Statement → «% EBIT Margins»).{% endset %}
+{% set tikr_roic %}TIKR → Ratios → Return ratios → «Return on Capital % (ROC)» (proxy cercano a ROIC; revisa definición en TIKR). Columna LTM.{% endset %}
+{% set tikr_fcf_bn_modal %}{{ tikr_fcf_bn }} Uso en FollowUp: solo si faltan los dos márgenes LTM anteriores o el margen BN es ~0; si ambos márgenes son válidos, la app usa su cociente y este ratio se ignora.{% endset %}
+{% set tikr_bank_pb %}TIKR → Multiples → Trailing Multiples → «LTM Price / Book Value per Share». Columna con la fecha más reciente al copiar.{% endset %}
+{% set tikr_bank_roe %}TIKR → Ratios → Return ratios → «Return on Equity %» (alternativa: Actuals & Forward → BS supplementary → «Return on Equity (%)» si tu vista lo trae allí).{% endset %}
+{% set tikr_bank_cet1 %}TIKR → Ratios → Industry Metrics (banking) → «Core Tier 1 Capital Ratio %» o «Tier 1 Capital Ratio %»; usa la fila que alinee con tu definición de CET1.{% endset %}
+{% set tikr_bank_npl %}TIKR → Ratios → Industry Metrics → p. ej. «Nonperforming Loans / Total Loans %» (hay varias filas NPL/NPA; elige una y sé consistente).{% endset %}
+{% set tikr_bank_cost_to_income %}Cost-to-income (eficiencia bancaria): recomendado calcularlo en TIKR desde Income Statement → «Non Interest Expense» ÷ «Revenues Before Provision For Loan Losses» (mismo año fiscal o LTM), y guardar el resultado como % en FollowUp. No uses como equivalente Ratios → Margin analysis → «SG&A Margin %»: TIKR lo define como Selling General & Admin Expenses ÷ Total Revenues; es otro cociente (numerador más estrecho y denominador distinto), no reproduce el cost-to-income habitual.{% endset %}
+{% set tikr_bank_nim %}NIM: TIKR a veces no muestra un «NIM %» clásico; sustituto habitual → Ratios → Industry Metrics → «Net Interest Income / Average Assets %». Si la fila existe pero los años que necesitas van vacíos, asume que TIKR no aporta dato para ese corte.{% endset %}
+{% set tikr_bank_bvps %}TIKR → Balance Sheet → Supplementary → «Book Value / Share» (alternativa: Multiples → Trailing Factors → «LTM Book Value per Share»).{% endset %}
+{% set tikr_bank_ldr %}TIKR → Ratios → Industry Metrics → «Gross Loans / Total Deposits %» (proxy habitual de préstamos/depósitos; revisa el ⓘ de la fila en TIKR).{% endset %}
+{% set tikr_bank_cost_of_risk %}TIKR no publica una fila única estándar «Cost of risk». Aproximación habitual: provisiones de crédito (p. ej. Income Statement → «Provision For Loan Losses», en valor absoluto) ÷ cartera bruta (Balance Sheet → «Gross Loans») o promedio de préstamos si lo tienes; expresa el resultado en % como el resto de la watchlist. Si falta numerador o denominador fiable, deja vacío.{% endset %}
+{% set tikr_bank_bvps_cagr %}CAGR sobre la serie de «Book Value / Share» (mismo concepto que BVPS). {{ tikr_cagr_fechas }}{% endset %}
+{% set tikr_reit_ffo_ps %}TIKR → Multiples → Forward Factors → «NTM FFO Per Share». Alternativas con series anuales: Actuals & Forward Estimates → Other supplementary → «FFO / Share (REIT)»; o Income Statement → Supplementary → «FFO» si tu emisor lo publica allí. Alinea NTM vs año fiscal cerrado.{% endset %}
+{% set tikr_reit_affo_ps %}TIKR → Multiples → Forward Factors → «NTM AFFO Per Share». Alternativa: Actuals & Forward → Other supplementary → «Adjusted FFO / Share (REIT)» (series A/E).{% endset %}
+{% set tikr_reit_p_ffo %}TIKR → Multiples → Forward Multiples → «NTM Price / FFO Per Share» (si valoras sobre AFFO, usa coherente «NTM Price / AFFO Per Share»). Columna con la fecha NTM al copiar.{% endset %}
+{% set tikr_reit_cagr_ffo %}CAGR sobre la misma serie que uses para FFO/acción (o AFFO si ese es tu estándar). {{ tikr_cagr_fechas }}{% endset %}
+{% set tikr_reit_nd_ebitda %}TIKR → Ratios → Long-Term Solvency → «Net Debt / EBITDA» (también en Actuals & Forward → BS supplementary). LTM o año fiscal según convengas.{% endset %}
+{% set tikr_reit_ffo_cov %}TIKR → Ratios → Long-Term Solvency → «FFO Interest Coverage».{% endset %}
+{% set tikr_reit_ffo_debt %}TIKR → Ratios → Long-Term Solvency → «FFO to Total Debt (x)».{% endset %}
+{% set tikr_reit_occupancy %}Ocupación: TIKR no tiene una fila estándar única para todos los REIT; a veces en Segmentos o métricas operativas del emisor. Si no hay dato explícito, deja vacío o usa informe anual.{% endset %}
+{% set tikr_reit_walt %}WALT (weighted average lease term): suele salir del informe anual o suplementos del REIT; TIKR no siempre muestra WALT homogéneo por ticker.{% endset %}
+{% set tikr_reit_ssg %}Same-store growth: habitualmente en Segmentos (mismo parque, comparable) o crecimiento de ingresos/NAV operativo; la fila exacta depende del emisor. Si no aparece, calcula YoY sobre la serie comparable que publique TIKR.{% endset %}
+{% set tikr_reit_leverage_kind %}Solo nota libre (no entra en fórmulas de la app); úsala para recordar qué ratio guardaste en «Apalancamiento» (p. ej. Net Debt/EBITDA TIKR).{% endset %}
+{# Celda de solo lectura: inputs manuales con origen IA vs usuario #}
+{% macro wl_manual_cell(wl, key, label, kind='num', tikr=None) -%}
+{% if wl %}
+{% set src = wl.get_manual_field_source(key) %}
+{% set raw = wl|model_attr(key) %}
+<div class="min-w-0 break-words">
+    <div class="text-[11px] font-medium text-slate-500 leading-snug flex items-center gap-1 flex-wrap"><span>{{ label }}</span>{% if tikr %}{{ wl_tikr_i(tikr) }}{% endif %}</div>
+    <div class="text-sm tabular-nums mt-0.5 {% if src == 'ai' %}watchlist-val-ai{% elif src == 'user' %}watchlist-val-user{% else %}text-slate-600{% endif %}">
+        {% if kind == 'date' %}
+            {% if raw %}{{ raw.strftime('%Y-%m-%d') }}{% else %}—{% endif %}
+        {% elif kind == 'text' %}
+            {% if raw %}{{ raw }}{% else %}—{% endif %}
+        {% elif raw is not none %}
+            {% if kind == 'pct' %}{{ raw|decimal_eu(2) }}%
+            {% elif kind == 'num4' %}{{ raw|decimal_eu(4) }}
+            {% else %}{{ raw|decimal_eu(2) }}{% endif %}
+        {% else %}
+            —
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{%- endmacro %}
+
+{# FCF/BN: valor guardado o cociente implícito desde márgenes LTM (misma lógica que valoración). #}
+{% macro wl_fcf_bn_ratio_cell(wl) -%}
+{% if wl %}
+{% set src = wl.get_manual_field_source('fcf_to_net_income') %}
+{% set raw = wl|model_attr('fcf_to_net_income') %}
+{% set fm = wl|model_attr('fcf_margin_pct') %}
+{% set nim = wl|model_attr('net_income_margin_pct') %}
+{% set derived = none %}
+{% if raw is none and fm is not none and nim is not none %}
+    {% set nimv = nim|float %}
+    {% if nimv|abs > 0.0000001 %}
+        {% set fmv = fm|float %}
+        {% if not (fmv < 0 and nimv < 0) %}
+            {% set derived = fmv / nimv %}
+        {% endif %}
+    {% endif %}
+{% endif %}
+<div class="min-w-0 break-words">
+    <div class="text-[11px] font-medium text-slate-500 leading-snug flex items-center gap-1 flex-wrap"><span>FCF / BN (ratio; alternativa si no están ambos: Levered Free Cash Flow Margin % (LTM) y Normalized Net Income Margin % (LTM))</span>{{ wl_tikr_i(tikr_fcf_bn) }}</div>
+    <div class="text-sm tabular-nums mt-0.5 {% if raw is not none %}{% if src == 'ai' %}watchlist-val-ai{% elif src == 'user' %}watchlist-val-user{% else %}text-slate-600{% endif %}{% elif derived is not none %}text-slate-600 italic{% else %}text-slate-600{% endif %}">
+        {% if raw is not none %}
+            {{ raw|decimal_eu(2) }}
+        {% elif derived is not none %}
+            ≈ {{ derived|decimal_eu(2) }}<span class="text-[10px] not-italic text-slate-500 font-normal"> (de márgenes LTM)</span>
+        {% else %}
+            —
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{%- endmacro %}
 <style>
     /* Los modales viven FUERA del cierre de #portfolio-watch; hace falta regla global para el panel opaco */
     .watchlist-modal-surface {
@@ -62,9 +156,12 @@
         justify-content: space-between;
         gap: 0.5rem;
     }
-    /* Origen manual: usuario vs IA */
+    /* Origen manual: usuario vs IA (panel expandido y valores sin semáforo propio) */
     #portfolio-watch .watchlist-val-ai { color: #075985; font-style: italic; }
     #portfolio-watch .watchlist-val-user { color: #0f172a; font-weight: 600; }
+    /* Columna fija «Fecha próximos resultados»: no pisar verde/amarillo/rojo — solo marcar origen */
+    #portfolio-watch .watchlist-src-ai { font-style: italic; font-weight: 500; }
+    #portfolio-watch .watchlist-src-user { font-weight: 700; }
     #watchlistJobBanner {
         display: none;
         align-items: center;
@@ -141,7 +238,7 @@
                         <th class="px-4 py-3 text-left font-semibold uppercase cursor-pointer hover:bg-slate-200/60" onclick="sortTable(1, 'date')">
                             <span class="flex items-center gap-1">
                                 Fecha próximos resultados
-                                <span class="cursor-help text-gray-400" title="Manual: Fecha de presentación de resultados. Colores: Verde (futuro), Amarillo (pasado reciente, días configurables en Ajustes), Rojo (pasado lejano)">ⓘ</span>
+                                <span class="cursor-help text-gray-400" title="Fecha de presentación de resultados. Color del texto: verde (futuro), amarillo (pasado dentro del umbral de días en Ajustes), rojo (más antiguo). Encima de ese color: negrita = origen usuario, cursiva = origen IA.">ⓘ</span>
                                 <span class="sort-arrow">⇅</span>
                             </span>
                         </th>
@@ -154,37 +251,40 @@
                         <th class="px-4 py-3 text-center font-semibold uppercase">
                             <span class="flex items-center justify-center gap-1">
                                 Tier
-                                <span class="cursor-help text-gray-400" title="Calculado: Tier 1-5 según Valoración actual 12 meses (%). Colores configurables en Ajustes: Verde (dentro umbral configurado), Amarillo (fuera umbral pero dentro umbral amarillo), Rojo (fuera umbral amarillo)">ⓘ</span>
+                                <span class="cursor-help text-gray-400" title="Calculado: Tier 1-5 según Valoración 12m (%), con rangos definidos en Ajustes. Aquí solo se muestra el número; los colores por desviación vs objetivo están en «Cantidad a aumentar/reducir» (umbrales en Ajustes → Cantidad vs objetivo del Tier).">ⓘ</span>
                             </span>
                         </th>
                         <th class="px-4 py-3 text-right font-semibold uppercase">
                             <span class="flex items-center justify-end gap-1">
                                 Cantidad a aumentar/reducir
-                                <span class="cursor-help text-gray-400" title="Calculado: Diferencia entre cantidad invertida actual y cantidad del Tier (EUR). Positivo = comprar, Negativo = vender. Colores iguales que Tier según desviación porcentual (configurable en Ajustes)">ⓘ</span>
+                                <span class="cursor-help text-gray-400" title="Calculado: diferencia en EUR entre tu valor en cartera y la cantidad objetivo del Tier. Positivo = comprar, negativo = vender. Verde / amarillo / rojo según desviación % respecto al objetivo (umbrales en Ajustes → «Cantidad vs objetivo del Tier»).">ⓘ</span>
                             </span>
                         </th>
-                        <th class="px-4 py-3 text-right font-semibold uppercase">
+                        <th class="px-4 py-3 text-right font-semibold uppercase cursor-pointer hover:bg-slate-200/60" onclick="sortTable(5, 'number')">
                             <span class="flex items-center justify-end gap-1">
                                 Rent. 5 años (%)
-                                <span class="cursor-help text-gray-400" title="Calculado: (Target Price - Precio actual) / Precio actual * 100 + (Dividend Yield * 5 años). Basado en Target Price (5 yr)">ⓘ</span>
+                                <span class="cursor-help text-gray-400" onclick="event.stopPropagation()" title="Calculado: (Target Price - Precio actual) / Precio actual * 100 + (Dividend Yield * 5 años). Basado en Target Price (5 yr). Modo general con EPS≤0: el target se extrapola desde Valoración 12m (ver columna Target).">ⓘ</span>
+                                <span class="sort-arrow">⇅</span>
                             </span>
                         </th>
-                        <th class="px-4 py-3 text-right font-semibold uppercase">
+                        <th class="px-4 py-3 text-right font-semibold uppercase cursor-pointer hover:bg-slate-200/60" onclick="sortTable(6, 'number')">
                             <span class="flex items-center justify-end gap-1">
                                 Valoración 12m (%)
-                                <span class="cursor-help text-gray-400" title="Calculado (PEGY Ratio): -((PER / (CAGR% + Dividend Yield%)) - 1) * 100. Positivo = infravalorado (bueno), Negativo = sobrevalorado (malo). Colores: Verde ≥ 10% (infravalorado), Amarillo 0-10%, Rojo < 0% (sobrevalorado)">ⓘ</span>
+                                <span class="cursor-help text-gray-400" onclick="event.stopPropagation()" title="Modo general: PEGY con g = media de CAGR revenue y CAGR EPS. Modo banco: desviación vs precio fair P/B. Modo REIT: vs fair P/FFO sobre AFFO/FFO. Sin datos suficientes: vacío.">ⓘ</span>
+                                <span class="sort-arrow">⇅</span>
                             </span>
                         </th>
-                        <th class="px-4 py-3 text-right font-semibold uppercase">
+                        <th class="px-4 py-3 text-right font-semibold uppercase cursor-pointer hover:bg-slate-200/60" onclick="sortTable(7, 'number')">
                             <span class="flex items-center justify-end gap-1">
                                 Rent. Anual (%)
-                                <span class="cursor-help text-gray-400" title="Calculado: Rentabilidad anualizada a 5 años + Dividend Yield anual. Basado en Target Price (5 yr)">ⓘ</span>
+                                <span class="cursor-help text-gray-400" onclick="event.stopPropagation()" title="Calculado: Rentabilidad anualizada a 5 años + Dividend Yield anual. Basado en Target Price (5 yr). Modo general con EPS≤0: mismo target extrapolado desde Valoración 12m.">ⓘ</span>
+                                <span class="sort-arrow">⇅</span>
                             </span>
                         </th>
                         <th class="px-4 py-3 text-right font-semibold uppercase">
                             <span class="flex items-center justify-end gap-1">
                                 Target Price (5 yr)
-                                <span class="cursor-help text-gray-400" title="Calculado: EPS * (1 + CAGR Revenue YoY%)^5 * PER">ⓘ</span>
+                                <span class="cursor-help text-gray-400" title="Modo general con EPS&gt;0: EPS × (1 + g)^5 × PER (fair si existe; si no NTM), con g = media revenue/EPS CAGR; precio mostrado = objetivo tras ajuste estilo B. Modo general con EPS≤0: precio actual × (1 + Valoración 12m % / 100)^5 (extrapolación del PEGY mostrado). Modo banco: trayectoria BVPS × P/B objetivo y factor banco. Modo REIT: AFFO/FFO × (1+g)^5 × P/FFO y factor RE.">ⓘ</span>
                             </span>
                         </th>
                         <th class="px-4 py-3 text-right font-semibold uppercase">
@@ -199,17 +299,12 @@
                                 <span class="cursor-help text-gray-400" title="Calculado: (Valor actual del asset / Valor total del portfolio) * 100. Colores: Verde (< umbral+10%), Amarillo (umbral+10% a umbral+25%), Rojo (≥ umbral+25%)">ⓘ</span>
                             </span>
                         </th>
-                        <th class="px-4 py-3 text-right font-semibold uppercase">
-                            PER o NTM P/E
-                        </th>
-                        <th class="px-4 py-3 text-right font-semibold uppercase">
-                            NTM Div. Yield (%)
-                        </th>
-                        <th class="px-4 py-3 text-right font-semibold uppercase">
-                            EPS
-                        </th>
-                        <th class="px-4 py-3 text-right font-semibold uppercase">
-                            CAGR Revenue YoY (%)
+                        <th class="px-2 py-3 text-center font-semibold uppercase w-[4.5rem]">
+                            <span class="flex flex-col items-center gap-0.5">
+                                <span class="leading-tight">Inputs</span>
+                                <span class="text-[10px] font-semibold normal-case text-slate-500">▼</span>
+                                <span class="cursor-help text-gray-400" title="Expande para ver el núcleo común más los campos del modo de valoración aplicado (general, banco o REIT). Por defecto contraído. Usuario = negrita · IA = azul cursiva.">ⓘ</span>
+                            </span>
                         </th>
                         <th class="px-4 py-3 text-center font-semibold uppercase">
                             Acciones
@@ -221,10 +316,16 @@
                     {% set asset = item.asset %}
                     {% set watchlist_item = item.watchlist_item %}
                     {% set holding = item.holding %}
-                    <tr class="hover:bg-teal-50/45 transition-colors">
+                    {% set vm = item.valuation_mode|default('general') %}
+                    {% set vm_label = 'Banco' if vm == 'banks' else ('Real Estate / REIT' if vm == 'realestate' else 'General') %}
+                    {% set wl_eps_loss = watchlist_item and watchlist_item.eps is not none and watchlist_item.eps <= 0 %}
+                    {% set wl_price_now = asset.current_price if asset.current_price is not none else (watchlist_item.precio_actual if watchlist_item else none) %}
+                    {% set wl_user_tgt = watchlist_item.user_price_target if watchlist_item else none %}
+                    {% set wl_tgt_hit = wl_user_tgt is not none and wl_user_tgt > 0 and wl_price_now is not none and wl_price_now >= wl_user_tgt %}
+                    <tr class="wl-main-row hover:bg-teal-50/45 transition-colors" {% if watchlist_item %}data-watchlist-id="{{ watchlist_item.id }}"{% endif %}>
                         <!-- Nombre (con icono, symbol y país) -->
                         <td class="px-4 py-3">
-                            <div class="text-sm font-medium text-gray-900 flex items-center gap-2">
+                            <div class="text-sm font-medium text-gray-900 flex items-center gap-2 flex-wrap">
                                 {% if item.type == 'portfolio' %}
                                     <span title="En cartera">💼</span>
                                 {% else %}
@@ -233,6 +334,14 @@
                                 <a href="{{ url_for('portfolio.asset_detail', id=asset.id) }}" class="text-teal-800 hover:underline font-medium">
                                     {{ asset.name or asset.symbol or '—' }}
                                 </a>
+                                {% if wl_tgt_hit %}
+                                <span class="inline-flex items-center justify-center text-base leading-none select-none drop-shadow-sm" role="img" aria-label="Objetivo de precio alcanzado o superado"
+                                    title="Precio actual {{ wl_price_now|decimal_eu(2) }}{% if asset.currency %} {{ asset.currency }}{% endif %} ≥ tu objetivo {{ wl_user_tgt|decimal_eu(2) }}{% if asset.currency %} {{ asset.currency }}{% endif %}.">🎯</span>
+                                {% endif %}
+                                {% if wl_eps_loss %}
+                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-amber-50 text-amber-900 border border-amber-200/90"
+                                    title="{% if vm == 'general' %}EPS negativo o cero. Target 5y y rentas se calculan extrapolando la Valoración 12m cinco años (heurística; no hay proyección de beneficio).{% else %}EPS negativo o cero. El motor de valoración sigue el modo {{ vm_label }}; revisa inputs del modo.{% endif %}">Pérdidas</span>
+                                {% endif %}
                             </div>
                             {% if asset.asset_type or asset.symbol or asset.country %}
                             <div class="text-xs text-gray-400">
@@ -248,7 +357,7 @@
                             {% if watchlist_item and watchlist_item.next_earnings_date %}
                                 {% set earnings_date = watchlist_item.next_earnings_date %}
                                 {% set src_ed = watchlist_item.get_manual_field_source('next_earnings_date') %}
-                                {% set src_ed_cls = ' watchlist-val-ai' if src_ed == 'ai' else (' watchlist-val-user' if src_ed == 'user' else '') %}
+                                {% set src_ed_cls = ' watchlist-src-ai' if src_ed == 'ai' else (' watchlist-src-user' if src_ed == 'user' else '') %}
                                 {% set days_diff = (earnings_date - today).days %}
                                 {% set yellow_days = color_thresholds.fecha_resultados.yellow_days if color_thresholds and color_thresholds.fecha_resultados and color_thresholds.fecha_resultados.yellow_days else 15 %}
                                 {% if days_diff > 0 %}
@@ -284,33 +393,10 @@
                             {% endif %}
                         </td>
                         
-                        <!-- Tier (1-5) con colores si está en cartera -->
+                        <!-- Tier (1-5): sin semáforo; la desviación va en «Cantidad a aumentar/reducir» -->
                         <td class="px-4 py-3 whitespace-nowrap text-center">
                             {% if watchlist_item and watchlist_item.tier %}
-                                {% if item.type == 'portfolio' and item.current_value_eur is not none %}
-                                    {% set tier_key = 'tier_' ~ watchlist_item.tier %}
-                                    {% set tier_amount = tier_amounts[tier_key] if tier_key in tier_amounts else 0 %}
-                                    {% set tier_thresholds = color_thresholds.tier if color_thresholds and color_thresholds.tier else {} %}
-                                    {% set tier_green_pct = tier_thresholds.green_pct if tier_thresholds.green_pct is defined else 25.0 %}
-                                    {% set tier_yellow_pct = tier_thresholds.yellow_pct if tier_thresholds.yellow_pct is defined else 50.0 %}
-                                    {% if tier_amount > 0 %}
-                                        {% set desviacion = (item.current_value_eur - tier_amount) | abs %}
-                                        {# Usar current_value como base para que el porcentaje sea simétrico #}
-                                        {# Así ±1000€ da el mismo porcentaje independientemente de si tier_amount es mayor o menor #}
-                                        {% set desviacion_pct = (desviacion / item.current_value_eur * 100) %}
-                                    {% else %}
-                                        {% set desviacion_pct = 0 %}
-                                    {% endif %}
-                                    {% if desviacion_pct <= tier_green_pct %}
-                                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">{{ watchlist_item.tier }}</span>
-                                    {% elif desviacion_pct <= tier_yellow_pct %}
-                                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">{{ watchlist_item.tier }}</span>
-                                    {% else %}
-                                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">{{ watchlist_item.tier }}</span>
-                                    {% endif %}
-                                {% else %}
-                                    <span class="px-2 py-1 text-xs font-medium rounded bg-gray-100 text-gray-700">{{ watchlist_item.tier }}</span>
-                                {% endif %}
+                                <span class="px-2 py-1 text-xs font-medium rounded bg-gray-100 text-gray-700">{{ watchlist_item.tier }}</span>
                             {% else %}
                                 <span class="text-xs text-gray-400">—</span>
                             {% endif %}
@@ -319,9 +405,9 @@
                         <!-- Cantidad a aumentar/reducir -->
                         <td class="px-4 py-3 whitespace-nowrap text-right">
                             {% if item.type == 'portfolio' and watchlist_item and watchlist_item.cantidad_aumentar_reducir is not none %}
-                                {# Lógica existente para assets en cartera: misma que colores de Tier #}
+                                {# Colores según desviación % cartera vs objetivo Tier (umbrales en Ajustes) #}
                                 {% if watchlist_item.tier and item.current_value_eur is not none %}
-                                    {# Calcular desviación porcentual igual que Tier para usar los mismos umbrales #}
+                                    {# Desviación % sobre valor en cartera; umbrales color_thresholds.tier #}
                                     {% set tier_key = 'tier_' ~ watchlist_item.tier %}
                                     {% set tier_amount = tier_amounts[tier_key] if tier_key in tier_amounts else 0 %}
                                     {% set tier_thresholds = color_thresholds.tier if color_thresholds and color_thresholds.tier else {} %}
@@ -331,7 +417,7 @@
                                         {% set desviacion = (item.current_value_eur - tier_amount) | abs %}
                                         {# Usar current_value_eur como base para que el porcentaje sea simétrico #}
                                         {% set desviacion_pct = (desviacion / item.current_value_eur * 100) %}
-                                        {# Aplicar los mismos umbrales que Tier #}
+                                        {# Umbrales verde / amarillo de Ajustes (Cantidad vs objetivo del Tier) #}
                                         {% if desviacion_pct <= tier_green_pct %}
                                             {# Verde: dentro del margen ±green_pct% #}
                                             {% if watchlist_item.cantidad_aumentar_reducir > 0 %}
@@ -395,7 +481,7 @@
                         </td>
                         
                         <!-- Rentabilidad a 5 años (%) -->
-                        <td class="px-4 py-3 whitespace-nowrap text-right">
+                        <td class="px-4 py-3 whitespace-nowrap text-right" data-sort-value="{% if watchlist_item and watchlist_item.rentabilidad_5yr is not none %}{{ watchlist_item.rentabilidad_5yr }}{% endif %}">
                             {% if watchlist_item and watchlist_item.rentabilidad_5yr is not none %}
                                 {% set rent5yr = watchlist_item.rentabilidad_5yr %}
                                 {% set r5yr_thresholds = color_thresholds.rentabilidad_5yr if color_thresholds and color_thresholds.rentabilidad_5yr else {} %}
@@ -414,7 +500,7 @@
                         </td>
                         
                         <!-- Valoración actual 12 meses (%) con colores -->
-                        <td class="px-4 py-3 whitespace-nowrap text-right">
+                        <td class="px-4 py-3 whitespace-nowrap text-right" data-sort-value="{% if watchlist_item and watchlist_item.valoracion_12m is not none %}{{ watchlist_item.valoracion_12m }}{% endif %}">
                             {% if watchlist_item and watchlist_item.valoracion_12m is not none %}
                                 {% set valoracion = watchlist_item.valoracion_12m %}
                                 {% set v_thresholds = color_thresholds.valoracion_12m if color_thresholds and color_thresholds.valoracion_12m else {} %}
@@ -433,7 +519,7 @@
                         </td>
                         
                         <!-- Rentabilidad Anual (%) -->
-                        <td class="px-4 py-3 whitespace-nowrap text-right">
+                        <td class="px-4 py-3 whitespace-nowrap text-right" data-sort-value="{% if watchlist_item and watchlist_item.rentabilidad_anual is not none %}{{ watchlist_item.rentabilidad_anual }}{% endif %}">
                             {% if watchlist_item and watchlist_item.rentabilidad_anual is not none %}
                                 {% set rentAnual = watchlist_item.rentabilidad_anual %}
                                 {% set rAnual_thresholds = color_thresholds.rentabilidad_anual if color_thresholds and color_thresholds.rentabilidad_anual else {} %}
@@ -454,7 +540,7 @@
                         <!-- Target Price (5 yr) -->
                         <td class="px-4 py-3 whitespace-nowrap text-right">
                             {% if watchlist_item and watchlist_item.target_price_5yr is not none %}
-                                <span class="text-sm text-gray-900">{{ watchlist_item.target_price_5yr|decimal_eu(2) }}</span>
+                                <span class="text-sm text-gray-900"{% if vm == 'general' and wl_eps_loss %} title="Heurística: precio actual × (1 + Valoración 12m % / 100)^5. No proyecta beneficios."{% endif %}>{{ watchlist_item.target_price_5yr|decimal_eu(2) }}</span>
                             {% else %}
                                 <span class="text-xs text-gray-400">—</span>
                             {% endif %}
@@ -494,43 +580,21 @@
                             {% endif %}
                         </td>
                         
-                        <!-- PER o NTM P/E -->
-                        <td class="px-4 py-3 whitespace-nowrap text-right">
-                            {% if watchlist_item and watchlist_item.per_ntm is not none %}
-                                {% set src_per = watchlist_item.get_manual_field_source('per_ntm') %}
-                                <span class="text-sm text-gray-900{% if src_per == 'ai' %} watchlist-val-ai{% elif src_per == 'user' %} watchlist-val-user{% endif %}">{{ watchlist_item.per_ntm|decimal_eu(2) }}</span>
+                        <!-- Expandir inputs (todos los modos) -->
+                        <td class="px-1 py-3 whitespace-nowrap text-center align-middle">
+                            {% if watchlist_item %}
+                            <button type="button"
+                                class="wl-inputs-toggle inline-flex items-center justify-center min-w-[2.25rem] h-9 px-1 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 shadow-sm"
+                                id="wl-inputs-btn-{{ watchlist_item.id }}"
+                                aria-expanded="false"
+                                aria-controls="wl-inputs-expand-{{ watchlist_item.id }}"
+                                data-watchlist-id="{{ watchlist_item.id }}"
+                                onclick="toggleWatchlistInputsRow({{ watchlist_item.id }})"
+                                title="Ver inputs del modo aplicado + núcleo (contraído por defecto)">
+                                <span class="wl-chevron text-base leading-none select-none" aria-hidden="true">▸</span>
+                            </button>
                             {% else %}
-                                <span class="text-xs text-gray-400">—</span>
-                            {% endif %}
-                        </td>
-                        
-                        <!-- NTM Dividend Yield (%) -->
-                        <td class="px-4 py-3 whitespace-nowrap text-right">
-                            {% if watchlist_item and watchlist_item.ntm_dividend_yield is not none %}
-                                {% set src_dy = watchlist_item.get_manual_field_source('ntm_dividend_yield') %}
-                                <span class="text-sm text-gray-900{% if src_dy == 'ai' %} watchlist-val-ai{% elif src_dy == 'user' %} watchlist-val-user{% endif %}">{{ watchlist_item.ntm_dividend_yield|decimal_eu(2) }}%</span>
-                            {% else %}
-                                <span class="text-xs text-gray-400">—</span>
-                            {% endif %}
-                        </td>
-                        
-                        <!-- EPS -->
-                        <td class="px-4 py-3 whitespace-nowrap text-right">
-                            {% if watchlist_item and watchlist_item.eps is not none %}
-                                {% set src_eps = watchlist_item.get_manual_field_source('eps') %}
-                                <span class="text-sm text-gray-900{% if src_eps == 'ai' %} watchlist-val-ai{% elif src_eps == 'user' %} watchlist-val-user{% endif %}">{{ watchlist_item.eps|decimal_eu(2) }}</span>
-                            {% else %}
-                                <span class="text-xs text-gray-400">—</span>
-                            {% endif %}
-                        </td>
-                        
-                        <!-- CAGR Revenue YoY (%) -->
-                        <td class="px-4 py-3 whitespace-nowrap text-right">
-                            {% if watchlist_item and watchlist_item.cagr_revenue_yoy is not none %}
-                                {% set src_cagr = watchlist_item.get_manual_field_source('cagr_revenue_yoy') %}
-                                <span class="text-sm text-gray-900{% if src_cagr == 'ai' %} watchlist-val-ai{% elif src_cagr == 'user' %} watchlist-val-user{% endif %}">{{ watchlist_item.cagr_revenue_yoy|decimal_eu(2) }}%</span>
-                            {% else %}
-                                <span class="text-xs text-gray-400">—</span>
+                            <span class="text-xs text-gray-400">—</span>
                             {% endif %}
                         </td>
                         
@@ -541,7 +605,13 @@
                                 {% if gemini_available %}
                                 <button type="button" onclick="queueWatchlistRowDeepResearch({{ asset.id }})" class="text-violet-700 hover:text-violet-900 text-sm font-semibold" title="Informe IA exhaustivo (Deep Research). No sustituye campos con origen tuyo; resetea o vacía antes si quieres que la IA los rellene. Puedes encolar varias filas">🔬</button>
                                 {% endif %}
-                                <button type="button" onclick="resetWatchlistManualFields({{ watchlist_item.id }})" class="text-amber-600 hover:text-amber-800 text-sm" title="Borrar los 5 datos manuales (origen usuario o IA)">⟲</button>
+                                <button type="button"
+                                    class="text-slate-600 hover:text-slate-900 text-sm"
+                                    title="Notas y comentarios (fecha y hora; estilo hilo)"
+                                    data-watchlist-id="{{ watchlist_item.id }}"
+                                    data-asset-label="{{ (asset.symbol or asset.name or '')|e }}"
+                                    onclick="openWatchlistCommentsModalFromBtn(this)">💬</button>
+                                <button type="button" onclick="resetWatchlistManualFields({{ watchlist_item.id }})" class="text-amber-600 hover:text-amber-800 text-sm" title="Borrar todos los inputs manuales de valoración (origen usuario o IA)">⟲</button>
                                 <button onclick="editWatchlistItem({{ watchlist_item.id }}, {{ asset.id }})" class="text-blue-600 hover:text-blue-800 text-sm" title="Editar">
                                     ✏️
                                 </button>
@@ -554,6 +624,80 @@
                             {% endif %}
                         </td>
                     </tr>
+                    {% if watchlist_item %}
+                    <tr class="wl-inputs-expand-row hidden bg-slate-50/90" data-watchlist-parent="{{ watchlist_item.id }}" id="wl-inputs-expand-{{ watchlist_item.id }}" role="region" aria-label="Inputs manuales: núcleo y modo {{ vm_label }}">
+                        <td colspan="13" class="px-4 py-4 border-t border-slate-200 align-top">
+                            <div class="text-xs text-slate-600 mb-3 flex flex-wrap items-center gap-x-4 gap-y-1">
+                                <span>Modo valoración aplicado: <strong class="text-slate-800">{{ vm_label }}</strong></span>
+                                <span><span class="watchlist-val-user">Negrita oscura</span> = usuario · <span class="watchlist-val-ai">Azul cursiva</span> = IA (solo en este panel)</span>
+                                <span class="text-slate-500">En la columna fija «Fecha próximos resultados» de la tabla: verde/amarillo/rojo = días hasta la fecha; negrita o cursiva encima indica usuario o IA sin cambiar ese color.</span>
+                                <span class="text-slate-500">Solo inputs que el modo de valoración usa en cálculos (más fecha de resultados y div. yield donde aplique). Editar ✏️ para cambiar valores.</span>
+                            </div>
+                            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-4 gap-y-5">
+                                <div class="sm:col-span-2 lg:col-span-3 xl:col-span-5">
+                                    <h4 class="text-xs font-bold text-teal-900 uppercase tracking-wide mb-2 border-b border-teal-100 pb-1">{% if vm == 'general' %}Núcleo (todos los modos){% elif vm == 'banks' %}Núcleo — banco (PER/EPS para payout; div. yield){% else %}Núcleo — REIT (solo lo que aplica al modo){% endif %}</h4>
+                                </div>
+                                {{ wl_manual_cell(watchlist_item, 'next_earnings_date', 'Fecha próximos resultados', 'date') }}
+                                {% if vm != 'realestate' %}
+                                {{ wl_manual_cell(watchlist_item, 'per_ntm', 'PER NTM', 'num', tikr_per_ntm) }}
+                                {% endif %}
+                                {{ wl_manual_cell(watchlist_item, 'ntm_dividend_yield', 'Div. yield NTM', 'pct', tikr_div_ntm) }}
+                                {% if vm == 'general' %}
+                                {{ wl_manual_cell(watchlist_item, 'eps', 'EPS NTM', 'num4', tikr_eps_ntm) }}
+                                {{ wl_manual_cell(watchlist_item, 'cagr_revenue_yoy', 'CAGR ingresos 2–3y', 'pct', tikr_cagr_revenue_full) }}
+                                {% elif vm == 'banks' %}
+                                {{ wl_manual_cell(watchlist_item, 'eps', 'EPS NTM', 'num4', tikr_eps_ntm) }}
+                                {% endif %}
+                                {% if vm == 'general' %}
+                                <div class="sm:col-span-2 lg:col-span-3 xl:col-span-5 mt-2">
+                                    <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wide mb-2 border-b border-slate-200 pb-1">Modo general — precisión y calidad</h4>
+                                </div>
+                                {{ wl_manual_cell(watchlist_item, 'per_fair', 'PER fair', 'num') }}
+                                {{ wl_manual_cell(watchlist_item, 'cagr_eps_yoy', 'CAGR EPS 2–3y', 'pct', tikr_cagr_eps_full) }}
+                                {{ wl_manual_cell(watchlist_item, 'net_debt_to_ebitda', 'Net debt / EBITDA', 'num', tikr_net_debt) }}
+                                {{ wl_manual_cell(watchlist_item, 'fcf_margin_pct', 'Levered Free Cash Flow Margin % (LTM, TIKR)', 'pct', tikr_fcf_margin) }}
+                                {{ wl_manual_cell(watchlist_item, 'net_income_margin_pct', 'Normalized Net Income Margin % (LTM, TIKR)', 'pct', tikr_ni_margin) }}
+                                {{ wl_fcf_bn_ratio_cell(watchlist_item) }}
+                                {{ wl_manual_cell(watchlist_item, 'ebitda_margin_pct', 'Margen EBITDA', 'pct', tikr_ebitda_m) }}
+                                {{ wl_manual_cell(watchlist_item, 'operating_margin_pct', 'Margen operativo', 'pct', tikr_op_m) }}
+                                {{ wl_manual_cell(watchlist_item, 'roic_pct', 'ROIC', 'pct', tikr_roic) }}
+                                {% endif %}
+                                {% if vm == 'banks' %}
+                                <div class="sm:col-span-2 lg:col-span-3 xl:col-span-5 mt-2">
+                                    <h4 class="text-xs font-bold text-amber-900 uppercase tracking-wide mb-2 border-b border-amber-100 pb-1">Modo banco</h4>
+                                </div>
+                                {{ wl_manual_cell(watchlist_item, 'price_to_book', 'P/B actual', 'num', tikr_bank_pb) }}
+                                {{ wl_manual_cell(watchlist_item, 'pb_fair', 'P/B fair', 'num') }}
+                                {{ wl_manual_cell(watchlist_item, 'roe_pct', 'ROE', 'pct', tikr_bank_roe) }}
+                                {{ wl_manual_cell(watchlist_item, 'cet1_ratio_pct', 'CET1', 'pct', tikr_bank_cet1) }}
+                                {{ wl_manual_cell(watchlist_item, 'npl_ratio_pct', 'NPL', 'pct', tikr_bank_npl) }}
+                                {{ wl_manual_cell(watchlist_item, 'cost_to_income_pct', 'Cost-to-income', 'pct', tikr_bank_cost_to_income) }}
+                                {{ wl_manual_cell(watchlist_item, 'nim_pct', 'NIM', 'pct', tikr_bank_nim) }}
+                                {{ wl_manual_cell(watchlist_item, 'bvps', 'BVPS', 'num4', tikr_bank_bvps) }}
+                                {{ wl_manual_cell(watchlist_item, 'loan_to_deposit_pct', 'LDR', 'pct', tikr_bank_ldr) }}
+                                {{ wl_manual_cell(watchlist_item, 'cost_of_risk_pct', 'Cost of risk', 'pct', tikr_bank_cost_of_risk) }}
+                                {{ wl_manual_cell(watchlist_item, 'bvps_cagr_yoy', 'CAGR BVPS', 'pct', tikr_bank_bvps_cagr) }}
+                                {% endif %}
+                                {% if vm == 'realestate' %}
+                                <div class="sm:col-span-2 lg:col-span-3 xl:col-span-5 mt-2">
+                                    <h4 class="text-xs font-bold text-violet-900 uppercase tracking-wide mb-2 border-b border-violet-100 pb-1">Modo REIT</h4>
+                                </div>
+                                {{ wl_manual_cell(watchlist_item, 'ffo_per_share', 'FFO / acción', 'num4', tikr_reit_ffo_ps) }}
+                                {{ wl_manual_cell(watchlist_item, 'affo_per_share', 'AFFO / acción', 'num4', tikr_reit_affo_ps) }}
+                                {{ wl_manual_cell(watchlist_item, 'price_to_ffo', 'P/FFO', 'num', tikr_reit_p_ffo) }}
+                                {{ wl_manual_cell(watchlist_item, 'p_ffo_fair', 'P/FFO fair', 'num') }}
+                                {{ wl_manual_cell(watchlist_item, 'cagr_ffo_yoy', 'CAGR FFO', 'pct', tikr_reit_cagr_ffo) }}
+                                {{ wl_manual_cell(watchlist_item, 'reit_leverage_ratio', 'Apalancamiento (ratio)', 'num', tikr_reit_nd_ebitda) }}
+                                {{ wl_manual_cell(watchlist_item, 'occupancy_pct', 'Ocupación', 'pct', tikr_reit_occupancy) }}
+                                {{ wl_manual_cell(watchlist_item, 'walt_years', 'WALT (años)', 'num', tikr_reit_walt) }}
+                                {{ wl_manual_cell(watchlist_item, 'same_store_growth_pct', 'Same-store growth', 'pct', tikr_reit_ssg) }}
+                                {{ wl_manual_cell(watchlist_item, 'ffo_interest_coverage', 'FFO / intereses', 'num', tikr_reit_ffo_cov) }}
+                                {{ wl_manual_cell(watchlist_item, 'ffo_to_total_debt', 'FFO / deuda', 'num', tikr_reit_ffo_debt) }}
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endif %}
                     {% endfor %}
                 </tbody>
             </table>
@@ -642,6 +786,26 @@
                     <input type="number" step="0.1" id="settingsMaxWeightThreshold" class="w-full px-3 py-2 border border-gray-300 rounded-lg" value="{{ max_weight_threshold }}">
                 </div>
                 
+                <!-- Clasificación sectorial (modo valoración banco / RE) -->
+                <div class="mb-4 p-4 bg-cyan-50/90 rounded-lg border border-cyan-200/80">
+                    <div class="settings-section-head mb-2">
+                        <h4 class="text-sm font-semibold text-gray-700">Clasificación sectorial (valoración)</h4>
+                        <button type="button" class="pf-info" onclick="openSettingsHelp('sectorRules')" title="Ayuda" aria-label="Ayuda clasificación sectorial">i</button>
+                    </div>
+                    <p class="text-xs text-gray-600 mb-2">Pares <strong>Sector + Industria</strong> como en la ficha del activo. Coincidencia → modo Banco o Real Estate; si no, modo general. Si un par está en ambas listas, gana Banco.</p>
+                    <p id="vsrCatalogHint" class="text-xs text-amber-900 mb-2 hidden"></p>
+                    <div class="mb-3">
+                        <div class="text-xs font-semibold text-gray-800 mb-1">Bancos</div>
+                        <div id="vsrBanksRows" class="space-y-2"></div>
+                        <button type="button" class="mt-1 text-xs font-semibold text-teal-800 hover:underline" onclick="addVsrRow('banks')">+ Añadir fila</button>
+                    </div>
+                    <div>
+                        <div class="text-xs font-semibold text-gray-800 mb-1">Real Estate / REIT</div>
+                        <div id="vsrReRows" class="space-y-2"></div>
+                        <button type="button" class="mt-1 text-xs font-semibold text-teal-800 hover:underline" onclick="addVsrRow('realestate')">+ Añadir fila</button>
+                    </div>
+                </div>
+                
                 <!-- Umbrales de colores: Valoración 12m -->
                 <div class="mb-4 p-4 bg-gray-50 rounded-lg">
                     <div class="settings-section-head mb-3">
@@ -690,19 +854,20 @@
                     </div>
                 </div>
                 
-                <!-- Umbrales de colores: Tier -->
+                <!-- Umbrales de color para la columna «Cantidad a aumentar/reducir» (desviación vs objetivo Tier) -->
                 <div class="mb-4 p-4 bg-gray-50 rounded-lg">
                     <div class="settings-section-head mb-3">
-                        <h4 class="text-sm font-semibold text-gray-700">Tier (desviación del valor del Tier)</h4>
-                        <button type="button" class="pf-info" onclick="openSettingsHelp('tierDev')" title="Ayuda" aria-label="Ayuda desviación tier">i</button>
+                        <h4 class="text-sm font-semibold text-gray-700">Cantidad vs objetivo del Tier (colores en tabla)</h4>
+                        <button type="button" class="pf-info" onclick="openSettingsHelp('tierDev')" title="Ayuda umbrales de color" aria-label="Ayuda colores cantidad a aumentar o reducir">i</button>
                     </div>
+                    <p class="text-xs text-gray-500 mb-2">Aplica solo a la columna <strong>Cantidad a aumentar/reducir</strong>. Compara tu valor en cartera con el objetivo en EUR del bloque <strong>Cantidades por Tier</strong> más abajo.</p>
                     <div class="grid grid-cols-2 gap-3">
                         <div>
-                            <label class="block text-xs text-gray-600 mb-1">Verde (dentro %)</label>
+                            <label class="block text-xs text-gray-600 mb-1">Verde (máx. desviación %)</label>
                             <input type="number" step="0.1" id="settingsTierGreenPct" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
                         </div>
                         <div>
-                            <label class="block text-xs text-gray-600 mb-1">Amarillo (dentro %)</label>
+                            <label class="block text-xs text-gray-600 mb-1">Amarillo (máx. desviación %)</label>
                             <input type="number" step="0.1" id="settingsTierYellowPct" class="w-full px-2 py-1 text-sm border border-gray-300 rounded">
                         </div>
                     </div>
@@ -927,34 +1092,187 @@
 
 <!-- Modal para editar watchlist item -->
 <div id="editWatchlistModal" class="hidden fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55 overflow-y-auto" onclick="if(event.target===this) closeEditWatchlistModal()">
-    <div class="watchlist-modal-surface w-full max-w-md p-5 sm:p-6" onclick="event.stopPropagation()">
+    <div class="watchlist-modal-surface w-full max-w-2xl p-5 sm:p-6 max-h-[min(92vh,40rem)] overflow-y-auto" onclick="event.stopPropagation()">
         <div>
-            <h3 class="text-lg font-semibold text-slate-900 mb-4">✏️ Editar métricas</h3>
+            <h3 class="text-lg font-semibold text-slate-900 mb-2">✏️ Editar métricas</h3>
+            <p id="editValuationModeHint" class="text-xs text-slate-600 mb-4"></p>
             <form id="editWatchlistForm">
                 <input type="hidden" id="editWatchlistId">
                 <input type="hidden" id="editAssetId">
                 
-                <div class="space-y-4">
+                <div id="editBlockGeneral" class="space-y-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Fecha próximos resultados</label>
                         <input type="date" id="editNextEarningsDate" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500">
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-1">PER o NTM P/E</label>
+                    <div id="editRowNucleusPerNtm">
+                        <label class="block text-sm font-medium text-slate-700 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">PER NTM (P/E forward 12m){{ wl_tikr_i(tikr_per_ntm) }}</span></label>
                         <input type="number" step="0.01" id="editPerNtm" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500">
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-1">NTM Dividend Yield (%)</label>
-                        <input type="number" step="0.01" id="editNtmDividendYield" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500">
+                    <div id="editRowPerFair">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">PER fair (opcional, objetivo a 5y si lo rellenas)</label>
+                        <input type="number" step="0.01" id="editPerFair" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-1">EPS</label>
-                        <input type="number" step="0.01" id="editEps" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500">
+                        <label class="block text-sm font-medium text-slate-700 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">Dividend yield NTM (%)</span>{{ wl_tikr_i(tikr_div_ntm) }}</label>
+                        <input type="number" step="0.01" id="editNtmDividendYield" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500" title="Porcentaje como número (ej. 3,25 → 3.25)">
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-1">CAGR Revenue YoY (%)</label>
-                        <input type="number" step="0.01" id="editCagrRevenueYoy" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500">
+                    <div id="editRowNucleusEps">
+                        <label class="block text-sm font-medium text-slate-700 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">EPS NTM (GAAP o convención de tu fuente){{ wl_tikr_i(tikr_eps_ntm) }}</span></label>
+                        <input type="number" step="0.01" id="editEps" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500" title="Debe cuadrar con el PER NTM (misma base). No es FFO: en REIT usa los campos FFO/AFFO en el bloque REIT.">
                     </div>
+                    <div id="editRowNucleusCagrRevenue">
+                        <label class="block text-sm font-medium text-slate-700 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">CAGR ingresos 2–3 años YoY (%)</span>{{ wl_tikr_i(tikr_cagr_revenue_full) }}</label>
+                        <input type="number" step="0.01" id="editCagrRevenueYoy" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500" title="Crecimiento anual compuesto de ventas; modo general lo mezcla con CAGR EPS si existe">
+                    </div>
+                    <div id="editRowNucleusCagrEps">
+                        <label class="block text-sm font-medium text-slate-700 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">CAGR EPS YoY (%)</span>{{ wl_tikr_i(tikr_cagr_eps_full) }}</label>
+                        <input type="number" step="0.01" id="editCagrEpsYoy" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500" title="Si falta, PEGY y target usan solo el CAGR de ingresos">
+                    </div>
+                    <details id="editDetailsGeneralPrecision" class="rounded-xl border border-slate-200/90 bg-white/60 px-3 py-2">
+                        <summary class="cursor-pointer text-sm font-medium text-slate-800 select-none">Precisión y calidad (ajuste estilo B, opcional)</summary>
+                        <div class="space-y-3 mt-3 pb-1">
+                            <div>
+                                <label class="block text-xs font-medium text-slate-600 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">Net debt / EBITDA (×)</span>{{ wl_tikr_i(tikr_net_debt) }}</label>
+                                <input type="number" step="0.01" id="editNetDebtEbitda" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-600 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">Levered Free Cash Flow Margin % (LTM)</span>{{ wl_tikr_i(tikr_fcf_margin ~ ' Mismo convenio % que el resto de la watchlist (ej. 7,3 = 7,3%).') }}</label>
+                                <input type="number" step="0.01" id="editFcfMarginPct" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-600 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">Normalized Net Income Margin % (LTM)</span>{{ wl_tikr_i(tikr_ni_margin ~ ' Si ambos márgenes LTM están rellenos, FCF/BN ≈ Levered FCF margin / Normalized NI margin; si no, usa el ratio manual debajo.') }}</label>
+                                <input type="number" step="0.01" id="editNetIncomeMarginPct" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-600 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">FCF / Beneficio neto (ratio)</span>{{ wl_tikr_i(tikr_fcf_bn_modal) }}</label>
+                                <p class="text-[10px] text-slate-500 mb-1.5 leading-snug">Alternativa si <strong>no</strong> tienes a la vez los dos campos de arriba: «Levered Free Cash Flow Margin % (LTM)» y «Normalized Net Income Margin % (LTM)».</p>
+                                <input type="number" step="0.01" id="editFcfNetIncome" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-600 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">Margen EBITDA (%)</span>{{ wl_tikr_i(tikr_ebitda_m) }}</label>
+                                <input type="number" step="0.01" id="editEbitdaMargin" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-600 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">Margen operativo (%)</span>{{ wl_tikr_i(tikr_op_m) }}</label>
+                                <input type="number" step="0.01" id="editOpMargin" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-600 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">ROIC (%)</span>{{ wl_tikr_i(tikr_roic) }}</label>
+                                <input type="number" step="0.01" id="editRoicPct" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                            </div>
+                        </div>
+                    </details>
+                </div>
+
+                <div id="editBlockBanks" class="hidden mt-4 space-y-3 rounded-xl border border-amber-200/80 bg-amber-50/40 p-3">
+                    <h4 class="text-xs font-semibold text-amber-900 uppercase tracking-wide">Banco — valoración (P/B)</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">P/B actual (×)</span>{{ wl_tikr_i(tikr_bank_pb) }}</label>
+                            <input type="number" step="0.01" id="editPriceToBook" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1">P/B fair / objetivo (×)</label>
+                            <input type="number" step="0.01" id="editPbFair" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">ROE (%)</span>{{ wl_tikr_i(tikr_bank_roe) }}</label>
+                            <input type="number" step="0.01" id="editRoePct" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">CET1 ratio (%)</span>{{ wl_tikr_i(tikr_bank_cet1) }}</label>
+                            <input type="number" step="0.01" id="editCet1Ratio" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">NPL ratio (%)</span>{{ wl_tikr_i(tikr_bank_npl) }}</label>
+                            <input type="number" step="0.01" id="editNplRatio" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">Cost-to-income / eficiencia (%)</span>{{ wl_tikr_i(tikr_bank_cost_to_income) }}</label>
+                            <input type="number" step="0.01" id="editCostToIncome" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500" title="Menor % = más eficiente (convención habitual)">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">NIM (%)</span>{{ wl_tikr_i(tikr_bank_nim) }}</label>
+                            <input type="number" step="0.01" id="editNimPct" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">BVPS (opcional)</span>{{ wl_tikr_i(tikr_bank_bvps) }}</label>
+                            <input type="number" step="0.01" id="editBvps" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">Préstamos / depósitos LDR (%)</span>{{ wl_tikr_i(tikr_bank_ldr) }}</label>
+                            <input type="number" step="0.01" id="editLoanToDeposit" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">Cost of risk (%)</span>{{ wl_tikr_i(tikr_bank_cost_of_risk) }}</label>
+                            <input type="number" step="0.01" id="editCostOfRisk" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">CAGR BVPS 2–3y (%)</span>{{ wl_tikr_i(tikr_bank_bvps_cagr) }}</label>
+                            <input type="number" step="0.01" id="editBvpsCagr" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                        </div>
+                    </div>
+                </div>
+
+                <div id="editBlockReit" class="hidden mt-4 space-y-3 rounded-xl border border-violet-200/80 bg-violet-50/40 p-3">
+                    <h4 class="text-xs font-semibold text-violet-900 uppercase tracking-wide">REIT — FFO / AFFO</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">FFO / acción</span>{{ wl_tikr_i(tikr_reit_ffo_ps) }}</label>
+                            <input type="number" step="0.01" id="editFfoPerShare" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">AFFO / acción (preferido si hay dato)</span>{{ wl_tikr_i(tikr_reit_affo_ps) }}</label>
+                            <input type="number" step="0.01" id="editAffoPerShare" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">P/FFO o P/AFFO (×)</span>{{ wl_tikr_i(tikr_reit_p_ffo) }}</label>
+                            <input type="number" step="0.01" id="editPriceToFfo" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1">P/FFO fair (×)</label>
+                            <input type="number" step="0.01" id="editPFfoFair" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">CAGR FFO/AFFO 2–3y (%)</span>{{ wl_tikr_i(tikr_reit_cagr_ffo) }}</label>
+                            <input type="number" step="0.01" id="editCagrFfoYoy" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">Net debt / EBITDA (ratio REIT)</span>{{ wl_tikr_i(tikr_reit_nd_ebitda) }}</label>
+                            <input type="number" step="0.01" id="editReitLeverageRatio" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                        </div>
+                        <div id="editRowReitLeverageKind" class="sm:col-span-2">
+                            <label class="block text-xs font-medium text-slate-700 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">Tipo ratio apalancamiento (nota, opcional)</span>{{ wl_tikr_i(tikr_reit_leverage_kind) }}</label>
+                            <input type="text" id="editReitLeverageKind" maxlength="32" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500" placeholder="Ej. TIKR ND/EBITDA" title="No entra en fórmulas; solo referencia. Oculto en modo REIT al editar.">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">FFO / intereses (× cobertura)</span>{{ wl_tikr_i(tikr_reit_ffo_cov) }}</label>
+                            <input type="number" step="0.01" id="editFfoInterestCoverage" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500" title="Opcional; entra en F_RE vía media geométrica con FFO/deuda">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">FFO / deuda total (×)</span>{{ wl_tikr_i(tikr_reit_ffo_debt) }}</label>
+                            <input type="number" step="0.01" id="editFfoToTotalDebt" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500" title="Convención TIKR; opcional">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">Ocupación (%)</span>{{ wl_tikr_i(tikr_reit_occupancy) }}</label>
+                            <input type="number" step="0.01" id="editOccupancyPct" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">WALT (años)</span>{{ wl_tikr_i(tikr_reit_walt) }}</label>
+                            <input type="number" step="0.01" id="editWaltYears" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">Same-store growth (%)</span>{{ wl_tikr_i(tikr_reit_ssg) }}</label>
+                            <input type="number" step="0.01" id="editSameStoreGrowthPct" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                        </div>
+                    </div>
+                </div>
+
+                <div id="editBlockUserPriceTarget" class="mt-4 pt-4 border-t border-slate-200 space-y-1.5">
+                    <label class="block text-sm font-medium text-slate-700" for="editUserPriceTarget">Precio objetivo personal (opcional)</label>
+                    <input type="number" step="0.01" min="0" id="editUserPriceTarget" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500" placeholder="Ej. 150" title="Tu referencia de precio; no sustituye al TP 5y calculado por la app">
+                    <p id="editUserPriceTargetHint" class="text-[11px] text-slate-500 leading-snug">Misma divisa que la cotización del activo. Independiente del «TP 5y» que calcula la watchlist.</p>
                 </div>
                 
                 <div class="flex flex-col-reverse sm:flex-row justify-end gap-2 mt-6">
@@ -970,8 +1288,24 @@
     </div>
 </div>
 
-<!-- Modal de Confirmación -->
-<div id="confirmModal" class="hidden fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55" onclick="if(event.target===this) closeConfirmModal(false)">
+<!-- Notas / comentarios por fila (modal; cerrar pulsando fuera) -->
+<div id="watchlistCommentsModal" class="hidden fixed inset-0 z-[65] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55 overflow-y-auto" onclick="if(event.target===this) closeWatchlistCommentsModal()">
+    <div class="watchlist-modal-surface w-full max-w-lg p-5 sm:p-6 max-h-[min(92vh,34rem)] flex flex-col my-4 min-h-0" onclick="event.stopPropagation()">
+        <input type="hidden" id="watchlistCommentsWatchlistId" value="">
+        <h3 id="watchlistCommentsTitle" class="text-lg font-semibold text-slate-900 mb-1">Notas</h3>
+        <p class="text-xs text-slate-500 mb-3">Cada guardado queda con fecha y hora. Puedes seguir escribiendo sin cerrar; para salir, pulsa fuera de esta ventana.</p>
+        <p id="watchlistCommentsError" class="hidden text-sm text-rose-600 mb-2"></p>
+        <div id="watchlistCommentsList" class="flex-1 min-h-0 max-h-[min(42vh,18rem)] overflow-y-auto overflow-x-hidden space-y-3 rounded-xl border border-slate-200 bg-slate-50/90 p-3 mb-3 text-left overscroll-y-contain" dir="ltr"></div>
+        <div class="border-t border-slate-200 pt-3 shrink-0">
+            <label for="watchlistCommentsNewBody" class="block text-xs font-medium text-slate-700 mb-1">Nuevo comentario</label>
+            <textarea id="watchlistCommentsNewBody" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500" placeholder="Escribe aquí…"></textarea>
+            <button type="button" onclick="submitWatchlistNewComment()" class="portfolio-touch-btn mt-2 w-full sm:w-auto px-4 py-2.5 rounded-xl bg-teal-600 text-white text-sm font-semibold hover:bg-teal-700">Guardar comentario</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmación (z alto para poder confirmar sobre el modal de notas) -->
+<div id="confirmModal" class="hidden fixed inset-0 z-[75] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/55" onclick="if(event.target===this) closeConfirmModal(false)">
     <div class="watchlist-modal-surface w-full max-w-md p-5 sm:p-6" onclick="event.stopPropagation()">
         <h3 class="text-lg font-semibold text-slate-900 mb-2" id="confirmModalTitle">Confirmar acción</h3>
         <p class="text-sm text-slate-600 mb-6" id="confirmModalMessage">¿Estás seguro de que quieres realizar esta acción?</p>
@@ -1140,45 +1474,155 @@ async function selectAssetFromSearch(assetRegistryId) {
     }
 }
 
+function watchlistSetNumInput(id, val) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.value = (val !== null && val !== undefined && val !== '') ? val : '';
+}
+
+function watchlistSetStrInput(id, val) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.value = (val !== null && val !== undefined && String(val) !== '') ? String(val) : '';
+}
+
+function layoutEditWatchlistForm(mode) {
+    const hint = document.getElementById('editValuationModeHint');
+    const rowPerFair = document.getElementById('editRowPerFair');
+    const bb = document.getElementById('editBlockBanks');
+    const br = document.getElementById('editBlockReit');
+    if (!hint || !bb || !br) return;
+    const m = mode || 'general';
+    const labels = {
+        general: 'Modo valoración: general (PEGY / PER fair).',
+        banks: 'Modo valoración: banco. Usa P/B fair debajo (no PER fair). Ratios CET1, NPL, etc. ajustan el target 5y.',
+        realestate: 'Modo valoración: REIT. Solo se muestran inputs que el motor usa (FFO/AFFO, P/FFO, ocupación, etc.); PER/EPS/CAGR ingresos del núcleo general no aplican.'
+    };
+    hint.textContent = labels[m] || labels.general;
+    bb.classList.toggle('hidden', m !== 'banks');
+    br.classList.toggle('hidden', m !== 'realestate');
+    if (rowPerFair) rowPerFair.classList.toggle('hidden', m === 'banks' || m === 'realestate');
+    const hideStockMultiples = m === 'realestate';
+    document.getElementById('editRowNucleusPerNtm')?.classList.toggle('hidden', hideStockMultiples);
+    document.getElementById('editRowNucleusEps')?.classList.toggle('hidden', hideStockMultiples);
+    const hideCagrCore = m === 'banks' || m === 'realestate';
+    document.getElementById('editRowNucleusCagrRevenue')?.classList.toggle('hidden', hideCagrCore);
+    document.getElementById('editRowNucleusCagrEps')?.classList.toggle('hidden', hideCagrCore);
+    document.getElementById('editDetailsGeneralPrecision')?.classList.toggle('hidden', m !== 'general');
+    document.getElementById('editRowReitLeverageKind')?.classList.toggle('hidden', m === 'realestate');
+}
+
 // Funciones para editar watchlist item
+function setEditUserPriceTargetHint(currency) {
+    const hint = document.getElementById('editUserPriceTargetHint');
+    if (!hint) return;
+    const c = (currency || '').trim();
+    if (c) {
+        hint.textContent = 'Misma divisa que la cotización (' + c + '). Independiente del «TP 5y» que calcula la watchlist.';
+    } else {
+        hint.textContent = 'Misma divisa que la cotización del activo. Independiente del «TP 5y» que calcula la watchlist.';
+    }
+}
+
 async function editWatchlistItem(watchlistId, assetId) {
     document.getElementById('editWatchlistId').value = watchlistId;
     document.getElementById('editAssetId').value = assetId;
     
-    // Limpiar campos
     document.getElementById('editNextEarningsDate').value = '';
-    document.getElementById('editPerNtm').value = '';
-    document.getElementById('editNtmDividendYield').value = '';
-    document.getElementById('editEps').value = '';
-    document.getElementById('editCagrRevenueYoy').value = '';
-    
-    // Cargar datos actuales
+    watchlistSetNumInput('editPerNtm', null);
+    watchlistSetNumInput('editPerFair', null);
+    watchlistSetNumInput('editNtmDividendYield', null);
+    watchlistSetNumInput('editEps', null);
+    watchlistSetNumInput('editCagrRevenueYoy', null);
+    watchlistSetNumInput('editCagrEpsYoy', null);
+    watchlistSetNumInput('editNetDebtEbitda', null);
+    watchlistSetNumInput('editFcfMarginPct', null);
+    watchlistSetNumInput('editNetIncomeMarginPct', null);
+    watchlistSetNumInput('editFcfNetIncome', null);
+    watchlistSetNumInput('editEbitdaMargin', null);
+    watchlistSetNumInput('editOpMargin', null);
+    watchlistSetNumInput('editRoicPct', null);
+    watchlistSetNumInput('editPriceToBook', null);
+    watchlistSetNumInput('editPbFair', null);
+    watchlistSetNumInput('editRoePct', null);
+    watchlistSetNumInput('editCet1Ratio', null);
+    watchlistSetNumInput('editNplRatio', null);
+    watchlistSetNumInput('editCostToIncome', null);
+    watchlistSetNumInput('editNimPct', null);
+    watchlistSetNumInput('editBvps', null);
+    watchlistSetNumInput('editLoanToDeposit', null);
+    watchlistSetNumInput('editCostOfRisk', null);
+    watchlistSetNumInput('editBvpsCagr', null);
+    watchlistSetNumInput('editFfoPerShare', null);
+    watchlistSetNumInput('editAffoPerShare', null);
+    watchlistSetNumInput('editPriceToFfo', null);
+    watchlistSetNumInput('editPFfoFair', null);
+    watchlistSetNumInput('editCagrFfoYoy', null);
+    watchlistSetNumInput('editReitLeverageRatio', null);
+    watchlistSetNumInput('editFfoInterestCoverage', null);
+    watchlistSetNumInput('editFfoToTotalDebt', null);
+    watchlistSetStrInput('editReitLeverageKind', '');
+    watchlistSetNumInput('editOccupancyPct', null);
+    watchlistSetNumInput('editWaltYears', null);
+    watchlistSetNumInput('editSameStoreGrowthPct', null);
+    watchlistSetNumInput('editUserPriceTarget', null);
+    setEditUserPriceTargetHint('');
+
+    let mode = 'general';
     try {
         const response = await fetch(`/portfolio/watchlist/${watchlistId}`);
         const data = await response.json();
         
         if (data.success) {
             const item = data.data;
+            mode = item.valuation_mode || 'general';
             if (item.next_earnings_date) {
                 document.getElementById('editNextEarningsDate').value = item.next_earnings_date;
             }
-            if (item.per_ntm) {
-                document.getElementById('editPerNtm').value = item.per_ntm;
-            }
-            if (item.ntm_dividend_yield) {
-                document.getElementById('editNtmDividendYield').value = item.ntm_dividend_yield;
-            }
-            if (item.eps) {
-                document.getElementById('editEps').value = item.eps;
-            }
-            if (item.cagr_revenue_yoy) {
-                document.getElementById('editCagrRevenueYoy').value = item.cagr_revenue_yoy;
-            }
+            watchlistSetNumInput('editPerNtm', item.per_ntm);
+            watchlistSetNumInput('editPerFair', item.per_fair);
+            watchlistSetNumInput('editNtmDividendYield', item.ntm_dividend_yield);
+            watchlistSetNumInput('editEps', item.eps);
+            watchlistSetNumInput('editCagrRevenueYoy', item.cagr_revenue_yoy);
+            watchlistSetNumInput('editCagrEpsYoy', item.cagr_eps_yoy);
+            watchlistSetNumInput('editNetDebtEbitda', item.net_debt_to_ebitda);
+            watchlistSetNumInput('editFcfMarginPct', item.fcf_margin_pct);
+            watchlistSetNumInput('editNetIncomeMarginPct', item.net_income_margin_pct);
+            watchlistSetNumInput('editFcfNetIncome', item.fcf_to_net_income);
+            watchlistSetNumInput('editEbitdaMargin', item.ebitda_margin_pct);
+            watchlistSetNumInput('editOpMargin', item.operating_margin_pct);
+            watchlistSetNumInput('editRoicPct', item.roic_pct);
+            watchlistSetNumInput('editPriceToBook', item.price_to_book);
+            watchlistSetNumInput('editPbFair', item.pb_fair);
+            watchlistSetNumInput('editRoePct', item.roe_pct);
+            watchlistSetNumInput('editCet1Ratio', item.cet1_ratio_pct);
+            watchlistSetNumInput('editNplRatio', item.npl_ratio_pct);
+            watchlistSetNumInput('editCostToIncome', item.cost_to_income_pct);
+            watchlistSetNumInput('editNimPct', item.nim_pct);
+            watchlistSetNumInput('editBvps', item.bvps);
+            watchlistSetNumInput('editLoanToDeposit', item.loan_to_deposit_pct);
+            watchlistSetNumInput('editCostOfRisk', item.cost_of_risk_pct);
+            watchlistSetNumInput('editBvpsCagr', item.bvps_cagr_yoy);
+            watchlistSetNumInput('editFfoPerShare', item.ffo_per_share);
+            watchlistSetNumInput('editAffoPerShare', item.affo_per_share);
+            watchlistSetNumInput('editPriceToFfo', item.price_to_ffo);
+            watchlistSetNumInput('editPFfoFair', item.p_ffo_fair);
+            watchlistSetNumInput('editCagrFfoYoy', item.cagr_ffo_yoy);
+            watchlistSetNumInput('editReitLeverageRatio', item.reit_leverage_ratio);
+            watchlistSetNumInput('editFfoInterestCoverage', item.ffo_interest_coverage);
+            watchlistSetNumInput('editFfoToTotalDebt', item.ffo_to_total_debt);
+            watchlistSetStrInput('editReitLeverageKind', item.reit_leverage_kind);
+            watchlistSetNumInput('editOccupancyPct', item.occupancy_pct);
+            watchlistSetNumInput('editWaltYears', item.walt_years);
+            watchlistSetNumInput('editSameStoreGrowthPct', item.same_store_growth_pct);
+            watchlistSetNumInput('editUserPriceTarget', item.user_price_target);
+            setEditUserPriceTargetHint(item.asset_currency || '');
         }
     } catch (error) {
         console.error('Error cargando datos:', error);
     }
-    
+
+    layoutEditWatchlistForm(mode);
     document.getElementById('editWatchlistModal').classList.remove('hidden');
     document.body.style.overflow = 'hidden';
 }
@@ -1186,6 +1630,311 @@ async function editWatchlistItem(watchlistId, assetId) {
 function closeEditWatchlistModal() {
     document.getElementById('editWatchlistModal').classList.add('hidden');
     document.body.style.overflow = '';
+}
+
+function watchlistCommentsParseIso(iso) {
+    if (!iso) return null;
+    return new Date(iso.endsWith('Z') ? iso : iso + 'Z');
+}
+
+function watchlistCommentsFormatDt(iso) {
+    const d = watchlistCommentsParseIso(iso);
+    if (!d || isNaN(d.getTime())) return '—';
+    return d.toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' });
+}
+
+function watchlistCommentWasEdited(c) {
+    if (!c || !c.created_at || !c.updated_at) return false;
+    const a = watchlistCommentsParseIso(c.created_at);
+    const b = watchlistCommentsParseIso(c.updated_at);
+    if (!a || !b) return false;
+    return b.getTime() - a.getTime() > 2000;
+}
+
+function watchlistCommentsShowError(msg) {
+    const el = document.getElementById('watchlistCommentsError');
+    if (!el) return;
+    if (msg) {
+        el.textContent = msg;
+        el.classList.remove('hidden');
+    } else {
+        el.textContent = '';
+        el.classList.add('hidden');
+    }
+}
+
+function buildWatchlistCommentRow(c) {
+    const wrap = document.createElement('div');
+    wrap.className = 'rounded-lg border border-slate-200 bg-white p-3';
+    wrap.dataset.commentId = String(c.id);
+
+    const head = document.createElement('div');
+    head.className = 'flex flex-wrap items-center justify-between gap-2 mb-2';
+    const dtWrap = document.createElement('div');
+    dtWrap.className = 'text-xs text-slate-500';
+    dtWrap.appendChild(document.createTextNode(watchlistCommentsFormatDt(c.created_at)));
+    if (watchlistCommentWasEdited(c)) {
+        const span = document.createElement('span');
+        span.className = 'ml-2 text-slate-400';
+        span.textContent = '(editado)';
+        dtWrap.appendChild(span);
+    }
+    const actions = document.createElement('div');
+    actions.className = 'flex flex-wrap items-center gap-2';
+    const editBtn = document.createElement('button');
+    editBtn.type = 'button';
+    editBtn.className = 'text-xs font-semibold text-teal-700 hover:text-teal-900';
+    editBtn.textContent = 'Editar';
+    editBtn.onclick = function () { startWatchlistCommentEdit(c.id); };
+    const delBtn = document.createElement('button');
+    delBtn.type = 'button';
+    delBtn.className = 'text-xs font-semibold text-rose-600 hover:text-rose-800';
+    delBtn.textContent = 'Borrar';
+    delBtn.onclick = function () { requestDeleteWatchlistComment(c.id); };
+    actions.appendChild(editBtn);
+    actions.appendChild(delBtn);
+    head.appendChild(dtWrap);
+    head.appendChild(actions);
+
+    const view = document.createElement('div');
+    view.className = 'wl-comment-view text-sm text-slate-800 whitespace-pre-wrap';
+    view.textContent = c.body || '';
+
+    const editWrap = document.createElement('div');
+    editWrap.className = 'wl-comment-edit hidden mt-2 space-y-2';
+    const ta = document.createElement('textarea');
+    ta.rows = 4;
+    ta.className = 'w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500';
+    ta.value = c.body || '';
+    const btns = document.createElement('div');
+    btns.className = 'flex flex-wrap gap-2 justify-end';
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'portfolio-touch-btn px-3 py-2 rounded-lg bg-slate-200 text-slate-800 text-xs font-semibold hover:bg-slate-300';
+    cancel.textContent = 'Cancelar';
+    cancel.onclick = function () { cancelWatchlistCommentEdit(c.id); };
+    const save = document.createElement('button');
+    save.type = 'button';
+    save.className = 'portfolio-touch-btn px-3 py-2 rounded-lg bg-teal-600 text-white text-xs font-semibold hover:bg-teal-700';
+    save.textContent = 'Guardar';
+    save.onclick = function () { saveWatchlistCommentEdit(c.id); };
+    btns.appendChild(cancel);
+    btns.appendChild(save);
+    editWrap.appendChild(ta);
+    editWrap.appendChild(btns);
+
+    wrap.appendChild(head);
+    wrap.appendChild(view);
+    wrap.appendChild(editWrap);
+    return wrap;
+}
+
+function scrollWatchlistCommentsListToNewest() {
+    const list = document.getElementById('watchlistCommentsList');
+    if (!list) return;
+    list.scrollTop = 0;
+    requestAnimationFrame(function () {
+        list.scrollTop = 0;
+        requestAnimationFrame(function () {
+            list.scrollTop = 0;
+        });
+    });
+}
+
+function renderWatchlistCommentsList(comments) {
+    const list = document.getElementById('watchlistCommentsList');
+    if (!list) return;
+    list.innerHTML = '';
+    if (!comments || !comments.length) {
+        const empty = document.createElement('p');
+        empty.className = 'text-sm text-slate-500 text-center py-6';
+        empty.textContent = 'Aún no hay comentarios. Escribe abajo y pulsa «Guardar comentario».';
+        list.appendChild(empty);
+        scrollWatchlistCommentsListToNewest();
+        return;
+    }
+    comments.forEach(function (c) {
+        list.appendChild(buildWatchlistCommentRow(c));
+    });
+    scrollWatchlistCommentsListToNewest();
+}
+
+async function refreshWatchlistCommentsList() {
+    const widEl = document.getElementById('watchlistCommentsWatchlistId');
+    const wid = widEl && widEl.value;
+    if (!wid) return;
+    watchlistCommentsShowError('');
+    try {
+        const response = await fetch('/portfolio/watchlist/' + encodeURIComponent(wid) + '/comments');
+        const data = await response.json();
+        if (!data.success) {
+            watchlistCommentsShowError(data.error || 'No se pudieron cargar los comentarios');
+            renderWatchlistCommentsList([]);
+            return;
+        }
+        renderWatchlistCommentsList(data.comments || []);
+    } catch (e) {
+        console.error(e);
+        watchlistCommentsShowError('Error de red al cargar comentarios');
+        renderWatchlistCommentsList([]);
+    }
+}
+
+function openWatchlistCommentsModalFromBtn(btn) {
+    if (!btn) return;
+    const wid = parseInt(btn.getAttribute('data-watchlist-id') || '', 10);
+    const label = btn.getAttribute('data-asset-label') || '';
+    if (!wid) return;
+    openWatchlistCommentsModal(wid, label);
+}
+
+async function openWatchlistCommentsModal(watchlistId, assetLabel) {
+    document.getElementById('watchlistCommentsWatchlistId').value = String(watchlistId);
+    const title = document.getElementById('watchlistCommentsTitle');
+    if (title) {
+        title.textContent = 'Notas — ' + (assetLabel || '');
+    }
+    const ta = document.getElementById('watchlistCommentsNewBody');
+    if (ta) ta.value = '';
+    watchlistCommentsShowError('');
+    document.getElementById('watchlistCommentsModal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    await refreshWatchlistCommentsList();
+}
+
+function closeWatchlistCommentsModal() {
+    const modal = document.getElementById('watchlistCommentsModal');
+    if (modal) modal.classList.add('hidden');
+    const edit = document.getElementById('editWatchlistModal');
+    const conf = document.getElementById('confirmModal');
+    if ((!edit || edit.classList.contains('hidden')) && (!conf || conf.classList.contains('hidden'))) {
+        document.body.style.overflow = '';
+    }
+}
+
+function startWatchlistCommentEdit(commentId) {
+    const list = document.getElementById('watchlistCommentsList');
+    if (!list) return;
+    list.querySelectorAll('[data-comment-id]').forEach(function (el) {
+        const v = el.querySelector('.wl-comment-view');
+        const e = el.querySelector('.wl-comment-edit');
+        if (v) v.classList.remove('hidden');
+        if (e) e.classList.add('hidden');
+    });
+    const wrap = list.querySelector('[data-comment-id="' + commentId + '"]');
+    if (!wrap) return;
+    const v = wrap.querySelector('.wl-comment-view');
+    const e = wrap.querySelector('.wl-comment-edit');
+    const ta = e && e.querySelector('textarea');
+    if (v) v.classList.add('hidden');
+    if (e) e.classList.remove('hidden');
+    if (ta) {
+        ta.value = (v && v.textContent) || '';
+        ta.focus();
+    }
+}
+
+function cancelWatchlistCommentEdit(commentId) {
+    const list = document.getElementById('watchlistCommentsList');
+    if (!list) return;
+    const wrap = list.querySelector('[data-comment-id="' + commentId + '"]');
+    if (!wrap) return;
+    const v = wrap.querySelector('.wl-comment-view');
+    const e = wrap.querySelector('.wl-comment-edit');
+    if (v) v.classList.remove('hidden');
+    if (e) e.classList.add('hidden');
+}
+
+async function requestDeleteWatchlistComment(commentId) {
+    const widEl = document.getElementById('watchlistCommentsWatchlistId');
+    const wid = widEl && widEl.value;
+    if (!wid) return;
+    showConfirmModal(
+        'Borrar comentario',
+        '¿Eliminar este comentario? No se puede deshacer.',
+        async function () {
+            watchlistCommentsShowError('');
+            try {
+                const response = await fetch(
+                    '/portfolio/watchlist/' + encodeURIComponent(wid) + '/comments/' + encodeURIComponent(commentId),
+                    { method: 'DELETE' }
+                );
+                const data = await response.json();
+                if (!data.success) {
+                    watchlistCommentsShowError(data.error || 'No se pudo borrar');
+                    return;
+                }
+                await refreshWatchlistCommentsList();
+            } catch (e) {
+                console.error(e);
+                watchlistCommentsShowError('Error de red al borrar');
+            }
+        }
+    );
+}
+
+async function saveWatchlistCommentEdit(commentId) {
+    const widEl = document.getElementById('watchlistCommentsWatchlistId');
+    const wid = widEl && widEl.value;
+    const list = document.getElementById('watchlistCommentsList');
+    if (!wid || !list) return;
+    const wrap = list.querySelector('[data-comment-id="' + commentId + '"]');
+    const ta = wrap && wrap.querySelector('.wl-comment-edit textarea');
+    const body = ta ? (ta.value || '').trim() : '';
+    if (!body) {
+        watchlistCommentsShowError('El comentario no puede estar vacío');
+        return;
+    }
+    watchlistCommentsShowError('');
+    try {
+        const response = await fetch(
+            '/portfolio/watchlist/' + encodeURIComponent(wid) + '/comments/' + encodeURIComponent(commentId),
+            {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ body: body }),
+            }
+        );
+        const data = await response.json();
+        if (!data.success) {
+            watchlistCommentsShowError(data.error || 'No se pudo guardar');
+            return;
+        }
+        await refreshWatchlistCommentsList();
+    } catch (e) {
+        console.error(e);
+        watchlistCommentsShowError('Error de red al guardar');
+    }
+}
+
+async function submitWatchlistNewComment() {
+    const widEl = document.getElementById('watchlistCommentsWatchlistId');
+    const wid = widEl && widEl.value;
+    const ta = document.getElementById('watchlistCommentsNewBody');
+    const body = ta ? (ta.value || '').trim() : '';
+    if (!wid) return;
+    if (!body) {
+        watchlistCommentsShowError('Escribe un comentario antes de guardar');
+        return;
+    }
+    watchlistCommentsShowError('');
+    try {
+        const response = await fetch('/portfolio/watchlist/' + encodeURIComponent(wid) + '/comments', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ body: body }),
+        });
+        const data = await response.json();
+        if (!data.success) {
+            watchlistCommentsShowError(data.error || 'No se pudo guardar');
+            return;
+        }
+        if (ta) ta.value = '';
+        await refreshWatchlistCommentsList();
+    } catch (e) {
+        console.error(e);
+        watchlistCommentsShowError('Error de red al guardar');
+    }
 }
 
 // Funciones de confirmación personalizada
@@ -1200,6 +1949,13 @@ function showConfirmModal(title, message, callback) {
 function closeConfirmModal(confirmed) {
     document.getElementById('confirmModal').classList.add('hidden');
     document.body.style.overflow = '';
+    const commentsOpen = document.getElementById('watchlistCommentsModal') &&
+        !document.getElementById('watchlistCommentsModal').classList.contains('hidden');
+    const editOpen = document.getElementById('editWatchlistModal') &&
+        !document.getElementById('editWatchlistModal').classList.contains('hidden');
+    if (commentsOpen || editOpen) {
+        document.body.style.overflow = 'hidden';
+    }
     if (confirmed && confirmCallback) {
         confirmCallback();
     }
@@ -1214,12 +1970,59 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             
             const watchlistId = document.getElementById('editWatchlistId').value;
+            const num = (id) => {
+                const el = document.getElementById(id);
+                if (!el) return null;
+                const v = el.value;
+                if (v === '') return null;
+                const n = parseFloat(v);
+                return Number.isFinite(n) ? n : null;
+            };
+            const strOrNull = (id) => {
+                const el = document.getElementById(id);
+                if (!el) return null;
+                const t = (el.value || '').trim();
+                return t === '' ? null : t;
+            };
             const data = {
                 next_earnings_date: document.getElementById('editNextEarningsDate').value || null,
-                per_ntm: document.getElementById('editPerNtm').value ? parseFloat(document.getElementById('editPerNtm').value) : null,
-                ntm_dividend_yield: document.getElementById('editNtmDividendYield').value ? parseFloat(document.getElementById('editNtmDividendYield').value) : null,
-                eps: document.getElementById('editEps').value ? parseFloat(document.getElementById('editEps').value) : null,
-                cagr_revenue_yoy: document.getElementById('editCagrRevenueYoy').value ? parseFloat(document.getElementById('editCagrRevenueYoy').value) : null
+                per_ntm: num('editPerNtm'),
+                per_fair: num('editPerFair'),
+                ntm_dividend_yield: num('editNtmDividendYield'),
+                eps: num('editEps'),
+                cagr_revenue_yoy: num('editCagrRevenueYoy'),
+                cagr_eps_yoy: num('editCagrEpsYoy'),
+                net_debt_to_ebitda: num('editNetDebtEbitda'),
+                fcf_margin_pct: num('editFcfMarginPct'),
+                net_income_margin_pct: num('editNetIncomeMarginPct'),
+                fcf_to_net_income: num('editFcfNetIncome'),
+                ebitda_margin_pct: num('editEbitdaMargin'),
+                operating_margin_pct: num('editOpMargin'),
+                roic_pct: num('editRoicPct'),
+                price_to_book: num('editPriceToBook'),
+                pb_fair: num('editPbFair'),
+                roe_pct: num('editRoePct'),
+                cet1_ratio_pct: num('editCet1Ratio'),
+                npl_ratio_pct: num('editNplRatio'),
+                cost_to_income_pct: num('editCostToIncome'),
+                nim_pct: num('editNimPct'),
+                bvps: num('editBvps'),
+                loan_to_deposit_pct: num('editLoanToDeposit'),
+                cost_of_risk_pct: num('editCostOfRisk'),
+                bvps_cagr_yoy: num('editBvpsCagr'),
+                ffo_per_share: num('editFfoPerShare'),
+                affo_per_share: num('editAffoPerShare'),
+                price_to_ffo: num('editPriceToFfo'),
+                p_ffo_fair: num('editPFfoFair'),
+                cagr_ffo_yoy: num('editCagrFfoYoy'),
+                reit_leverage_ratio: num('editReitLeverageRatio'),
+                ffo_interest_coverage: num('editFfoInterestCoverage'),
+                ffo_to_total_debt: num('editFfoToTotalDebt'),
+                reit_leverage_kind: strOrNull('editReitLeverageKind'),
+                occupancy_pct: num('editOccupancyPct'),
+                walt_years: num('editWaltYears'),
+                same_store_growth_pct: num('editSameStoreGrowthPct'),
+                user_price_target: num('editUserPriceTarget'),
             };
             
             try {
@@ -1275,6 +2078,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     green_min: parseFloat(document.getElementById('settingsRentabilidadAnualGreenMin').value) || 10.0,
                     yellow_min: parseFloat(document.getElementById('settingsRentabilidadAnualYellowMin').value) || 0.0
                 },
+                valuation_sector_rules: collectValuationSectorRules(),
                 operativa_rules: {
                     buy: {
                         valoracion_12m: (function() {
@@ -1424,8 +2228,8 @@ const SETTINGS_HELP_CONTENT = {
         html: '<p>Compara el peso del activo con el <strong>umbral máximo</strong> del primer bloque.</p><p><strong>Verde:</strong> por debajo de umbral + tramo verde.</p><p><strong>Amarillo:</strong> entre tramo verde y amarillo.</p><p><strong>Rojo:</strong> por encima de umbral + tramo amarillo.</p>'
     },
     tierDev: {
-        title: 'Desviación del Tier',
-        html: '<p>Colores respecto a la <strong>cantidad objetivo del tier</strong> (EUR).</p><p><strong>Verde:</strong> dentro de ±% verde.</p><p><strong>Amarillo:</strong> fuera del verde pero dentro de ±% amarillo.</p><p><strong>Rojo:</strong> fuera del tramo amarillo.</p>'
+        title: 'Cantidad vs objetivo del Tier',
+        html: '<p>Estos porcentajes pintan solo la columna <strong>Cantidad a aumentar/reducir</strong>. Se calcula la desviación entre tu <strong>valor actual en cartera</strong> y la <strong>cantidad objetivo</strong> del Tier activo (EUR del bloque «Cantidades por Tier» en estos Ajustes).</p><p>La desviación se mide en % sobre el valor en cartera.</p><p><strong>Verde:</strong> desviación ≤ % verde.</p><p><strong>Amarillo:</strong> por encima del verde pero ≤ % amarillo.</p><p><strong>Rojo:</strong> por encima del % amarillo.</p><p>La columna <strong>Tier</strong> solo muestra el número (1–5), sin colores.</p>'
     },
     tierRangos: {
         title: 'Rangos de Tier',
@@ -1453,7 +2257,11 @@ const SETTINGS_HELP_CONTENT = {
     },
     tierAmounts: {
         title: 'Cantidades por Tier (EUR)',
-        html: '<p>Define la <strong>cantidad en euros</strong> objetivo de cada Tier. El sistema compara con tu inversión actual para sugerir compras o ventas.</p>'
+        html: '<p>Define la <strong>cantidad en euros</strong> objetivo de cada Tier. El sistema calcula la diferencia con tu posición (columna «Cantidad a aumentar/reducir»).</p><p>Los <strong>colores</strong> de esa columna usan estas cantidades como referencia y los porcentajes del bloque <strong>Cantidad vs objetivo del Tier</strong> (más arriba en este mismo modal).</p>'
+    },
+    sectorRules: {
+        title: 'Clasificación sectorial (valoración)',
+        html: '<p><strong>Banco</strong> y <strong>Real Estate</strong> se aplican si el activo tiene el mismo <strong>Sector</strong> e <strong>Industria</strong> que una fila (texto como en la ficha del activo). Si no coincide nada, modo <strong>general</strong>. Si un par está en ambas listas, gana <strong>Banco</strong>.</p><p>Los desplegables listan valores ya presentes en tu watchlist o cartera; si no hay catálogo, puedes escribir a mano.</p>'
     }
 };
 
@@ -1477,10 +2285,141 @@ function closeSettingsHelpModal() {
     document.body.style.overflow = '';
 }
 
+// Catálogo sector/industria (watchlist ∪ cartera) + filas de reglas de valoración
+window.watchlistSectorCatalog = { sectors: [], by_sector: {} };
+
+function fillVsrIndustrySelect(selectEl, sector, selectedIndustry) {
+    while (selectEl.firstChild) selectEl.removeChild(selectEl.firstChild);
+    const o0 = document.createElement('option');
+    o0.value = '';
+    o0.textContent = '— Industria —';
+    selectEl.appendChild(o0);
+    const list = (window.watchlistSectorCatalog.by_sector && window.watchlistSectorCatalog.by_sector[sector]) || [];
+    list.forEach(function(ind) {
+        const o = document.createElement('option');
+        o.value = ind;
+        o.textContent = ind;
+        if (selectedIndustry && ind === selectedIndustry) o.selected = true;
+        selectEl.appendChild(o);
+    });
+}
+
+function fillVsrSectorSelect(selectEl, selectedSector) {
+    while (selectEl.firstChild) selectEl.removeChild(selectEl.firstChild);
+    const o0 = document.createElement('option');
+    o0.value = '';
+    o0.textContent = '— Sector —';
+    selectEl.appendChild(o0);
+    (window.watchlistSectorCatalog.sectors || []).forEach(function(s) {
+        const o = document.createElement('option');
+        o.value = s;
+        o.textContent = s;
+        if (selectedSector && s === selectedSector) o.selected = true;
+        selectEl.appendChild(o);
+    });
+}
+
+function addVsrRow(listKey, sectorOpt, industryOpt) {
+    const containerId = listKey === 'banks' ? 'vsrBanksRows' : 'vsrReRows';
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const row = document.createElement('div');
+    row.className = 'valuation-rule-row flex flex-wrap gap-2 items-center';
+    row.dataset.list = listKey;
+    const sVal = sectorOpt != null ? String(sectorOpt) : '';
+    const iVal = industryOpt != null ? String(industryOpt) : '';
+    const hasCat = (window.watchlistSectorCatalog.sectors || []).length > 0;
+    if (hasCat) {
+        const selS = document.createElement('select');
+        selS.className = 'wl-vsr-sector border border-gray-300 rounded text-sm flex-1 min-w-[8rem] px-2 py-1';
+        fillVsrSectorSelect(selS, sVal);
+        const selI = document.createElement('select');
+        selI.className = 'wl-vsr-industry border border-gray-300 rounded text-sm flex-1 min-w-[8rem] px-2 py-1';
+        const secForInd = selS.value || sVal;
+        fillVsrIndustrySelect(selI, secForInd, iVal);
+        selS.addEventListener('change', function() {
+            fillVsrIndustrySelect(selI, selS.value, '');
+        });
+        row.appendChild(selS);
+        row.appendChild(selI);
+    } else {
+        const inpS = document.createElement('input');
+        inpS.type = 'text';
+        inpS.className = 'wl-vsr-sector border border-gray-300 rounded text-sm flex-1 min-w-[6rem] px-2 py-1';
+        inpS.placeholder = 'Sector (ej. Financials)';
+        inpS.value = sVal;
+        const inpI = document.createElement('input');
+        inpI.type = 'text';
+        inpI.className = 'wl-vsr-industry border border-gray-300 rounded text-sm flex-1 min-w-[6rem] px-2 py-1';
+        inpI.placeholder = 'Industria (ej. Banks)';
+        inpI.value = iVal;
+        row.appendChild(inpS);
+        row.appendChild(inpI);
+    }
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'text-rose-600 text-sm px-2 shrink-0';
+    btn.textContent = '✕';
+    btn.title = 'Quitar fila';
+    btn.addEventListener('click', function() { row.remove(); });
+    row.appendChild(btn);
+    container.appendChild(row);
+}
+
+function renderValuationSectorRules(vsr) {
+    const banksEl = document.getElementById('vsrBanksRows');
+    const reEl = document.getElementById('vsrReRows');
+    if (!banksEl || !reEl) return;
+    banksEl.innerHTML = '';
+    reEl.innerHTML = '';
+    const hint = document.getElementById('vsrCatalogHint');
+    if (hint) {
+        if (!(window.watchlistSectorCatalog.sectors || []).length) {
+            hint.textContent = 'No hay pares sector/industria en tus activos de watchlist o cartera: puedes escribir texto libre en cada fila o completar la ficha de los activos.';
+            hint.classList.remove('hidden');
+        } else {
+            hint.classList.add('hidden');
+        }
+    }
+    const bl = (vsr && vsr.banks) ? vsr.banks : [];
+    const rl = (vsr && vsr.realestate) ? vsr.realestate : [];
+    if (!bl.length) addVsrRow('banks', '', '');
+    else bl.forEach(function(p) { addVsrRow('banks', p.sector, p.industry); });
+    if (!rl.length) addVsrRow('realestate', '', '');
+    else rl.forEach(function(p) { addVsrRow('realestate', p.sector, p.industry); });
+}
+
+function collectValuationSectorRules() {
+    function fromContainer(containerId) {
+        const root = document.getElementById(containerId);
+        if (!root) return [];
+        const out = [];
+        root.querySelectorAll('.valuation-rule-row').forEach(function(row) {
+            const sEl = row.querySelector('.wl-vsr-sector');
+            const iEl = row.querySelector('.wl-vsr-industry');
+            if (!sEl || !iEl) return;
+            const s = (sEl.value || '').trim();
+            const i = (iEl.value || '').trim();
+            if (s && i) out.push({ sector: s, industry: i });
+        });
+        return out;
+    }
+    return {
+        banks: fromContainer('vsrBanksRows'),
+        realestate: fromContainer('vsrReRows'),
+    };
+}
+
 // Funciones para modal de ajustes
 function openSettingsModal() {
-    // Cargar configuración actual
-    fetch('/portfolio/watchlist/api/config')
+    fetch('/portfolio/watchlist/api/sector-industry-catalog')
+        .then(function(r) { return r.json(); })
+        .then(function(cat) {
+            window.watchlistSectorCatalog = (cat.success)
+                ? { sectors: cat.sectors || [], by_sector: cat.by_sector || {} }
+                : { sectors: [], by_sector: {} };
+            return fetch('/portfolio/watchlist/api/config');
+        })
         .then(response => response.json())
         .then(data => {
             if (data.success && data.config) {
@@ -1597,14 +2536,19 @@ function openSettingsModal() {
                 document.getElementById('settingsTier3Amount').value = tierAmounts.tier_3 || 2000.0;
                 document.getElementById('settingsTier4Amount').value = tierAmounts.tier_4 || 5000.0;
                 document.getElementById('settingsTier5Amount').value = tierAmounts.tier_5 || 10000.0;
+
+                const vsr = colorThresholds.valuation_sector_rules || { banks: [], realestate: [] };
+                renderValuationSectorRules(vsr);
             }
+            document.getElementById('settingsModal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
         })
         .catch(error => {
             console.error('Error cargando configuración:', error);
+            window.watchlistSectorCatalog = { sectors: [], by_sector: {} };
+            document.getElementById('settingsModal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
         });
-    
-    document.getElementById('settingsModal').classList.remove('hidden');
-    document.body.style.overflow = 'hidden';
 }
 
 function closeSettingsModal() {
@@ -1701,7 +2645,7 @@ function startWatchlistJobPoll(jobId, reportIdsOpt) {
 async function resetWatchlistManualFields(watchlistId) {
     showConfirmModal(
         'Reiniciar datos manuales',
-        '¿Borrar los cinco campos (fecha resultados, PER, dividend yield NTM, EPS, CAGR) y sus orígenes (usuario o IA)?',
+        '¿Borrar todos los campos manuales de valoración y sus orígenes (usuario o IA)?',
         async function () {
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
             try {
@@ -1815,13 +2759,25 @@ async function deleteWatchlistItem(watchlistId) {
     );
 }
 
+function toggleWatchlistInputsRow(watchlistId) {
+    const panel = document.getElementById('wl-inputs-expand-' + watchlistId);
+    const btn = document.getElementById('wl-inputs-btn-' + watchlistId);
+    if (!panel || !btn) return;
+    panel.classList.toggle('hidden');
+    const isOpen = !panel.classList.contains('hidden');
+    btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    const chev = btn.querySelector('.wl-chevron');
+    if (chev) chev.textContent = isOpen ? '▾' : '▸';
+}
+
 // Función de ordenamiento de tabla
 let sortDirection = {}; // Guardar dirección de ordenamiento por columna
 
 function sortTable(columnIndex, type) {
-    const table = document.querySelector('.min-w-full');
+    const table = document.querySelector('#portfolio-watch .min-w-full');
+    if (!table) return;
     const tbody = table.querySelector('tbody');
-    const rows = Array.from(tbody.querySelectorAll('tr'));
+    const rows = Array.from(tbody.querySelectorAll('tr.wl-main-row'));
     
     // Alternar dirección
     if (!sortDirection[columnIndex]) {
@@ -1856,8 +2812,38 @@ function sortTable(columnIndex, type) {
             valueA = (cellA.textContent || '').trim().toLowerCase();
             valueB = (cellB.textContent || '').trim().toLowerCase();
         } else if (type === 'number') {
-            valueA = parseFloat(cellA.textContent.replace(/[^\d.,-]/g, '').replace(',', '.')) || 0;
-            valueB = parseFloat(cellB.textContent.replace(/[^\d.,-]/g, '').replace(',', '.')) || 0;
+            const attrA = cellA.getAttribute('data-sort-value');
+            const attrB = cellB.getAttribute('data-sort-value');
+            let numA = null;
+            let numB = null;
+            if (attrA !== null && attrA !== '') {
+                const p = parseFloat(attrA);
+                if (Number.isFinite(p)) numA = p;
+            }
+            if (attrB !== null && attrB !== '') {
+                const p = parseFloat(attrB);
+                if (Number.isFinite(p)) numB = p;
+            }
+            if (numA === null) {
+                const t = (cellA.textContent || '').trim();
+                if (t && t !== '—') {
+                    const p = parseFloat(t.replace(/[^\d.,-]/g, '').replace(',', '.'));
+                    if (Number.isFinite(p)) numA = p;
+                }
+            }
+            if (numB === null) {
+                const t = (cellB.textContent || '').trim();
+                if (t && t !== '—') {
+                    const p = parseFloat(t.replace(/[^\d.,-]/g, '').replace(',', '.'));
+                    if (Number.isFinite(p)) numB = p;
+                }
+            }
+            const emptyA = numA === null;
+            const emptyB = numB === null;
+            const sentA = emptyA ? (direction === 'asc' ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY) : numA;
+            const sentB = emptyB ? (direction === 'asc' ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY) : numB;
+            valueA = sentA;
+            valueB = sentB;
         } else {
             valueA = cellA.textContent || '';
             valueB = cellB.textContent || '';
@@ -1873,8 +2859,15 @@ function sortTable(columnIndex, type) {
         return direction === 'asc' ? comparison : -comparison;
     });
     
-    // Reordenar filas en el DOM
-    rows.forEach(row => tbody.appendChild(row));
+    // Reordenar filas en el DOM (cada fila principal va seguida de su panel de inputs)
+    rows.forEach(main => {
+        tbody.appendChild(main);
+        const wid = main.getAttribute('data-watchlist-id');
+        if (wid) {
+            const detail = tbody.querySelector('tr.wl-inputs-expand-row[data-watchlist-parent="' + wid + '"]');
+            if (detail) tbody.appendChild(detail);
+        }
+    });
 }
 
 // Ordenar por fecha por defecto al cargar

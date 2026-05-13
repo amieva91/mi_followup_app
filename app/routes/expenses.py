@@ -20,6 +20,7 @@ from app.services.income_expense_aggregator import (
     get_expense_category_summary_with_adjustment,
     get_expense_monthly_totals_with_adjustment,
     get_synthetic_expense_entries_by_month,
+    flatten_expense_category_chips_sorted,
 )
 from app.services.summary_metrics_service import get_expense_summary_metrics
 from app.services.dashboard_summary_cache import DashboardSummaryCacheService
@@ -320,6 +321,7 @@ def list():
 
     # Resumen por categoría (12 meses, jerárquico) incluyendo ajuste de reconciliación
     category_summary = get_expense_category_summary_with_adjustment(current_user.id, months=12)
+    category_summary_chips = flatten_expense_category_chips_sorted(category_summary)
     # Totales mensuales (12 meses) para gráfico de barras incluyendo ajuste
     monthly_totals = get_expense_monthly_totals_with_adjustment(current_user.id, months=12)
     # Métricas de resumen (Fase 6)
@@ -361,6 +363,7 @@ def list():
         integration_expense_categories=integration_expense_categories,
         selected_category=category_id,
         category_summary=category_summary,
+        category_summary_chips=category_summary_chips,
         monthly_totals=monthly_totals,
         summary_metrics=summary_metrics,
         synthetic_entries=synthetic_entries,

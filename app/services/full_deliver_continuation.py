@@ -1,5 +1,5 @@
 """
-Cola de entrega del flujo «todo en uno» (resumen Flash → TTS → correo) tras Deep Research.
+Cola de entrega del flujo «todo en uno» (Deep Research → correo) tras Deep Research.
 
 Se reutiliza desde ``generate-deliver`` y desde la reanudación tras reinicio de workers,
 cuando Deep Research ya quedó persistido pero la cola larga se interrumpió.
@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+from contextlib import nullcontext
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -27,17 +28,11 @@ def _legacy_incomplete_full_deliver_tail(report: CompanyReport) -> bool:
     """Heurística para informes antiguos sin ``delivery_mode`` pero con cola de entrega a medias."""
     if (report.status or "") != "completed" or not (report.content or "").strip():
         return False
-    sm = (report.summary_content or "").strip()
-    au = getattr(report, "audio_status", None)
     em = getattr(report, "email_status", None)
-    if sm and au == "completed" and em == "completed":
-        return False
-    raw = str(getattr(report, "audio_progress_json", None) or "")
+    raw = str(getattr(report, "job_progress_json", None) or "")
     if '"full_pipeline"' in raw or "'full_pipeline'" in raw:
         return True
     if em is not None:
-        return True
-    if au in ("processing", "completed", "failed", "queued"):
         return True
     return False
 
@@ -65,12 +60,20 @@ def schedule_full_delivery_continuation(app: Flask, report_id: int) -> None:
     threading.Thread(target=_run, daemon=True).start()
 
 
-def continue_full_deliver_after_dr(app: Flask, report_id: int) -> None:
+def continue_full_deliver_after_dr(
+    app: Flask, report_id: int, *, skip_background_lock: bool = False
+) -> None:
     """
-    Ejecuta la cola de entrega bajo ``background_tasks_lock``.
-    Idempotente: si ya hay resumen/audio/correo completos, sale sin duplicar trabajo.
+    Ejecuta la cola de entrega bajo ``background_tasks_lock`` (salvo ``skip_background_lock``,
+    cuando el caller ya tiene el lock global — p. ej. ``company_report_jobs_worker``).
+    Idempotente: si la entrega ya terminó (correo ok/error), sale sin duplicar trabajo.
     """
-    with background_tasks_lock(app, fair_report_id=report_id):
+    lock_cm = (
+        nullcontext()
+        if skip_background_lock
+        else background_tasks_lock(app, fair_report_id=report_id)
+    )
+    with lock_cm:
         report = CompanyReport.query.filter_by(id=report_id).first()
         if not report:
             return
@@ -104,7 +107,7 @@ def continue_full_deliver_after_dr(app: Flask, report_id: int) -> None:
             pass
 
         pstate = None
-        raw = getattr(report, "audio_progress_json", None)
+        raw = getattr(report, "job_progress_json", None)
         if raw:
             try:
                 obj = json.loads(str(raw))
@@ -138,13 +141,9 @@ def execute_full_deliver_tail(
     content_dr: str,
     pstate: dict | None,
 ) -> None:
-    """Resumen + TTS + correo. Actualiza ``delivery_phase_status`` y pasos en JSON."""
+    """Correo (cuerpo con informe completo + PDF adjunto). Actualiza ``delivery_phase_status`` y pasos en JSON."""
     from app.services.gemini_service import (
         _get_auto_collab_loop,
-        fallback_report_summary_markdown,
-        generate_report_email_summary,
-        generate_report_tts_audio,
-        merge_full_pipeline_with_tts_progress,
         new_full_pipeline_progress_state,
         report_substeps_after_dr_ok,
     )
@@ -152,11 +151,19 @@ def execute_full_deliver_tail(
 
     log = app.logger
 
+    def _sync_job_terminal() -> None:
+        try:
+            from app.services.company_report_telemetry import sync_full_deliver_job_terminal
+
+            sync_full_deliver_job_terminal(engine, report_id)
+        except Exception:
+            pass
+
     def _persist(obj: dict) -> None:
         with engine.connect() as conn:
             conn.execute(
                 text(
-                    "UPDATE company_reports SET audio_progress_json = :j, audio_error_msg = NULL WHERE id = :rid"
+                    "UPDATE company_reports SET job_progress_json = :j WHERE id = :rid"
                 ),
                 {"j": json.dumps(obj, ensure_ascii=False), "rid": report_id},
             )
@@ -178,25 +185,14 @@ def execute_full_deliver_tail(
 
     report = _reload_report()
     if not report:
+        _sync_job_terminal()
         return
 
-    summary_md_pl = (report.summary_content or "").strip()
-
-    if not summary_md_pl:
-        subs_ld = report_substeps_after_dr_ok(single_shot, "loading")
-        for i in range(min(len(subs_ld), len(pstate["steps"]))):
-            pstate["steps"][i] = subs_ld[i]
-        _persist(pstate)
-        try:
-            summary_md_pl = generate_report_email_summary(content_dr or "")
-        except Exception:
-            summary_md_pl = fallback_report_summary_markdown(content_dr or "")
-        if not isinstance(summary_md_pl, str) or not summary_md_pl.strip():
-            summary_md_pl = fallback_report_summary_markdown(content_dr or "")
-        subs_ok2 = report_substeps_after_dr_ok(single_shot, "ok")
-        for i in range(min(len(subs_ok2), len(pstate["steps"]))):
-            pstate["steps"][i] = subs_ok2[i]
-        _persist(pstate)
+    # Sin resumen Flash: el cuerpo del correo será el informe completo.
+    subs_ok2 = report_substeps_after_dr_ok(single_shot, "ok")
+    for i in range(min(len(subs_ok2), len(pstate["steps"]))):
+        pstate["steps"][i] = subs_ok2[i]
+    _persist(pstate)
 
     now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     with engine.connect() as conn:
@@ -204,18 +200,19 @@ def execute_full_deliver_tail(
             text(
                 """
                 UPDATE company_reports
-                SET status = 'completed', content = :c, summary_content = :sm,
+                SET status = 'completed', content = :c, summary_content = NULL,
                     error_msg = NULL, completed_at = :now,
                     delivery_mode = 'full_deliver', delivery_phase_status = 'processing'
                 WHERE id = :rid
                 """
             ),
-            {"c": content_dr, "sm": summary_md_pl, "now": now_str, "rid": report_id},
+            {"c": content_dr, "now": now_str, "rid": report_id},
         )
         conn.commit()
 
     report = _reload_report()
     if not report:
+        _sync_job_terminal()
         return
 
     with engine.connect() as conn:
@@ -245,120 +242,54 @@ def execute_full_deliver_tail(
                 conn.execute(stmt, {"ids": ids})
         conn.commit()
 
-    output_folder = app.config.get("OUTPUT_FOLDER") or (
-        Path(__file__).resolve().parent.parent.parent / "output"
-    )
-    audio_dir = Path(output_folder).resolve() / "reports_audio"
-    audio_path = audio_dir / f"report_{report_id}.wav"
-
-    au_st = getattr(report, "audio_status", None)
-    if au_st != "completed":
-        with engine.connect() as conn:
-            conn.execute(
-                text(
-                    """
-                    UPDATE company_reports
-                    SET audio_status = 'processing', audio_error_msg = NULL, audio_path = NULL, audio_completed_at = NULL
-                    WHERE id = :rid
-                    """
-                ),
-                {"rid": report_id},
-            )
-            conn.commit()
-
-        pstate["steps"][4]["status"] = "loading"
-        pstate["steps"][4]["error"] = None
-        _persist(pstate)
-
-        def on_tts(tj: dict) -> None:
-            nonlocal pstate
-            pstate = merge_full_pipeline_with_tts_progress(pstate, tj)
+    # Pipeline actual: informe ya listo; avanzar a email.
+    try:
+        if isinstance(pstate.get("steps"), list) and len(pstate["steps"]) >= 4:
+            pstate["steps"][3]["status"] = "loading"
+            pstate["steps"][3]["error"] = None
             _persist(pstate)
+    except Exception:
+        pass
 
-        try:
-            generate_report_tts_audio(content_dr or "", str(audio_path), on_progress=on_tts)
-        except Exception as tts_e:
-            log.exception("TTS en full_deliver_tail: %s", tts_e)
-            pstate["steps"][4]["status"] = "error"
-            pstate["steps"][4]["error"] = str(tts_e)[:4000]
-            pstate["steps"][5]["status"] = "error"
-            pstate["steps"][5]["error"] = str(tts_e)[:4000]
-            _persist(pstate)
-            # Informe y resumen Flash ya persistidos: el usuario puede leer el texto; audio falló → entrega incompleta.
-            with engine.connect() as conn:
-                conn.execute(
-                    text(
-                        """
-                        UPDATE company_reports
-                        SET audio_status = 'failed', audio_error_msg = :e,
-                            delivery_phase_status = 'partial'
-                        WHERE id = :rid
-                        """
-                    ),
-                    {"e": str(tts_e)[:8000], "rid": report_id},
-                )
-                conn.commit()
-            return
-
-        t_ok = datetime.utcnow().isoformat()
-        pstate["steps"][4]["status"] = "ok"
-        pstate["steps"][4]["error"] = None
-        pstate["steps"][5]["status"] = "ok"
-        pstate["steps"][5]["error"] = None
-        pstate["steps"][6]["status"] = "loading"
-        pstate["steps"][6]["error"] = None
-        _persist(pstate)
-
-        with engine.connect() as conn:
-            conn.execute(
-                text(
-                    """
-                    UPDATE company_reports
-                    SET audio_status = 'completed',
-                        audio_path = :path,
-                        audio_error_msg = NULL,
-                        audio_completed_at = :ac,
-                        email_status = 'processing',
-                        email_error_msg = NULL,
-                        email_completed_at = NULL
-                    WHERE id = :rid
-                    """
-                ),
-                {
-                    "path": f"reports_audio/report_{report_id}.wav",
-                    "ac": t_ok,
-                    "rid": report_id,
-                },
-            )
-            conn.commit()
-    else:
-        rel = (getattr(report, "audio_path", None) or "").strip()
-        if rel:
-            audio_path = Path(output_folder).resolve() / rel
-        pstate["steps"][4]["status"] = "ok"
-        pstate["steps"][5]["status"] = "ok"
-        pstate["steps"][6]["status"] = "loading"
-        pstate["steps"][6]["error"] = None
-        _persist(pstate)
+    with engine.connect() as conn:
+        conn.execute(
+            text(
+                """
+                UPDATE company_reports
+                SET email_status = 'processing',
+                    email_error_msg = NULL,
+                    email_completed_at = NULL
+                WHERE id = :rid
+                """
+            ),
+            {"rid": report_id},
+        )
+        conn.commit()
 
     u = User.query.get(user_id)
     if not u or not u.email:
-        pstate["steps"][6]["status"] = "error"
-        pstate["steps"][6]["error"] = "Usuario sin email"
+        try:
+            if isinstance(pstate.get("steps"), list) and len(pstate["steps"]) >= 4:
+                pstate["steps"][3]["status"] = "error"
+                pstate["steps"][3]["error"] = "Usuario sin email"
+        except Exception:
+            pass
         _persist(pstate)
         with engine.connect() as conn:
             conn.execute(
                 text(
                     """
                     UPDATE company_reports
-                    SET audio_status = 'failed', audio_error_msg = 'Usuario sin email',
-                        delivery_phase_status = 'failed'
+                    SET delivery_phase_status = 'failed',
+                        email_status = 'failed',
+                        email_error_msg = 'Usuario sin email'
                     WHERE id = :rid
                     """
                 ),
                 {"rid": report_id},
             )
             conn.commit()
+        _sync_job_terminal()
         return
 
     try:
@@ -366,14 +297,17 @@ def execute_full_deliver_tail(
             user=u,
             asset_name=aname,
             report_title=report_template_title,
-            email_body_markdown=summary_md_pl,
-            audio_file_path=str(audio_path),
+            email_body_markdown=content_dr or "",
             full_report_markdown_for_pdf=content_dr or "",
         )
     except Exception as em_e:
         log.exception("Correo en full_deliver_tail: %s", em_e)
-        pstate["steps"][6]["status"] = "error"
-        pstate["steps"][6]["error"] = str(em_e)[:4000]
+        try:
+            if isinstance(pstate.get("steps"), list) and len(pstate["steps"]) >= 4:
+                pstate["steps"][3]["status"] = "error"
+                pstate["steps"][3]["error"] = str(em_e)[:4000]
+        except Exception:
+            pass
         _persist(pstate)
         with engine.connect() as conn:
             conn.execute(
@@ -388,17 +322,22 @@ def execute_full_deliver_tail(
                 {"e": str(em_e)[:8000], "rid": report_id},
             )
             conn.commit()
+        _sync_job_terminal()
         return
 
-    pstate["steps"][6]["status"] = "ok"
-    pstate["steps"][6]["error"] = None
+    try:
+        if isinstance(pstate.get("steps"), list) and len(pstate["steps"]) >= 4:
+            pstate["steps"][3]["status"] = "ok"
+            pstate["steps"][3]["error"] = None
+    except Exception:
+        pass
     with engine.connect() as conn:
         conn.execute(
             text(
                 """
                 UPDATE company_reports
                 SET email_status = 'completed', email_error_msg = NULL, email_completed_at = :ec,
-                    audio_progress_json = NULL,
+                    job_progress_json = NULL,
                     delivery_phase_status = 'completed'
                 WHERE id = :rid
                 """
@@ -409,6 +348,7 @@ def execute_full_deliver_tail(
             },
         )
         conn.commit()
+    _sync_job_terminal()
 
 
 def _fail_full_deliver_report(engine: Any, report_id: int, err: str) -> None:
@@ -418,7 +358,8 @@ def _fail_full_deliver_report(engine: Any, report_id: int, err: str) -> None:
             text(
                 """
                 UPDATE company_reports
-                SET status = 'failed', error_msg = :e, completed_at = :now
+                SET status = 'failed', error_msg = :e, completed_at = :now,
+                    job_status = 'failed', job_phase = 'failed', job_finished_at = :now
                 WHERE id = :rid
                 """
             ),
@@ -450,7 +391,7 @@ def run_full_deliver_pending_recovery(app: Flask, report_id: int) -> None:
                         delivery_mode = 'full_deliver'
                         OR (
                           delivery_mode IS NULL
-                          AND audio_progress_json LIKE '%full_pipeline%'
+                          AND job_progress_json LIKE '%full_pipeline%'
                         )
                       )
                     """
@@ -497,7 +438,7 @@ def run_full_deliver_pending_recovery(app: Flask, report_id: int) -> None:
             with engine.connect() as conn:
                 conn.execute(
                     text(
-                        "UPDATE company_reports SET audio_progress_json = :j, audio_error_msg = NULL WHERE id = :rid"
+                        "UPDATE company_reports SET job_progress_json = :j WHERE id = :rid"
                     ),
                     {"j": json.dumps(obj, ensure_ascii=False), "rid": rid},
                 )
@@ -601,7 +542,7 @@ def expire_stale_full_delivery_tails(app_logger=None) -> int:
     sec = _full_deliver_tail_timeout_seconds()
     cutoff = datetime.utcnow() - timedelta(seconds=sec)
     msg = (
-        f"Tiempo máximo ({sec}s) superado en la entrega todo-en-uno (resumen/audio/correo). "
+        f"Tiempo máximo ({sec}s) superado en la entrega todo-en-uno (correo). "
         "Revisa el informe o vuelve a lanzar la entrega."
     )
     try:
@@ -616,9 +557,7 @@ def expire_stale_full_delivery_tails(app_logger=None) -> int:
                   AND completed_at IS NOT NULL
                   AND completed_at < :cutoff
                   AND (
-                    summary_content IS NULL OR TRIM(summary_content) = ''
-                    OR audio_status IS NULL OR audio_status NOT IN ('completed','failed')
-                    OR email_status IS NULL OR email_status NOT IN ('completed','failed')
+                    email_status IS NULL OR email_status NOT IN ('completed','failed')
                   )
                 """
             ),

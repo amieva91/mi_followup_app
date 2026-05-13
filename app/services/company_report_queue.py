@@ -1,5 +1,5 @@
 """
-Cola global de trabajos largos sobre ``company_reports`` (informe, todo-en-uno, audio).
+Cola global de trabajos largos sobre ``company_reports`` (informe y todo-en-uno).
 
 La ordenación debe coincidir con la que usa la UI (posición #1 / #2) y con
 :func:`app.background_tasks_lock.background_tasks_lock` cuando ``fair_report_id`` está fijado.
@@ -11,12 +11,11 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from sqlalchemy import bindparam, text
 
 from app import db
-from app.services.company_report_recovery import _stale_audio_queued_seconds
 
 logger = logging.getLogger(__name__)
 
@@ -43,32 +42,10 @@ def _to_utc_dt(v) -> datetime | None:
     return None
 
 
-def _stale_audio_queued_cutoff_utc() -> datetime:
-    return datetime.utcnow() - timedelta(seconds=_stale_audio_queued_seconds())
-
-
-def _row_is_stale_audio_queued(row: dict, cutoff: datetime) -> bool:
-    if row.get("audio_status") != "queued" or row.get("status") != "completed":
-        return False
-    path = (row.get("audio_path") or "").strip()
-    if path:
-        return False
-    t = _to_utc_dt(row.get("audio_enqueued_at") or row.get("created_at"))
-    if not t:
-        return False
-    return t < cutoff
-
-
-def _row_active_queue_sort_key(row: dict, cutoff: datetime) -> datetime | None:
-    a_st = row.get("audio_status")
+def _row_active_queue_sort_key(row: dict) -> datetime | None:
     r_st = row.get("status")
     dm = row.get("delivery_mode")
     dps = row.get("delivery_phase_status")
-    if a_st in ("queued", "processing"):
-        if a_st == "queued" and _row_is_stale_audio_queued(row, cutoff):
-            pass
-        else:
-            return _to_utc_dt(row.get("audio_enqueued_at") or row.get("created_at"))
     if r_st == "completed" and dm == "full_deliver" and (dps == "processing" or dps is None):
         return _to_utc_dt(row.get("completed_at") or row.get("report_enqueued_at") or row.get("created_at"))
     if r_st in ("pending", "processing"):
@@ -78,13 +55,12 @@ def _row_active_queue_sort_key(row: dict, cutoff: datetime) -> datetime | None:
 
 def sorted_active_queue_rows() -> list[tuple[datetime, int]]:
     """Lista (tiempo_encolado, id) ordenada; define la cola global para UI y fair lock."""
-    cutoff = _stale_audio_queued_cutoff_utc()
     try:
         res = db.session.execute(
             text(
                 """
-                SELECT id, audio_status, status, audio_path,
-                       audio_enqueued_at, report_enqueued_at, created_at,
+                SELECT id, status,
+                       report_enqueued_at, created_at,
                        delivery_mode, delivery_phase_status, completed_at
                 FROM company_reports
                 """
@@ -93,7 +69,7 @@ def sorted_active_queue_rows() -> list[tuple[datetime, int]]:
         pairs: list[tuple[datetime, int]] = []
         for r in res.mappings():
             row = dict(r)
-            k = _row_active_queue_sort_key(row, cutoff)
+            k = _row_active_queue_sort_key(row)
             if k is not None:
                 pairs.append((k, int(row["id"])))
         pairs.sort(key=lambda x: (x[0], x[1]))

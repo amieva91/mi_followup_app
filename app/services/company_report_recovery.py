@@ -1,10 +1,7 @@
 """
-Informes ``company_reports`` en ``processing`` tras reinicio del proceso web.
+Recuperación de informes tras reinicios y estados inconsistentes.
 
-- Sin ``gemini_interaction_id``: no hay nada que reanudar → ``failed``.
-- Con ``gemini_interaction_id``: se lanza un hilo que vuelve a hacer polling a Gemini
-  (:func:`resume_company_report_from_interaction_id`) para no perder trabajo que sigue en curso
-  en el proveedor.
+- Deep Research sin ``gemini_interaction_id``: marcar fallido desde cualquier proceso que arranca Flask.
 """
 from __future__ import annotations
 
@@ -21,68 +18,10 @@ _MSG_ORPHAN_NO_IID = (
     'Genera el informe de nuevo.'
 )
 
-# El TTS no usa interaction_id; este mensaje evita confundir al usuario cuando falla solo el audio.
-_MSG_AUDIO_ORPHAN = (
-    'La generación de audio se interrumpió (reinicio del servidor o fin del worker). '
-    'Pulsa «Regenerar audio».'
-)
-
 _MSG_TIMEOUT_STALE = (
     'Tiempo máximo superado sin resultado (posible bloqueo silencioso en el proveedor). '
     'Cuando el servidor corta la espera, genera el informe de nuevo.'
 )
-
-
-def _stale_audio_queued_seconds() -> int:
-    """Segundos tras los cuales un ``audio_status=queued`` (informe ya OK, sin WAV) se considera abandonado."""
-    try:
-        return max(300, int(str(os.environ.get('STALE_AUDIO_QUEUED_SECONDS', '3600')).strip()))
-    except ValueError:
-        return 3600
-
-
-def expire_stale_audio_queued_rows(app_logger=None) -> int:
-    """
-    Informe ya ``completed``, audio en ``queued``, sin fichero y con antigüedad de encolado alta:
-    no hay worker real esperando — ensucian la cola global y la numeración.
-
-    Marca ``audio_status=failed`` con mensaje claro para que el usuario pulse «Regenerar audio».
-    """
-    from app import db
-    from sqlalchemy import text
-
-    log = app_logger or logger
-    sec = _stale_audio_queued_seconds()
-    cutoff = datetime.utcnow() - timedelta(seconds=sec)
-    msg = (
-        'La petición de audio quedó demasiado tiempo en cola sin ejecutarse. '
-        'Pulsa «Regenerar audio».'
-    )
-    try:
-        res = db.session.execute(
-            text(
-                """
-                UPDATE company_reports
-                SET audio_status = 'failed', audio_error_msg = :msg
-                WHERE audio_status = 'queued'
-                  AND status = 'completed'
-                  AND (audio_path IS NULL OR TRIM(COALESCE(audio_path, '')) = '')
-                  AND COALESCE(audio_enqueued_at, created_at) < :cutoff
-                """
-            ),
-            {'cutoff': cutoff, 'msg': msg[:8000]},
-        )
-        n = int(getattr(res, 'rowcount', 0) or 0)
-        if n:
-            db.session.commit()
-            log.info('company_reports: expiradas %s peticiones de audio encoladas obsoletas (cutoff %ss)', n, sec)
-        else:
-            db.session.rollback()
-        return n
-    except Exception:
-        db.session.rollback()
-        log.exception('expire_stale_audio_queued_rows: error')
-        return 0
 
 
 def _stale_queue_grace_seconds() -> int:
@@ -212,42 +151,11 @@ def recover_processing_reports_after_restart(app, app_logger=None) -> None:
             r.error_msg = _MSG_ORPHAN_NO_IID
             r.completed_at = now
 
-        audio_n = 0
-        tail_resume_ids: list[int] = []
-        rows_a = CompanyReport.query.filter(CompanyReport.audio_status == 'processing').all()
-        for r in rows_a:
-            if getattr(r, 'created_at', None) and r.created_at > min_age_threshold:
-                continue
-            if getattr(r, 'delivery_mode', None) == 'full_deliver' and (r.status or '') == 'completed':
-                tail_resume_ids.append(int(r.id))
-                continue
-            r.audio_status = 'failed'
-            r.audio_error_msg = (_MSG_AUDIO_ORPHAN[:2000])
-            # Si había un panel de progreso (pipeline completo), evitar que se quede "atascado" en loading.
-            # Marcamos el paso TTS como error para que la UI muestre el fallo real y permita reintentar.
-            try:
-                ap_raw = getattr(r, 'audio_progress_json', None)
-                if ap_raw and str(ap_raw).strip():
-                    ap = json.loads(str(ap_raw))
-                    steps = ap.get('steps') if isinstance(ap, dict) else None
-                    if isinstance(steps, list):
-                        for st in steps:
-                            if isinstance(st, dict) and st.get('id') == 'tts':
-                                st['status'] = 'error'
-                                st['error'] = _MSG_AUDIO_ORPHAN[:2000]
-                        ap['caption'] = ap.get('caption') or ''
-                        r.audio_progress_json = json.dumps(ap, ensure_ascii=False)
-            except Exception:
-                pass
-            audio_n += 1
-
-        if fail_no_iid or audio_n:
+        if fail_no_iid:
             db.session.commit()
             log.warning(
-                'company_reports: %s informes huérfanos (sin interaction_id) y %s audios marcados failed; '
-                '%s informes con reanudación programada (si procede)',
+                'company_reports: %s informes huérfanos (sin interaction_id); %s informes con reanudación programada',
                 len(fail_no_iid),
-                audio_n,
                 len(resume_ids),
             )
         elif resume_ids:
@@ -279,15 +187,6 @@ def recover_processing_reports_after_restart(app, app_logger=None) -> None:
                 log.exception('Deep Research resume: excepción no controlada report_id=%s', rid_)
 
         threading.Thread(target=_run, args=(rid,), daemon=True).start()
-
-    for rid in tail_resume_ids:
-        try:
-            from app.services.full_deliver_continuation import schedule_full_delivery_continuation
-
-            schedule_full_delivery_continuation(app, rid)
-        except Exception:
-            log.exception('full_deliver: reanudación tras audio processing report_id=%s', rid)
-
 
 def recover_stuck_pending_reports(app, app_logger=None) -> None:
     """
@@ -321,8 +220,10 @@ def recover_stuck_pending_reports(app, app_logger=None) -> None:
             lock_fp = None
 
     try:
-        # Mismo marker: si recovery ya corrió en este arranque, no repetir barridos.
-        boot_marker = os.path.join(app.instance_path, "followup.recovery_boot_marker")
+        # Marker propio: este barrido NO debe quedar deshabilitado por el marker de
+        # `recover_processing_reports_after_restart`. Si comparten marker, el segundo
+        # se salta siempre durante los primeros 10 min del arranque.
+        boot_marker = os.path.join(app.instance_path, "followup.recovery_pending_boot_marker")
         try:
             if os.path.exists(boot_marker):
                 try:
@@ -339,7 +240,7 @@ def recover_stuck_pending_reports(app, app_logger=None) -> None:
         except Exception:
             pass
 
-        # Solo "solo informe": se identifica por NO tener full_pipeline en audio_progress_json.
+        # Solo "solo informe": se identifica por NO tener full_pipeline en job_progress_json.
         rows = (
             CompanyReport.query.filter(CompanyReport.status == "pending")
             .filter(CompanyReport.created_at < threshold)
@@ -353,7 +254,7 @@ def recover_stuck_pending_reports(app, app_logger=None) -> None:
         for r in rows:
             is_fd = getattr(r, "delivery_mode", None) == "full_deliver"
             if not is_fd:
-                ap = getattr(r, "audio_progress_json", None)
+                ap = getattr(r, "job_progress_json", None)
                 if ap and str(ap).strip() and "full_pipeline" in str(ap):
                     is_fd = True
             if is_fd:
@@ -375,7 +276,97 @@ def recover_stuck_pending_reports(app, app_logger=None) -> None:
                 kicked += 1
                 continue
 
-            ap = getattr(r, "audio_progress_json", None)
+            # Watchlist IA (Flash / Deep Research fila): estos informes no tienen plantilla (template_id=None),
+            # por lo que `company_report_runner.run_report_only_by_id` no puede reconstruir `description/points`.
+            # Si el hilo daemon muere antes de adquirir el lock, quedarían en `pending` para siempre.
+            try:
+                from app.services.watchlist_ia_template import (
+                    WATCHLIST_IA_REPORT_TITLE_DR_ROW,
+                    get_watchlist_ia_deep_brief,
+                    is_watchlist_ia_report_title,
+                )
+
+                is_watchlist_ia = is_watchlist_ia_report_title(getattr(r, "template_title", None))
+            except Exception:
+                is_watchlist_ia = False
+
+            if is_watchlist_ia:
+                rid = int(r.id)
+                aid = int(getattr(r, "asset_id", 0) or 0)
+                uid = int(getattr(r, "user_id", 0) or 0)
+                title = (getattr(r, "template_title", None) or "").strip()
+                use_dr_row_title = title == WATCHLIST_IA_REPORT_TITLE_DR_ROW
+                from app.services.valuation_mode_service import (
+                    resolve_watchlist_valuation_mode_for_user_asset,
+                )
+
+                wl_mode = (
+                    resolve_watchlist_valuation_mode_for_user_asset(uid, aid)
+                    if uid and aid
+                    else "general"
+                )
+                description, points, _ = get_watchlist_ia_deep_brief(
+                    use_dr_row_title=use_dr_row_title, valuation_mode=wl_mode
+                )
+
+                def _run_watchlist_pending(rid_: int, uid_: int, aid_: int, desc_: str, pts_: list[str]) -> None:
+                    try:
+                        with app.app_context():
+                            from app import db
+                            from sqlalchemy import text
+                            import threading as _threading
+
+                            # Reclamar fila (pending -> processing) de forma atómica.
+                            # Si ya no está pending, salimos (evita dobles ejecuciones).
+                            with db.engine.connect() as conn:
+                                res = conn.execute(
+                                    text(
+                                        # Importante: si el pending es viejo (horas), al pasar a processing
+                                        # `expire_company_report_if_stale` podría marcarlo failed usando el
+                                        # reloj de encolado. Reiniciamos `report_enqueued_at` al relanzar.
+                                        "UPDATE company_reports SET status='processing', report_enqueued_at=:now "
+                                        "WHERE id=:rid AND status='pending'"
+                                    ),
+                                    {
+                                        "rid": int(rid_),
+                                        "now": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+                                    },
+                                )
+                                conn.commit()
+                                if int(getattr(res, "rowcount", 0) or 0) == 0:
+                                    return
+
+                            # Re-ejecutar bajo la misma cola global (fair lock) y extracción a watchlist.
+                            from app.services.company_report_deep_job import run_company_report_deep_research_job
+
+                            def _worker() -> None:
+                                run_company_report_deep_research_job(
+                                    app,
+                                    rid_,
+                                    uid_,
+                                    aid_,
+                                    desc_,
+                                    pts_,
+                                    extra_prompt_suffix=None,
+                                    post_watchlist_extract=True,
+                                    research_prompt_style="watchlist_minimal",
+                                    # Si el usuario pulsó 🔬 fila, forzamos Deep Research.
+                                    watchlist_force_deep_research=use_dr_row_title,
+                                )
+
+                            _threading.Thread(target=_worker, daemon=True).start()
+                    except Exception:
+                        log.exception("watchlist pending recovery: excepción report_id=%s", rid_)
+
+                threading.Thread(
+                    target=_run_watchlist_pending,
+                    args=(rid, uid, aid, description, points),
+                    daemon=True,
+                ).start()
+                kicked += 1
+                continue
+
+            ap = getattr(r, "job_progress_json", None)
             is_full = False
             if ap and str(ap).strip():
                 try:
@@ -421,7 +412,7 @@ def recover_stuck_pending_reports(app, app_logger=None) -> None:
 def clean_company_report_queues(app_logger=None) -> dict:
     """
     Operación de mantenimiento: marca como fallidos informes ``pending``/``processing``,
-    audios ``queued`` huérfanos, y corta colas ``full_deliver`` en ``processing``.
+    y corta colas ``full_deliver`` en ``processing``.
     """
     from sqlalchemy import text
 
@@ -433,14 +424,11 @@ def clean_company_report_queues(app_logger=None) -> dict:
         "Cola de informes limpiada manualmente (pendiente o en curso). "
         "Vuelve a lanzar la generación si aún lo necesitas."
     )
-    msg_au = (
-        "Cola de audio limpiada manualmente. Pulsa «Regenerar audio» si quieres un nuevo fichero."
-    )
     msg_fd = (
         "Entrega todo-en-uno interrumpida (limpieza manual). "
-        "El informe puede estar listo en la app; reenvía correo o regenera audio si hace falta."
+        "El informe puede estar listo en la app; reenvía correo si hace falta."
     )
-    out = {"reports_pending_failed": 0, "audio_queued_failed": 0, "full_deliver_partial": 0}
+    out = {"reports_pending_failed": 0, "full_deliver_partial": 0}
     try:
         r1 = db.session.execute(
             text(
@@ -453,18 +441,6 @@ def clean_company_report_queues(app_logger=None) -> dict:
             {"msg": msg_rep[:8000], "now": now},
         )
         out["reports_pending_failed"] = int(getattr(r1, "rowcount", 0) or 0)
-
-        r2 = db.session.execute(
-            text(
-                """
-                UPDATE company_reports
-                SET audio_status = 'failed', audio_error_msg = :msg
-                WHERE audio_status = 'queued' AND status = 'completed'
-                """
-            ),
-            {"msg": msg_au[:8000]},
-        )
-        out["audio_queued_failed"] = int(getattr(r2, "rowcount", 0) or 0)
 
         r3 = db.session.execute(
             text(

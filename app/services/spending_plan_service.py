@@ -5,13 +5,14 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from dateutil.relativedelta import relativedelta
 
 from app import db
 from app.models import ExpenseCategory
+from app.models.bank import BankBalance
 from app.models.spending_plan import (
     SpendingPlanFixedCategory,
     SpendingPlanGoal,
@@ -123,6 +124,420 @@ def get_current_bank_cash(user_id: int) -> float:
     return float(BankService.get_total_cash_by_month(user_id, today.year, today.month) or 0)
 
 
+def _month_diff(a: tuple[int, int], b: tuple[int, int]) -> int:
+    """Meses entre a(y,m) y b(y,m): b - a."""
+    ay, am = int(a[0]), int(a[1])
+    by, bm = int(b[0]), int(b[1])
+    return (by - ay) * 12 + (bm - am)
+
+
+def _banks_month_has_rows(user_id: int, year: int, month: int) -> bool:
+    n = (
+        BankBalance.query.filter_by(user_id=user_id, year=int(year), month=int(month))
+        .limit(1)
+        .count()
+    )
+    return n > 0
+
+
+def _last_banks_month_with_rows(user_id: int) -> Optional[tuple[int, int]]:
+    row = (
+        db.session.query(BankBalance.year, BankBalance.month)
+        .filter(BankBalance.user_id == user_id)
+        .order_by(BankBalance.year.desc(), BankBalance.month.desc())
+        .first()
+    )
+    if not row:
+        return None
+    return int(row[0]), int(row[1])
+
+
+def _banks_months_with_rows_last_12(user_id: int, today: date) -> List[tuple[int, int]]:
+    months: List[tuple[int, int]] = []
+    for i in range(0, 12):
+        d = today - relativedelta(months=i)
+        if _banks_month_has_rows(user_id, d.year, d.month):
+            months.append((d.year, d.month))
+    return months
+
+
+def _estimate_starting_cash_for_current_month(
+    user_id: int,
+    *,
+    today: date,
+    income_avg: float,
+    fixed_total: float,
+    avg_quota_monthly: float,
+) -> tuple[float, dict]:
+    """
+    Estima starting_cash para el mes actual si no hay saldos guardados en Banks.
+    Regla:
+    - Si hay al menos 6 meses con saldos guardados en los últimos 12: proyecta desde el último saldo
+      real con un delta mensual medio (income_avg - fixed_total - avg_quota_monthly).
+    - Si no: usa el último saldo real sin proyectar.
+    """
+    info: dict = {
+        "bank_cash_is_estimated": False,
+        "bank_cash_method": None,
+        "bank_last_month": None,
+        "bank_last_updated_at": None,
+        "bank_month_needs_update": True,
+    }
+    current_ym = (today.year, today.month)
+
+    last_ym = _last_banks_month_with_rows(user_id)
+    if not last_ym:
+        # Sin datos nunca: no estimar.
+        info["bank_cash_is_estimated"] = True
+        info["bank_cash_method"] = "none"
+        return 0.0, info
+
+    info["bank_last_month"] = {"year": last_ym[0], "month": last_ym[1]}
+    try:
+        last_updated_at = (
+            db.session.query(db.func.max(BankBalance.updated_at))
+            .filter(BankBalance.user_id == user_id)
+            .scalar()
+        )
+        info["bank_last_updated_at"] = (
+            last_updated_at.isoformat() if last_updated_at else None
+        )
+    except Exception:
+        info["bank_last_updated_at"] = None
+
+    last_total = float(BankService.get_total_cash_by_month(user_id, last_ym[0], last_ym[1]) or 0)
+    k = _month_diff(last_ym, current_ym)
+    k = max(0, min(24, int(k)))
+
+    months_with_rows = _banks_months_with_rows_last_12(user_id, today)
+    if len(months_with_rows) < 6 or k <= 0:
+        # Fallback: último saldo real (aunque sea 0).
+        info["bank_cash_is_estimated"] = True
+        info["bank_cash_method"] = "last_known"
+        return round(last_total, 2), info
+
+    delta = float(income_avg or 0) - float(fixed_total or 0) - float(avg_quota_monthly or 0)
+    est = float(last_total) + float(k) * float(delta)
+    info["bank_cash_is_estimated"] = True
+    info["bank_cash_method"] = "flow_avg"
+    return round(est, 2), info
+
+
+def _effective_bank_cash_for_planning(
+    user_id: int,
+    *,
+    today: date,
+    income_avg: float,
+    fixed_total: float,
+    avg_quota_monthly: float = 0.0,
+) -> float:
+    """
+    Efectivo inicial a usar en el planificador.
+    Si el mes actual no tiene filas en Banks y el total es 0€, estima starting cash
+    (mismo criterio que en get_spending_plan_page_data) para evitar falsos 0€.
+    """
+    raw = float(BankService.get_total_cash_by_month(user_id, today.year, today.month) or 0)
+    if _banks_month_has_rows(user_id, today.year, today.month):
+        return raw
+    if abs(raw) > 1e-9:
+        return raw
+    est, _meta = _estimate_starting_cash_for_current_month(
+        user_id,
+        today=today,
+        income_avg=income_avg,
+        fixed_total=fixed_total,
+        avg_quota_monthly=avg_quota_monthly,
+    )
+    return float(est or 0)
+
+
+def _extra_date_fixed(extra_json: Optional[str]) -> bool:
+    try:
+        d = json.loads(extra_json or "{}")
+    except (json.JSONDecodeError, TypeError):
+        return False
+    return bool(d.get("date_fixed")) if isinstance(d, dict) else False
+
+
+def _set_generic_pay_options(extra_json: str, pay_mode: str, installment_months: Optional[int]) -> str:
+    """Actualiza pay_mode / installment_months manteniendo date_fixed y claves extra conocidas."""
+    try:
+        d = json.loads(extra_json or "{}")
+    except (json.JSONDecodeError, TypeError):
+        d = {}
+    if not isinstance(d, dict):
+        d = {}
+    pm = (pay_mode or "auto").strip().lower()
+    if pm not in ("auto", "lump", "installments"):
+        pm = "auto"
+    d["pay_mode"] = pm
+    if pm == "installments":
+        try:
+            d["installment_months"] = max(1, int(installment_months)) if installment_months is not None else None
+        except (TypeError, ValueError):
+            d["installment_months"] = None
+    else:
+        d["installment_months"] = None
+    # no tocar date_fixed aquí
+    if "date_fixed" not in d:
+        d["date_fixed"] = False
+    return json.dumps(d, ensure_ascii=False)
+
+
+def _month_key(d: date) -> tuple[int, int]:
+    return int(d.year), int(d.month)
+
+
+def _is_before_current_month(d: Optional[date], today: date) -> bool:
+    if d is None:
+        return False
+    return _month_key(d) < _month_key(today)
+
+
+def full_replan_if_not_viable(user_id: int) -> dict:
+    """
+    Replanificación completa (solo se usa en el flujo explícito del modal).
+    Fase A: intenta respetar directrices del usuario (fechas, cuotas, etc).
+    Fase B: si falla, auto-aplica recomendaciones (cuotas/auto/fechas) con una única regla dura:
+      - Fechas inamovibles se respetan SI son >= mes actual; si están en el pasado, se convierten a automático.
+    """
+    today = date.today()
+    settings = _get_or_create_settings(user_id)
+    max_dsr_pct = float(settings.max_dsr_percent or 35.0)
+    fixed_ids = get_fixed_category_ids(user_id)
+    income_avg = get_avg_monthly_income(user_id, 12)
+    fixed_total, _ = compute_fixed_expenses_monthly(user_id, fixed_ids)
+    bank_gross = _effective_bank_cash_for_planning(
+        user_id,
+        today=today,
+        income_avg=income_avg,
+        fixed_total=fixed_total,
+        avg_quota_monthly=0.0,
+    )
+
+    goals = (
+        SpendingPlanGoal.query.filter_by(user_id=user_id)
+        .order_by(SpendingPlanGoal.priority.asc(), SpendingPlanGoal.id.asc())
+        .all()
+    )
+    changes: List[dict] = []
+
+    def compute_ok():
+        return compute_plan_schedule(
+            today=today,
+            income_avg=income_avg,
+            fixed_monthly=fixed_total,
+            starting_cash=bank_gross,
+            max_dsr_percent=max_dsr_pct,
+            goals=goals,
+        )
+
+    # Estado inicial
+    sch = compute_ok()
+    if sch.ok:
+        return {
+            "ok": True,
+            "changed": False,
+            "message": "El plan ya es viable. No se requiere replanificación.",
+            "changes": [],
+        }
+
+    # Normalización: fechas inamovibles en el pasado => automático
+    normalized = False
+    for g in goals:
+        if getattr(g, "goal_type", "") not in ("generic", "mortgage"):
+            continue
+        if not g.target_date:
+            continue
+        df = _extra_date_fixed(g.extra_json)
+        if df and _is_before_current_month(g.target_date, today):
+            before = g.target_date.isoformat()
+            g.target_date = None
+            if g.goal_type == "generic":
+                g.extra_json = _set_generic_date_fixed(g.extra_json or "{}", False)
+            else:
+                g.extra_json = _set_mortgage_date_fixed(g.extra_json or "{}", False)
+            normalized = True
+            changes.append(
+                {
+                    "goal_id": g.id,
+                    "title": g.title,
+                    "field": "target_date",
+                    "from": before,
+                    "to": None,
+                    "reason": "Fecha inamovible en el pasado → automático",
+                }
+            )
+    if normalized:
+        sch = compute_ok()
+        if sch.ok:
+            db.session.commit()
+            return {
+                "ok": True,
+                "changed": True,
+                "message": "Replanificación completada tras normalizar fechas inamovibles en el pasado.",
+                "changes": changes,
+            }
+
+    # Fase B: rescate aplicando recomendaciones (sin tocar fechas inamovibles >= hoy)
+    # Limitamos iteraciones para evitar bucles.
+    max_passes = 4
+    for _pass in range(max_passes):
+        sch = compute_ok()
+        if sch.ok:
+            break
+        progressed = False
+        for g in goals:
+            sch = compute_ok()
+            if sch.ok:
+                break
+            gt = getattr(g, "goal_type", "")
+            df = _extra_date_fixed(g.extra_json)
+            # Si es inamovible y está en futuro/actual, no mover fecha.
+            allow_move_date = not df
+
+            if gt == "generic":
+                pm, im = parse_generic_pay_options(g.extra_json)
+                raw_inst = installment_field_for_ui(pm, im)
+                sug = suggest_adjustments_for_generic(
+                    user_id,
+                    g.id,
+                    g.title,
+                    float(g.amount_total or 0),
+                    int(g.priority or 3),
+                    g.target_date,
+                    raw_inst,
+                    bool(df),
+                )
+                # Prioridad de auto-aceptación: 1) cuotas/auto, 2) fecha (si se permite mover)
+                picked = None
+                for s in sug:
+                    if s.get("type") == "set_field" and s.get("field") == "installment_months":
+                        picked = s
+                        break
+                if not picked and allow_move_date:
+                    for s in sug:
+                        if s.get("type") == "set_field" and s.get("field") == "target_date":
+                            picked = s
+                            break
+                if not picked:
+                    continue
+
+                if picked.get("field") == "installment_months":
+                    before_pm, before_im = pm, im
+                    val = (picked.get("value") or "").strip()
+                    if val == "":
+                        g.extra_json = _set_generic_pay_options(g.extra_json or "{}", "auto", None)
+                    else:
+                        try:
+                            k = int(val)
+                        except (TypeError, ValueError):
+                            k = None
+                        if k is None:
+                            continue
+                        g.extra_json = _set_generic_pay_options(g.extra_json or "{}", "installments", k)
+                    # reponer date_fixed a lo que fuese
+                    g.extra_json = _set_generic_date_fixed(g.extra_json or "{}", bool(df))
+                    progressed = True
+                    changes.append(
+                        {
+                            "goal_id": g.id,
+                            "title": g.title,
+                            "field": "installment_months",
+                            "from": installment_field_for_ui(before_pm, before_im),
+                            "to": (picked.get("value") or ""),
+                            "reason": "Auto-aceptar recomendación (cuotas/auto)",
+                        }
+                    )
+                elif picked.get("field") == "target_date" and allow_move_date:
+                    before = g.target_date.isoformat() if g.target_date else None
+                    v = (picked.get("value") or "").strip()[:10]
+                    td = None
+                    try:
+                        td = datetime.strptime(v, "%Y-%m-%d").date() if v else None
+                    except ValueError:
+                        td = None
+                    if td is None:
+                        continue
+                    # Regla: nunca mover a antes de la fecha indicada.
+                    if g.target_date and _month_key(td) < _month_key(g.target_date):
+                        continue
+                    g.target_date = td
+                    # date_fixed se mantiene False (allow_move_date implica no fijo)
+                    g.extra_json = _set_generic_date_fixed(g.extra_json or "{}", False)
+                    progressed = True
+                    changes.append(
+                        {
+                            "goal_id": g.id,
+                            "title": g.title,
+                            "field": "target_date",
+                            "from": before,
+                            "to": td.isoformat(),
+                            "reason": "Auto-aceptar recomendación (fecha)",
+                        }
+                    )
+            elif gt == "mortgage":
+                # Hipoteca: solo podemos sugerir/mover fecha si NO es inamovible, o si fue normalizada a auto.
+                if not allow_move_date:
+                    continue
+                if g.target_date is None:
+                    continue
+                extra = (g.extra_json or "").strip() or "{}"
+                sug = suggest_adjustments_for_mortgage(
+                    user_id,
+                    g.id,
+                    g.title,
+                    float(g.amount_total or 0),
+                    g.target_date,
+                    extra,
+                    priority=int(g.priority or 1),
+                )
+                if not sug:
+                    continue
+                s0 = sug[0]
+                if s0.get("type") == "set_field" and s0.get("field") == "target_date":
+                    before = g.target_date.isoformat() if g.target_date else None
+                    v = (s0.get("value") or "").strip()[:10]
+                    try:
+                        td = datetime.strptime(v, "%Y-%m-%d").date()
+                    except ValueError:
+                        continue
+                    if g.target_date and _month_key(td) < _month_key(g.target_date):
+                        continue
+                    g.target_date = td
+                    g.extra_json = _set_mortgage_date_fixed(g.extra_json or "{}", False)
+                    progressed = True
+                    changes.append(
+                        {
+                            "goal_id": g.id,
+                            "title": g.title,
+                            "field": "target_date",
+                            "from": before,
+                            "to": td.isoformat(),
+                            "reason": "Auto-aceptar recomendación (fecha hipoteca)",
+                        }
+                    )
+        if not progressed:
+            break
+
+    sch = compute_ok()
+    if sch.ok:
+        db.session.commit()
+        return {
+            "ok": True,
+            "changed": True,
+            "message": "Replanificación completa realizada.",
+            "changes": changes,
+        }
+
+    db.session.rollback()
+    return {
+        "ok": False,
+        "changed": False,
+        "message": sch.error_message
+        or "No ha sido posible replanificar todos los objetivos con las reglas actuales.",
+        "changes": changes,
+    }
 def _sum_mortgage_initial_outlays(user_id: int) -> float:
     """Suma de `initial_outlay` en objetivos tipo hipoteca (entrada + tasación de simulador)."""
     total = 0.0
@@ -146,6 +561,7 @@ class MonthProjection:
     month_index: int
     income: float
     fixed_expenses: float
+    quota_monthly: float
     goals_monthly: float
     surplus: float
     ending_cash: float
@@ -338,25 +754,31 @@ def _build_goal_color_and_schedule_meta(
         payments = getattr(gd, "payments_by_month", None) or []
 
         first_idx: Optional[int] = None
-        positive_months = 0
+        pay_points: List[tuple[int, float]] = []
         for mi, p in enumerate(payments):
             try:
                 pv = float(p or 0)
             except (TypeError, ValueError):
                 pv = 0.0
             if pv > 0.001:
-                positive_months += 1
                 if first_idx is None:
                     first_idx = mi
                 if 0 <= mi < len(marks):
-                    marks[mi].append(
-                        {
-                            "goal_id": int(gid),
-                            "title": str(getattr(gd, "title", "") or ""),
-                            "amount": round(pv, 2),
-                            "color": color,
-                        }
-                    )
+                    pay_points.append((mi, pv))
+
+        positive_months = len(pay_points)
+        for idx, (mi, pv) in enumerate(pay_points, start=1):
+            if 0 <= mi < len(marks):
+                marks[mi].append(
+                    {
+                        "goal_id": int(gid),
+                        "title": str(getattr(gd, "title", "") or ""),
+                        "amount": round(pv, 2),
+                        "color": color,
+                        "installment_idx": idx,
+                        "installments_total": positive_months,
+                    }
+                )
 
         start_label = (
             month_labels[first_idx]
@@ -486,6 +908,7 @@ def build_monthly_projection(
                 month_index=i + 1,
                 income=income_avg,
                 fixed_expenses=fixed_monthly,
+                quota_monthly=goals_dsr_monthly,
                 goals_monthly=goals_monthly_display,
                 surplus=surplus,
                 ending_cash=cash,
@@ -509,9 +932,8 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
     fixed_ids = get_fixed_category_ids(user_id)
     income_avg = get_avg_monthly_income(user_id, 12)
     fixed_total, fixed_lines = compute_fixed_expenses_monthly(user_id, fixed_ids)
-    bank_cash_gross = get_current_bank_cash(user_id)
+    raw_bank_cash_gross = get_current_bank_cash(user_id)
     mortgage_entry_outlays = _sum_mortgage_initial_outlays(user_id)
-    cash0 = max(0.0, round(bank_cash_gross - mortgage_entry_outlays, 2))
     goals_cash, goals_dsr, goal_lines = sum_goal_monthlies(
         user_id, min(settings.horizon_months, PLAN_WINDOW_MONTHS)
     )
@@ -522,8 +944,33 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
         .order_by(SpendingPlanGoal.priority.asc(), SpendingPlanGoal.id.asc())
         .all()
     )
+    today = date.today()
+    current_has_rows = _banks_month_has_rows(user_id, today.year, today.month)
+
+    bank_cash_gross = float(raw_bank_cash_gross or 0)
+    bank_cash_meta: dict = {
+        "bank_cash_is_estimated": False,
+        "bank_cash_method": None,
+        "bank_last_month": None,
+        "bank_last_updated_at": None,
+        "bank_month_needs_update": False,
+    }
+    if (not current_has_rows) and abs(bank_cash_gross) < 1e-9:
+        est, meta = _estimate_starting_cash_for_current_month(
+            user_id,
+            today=today,
+            income_avg=income_avg,
+            fixed_total=fixed_total,
+            avg_quota_monthly=0.0,
+        )
+        bank_cash_gross = float(est or 0)
+        bank_cash_meta.update(meta or {})
+        bank_cash_meta["bank_month_needs_update"] = True
+
+    cash0 = max(0.0, round(bank_cash_gross - mortgage_entry_outlays, 2))
+
     sch = compute_plan_schedule(
-        today=date.today(),
+        today=today,
         income_avg=income_avg,
         fixed_monthly=fixed_total,
         starting_cash=bank_cash_gross,
@@ -565,6 +1012,7 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
                     month_index=i + 1,
                     income=income_avg,
                     fixed_expenses=fixed_total,
+                    quota_monthly=round(quota_m, 2),
                     goals_monthly=round(g_m, 2),
                     surplus=surplus_display,
                     ending_cash=cash_display,
@@ -582,6 +1030,53 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
         if max_pay > 0:
             avg_dsr_used_pct_5y = round((avg_quota_monthly_5y / max_pay) * 100.0, 1)
             dsr_free_total_5y = round(sum(max(0.0, max_pay - u) for u in used_vec), 2)
+        if bank_cash_meta.get("bank_cash_is_estimated") and bank_cash_meta.get("bank_cash_method") == "flow_avg":
+            est2, meta2 = _estimate_starting_cash_for_current_month(
+                user_id,
+                today=today,
+                income_avg=income_avg,
+                fixed_total=fixed_total,
+                avg_quota_monthly=avg_quota_monthly_5y,
+            )
+            bank_cash_gross = float(est2 or bank_cash_gross)
+            bank_cash_meta.update(meta2 or {})
+            cash0 = max(0.0, round(bank_cash_gross - mortgage_entry_outlays, 2))
+            # Recalcular tabla (display) con el starting_cash estimado final
+            cash_display = float(bank_cash_gross or 0)
+            months = []
+            for i in range(h):
+                d = today + relativedelta(months=i)
+                label = d.strftime("%b %Y")
+                g_m = (
+                    sch.mortgage_payments_monthly[i]
+                    + sch.generic_payments_monthly[i]
+                    + sch.initial_outlay_by_month[i]
+                )
+                quota_m = sch.mortgage_payments_monthly[i] + sch.generic_payments_monthly[i]
+                surplus_display = round(income_avg - fixed_total - quota_m, 2)
+                cash_display = round(
+                    cash_display + surplus_display - sch.initial_outlay_by_month[i], 2
+                )
+                margin = round(
+                    max_pay
+                    - sch.mortgage_payments_monthly[i]
+                    - sch.generic_payments_monthly[i],
+                    2,
+                )
+                months.append(
+                    MonthProjection(
+                        month_label=label,
+                        month_index=i + 1,
+                        income=income_avg,
+                        fixed_expenses=fixed_total,
+                        quota_monthly=round(quota_m, 2),
+                        goals_monthly=round(g_m, 2),
+                        surplus=surplus_display,
+                        ending_cash=cash_display,
+                        max_debt_payment=max_pay,
+                        dsr_margin=margin,
+                    )
+                )
     else:
         months = build_monthly_projection(
             income_avg,
@@ -675,6 +1170,7 @@ def get_spending_plan_page_data(user_id: int) -> Dict[str, Any]:
         "fixed_lines": fixed_lines,
         "starting_cash": cash0,
         "bank_cash_gross": bank_cash_gross,
+        "bank_cash_meta": bank_cash_meta,
         "mortgage_entry_outlays_total": mortgage_entry_outlays,
         "goals_total_monthly": round(goals_cash + goals_dsr, 2),
         "goals_dsr_monthly": goals_dsr,
@@ -1086,7 +1582,13 @@ def _first_viable_mortgage_date(
     fixed_ids = get_fixed_category_ids(user_id)
     income_avg = get_avg_monthly_income(user_id, 12)
     fixed_total, _ = compute_fixed_expenses_monthly(user_id, fixed_ids)
-    bank_gross = get_current_bank_cash(user_id)
+    bank_gross = _effective_bank_cash_for_planning(
+        user_id,
+        today=today,
+        income_avg=income_avg,
+        fixed_total=fixed_total,
+        avg_quota_monthly=0.0,
+    )
     goals = SpendingPlanGoal.query.filter_by(user_id=user_id).all()
     others = [g for g in goals if exclude_goal_id is None or g.id != exclude_goal_id]
     pr = max(1, min(5, int(priority)))
@@ -1134,7 +1636,13 @@ def suggest_adjustments_for_generic(
     fixed_ids = get_fixed_category_ids(user_id)
     income_avg = get_avg_monthly_income(user_id, 12)
     fixed_total, _ = compute_fixed_expenses_monthly(user_id, fixed_ids)
-    bank_gross = get_current_bank_cash(user_id)
+    bank_gross = _effective_bank_cash_for_planning(
+        user_id,
+        today=today,
+        income_avg=income_avg,
+        fixed_total=fixed_total,
+        avg_quota_monthly=0.0,
+    )
     all_goals = SpendingPlanGoal.query.filter_by(user_id=user_id).all()
     others = [g for g in all_goals if goal_id is None or g.id != goal_id]
 
@@ -1265,7 +1773,13 @@ def suggest_adjustments_for_mortgage(
     fixed_ids = get_fixed_category_ids(user_id)
     income_avg = get_avg_monthly_income(user_id, 12)
     fixed_total, _ = compute_fixed_expenses_monthly(user_id, fixed_ids)
-    bank_gross = get_current_bank_cash(user_id)
+    bank_gross = _effective_bank_cash_for_planning(
+        user_id,
+        today=today,
+        income_avg=income_avg,
+        fixed_total=fixed_total,
+        avg_quota_monthly=0.0,
+    )
 
     all_goals = SpendingPlanGoal.query.filter_by(user_id=user_id).all()
     others = [g for g in all_goals if goal_id is None or g.id != goal_id]
@@ -1326,7 +1840,13 @@ def _assert_plan_viable_with_dsr(user_id: int, max_dsr_percent: float) -> None:
     fixed_ids = get_fixed_category_ids(user_id)
     income_avg = get_avg_monthly_income(user_id, 12)
     fixed_total, _ = compute_fixed_expenses_monthly(user_id, fixed_ids)
-    bank_gross = get_current_bank_cash(user_id)
+    bank_gross = _effective_bank_cash_for_planning(
+        user_id,
+        today=date.today(),
+        income_avg=income_avg,
+        fixed_total=fixed_total,
+        avg_quota_monthly=0.0,
+    )
     goals = SpendingPlanGoal.query.filter_by(user_id=user_id).all()
     sch = compute_plan_schedule(
         today=date.today(),

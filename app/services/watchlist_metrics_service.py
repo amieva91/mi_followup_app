@@ -1,9 +1,12 @@
 """
 Watchlist Metrics Service - Cálculos de métricas para watchlist
 """
-from typing import Optional, Dict, Any
+import logging
+from typing import Any, Dict, Optional
+
 from app.models import Watchlist, WatchlistConfig
-import math
+
+logger = logging.getLogger(__name__)
 
 
 class WatchlistMetricsService:
@@ -93,6 +96,32 @@ class WatchlistMetricsService:
         valoracion = round(valoracion, 2)
         
         return valoracion
+    
+    @staticmethod
+    def calculate_target_price_5yr_from_valoracion_extrapolation(
+        precio_actual: Optional[float],
+        valoracion_12m_pct: Optional[float],
+    ) -> Optional[float]:
+        """
+        Heurística para empresas en pérdidas (modo general): extrapola la señal de
+        Valoración 12m (%) como tasa anual compuesta sobre 5 años sobre el precio actual.
+
+        ``precio_final ≈ precio_actual × (1 + valoracion_12m/100)^5``
+
+        No es un DCF ni un PER sobre EPS; solo coherencia interna con el PEGY ya mostrado
+        en Valoración 12m para rellenar target y rentas cuando EPS ≤ 0 (PEGY con blend
+        revenue+EPS vía ``general_loss_valoracion_12m``).
+        """
+        if precio_actual is None or valoracion_12m_pct is None:
+            return None
+        if precio_actual <= 0:
+            return None
+        r = valoracion_12m_pct / 100.0
+        base = 1.0 + r
+        if base <= 0:
+            return None
+        target = precio_actual * (base**5.0)
+        return round(target, 6)
     
     @staticmethod
     def calculate_rentabilidad_5yr(target_price: Optional[float], current_price: Optional[float], 
@@ -417,7 +446,12 @@ class WatchlistMetricsService:
             return 'red'
     
     @staticmethod
-    def update_all_metrics(watchlist_item: Watchlist, config: Optional[WatchlistConfig] = None, current_value_eur: Optional[float] = None) -> Watchlist:
+    def update_all_metrics(
+        watchlist_item: Watchlist,
+        config: Optional[WatchlistConfig] = None,
+        current_value_eur: Optional[float] = None,
+        asset=None,
+    ) -> Watchlist:
         """
         Actualiza todas las métricas calculadas de un item de watchlist
         
@@ -425,41 +459,113 @@ class WatchlistMetricsService:
             watchlist_item: Item de watchlist a actualizar
             config: Configuración del usuario (opcional, se obtiene si no se proporciona)
             current_value_eur: Valor actual invertido en EUR (opcional, para assets en cartera)
+            asset: Activo (opcional; por defecto ``watchlist_item.asset``). Usado para el modo de valoración.
         
         Returns:
             Watchlist item actualizado
         """
+        from app.services.valuation_mode_service import resolve_valuation_mode
         from app.services.watchlist_service import WatchlistService
         
         # Obtener configuración si no se proporciona
         if config is None:
             config = WatchlistService.get_or_create_config(watchlist_item.user_id)
-        
-        # 1. Calcular Target Price (5 yr)
-        target_price_5yr = WatchlistMetricsService.calculate_target_price_5yr(
-            watchlist_item.eps,
-            watchlist_item.cagr_revenue_yoy,
-            watchlist_item.per_ntm
+
+        eff_asset = asset if asset is not None else watchlist_item.asset
+        if eff_asset is not None and getattr(eff_asset, "current_price", None) is not None:
+            watchlist_item.precio_actual = float(eff_asset.current_price)
+        mode = resolve_valuation_mode(eff_asset, config)
+        logger.debug(
+            "watchlist metrics user=%s asset_id=%s valuation_mode=%s",
+            watchlist_item.user_id,
+            watchlist_item.asset_id,
+            mode,
         )
-        watchlist_item.target_price_5yr = target_price_5yr
-        
-        # 2. Calcular Valoración actual 12 meses (%)
-        # Fórmula PEGY: -((PER / (CAGR% + Dividend Yield%)) - 1) * 100
-        valoracion_12m = WatchlistMetricsService.calculate_valoracion_12m(
-            watchlist_item.per_ntm,
-            watchlist_item.ntm_dividend_yield,  # Se suma al denominador: (CAGR + Dividend Yield)
-            watchlist_item.cagr_revenue_yoy
-        )
-        watchlist_item.valoracion_12m = valoracion_12m
+        # Modo general: blend CAGR, PER fair terminal, target bruto + estilo B (plan §8–9).
+        # Modo banks / REIT: P/B + BVPS o FFO/AFFO + P/FFO y ajustes F_bank / F_RE (plan §13–14).
+        if mode == "general":
+            from app.services.watchlist_general_valuation import (
+                general_loss_valoracion_12m,
+                general_profitable_pipeline,
+            )
+
+            if watchlist_item.eps is not None and watchlist_item.eps <= 0:
+                # PEGY con blend revenue+EPS (misma filosofía que rentable); target 5y: extrapolación
+                # desde esa valoración sobre el precio (no EPS×(1+g)^5×PER con EPS negativo).
+                watchlist_item.target_price_5yr_gross = None
+                watchlist_item.valuation_adjustment_factor = None
+                watchlist_item.valoracion_12m = general_loss_valoracion_12m(watchlist_item)
+                watchlist_item.target_price_5yr = (
+                    WatchlistMetricsService.calculate_target_price_5yr_from_valoracion_extrapolation(
+                        watchlist_item.precio_actual,
+                        watchlist_item.valoracion_12m,
+                    )
+                )
+            elif watchlist_item.eps is None:
+                # Sin EPS: mismo PEGY que antes (solo CAGR revenue); target sigue sin calcular sin EPS.
+                watchlist_item.target_price_5yr_gross = None
+                watchlist_item.valuation_adjustment_factor = None
+                watchlist_item.valoracion_12m = WatchlistMetricsService.calculate_valoracion_12m(
+                    watchlist_item.per_ntm,
+                    watchlist_item.ntm_dividend_yield,
+                    watchlist_item.cagr_revenue_yoy,
+                )
+                watchlist_item.target_price_5yr = WatchlistMetricsService.calculate_target_price_5yr(
+                    watchlist_item.eps,
+                    watchlist_item.cagr_revenue_yoy,
+                    watchlist_item.per_ntm,
+                )
+            else:
+                valoracion_12m, bruto, f_fin, adj = general_profitable_pipeline(
+                    watchlist_item
+                )
+                watchlist_item.valoracion_12m = valoracion_12m
+                watchlist_item.target_price_5yr_gross = bruto
+                watchlist_item.valuation_adjustment_factor = (
+                    f_fin if bruto is not None else None
+                )
+                watchlist_item.target_price_5yr = adj
+        elif mode == "banks":
+            from app.services.watchlist_bank_valuation import bank_valuation_pipeline
+
+            v12, bruto, f_fin, adj = bank_valuation_pipeline(watchlist_item)
+            watchlist_item.valoracion_12m = v12
+            watchlist_item.target_price_5yr_gross = bruto
+            watchlist_item.valuation_adjustment_factor = (
+                f_fin if bruto is not None else None
+            )
+            watchlist_item.target_price_5yr = adj
+        elif mode == "realestate":
+            from app.services.watchlist_reit_valuation import reit_valuation_pipeline
+
+            v12, bruto, f_fin, adj = reit_valuation_pipeline(watchlist_item)
+            watchlist_item.valoracion_12m = v12
+            watchlist_item.target_price_5yr_gross = bruto
+            watchlist_item.valuation_adjustment_factor = (
+                f_fin if bruto is not None else None
+            )
+            watchlist_item.target_price_5yr = adj
+        else:
+            watchlist_item.target_price_5yr_gross = None
+            watchlist_item.valuation_adjustment_factor = None
+            target_price_5yr = WatchlistMetricsService.calculate_target_price_5yr(
+                watchlist_item.eps,
+                watchlist_item.cagr_revenue_yoy,
+                watchlist_item.per_ntm,
+            )
+            watchlist_item.target_price_5yr = target_price_5yr
+            valoracion_12m = WatchlistMetricsService.calculate_valoracion_12m(
+                watchlist_item.per_ntm,
+                watchlist_item.ntm_dividend_yield,
+                watchlist_item.cagr_revenue_yoy,
+            )
+            watchlist_item.valoracion_12m = valoracion_12m
         
         # 3. Calcular Tier
         tier_ranges = config.get_tier_ranges_dict()
-        tier = WatchlistMetricsService.calculate_tier(valoracion_12m, tier_ranges)
-        
-        # Debug: Log para verificar asignación de Tier
-        if valoracion_12m is not None and abs(valoracion_12m - 20.0) < 1.0:
-            print(f"DEBUG Tier: Asset {watchlist_item.asset_id}, Valoración={valoracion_12m:.6f}%, Tier asignado={tier}, Rangos={tier_ranges}")
-        
+        tier = WatchlistMetricsService.calculate_tier(
+            watchlist_item.valoracion_12m, tier_ranges
+        )
         watchlist_item.tier = tier
         
         # 4. Si hay Tier y cantidad invertida, calcular cantidad a aumentar/reducir e indicador basado en Tier
@@ -487,19 +593,19 @@ class WatchlistMetricsService:
                 watchlist_item.operativa_indicator = '-'
             watchlist_item.cantidad_aumentar_reducir = None
         
-        # 5. Calcular Rentabilidad a 5 años
+        # 5–6. Rentabilidades sobre target ajustado (general) o legacy (mismo campo)
+        tp = watchlist_item.target_price_5yr
         rentabilidad_5yr = WatchlistMetricsService.calculate_rentabilidad_5yr(
-            target_price_5yr,
+            tp,
             watchlist_item.precio_actual,
-            watchlist_item.ntm_dividend_yield
+            watchlist_item.ntm_dividend_yield,
         )
         watchlist_item.rentabilidad_5yr = rentabilidad_5yr
-        
-        # 6. Calcular Rentabilidad Anual
+
         rentabilidad_anual = WatchlistMetricsService.calculate_rentabilidad_anual(
-            target_price_5yr,
+            tp,
             watchlist_item.precio_actual,
-            watchlist_item.ntm_dividend_yield
+            watchlist_item.ntm_dividend_yield,
         )
         watchlist_item.rentabilidad_anual = rentabilidad_anual
         
