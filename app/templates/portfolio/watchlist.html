@@ -277,6 +277,9 @@
                     {% set vm = item.valuation_mode|default('general') %}
                     {% set vm_label = 'Banco' if vm == 'banks' else ('Real Estate / REIT' if vm == 'realestate' else 'General') %}
                     {% set wl_eps_loss = watchlist_item and watchlist_item.eps is not none and watchlist_item.eps <= 0 %}
+                    {% set wl_price_now = asset.current_price if asset.current_price is not none else (watchlist_item.precio_actual if watchlist_item else none) %}
+                    {% set wl_user_tgt = watchlist_item.user_price_target if watchlist_item else none %}
+                    {% set wl_tgt_hit = wl_user_tgt is not none and wl_user_tgt > 0 and wl_price_now is not none and wl_price_now >= wl_user_tgt %}
                     <tr class="wl-main-row hover:bg-teal-50/45 transition-colors" {% if watchlist_item %}data-watchlist-id="{{ watchlist_item.id }}"{% endif %}>
                         <!-- Nombre (con icono, symbol y país) -->
                         <td class="px-4 py-3">
@@ -289,6 +292,10 @@
                                 <a href="{{ url_for('portfolio.asset_detail', id=asset.id) }}" class="text-teal-800 hover:underline font-medium">
                                     {{ asset.name or asset.symbol or '—' }}
                                 </a>
+                                {% if wl_tgt_hit %}
+                                <span class="inline-flex items-center justify-center text-base leading-none select-none drop-shadow-sm" role="img" aria-label="Objetivo de precio alcanzado o superado"
+                                    title="Precio actual {{ wl_price_now|decimal_eu(2) }}{% if asset.currency %} {{ asset.currency }}{% endif %} ≥ tu objetivo {{ wl_user_tgt|decimal_eu(2) }}{% if asset.currency %} {{ asset.currency }}{% endif %}.">🎯</span>
+                                {% endif %}
                                 {% if wl_eps_loss %}
                                 <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-amber-50 text-amber-900 border border-amber-200/90"
                                     title="{% if vm == 'general' %}EPS negativo o cero. Target 5y y rentas se calculan extrapolando la Valoración 12m cinco años (heurística; no hay proyección de beneficio).{% else %}EPS negativo o cero. El motor de valoración sigue el modo {{ vm_label }}; revisa inputs del modo.{% endif %}">Pérdidas</span>
