@@ -1125,6 +1125,48 @@ function selectPeriod(months, btn) {
     evolutionChart.update();
 }
 
+// Orden del dashboard: fetch normal se puede abortar al recargar; keepalive + pagehide lo evitan.
+const DASHBOARD_LAYOUT_PERSIST_URL = {{ url_for("main.dashboard_layout") | tojson }};
+const DASHBOARD_LAYOUT_PERSIST_CSRF = {{ csrf_token() | tojson }};
+
+function persistDashboardLayoutFromDom() {
+    const wide = document.getElementById('sortable-widgets-wide');
+    const tail = document.getElementById('sortable-widgets-tail');
+    const normal = document.getElementById('sortable-widgets-normal');
+    if (!wide || !tail || !normal) return Promise.resolve();
+
+    const w = Array.from(wide.querySelectorAll('[data-card-id]')).map(function (c) { return c.dataset.cardId; }).filter(Boolean);
+    const t = Array.from(tail.querySelectorAll('[data-card-id]')).map(function (c) { return c.dataset.cardId; }).filter(Boolean);
+    const n = Array.from(normal.querySelectorAll('[data-card-id]')).map(function (c) { return c.dataset.cardId; }).filter(Boolean);
+
+    try {
+        localStorage.setItem('dashboard_card_order_wide', JSON.stringify(w));
+        localStorage.setItem('dashboard_card_order_tail', JSON.stringify(t));
+        localStorage.setItem('dashboard_card_order_normal', JSON.stringify(n));
+    } catch (e) { /* ignore */ }
+
+    try {
+        return fetch(DASHBOARD_LAYOUT_PERSIST_URL, {
+            method: 'POST',
+            credentials: 'same-origin',
+            keepalive: true,
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': DASHBOARD_LAYOUT_PERSIST_CSRF
+            },
+            body: JSON.stringify({ wide: w, tail: t, normal: n })
+        }).catch(function () {});
+    } catch (e) {
+        return Promise.resolve();
+    }
+}
+
+window.addEventListener('pagehide', function () {
+    if (document.getElementById('sortable-widgets-wide')) {
+        persistDashboardLayoutFromDom();
+    }
+});
+
 function dashboardConfig() {
     return {
         showConfig: false,
@@ -1301,30 +1343,7 @@ function dashboardConfig() {
         },
         
         async saveWidgetOrder() {
-            const wide = document.getElementById('sortable-widgets-wide');
-            const tail = document.getElementById('sortable-widgets-tail');
-            const normal = document.getElementById('sortable-widgets-normal');
-            if (!wide || !tail || !normal) return;
-
-            const w = Array.from(wide.querySelectorAll('[data-card-id]')).map(c => c.dataset.cardId).filter(Boolean);
-            const t = Array.from(tail.querySelectorAll('[data-card-id]')).map(c => c.dataset.cardId).filter(Boolean);
-            const n = Array.from(normal.querySelectorAll('[data-card-id]')).map(c => c.dataset.cardId).filter(Boolean);
-
-            localStorage.setItem('dashboard_card_order_wide', JSON.stringify(w));
-            localStorage.setItem('dashboard_card_order_tail', JSON.stringify(t));
-            localStorage.setItem('dashboard_card_order_normal', JSON.stringify(n));
-
-            try {
-                await fetch(this._layoutEndpoint, {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': '{{ csrf_token() }}'
-                    },
-                    body: JSON.stringify({ wide: w, tail: t, normal: n })
-                });
-            } catch (e) { /* ignore */ }
+            await persistDashboardLayoutFromDom();
         },
 
         closeHealthModal() {
