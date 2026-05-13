@@ -3,13 +3,31 @@
 {% block title %}Watchlist - FollowUp{% endblock %}
 
 {% block content %}
+{# Tooltip TIKR (ⓘ); title escapado para HTML #}
+{% macro wl_tikr_i(title) -%}
+<span class="cursor-help text-slate-400 shrink-0 select-none text-[11px] leading-none" role="note" title="{{ title|e }}" tabindex="0" onclick="event.stopPropagation()">ⓘ</span>
+{%- endmacro %}
+{% set tikr_cagr_fechas %}Convención (preferente, referencia en tres años t+1, t y t−1: estimado / último cerrado / previo): t = último año fiscal cerrado o publicado; t−1 = anterior; t+1 = primera columna estimada en TIKR. CAGR 2 años entre el valor en t−1 y el valor en t+1: ((V(t+1)/V(t−1))^(1/2)−1)×100. Si no hay columna t+1: entre t y t−2. Si no aplica: entre t y t−3 (CAGR 3 años, solo actuales).{% endset %}
+{% set tikr_per_ntm %}TIKR → Multiples → Forward Multiples → fila «NTM Price / Normalized Earnings (P/E)». Columna con la fecha más reciente al copiar.{% endset %}
+{% set tikr_eps_ntm %}TIKR → Multiples → Forward Factors → «NTM Normalized Earnings Per Share». Alinear fecha y base (GAAP/normalized) con el PER NTM.{% endset %}
+{% set tikr_div_ntm %}TIKR → Multiples → Forward Multiples → «NTM Dividend Yield». Misma fecha que otros NTM. En FollowUp el % es número (2,5 = 2,5%).{% endset %}
+{% set tikr_cagr_revenue_full %}TIKR → Income Statement → «Total Revenues». {{ tikr_cagr_fechas }}{% endset %}
+{% set tikr_cagr_eps_full %}TIKR → Income Statement → Supplementary → «Diluted EPS Excl Extra Items» (o «EPS Normalized» en Actuals & Forward Estimates). {{ tikr_cagr_fechas }}{% endset %}
+{% set tikr_net_debt %}TIKR → Ratios → Long-Term Solvency → «Net Debt / EBITDA». LTM o último año según convengas.{% endset %}
+{% set tikr_fcf_margin %}TIKR → Ratios → Margin analysis → «Levered Free Cash Flow Margin %», columna LTM. Con el margen BN LTM siguiente deriva FCF/BN si no pones ratio manual.{% endset %}
+{% set tikr_ni_margin %}TIKR → Ratios → Margin analysis → «Normalized Net Income Margin %», columna LTM.{% endset %}
+{% set tikr_fcf_bn %}TIKR no suele mostrar este ratio en una sola fila: úsalo si no tienes los dos márgenes LTM de arriba; alternativa coherente Levered Free Cash Flow ÷ beneficio neto del mismo periodo (Cash Flow vs Income Statement).{% endset %}
+{% set tikr_ebitda_m %}TIKR → Ratios → Margin analysis → «EBITDA Margin %» (alternativa: Income Statement → «% EBITDA Margins»).{% endset %}
+{% set tikr_op_m %}TIKR → Ratios → Margin analysis → «EBIT Margin %» (alternativa: Income Statement → «% EBIT Margins»).{% endset %}
+{% set tikr_roic %}TIKR → Ratios → Return ratios → «Return on Capital % (ROC)» (proxy cercano a ROIC; revisa definición en TIKR). Columna LTM.{% endset %}
+{% set tikr_fcf_bn_modal %}{{ tikr_fcf_bn }} Uso en FollowUp: solo si faltan los dos márgenes LTM anteriores o el margen BN es ~0; si ambos márgenes son válidos, la app usa su cociente y este ratio se ignora.{% endset %}
 {# Celda de solo lectura: inputs manuales con origen IA vs usuario #}
-{% macro wl_manual_cell(wl, key, label, kind='num') -%}
+{% macro wl_manual_cell(wl, key, label, kind='num', tikr=None) -%}
 {% if wl %}
 {% set src = wl.get_manual_field_source(key) %}
 {% set raw = wl|model_attr(key) %}
 <div class="min-w-0 break-words">
-    <div class="text-[11px] font-medium text-slate-500 leading-snug">{{ label }}</div>
+    <div class="text-[11px] font-medium text-slate-500 leading-snug flex items-center gap-1 flex-wrap"><span>{{ label }}</span>{% if tikr %}{{ wl_tikr_i(tikr) }}{% endif %}</div>
     <div class="text-sm tabular-nums mt-0.5 {% if src == 'ai' %}watchlist-val-ai{% elif src == 'user' %}watchlist-val-user{% else %}text-slate-600{% endif %}">
         {% if kind == 'date' %}
             {% if raw %}{{ raw.strftime('%Y-%m-%d') }}{% else %}—{% endif %}
@@ -45,7 +63,7 @@
     {% endif %}
 {% endif %}
 <div class="min-w-0 break-words">
-    <div class="text-[11px] font-medium text-slate-500 leading-snug">FCF / BN (ratio; alternativa si no están ambos: Levered Free Cash Flow Margin % (LTM) y Normalized Net Income Margin % (LTM))</div>
+    <div class="text-[11px] font-medium text-slate-500 leading-snug flex items-center gap-1 flex-wrap"><span>FCF / BN (ratio; alternativa si no están ambos: Levered Free Cash Flow Margin % (LTM) y Normalized Net Income Margin % (LTM))</span>{{ wl_tikr_i(tikr_fcf_bn) }}</div>
     <div class="text-sm tabular-nums mt-0.5 {% if raw is not none %}{% if src == 'ai' %}watchlist-val-ai{% elif src == 'user' %}watchlist-val-user{% else %}text-slate-600{% endif %}{% elif derived is not none %}text-slate-600 italic{% else %}text-slate-600{% endif %}">
         {% if raw is not none %}
             {{ raw|decimal_eu(2) }}
@@ -600,28 +618,28 @@
                                 </div>
                                 {{ wl_manual_cell(watchlist_item, 'next_earnings_date', 'Fecha próximos resultados', 'date') }}
                                 {% if vm != 'realestate' %}
-                                {{ wl_manual_cell(watchlist_item, 'per_ntm', 'PER NTM', 'num') }}
+                                {{ wl_manual_cell(watchlist_item, 'per_ntm', 'PER NTM', 'num', tikr_per_ntm) }}
                                 {% endif %}
-                                {{ wl_manual_cell(watchlist_item, 'ntm_dividend_yield', 'Div. yield NTM', 'pct') }}
+                                {{ wl_manual_cell(watchlist_item, 'ntm_dividend_yield', 'Div. yield NTM', 'pct', tikr_div_ntm) }}
                                 {% if vm == 'general' %}
-                                {{ wl_manual_cell(watchlist_item, 'eps', 'EPS NTM', 'num4') }}
-                                {{ wl_manual_cell(watchlist_item, 'cagr_revenue_yoy', 'CAGR ingresos 2–3y', 'pct') }}
+                                {{ wl_manual_cell(watchlist_item, 'eps', 'EPS NTM', 'num4', tikr_eps_ntm) }}
+                                {{ wl_manual_cell(watchlist_item, 'cagr_revenue_yoy', 'CAGR ingresos 2–3y', 'pct', tikr_cagr_revenue_full) }}
                                 {% elif vm == 'banks' %}
-                                {{ wl_manual_cell(watchlist_item, 'eps', 'EPS NTM', 'num4') }}
+                                {{ wl_manual_cell(watchlist_item, 'eps', 'EPS NTM', 'num4', tikr_eps_ntm) }}
                                 {% endif %}
                                 {% if vm == 'general' %}
                                 <div class="sm:col-span-2 lg:col-span-3 xl:col-span-5 mt-2">
                                     <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wide mb-2 border-b border-slate-200 pb-1">Modo general — precisión y calidad</h4>
                                 </div>
                                 {{ wl_manual_cell(watchlist_item, 'per_fair', 'PER fair', 'num') }}
-                                {{ wl_manual_cell(watchlist_item, 'cagr_eps_yoy', 'CAGR EPS 2–3y', 'pct') }}
-                                {{ wl_manual_cell(watchlist_item, 'net_debt_to_ebitda', 'Net debt / EBITDA', 'num') }}
-                                {{ wl_manual_cell(watchlist_item, 'fcf_margin_pct', 'Levered Free Cash Flow Margin % (LTM, TIKR)', 'pct') }}
-                                {{ wl_manual_cell(watchlist_item, 'net_income_margin_pct', 'Normalized Net Income Margin % (LTM, TIKR)', 'pct') }}
+                                {{ wl_manual_cell(watchlist_item, 'cagr_eps_yoy', 'CAGR EPS 2–3y', 'pct', tikr_cagr_eps_full) }}
+                                {{ wl_manual_cell(watchlist_item, 'net_debt_to_ebitda', 'Net debt / EBITDA', 'num', tikr_net_debt) }}
+                                {{ wl_manual_cell(watchlist_item, 'fcf_margin_pct', 'Levered Free Cash Flow Margin % (LTM, TIKR)', 'pct', tikr_fcf_margin) }}
+                                {{ wl_manual_cell(watchlist_item, 'net_income_margin_pct', 'Normalized Net Income Margin % (LTM, TIKR)', 'pct', tikr_ni_margin) }}
                                 {{ wl_fcf_bn_ratio_cell(watchlist_item) }}
-                                {{ wl_manual_cell(watchlist_item, 'ebitda_margin_pct', 'Margen EBITDA', 'pct') }}
-                                {{ wl_manual_cell(watchlist_item, 'operating_margin_pct', 'Margen operativo', 'pct') }}
-                                {{ wl_manual_cell(watchlist_item, 'roic_pct', 'ROIC', 'pct') }}
+                                {{ wl_manual_cell(watchlist_item, 'ebitda_margin_pct', 'Margen EBITDA', 'pct', tikr_ebitda_m) }}
+                                {{ wl_manual_cell(watchlist_item, 'operating_margin_pct', 'Margen operativo', 'pct', tikr_op_m) }}
+                                {{ wl_manual_cell(watchlist_item, 'roic_pct', 'ROIC', 'pct', tikr_roic) }}
                                 {% endif %}
                                 {% if vm == 'banks' %}
                                 <div class="sm:col-span-2 lg:col-span-3 xl:col-span-5 mt-2">
@@ -1067,59 +1085,59 @@
                         <input type="date" id="editNextEarningsDate" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500">
                     </div>
                     <div id="editRowNucleusPerNtm">
-                        <label class="block text-sm font-medium text-slate-700 mb-1">PER NTM (P/E forward 12m)</label>
-                        <input type="number" step="0.01" id="editPerNtm" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500" title="Mismo convenio que tu fuente de datos (NTM)">
+                        <label class="block text-sm font-medium text-slate-700 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">PER NTM (P/E forward 12m){{ wl_tikr_i(tikr_per_ntm) }}</span></label>
+                        <input type="number" step="0.01" id="editPerNtm" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500">
                     </div>
                     <div id="editRowPerFair">
                         <label class="block text-sm font-medium text-slate-700 mb-1">PER fair (opcional, objetivo a 5y si lo rellenas)</label>
                         <input type="number" step="0.01" id="editPerFair" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-1">Dividend yield NTM (%)</label>
+                        <label class="block text-sm font-medium text-slate-700 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">Dividend yield NTM (%)</span>{{ wl_tikr_i(tikr_div_ntm) }}</label>
                         <input type="number" step="0.01" id="editNtmDividendYield" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500" title="Porcentaje como número (ej. 3,25 → 3.25)">
                     </div>
                     <div id="editRowNucleusEps">
-                        <label class="block text-sm font-medium text-slate-700 mb-1">EPS NTM (GAAP o convención de tu fuente)</label>
+                        <label class="block text-sm font-medium text-slate-700 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">EPS NTM (GAAP o convención de tu fuente){{ wl_tikr_i(tikr_eps_ntm) }}</span></label>
                         <input type="number" step="0.01" id="editEps" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500" title="Debe cuadrar con el PER NTM (misma base). No es FFO: en REIT usa los campos FFO/AFFO en el bloque REIT.">
                     </div>
                     <div id="editRowNucleusCagrRevenue">
-                        <label class="block text-sm font-medium text-slate-700 mb-1">CAGR ingresos 2–3 años YoY (%)</label>
+                        <label class="block text-sm font-medium text-slate-700 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">CAGR ingresos 2–3 años YoY (%)</span>{{ wl_tikr_i(tikr_cagr_revenue_full) }}</label>
                         <input type="number" step="0.01" id="editCagrRevenueYoy" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500" title="Crecimiento anual compuesto de ventas; modo general lo mezcla con CAGR EPS si existe">
                     </div>
                     <div id="editRowNucleusCagrEps">
-                        <label class="block text-sm font-medium text-slate-700 mb-1">CAGR EPS YoY (%)</label>
+                        <label class="block text-sm font-medium text-slate-700 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">CAGR EPS YoY (%)</span>{{ wl_tikr_i(tikr_cagr_eps_full) }}</label>
                         <input type="number" step="0.01" id="editCagrEpsYoy" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500" title="Si falta, PEGY y target usan solo el CAGR de ingresos">
                     </div>
                     <details id="editDetailsGeneralPrecision" class="rounded-xl border border-slate-200/90 bg-white/60 px-3 py-2">
                         <summary class="cursor-pointer text-sm font-medium text-slate-800 select-none">Precisión y calidad (ajuste estilo B, opcional)</summary>
                         <div class="space-y-3 mt-3 pb-1">
                             <div>
-                                <label class="block text-xs font-medium text-slate-600 mb-1">Net debt / EBITDA (×)</label>
+                                <label class="block text-xs font-medium text-slate-600 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">Net debt / EBITDA (×)</span>{{ wl_tikr_i(tikr_net_debt) }}</label>
                                 <input type="number" step="0.01" id="editNetDebtEbitda" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
                             </div>
                             <div>
-                                <label class="block text-xs font-medium text-slate-600 mb-1">Levered Free Cash Flow Margin % (LTM)</label>
-                                <input type="number" step="0.01" id="editFcfMarginPct" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500" title="TIKR.com → pestaña Ratios → Margin analysis: fila «Levered Free Cash Flow Margin %», columna LTM. Mismo convenio % que el resto de la watchlist (ej. 7,3 = 7,3%). Con el margen de BN LTM de la fila siguiente deriva FCF/BN para el ajuste estilo B.">
+                                <label class="block text-xs font-medium text-slate-600 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">Levered Free Cash Flow Margin % (LTM)</span>{{ wl_tikr_i(tikr_fcf_margin ~ ' Mismo convenio % que el resto de la watchlist (ej. 7,3 = 7,3%).') }}</label>
+                                <input type="number" step="0.01" id="editFcfMarginPct" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
                             </div>
                             <div>
-                                <label class="block text-xs font-medium text-slate-600 mb-1">Normalized Net Income Margin % (LTM)</label>
-                                <input type="number" step="0.01" id="editNetIncomeMarginPct" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500" title="TIKR.com → Ratios → Margin analysis: fila «Normalized Net Income Margin %», columna LTM. Si ambos márgenes LTM están rellenos, FCF/BN ≈ Levered FCF margin / Normalized NI margin; si no, usa el ratio manual debajo.">
+                                <label class="block text-xs font-medium text-slate-600 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">Normalized Net Income Margin % (LTM)</span>{{ wl_tikr_i(tikr_ni_margin ~ ' Si ambos márgenes LTM están rellenos, FCF/BN ≈ Levered FCF margin / Normalized NI margin; si no, usa el ratio manual debajo.') }}</label>
+                                <input type="number" step="0.01" id="editNetIncomeMarginPct" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
                             </div>
                             <div>
-                                <label class="block text-xs font-medium text-slate-600 mb-1">FCF / Beneficio neto (ratio)</label>
+                                <label class="block text-xs font-medium text-slate-600 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">FCF / Beneficio neto (ratio)</span>{{ wl_tikr_i(tikr_fcf_bn_modal) }}</label>
                                 <p class="text-[10px] text-slate-500 mb-1.5 leading-snug">Alternativa si <strong>no</strong> tienes a la vez los dos campos de arriba: «Levered Free Cash Flow Margin % (LTM)» y «Normalized Net Income Margin % (LTM)».</p>
-                                <input type="number" step="0.01" id="editFcfNetIncome" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500" title="Solo se usa en el ajuste estilo B cuando falta alguno de los dos campos anteriores (Levered Free Cash Flow Margin % LTM y Normalized Net Income Margin % LTM) o el margen de BN es ~0. Si ambos márgenes son válidos, la app usa su cociente y este ratio se ignora.">
+                                <input type="number" step="0.01" id="editFcfNetIncome" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
                             </div>
                             <div>
-                                <label class="block text-xs font-medium text-slate-600 mb-1">Margen EBITDA (%)</label>
+                                <label class="block text-xs font-medium text-slate-600 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">Margen EBITDA (%)</span>{{ wl_tikr_i(tikr_ebitda_m) }}</label>
                                 <input type="number" step="0.01" id="editEbitdaMargin" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
                             </div>
                             <div>
-                                <label class="block text-xs font-medium text-slate-600 mb-1">Margen operativo (%)</label>
+                                <label class="block text-xs font-medium text-slate-600 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">Margen operativo (%)</span>{{ wl_tikr_i(tikr_op_m) }}</label>
                                 <input type="number" step="0.01" id="editOpMargin" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
                             </div>
                             <div>
-                                <label class="block text-xs font-medium text-slate-600 mb-1">ROIC (%)</label>
+                                <label class="block text-xs font-medium text-slate-600 mb-1"><span class="inline-flex items-center gap-1 flex-wrap">ROIC (%)</span>{{ wl_tikr_i(tikr_roic) }}</label>
                                 <input type="number" step="0.01" id="editRoicPct" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
                             </div>
                         </div>
