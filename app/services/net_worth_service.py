@@ -855,10 +855,18 @@ def get_full_net_worth_history(user_id: int) -> Dict[str, Any]:
     }
 
 
-def get_net_worth_projection(user_id: int, years: List[int] = [1, 3, 5]) -> Dict[str, Any]:
+def get_net_worth_projection(
+    user_id: int,
+    years: List[int] = [1, 3, 5],
+    *,
+    net_worth_now: Optional[float] = None,
+) -> Dict[str, Any]:
     """
     Proyección del patrimonio neto basada en tendencia histórica.
     Usa regresión lineal sobre el histórico de cash + tasa de ahorro.
+
+    Si ``net_worth_now`` viene del desglose ya calculado, se evita un
+    ``get_total_net_worth`` duplicado (misma ruta que ``get_net_worth_breakdown``).
     """
     from app.services.income_expense_aggregator import (
         get_income_monthly_totals_with_adjustment,
@@ -878,7 +886,10 @@ def get_net_worth_projection(user_id: int, years: List[int] = [1, 3, 5]) -> Dict
     avg_monthly_savings = np.mean(monthly_savings) if monthly_savings else 0
     
     # Patrimonio actual
-    current_net_worth = get_total_net_worth(user_id)
+    if net_worth_now is not None:
+        current_net_worth = float(net_worth_now)
+    else:
+        current_net_worth = get_total_net_worth(user_id)
     
     # Proyecciones por año
     projections = {}
@@ -1442,16 +1453,31 @@ def get_year_comparison(user_id: int) -> Dict[str, Any]:
     }
 
 
-def get_financial_health_score(user_id: int) -> Dict[str, Any]:
-    """Índice de salud financiera completo con análisis detallado."""
+def get_financial_health_score(
+    user_id: int,
+    *,
+    breakdown: Optional[Dict[str, Any]] = None,
+    history: Optional[List[Dict[str, Any]]] = None,
+    savings: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    Índice de salud financiera completo con análisis detallado.
+
+    Opcionalmente se pueden inyectar ``breakdown``, ``history`` (12 meses con
+    ``net_worth``) y ``savings`` ya calculados para evitar trabajo duplicado
+    en rutas como ``recompute_current_from_cache``.
+    """
     from app.services.income_expense_aggregator import (
         get_income_monthly_totals_with_adjustment,
         get_expense_monthly_totals_with_adjustment,
     )
     
-    savings = get_savings_rate(user_id, months=12)
-    breakdown = get_net_worth_breakdown(user_id)
-    history = get_net_worth_history(user_id, months=12)
+    if savings is None:
+        savings = get_savings_rate(user_id, months=12)
+    if breakdown is None:
+        breakdown = get_net_worth_breakdown(user_id)
+    if history is None:
+        history = get_net_worth_history(user_id, months=12)
     enabled_modules = {
         "finance": _user_has_module(user_id, "finance"),
         "stock": _user_has_module(user_id, "stock"),
@@ -2010,7 +2036,7 @@ def get_dashboard_summary(user_id: int) -> Dict[str, Any]:
     breakdown = get_net_worth_breakdown(user_id)
     history_block = _build_dashboard_history(user_id)
     history = history_block["history"]
-    projections = get_net_worth_projection(user_id)
+    projections = get_net_worth_projection(user_id, net_worth_now=breakdown["net_worth"])
     savings = get_savings_rate(user_id, months=12)
 
     # Detalles por categoría
@@ -2042,7 +2068,9 @@ def get_dashboard_summary(user_id: int) -> Dict[str, Any]:
         user_id, months=12
     )
     year_comparison = get_year_comparison(user_id)
-    health_score = get_financial_health_score(user_id)
+    health_score = get_financial_health_score(
+        user_id, breakdown=breakdown, history=history, savings=savings
+    )
     try:
         from app.services.recommendation_service import RecommendationService
         recommendations = RecommendationService.build_for_dashboard(user_id, health_score=health_score)

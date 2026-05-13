@@ -281,7 +281,9 @@ class DashboardSummaryCacheService:
 
         # Métricas derivadas de NOW (no tocan history_block)
         data["savings"] = nws.get_savings_rate(user_id, months=12)
-        data["projections"] = nws.get_net_worth_projection(user_id)
+        data["projections"] = nws.get_net_worth_projection(
+            user_id, net_worth_now=breakdown["net_worth"]
+        )
         data["income_expense_monthly"] = nws.get_income_expense_by_month(user_id, months=12)
         data["top_expenses"] = nws.get_top_expenses_month(user_id)
         data["upcoming_payments"] = nws.get_upcoming_payments(user_id)
@@ -289,7 +291,12 @@ class DashboardSummaryCacheService:
         data["recent_transactions"] = nws.get_recent_transactions(user_id)
         data["currency_exposure"] = nws.get_currency_exposure(user_id)
         data["year_comparison"] = nws.get_year_comparison(user_id)
-        data["health_score"] = nws.get_financial_health_score(user_id)
+        data["health_score"] = nws.get_financial_health_score(
+            user_id,
+            breakdown=breakdown,
+            history=history,
+            savings=data["savings"],
+        )
         perf_mark("recompute_current_from_cache", user_id, tick, "after_savings_through_health")
         try:
             from app.services.recommendation_service import RecommendationService
