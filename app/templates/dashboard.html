@@ -189,7 +189,7 @@
     {% set onboarding_popup = onboarding.show_next_step_popup|default(false) %}
     {% set onboarding_has_data = onboarding.has_economic_data|default(false) %}
     {% set onboarding_new_keys = (onboarding.newly_completed_milestones|default([]) | map(attribute='key') | list) %}
-    <div class="w-full px-4 sm:px-5 lg:px-6 py-6" x-data="dashboardConfig()" x-init="initSortable()">
+    <div class="w-full px-4 sm:px-5 lg:px-6 py-6" x-data="dashboardConfig()" x-init="$nextTick(() => initSortable())">
     
     {% if onboarding_has_data %}
     <!-- Header Patrimonio -->
@@ -1303,15 +1303,15 @@ function dashboardConfig() {
 
             const common = {
                 animation: 150,
-                handle: '.card-drag-handle',
                 ghostClass: 'sortable-ghost',
                 chosenClass: 'sortable-chosen',
                 emptyInsertThreshold: 120,
                 invertSwap: true,
                 swapThreshold: 0.65,
+                // Sin `handle`: se puede arrastrar desde la tarjeta; el filter evita capturar clics en controles.
+                // (Con handle solo en ⋮⋮ varios navegadores/Alpine daban sensación de "no arrastra".)
                 filter: 'a,button,input,textarea,select,option,label,[role="button"],[contenteditable="true"],canvas,.no-drag',
                 preventOnFilter: false,
-                // Al soltar se persiste de inmediato (fetch async; no hace falta esperar tras el drag).
                 onEnd: () => this.saveWidgetOrder()
             };
 
