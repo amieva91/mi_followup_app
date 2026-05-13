@@ -1202,11 +1202,7 @@ function dashboardConfig() {
         _hasServerLayout: false,
         _serverLayoutIds: new Set(),
         _layoutEndpoint: '{{ url_for("main.dashboard_layout") }}',
-        _layoutHydratedFromServer: {{ (
-            (dashboard_initial_layout.wide | length) +
-            (dashboard_initial_layout.tail | length) +
-            (dashboard_initial_layout.normal | length)
-        ) > 0 | tojson }},
+        _layoutHydratedFromServer: {{ (((dashboard_initial_layout.wide | length) + (dashboard_initial_layout.tail | length) + (dashboard_initial_layout.normal | length)) > 0) | tojson }},
         _serverLayoutIdsInitial: {{ (dashboard_initial_layout.wide + dashboard_initial_layout.tail + dashboard_initial_layout.normal) | tojson }},
         healthModalOpen: false,
         healthModalKey: null,
