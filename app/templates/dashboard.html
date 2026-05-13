@@ -65,11 +65,25 @@
         transform: translateY(-2px);
     }
     .card-drag-handle {
-        cursor: grab; opacity: 0.4; padding: 4px 8px; border-radius: 8px;
-        font-size: 11px; transition: opacity 0.2s, background 0.2s;
+        cursor: grab;
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 2.25rem;
+        min-height: 2.25rem;
+        padding: 6px 10px;
+        border-radius: 10px;
+        font-size: 12px;
+        line-height: 1;
+        opacity: 0.55;
+        touch-action: none;
+        -webkit-user-select: none;
+        user-select: none;
+        transition: opacity 0.2s, background 0.2s;
     }
-    .card-drag-handle:hover { opacity: 0.8; background: rgba(99,102,241,0.08); }
-    .card-drag-handle:active { cursor: grabbing; }
+    .card-drag-handle:hover { opacity: 0.95; background: rgba(99,102,241,0.1); }
+    .card-drag-handle:active { cursor: grabbing; opacity: 1; }
     .expand-btn {
         padding: 6px 12px; border-radius: 10px; font-size: 12px;
         transition: background 0.2s, color 0.2s;
@@ -1301,15 +1315,22 @@ function dashboardConfig() {
 
             if (typeof Sortable === 'undefined') return;
 
+            [wide, normal, tail].forEach((el) => {
+                const inst = Sortable.get(el);
+                if (inst) inst.destroy();
+            });
+
             const common = {
                 animation: 150,
+                handle: '.card-drag-handle',
+                delay: 0,
+                delayOnTouchOnly: true,
+                touchStartThreshold: 4,
                 ghostClass: 'sortable-ghost',
                 chosenClass: 'sortable-chosen',
                 emptyInsertThreshold: 120,
                 invertSwap: true,
                 swapThreshold: 0.65,
-                // Sin `handle`: se puede arrastrar desde la tarjeta; el filter evita capturar clics en controles.
-                // (Con handle solo en ⋮⋮ varios navegadores/Alpine daban sensación de "no arrastra".)
                 filter: 'a,button,input,textarea,select,option,label,[role="button"],[contenteditable="true"],canvas,.no-drag',
                 preventOnFilter: false,
                 onEnd: () => this.saveWidgetOrder()
