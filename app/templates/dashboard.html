@@ -1202,6 +1202,12 @@ function dashboardConfig() {
         _hasServerLayout: false,
         _serverLayoutIds: new Set(),
         _layoutEndpoint: '{{ url_for("main.dashboard_layout") }}',
+        _layoutHydratedFromServer: {{ (
+            (dashboard_initial_layout.wide | length) +
+            (dashboard_initial_layout.tail | length) +
+            (dashboard_initial_layout.normal | length)
+        ) > 0 | tojson }},
+        _serverLayoutIdsInitial: {{ (dashboard_initial_layout.wide + dashboard_initial_layout.tail + dashboard_initial_layout.normal) | tojson }},
         healthModalOpen: false,
         healthModalKey: null,
         healthModalTitle: '',
@@ -1259,14 +1265,17 @@ function dashboardConfig() {
                 if (el) container.appendChild(el);
             });
         },
-        async loadWidgetOrderFromServer() {
+        async loadWidgetOrderFromServer(options) {
+            const opts = options || {};
             const wide = document.getElementById('sortable-widgets-wide');
             const tail = document.getElementById('sortable-widgets-tail');
             const normal = document.getElementById('sortable-widgets-normal');
             if (!wide || !tail || !normal) return false;
 
             try {
-                const resp = await fetch(this._layoutEndpoint, { credentials: 'same-origin' });
+                const fetchOpts = { credentials: 'same-origin' };
+                if (opts.signal) fetchOpts.signal = opts.signal;
+                const resp = await fetch(this._layoutEndpoint, fetchOpts);
                 if (!resp.ok) return false;
                 const data = await resp.json();
                 const layout = data && data.layout ? data.layout : null;
@@ -1285,18 +1294,18 @@ function dashboardConfig() {
             }
         },
         async initSortable() {
-            // 1) Prefer server layout (multi-dispositivo). 2) Fallback a localStorage (migración).
-            const gotServer = await this.loadWidgetOrderFromServer();
-            if (!gotServer) {
-                this.loadWidgetOrder();
-            }
             const wide = document.getElementById('sortable-widgets-wide');
             const tail = document.getElementById('sortable-widgets-tail');
             const normal = document.getElementById('sortable-widgets-normal');
             if (!wide || !tail || !normal) return;
 
-            // Si la tarjeta de recomendaciones aparece por primera vez, ubicarla arriba del carril simple.
-            // A partir de ahí queda persistida y el usuario manda con drag&drop.
+            // Coherente con el HTML servido (script inline + BD): no bloquear Sortable esperando fetch.
+            this._serverLayoutIds = new Set(this._serverLayoutIdsInitial || []);
+            this._hasServerLayout = !!this._layoutHydratedFromServer;
+            if (!this._hasServerLayout) {
+                this.loadWidgetOrder();
+            }
+
             const recCard = normal.querySelector('[data-card-id="health_tips"]');
             if (recCard) {
                 const parseSaved = (k) => {
@@ -1309,7 +1318,7 @@ function dashboardConfig() {
                 const serverHasRecommendations = this._serverLayoutIds && this._serverLayoutIds.has('health_tips');
                 if (!localHasRecommendations && !serverHasRecommendations && normal.firstElementChild !== recCard) {
                     normal.prepend(recCard);
-                    try { await this.saveWidgetOrder(); } catch (e) { /* ignore */ }
+                    void this.saveWidgetOrder();
                 }
             }
 
@@ -1336,32 +1345,34 @@ function dashboardConfig() {
                 onEnd: () => this.saveWidgetOrder()
             };
 
-            // Restricción: el carril wide es exclusivo. Las simples pueden moverse entre "normal" y "tail".
             new Sortable(wide, { ...common, group: { name: 'lane-wide', pull: false, put: false } });
             new Sortable(normal, { ...common, group: { name: 'lane-simple', pull: true, put: ['lane-simple'] } });
             new Sortable(tail, { ...common, group: { name: 'lane-simple', pull: true, put: ['lane-simple'] } });
 
-            // Auto-balance solo “primera vez”: si no hay orden guardado, rellenar tail para igualar alturas.
             const hasAnySaved =
                 !!localStorage.getItem('dashboard_card_order_wide') ||
                 !!localStorage.getItem('dashboard_card_order_tail') ||
                 !!localStorage.getItem('dashboard_card_order_normal') ||
                 !!localStorage.getItem('dashboard_card_order');
 
-            // Si no hay layout en servidor pero sí en localStorage, migrarlo al servidor.
             if (!this._hasServerLayout && hasAnySaved) {
-                try { await this.saveWidgetOrder(); } catch (e) { /* ignore */ }
+                void this.saveWidgetOrder();
                 this._hasServerLayout = true;
             }
 
-            // Solo equilibrar columnas en cuentas sin ningún orden guardado (ni servidor ni local).
-            // Si ya hay layout en servidor, no tocar: antes esto rompía el orden tras F5 sin localStorage.
             if (!this._hasServerLayout && !hasAnySaved) {
                 const rebalance = () => this.autoBalanceTail();
                 setTimeout(rebalance, 300);
                 window.addEventListener('load', () => setTimeout(rebalance, 50), { once: true });
                 setTimeout(rebalance, 1200);
             }
+
+            const ac = new AbortController();
+            const tid = setTimeout(() => ac.abort(), 8000);
+            void this.loadWidgetOrderFromServer({ signal: ac.signal })
+                .finally(() => {
+                    clearTimeout(tid);
+                });
         },
         
         async saveConfig() {
