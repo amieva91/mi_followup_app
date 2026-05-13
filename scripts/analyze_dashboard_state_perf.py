@@ -18,8 +18,9 @@ from collections import defaultdict
 from typing import DefaultDict, List, Tuple
 
 # 2026-05-13 20:09:23,781 - followup.perf - INFO - [perf] route=... user_id=... step=... step_ms=... total_ms=...
+# route puede contener espacios (p. ej. "GET /dashboard/state")
 LINE_RE = re.compile(
-    r"\[perf\] route=(?P<route>\S+)\s+user_id=(?P<uid>\S+)\s+step=(?P<step>\S+)\s+"
+    r"\[perf\] route=(?P<route>.+?)\s+user_id=(?P<uid>\S+)\s+step=(?P<step>\S+)\s+"
     r"step_ms=(?P<sm>[\d.]+)\s+total_ms=(?P<tm>[\d.]+)"
 )
 
