@@ -127,8 +127,7 @@
                 </div>
                 <div class="flex items-center gap-2 flex-wrap sm:ml-auto sm:shrink-0">
                     <span class="text-xs text-gray-500">Frecuencia:</span>
-                    <div class="flex bg-gray-100 rounded-lg p-1" id="performanceFrequencyBar" role="group" aria-label="Frecuencia de los datos mostrados en los gráficos">
-                        <button type="button" class="period-btn perf-freq-btn px-3 py-1 text-xs font-medium rounded-md transition text-gray-600" data-frequency="daily">Diaria</button>
+                    <div class="flex bg-gray-100 rounded-lg p-1" id="performanceFrequencyBar" role="group" aria-label="Frecuencia de los datos mostrados en los gráficos (semanal o mensual)">
                         <button type="button" class="period-btn perf-freq-btn px-3 py-1 text-xs font-medium rounded-md transition text-gray-600" data-frequency="weekly">Semanal</button>
                         <button type="button" class="period-btn perf-freq-btn px-3 py-1 text-xs font-medium rounded-md transition bg-white shadow text-indigo-600" data-frequency="monthly">Mensual</button>
                     </div>
@@ -214,7 +213,7 @@
                         <button type="button" class="text-sm rounded-lg px-3 py-1.5 bg-slate-700 text-white font-semibold hover:bg-slate-800 shrink-0" @click="perfInfo = null; document.body.style.overflow = ''">Cerrar</button>
                     </div>
                     <div class="p-4 text-sm text-slate-700 overflow-y-auto">
-                        <p>Compara el <strong>valor de las posiciones</strong> (sin apalancamiento) con el <strong>capital invertido neto</strong> (depósitos − retiradas) a lo largo del tiempo. Puedes mostrar u ocultar cada serie con los interruptores bajo el gráfico, y cambiar la frecuencia (diaria, semanal, mensual) con el mismo criterio visual que en «Evolución del Patrimonio» del dashboard principal.</p>
+                        <p>Compara el <strong>valor de las posiciones</strong> (sin apalancamiento) con el <strong>capital invertido neto</strong> (depósitos − retiradas) a lo largo del tiempo. Puedes mostrar u ocultar cada serie con los interruptores bajo el gráfico, y cambiar la frecuencia (semanal o mensual) con el mismo criterio visual que en «Evolución del Patrimonio» del dashboard principal.</p>
                     </div>
                 </div>
             </template>

@@ -5,7 +5,7 @@ Servicio de caché HIST/NOW para:
 Objetivo:
 1) Rebuild completo (HIST) solo cuando cambia "pasado" (transacciones de fechas pasadas, etc.)
 2) Recalcular solo el tramo actual (NOW) cuando cambia "hoy", y hacerlo dentro del polling (~30s)
-3) Un único snapshot guarda daily + weekly + monthly para no reconstruir al cambiar frecuencia en la UI
+3) Un único snapshot guarda weekly + monthly (sin daily: demasiados puntos y rebuild muy lento)
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ from app.services.metrics.portfolio_evolution import PortfolioEvolutionService
 from app.services.metrics.portfolio_valuation import PortfolioValuation
 from app.services.metrics.modified_dietz import ModifiedDietzCalculator
 
-EVOLUTION_FREQUENCIES: tuple[str, ...] = ("daily", "weekly", "monthly")
+EVOLUTION_FREQUENCIES: tuple[str, ...] = ("weekly", "monthly")
 
 
 def _utc_iso_z(dt: datetime) -> str:
@@ -48,6 +48,9 @@ def _touch_meta_defaults(meta: dict[str, Any]) -> dict[str, Any]:
 def _normalize_frequency(frequency: str) -> str:
     if frequency in EVOLUTION_FREQUENCIES:
         return frequency
+    # daily retirada del producto Performance (coste); API antigua → weekly
+    if frequency == "daily":
+        return "weekly"
     return "weekly"
 
 
@@ -282,7 +285,7 @@ class PortfolioEvolutionCacheService:
 
     @staticmethod
     def _recompute_now_all(user_id: int, cached: dict[str, Any]) -> dict[str, Any]:
-        """Recalcula el último punto para daily, weekly y monthly."""
+        """Recalcula el último punto para weekly y monthly."""
         meta = _touch_meta_defaults(cached.get("meta") or {})
         today = datetime.now().date()
         current_end_date_str = today.strftime("%Y-%m-%d")
@@ -334,7 +337,7 @@ class PortfolioEvolutionCacheService:
     def get_state(user_id: int, frequency: str) -> dict:
         """
         Devuelve el snapshot evolution para la frecuencia pedida + meta.version para detectar cambios.
-        El almacenamiento interno mantiene daily/weekly/monthly juntos.
+        El almacenamiento interno mantiene weekly + monthly juntos.
         Serializado por usuario (flock) para no solapar rebuilds costosos entre tabs/polling/worker.
         """
         with _user_evolution_file_lock(user_id):

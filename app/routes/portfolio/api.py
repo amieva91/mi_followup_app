@@ -14,7 +14,7 @@ def api_evolution():
     from app.services.portfolio_evolution_cache import PortfolioEvolutionCacheService
 
     frequency = request.args.get('frequency', 'weekly')
-    if frequency not in ['daily', 'weekly', 'monthly']:
+    if frequency not in ['weekly', 'monthly', 'daily']:
         frequency = 'weekly'
 
     try:
