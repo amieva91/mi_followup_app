@@ -55,6 +55,8 @@ def dashboard():
             except Exception:
                 item["url"] = "#"
     
+    dashboard_initial_layout = UserDashboardLayout.get_layout_dict(current_user.id)
+
     return render_template(
         'dashboard.html',
         summary=summary,
@@ -65,7 +67,8 @@ def dashboard():
         enabled_widgets=enabled_widgets,
         default_widgets=DEFAULT_WIDGETS,
         current_month_name=now.strftime('%B'),
-        current_year=now.year
+        current_year=now.year,
+        dashboard_initial_layout=dashboard_initial_layout,
     )
 
 
@@ -387,18 +390,7 @@ def dashboard_layout():
     - POST: recibe {wide:[], tail:[], normal:[]} y persiste posiciones
     """
     if request.method == 'GET':
-        rows = (
-            UserDashboardLayout.query
-            .filter_by(user_id=current_user.id)
-            .order_by(UserDashboardLayout.lane.asc(), UserDashboardLayout.position.asc())
-            .all()
-        )
-        out = {'wide': [], 'tail': [], 'normal': []}
-        for r in rows:
-            lane = (r.lane or '').strip().lower()
-            if lane not in out:
-                continue
-            out[lane].append(r.card_id)
+        out = UserDashboardLayout.get_layout_dict(current_user.id)
         return jsonify({'success': True, 'layout': out}), 200
 
     data = request.get_json(silent=True) or {}

@@ -779,8 +779,8 @@
         {% endif %}
 
         <!-- Ingresos/Gastos medios por categoría (últimos 12 meses) -->
-        {% set expense_cats = (summary.expense_category_summary | default([]) | selectattr('average', 'defined') | selectattr('average', 'gt', 0) | list | sort(attribute='average', reverse=True))[:10] %}
-        {% set income_cats = (summary.income_category_summary | default([]) | selectattr('average', 'defined') | selectattr('average', 'gt', 0) | list | sort(attribute='average', reverse=True))[:10] %}
+        {% set expense_cats = (summary.expense_category_summary | default([]) | selectattr('average', 'defined') | selectattr('average', 'gt', 0) | list | sort(attribute='average', reverse=True))[:8] %}
+        {% set income_cats = (summary.income_category_summary | default([]) | selectattr('average', 'defined') | selectattr('average', 'gt', 0) | list | sort(attribute='average', reverse=True))[:8] %}
         {% if expense_cats or income_cats %}
         <div class="dashboard-card p-5" data-card-id="expense_by_category">
             <div class="flex items-center justify-between mb-2">
@@ -869,6 +869,32 @@
       </div>
     </div>
     </div><!-- Fin dashboard-lanes -->
+    {# Reordenación síncrona: evita parpadeo HTML-default → fetch Alpine #}
+    <script>
+    (function () {
+        var L = {{ dashboard_initial_layout | tojson }};
+        if (!L) return;
+        var hasAny = (L.wide && L.wide.length) || (L.tail && L.tail.length) || (L.normal && L.normal.length);
+        if (!hasAny) return;
+        function apply(container, order) {
+            if (!container || !order || !order.length) return;
+            var byId = {};
+            Array.prototype.forEach.call(container.querySelectorAll('[data-card-id]'), function (c) {
+                byId[c.getAttribute('data-card-id')] = c;
+            });
+            order.forEach(function (id) {
+                var el = byId[id];
+                if (el) container.appendChild(el);
+            });
+        }
+        var wide = document.getElementById('sortable-widgets-wide');
+        var tail = document.getElementById('sortable-widgets-tail');
+        var normal = document.getElementById('sortable-widgets-normal');
+        apply(wide, L.wide || []);
+        apply(tail, L.tail || []);
+        apply(normal, L.normal || []);
+    })();
+    </script>
     {% endif %}
 
     {# Empty state: evitar sensación de vacío para usuarios nuevos #}
@@ -1223,14 +1249,15 @@ function dashboardConfig() {
 
             const common = {
                 animation: 150,
+                handle: '.card-drag-handle',
                 ghostClass: 'sortable-ghost',
                 chosenClass: 'sortable-chosen',
                 emptyInsertThreshold: 120,
                 invertSwap: true,
                 swapThreshold: 0.65,
-                // Permite arrastrar desde el fondo de la tarjeta, pero respeta controles interactivos.
                 filter: 'a,button,input,textarea,select,option,label,[role="button"],[contenteditable="true"],canvas,.no-drag',
                 preventOnFilter: false,
+                // Al soltar se persiste de inmediato (fetch async; no hace falta esperar tras el drag).
                 onEnd: () => this.saveWidgetOrder()
             };
 
@@ -1252,9 +1279,10 @@ function dashboardConfig() {
                 this._hasServerLayout = true;
             }
 
-            if (!hasAnySaved) {
+            // Solo equilibrar columnas en cuentas sin ningún orden guardado (ni servidor ni local).
+            // Si ya hay layout en servidor, no tocar: antes esto rompía el orden tras F5 sin localStorage.
+            if (!this._hasServerLayout && !hasAnySaved) {
                 const rebalance = () => this.autoBalanceTail();
-                // esperar a que charts / fuentes ajusten alturas
                 setTimeout(rebalance, 300);
                 window.addEventListener('load', () => setTimeout(rebalance, 50), { once: true });
                 setTimeout(rebalance, 1200);
