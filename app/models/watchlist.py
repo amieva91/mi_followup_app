@@ -124,6 +124,8 @@ class Watchlist(db.Model):
     valoracion_12m = db.Column(db.Float)  # Valoración actual 12 meses (%)
     target_price_5yr = db.Column(db.Float)  # Target Price (5 yr)
     precio_actual = db.Column(db.Float)  # Precio actual (caché)
+    # Referencia opcional del usuario (misma divisa que la cotización); no la recalcula la app
+    user_price_target = db.Column(db.Float)
     
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)

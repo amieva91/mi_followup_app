@@ -545,10 +545,13 @@ def watchlist_get(watchlist_id):
         from app.services.watchlist_service import WatchlistService
 
         cfg = WatchlistService.get_or_create_config(current_user.id)
+        asset = watchlist_item.asset
         payload = {
             "id": watchlist_item.id,
             "asset_id": watchlist_item.asset_id,
-            "valuation_mode": resolve_valuation_mode(watchlist_item.asset, cfg),
+            "valuation_mode": resolve_valuation_mode(asset, cfg),
+            "user_price_target": watchlist_item.user_price_target,
+            "asset_currency": (asset.currency or "").strip() if asset else "",
         }
         for k in WATCHLIST_MANUAL_FIELD_KEYS:
             v = getattr(watchlist_item, k, None)
@@ -597,6 +600,23 @@ def watchlist_update(watchlist_id):
         # Verificar que pertenece al usuario actual
         if watchlist_item.user_id != current_user.id:
             return jsonify({'success': False, 'error': 'No autorizado'}), 403
+
+        if "user_price_target" in data:
+            raw_tp = data.get("user_price_target")
+            if raw_tp in (None, ""):
+                watchlist_item.user_price_target = None
+            else:
+                try:
+                    v_tp = float(raw_tp)
+                except (TypeError, ValueError):
+                    return jsonify(
+                        {"success": False, "error": "Precio objetivo personal no válido"}
+                    ), 400
+                if v_tp < 0 or v_tp > 1e12:
+                    return jsonify(
+                        {"success": False, "error": "Precio objetivo personal fuera de rango"}
+                    ), 400
+                watchlist_item.user_price_target = v_tp
 
         source_updates = {}
         for k in WATCHLIST_MANUAL_FIELD_KEYS:
