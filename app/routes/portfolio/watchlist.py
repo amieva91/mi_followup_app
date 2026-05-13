@@ -1062,7 +1062,7 @@ def watchlist_comments_list(watchlist_id):
         return jsonify({"success": False, "error": "No encontrado o no autorizado"}), 404
     rows = (
         WatchlistComment.query.filter_by(watchlist_id=watchlist_id)
-        .order_by(WatchlistComment.created_at.asc())
+        .order_by(WatchlistComment.created_at.desc())
         .all()
     )
     return jsonify({"success": True, "comments": [c.to_dict() for c in rows]})

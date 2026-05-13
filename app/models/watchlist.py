@@ -139,7 +139,7 @@ class Watchlist(db.Model):
         backref="watchlist",
         lazy="dynamic",
         cascade="all, delete-orphan",
-        order_by="WatchlistComment.created_at",
+        order_by="WatchlistComment.created_at.desc()",
     )
     
     # Constraint: Un usuario no puede tener el mismo asset dos veces en watchlist

@@ -1876,7 +1876,7 @@ async function submitWatchlistNewComment() {
         if (ta) ta.value = '';
         await refreshWatchlistCommentsList();
         const list = document.getElementById('watchlistCommentsList');
-        if (list) list.scrollTop = list.scrollHeight;
+        if (list) list.scrollTop = 0;
     } catch (e) {
         console.error(e);
         watchlistCommentsShowError('Error de red al guardar');
