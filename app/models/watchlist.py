@@ -132,6 +132,13 @@ class Watchlist(db.Model):
     # Relaciones
     user = db.relationship('User', backref=db.backref('watchlist_items', lazy=True))
     asset = db.relationship('Asset', backref=db.backref('watchlist_items', lazy=True))
+    comments = db.relationship(
+        "WatchlistComment",
+        backref="watchlist",
+        lazy="dynamic",
+        cascade="all, delete-orphan",
+        order_by="WatchlistComment.created_at",
+    )
     
     # Constraint: Un usuario no puede tener el mismo asset dos veces en watchlist
     __table_args__ = (
@@ -180,6 +187,35 @@ class Watchlist(db.Model):
             else:
                 cur[k] = val
         self.manual_field_sources = cur if cur else None
+
+
+class WatchlistComment(db.Model):
+    """
+    Comentarios tipo hilo (fecha/hora) por fila de watchlist; solo el propietario.
+    """
+
+    __tablename__ = "watchlist_comments"
+
+    id = db.Column(db.Integer, primary_key=True)
+    watchlist_id = db.Column(
+        db.Integer, db.ForeignKey("watchlist.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    body = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    user = db.relationship("User", backref=db.backref("watchlist_comments", lazy=True))
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "body": self.body,
+            "created_at": self.created_at.isoformat() + "Z" if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() + "Z" if self.updated_at else None,
+        }
 
 
 class WatchlistAiJob(db.Model):

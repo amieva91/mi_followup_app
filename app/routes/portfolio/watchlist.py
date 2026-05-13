@@ -8,7 +8,9 @@ from flask_login import login_required, current_user
 
 from app.routes import portfolio_bp
 from app import db, csrf
-from app.models import BrokerAccount, Asset, PortfolioHolding, Watchlist, AssetRegistry
+from app.models import BrokerAccount, Asset, PortfolioHolding, Watchlist, WatchlistComment, AssetRegistry
+
+WATCHLIST_COMMENT_MAX_LEN = 16000
 from app.services.currency_service import convert_to_eur
 
 
@@ -1023,6 +1025,92 @@ def watchlist_ai_job_status(job_id):
             )
 
     return jsonify(payload)
+
+
+def _watchlist_owned_or_404(watchlist_id: int):
+    wl = Watchlist.query.get(watchlist_id)
+    if not wl or wl.user_id != current_user.id:
+        return None
+    return wl
+
+
+@portfolio_bp.route("/watchlist/<int:watchlist_id>/comments", methods=["GET"])
+@login_required
+def watchlist_comments_list(watchlist_id):
+    wl = _watchlist_owned_or_404(watchlist_id)
+    if not wl:
+        return jsonify({"success": False, "error": "No encontrado o no autorizado"}), 404
+    rows = (
+        WatchlistComment.query.filter_by(watchlist_id=watchlist_id)
+        .order_by(WatchlistComment.created_at.asc())
+        .all()
+    )
+    return jsonify({"success": True, "comments": [c.to_dict() for c in rows]})
+
+
+@portfolio_bp.route("/watchlist/<int:watchlist_id>/comments", methods=["POST"])
+@login_required
+@csrf.exempt
+def watchlist_comments_create(watchlist_id):
+    wl = _watchlist_owned_or_404(watchlist_id)
+    if not wl:
+        return jsonify({"success": False, "error": "No encontrado o no autorizado"}), 404
+    data = request.get_json(silent=True) or {}
+    body = (data.get("body") or "").strip()
+    if not body:
+        return jsonify({"success": False, "error": "El comentario no puede estar vacío"}), 400
+    if len(body) > WATCHLIST_COMMENT_MAX_LEN:
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": f"Máximo {WATCHLIST_COMMENT_MAX_LEN} caracteres",
+                }
+            ),
+            400,
+        )
+    c = WatchlistComment(
+        watchlist_id=watchlist_id,
+        user_id=current_user.id,
+        body=body,
+    )
+    db.session.add(c)
+    db.session.commit()
+    return jsonify({"success": True, "comment": c.to_dict()})
+
+
+@portfolio_bp.route(
+    "/watchlist/<int:watchlist_id>/comments/<int:comment_id>", methods=["PATCH"]
+)
+@login_required
+@csrf.exempt
+def watchlist_comments_update(watchlist_id, comment_id):
+    wl = _watchlist_owned_or_404(watchlist_id)
+    if not wl:
+        return jsonify({"success": False, "error": "No encontrado o no autorizado"}), 404
+    c = WatchlistComment.query.filter_by(
+        id=comment_id, watchlist_id=watchlist_id
+    ).first()
+    if not c or c.user_id != current_user.id:
+        return jsonify({"success": False, "error": "Comentario no encontrado"}), 404
+    data = request.get_json(silent=True) or {}
+    body = (data.get("body") or "").strip()
+    if not body:
+        return jsonify({"success": False, "error": "El comentario no puede estar vacío"}), 400
+    if len(body) > WATCHLIST_COMMENT_MAX_LEN:
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": f"Máximo {WATCHLIST_COMMENT_MAX_LEN} caracteres",
+                }
+            ),
+            400,
+        )
+    c.body = body
+    c.updated_at = datetime.utcnow()
+    db.session.commit()
+    return jsonify({"success": True, "comment": c.to_dict()})
 
 
 @portfolio_bp.route('/watchlist/<int:watchlist_id>/reset-manual-fields', methods=['POST'])
