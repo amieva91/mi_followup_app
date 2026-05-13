@@ -13,6 +13,7 @@ from app.models import Expense, Income, UserDashboardConfig, UserDashboardLayout
 from app.services.dashboard_onboarding_service import DashboardOnboardingService
 from app.services.net_worth_service import get_dashboard_summary
 from app.services.price_polling_service import get_updated_asset_ids_for_user
+from app.utils.perf_timing import new_tick, perf_mark
 
 
 @main_bp.route('/')
@@ -27,20 +28,29 @@ def index():
 @login_required
 def dashboard():
     """Dashboard principal con resumen de patrimonio"""
+    tick = new_tick()
+    uid = current_user.id
+    perf_mark("GET /dashboard", uid, tick, "enter")
+
     from app.services.dashboard_summary_cache import DashboardSummaryCacheService
     summary = DashboardSummaryCacheService.get(current_user.id)
+    perf_mark("GET /dashboard", uid, tick, "summary_cache_get", hit=summary is not None)
     if summary is None:
         summary = get_dashboard_summary(current_user.id)
+        perf_mark("GET /dashboard", uid, tick, "get_dashboard_summary_full")
         DashboardSummaryCacheService.set(current_user.id, summary)
-    
-    # Obtener configuración de widgets del usuario
+        perf_mark("GET /dashboard", uid, tick, "summary_cache_set")
+
     widget_config = UserDashboardConfig.get_user_config(current_user.id)
+    perf_mark("GET /dashboard", uid, tick, "widget_config")
+
     enabled_widgets = UserDashboardConfig.get_enabled_widgets(current_user.id)
-    
-    # Datos adicionales para widgets específicos
+    perf_mark("GET /dashboard", uid, tick, "enabled_widgets")
+
     now = datetime.now()
 
     onboarding = DashboardOnboardingService.build_state(current_user)
+    perf_mark("GET /dashboard", uid, tick, "onboarding_build_state")
     for bucket in (
         "applicable_milestones",
         "initial_guide_milestones",
@@ -56,10 +66,12 @@ def dashboard():
                 item["url"] = url_for(endpoint, **kwargs) if endpoint else "#"
             except Exception:
                 item["url"] = "#"
-    
-    dashboard_initial_layout = UserDashboardLayout.get_layout_dict(current_user.id)
+    perf_mark("GET /dashboard", uid, tick, "onboarding_urls")
 
-    return render_template(
+    dashboard_initial_layout = UserDashboardLayout.get_layout_dict(current_user.id)
+    perf_mark("GET /dashboard", uid, tick, "layout_dict")
+
+    html = render_template(
         'dashboard.html',
         summary=summary,
         onboarding=onboarding,
@@ -72,6 +84,8 @@ def dashboard():
         current_year=now.year,
         dashboard_initial_layout=dashboard_initial_layout,
     )
+    perf_mark("GET /dashboard", uid, tick, "render_template")
+    return html
 
 
 @main_bp.route('/dashboard/onboarding/ack', methods=['POST'])
@@ -220,27 +234,37 @@ def dashboard_state():
     cacheado — no reconstruye la serie histórica completa.
     Incluye updated_asset_ids si el cliente envía ?since= (ISO timestamp).
     """
+    tick = new_tick()
+    uid = current_user.id
+    perf_mark("GET /dashboard/state", uid, tick, "enter", since=request.args.get("since"))
+
     from datetime import timedelta
     from app.services.dashboard_summary_cache import DashboardSummaryCacheService
     from app.models.dashboard_summary_cache import DashboardSummaryCache
 
     c = DashboardSummaryCache.query.filter_by(user_id=current_user.id).first()
+    perf_mark("GET /dashboard/state", uid, tick, "cache_row_query", has_row=c is not None)
     if not c or not c.is_valid:
+        perf_mark("GET /dashboard/state", uid, tick, "exit_no_cache")
         return jsonify({'has_cache': False}), 200
 
     updated = DashboardSummaryCacheService.recompute_current_from_cache(current_user.id)
+    perf_mark("GET /dashboard/state", uid, tick, "recompute_current_from_cache", ok=updated is not None)
+
     if updated is None:
+        perf_mark("GET /dashboard/state", uid, tick, "exit_recompute_none")
         return jsonify({'has_cache': False}), 200
 
     cache = DashboardSummaryCacheService.get(current_user.id)
+    perf_mark("GET /dashboard/state", uid, tick, "cache_get_after_recompute")
     if cache is None:
+        perf_mark("GET /dashboard/state", uid, tick, "exit_cache_none")
         return jsonify({'has_cache': False}), 200
 
     meta = (cache.get('meta') or {}).copy()
     meta['_from_cache'] = cache.get('_from_cache', False)
     meta['_cached_at'] = cache.get('_cached_at')
 
-    # updated_asset_ids: IDs actualizados desde el último poll del cliente
     updated_asset_ids = []
     since_param = request.args.get('since')
     if since_param:
@@ -252,10 +276,17 @@ def dashboard_state():
         except (ValueError, TypeError):
             pass
     else:
-        # Sin since: últimos 2 min por defecto (primera carga)
         since = datetime.utcnow() - timedelta(minutes=2)
         updated_asset_ids = get_updated_asset_ids_for_user(current_user.id, since)
+    perf_mark(
+        "GET /dashboard/state",
+        uid,
+        tick,
+        "price_updates_since",
+        n_ids=len(updated_asset_ids),
+    )
 
+    perf_mark("GET /dashboard/state", uid, tick, "jsonify_response")
     return jsonify({
         'has_cache': True,
         'meta': meta,
@@ -393,7 +424,11 @@ def dashboard_layout():
       También acepta multipart/form (sendBeacon): csrf_token + layout (JSON string).
     """
     if request.method == 'GET':
+        tick = new_tick()
+        uid = current_user.id
+        perf_mark("GET /dashboard/layout", uid, tick, "enter")
         out = UserDashboardLayout.get_layout_dict(current_user.id)
+        perf_mark("GET /dashboard/layout", uid, tick, "layout_dict_query")
         return jsonify({'success': True, 'layout': out}), 200
 
     data = None

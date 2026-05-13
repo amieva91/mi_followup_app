@@ -7,6 +7,7 @@ import json
 from datetime import date, datetime, timezone
 from app import db
 from app.models.dashboard_summary_cache import DashboardSummaryCache
+from app.utils.perf_timing import new_tick, perf_mark
 
 
 def _make_json_serializable(obj):
@@ -233,7 +234,11 @@ class DashboardSummaryCacheService:
         Devuelve el diccionario cacheado actualizado, o None si no es posible
         (por ejemplo, si falta history).
         """
+        tick = new_tick()
+        perf_mark("recompute_current_from_cache", user_id, tick, "enter")
+
         cache = DashboardSummaryCache.query.filter_by(user_id=user_id).first()
+        perf_mark("recompute_current_from_cache", user_id, tick, "cache_row_loaded", has=bool(cache and cache.cached_data))
         if not cache or not cache.cached_data:
             return None
 
@@ -244,15 +249,19 @@ class DashboardSummaryCacheService:
         # delegar en get_dashboard_summary + set y salir.
         meta = dict(data.get("meta") or {})
         if meta.get("needs_full_rebuild"):
+            perf_mark("recompute_current_from_cache", user_id, tick, "needs_full_rebuild_start")
             from app.services import net_worth_service as nws
 
             summary = nws.get_dashboard_summary(user_id)
+            perf_mark("recompute_current_from_cache", user_id, tick, "needs_full_rebuild_get_summary_done")
             DashboardSummaryCacheService.set(user_id, summary)
+            perf_mark("recompute_current_from_cache", user_id, tick, "needs_full_rebuild_cache_set")
             return summary
 
         # Intentar obtener histórico desde history_block; si no, usar history plano
         history_block = data.get("history_block") or {}
         history = history_block.get("history") or data.get("history") or []
+        perf_mark("recompute_current_from_cache", user_id, tick, "history_resolved", n=len(history))
         if not history:
             return None
 
@@ -268,6 +277,7 @@ class DashboardSummaryCacheService:
         data["metales_details"] = nws.get_metales_details(user_id)
         data["real_estate_details"] = nws.get_real_estate_details(user_id)
         data["debt_details"] = nws.get_debt_details(user_id)
+        perf_mark("recompute_current_from_cache", user_id, tick, "after_breakdown_and_details")
 
         # Métricas derivadas de NOW (no tocan history_block)
         data["savings"] = nws.get_savings_rate(user_id, months=12)
@@ -280,6 +290,7 @@ class DashboardSummaryCacheService:
         data["currency_exposure"] = nws.get_currency_exposure(user_id)
         data["year_comparison"] = nws.get_year_comparison(user_id)
         data["health_score"] = nws.get_financial_health_score(user_id)
+        perf_mark("recompute_current_from_cache", user_id, tick, "after_savings_through_health")
         try:
             from app.services.recommendation_service import RecommendationService
             data["recommendations"] = RecommendationService.build_for_dashboard(
@@ -302,6 +313,7 @@ class DashboardSummaryCacheService:
 
         data["market_indices"] = get_market_indices_snapshot(user_id)
         data["commodities"] = nws.get_commodities_snapshot(user_id)
+        perf_mark("recompute_current_from_cache", user_id, tick, "after_recommendations_indices_commodities")
 
         # DAY % y EUR inversiones (NOW)
         # Importante: más abajo se reemplaza data["changes"] con current_block["changes"],
@@ -319,6 +331,8 @@ class DashboardSummaryCacheService:
             if isinstance(data.get("changes"), dict):
                 data["changes"]["day_pct"] = None
                 data["changes"]["day_eur"] = None
+
+        perf_mark("recompute_current_from_cache", user_id, tick, "after_day_change")
 
         # Solo actualizar el ÚLTIMO punto del histórico (mes actual / “ahora”) con el breakdown
         # recién calculado; el resto de meses permanece congelado (HIST).
@@ -365,6 +379,8 @@ class DashboardSummaryCacheService:
             current_block["changes"]["day_pct"] = day_pct
             current_block["changes"]["day_eur"] = day_eur
 
+        perf_mark("recompute_current_from_cache", user_id, tick, "after_align_last_history")
+
         # Actualizar metadatos y TTL:
         # - version/_now_cached_at: SOLO si cambió NOW (firma distinta).
         # - _cached_at: NO se toca aquí; representa la edad del HIST.
@@ -382,6 +398,8 @@ class DashboardSummaryCacheService:
         # Si lo actualizamos en cada recompute NOW (polling), el frontend siempre mostrará
         # "Actualizado hace menos de 1 min".
         cache.expires_at = DashboardSummaryCache.get_default_expiry()
+        perf_mark("recompute_current_from_cache", user_id, tick, "before_db_commit")
         db.session.commit()
+        perf_mark("recompute_current_from_cache", user_id, tick, "exit_ok")
 
         return data

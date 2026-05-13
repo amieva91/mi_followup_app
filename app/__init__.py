@@ -75,6 +75,12 @@ def create_app(config_name='default'):
         ))
         file_handler.setLevel(logging.INFO)
         app.logger.addHandler(file_handler)
+        # Logs de rendimiento dashboard ([perf]) en el mismo archivo
+        perf_logger = logging.getLogger("followup.perf")
+        perf_logger.setLevel(logging.INFO)
+        perf_logger.handlers.clear()
+        perf_logger.propagate = False
+        perf_logger.addHandler(file_handler)
     except (PermissionError, OSError):
         pass  # Fallback a solo consola si no hay permisos
     
