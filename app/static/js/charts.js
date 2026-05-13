@@ -467,7 +467,11 @@ let stalenessInterval = null;
 /** Frecuencia activa de los gráficos de /portfolio/performance (sync con UI y polling) */
 let evolutionFrequency = 'monthly';
 
+/** Cola: una sola petición /portfolio/api/evolution a la vez (evita backlog si el rebuild triple tarda mucho). */
+let evolutionChartsLoadChain = Promise.resolve();
+
 async function loadCharts(frequency, opts = {}) {
+    const run = async () => {
     try {
         const isPoll = !!opts.poll;
         const freq = (typeof frequency === 'string' && frequency.length) ? frequency : evolutionFrequency;
@@ -553,6 +557,9 @@ async function loadCharts(frequency, opts = {}) {
         document.getElementById('errorMessage').textContent = 
             'Error al cargar los gráficos: ' + error.message;
     }
+    };
+    evolutionChartsLoadChain = evolutionChartsLoadChain.catch(() => {}).then(() => run());
+    return evolutionChartsLoadChain;
 }
 
 /**

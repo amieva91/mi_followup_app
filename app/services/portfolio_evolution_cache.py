@@ -11,8 +11,10 @@ Objetivo:
 from __future__ import annotations
 
 import copy
+import os
+from contextlib import contextmanager
 from datetime import date, datetime, time, timezone
-from typing import Any
+from typing import Any, Iterator
 
 from app import db
 from app.models.portfolio_evolution_cache import PortfolioEvolutionCache
@@ -62,6 +64,35 @@ def _slice_response(evolution: dict[str, Any], meta: dict[str, Any]) -> dict[str
     return response
 
 
+@contextmanager
+def _user_evolution_file_lock(user_id: int) -> Iterator[None]:
+    """
+    Evita varias peticiones HTTP/worker en paralelo recalculando el mismo usuario
+    (rebuild triple = costoso). Misma ruta en Linux que el worker (fcntl + fichero).
+    """
+    try:
+        import fcntl
+    except ImportError:
+        yield
+        return
+
+    from flask import has_app_context, current_app
+
+    if not has_app_context():
+        yield
+        return
+
+    lock_dir = os.path.join(current_app.instance_path, "evolution_cache_locks")
+    os.makedirs(lock_dir, exist_ok=True)
+    lock_path = os.path.join(lock_dir, f"user_{user_id}.lock")
+    with open(lock_path, "a+", encoding="utf-8") as lf:
+        fcntl.flock(lf.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lf.fileno(), fcntl.LOCK_UN)
+
+
 class PortfolioEvolutionCacheService:
     @staticmethod
     def _extract_meta(cache_row: PortfolioEvolutionCache) -> dict[str, Any]:
@@ -107,40 +138,42 @@ class PortfolioEvolutionCacheService:
         if not any_past and not any_today:
             return
 
-        cache = PortfolioEvolutionCache.query.filter_by(user_id=user_id).first()
-        if not cache:
-            return
-
-        data = copy.deepcopy(cache.cached_data or {})
-        meta = _touch_meta_defaults(data.get("meta") or {})
-        if any_past:
-            meta["needs_full_rebuild"] = True
-            meta["dirty_now"] = False
-        elif any_today:
-            meta["dirty_now"] = True
-        data["meta"] = meta
-        cache.cached_data = data
-        db.session.commit()
+        with _user_evolution_file_lock(user_id):
+            cache = PortfolioEvolutionCache.query.filter_by(user_id=user_id).first()
+            if not cache:
+                return
+            data = copy.deepcopy(cache.cached_data or {})
+            meta = _touch_meta_defaults(data.get("meta") or {})
+            if any_past:
+                meta["needs_full_rebuild"] = True
+                meta["dirty_now"] = False
+            elif any_today:
+                meta["dirty_now"] = True
+            data["meta"] = meta
+            cache.cached_data = data
+            db.session.commit()
 
     @staticmethod
     def touch_for_prices_update(user_id: int) -> None:
         """Actualizar NOW por cambios en current_price (precios)."""
-        cache = PortfolioEvolutionCache.query.filter_by(user_id=user_id).first()
-        if not cache:
-            return
-        data = copy.deepcopy(cache.cached_data or {})
-        meta = _touch_meta_defaults(data.get("meta") or {})
-        meta["dirty_now"] = True
-        data["meta"] = meta
-        cache.cached_data = data
-        db.session.commit()
+        with _user_evolution_file_lock(user_id):
+            cache = PortfolioEvolutionCache.query.filter_by(user_id=user_id).first()
+            if not cache:
+                return
+            data = copy.deepcopy(cache.cached_data or {})
+            meta = _touch_meta_defaults(data.get("meta") or {})
+            meta["dirty_now"] = True
+            data["meta"] = meta
+            cache.cached_data = data
+            db.session.commit()
 
     @staticmethod
     def invalidate(user_id: int) -> None:
-        cache = PortfolioEvolutionCache.query.filter_by(user_id=user_id).first()
-        if cache:
-            db.session.delete(cache)
-            db.session.commit()
+        with _user_evolution_file_lock(user_id):
+            cache = PortfolioEvolutionCache.query.filter_by(user_id=user_id).first()
+            if cache:
+                db.session.delete(cache)
+                db.session.commit()
 
     @staticmethod
     def _bump_version(meta: dict[str, Any], now: datetime) -> None:
@@ -302,7 +335,13 @@ class PortfolioEvolutionCacheService:
         """
         Devuelve el snapshot evolution para la frecuencia pedida + meta.version para detectar cambios.
         El almacenamiento interno mantiene daily/weekly/monthly juntos.
+        Serializado por usuario (flock) para no solapar rebuilds costosos entre tabs/polling/worker.
         """
+        with _user_evolution_file_lock(user_id):
+            return PortfolioEvolutionCacheService._get_state_impl(user_id, frequency)
+
+    @staticmethod
+    def _get_state_impl(user_id: int, frequency: str) -> dict:
         frequency = _normalize_frequency(frequency)
         cached = None
         cache_row = PortfolioEvolutionCache.query.filter_by(user_id=user_id).first()
