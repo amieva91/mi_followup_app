@@ -1012,6 +1012,20 @@
         apply(wide, L.wide || []);
         apply(tail, L.tail || []);
         apply(normal, L.normal || []);
+        (function () {
+            var gs = document.querySelector('[data-card-id="global_strategy"]');
+            var w = document.getElementById('sortable-widgets-wide');
+            if (!gs || !w || gs.parentElement === w) return;
+            var health = w.querySelector('[data-card-id="health_score"]');
+            var evo = w.querySelector('[data-card-id="evolution_chart"]');
+            var ref = health || evo;
+            if (ref) {
+                if (ref.nextSibling) w.insertBefore(gs, ref.nextSibling);
+                else w.appendChild(gs);
+            } else {
+                w.prepend(gs);
+            }
+        })();
     })();
     </script>
     {% endif %}
@@ -1274,11 +1288,28 @@ function dashboardLayoutApplyOrder(container, order) {
     });
 }
 
+function reconcileGlobalStrategyWideLane() {
+    const gs = document.querySelector('[data-card-id="global_strategy"]');
+    const wide = document.getElementById('sortable-widgets-wide');
+    if (!gs || !wide || gs.parentElement === wide) return;
+    const health = wide.querySelector('[data-card-id="health_score"]');
+    const evo = wide.querySelector('[data-card-id="evolution_chart"]');
+    const ref = health || evo;
+    if (ref) {
+        if (ref.nextSibling) wide.insertBefore(gs, ref.nextSibling);
+        else wide.appendChild(gs);
+    } else {
+        wide.prepend(gs);
+    }
+}
+
 function persistDashboardLayoutFromDom() {
     const wide = document.getElementById('sortable-widgets-wide');
     const tail = document.getElementById('sortable-widgets-tail');
     const normal = document.getElementById('sortable-widgets-normal');
     if (!wide || !tail || !normal) return Promise.resolve();
+
+    reconcileGlobalStrategyWideLane();
 
     const w = Array.from(wide.querySelectorAll(':scope > [data-card-id]')).map(function (c) { return c.dataset.cardId; }).filter(Boolean);
     const t = Array.from(tail.querySelectorAll(':scope > [data-card-id]')).map(function (c) { return c.dataset.cardId; }).filter(Boolean);
@@ -1370,6 +1401,7 @@ function dashboardConfig() {
                     this.applyOrder(normal, n);
                 }
             } catch (e) { /* ignore */ }
+            if (typeof reconcileGlobalStrategyWideLane === 'function') reconcileGlobalStrategyWideLane();
         },
         applyOrder(container, order) {
             dashboardLayoutApplyOrder(container, order);
@@ -1395,6 +1427,7 @@ function dashboardConfig() {
                 this.applyOrder(wide, layout.wide);
                 this.applyOrder(tail, layout.tail);
                 this.applyOrder(normal, layout.normal);
+                if (typeof reconcileGlobalStrategyWideLane === 'function') reconcileGlobalStrategyWideLane();
                 this._serverLayoutIds = new Set([...(layout.wide || []), ...(layout.normal || []), ...(layout.tail || [])]);
                 this._hasServerLayout = true;
                 return true;

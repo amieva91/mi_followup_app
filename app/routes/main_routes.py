@@ -10,6 +10,7 @@ from sqlalchemy import func, extract
 from app.routes import main_bp
 from app import db
 from app.models import Expense, Income, UserDashboardConfig, UserDashboardLayout, DEFAULT_WIDGETS, MODULES
+from app.models.dashboard_layout import normalize_dashboard_layout_lanes
 from app.services.dashboard_onboarding_service import DashboardOnboardingService
 from app.services.net_worth_service import get_dashboard_summary
 from app.services.price_polling_service import get_updated_asset_ids_for_user
@@ -462,7 +463,7 @@ def dashboard_layout():
     tail = _clean_ids(tail)
     normal = _clean_ids(normal)
 
-    # Reemplazo completo: mantiene coherencia y permite que cards desaparecidas se purguen
+    wide, tail, normal = normalize_dashboard_layout_lanes(wide, tail, normal)
     UserDashboardLayout.query.filter_by(user_id=current_user.id).delete()
     pos = 0
     for i, cid in enumerate(wide):
