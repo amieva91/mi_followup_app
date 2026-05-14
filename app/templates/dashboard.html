@@ -124,9 +124,23 @@
         .gs-viz { grid-template-columns: minmax(0, 200px) minmax(0, 1fr); }
     }
     @media (min-width: 768px) {
-        .gs-viz--wide { grid-template-columns: minmax(0, 260px) minmax(0, 1fr); gap: 1.5rem; align-items: stretch; }
+        .gs-viz--wide { grid-template-columns: minmax(0, 260px) minmax(0, 1fr); gap: 1.5rem; align-items: start; }
     }
-    .gs-gauge-wrap { display: flex; flex-direction: column; align-items: center; }
+    .gs-gauge-wrap { display: flex; flex-direction: column; align-items: center; align-self: start; }
+    /* Contenedor fijo: Chart.js + leyenda no deben estirar la tarjeta wide */
+    .gs-chart-shell {
+        position: relative;
+        width: 100%;
+        height: 200px;
+        max-height: 200px;
+        min-height: 0;
+        overflow: hidden;
+    }
+    .gs-chart-shell canvas {
+        display: block;
+        max-width: 100%;
+        max-height: 100%;
+    }
     .gs-tab {
         flex: 1 1 0;
         min-width: 0;
@@ -781,15 +795,17 @@
                     <p id="global-strategy-sg-readout" class="text-3xl font-bold text-indigo-950 tabular-nums -mt-2">{{ '%.2f'|format(gs['sg']) }}</p>
                     <p class="text-[11px] text-gray-500">Score global (0–3)</p>
                 </div>
-                <div class="min-w-0 flex flex-col gap-3">
-                    <div class="flex flex-wrap gap-2 text-sm">
+                <div class="min-w-0 flex flex-col gap-3 min-h-0 self-stretch">
+                    <div class="flex flex-wrap gap-2 text-sm shrink-0">
                         <span class="rounded-lg bg-white/90 px-2.5 py-1 border border-indigo-100/80 text-gray-700" title="USA ({{ gs.get('usa_label', '^VIX') }})">USA <span id="global-strategy-s-us" class="font-semibold tabular-nums">{% if gs.get('s_us') is not none %}{{ '%.2f'|format(gs['s_us']) }}{% else %}—{% endif %}</span></span>
                         <span class="rounded-lg bg-white/90 px-2.5 py-1 border border-amber-100/90 text-gray-700">EU <span id="global-strategy-s-eu" class="font-semibold tabular-nums">{% if gs.get('s_eu') is not none %}{{ '%.2f'|format(gs['s_eu']) }}{% else %}—{% endif %}</span></span>
                         <span class="rounded-lg bg-white/90 px-2.5 py-1 border border-teal-100/90 text-gray-700">Asia <span id="global-strategy-s-as" class="font-semibold tabular-nums">{% if gs.get('s_as') is not none %}{{ '%.2f'|format(gs['s_as']) }}{% else %}—{% endif %}</span></span>
                     </div>
-                    <div id="global-strategy-tablist" class="flex gap-0.5 p-0.5 rounded-xl bg-slate-200/55 border border-slate-200/60 max-w-2xl"></div>
-                    <div class="rounded-xl border border-slate-200/70 bg-white/92 p-3 shadow-sm min-h-0">
-                        <canvas id="global-strategy-threshold-chart" height="200" class="w-full h-[200px]"></canvas>
+                    <div id="global-strategy-tablist" class="flex gap-0.5 p-0.5 rounded-xl bg-slate-200/55 border border-slate-200/60 max-w-2xl shrink-0"></div>
+                    <div class="rounded-xl border border-slate-200/70 bg-white/92 p-2 shadow-sm min-h-0 overflow-hidden flex flex-col">
+                        <div class="gs-chart-shell shrink-0">
+                            <canvas id="global-strategy-threshold-chart"></canvas>
+                        </div>
                         <p id="global-strategy-chart-caption" class="text-[11px] text-gray-500 mt-1 px-0.5"></p>
                         <div id="global-strategy-threshold-track" class="gs-threshold-track hidden">
                             <div id="global-strategy-threshold-marker" class="gs-threshold-marker" style="left:50%"></div>
@@ -2284,9 +2300,16 @@ function renderGlobalStrategyThresholdChart(regionKey) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            layout: { padding: { top: 2, right: 4, bottom: 2, left: 2 } },
             interaction: { mode: 'index', intersect: false },
             plugins: {
-                legend: { display: true, position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } },
+                legend: {
+                    display: true,
+                    position: 'top',
+                    align: 'start',
+                    maxHeight: 44,
+                    labels: { boxWidth: 8, boxHeight: 8, padding: 4, font: { size: 9 } },
+                },
                 tooltip: { enabled: true },
             },
             scales: {
