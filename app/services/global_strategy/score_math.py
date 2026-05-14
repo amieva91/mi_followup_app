@@ -21,7 +21,7 @@ def _clamp(x: float, lo: float, hi: float) -> float:
 
 def score_usa_yield_curve_spread_pct(x: float) -> float:
     """
-    x = (10Y − 2Y) en puntos porcentuales (p. ej. 0.35 = +0,35 %).
+    Alternativa legacy USA: spread (10Y − 2Y) en puntos porcentuales (p. ej. 0.35 = +0,35 %).
     """
     x = float(x)
     if x >= 0.5:
@@ -31,25 +31,13 @@ def score_usa_yield_curve_spread_pct(x: float) -> float:
     return _clamp((x + 0.5) / 1.0, 0.0, 1.0)
 
 
-def score_eu_vstoxx_vs_ma200(v: float, v_ma200: float) -> float:
-    """v = V2TX actual; v_ma200 = media móvil 200 sesiones."""
-    v = float(v)
-    m = float(v_ma200)
-    if m <= 0:
-        return 0.0
-    low, high = 0.8 * m, 1.5 * m
-    if v <= low:
-        return 1.0
-    if v >= high:
-        return 0.0
-    span = high - low
-    if span <= 0:
-        return 0.0
-    return _clamp(1.0 - (v - low) / span, 0.0, 1.0)
+def score_price_vs_ma200(price: float, ma200: float) -> float:
+    """
+    Precio (o nivel) vs MA200 en banda 95%–105% del promedio.
 
-
-def score_asia_price_vs_ma200(price: float, ma200: float) -> float:
-    """Modo Asia por defecto: precio vs MA200 (3188.HK)."""
+    Misma fórmula para **SPY** (USA modo ETF), **FEZ** (Europa) y **3188.HK** (Asia):
+    por encima de la banda alta → 1.0 (verde); por debajo de la baja → 0.0 (cautela).
+    """
     p = float(price)
     m = float(ma200)
     if m <= 0:
@@ -63,6 +51,29 @@ def score_asia_price_vs_ma200(price: float, ma200: float) -> float:
     if span <= 0:
         return 0.0
     return _clamp((p - lo) / span, 0.0, 1.0)
+
+
+def score_usa_spy_vs_ma200(price: float, ma200: float) -> float:
+    """USA modo SPY: mismo criterio que Asia/Europa (precio vs MA200)."""
+    return score_price_vs_ma200(price, ma200)
+
+
+def score_usa_vix_vs_ma200(vix: float, ma200: float) -> float:
+    """
+    USA modo ^VIX: VIX bajo respecto a su MA200 → calma → puntúa alto;
+    VIX alto → miedo → hacia 0 (inverso de la banda de precio).
+    """
+    return _clamp(1.0 - score_price_vs_ma200(vix, ma200), 0.0, 1.0)
+
+
+def score_eu_price_vs_ma200(price: float, ma200: float) -> float:
+    """Europa **FEZ** (Euro Stoxx 50 vía ETF NYSE): precio vs MA200."""
+    return score_price_vs_ma200(price, ma200)
+
+
+def score_asia_price_vs_ma200(price: float, ma200: float) -> float:
+    """Asia **3188.HK**: precio vs MA200."""
+    return score_price_vs_ma200(price, ma200)
 
 
 def score_global(s_us: float, s_eu: float, s_as: float) -> float:

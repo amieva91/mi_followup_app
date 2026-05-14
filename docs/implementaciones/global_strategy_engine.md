@@ -1,6 +1,6 @@
 # Motor de estrategia global (Global Strategy Engine) — especificación v1
 
-Documento de referencia para implementación. Alcance inicial: **cuenta bróker (acciones/ETF/ADR en el módulo de bolsa)**, indicadores macro vía **Yahoo Finance** en el flujo de precios por minuto; Asia por defecto **precio vs MA200** sobre **3188.HK**. **Sin notificaciones email/push**: solo entradas en la lista de recomendaciones del dashboard (`RecommendationService`).
+Documento de referencia para implementación. Alcance inicial: **cuenta bróker (acciones/ETF/ADR en el módulo de bolsa)**, indicadores macro vía **Yahoo Finance** en el flujo de precios por minuto. **Jerarquía de tickers v1:** USA **^VIX** (volatilidad vs MA200) *o* **SPY** (precio vs MA200), Europa **FEZ** (precio vs MA200), Asia **3188.HK** (precio vs MA200). **Sin notificaciones email/push**: solo entradas en la lista de recomendaciones del dashboard (`RecommendationService`).
 
 ---
 
@@ -45,38 +45,32 @@ En el código actual, el valor agregado del bróker se obtiene con **`_get_broke
 
 ## 3. Score por bloque (0.0 – 1.0 cada uno)
 
-### 3.1 Bloque USA — curva de tipos (spread 10Y − 2Y)
+### 3.1 Bloque USA — **^VIX** (volatilidad) *o* **SPY** (precio vs MA200)
 
-Tickers Yahoo sugeridos: **^TNX** (10Y), **^IRX** (13 week como proxy 2Y corto; si se prefiere otro 2Y explícito, documentar el par elegido en código).
+**Elección de producto (una sola ruta activa para \(s_{US}\)):**
 
-Sea \(x\) el spread en **puntos porcentuales** (ej. \(x = 0.35\) significa +0,35 %).
+| Modo | Ticker Yahoo | Cálculo |
+|------|----------------|---------|
+| **VIX** | **^VIX** | VIX **bajo** respecto a su MA200 → entorno más calmado → \(s_{US}\) alto; VIX **alto** → miedo → \(s_{US}\) bajo. Misma banda relativa que el precio (95%–105% de \(MA_{200}\)) pero **invertida**: \(s_{US} = 1 - s_{\text{band}}(\text{VIX}, MA_{200})\) acotada a \([0,1]\), donde \(s_{\text{band}}\) es la misma función lineal a tramos que en §3.3 con \(P = \text{VIX}\). Implementación: `score_usa_vix_vs_ma200`. |
+| **SPY** | **SPY** | Igual que §3.3 con \(P\) = cierre SPY y \(MA_{200}\) sobre SPY. Implementación: `score_usa_spy_vs_ma200` / `score_price_vs_ma200`. |
 
-\[
-s_{US} = \begin{cases}
-1.0 & x \ge 0.5 \\
-0.0 & x \le -0.5 \\
-(x + 0.5) / 1.0 & \text{en otro caso (lineal entre } -0.5 \text{ y } 0.5\text{)}
-\end{cases}
-\]
+**Alternativa legacy (curva de tipos):** spread **10Y − 2Y** con **^TNX** y **^IRX** (u otro par documentado); función `score_usa_yield_curve_spread_pct` en código. No mezclar con el modo VIX/SPY en el mismo \(s_{US}\) sin flag explícito.
 
-Comprobar en implementación que \(x\) y los umbrales `0.5` estén en las **mismas unidades** (todos en % o todos en fracción).
+Comprobar cotización + histórico diario (MA200) con `scripts/verify_yahoo_global_strategy_tickers.py` antes de integrar en jobs.
 
-### 3.2 Bloque Europa — volatilidad (VSTOXX)
+### 3.2 Bloque Europa — **FEZ** (precio vs MA200)
 
-Ticker en Yahoo Chart v8 (verificación manual/script):
+Ticker Yahoo: **FEZ** (SPDR Euro Stoxx 50 ETF, NYSE). Misma lógica que Asia (§3.3): por **encima** de la banda alta vs \(MA_{200}\) → Europa en “verde”; por **debajo** de la banda baja → cautela. Implementación: `score_eu_price_vs_ma200` (alias de `score_price_vs_ma200`).
 
-- **`^V2TX`:** **404** en chart v8.
-- **`V2TX.DE`:** cotización en **`meta`** (válida para “spot” / `PriceUpdater.fetch_yahoo_chart_quote`); la **serie diaria** para **MA200** **no** está disponible de forma fiable vía el mismo API en las pruebas (sin suficientes `close` diarios). **No integrar el bloque EU contra solo Yahoo** hasta tener serie diaria confirmada (otro símbolo con histórico, otro endpoint, o proveedor alternativo).
+**Nota:** VSTOXX (**^V2TX** / **V2TX.DE**) se **descarta** para MA200 vía Chart v8 en las pruebas previas; **FEZ** cierra el bloque europeo con datos estables y la **misma** rutina numérica que Asia.
 
-Comprobar siempre con `scripts/verify_yahoo_global_strategy_tickers.py` antes de codificar ingest.
-
-Sea \(v\) el valor actual y \(v_{ma}\) la media móvil de **200** sesiones sobre cierres diarios cacheados.
+Sea \(P\) el último cierre de FEZ y \(MA_{200}\) la media móvil de 200 cierres.
 
 \[
 s_{EU} = \begin{cases}
-1.0 & v \le 0.8\,v_{ma} \\
-0.0 & v \ge 1.5\,v_{ma} \\
-\text{lineal entre } (0.8\,v_{ma},\,1.0) \text{ y } (1.5\,v_{ma},\,0.0) & \text{en otro caso}
+1.0 & P \ge 1.05\,MA_{200} \\
+0.0 & P \le 0.95\,MA_{200} \\
+\text{lineal entre } (0.95\,MA_{200},\,0.0) \text{ y } (1.05\,MA_{200},\,1.0) & \text{en otro caso}
 \end{cases}
 \]
 
@@ -162,18 +156,16 @@ Condiciones evaluadas **después** de calcular \(SG\), \(RO\), \(UOM\), \(IR\) y
 
 ## 6. Datos, caché y actualización
 
-### 6.1 Yahoo (USA, Europa, Asia por defecto)
+### 6.1 Yahoo (USA, Europa, Asia — tickers v1)
 
-Tickers **con verificación satisfactoria** en Chart v8 (light + histórico ≥200 cierres diarios): **^TNX**, **^IRX**, **3188.HK**. Script: `scripts/verify_yahoo_global_strategy_tickers.py` (por defecto solo esos tres; `--include-eu-vstoxx` para intentar **V2TX.DE** en el gate estricto).
-
-**Europa (VSTOXX):** **^V2TX** → 404; **V2TX.DE** → spot en `meta` pero **sin** serie diaria fiable para MA200 en las pruebas. El bloque EU **no** debe integrarse solo con Yahoo hasta resolver fuente de serie.
+Tickers del gate por defecto en `scripts/verify_yahoo_global_strategy_tickers.py`: **^VIX**, **SPY**, **FEZ**, **3188.HK** (cotización ligera + ≥200 cierres diarios con `range=2y`, `interval=1d`). Flag **`--include-us-yields`** añade **^TNX** y **^IRX** si se mantiene el modo legacy de curva de tipos.
 
 - Integración: **mismo flujo** que la actualización periódica de precios de activos (lista de símbolos a refrescar; en el minuto que corresponda se actualiza el último precio/cierre según el diseño actual de `PriceUpdater` / colas en `app/__init__.py` y servicios relacionados).
-- Para **MA200** y spreads: persistir **cierres diarios** (o serie diaria derivada) en caché/BD para no recalcular MA contra APIs en cada request.
+- Para **MA200**: persistir **cierres diarios** en caché/BD para **SPY**, **FEZ**, **3188.HK** y **^VIX** según el modo USA elegido.
 
 ### 6.2 FRED / modo Asia alternativo
 
-- **v1:** solo **Asia = precio vs MA200 vía Yahoo** (`3188.HK`).
+- **v1:** **Asia = precio vs MA200** (`3188.HK`); **Europa = precio vs MA200** (`FEZ`); **USA = ^VIX o SPY** según §3.1.
 - Modo **Credit Impulse vía FRED** queda como **opción futura** conmutada por configuración; **no** combinar CI FRED y precio Yahoo simultáneamente para el mismo bloque Asia.
 
 ### 6.3 Historial de \(SG\) para “score bajando”
@@ -183,7 +175,7 @@ Persistir serie temporal de \(SG\) (p. ej. un valor al cierre o tras cada job de
 #### 6.3.1 Persistencia atómica y fines de semana (obligatorio)
 
 - **Transacción única:** cada escritura de la serie (fila diaria por usuario, o un lote de días si se rellena fin de semana) debe hacerse en **una sola transacción** (`commit` único tras fijar `sg`, componentes \(s_{US}, s_{EU}, s_{AS}\) y metadatos). Nunca dejar la fila a medias (p. ej. `sg` actualizado sin `indicator_as_of` o sin componentes si el job los calcula juntos).
-- **Fecha de cierre de indicadores (`indicator_as_of`):** guardar explícitamente la **fecha de negocio / cierre** de los subyacentes usados (^TNX, ^IRX, Asia 3188.HK, y el símbolo EU cuando exista serie fiable). En sábado y domingo los mercados cash suelen estar cerrados, pero **bonos y volatilidad** pueden seguir mostrando el **último cierre del viernes**; sin esta columna parece un “hueco” o un salto artificial en la serie.
+- **Fecha de cierre de indicadores (`indicator_as_of`):** guardar explícitamente la **fecha de negocio / cierre** de los subyacentes usados (**^VIX** o **SPY**, **FEZ**, **3188.HK**, y si aplica **^TNX**/**^IRX** en modo legacy). En sábado y domingo los mercados cash suelen estar cerrados, pero **índices y ETFs** pueden seguir mostrando el **último cierre hábil**; sin esta columna parece un “hueco” o un salto artificial en la serie.
 - **Sin huecos en la serie para la media de 5 días:** si la política del producto es **una fila por día natural (UTC)**, en fin de semana se puede **replicar el mismo \(SG\)** del viernes (mismo `indicator_as_of`) para sábado y domingo **en el mismo `commit`** que consolida el viernes, o bien calcular la media sobre los **últimos 5 registros no nulos** (sin exigir día calendario consecutivo). La implementación debe elegir una y documentarla; la referencia en código usa **forward-fill opcional** sábado/domingo en la misma transacción que el upsert del viernes cuando proceda (`upsert_sg_daily_atomic(..., fill_weekend_from_friday=True)` en `app/services/global_strategy/sg_history.py`).
 
 ---
@@ -210,7 +202,9 @@ La lógica de recomendaciones macro (§5) puede seguir otras reglas de disparo, 
 
 ## 8. Checklist de implementación (orden sugerido)
 
-1. ~~Servicio puro de scores \(s_{US}, s_{EU}, s_{AS}\) y \(SG\) + tests unitarios con entradas mockeadas.~~ **Hecho** (`app/services/global_strategy/score_math.py`, `tests/global_strategy_score_math_test.py`).
+**Jerarquía Yahoo v1 (recordatorio):** USA = **^VIX** *o* **SPY** (exclusivo por configuración); Europa = **FEZ**; Asia = **3188.HK**. Verificar Chart v8 con `scripts/verify_yahoo_global_strategy_tickers.py` (exit 0) antes del job de precios / caché diaria.
+
+1. ~~Servicio puro de scores \(s_{US}, s_{EU}, s_{AS}\) y \(SG\) + tests unitarios con entradas mockeadas.~~ **Hecho** (`score_price_vs_ma200` + aliases USA/EU/Asia, `score_usa_vix_vs_ma200`, legacy `score_usa_yield_curve_spread_pct`; tests en `tests/global_strategy_score_math_test.py`).
 2. ~~Función \(RO(SG)\) por tramos + tests de nodos y bordes.~~ **Incluido** en el mismo módulo (`ratio_objetivo`, `umbral_objetivo_mercado`).
 3. Lectura de CO/IR desde la capa bróker ya alineada con §2.2.
 4. ~~Persistencia de serie diaria de \(SG\)~~ **Modelo + migración + upsert atómico** (`GlobalStrategySgDaily`, `upsert_sg_daily_atomic` con opción `fill_weekend_from_friday`); series de indicadores macro pendientes.

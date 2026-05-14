@@ -15,10 +15,9 @@ Opcional (misma función que en app, requiere venv con Flask/requests):
 
 Código de salida: 0 si todos los checks obligatorios pasan, 1 si no.
 
-Por defecto solo se validan **^TNX, ^IRX, 3188.HK** (yield US + Asia), que sí devuelven
-historial diario para MA200. El bloque EU (VSTOXX) requiere decisión de producto: usar
-`--include-eu-vstoxx` para incluir `V2TX.DE` en los checks estrictos (hoy suele **fallar**
-el requisito de >=200 cierres vía Chart v8).
+Por defecto se validan los tickers del motor v1 (ver `docs/implementaciones/global_strategy_engine.md`):
+**^VIX**, **SPY** (USA: volatilidad o precio vs MA200), **FEZ** (Europa Euro Stoxx 50 ETF),
+**3188.HK** (Asia). Opcional: `--include-us-yields` añade **^TNX** y **^IRX** (curva tipos legacy).
 """
 from __future__ import annotations
 
@@ -31,8 +30,8 @@ import urllib.parse
 import urllib.request
 from typing import Any, Dict, List, Optional, Tuple
 
-DEFAULT_TICKERS = ("^TNX", "^IRX", "3188.HK")
-EU_VSTOXX_TICKER = "V2TX.DE"
+DEFAULT_TICKERS = ("^VIX", "SPY", "FEZ", "3188.HK")
+LEGACY_US_YIELD_TICKERS = ("^TNX", "^IRX")
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -174,17 +173,12 @@ def main() -> int:
     p.add_argument(
         "--tickers",
         default=",".join(DEFAULT_TICKERS),
-        help=f"CSV (por defecto: {','.join(DEFAULT_TICKERS)}). ^V2TX→404; V2TX.DE vía --include-eu-vstoxx.",
+        help=f"CSV (por defecto: {','.join(DEFAULT_TICKERS)}).",
     )
     p.add_argument(
-        "--include-eu-vstoxx",
+        "--include-us-yields",
         action="store_true",
-        help=f"Incluye {EU_VSTOXX_TICKER} en checks estrictos (MA200; suele fallar en Yahoo chart).",
-    )
-    p.add_argument(
-        "--no-eu-probe-footer",
-        action="store_true",
-        help="No imprimir el diagnóstico informativo de VSTOXX al final si el gate principal pasa.",
+        help=f"Añade {','.join(LEGACY_US_YIELD_TICKERS)} al gate (spread 10Y−proxy 2Y, legacy).",
     )
     p.add_argument("--timeout", type=float, default=15.0)
     p.add_argument("--min-closes", type=int, default=200)
@@ -198,8 +192,10 @@ def main() -> int:
     )
     args = p.parse_args()
     tickers = [x.strip() for x in args.tickers.split(",") if x.strip()]
-    if args.include_eu_vstoxx and EU_VSTOXX_TICKER not in tickers:
-        tickers.append(EU_VSTOXX_TICKER)
+    if args.include_us_yields:
+        for y in LEGACY_US_YIELD_TICKERS:
+            if y not in tickers:
+                tickers.append(y)
 
     light = [check_light(t, args.timeout) for t in tickers]
     hist = [
@@ -248,23 +244,6 @@ def main() -> int:
         print("\nResultado: NO SATISFACTORIO — no continuar integración en programa hasta resolver.")
         return 1
     print("\nResultado: SATISFACTORIO — Yahoo devuelve datos coherentes para estos tickers.")
-    if not args.no_eu_probe_footer and EU_VSTOXX_TICKER not in tickers:
-        print(f"\n--- Diagnóstico informativo {EU_VSTOXX_TICKER} (no afecta al exit code) ---")
-        l = check_light(EU_VSTOXX_TICKER, args.timeout)
-        h = check_history(
-            EU_VSTOXX_TICKER,
-            min_closes=args.min_closes,
-            range_=args.range_,
-            interval=args.interval,
-            timeout=args.timeout,
-        )
-        print(f"  light: {'OK' if l['ok'] else 'FAIL'} {l}")
-        print(f"  history: {'OK' if h['ok'] else 'FAIL'} closes={h['close_count']} {h.get('error') or ''}")
-        if not h["ok"]:
-            print(
-                "  Nota: Chart v8 no ofrece aquí serie diaria usable para MA200; "
-                "definir otra fuente o ticker antes del bloque EU en producción.",
-            )
     return 0
 
 
