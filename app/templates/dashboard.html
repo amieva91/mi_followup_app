@@ -142,6 +142,27 @@
         max-width: 100%;
         max-height: 100%;
     }
+    .gs-context-table { border-collapse: collapse; width: 100%; }
+    .gs-context-table th,
+    .gs-context-table td {
+        padding: 0.4rem 0.55rem;
+        vertical-align: top;
+        border-bottom: 1px solid rgba(199, 210, 254, 0.55);
+    }
+    .gs-context-table th {
+        font-weight: 600;
+        color: #334155;
+        background: rgba(238, 242, 255, 0.9);
+        font-size: 0.65rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+    .gs-context-table td { font-size: 0.7rem; color: #1e293b; }
+    .gs-context-table tr:last-child td { border-bottom: none; }
+    .gs-context-row--active { background: rgba(129, 140, 248, 0.2); }
+    .gs-context-row--active td:nth-child(1),
+    .gs-context-row--active td:nth-child(2) { font-weight: 600; }
+    .gs-context-row--active td:nth-child(3) { font-weight: 400; }
     .gs-tab {
         flex: 1 1 0;
         min-width: 0;
@@ -815,6 +836,32 @@
                     </div>
                 </div>
             </div>
+            {% if gs.get('sg_context') %}
+            {% set sgc = gs['sg_context'] %}
+            <div id="global-strategy-context-wrap" class="mt-4 pt-3 border-t border-indigo-100/50">
+                <p class="text-xs font-semibold text-slate-700 mb-2">Contexto según score global</p>
+                <div class="overflow-x-auto rounded-xl border border-indigo-100/60 bg-white/60">
+                    <table id="global-strategy-context-table" class="gs-context-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Score global</th>
+                                <th scope="col">Etiqueta de contexto</th>
+                                <th scope="col">Significado operativo</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for b in sgc.bands %}
+                            <tr data-gs-band="{{ b.key }}" class="{% if b.key == sgc.active %}gs-context-row--active{% endif %}">
+                                <td class="tabular-nums whitespace-nowrap">{{ b.score_range }}</td>
+                                <td>{{ b.label }}</td>
+                                <td class="text-slate-600 font-normal">{{ b.operational }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
             {% if gs.get('indicator_as_of') %}
             <p class="text-xs text-gray-500 mt-4 pt-3 border-t border-indigo-100/50">Indicadores al cierre <span id="global-strategy-indicator-as-of">{{ gs['indicator_as_of'] }}</span> · USA: {{ gs.get('usa_label', '^VIX') }}</p>
             {% else %}
@@ -2159,6 +2206,15 @@ function _destroyGlobalStrategyThresholdChart() {
     }
 }
 
+function renderGlobalStrategySgContext(snap) {
+    const tbl = document.getElementById('global-strategy-context-table');
+    if (!tbl || !snap || !snap.sg_context) return;
+    const active = snap.sg_context.active;
+    tbl.querySelectorAll('[data-gs-band]').forEach(function (row) {
+        row.classList.toggle('gs-context-row--active', row.getAttribute('data-gs-band') === active);
+    });
+}
+
 function drawGlobalStrategyGauge(sg) {
     const canvas = document.getElementById('global-strategy-gauge-canvas');
     if (!canvas || typeof sg !== 'number' || !Number.isFinite(sg)) return;
@@ -2372,6 +2428,7 @@ window.refreshGlobalStrategyViz = function (snap) {
     drawGlobalStrategyGauge(snap.sg);
     const ro = document.getElementById('global-strategy-sg-readout');
     if (ro) ro.textContent = snap.sg.toFixed(2);
+    renderGlobalStrategySgContext(snap);
     setupGlobalStrategyTabs(snap);
 };
 

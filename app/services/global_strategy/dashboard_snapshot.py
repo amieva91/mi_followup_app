@@ -13,6 +13,7 @@ from app.models import User
 from app.models.global_strategy_macro_daily import GlobalStrategyMacroDaily, GlobalStrategyMacroState
 from app.models.global_strategy_sg_daily import GlobalStrategySgDaily
 from app.services.global_strategy.macro_series_math import last_close_and_ma200, tail_chart_points
+from app.services.global_strategy.sg_context_bands import sg_context_payload
 
 
 def _region_block(
@@ -123,8 +124,9 @@ def get_global_strategy_dashboard_snapshot(user_id: int) -> Optional[dict[str, A
     if rb_as:
         regions["asia"] = rb_as
 
+    sg_val = round(float(row.sg), 2)
     return {
-        "sg": round(float(row.sg), 2),
+        "sg": sg_val,
         "s_us": s_us,
         "s_eu": s_eu,
         "s_as": s_as,
@@ -133,4 +135,5 @@ def get_global_strategy_dashboard_snapshot(user_id: int) -> Optional[dict[str, A
         "usa_score_mode": mode,
         "usa_label": usa_label,
         "regions": regions,
+        "sg_context": sg_context_payload(sg_val),
     }
