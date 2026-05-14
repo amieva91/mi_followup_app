@@ -25,11 +25,12 @@ DEFAULT_WIDGETS = [
     {'id': 'currency_exposure', 'name': 'Exposición Divisas', 'icon': '💱', 'enabled': True, 'position': 16},
     {'id': 'year_comparison', 'name': 'Comparativa Anual', 'icon': '📊', 'enabled': True, 'position': 17},
     {'id': 'health_score', 'name': 'Salud Financiera', 'icon': '❤️', 'enabled': True, 'position': 18},
+    {'id': 'global_strategy', 'name': 'Estrategia global', 'icon': '🌍', 'enabled': False, 'position': 19},
     # Sub-indicadores de Análisis Detallado (si ninguno activo, no se muestra el recuadro)
-    {'id': 'health_detail_metrics', 'name': '❤️ Métricas componentes', 'icon': '📊', 'enabled': True, 'position': 19},
-    {'id': 'health_detail_tips', 'name': '❤️ Recomendaciones', 'icon': '💡', 'enabled': True, 'position': 20},
-    {'id': 'health_detail_distribution', 'name': '❤️ Distribución activos', 'icon': '📈', 'enabled': True, 'position': 21},
-    {'id': 'health_detail_emergency', 'name': '❤️ Fondo emergencia', 'icon': '🛡️', 'enabled': True, 'position': 22},
+    {'id': 'health_detail_metrics', 'name': '❤️ Métricas componentes', 'icon': '📊', 'enabled': True, 'position': 20},
+    {'id': 'health_detail_tips', 'name': '❤️ Recomendaciones', 'icon': '💡', 'enabled': True, 'position': 21},
+    {'id': 'health_detail_distribution', 'name': '❤️ Distribución activos', 'icon': '📈', 'enabled': True, 'position': 22},
+    {'id': 'health_detail_emergency', 'name': '❤️ Fondo emergencia', 'icon': '🛡️', 'enabled': True, 'position': 23},
 ]
 
 

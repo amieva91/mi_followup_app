@@ -846,6 +846,32 @@
         </div>
         {% endif %}
 
+        {% set gs = summary.get('global_strategy_snapshot') %}
+        {% if gs %}
+        <div class="dashboard-card p-5 border border-indigo-100/70 bg-gradient-to-br from-slate-50/90 to-indigo-50/50" data-card-id="global_strategy" x-show="widgets['global_strategy']" x-cloak>
+            <div class="flex items-center gap-2 mb-3">
+                <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
+                <h3 class="card-title text-sm">🌍 Estrategia global</h3>
+            </div>
+            <div class="flex flex-wrap items-end gap-5 mb-2">
+                <div>
+                    <p class="text-xs text-gray-500 uppercase tracking-wide">SG</p>
+                    <p id="global-strategy-sg" class="text-2xl font-bold text-indigo-900 tabular-nums">{{ '%.2f'|format(gs['sg']) }}</p>
+                </div>
+                <div class="flex flex-wrap gap-2 text-sm">
+                    <span class="rounded-lg bg-white/85 px-2.5 py-1 border border-indigo-100/80 text-gray-700" title="USA ({{ gs.get('usa_label', '^VIX') }})">USA <span id="global-strategy-s-us" class="font-semibold tabular-nums">{% if gs.get('s_us') is not none %}{{ '%.2f'|format(gs['s_us']) }}{% else %}—{% endif %}</span></span>
+                    <span class="rounded-lg bg-white/85 px-2.5 py-1 border border-indigo-100/80 text-gray-700">EU <span id="global-strategy-s-eu" class="font-semibold tabular-nums">{% if gs.get('s_eu') is not none %}{{ '%.2f'|format(gs['s_eu']) }}{% else %}—{% endif %}</span></span>
+                    <span class="rounded-lg bg-white/85 px-2.5 py-1 border border-indigo-100/80 text-gray-700">Asia <span id="global-strategy-s-as" class="font-semibold tabular-nums">{% if gs.get('s_as') is not none %}{{ '%.2f'|format(gs['s_as']) }}{% else %}—{% endif %}</span></span>
+                </div>
+            </div>
+            {% if gs.get('indicator_as_of') %}
+            <p class="text-xs text-gray-500">Indicadores al cierre <span id="global-strategy-indicator-as-of">{{ gs['indicator_as_of'] }}</span> · USA: {{ gs.get('usa_label', '^VIX') }}</p>
+            {% else %}
+            <p class="text-xs text-gray-500">USA: {{ gs.get('usa_label', '^VIX') }}</p>
+            {% endif %}
+        </div>
+        {% endif %}
+
         <!-- Recomendaciones (unificadas; solo si hay datos) -->
         {% set recs = summary.recommendations | default([]) %}
         {% set recommendation_data_ready = (summary.health_score.summary.active_months | default(0)) >= 2 %}
@@ -2045,6 +2071,22 @@ function applyDashboardUpdate(summary) {
             dayEl.classList.add('hidden');
             dayEl.removeAttribute('title');
         }
+    }
+
+    const gsCard = document.querySelector('[data-card-id="global_strategy"]');
+    const gsSnap = summary.global_strategy_snapshot;
+    if (gsCard && gsSnap && typeof gsSnap === 'object') {
+        const fmt = (v) => (typeof v === 'number' && Number.isFinite(v)) ? v.toFixed(2) : '—';
+        const sgEl = document.getElementById('global-strategy-sg');
+        const suEl = document.getElementById('global-strategy-s-us');
+        const seEl = document.getElementById('global-strategy-s-eu');
+        const saEl = document.getElementById('global-strategy-s-as');
+        const indEl = document.getElementById('global-strategy-indicator-as-of');
+        if (sgEl && typeof gsSnap.sg === 'number') sgEl.textContent = gsSnap.sg.toFixed(2);
+        if (suEl) suEl.textContent = fmt(gsSnap.s_us);
+        if (seEl) seEl.textContent = fmt(gsSnap.s_eu);
+        if (saEl) saEl.textContent = fmt(gsSnap.s_as);
+        if (indEl && gsSnap.indicator_as_of) indEl.textContent = gsSnap.indicator_as_of;
     }
 
     // Actualizar etiqueta de "Actualizado hace X min"

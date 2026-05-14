@@ -113,6 +113,15 @@ class DashboardSummaryCacheService:
         elif meta.get("version") is None:
             meta["version"] = int(datetime.utcnow().timestamp() * 1000)
         data["meta"] = meta
+        if "global_strategy_snapshot" not in data:
+            try:
+                from app.services.global_strategy.dashboard_snapshot import (
+                    get_global_strategy_dashboard_snapshot,
+                )
+
+                data["global_strategy_snapshot"] = get_global_strategy_dashboard_snapshot(user_id)
+            except Exception:
+                data["global_strategy_snapshot"] = None
         return data
 
     @staticmethod
@@ -320,6 +329,14 @@ class DashboardSummaryCacheService:
 
         data["market_indices"] = get_market_indices_snapshot(user_id)
         data["commodities"] = nws.get_commodities_snapshot(user_id)
+        try:
+            from app.services.global_strategy.dashboard_snapshot import (
+                get_global_strategy_dashboard_snapshot,
+            )
+
+            data["global_strategy_snapshot"] = get_global_strategy_dashboard_snapshot(user_id)
+        except Exception:
+            data["global_strategy_snapshot"] = data.get("global_strategy_snapshot")
         perf_mark("recompute_current_from_cache", user_id, tick, "after_recommendations_indices_commodities")
 
         # DAY % y EUR inversiones (NOW)

@@ -2095,6 +2095,16 @@ def get_dashboard_summary(user_id: int) -> Dict[str, Any]:
     market_indices = get_market_indices_snapshot(user_id)
     commodities = get_commodities_snapshot(user_id)
 
+    global_strategy_snapshot = None
+    try:
+        from app.services.global_strategy.dashboard_snapshot import (
+            get_global_strategy_dashboard_snapshot,
+        )
+
+        global_strategy_snapshot = get_global_strategy_dashboard_snapshot(user_id)
+    except Exception:
+        global_strategy_snapshot = None
+
     # Mantener la estructura existente para compatibilidad con templates
     return {
         "net_worth": current_block["net_worth"],
@@ -2129,4 +2139,5 @@ def get_dashboard_summary(user_id: int) -> Dict[str, Any]:
         "top_movers": top_movers,
         "market_indices": market_indices,
         "commodities": commodities,
+        "global_strategy_snapshot": global_strategy_snapshot,
     }
