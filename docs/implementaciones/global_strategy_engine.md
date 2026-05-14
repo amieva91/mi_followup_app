@@ -183,7 +183,19 @@ Persistir serie temporal de \(SG\) (p. ej. un valor al cierre o tras cada job de
 
 - **Cuenta‑kilómetros:** muestra \(SG\) con decimales (ej. 2.74) en \([0, 3]\).
 - **Gráfico de umbrales:** bandas o líneas de referencia en tonalidades del **mismo matiz** que el bloque seleccionado (USA / Europa / Asia) en el filtro activo.
-- **Widgets:** reutilizar el sistema de tarjetas/widgets del dashboard existente (`UserDashboardConfig`, layout en `dashboard.html`); no introducir un diseño de tarjeta nuevo salvo extensión mínima.
+- **Widgets:** reutilizar el sistema de tarjetas/widgets del dashboard existente (`UserDashboardConfig`, `DEFAULT_WIDGETS`, layout en `dashboard.html`); no introducir un diseño de tarjeta nuevo salvo extensión mínima.
+
+### 7.1 Visibilidad: módulo acciones y datos obligatorios
+
+Estas tarjetas (cuenta‑kilómetros, indicadores macro, filtros por bloque) **solo aplican al módulo de acciones / bolsa** (`stock` en `User.enabled_modules`, misma convención que `MODULES` en `app/models/user.py`).
+
+Reglas de producto (obligatorias en implementación):
+
+1. **Módulo activo:** si el usuario **no** tiene el módulo **`stock`** habilitado, **no** se muestran las tarjetas ni entran en el layout (no ocupar hueco; no depender solo del toggle de widget si el módulo está apagado).
+2. **Datos disponibles:** si no hay datos suficientes para pintar el widget (p. ej. sin cierres de indicadores, sin \(SG\) calculable, sin CO/IR del bróker cuando hagan falta), **no** se renderiza la tarjeta (evitar cajas vacías o placeholders permanentes). Opcional: mostrar un estado “sin datos” **solo** si el producto lo pide; por defecto: **ocultar**.
+3. **Usuarios nuevos / futuros:** la aparición de las entradas en `DEFAULT_WIDGETS` y en el panel de configuración debe ser coherente con (1) y (2): por ejemplo widget **desactivado por defecto** o **excluido del DOM** hasta que `stock` esté activo **y** exista payload válido en caché/API; al activar el módulo más adelante, aplicar las mismas reglas (2).
+
+La lógica de recomendaciones macro (§5) puede seguir otras reglas de disparo, pero **las tarjetas visuales** quedan acotadas a **módulo `stock` + datos**.
 
 ---
 
@@ -195,6 +207,7 @@ Persistir serie temporal de \(SG\) (p. ej. un valor al cierre o tras cada job de
 4. ~~Persistencia de serie diaria de \(SG\)~~ **Modelo + migración + upsert atómico** (`GlobalStrategySgDaily`, `upsert_sg_daily_atomic` con opción `fill_weekend_from_friday`); series de indicadores macro pendientes.
 5. Integración de tickers en el job de precios Yahoo existente.
 6. Reglas 5.1–5.3 en `RecommendationService` (y, si aplica, payload en `dashboard_summary_cache` para el widget de dial cuando exista).
+7. UI: tarjetas de estrategia global según **§7.1** (módulo `stock` + datos; `dashboard.html` / `DEFAULT_WIDGETS` / caché).
 
 ---
 
