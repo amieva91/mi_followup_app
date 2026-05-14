@@ -123,6 +123,9 @@
     @media (min-width: 640px) {
         .gs-viz { grid-template-columns: minmax(0, 200px) minmax(0, 1fr); }
     }
+    @media (min-width: 768px) {
+        .gs-viz--wide { grid-template-columns: minmax(0, 260px) minmax(0, 1fr); gap: 1.5rem; align-items: stretch; }
+    }
     .gs-gauge-wrap { display: flex; flex-direction: column; align-items: center; }
     .gs-tab {
         flex: 1 1 0;
@@ -764,6 +767,45 @@
             </div>
         </div>
 
+        {% set gs = summary.get('global_strategy_snapshot') %}
+        {% if current_user|user_has_module('stock') and gs %}
+        <script>window.INITIAL_GLOBAL_STRATEGY_SNAPSHOT = {{ gs | tojson }};</script>
+        <div class="dashboard-card dashboard-card--wide p-6 border border-indigo-100/70 bg-gradient-to-br from-slate-50/90 to-indigo-50/50" data-card-id="global_strategy">
+            <div class="flex items-center gap-2 mb-4">
+                <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
+                <h3 class="card-title text-lg">🌍 Estrategia global</h3>
+            </div>
+            <div class="gs-viz gs-viz--wide">
+                <div class="gs-gauge-wrap">
+                    <canvas id="global-strategy-gauge-canvas" width="240" height="128" class="max-w-full"></canvas>
+                    <p id="global-strategy-sg-readout" class="text-3xl font-bold text-indigo-950 tabular-nums -mt-2">{{ '%.2f'|format(gs['sg']) }}</p>
+                    <p class="text-[11px] text-gray-500">Score global (0–3)</p>
+                </div>
+                <div class="min-w-0 flex flex-col gap-3">
+                    <div class="flex flex-wrap gap-2 text-sm">
+                        <span class="rounded-lg bg-white/90 px-2.5 py-1 border border-indigo-100/80 text-gray-700" title="USA ({{ gs.get('usa_label', '^VIX') }})">USA <span id="global-strategy-s-us" class="font-semibold tabular-nums">{% if gs.get('s_us') is not none %}{{ '%.2f'|format(gs['s_us']) }}{% else %}—{% endif %}</span></span>
+                        <span class="rounded-lg bg-white/90 px-2.5 py-1 border border-amber-100/90 text-gray-700">EU <span id="global-strategy-s-eu" class="font-semibold tabular-nums">{% if gs.get('s_eu') is not none %}{{ '%.2f'|format(gs['s_eu']) }}{% else %}—{% endif %}</span></span>
+                        <span class="rounded-lg bg-white/90 px-2.5 py-1 border border-teal-100/90 text-gray-700">Asia <span id="global-strategy-s-as" class="font-semibold tabular-nums">{% if gs.get('s_as') is not none %}{{ '%.2f'|format(gs['s_as']) }}{% else %}—{% endif %}</span></span>
+                    </div>
+                    <div id="global-strategy-tablist" class="flex gap-0.5 p-0.5 rounded-xl bg-slate-200/55 border border-slate-200/60 max-w-2xl"></div>
+                    <div class="rounded-xl border border-slate-200/70 bg-white/92 p-3 shadow-sm min-h-0">
+                        <canvas id="global-strategy-threshold-chart" height="200" class="w-full h-[200px]"></canvas>
+                        <p id="global-strategy-chart-caption" class="text-[11px] text-gray-500 mt-1 px-0.5"></p>
+                        <div id="global-strategy-threshold-track" class="gs-threshold-track hidden">
+                            <div id="global-strategy-threshold-marker" class="gs-threshold-marker" style="left:50%"></div>
+                        </div>
+                        <p id="global-strategy-threshold-caption" class="text-[11px] text-gray-500 mt-1 px-0.5 hidden"></p>
+                    </div>
+                </div>
+            </div>
+            {% if gs.get('indicator_as_of') %}
+            <p class="text-xs text-gray-500 mt-4 pt-3 border-t border-indigo-100/50">Indicadores al cierre <span id="global-strategy-indicator-as-of">{{ gs['indicator_as_of'] }}</span> · USA: {{ gs.get('usa_label', '^VIX') }}</p>
+            {% else %}
+            <p class="text-xs text-gray-500 mt-4 pt-3 border-t border-indigo-100/50">USA: {{ gs.get('usa_label', '^VIX') }}</p>
+            {% endif %}
+        </div>
+        {% endif %}
+
         {# Eliminada tarjeta duplicada de "📊 Distribución de Activos" (barras).
            El donut principal ya cubre esta info. #}
       </div>
@@ -895,45 +937,6 @@
                 </div>
                 {% endif %}
             </div>
-        </div>
-        {% endif %}
-
-        {% set gs = summary.get('global_strategy_snapshot') %}
-        {% if current_user|user_has_module('stock') and gs %}
-        <script>window.INITIAL_GLOBAL_STRATEGY_SNAPSHOT = {{ gs | tojson }};</script>
-        <div class="dashboard-card p-5 border border-indigo-100/70 bg-gradient-to-br from-slate-50/90 to-indigo-50/50" data-card-id="global_strategy">
-            <div class="flex items-center gap-2 mb-3">
-                <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
-                <h3 class="card-title text-sm">🌍 Estrategia global</h3>
-            </div>
-            <div class="gs-viz">
-                <div class="gs-gauge-wrap">
-                    <canvas id="global-strategy-gauge-canvas" width="220" height="118" class="max-w-full"></canvas>
-                    <p id="global-strategy-sg-readout" class="text-2xl font-bold text-indigo-950 tabular-nums -mt-2">{{ '%.2f'|format(gs['sg']) }}</p>
-                    <p class="text-[11px] text-gray-500">Score global (0–3)</p>
-                </div>
-                <div class="min-w-0 flex flex-col gap-2">
-                    <div class="flex flex-wrap gap-2 text-xs">
-                        <span class="rounded-lg bg-white/90 px-2 py-1 border border-indigo-100/80 text-gray-700" title="USA ({{ gs.get('usa_label', '^VIX') }})">USA <span id="global-strategy-s-us" class="font-semibold tabular-nums">{% if gs.get('s_us') is not none %}{{ '%.2f'|format(gs['s_us']) }}{% else %}—{% endif %}</span></span>
-                        <span class="rounded-lg bg-white/90 px-2 py-1 border border-amber-100/90 text-gray-700">EU <span id="global-strategy-s-eu" class="font-semibold tabular-nums">{% if gs.get('s_eu') is not none %}{{ '%.2f'|format(gs['s_eu']) }}{% else %}—{% endif %}</span></span>
-                        <span class="rounded-lg bg-white/90 px-2 py-1 border border-teal-100/90 text-gray-700">Asia <span id="global-strategy-s-as" class="font-semibold tabular-nums">{% if gs.get('s_as') is not none %}{{ '%.2f'|format(gs['s_as']) }}{% else %}—{% endif %}</span></span>
-                    </div>
-                    <div id="global-strategy-tablist" class="flex gap-0.5 p-0.5 rounded-xl bg-slate-200/55 border border-slate-200/60"></div>
-                    <div class="rounded-xl border border-slate-200/70 bg-white/92 p-2 shadow-sm">
-                        <canvas id="global-strategy-threshold-chart" height="150" class="w-full h-[150px]"></canvas>
-                        <p id="global-strategy-chart-caption" class="text-[11px] text-gray-500 mt-1 px-0.5"></p>
-                        <div id="global-strategy-threshold-track" class="gs-threshold-track hidden">
-                            <div id="global-strategy-threshold-marker" class="gs-threshold-marker" style="left:50%"></div>
-                        </div>
-                        <p id="global-strategy-threshold-caption" class="text-[11px] text-gray-500 mt-1 px-0.5 hidden"></p>
-                    </div>
-                </div>
-            </div>
-            {% if gs.get('indicator_as_of') %}
-            <p class="text-xs text-gray-500 mt-3">Indicadores al cierre <span id="global-strategy-indicator-as-of">{{ gs['indicator_as_of'] }}</span> · USA: {{ gs.get('usa_label', '^VIX') }}</p>
-            {% else %}
-            <p class="text-xs text-gray-500 mt-3">USA: {{ gs.get('usa_label', '^VIX') }}</p>
-            {% endif %}
         </div>
         {% endif %}
 

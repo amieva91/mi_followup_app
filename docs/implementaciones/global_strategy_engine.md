@@ -187,7 +187,7 @@ Persistir serie temporal de \(SG\) (p. ej. un valor al cierre o tras cada job de
 - **Cuenta‑kilómetros:** arco semicircular en **canvas** coloreado de rojo (0) a verde (3) con lectura numérica de \(SG\) en \([0,3]\).
 - **Gráfico de umbrales:** pestañas **USA / Europa / Asia**; en cada una, línea de **cierre** (últimos ~100 puntos de la serie persistida), **MA200** horizontal a fecha actual y trazas **95% / 105%** de esa MA como referencia de banda. Paleta por bloque (índigo / ámbar / teal) coherente con el matiz del tab activo.
 - **Barra de posición del cierre:** debajo del gráfico, marcador del último cierre sobre un eje que abarca banda y recientes cierres (leyenda con cierre, ticker y rango 95–105% MA200).
-- **Layout:** tarjeta `data-card-id="global_strategy"` en `dashboard.html`, reordenable con el resto; **sin** panel de “configurar indicadores” en el producto actual: la tarjeta **solo** se muestra con módulo **`stock`** y payload `global_strategy_snapshot` válido (véase §7.1).
+- **Layout:** tarjeta ancha (`dashboard-card--wide`) con `data-card-id="global_strategy"` en el carril **WIDE** de `dashboard.html` (misma columna que evolución / salud), reordenable con el resto; **sin** panel de “configurar indicadores” en el producto actual: la tarjeta **solo** se muestra con módulo **`stock`** y payload `global_strategy_snapshot` válido (véase §7.1).
 
 ### 7.1 Visibilidad: módulo acciones y datos obligatorios
 
