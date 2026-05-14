@@ -171,6 +171,12 @@ Tickers: **^TNX**, **^IRX**, **^V2TX**, **3188.HK**.
 
 Persistir serie temporal de \(SG\) (p. ej. un valor al cierre o tras cada job de macro) con al menos **5** puntos recientes para calcular media móvil simple de 5 y la diferencia \(SG_{\text{actual}} - \text{media}_5\).
 
+#### 6.3.1 Persistencia atómica y fines de semana (obligatorio)
+
+- **Transacción única:** cada escritura de la serie (fila diaria por usuario, o un lote de días si se rellena fin de semana) debe hacerse en **una sola transacción** (`commit` único tras fijar `sg`, componentes \(s_{US}, s_{EU}, s_{AS}\) y metadatos). Nunca dejar la fila a medias (p. ej. `sg` actualizado sin `indicator_as_of` o sin componentes si el job los calcula juntos).
+- **Fecha de cierre de indicadores (`indicator_as_of`):** guardar explícitamente la **fecha de negocio / cierre** de los subyacentes usados (^TNX, ^IRX, ^V2TX, 3188.HK). En sábado y domingo los mercados cash suelen estar cerrados, pero **bonos y volatilidad** pueden seguir mostrando el **último cierre del viernes**; sin esta columna parece un “hueco” o un salto artificial en la serie.
+- **Sin huecos en la serie para la media de 5 días:** si la política del producto es **una fila por día natural (UTC)**, en fin de semana se puede **replicar el mismo \(SG\)** del viernes (mismo `indicator_as_of`) para sábado y domingo **en el mismo `commit`** que consolida el viernes, o bien calcular la media sobre los **últimos 5 registros no nulos** (sin exigir día calendario consecutivo). La implementación debe elegir una y documentarla; la referencia en código usa **forward-fill opcional** sábado/domingo en la misma transacción que el upsert del viernes cuando proceda (`upsert_sg_daily_atomic(..., fill_weekend_from_friday=True)` en `app/services/global_strategy/sg_history.py`).
+
 ---
 
 ## 7. Visualización (fase UI; depende de widget en dashboard)
@@ -183,10 +189,10 @@ Persistir serie temporal de \(SG\) (p. ej. un valor al cierre o tras cada job de
 
 ## 8. Checklist de implementación (orden sugerido)
 
-1. Servicio puro de scores \(s_{US}, s_{EU}, s_{AS}\) y \(SG\) + tests unitarios con entradas mockeadas.
-2. Función \(RO(SG)\) por tramos + tests de nodos y bordes.
+1. ~~Servicio puro de scores \(s_{US}, s_{EU}, s_{AS}\) y \(SG\) + tests unitarios con entradas mockeadas.~~ **Hecho** (`app/services/global_strategy/score_math.py`, `tests/global_strategy_score_math_test.py`).
+2. ~~Función \(RO(SG)\) por tramos + tests de nodos y bordes.~~ **Incluido** en el mismo módulo (`ratio_objetivo`, `umbral_objetivo_mercado`).
 3. Lectura de CO/IR desde la capa bróker ya alineada con §2.2.
-4. Persistencia de series diarias de indicadores y de \(SG\).
+4. ~~Persistencia de serie diaria de \(SG\)~~ **Modelo + migración + upsert atómico** (`GlobalStrategySgDaily`, `upsert_sg_daily_atomic` con opción `fill_weekend_from_friday`); series de indicadores macro pendientes.
 5. Integración de tickers en el job de precios Yahoo existente.
 6. Reglas 5.1–5.3 en `RecommendationService` (y, si aplica, payload en `dashboard_summary_cache` para el widget de dial cuando exista).
 

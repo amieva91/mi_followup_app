@@ -33,6 +33,7 @@ from app.models.benchmark_global_daily import BenchmarkGlobalDaily, BenchmarkGlo
 from app.models.spending_plan import SpendingPlanSettings, SpendingPlanFixedCategory, SpendingPlanGoal
 from app.models.reconciliation_adjustment_metric_pref import ReconciliationAdjustmentMetricPreference
 from app.models.interest_rate_context import InterestRateContextSnapshot
+from app.models.global_strategy_sg_daily import GlobalStrategySgDaily
 
 __all__ = [
     'User', 'MODULES', 'AVATARS', 
@@ -77,5 +78,6 @@ __all__ = [
     'SpendingPlanGoal',
     'ReconciliationAdjustmentMetricPreference',
     'InterestRateContextSnapshot',
+    'GlobalStrategySgDaily',
 ]
 
