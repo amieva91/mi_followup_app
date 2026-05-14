@@ -1,5 +1,5 @@
-"""
-Cálculo de \(s_{US}, s_{EU}, s_{AS}\) y \(SG\) desde `GlobalStrategyMacroService.snapshot_for_scores`
+r"""
+Cálculo de s_US, s_EU, s_AS y SG desde `GlobalStrategyMacroService.snapshot_for_scores`
 y persistencia diaria por usuario (módulo `stock`).
 """
 from __future__ import annotations
