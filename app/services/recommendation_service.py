@@ -142,36 +142,36 @@ class RecommendationService:
                     )
                 )
 
-        # Stock: si el módulo está habilitado y hay transacciones pero no holdings activos, sugerir revisar import.
-        if "stock" in enabled:
-            has_tx = Transaction.query.filter_by(user_id=user_id).first() is not None
-            has_holdings = (
-                PortfolioHolding.query.filter_by(user_id=user_id)
-                .filter(PortfolioHolding.quantity > 0)
-                .first()
-                is not None
-            )
-            if has_tx and not has_holdings:
-                recs.append(
-                    Recommendation(
-                        priority="low",
-                        icon="📊",
-                        title="Revisa tu cartera",
-                        text="Hay transacciones registradas pero no se detectan posiciones activas.",
-                        action="Abrir Portfolio → Cartera",
-                        source="stock",
+        # Stock: tips de cartera (lista enabled) + estrategia global (has_module: coherente con §7.1 si enabled_modules es None).
+        if user.has_module("stock"):
+            if "stock" in enabled:
+                has_tx = Transaction.query.filter_by(user_id=user_id).first() is not None
+                has_holdings = (
+                    PortfolioHolding.query.filter_by(user_id=user_id)
+                    .filter(PortfolioHolding.quantity > 0)
+                    .first()
+                    is not None
+                )
+                if has_tx and not has_holdings:
+                    recs.append(
+                        Recommendation(
+                            priority="low",
+                            icon="📊",
+                            title="Revisa tu cartera",
+                            text="Hay transacciones registradas pero no se detectan posiciones activas.",
+                            action="Abrir Portfolio → Cartera",
+                            source="stock",
+                        )
                     )
+
+            try:
+                from app.services.global_strategy.global_recommendations import (
+                    append_global_strategy_recommendations,
                 )
 
-            if user.has_module("stock"):
-                try:
-                    from app.services.global_strategy.global_recommendations import (
-                        append_global_strategy_recommendations,
-                    )
-
-                    append_global_strategy_recommendations(user_id, recs)
-                except Exception:
-                    pass
+                append_global_strategy_recommendations(user_id, recs)
+            except Exception:
+                pass
 
         # Real estate: si el módulo está habilitado y hay propiedades sin valoración estimada (placeholder).
         if "real_estate" in enabled:
