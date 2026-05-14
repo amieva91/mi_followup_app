@@ -354,7 +354,8 @@ def create_app(config_name='default'):
     @app.cli.command("global-strategy-macro-daily-once")
     def global_strategy_macro_daily_once():
         """
-        Descarga/actualiza cierres diarios Yahoo (^VIX, SPY, FEZ, 3188.HK) para el motor macro.
+        Descarga/actualiza cierres diarios Yahoo (^VIX, SPY, FEZ, 3188.HK) y persiste SG
+        en global_strategy_sg_daily para usuarios activos con módulo stock.
         Cron recomendado: 1× día tras cierre US (p. ej. 22:35 Europe/Madrid); ver scripts/install_global_strategy_macro_cron.sh
         """
         import time
@@ -385,6 +386,19 @@ def create_app(config_name='default'):
                 f"  [{flag}] {key}: n_closes={n} close={payload.get('close')} "
                 f"ma200={payload.get('ma200')} as_of={payload.get('as_of_date')}"
             )
+
+        from app.services.global_strategy.sg_from_macro import upsert_sg_daily_for_all_stock_users
+
+        sg_res = upsert_sg_daily_for_all_stock_users(snap=snap)
+        if sg_res.get("ok"):
+            print(
+                f"  SG persistido: users={sg_res['users_updated']} "
+                f"sg={float(sg_res['sg']):.4f} "
+                f"s_us={float(sg_res['s_us']):.4f} s_eu={float(sg_res['s_eu']):.4f} s_as={float(sg_res['s_as']):.4f} "
+                f"indicator_as_of={sg_res.get('indicator_as_of')} snapshot_date={sg_res.get('snapshot_date')}"
+            )
+        else:
+            print(f"  SG no persistido: {sg_res.get('reason', 'unknown')}")
 
     @app.cli.command('cache-rebuild-worker-once')
     def cache_rebuild_worker_once():
