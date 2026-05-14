@@ -163,6 +163,16 @@ class RecommendationService:
                     )
                 )
 
+            if user.has_module("stock"):
+                try:
+                    from app.services.global_strategy.global_recommendations import (
+                        append_global_strategy_recommendations,
+                    )
+
+                    append_global_strategy_recommendations(user_id, recs)
+                except Exception:
+                    pass
+
         # Real estate: si el módulo está habilitado y hay propiedades sin valoración estimada (placeholder).
         if "real_estate" in enabled:
             prop = RealEstateProperty.query.filter_by(user_id=user_id).first()
@@ -183,5 +193,5 @@ class RecommendationService:
         pr_order = {"high": 0, "medium": 1, "low": 2}
         deduped.sort(key=lambda x: (pr_order.get(x.priority, 9)))
 
-        return [r.as_dict() for r in deduped[:8]]
+        return [r.as_dict() for r in deduped[:10]]
 

@@ -69,6 +69,11 @@ class Config:
     # Backfill inicial: días de calendario hacia atrás (≈250+ sesiones con 450)
     GLOBAL_STRATEGY_MACRO_BACKFILL_CALENDAR_DAYS = int(os.environ.get('GLOBAL_STRATEGY_MACRO_BACKFILL_CALENDAR_DAYS', '450'))
     GLOBAL_STRATEGY_MACRO_MIN_CLOSES = int(os.environ.get('GLOBAL_STRATEGY_MACRO_MIN_CLOSES', '250'))
+    # Incluir recomendación de confirmación §5.3 en el feed (riesgo/oportunidad tienen prioridad).
+    GLOBAL_STRATEGY_INCLUDE_CONFIRMATION_RECOMMENDATION = (
+        os.environ.get('GLOBAL_STRATEGY_INCLUDE_CONFIRMATION_RECOMMENDATION', 'true').strip().lower()
+        in ('1', 'true', 'yes')
+    )
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
     
     # Allowed extensions

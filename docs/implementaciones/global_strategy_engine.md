@@ -150,7 +150,7 @@ Condiciones evaluadas **después** de calcular \(SG\), \(RO\), \(UOM\), \(IR\) y
 
 **Prioridad sugerida en `RecommendationService`:** riesgo > oportunidad > confirmación (o solo riesgo/oportunidad si se quiere evitar ruido de confirmación diaria; configurable).
 
-**Punto de integración:** `app/services/recommendation_service.py` → `build_for_dashboard`, inyectando entradas con `source` p. ej. `global_strategy` para poder filtrar o ponderar.
+**Punto de integración:** `app/services/recommendation_service.py` → `build_for_dashboard`, inyectando entradas con `source` **`global_strategy`** (`app/services/global_strategy/global_recommendations.py`; prioridad riesgo > oportunidad > confirmación).
 
 ---
 
@@ -210,7 +210,7 @@ La lógica de recomendaciones macro (§5) puede seguir otras reglas de disparo, 
 2. ~~Función \(RO(SG)\) por tramos + tests de nodos y bordes.~~ **Incluido** en el mismo módulo (`ratio_objetivo`, `umbral_objetivo_mercado`).
 3. Lectura de CO/IR desde la capa bróker ya alineada con §2.2.
 4. ~~Persistencia macro Yahoo + serie diaria \(SG\) por usuario.~~ **Hecho** (job `global-strategy-macro-daily-once`, tablas macro, `sg_from_macro.py` → `upsert_sg_daily_atomic` para usuarios activos con módulo `stock`). Pendiente opcional: spot intradía en job de precios.
-5. Reglas 5.1–5.3 en `RecommendationService` (y, si aplica, payload en `dashboard_summary_cache` para el widget de dial cuando exista).
+5. ~~Reglas 5.1–5.3 en `RecommendationService`.~~ **Hecho** (`global_recommendations.py`, `source=global_strategy`, prioridad B>A>C; confirmación con `GLOBAL_STRATEGY_INCLUDE_CONFIRMATION_RECOMMENDATION`).
 6. UI: tarjetas de estrategia global según **§7.1** (módulo `stock` + datos; `dashboard.html` / `DEFAULT_WIDGETS` / caché).
 
 ---
