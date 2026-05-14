@@ -63,7 +63,14 @@ Comprobar en implementación que \(x\) y los umbrales `0.5` estén en las **mism
 
 ### 3.2 Bloque Europa — volatilidad (VSTOXX)
 
-Ticker Yahoo: **^V2TX**. Sea \(v\) el valor actual y \(v_{ma}\) la media móvil de **200** sesiones sobre cierres diarios cacheados.
+Ticker en Yahoo Chart v8 (verificación manual/script):
+
+- **`^V2TX`:** **404** en chart v8.
+- **`V2TX.DE`:** cotización en **`meta`** (válida para “spot” / `PriceUpdater.fetch_yahoo_chart_quote`); la **serie diaria** para **MA200** **no** está disponible de forma fiable vía el mismo API en las pruebas (sin suficientes `close` diarios). **No integrar el bloque EU contra solo Yahoo** hasta tener serie diaria confirmada (otro símbolo con histórico, otro endpoint, o proveedor alternativo).
+
+Comprobar siempre con `scripts/verify_yahoo_global_strategy_tickers.py` antes de codificar ingest.
+
+Sea \(v\) el valor actual y \(v_{ma}\) la media móvil de **200** sesiones sobre cierres diarios cacheados.
 
 \[
 s_{EU} = \begin{cases}
@@ -157,7 +164,9 @@ Condiciones evaluadas **después** de calcular \(SG\), \(RO\), \(UOM\), \(IR\) y
 
 ### 6.1 Yahoo (USA, Europa, Asia por defecto)
 
-Tickers: **^TNX**, **^IRX**, **^V2TX**, **3188.HK**.
+Tickers **con verificación satisfactoria** en Chart v8 (light + histórico ≥200 cierres diarios): **^TNX**, **^IRX**, **3188.HK**. Script: `scripts/verify_yahoo_global_strategy_tickers.py` (por defecto solo esos tres; `--include-eu-vstoxx` para intentar **V2TX.DE** en el gate estricto).
+
+**Europa (VSTOXX):** **^V2TX** → 404; **V2TX.DE** → spot en `meta` pero **sin** serie diaria fiable para MA200 en las pruebas. El bloque EU **no** debe integrarse solo con Yahoo hasta resolver fuente de serie.
 
 - Integración: **mismo flujo** que la actualización periódica de precios de activos (lista de símbolos a refrescar; en el minuto que corresponda se actualiza el último precio/cierre según el diseño actual de `PriceUpdater` / colas en `app/__init__.py` y servicios relacionados).
 - Para **MA200** y spreads: persistir **cierres diarios** (o serie diaria derivada) en caché/BD para no recalcular MA contra APIs en cada request.
@@ -174,7 +183,7 @@ Persistir serie temporal de \(SG\) (p. ej. un valor al cierre o tras cada job de
 #### 6.3.1 Persistencia atómica y fines de semana (obligatorio)
 
 - **Transacción única:** cada escritura de la serie (fila diaria por usuario, o un lote de días si se rellena fin de semana) debe hacerse en **una sola transacción** (`commit` único tras fijar `sg`, componentes \(s_{US}, s_{EU}, s_{AS}\) y metadatos). Nunca dejar la fila a medias (p. ej. `sg` actualizado sin `indicator_as_of` o sin componentes si el job los calcula juntos).
-- **Fecha de cierre de indicadores (`indicator_as_of`):** guardar explícitamente la **fecha de negocio / cierre** de los subyacentes usados (^TNX, ^IRX, ^V2TX, 3188.HK). En sábado y domingo los mercados cash suelen estar cerrados, pero **bonos y volatilidad** pueden seguir mostrando el **último cierre del viernes**; sin esta columna parece un “hueco” o un salto artificial en la serie.
+- **Fecha de cierre de indicadores (`indicator_as_of`):** guardar explícitamente la **fecha de negocio / cierre** de los subyacentes usados (^TNX, ^IRX, Asia 3188.HK, y el símbolo EU cuando exista serie fiable). En sábado y domingo los mercados cash suelen estar cerrados, pero **bonos y volatilidad** pueden seguir mostrando el **último cierre del viernes**; sin esta columna parece un “hueco” o un salto artificial en la serie.
 - **Sin huecos en la serie para la media de 5 días:** si la política del producto es **una fila por día natural (UTC)**, en fin de semana se puede **replicar el mismo \(SG\)** del viernes (mismo `indicator_as_of`) para sábado y domingo **en el mismo `commit`** que consolida el viernes, o bien calcular la media sobre los **últimos 5 registros no nulos** (sin exigir día calendario consecutivo). La implementación debe elegir una y documentarla; la referencia en código usa **forward-fill opcional** sábado/domingo en la misma transacción que el upsert del viernes cuando proceda (`upsert_sg_daily_atomic(..., fill_weekend_from_friday=True)` en `app/services/global_strategy/sg_history.py`).
 
 ---
