@@ -847,8 +847,8 @@
         {% endif %}
 
         {% set gs = summary.get('global_strategy_snapshot') %}
-        {% if gs %}
-        <div class="dashboard-card p-5 border border-indigo-100/70 bg-gradient-to-br from-slate-50/90 to-indigo-50/50" data-card-id="global_strategy" x-show="widgets['global_strategy']" x-cloak>
+        {% if current_user|user_has_module('stock') and gs %}
+        <div class="dashboard-card p-5 border border-indigo-100/70 bg-gradient-to-br from-slate-50/90 to-indigo-50/50" data-card-id="global_strategy">
             <div class="flex items-center gap-2 mb-3">
                 <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
                 <h3 class="card-title text-sm">🌍 Estrategia global</h3>
