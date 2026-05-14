@@ -114,6 +114,58 @@
         color: #1f2937;
         letter-spacing: 0.01em;
     }
+    /* Estrategia global §7: gauge + pestañas macro */
+    .gs-viz {
+        display: grid;
+        gap: 1rem;
+        align-items: start;
+    }
+    @media (min-width: 640px) {
+        .gs-viz { grid-template-columns: minmax(0, 200px) minmax(0, 1fr); }
+    }
+    .gs-gauge-wrap { display: flex; flex-direction: column; align-items: center; }
+    .gs-tab {
+        flex: 1 1 0;
+        min-width: 0;
+        padding: 0.35rem 0.5rem;
+        font-size: 11px;
+        font-weight: 600;
+        border-radius: 0.65rem;
+        border: 1px solid transparent;
+        color: #64748b;
+        background: transparent;
+        cursor: pointer;
+        transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .gs-tab:hover { color: #334155; background: rgba(255,255,255,0.55); }
+    .gs-tab--active {
+        color: #312e81;
+        background: #fff;
+        border-color: rgba(99, 102, 241, 0.35);
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+    }
+    .gs-tab--active[data-hue="amber"] { color: #92400e; border-color: rgba(217, 119, 6, 0.4); }
+    .gs-tab--active[data-hue="teal"] { color: #115e59; border-color: rgba(13, 148, 136, 0.45); }
+    .gs-threshold-track {
+        position: relative;
+        height: 0.65rem;
+        border-radius: 9999px;
+        margin-top: 0.75rem;
+        background: linear-gradient(90deg, rgba(244, 63, 94, 0.22) 0%, rgba(226, 232, 240, 0.95) 45%, 55%, rgba(52, 211, 153, 0.35) 100%);
+        border: 1px solid rgba(148, 163, 184, 0.45);
+    }
+    .gs-threshold-marker {
+        position: absolute;
+        top: 50%;
+        width: 6px;
+        height: 1.1rem;
+        margin-left: -3px;
+        border-radius: 3px;
+        background: #0f172a;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        transform: translateY(-50%);
+        z-index: 2;
+    }
     .evo-chart-surface {
         background:
             radial-gradient(circle at 30% -10%, rgba(20, 184, 166, 0.08), transparent 42%),
@@ -848,26 +900,39 @@
 
         {% set gs = summary.get('global_strategy_snapshot') %}
         {% if current_user|user_has_module('stock') and gs %}
+        <script>window.INITIAL_GLOBAL_STRATEGY_SNAPSHOT = {{ gs | tojson }};</script>
         <div class="dashboard-card p-5 border border-indigo-100/70 bg-gradient-to-br from-slate-50/90 to-indigo-50/50" data-card-id="global_strategy">
             <div class="flex items-center gap-2 mb-3">
                 <span class="card-drag-handle" title="Arrastrar">⋮⋮</span>
                 <h3 class="card-title text-sm">🌍 Estrategia global</h3>
             </div>
-            <div class="flex flex-wrap items-end gap-5 mb-2">
-                <div>
-                    <p class="text-xs text-gray-500 uppercase tracking-wide">SG</p>
-                    <p id="global-strategy-sg" class="text-2xl font-bold text-indigo-900 tabular-nums">{{ '%.2f'|format(gs['sg']) }}</p>
+            <div class="gs-viz">
+                <div class="gs-gauge-wrap">
+                    <canvas id="global-strategy-gauge-canvas" width="220" height="118" class="max-w-full"></canvas>
+                    <p id="global-strategy-sg-readout" class="text-2xl font-bold text-indigo-950 tabular-nums -mt-2">{{ '%.2f'|format(gs['sg']) }}</p>
+                    <p class="text-[11px] text-gray-500">Score global (0–3)</p>
                 </div>
-                <div class="flex flex-wrap gap-2 text-sm">
-                    <span class="rounded-lg bg-white/85 px-2.5 py-1 border border-indigo-100/80 text-gray-700" title="USA ({{ gs.get('usa_label', '^VIX') }})">USA <span id="global-strategy-s-us" class="font-semibold tabular-nums">{% if gs.get('s_us') is not none %}{{ '%.2f'|format(gs['s_us']) }}{% else %}—{% endif %}</span></span>
-                    <span class="rounded-lg bg-white/85 px-2.5 py-1 border border-indigo-100/80 text-gray-700">EU <span id="global-strategy-s-eu" class="font-semibold tabular-nums">{% if gs.get('s_eu') is not none %}{{ '%.2f'|format(gs['s_eu']) }}{% else %}—{% endif %}</span></span>
-                    <span class="rounded-lg bg-white/85 px-2.5 py-1 border border-indigo-100/80 text-gray-700">Asia <span id="global-strategy-s-as" class="font-semibold tabular-nums">{% if gs.get('s_as') is not none %}{{ '%.2f'|format(gs['s_as']) }}{% else %}—{% endif %}</span></span>
+                <div class="min-w-0 flex flex-col gap-2">
+                    <div class="flex flex-wrap gap-2 text-xs">
+                        <span class="rounded-lg bg-white/90 px-2 py-1 border border-indigo-100/80 text-gray-700" title="USA ({{ gs.get('usa_label', '^VIX') }})">USA <span id="global-strategy-s-us" class="font-semibold tabular-nums">{% if gs.get('s_us') is not none %}{{ '%.2f'|format(gs['s_us']) }}{% else %}—{% endif %}</span></span>
+                        <span class="rounded-lg bg-white/90 px-2 py-1 border border-amber-100/90 text-gray-700">EU <span id="global-strategy-s-eu" class="font-semibold tabular-nums">{% if gs.get('s_eu') is not none %}{{ '%.2f'|format(gs['s_eu']) }}{% else %}—{% endif %}</span></span>
+                        <span class="rounded-lg bg-white/90 px-2 py-1 border border-teal-100/90 text-gray-700">Asia <span id="global-strategy-s-as" class="font-semibold tabular-nums">{% if gs.get('s_as') is not none %}{{ '%.2f'|format(gs['s_as']) }}{% else %}—{% endif %}</span></span>
+                    </div>
+                    <div id="global-strategy-tablist" class="flex gap-0.5 p-0.5 rounded-xl bg-slate-200/55 border border-slate-200/60"></div>
+                    <div class="rounded-xl border border-slate-200/70 bg-white/92 p-2 shadow-sm">
+                        <canvas id="global-strategy-threshold-chart" height="150" class="w-full h-[150px]"></canvas>
+                        <p id="global-strategy-chart-caption" class="text-[11px] text-gray-500 mt-1 px-0.5"></p>
+                        <div id="global-strategy-threshold-track" class="gs-threshold-track hidden">
+                            <div id="global-strategy-threshold-marker" class="gs-threshold-marker" style="left:50%"></div>
+                        </div>
+                        <p id="global-strategy-threshold-caption" class="text-[11px] text-gray-500 mt-1 px-0.5 hidden"></p>
+                    </div>
                 </div>
             </div>
             {% if gs.get('indicator_as_of') %}
-            <p class="text-xs text-gray-500">Indicadores al cierre <span id="global-strategy-indicator-as-of">{{ gs['indicator_as_of'] }}</span> · USA: {{ gs.get('usa_label', '^VIX') }}</p>
+            <p class="text-xs text-gray-500 mt-3">Indicadores al cierre <span id="global-strategy-indicator-as-of">{{ gs['indicator_as_of'] }}</span> · USA: {{ gs.get('usa_label', '^VIX') }}</p>
             {% else %}
-            <p class="text-xs text-gray-500">USA: {{ gs.get('usa_label', '^VIX') }}</p>
+            <p class="text-xs text-gray-500 mt-3">USA: {{ gs.get('usa_label', '^VIX') }}</p>
             {% endif %}
         </div>
         {% endif %}
@@ -2005,6 +2070,9 @@ function animateHealthScoreCounter() {
 
 document.addEventListener('DOMContentLoaded', () => {
     animateHealthScoreCounter();
+    if (window.INITIAL_GLOBAL_STRATEGY_SNAPSHOT && typeof window.refreshGlobalStrategyViz === 'function') {
+        window.refreshGlobalStrategyViz(window.INITIAL_GLOBAL_STRATEGY_SNAPSHOT);
+    }
 }, { once: true });
 
 // --- Actualización ligera desde /dashboard/state (sin recargar toda la página) ---
@@ -2025,6 +2093,227 @@ function updateDashboardStaleness(cachedAtIso) {
 }
 
 const DAY_CHANGE_TOOLTIP = 'Variación del día (precio actual vs. cierre previo): cuenta de acciones en broker + cripto + metales. No incluye efectivo en bancos ni inmuebles.';
+
+/** Estrategia global §7: cuenta-kilómetros (gauge) + gráfico umbrales por región */
+let _globalStrategyThresholdChart = null;
+let _globalStrategyCurrentRegion = 'us';
+let _globalStrategySnapshotLocal = null;
+
+function _destroyGlobalStrategyThresholdChart() {
+    if (_globalStrategyThresholdChart) {
+        try { _globalStrategyThresholdChart.destroy(); } catch (e) { /* ignore */ }
+        _globalStrategyThresholdChart = null;
+    }
+}
+
+function drawGlobalStrategyGauge(sg) {
+    const canvas = document.getElementById('global-strategy-gauge-canvas');
+    if (!canvas || typeof sg !== 'number' || !Number.isFinite(sg)) return;
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width;
+    const h = canvas.height;
+    const cx = w / 2;
+    const cy = h - 8;
+    const r = Math.min(w * 0.42, h * 0.72);
+    ctx.clearRect(0, 0, w, h);
+    const t = Math.PI;
+    const tEnd = 2 * Math.PI;
+    ctx.lineWidth = 10;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.45)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, t, tEnd, false);
+    ctx.stroke();
+    const clamped = Math.max(0, Math.min(3, sg));
+    const frac = clamped / 3;
+    const grd = ctx.createLinearGradient(cx - r, cy, cx + r, cy);
+    grd.addColorStop(0, '#f87171');
+    grd.addColorStop(0.5, '#facc15');
+    grd.addColorStop(1, '#4ade80');
+    ctx.strokeStyle = grd;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, t, t + Math.PI * frac, false);
+    ctx.stroke();
+    ctx.fillStyle = '#0f172a';
+    ctx.font = '600 11px system-ui,sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('0', cx - r - 2, cy + 4);
+    ctx.fillText('3', cx + r + 2, cy + 4);
+}
+
+function _hueRgb(hue) {
+    if (hue === 'amber') return { main: 'rgb(180, 83, 9)', fill: 'rgba(245, 158, 11, 0.12)' };
+    if (hue === 'teal') return { main: 'rgb(13, 148, 136)', fill: 'rgba(45, 212, 191, 0.12)' };
+    return { main: 'rgb(79, 70, 229)', fill: 'rgba(129, 140, 248, 0.14)' };
+}
+
+function renderGlobalStrategyThresholdBar(region) {
+    const track = document.getElementById('global-strategy-threshold-track');
+    const marker = document.getElementById('global-strategy-threshold-marker');
+    const cap = document.getElementById('global-strategy-threshold-caption');
+    if (!track || !marker || !cap) return;
+    if (!region) {
+        track.classList.add('hidden');
+        cap.classList.add('hidden');
+        return;
+    }
+    const chart = region.chart || [];
+    const closes = chart.map((p) => Number(p.v)).filter((v) => Number.isFinite(v));
+    const lo = Number(region.band_low);
+    const hi = Number(region.band_high);
+    const close = Number(region.close);
+    if (!closes.length || !Number.isFinite(lo) || !Number.isFinite(hi) || hi <= lo || !Number.isFinite(close)) {
+        track.classList.add('hidden');
+        cap.classList.add('hidden');
+        return;
+    }
+    const axisMin = Math.min(lo, Math.min(...closes));
+    const axisMax = Math.max(hi, Math.max(...closes));
+    const span = axisMax - axisMin || 1;
+    let pct = (close - axisMin) / span;
+    pct = Math.max(0, Math.min(1, pct));
+    track.classList.remove('hidden');
+    cap.classList.remove('hidden');
+    marker.style.left = (pct * 100).toFixed(2) + '%';
+    cap.textContent = `Cierre ${region.ticker}: ${close} · Banda 95–105% MA200 [${lo} – ${hi}]`;
+}
+
+function renderGlobalStrategyThresholdChart(regionKey) {
+    const canvas = document.getElementById('global-strategy-threshold-chart');
+    const cap = document.getElementById('global-strategy-chart-caption');
+    const snap = _globalStrategySnapshotLocal;
+    if (!canvas || !cap || typeof Chart === 'undefined') return;
+    const regions = (snap && snap.regions) || {};
+    const region = regions[regionKey];
+    _destroyGlobalStrategyThresholdChart();
+    if (!region || !region.chart || !region.chart.length) {
+        cap.textContent = 'Sin serie suficiente para el gráfico.';
+        renderGlobalStrategyThresholdBar(null);
+        return;
+    }
+    const labels = region.chart.map((p) => (p.date || '').slice(5));
+    const vals = region.chart.map((p) => Number(p.v));
+    const ma = Number(region.ma200);
+    const bLo = Number(region.band_low);
+    const bHi = Number(region.band_high);
+    const maLine = region.chart.map(() => ma);
+    const loLine = region.chart.map(() => bLo);
+    const hiLine = region.chart.map(() => bHi);
+    const col = _hueRgb(region.hue);
+    cap.textContent = `${region.label} · ${region.ticker} · s = ${region.score != null ? region.score.toFixed(2) : '—'}`;
+    _globalStrategyThresholdChart = new Chart(canvas, {
+        type: 'line',
+        data: {
+            labels,
+            datasets: [
+                {
+                    label: 'Cierre',
+                    data: vals,
+                    borderColor: col.main,
+                    backgroundColor: col.fill,
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    tension: 0.2,
+                    fill: false,
+                },
+                {
+                    label: 'MA200',
+                    data: maLine,
+                    borderColor: 'rgba(71, 85, 105, 0.75)',
+                    borderDash: [6, 4],
+                    pointRadius: 0,
+                    borderWidth: 1.5,
+                    tension: 0,
+                },
+                {
+                    label: '95% MA',
+                    data: loLine,
+                    borderColor: 'rgba(244, 63, 94, 0.45)',
+                    pointRadius: 0,
+                    borderDash: [3, 3],
+                    borderWidth: 1,
+                    tension: 0,
+                },
+                {
+                    label: '105% MA',
+                    data: hiLine,
+                    borderColor: 'rgba(34, 197, 94, 0.45)',
+                    pointRadius: 0,
+                    borderDash: [3, 3],
+                    borderWidth: 1,
+                    tension: 0,
+                },
+            ],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { display: true, position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } },
+                tooltip: { enabled: true },
+            },
+            scales: {
+                x: { display: true, ticks: { maxTicksLimit: 8, font: { size: 9 } }, grid: { display: false } },
+                y: {
+                    display: true,
+                    ticks: { font: { size: 9 } },
+                    grid: { color: 'rgba(148, 163, 184, 0.2)' },
+                },
+            },
+        },
+    });
+    renderGlobalStrategyThresholdBar(region);
+}
+
+function setupGlobalStrategyTabs(snap) {
+    const host = document.getElementById('global-strategy-tablist');
+    const cap = document.getElementById('global-strategy-chart-caption');
+    if (!host || !snap || !snap.regions) return;
+    const order = ['us', 'eu', 'asia'];
+    const keys = order.filter((k) => snap.regions[k]);
+    if (!keys.length) {
+        host.innerHTML = '';
+        if (cap) cap.textContent = 'Sin datos de series macro para el gráfico.';
+        _destroyGlobalStrategyThresholdChart();
+        renderGlobalStrategyThresholdBar(null);
+        return;
+    }
+    if (!keys.includes(_globalStrategyCurrentRegion)) {
+        _globalStrategyCurrentRegion = keys[0];
+    }
+    host.innerHTML = '';
+    keys.forEach((k) => {
+        const r = snap.regions[k];
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'gs-tab' + (k === _globalStrategyCurrentRegion ? ' gs-tab--active' : '');
+        btn.dataset.region = k;
+        btn.dataset.hue = r.hue || 'indigo';
+        btn.textContent = r.label || k.toUpperCase();
+        btn.addEventListener('click', function () {
+            _globalStrategyCurrentRegion = k;
+            Array.prototype.forEach.call(host.querySelectorAll('.gs-tab'), function (b) {
+                const on = b.dataset.region === k;
+                b.classList.toggle('gs-tab--active', on);
+                const rk = b.dataset.region;
+                if (rk && snap.regions[rk]) b.dataset.hue = snap.regions[rk].hue || 'indigo';
+            });
+            renderGlobalStrategyThresholdChart(k);
+        });
+        host.appendChild(btn);
+    });
+    renderGlobalStrategyThresholdChart(_globalStrategyCurrentRegion);
+}
+
+window.refreshGlobalStrategyViz = function (snap) {
+    if (!snap || typeof snap.sg !== 'number') return;
+    _globalStrategySnapshotLocal = snap;
+    drawGlobalStrategyGauge(snap.sg);
+    const ro = document.getElementById('global-strategy-sg-readout');
+    if (ro) ro.textContent = snap.sg.toFixed(2);
+    setupGlobalStrategyTabs(snap);
+};
 
 function applyDashboardUpdate(summary) {
     if (!summary) return;
@@ -2077,16 +2366,15 @@ function applyDashboardUpdate(summary) {
     const gsSnap = summary.global_strategy_snapshot;
     if (gsCard && gsSnap && typeof gsSnap === 'object') {
         const fmt = (v) => (typeof v === 'number' && Number.isFinite(v)) ? v.toFixed(2) : '—';
-        const sgEl = document.getElementById('global-strategy-sg');
         const suEl = document.getElementById('global-strategy-s-us');
         const seEl = document.getElementById('global-strategy-s-eu');
         const saEl = document.getElementById('global-strategy-s-as');
         const indEl = document.getElementById('global-strategy-indicator-as-of');
-        if (sgEl && typeof gsSnap.sg === 'number') sgEl.textContent = gsSnap.sg.toFixed(2);
         if (suEl) suEl.textContent = fmt(gsSnap.s_us);
         if (seEl) seEl.textContent = fmt(gsSnap.s_eu);
         if (saEl) saEl.textContent = fmt(gsSnap.s_as);
         if (indEl && gsSnap.indicator_as_of) indEl.textContent = gsSnap.indicator_as_of;
+        if (typeof window.refreshGlobalStrategyViz === 'function') window.refreshGlobalStrategyViz(gsSnap);
     }
 
     // Actualizar etiqueta de "Actualizado hace X min"

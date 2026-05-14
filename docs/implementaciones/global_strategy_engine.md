@@ -1,6 +1,6 @@
 # Motor de estrategia global (Global Strategy Engine) — especificación v1
 
-Documento de referencia para implementación. Alcance inicial: **cuenta bróker (acciones/ETF/ADR en el módulo de bolsa)**, indicadores macro vía **Yahoo Finance** en el flujo de precios por minuto. **Jerarquía de tickers v1:** USA **^VIX** (volatilidad vs MA200) *o* **SPY** (precio vs MA200), Europa **FEZ** (precio vs MA200), Asia **3188.HK** (precio vs MA200). **Sin notificaciones email/push**: solo entradas en la lista de recomendaciones del dashboard (`RecommendationService`).
+Documento de referencia para implementación. Alcance inicial: **cuenta bróker (acciones/ETF/ADR en el módulo de bolsa)**, indicadores macro vía **Yahoo Finance**. Los **cierres diarios** y la MA200 para los índices macro se persisten con el job **`global-strategy-macro-daily-once`** (cron diario tras cierre US; ver §6.1), independiente del polling intradía de precios de cartera. **Jerarquía de tickers v1:** USA **^VIX** (volatilidad vs MA200) *o* **SPY** (precio vs MA200), Europa **FEZ** (precio vs MA200), Asia **3188.HK** (precio vs MA200). **Sin notificaciones email/push**: solo entradas en la lista de recomendaciones del dashboard (`RecommendationService`).
 
 ---
 
@@ -11,7 +11,7 @@ Documento de referencia para implementación. Alcance inicial: **cuenta bróker 
 3. **Umbral objetivo de mercado** \(UOM = CO \times RO(SG)\) usando **Capital operativo (CO)** del bróker.
 4. **Inversión real (IR)** como exposición bruta a mercado (valor mercado posiciones).
 5. **Recomendaciones** condicionadas a márgenes 50% / 30% y a tendencia del score (riesgo).
-6. **Visualización** (fases posteriores): cuenta‑kilómetros \(SG\) 0.0–3.0; gráficos de umbrales con paleta monocromática por bloque filtrado.
+6. **Visualización (v1 en dashboard):** cuenta‑kilómetros \(SG\) en \([0,3]\) (gauge en canvas), gráfico de cierre vs **MA200** y líneas **95% / 105%** de la MA con pestañas **USA / Europa / Asia** (`dashboard.html` + payload `global_strategy_snapshot.regions` desde `dashboard_snapshot.py`).
 
 ---
 
@@ -160,8 +160,8 @@ Condiciones evaluadas **después** de calcular \(SG\), \(RO\), \(UOM\), \(IR\) y
 
 Tickers del gate por defecto en `scripts/verify_yahoo_global_strategy_tickers.py`: **^VIX**, **SPY**, **FEZ**, **3188.HK** (cotización ligera + ≥200 cierres diarios con `range=2y`, `interval=1d`). Flag **`--include-us-yields`** añade **^TNX** y **^IRX** si se mantiene el modo legacy de curva de tipos.
 
-- Integración: **mismo flujo** que la actualización periódica de precios de activos (lista de símbolos a refrescar; en el minuto que corresponda se actualiza el último precio/cierre según el diseño actual de `PriceUpdater` / colas en `app/__init__.py` y servicios relacionados).
-- Para **MA200**: persistir **cierres diarios** en caché/BD para **SPY**, **FEZ**, **3188.HK** y **^VIX** según el modo USA elegido.
+- **v1 (implementado):** persistencia **diaria** de cierres en **`global_strategy_macro_daily`** mediante el comando **`global-strategy-macro-daily-once`** (no depende del ciclo intraminuto de `PriceUpdater`). Opcional futuro: acoplar refresco intradía de cotizaciones de índices al mismo pipeline que los activos de cartera si el producto lo exige.
+- Para **MA200**: los cierres diarios en BD cubren **SPY**, **FEZ**, **3188.HK** y **^VIX** según el modo USA elegido (`GLOBAL_STRATEGY_USA_SCORE_MODE` / `GlobalStrategyMacroState.usa_score_mode`).
 
 **Job de persistencia (implementado):** comando Flask **`global-strategy-macro-daily-once`** (`GlobalStrategyMacroService` en `app/services/global_strategy/macro_daily_service.py`). Tablas **`global_strategy_macro_daily`** (una fila por serie: `vix`, `spy`, `fez`, `asia_hk`, JSON `data_points` con `{date, price}`) y **`global_strategy_macro_state`** (singleton `data_version`, **`usa_score_mode`** por defecto **`vix`** alineado con `GLOBAL_STRATEGY_USA_SCORE_MODE` en `config.py`). Cron: **`scripts/install_global_strategy_macro_cron.sh`** — **22:35** hora **Europe/Madrid** (tras cierre habitual US); log `logs/global_strategy_macro_daily_cron.log`. Primer arranque: backfill de **`GLOBAL_STRATEGY_MACRO_BACKFILL_CALENDAR_DAYS`** (defecto **450**) días de calendario hacia atrás para asegurar **≥ ~250** sesiones; el CLI imprime **WARN** si `n_closes` cae por debajo de **`GLOBAL_STRATEGY_MACRO_MIN_CLOSES`** (250). Lectura agregada: `GlobalStrategyMacroService.snapshot_for_scores()` (close, MA200, `as_of_date` por serie). **SG diario:** en la misma ejecución, `upsert_sg_daily_for_all_stock_users` (`sg_from_macro.py`) calcula \(s_{US}, s_{EU}, s_{AS}\) y \(SG\) con `score_math` y hace `upsert_sg_daily_atomic` para cada usuario activo con módulo **`stock`**; `indicator_as_of` = mínimo de las fechas de cierre de las series usadas (`indicator_as_of_minimum`); `snapshot_date` = día **UTC** actual.
 
@@ -182,11 +182,12 @@ Persistir serie temporal de \(SG\) (p. ej. un valor al cierre o tras cada job de
 
 ---
 
-## 7. Visualización (fase UI; depende de widget en dashboard)
+## 7. Visualización (dashboard)
 
-- **Cuenta‑kilómetros:** muestra \(SG\) con decimales (ej. 2.74) en \([0, 3]\).
-- **Gráfico de umbrales:** bandas o líneas de referencia en tonalidades del **mismo matiz** que el bloque seleccionado (USA / Europa / Asia) en el filtro activo.
-- **Widgets:** reutilizar el sistema de tarjetas/widgets del dashboard existente (`UserDashboardConfig`, `DEFAULT_WIDGETS`, layout en `dashboard.html`); no introducir un diseño de tarjeta nuevo salvo extensión mínima.
+- **Cuenta‑kilómetros:** arco semicircular en **canvas** coloreado de rojo (0) a verde (3) con lectura numérica de \(SG\) en \([0,3]\).
+- **Gráfico de umbrales:** pestañas **USA / Europa / Asia**; en cada una, línea de **cierre** (últimos ~100 puntos de la serie persistida), **MA200** horizontal a fecha actual y trazas **95% / 105%** de esa MA como referencia de banda. Paleta por bloque (índigo / ámbar / teal) coherente con el matiz del tab activo.
+- **Barra de posición del cierre:** debajo del gráfico, marcador del último cierre sobre un eje que abarca banda y recientes cierres (leyenda con cierre, ticker y rango 95–105% MA200).
+- **Layout:** tarjeta `data-card-id="global_strategy"` en `dashboard.html`, reordenable con el resto; **sin** panel de “configurar indicadores” en el producto actual: la tarjeta **solo** se muestra con módulo **`stock`** y payload `global_strategy_snapshot` válido (véase §7.1).
 
 ### 7.1 Visibilidad: módulo acciones y datos obligatorios
 
@@ -196,7 +197,7 @@ Reglas de producto (obligatorias en implementación):
 
 1. **Módulo activo:** si el usuario **no** tiene el módulo **`stock`** habilitado, **no** se muestran las tarjetas ni entran en el layout (no ocupar hueco; no depender solo del toggle de widget si el módulo está apagado).
 2. **Datos disponibles:** si no hay datos suficientes para pintar el widget (p. ej. sin cierres de indicadores, sin \(SG\) calculable, sin CO/IR del bróker cuando hagan falta), **no** se renderiza la tarjeta (evitar cajas vacías o placeholders permanentes). Opcional: mostrar un estado “sin datos” **solo** si el producto lo pide; por defecto: **ocultar**.
-3. **Usuarios nuevos / futuros:** la aparición de las entradas en `DEFAULT_WIDGETS` y en el panel de configuración debe ser coherente con (1) y (2): por ejemplo widget **desactivado por defecto** o **excluido del DOM** hasta que `stock` esté activo **y** exista payload válido en caché/API; al activar el módulo más adelante, aplicar las mismas reglas (2).
+3. **Usuarios nuevos / futuros:** la tarjeta sigue las mismas reglas (1) y (2). No hay en la UI actual un panel de toggles por widget; si en el futuro se reintroduce configuración granular, debe respetar (1)–(2) y no mostrar bloques vacíos.
 
 La lógica de recomendaciones macro (§5) puede seguir otras reglas de disparo, pero **las tarjetas visuales** quedan acotadas a **módulo `stock` + datos**.
 
@@ -208,10 +209,10 @@ La lógica de recomendaciones macro (§5) puede seguir otras reglas de disparo, 
 
 1. ~~Servicio puro de scores \(s_{US}, s_{EU}, s_{AS}\) y \(SG\) + tests unitarios con entradas mockeadas.~~ **Hecho** (`score_price_vs_ma200` + aliases USA/EU/Asia, `score_usa_vix_vs_ma200`, legacy `score_usa_yield_curve_spread_pct`; tests en `tests/global_strategy_score_math_test.py`).
 2. ~~Función \(RO(SG)\) por tramos + tests de nodos y bordes.~~ **Incluido** en el mismo módulo (`ratio_objetivo`, `umbral_objetivo_mercado`).
-3. Lectura de CO/IR desde la capa bróker ya alineada con §2.2.
+3. ~~Lectura de CO/IR desde la capa bróker ya alineada con §2.2.~~ **Hecho** (`_get_broker_value_at_date` en `global_recommendations.py`).
 4. ~~Persistencia macro Yahoo + serie diaria \(SG\) por usuario.~~ **Hecho** (job `global-strategy-macro-daily-once`, tablas macro, `sg_from_macro.py` → `upsert_sg_daily_atomic` para usuarios activos con módulo `stock`). Pendiente opcional: spot intradía en job de precios.
 5. ~~Reglas 5.1–5.3 en `RecommendationService`.~~ **Hecho** (`global_recommendations.py`, `source=global_strategy`, prioridad B>A>C; confirmación con `GLOBAL_STRATEGY_INCLUDE_CONFIRMATION_RECOMMENDATION`).
-6. UI: tarjetas de estrategia global según **§7.1** (módulo `stock` + datos; `dashboard.html` / `DEFAULT_WIDGETS` / caché).
+6. ~~UI: tarjeta de estrategia global según **§7.1** (módulo `stock` + datos; gauge, pestañas macro, gráfico Chart.js; payload `global_strategy_snapshot` en `get_dashboard_summary` / caché del dashboard).~~ **Hecho** (`dashboard.html`, `app/services/global_strategy/dashboard_snapshot.py`).
 
 ---
 

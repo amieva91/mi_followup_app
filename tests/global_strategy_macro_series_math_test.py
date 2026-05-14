@@ -13,6 +13,7 @@ _spec.loader.exec_module(_ms)
 
 merge_point_maps = _ms.merge_point_maps
 last_close_and_ma200 = _ms.last_close_and_ma200
+tail_chart_points = _ms.tail_chart_points
 
 
 def test_merge_point_maps_orders_and_overrides():
@@ -37,3 +38,15 @@ def test_last_close_and_ma200_exact_window():
     assert last == 100.0 + 199
     assert abs(ma200 - (sum(100.0 + j for j in range(200)) / 200.0)) < 1e-9
     assert d == pts[-1]["date"]
+
+
+def test_tail_chart_points_max_and_shape():
+    from datetime import date, timedelta
+
+    d0 = date(2024, 1, 2)
+    pts = [{"date": (d0 + timedelta(days=i)).isoformat(), "price": float(i)} for i in range(55)]
+    t = tail_chart_points(pts, max_points=10)
+    assert len(t) == 10
+    assert t[0]["date"] == (d0 + timedelta(days=45)).isoformat()
+    assert t[-1]["v"] == 54.0
+    assert "date" in t[0] and "v" in t[0]

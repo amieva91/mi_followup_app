@@ -29,3 +29,20 @@ def last_close_and_ma200(data_points: list[dict[str, Any]]) -> tuple[Optional[fl
     ma200 = sum(prices[-200:]) / 200.0
     last_d = str(pts[-1]["date"])
     return last, ma200, last_d
+
+
+def tail_chart_points(
+    data_points: list[dict[str, Any]], max_points: int = 100
+) -> list[dict[str, Any]]:
+    """Últimos cierres para sparkline en dashboard (fechas ISO + valor numérico)."""
+    pts = [p for p in (data_points or []) if p.get("date") and p.get("price") is not None]
+    if not pts:
+        return []
+    tail = pts[-max_points:]
+    out: list[dict[str, Any]] = []
+    for p in tail:
+        try:
+            out.append({"date": str(p["date"]), "v": round(float(p["price"]), 6)})
+        except (TypeError, ValueError):
+            continue
+    return out
