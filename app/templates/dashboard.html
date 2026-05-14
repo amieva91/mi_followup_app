@@ -2207,6 +2207,17 @@ const DAY_CHANGE_TOOLTIP = 'Variación del día (precio actual vs. cierre previo
 let _globalStrategyThresholdChart = null;
 let _globalStrategyCurrentRegion = 'us';
 let _globalStrategySnapshotLocal = null;
+/** Huella del último snapshot GS pintado; evita reconstruir Chart.js si el poll NOW cambió meta.version pero GS es idéntico. */
+let _lastGlobalStrategySnapshotDigest = null;
+
+function digestGlobalStrategySnapshot(snap) {
+    if (!snap || typeof snap !== 'object') return '';
+    try {
+        return JSON.stringify(snap);
+    } catch (e) {
+        return '';
+    }
+}
 
 function _destroyGlobalStrategyThresholdChart() {
     if (_globalStrategyThresholdChart) {
@@ -2439,6 +2450,7 @@ window.refreshGlobalStrategyViz = function (snap) {
     if (ro) ro.textContent = snap.sg.toFixed(2);
     renderGlobalStrategySgContext(snap);
     setupGlobalStrategyTabs(snap);
+    _lastGlobalStrategySnapshotDigest = digestGlobalStrategySnapshot(snap);
 };
 
 function applyDashboardUpdate(summary) {
@@ -2500,7 +2512,10 @@ function applyDashboardUpdate(summary) {
         if (seEl) seEl.textContent = fmt(gsSnap.s_eu);
         if (saEl) saEl.textContent = fmt(gsSnap.s_as);
         if (indEl && gsSnap.indicator_as_of) indEl.textContent = gsSnap.indicator_as_of;
-        if (typeof window.refreshGlobalStrategyViz === 'function') window.refreshGlobalStrategyViz(gsSnap);
+        const gsDigest = digestGlobalStrategySnapshot(gsSnap);
+        if (gsDigest !== _lastGlobalStrategySnapshotDigest && typeof window.refreshGlobalStrategyViz === 'function') {
+            window.refreshGlobalStrategyViz(gsSnap);
+        }
     }
 
     // Actualizar etiqueta de "Actualizado hace X min"
