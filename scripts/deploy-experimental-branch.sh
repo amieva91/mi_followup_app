@@ -75,6 +75,10 @@ echo "   ✓ Migraciones OK"
 echo "⏰ Cron consenso analistas (00:00)..."
 sudo -u followup bash -lc 'cd /var/www/followup && ./scripts/install_analyst_consensus_cron.sh' || true
 echo "   ✓ Cron consenso OK"
+
+echo "⏰ Cron motor macro global (cierres diarios Yahoo)..."
+sudo -u followup bash -lc 'cd /var/www/followup && bash ./scripts/install_global_strategy_macro_cron.sh' || true
+echo "   ✓ Cron global strategy macro OK"
 INNER
 
 echo "🔄 Reiniciando aplicación y worker de colas (informes)..."

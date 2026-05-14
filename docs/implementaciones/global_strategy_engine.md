@@ -163,6 +163,8 @@ Tickers del gate por defecto en `scripts/verify_yahoo_global_strategy_tickers.py
 - Integración: **mismo flujo** que la actualización periódica de precios de activos (lista de símbolos a refrescar; en el minuto que corresponda se actualiza el último precio/cierre según el diseño actual de `PriceUpdater` / colas en `app/__init__.py` y servicios relacionados).
 - Para **MA200**: persistir **cierres diarios** en caché/BD para **SPY**, **FEZ**, **3188.HK** y **^VIX** según el modo USA elegido.
 
+**Job de persistencia (implementado):** comando Flask **`global-strategy-macro-daily-once`** (`GlobalStrategyMacroService` en `app/services/global_strategy/macro_daily_service.py`). Tablas **`global_strategy_macro_daily`** (una fila por serie: `vix`, `spy`, `fez`, `asia_hk`, JSON `data_points` con `{date, price}`) y **`global_strategy_macro_state`** (singleton `data_version`, **`usa_score_mode`** por defecto **`vix`** alineado con `GLOBAL_STRATEGY_USA_SCORE_MODE` en `config.py`). Cron: **`scripts/install_global_strategy_macro_cron.sh`** — **22:35** hora **Europe/Madrid** (tras cierre habitual US); log `logs/global_strategy_macro_daily_cron.log`. Primer arranque: backfill de **`GLOBAL_STRATEGY_MACRO_BACKFILL_CALENDAR_DAYS`** (defecto **450**) días de calendario hacia atrás para asegurar **≥ ~250** sesiones; el CLI imprime **WARN** si `n_closes` cae por debajo de **`GLOBAL_STRATEGY_MACRO_MIN_CLOSES`** (250). Lectura agregada: `GlobalStrategyMacroService.snapshot_for_scores()` (close, MA200, `as_of_date` por serie).
+
 ### 6.2 FRED / modo Asia alternativo
 
 - **v1:** **Asia = precio vs MA200** (`3188.HK`); **Europa = precio vs MA200** (`FEZ`); **USA = ^VIX o SPY** según §3.1.
@@ -208,7 +210,7 @@ La lógica de recomendaciones macro (§5) puede seguir otras reglas de disparo, 
 2. ~~Función \(RO(SG)\) por tramos + tests de nodos y bordes.~~ **Incluido** en el mismo módulo (`ratio_objetivo`, `umbral_objetivo_mercado`).
 3. Lectura de CO/IR desde la capa bróker ya alineada con §2.2.
 4. ~~Persistencia de serie diaria de \(SG\)~~ **Modelo + migración + upsert atómico** (`GlobalStrategySgDaily`, `upsert_sg_daily_atomic` con opción `fill_weekend_from_friday`); series de indicadores macro pendientes.
-5. Integración de tickers en el job de precios Yahoo existente.
+5. ~~Persistencia de cierres diarios Yahoo para macro (MA200).~~ **Hecho** (`global_strategy_macro_daily`, `global-strategy-macro-daily-once`, cron `install_global_strategy_macro_cron.sh`). Pendiente: cablear estos datos al cálculo diario de \(SG\) y/o al job de precios intradía si hace falta spot en vivo.
 6. Reglas 5.1–5.3 en `RecommendationService` (y, si aplica, payload en `dashboard_summary_cache` para el widget de dial cuando exista).
 7. UI: tarjetas de estrategia global según **§7.1** (módulo `stock` + datos; `dashboard.html` / `DEFAULT_WIDGETS` / caché).
 

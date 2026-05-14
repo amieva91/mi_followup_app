@@ -51,77 +51,87 @@ class BenchmarkComparisonService:
         
         return first_deposit.transaction_date.date()
     
-    def get_benchmark_historical_data(self, ticker: str, start_date: date, end_date: date = None) -> Optional[Dict[str, Any]]:
+    @staticmethod
+    def fetch_yahoo_chart_daily_points(
+        ticker: str, start_date: date, end_date: Optional[date] = None
+    ) -> Optional[Dict[str, Any]]:
         """
-        Obtiene datos históricos de un benchmark usando Chart API
-        
-        Returns:
-            Dict con timestamps y precios de cierre, o None si falla
+        Chart API v8: cierres diarios entre start_date y end_date (sin depender de user_id).
         """
         if end_date is None:
             end_date = datetime.now().date()
-        
+
         try:
             url = f"{CHART_API_BASE_URL}/{ticker}"
-            
-            # Convertir fechas a timestamps Unix
-            start_timestamp = int((datetime.combine(start_date, datetime.min.time()) - datetime(1970, 1, 1)).total_seconds())
-            end_timestamp = int((datetime.combine(end_date, datetime.max.time()) - datetime(1970, 1, 1)).total_seconds())
-            
+
+            start_timestamp = int(
+                (datetime.combine(start_date, datetime.min.time()) - datetime(1970, 1, 1)).total_seconds()
+            )
+            end_timestamp = int(
+                (datetime.combine(end_date, datetime.max.time()) - datetime(1970, 1, 1)).total_seconds()
+            )
+
             params = {
-                'period1': start_timestamp,
-                'period2': end_timestamp,
-                'interval': '1d'  # Datos diarios
+                "period1": start_timestamp,
+                "period2": end_timestamp,
+                "interval": "1d",
             }
-            
+
             response = requests.get(url, headers=CHART_API_HEADERS, params=params, timeout=10)
             response.raise_for_status()
-            
+
             data = response.json()
-            
-            # Verificar errores
-            if data.get('chart', {}).get('error'):
+
+            if data.get("chart", {}).get("error"):
                 return None
-            
-            if not data.get('chart', {}).get('result'):
+
+            if not data.get("chart", {}).get("result"):
                 return None
-            
-            result = data['chart']['result'][0]
-            
-            if 'timestamp' not in result or not result['timestamp']:
+
+            result = data["chart"]["result"][0]
+
+            if "timestamp" not in result or not result["timestamp"]:
                 return None
-            
-            timestamps = result['timestamp']
-            
-            # Obtener precios de cierre
-            if 'indicators' not in result or 'quote' not in result['indicators']:
+
+            timestamps = result["timestamp"]
+
+            if "indicators" not in result or "quote" not in result["indicators"]:
                 return None
-            
-            quotes = result['indicators']['quote'][0]
-            if 'close' not in quotes:
+
+            quotes = result["indicators"]["quote"][0]
+            if "close" not in quotes:
                 return None
-            
-            closes = quotes['close']
-            
-            # Filtrar None y crear lista de (fecha, precio)
-            # Usar str ISO para que sea JSON-serializable (p. ej. en portfolio_benchmarks_cache)
+
+            closes = quotes["close"]
+
             data_points = []
-            for i, (ts, price) in enumerate(zip(timestamps, closes)):
+            for ts, price in zip(timestamps, closes):
                 if price is not None:
                     date_obj = datetime.fromtimestamp(ts).date()
-                    data_points.append({
-                        'date': date_obj.strftime('%Y-%m-%d'),
-                        'price': float(price)
-                    })
-            
+                    data_points.append(
+                        {
+                            "date": date_obj.strftime("%Y-%m-%d"),
+                            "price": float(price),
+                        }
+                    )
+
             return {
-                'ticker': ticker,
-                'data_points': data_points
+                "ticker": ticker,
+                "data_points": data_points,
             }
-            
+
         except Exception as e:
             print(f"Error obteniendo datos para {ticker}: {str(e)}")
             return None
+
+    def get_benchmark_historical_data(self, ticker: str, start_date: date, end_date: date = None) -> Optional[Dict[str, Any]]:
+        """
+        Obtiene datos históricos de un benchmark usando Chart API
+
+        Returns:
+            Dict con timestamps y precios de cierre, o None si falla
+        """
+        return BenchmarkComparisonService.fetch_yahoo_chart_daily_points(ticker, start_date, end_date)
     
     def get_comparison_data(self) -> Dict[str, Any]:
         """

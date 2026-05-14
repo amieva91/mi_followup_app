@@ -351,6 +351,41 @@ def create_app(config_name='default'):
         else:
             print(f"OK: benchmark global daily sin cambios [{elapsed:.2f}s]")
 
+    @app.cli.command("global-strategy-macro-daily-once")
+    def global_strategy_macro_daily_once():
+        """
+        Descarga/actualiza cierres diarios Yahoo (^VIX, SPY, FEZ, 3188.HK) para el motor macro.
+        Cron recomendado: 1× día tras cierre US (p. ej. 22:35 Europe/Madrid); ver scripts/install_global_strategy_macro_cron.sh
+        """
+        import time
+
+        from flask import current_app
+
+        from app.services.global_strategy.macro_daily_service import GlobalStrategyMacroService
+
+        t0 = time.perf_counter()
+        ok = GlobalStrategyMacroService.refresh_daily_if_stale()
+        elapsed = time.perf_counter() - t0
+        ver = GlobalStrategyMacroService.get_data_version()
+        if ok:
+            print(f"OK: global strategy macro daily actualizado (data_version={ver}) [{elapsed:.2f}s]")
+        else:
+            print(f"OK: global strategy macro daily sin cambios (data_version={ver}) [{elapsed:.2f}s]")
+
+        snap = GlobalStrategyMacroService.snapshot_for_scores()
+        min_closes = int(current_app.config.get("GLOBAL_STRATEGY_MACRO_MIN_CLOSES", 250))
+        print(f"  usa_score_mode={snap.get('usa_score_mode')}")
+        for key, payload in (snap.get("series") or {}).items():
+            if not payload:
+                print(f"  WARN: serie {key} sin datos")
+                continue
+            n = int(payload.get("n_closes") or 0)
+            flag = "OK" if n >= min_closes else "WARN"
+            print(
+                f"  [{flag}] {key}: n_closes={n} close={payload.get('close')} "
+                f"ma200={payload.get('ma200')} as_of={payload.get('as_of_date')}"
+            )
+
     @app.cli.command('cache-rebuild-worker-once')
     def cache_rebuild_worker_once():
         """

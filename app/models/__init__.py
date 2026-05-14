@@ -34,6 +34,7 @@ from app.models.spending_plan import SpendingPlanSettings, SpendingPlanFixedCate
 from app.models.reconciliation_adjustment_metric_pref import ReconciliationAdjustmentMetricPreference
 from app.models.interest_rate_context import InterestRateContextSnapshot
 from app.models.global_strategy_sg_daily import GlobalStrategySgDaily
+from app.models.global_strategy_macro_daily import GlobalStrategyMacroDaily, GlobalStrategyMacroState
 
 __all__ = [
     'User', 'MODULES', 'AVATARS', 
@@ -79,5 +80,7 @@ __all__ = [
     'ReconciliationAdjustmentMetricPreference',
     'InterestRateContextSnapshot',
     'GlobalStrategySgDaily',
+    'GlobalStrategyMacroDaily',
+    'GlobalStrategyMacroState',
 ]
 

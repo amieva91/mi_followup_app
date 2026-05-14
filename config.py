@@ -64,6 +64,11 @@ class Config:
     LOG_FILE = os.environ.get('LOG_FILE') or str(basedir / 'logs' / 'followup.log')
     # Cache del resumen del dashboard (minutos). Se invalida antes si hay cambios en datos.
     DASHBOARD_CACHE_MINUTES = int(os.environ.get('DASHBOARD_CACHE_MINUTES', 15))
+    # Motor estrategia global — modo USA: `vix` (defecto) o `spy`
+    GLOBAL_STRATEGY_USA_SCORE_MODE = os.environ.get('GLOBAL_STRATEGY_USA_SCORE_MODE', 'vix').strip().lower()
+    # Backfill inicial: días de calendario hacia atrás (≈250+ sesiones con 450)
+    GLOBAL_STRATEGY_MACRO_BACKFILL_CALENDAR_DAYS = int(os.environ.get('GLOBAL_STRATEGY_MACRO_BACKFILL_CALENDAR_DAYS', '450'))
+    GLOBAL_STRATEGY_MACRO_MIN_CLOSES = int(os.environ.get('GLOBAL_STRATEGY_MACRO_MIN_CLOSES', '250'))
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
     
     # Allowed extensions

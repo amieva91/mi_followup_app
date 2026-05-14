@@ -12,6 +12,7 @@ Configuracion recomendada en local:
 | `install_price_poll_cron.sh` | Cada minuto (`* * * * *`) | `price-poll-one` | `logs/price_poll_cron.log` |
 | `install_analyst_consensus_cron.sh` | Cada día a las 00:00 (`0 0 * * *`, hora del servidor) | `analyst-consensus-refresh-stale` | `logs/analyst_consensus_cron.log` |
 | `install_benchmark_global_cron.sh` | Cada 15 min (`*/15 * * * *`) | `benchmark-global-daily-once` | `logs/benchmark_global_daily_cron.log` |
+| `install_global_strategy_macro_cron.sh` | 1× día 22:35 (`35 22 * * *`, `TZ=Europe/Madrid`) | `global-strategy-macro-daily-once` | `logs/global_strategy_macro_daily_cron.log` |
 | `install_cache_rebuild_cron.sh` | Dos ticks por minuto (s 0 y s 30) | `cache-rebuild-worker-once` | `logs/cache_rebuild_worker.log` |
 
 - **Locks:** cada script usa `flock` en `instance/*.flock` para no solapar ejecuciones. Con `flock -n`, si el lock ya está cogido, **esa invocación sale al instante sin ejecutar el comando** (no cancela al otro proceso ni queda en cola; el tick simplemente se omite). El siguiente cron volverá a intentarlo.
