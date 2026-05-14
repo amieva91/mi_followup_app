@@ -142,12 +142,17 @@
         max-width: 100%;
         max-height: 100%;
     }
-    .gs-context-table { border-collapse: collapse; width: 100%; }
+    .gs-context-table {
+        border-collapse: collapse;
+        width: 100%;
+        table-layout: fixed;
+    }
     .gs-context-table th,
     .gs-context-table td {
         padding: 0.4rem 0.55rem;
         vertical-align: top;
         border-bottom: 1px solid rgba(199, 210, 254, 0.55);
+        text-align: left;
     }
     .gs-context-table th {
         font-weight: 600;
@@ -157,6 +162,10 @@
         text-transform: uppercase;
         letter-spacing: 0.04em;
     }
+    .gs-context-table th:nth-child(1),
+    .gs-context-table td:nth-child(1) { width: 22%; }
+    .gs-context-table th:nth-child(2),
+    .gs-context-table td:nth-child(2) { width: 34%; }
     .gs-context-table td { font-size: 0.7rem; color: #1e293b; }
     .gs-context-table tr:last-child td { border-bottom: none; }
     .gs-context-row--active { background: rgba(129, 140, 248, 0.2); }
