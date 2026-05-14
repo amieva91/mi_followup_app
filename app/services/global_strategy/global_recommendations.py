@@ -78,7 +78,7 @@ def build_global_strategy_recommendations(user_id: int) -> list[Any]:
                     icon="⚠️",
                     title="Alerta de deterioro macro",
                     text=(
-                        "[Alerta de deterioro macro]. Tu nivel de apalancamiento supera el límite de seguridad "
+                        "Tu nivel de apalancamiento supera el límite de seguridad "
                         f"(margen del 30% sobre el objetivo). Debes reducir posiciones por valor de {amt} € "
                         "para proteger tu Capital Operativo."
                     ),
@@ -98,7 +98,7 @@ def build_global_strategy_recommendations(user_id: int) -> list[Any]:
                     icon="📈",
                     title="Fuerte viento a favor",
                     text=(
-                        "[Fuerte viento a favor]. Tu exposición está un 50% por debajo del umbral recomendado. "
+                        "Tu exposición está un 50% por debajo del umbral recomendado. "
                         f"Puedes aumentar tu posición en {amt} € adicionales para optimizar tu ratio según el "
                         "Capital Operativo actual."
                     ),
@@ -118,8 +118,8 @@ def build_global_strategy_recommendations(user_id: int) -> list[Any]:
                     icon="✅",
                     title="Situación actual del mercado",
                     text=(
-                        "[Situación actual del mercado]. Tus ratios de inversión y liquidez actuales "
-                        "con respecto a tu Capital Operativo son adecuados."
+                        "Tus ratios de inversión y liquidez actuales con respecto a tu Capital Operativo "
+                        "son adecuados."
                     ),
                     action=None,
                     source="global_strategy",
