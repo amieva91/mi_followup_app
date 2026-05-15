@@ -10,6 +10,10 @@ from datetime import datetime
 from typing import Any
 
 from app.models.global_strategy_sg_daily import GlobalStrategySgDaily
+from app.services.global_strategy.co_ratio_display import (
+    format_pct_for_message,
+    investment_and_liquidity_pct,
+)
 from app.services.global_strategy.score_math import umbral_objetivo_mercado
 from app.services.global_strategy.sg_trend_math import mean5_sg_falling
 from app.services.net_worth_service import _get_broker_value_at_date
@@ -112,13 +116,15 @@ def build_global_strategy_recommendations(user_id: int) -> list[Any]:
         low, high = 0.5 * uom, 1.30 * uom
         entre = low <= ir <= high
         if entre:
+            inv_pct, liq_pct = investment_and_liquidity_pct(ctx.co, ir)
             recs.append(
                 Recommendation(
                     priority="low",
                     icon="✅",
                     title="Situación actual del mercado",
                     text=(
-                        "Tus ratios de inversión y liquidez actuales con respecto a tu Capital Operativo "
+                        f"Tus ratios de inversión ({format_pct_for_message(inv_pct)}) y liquidez "
+                        f"({format_pct_for_message(liq_pct)}) actuales con respecto a tu Capital Operativo "
                         "son adecuados."
                     ),
                     action=None,
