@@ -1,0 +1,65 @@
+{# Paleta desplegable de iconos. Requiere Alpine: icon, iconPickerOpen, pickIcon(emoji). Variable: emoji_palette #}
+<style>
+    .category-icon-palette-btn {
+        transition: transform 0.12s ease, background-color 0.12s ease, border-color 0.12s ease;
+    }
+    .category-icon-palette-btn:active {
+        transform: scale(0.98);
+    }
+    .category-icon-palette-emoji {
+        transition: transform 0.1s ease, background-color 0.1s ease;
+    }
+    .category-icon-palette-emoji:hover {
+        transform: scale(1.08);
+    }
+    .category-icon-palette-emoji.is-selected {
+        background-color: rgba(13, 148, 136, 0.15);
+        outline: 2px solid rgb(13, 148, 136);
+        outline-offset: 1px;
+    }
+</style>
+<div class="relative mb-3" @click.outside="iconPickerOpen = false">
+    <label class="block text-sm font-medium text-gray-700 mb-1">Icono</label>
+    <button
+        type="button"
+        @click.stop="iconPickerOpen = !iconPickerOpen"
+        class="category-icon-palette-btn w-full flex items-center gap-3 px-3 py-2.5 border border-slate-300 rounded-xl bg-white hover:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+        :aria-expanded="iconPickerOpen"
+        aria-haspopup="listbox"
+    >
+        <span class="text-2xl leading-none shrink-0" x-text="icon" aria-hidden="true"></span>
+        <span class="text-sm text-gray-600 flex-1 text-left">Elegir icono</span>
+        <svg class="w-4 h-4 text-gray-500 shrink-0 transition-transform" :class="iconPickerOpen ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+        </svg>
+    </button>
+    <div
+         x-show="iconPickerOpen"
+         x-cloak
+         x-transition:enter="transition ease-out duration-150"
+         x-transition:enter-start="opacity-0 -translate-y-1"
+         x-transition:enter-end="opacity-100 translate-y-0"
+         x-transition:leave="transition ease-in duration-100"
+         x-transition:leave-start="opacity-100 translate-y-0"
+         x-transition:leave-end="opacity-0 -translate-y-1"
+         class="absolute z-30 left-0 right-0 mt-1 rounded-xl border border-slate-200 bg-white shadow-[0_12px_28px_rgba(15,23,42,0.18)] p-2 max-h-52 overflow-y-auto"
+         style="display: none;"
+         role="listbox"
+         @click.stop
+    >
+        <div class="grid grid-cols-6 gap-1">
+            {% for emoji, label in emoji_palette %}
+            <button
+                type="button"
+                role="option"
+                :aria-selected="icon === $el.dataset.emoji"
+                :class="icon === $el.dataset.emoji ? 'category-icon-palette-emoji is-selected' : 'category-icon-palette-emoji'"
+                class="text-2xl p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer"
+                title="{{ label }}"
+                data-emoji="{{ emoji }}"
+                @click.stop="pickIcon($el.dataset.emoji)"
+            >{{ emoji }}</button>
+            {% endfor %}
+        </div>
+    </div>
+</div>

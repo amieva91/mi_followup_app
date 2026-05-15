@@ -1,4 +1,6 @@
 {# Modal crear categoría de ingreso. Usa div en lugar de form para evitar formularios anidados. #}
+{% include 'components/category_emoji_sets.html' %}
+{% set emoji_palette = income_emojis %}
 <style>
     .modal-touch-btn {
         transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease;
@@ -11,16 +13,13 @@
 <div x-data="categoryModalIncome('{{ url_for('incomes.quick_create_category') }}', '{{ category_select_id }}')">
     <button type="button" @click="open()" class="modal-touch-btn ml-2 shrink-0 inline-flex items-center justify-center min-w-[2.5rem] px-3 py-2 text-sm rounded-xl bg-slate-700 hover:bg-slate-800 text-white transition" title="Crear categoría rápida">+</button>
     <div x-show="show" x-cloak x-transition class="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4" style="display: none;">
-        <div class="w-full max-w-sm rounded-2xl border border-slate-200 bg-gradient-to-br from-[#f8fbfc] to-[#f1f7f8] p-6 shadow-[0_20px_45px_rgba(15,23,42,0.28)]" @click.away="close()">
+        <div class="w-full max-w-md rounded-2xl border border-slate-200 bg-gradient-to-br from-[#f8fbfc] to-[#f1f7f8] p-6 shadow-[0_20px_45px_rgba(15,23,42,0.28)]" @click.away="close()">
             <h3 class="text-lg font-bold mb-4 text-gray-900">Nueva categoría de ingreso</h3>
             <div class="mb-3">
                 <label class="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
                 <input type="text" x-model="name" class="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500" placeholder="Ej: Freelance" required>
             </div>
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Icono</label>
-                <input type="text" x-model="icon" class="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500" placeholder="💵">
-            </div>
+            {% include 'components/category_icon_palette_dropdown.html' %}
             <div class="flex gap-2">
                 <button type="button" @click="submit()" class="modal-touch-btn flex-1 rounded-full bg-teal-600 hover:bg-teal-700 text-white px-4 py-2.5 transition">Crear</button>
                 <button type="button" @click="close()" class="modal-touch-btn px-4 py-2.5 rounded-full bg-slate-700 hover:bg-slate-800 text-white transition">Cancelar</button>
@@ -35,15 +34,22 @@ document.addEventListener('alpine:init', () => {
         show: false,
         name: '',
         icon: '💵',
+        iconPickerOpen: false,
         error: '',
         apiUrl,
         selectId,
         open() {
             this.show = true;
             this.error = '';
+            this.iconPickerOpen = false;
         },
         close() {
             this.show = false;
+            this.iconPickerOpen = false;
+        },
+        pickIcon(emoji) {
+            this.icon = emoji || '💵';
+            this.iconPickerOpen = false;
         },
         async submit() {
             this.error = '';
