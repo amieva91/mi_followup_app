@@ -17,7 +17,11 @@ from app.models.asset import Asset
 from app.models.user import User
 from app.services.bank_service import BankService
 from app.services.crypto_metrics import compute_crypto_metrics
-from app.services.metales_metrics import compute_metales_metrics, PRECIOUS_METAL_YAHOO_SYMBOLS
+from app.services.metales_metrics import (
+    PRECIOUS_METAL_YAHOO_SYMBOLS,
+    compute_metales_metrics,
+    precious_metal_display_name,
+)
 from app.services.stocks_metrics import compute_stocks_metrics
 from app.services.debt_service import DebtService
 from app.services.currency_service import convert_to_eur
@@ -1004,11 +1008,18 @@ def get_top_movers_for_user(user_id: int, limit: int = 5) -> List[Dict[str, Any]
         key=lambda a: abs(a.day_change_percent or 0),
         reverse=True,
     )
+    def _top_mover_label(asset: Asset) -> str:
+        friendly = precious_metal_display_name(asset.symbol)
+        if friendly:
+            return friendly
+        return asset.symbol or asset.name or ''
+
     return [
         {
             'asset_id': a.id,
             'symbol': a.symbol or '',
             'name': a.name or a.symbol or '',
+            'label': _top_mover_label(a),
             'day_change_percent': round(a.day_change_percent, 2),
             'current_price': round(a.current_price, 2) if a.current_price else None,
         }

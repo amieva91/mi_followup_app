@@ -391,7 +391,7 @@
                     <div id="top-movers-list" class="space-y-1.5">
                         {% for m in summary.top_movers[:5] %}
                         <div class="flex items-center justify-between text-sm price-cell" data-asset-id="{{ m.asset_id }}">
-                            <span class="font-medium truncate">{{ m.symbol }}</span>
+                            <span class="font-medium truncate">{{ m.label or m.symbol }}</span>
                             <span class="{% if m.day_change_percent >= 0 %}text-emerald-300{% else %}text-red-300{% endif %} font-semibold shrink-0 ml-2">
                                 {{ "%+.1f"|format(m.day_change_percent) }}%
                             </span>
@@ -2585,7 +2585,7 @@ function applyDashboardUpdate(summary) {
         if (inner) {
             inner.innerHTML = summary.top_movers.slice(0, 5).map(m =>
                 `<div class="flex items-center justify-between text-sm price-cell" data-asset-id="${m.asset_id}">
-                    <span class="font-medium truncate">${m.symbol || ''}</span>
+                    <span class="font-medium truncate">${m.label || m.symbol || ''}</span>
                     <span class="${(m.day_change_percent || 0) >= 0 ? 'text-emerald-300' : 'text-red-300'} font-semibold shrink-0 ml-2">
                         ${(m.day_change_percent != null ? (m.day_change_percent >= 0 ? '+' : '') + m.day_change_percent.toFixed(1) : '-')}%
                     </span>

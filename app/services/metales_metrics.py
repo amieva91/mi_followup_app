@@ -25,6 +25,20 @@ PRECIOUS_METAL_DEFS: List[Dict[str, str]] = [
     {'symbol': 'PA=F', 'name': 'Paladio (XPD)', 'currency': 'USD'},
 ]
 
+# Etiquetas cortas en dashboard (Commodities + Top Movers), alineadas con get_commodities_snapshot
+PRECIOUS_METAL_DISPLAY_NAMES: Dict[str, str] = {
+    'GC=F': 'Oro',
+    'SI=F': 'Plata',
+    'PL=F': 'Platino',
+    'PA=F': 'Paladio',
+}
+
+
+def precious_metal_display_name(symbol: str | None) -> str | None:
+    if not symbol:
+        return None
+    return PRECIOUS_METAL_DISPLAY_NAMES.get(str(symbol).strip())
+
 
 def ensure_precious_metal_assets() -> None:
     """Crea en BD los cuatro assets Commodity de metales preciosos si faltan (idempotente)."""
