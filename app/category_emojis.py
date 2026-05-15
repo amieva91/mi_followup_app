@@ -1,5 +1,6 @@
-{# Catálogos de iconos para categorías (gastos e ingresos). Incluir una vez por plantilla. #}
-{% set expense_emojis = [
+"""Catálogos de iconos para categorías de ingresos y gastos (plantillas Jinja)."""
+
+EXPENSE_EMOJIS: list[tuple[str, str]] = [
     ('🍔', 'Comida'),
     ('🛒', 'Supermercado'),
     ('☕', 'Cafetería'),
@@ -8,7 +9,6 @@
     ('🍕', 'Pizzería'),
     ('🥗', 'Comida saludable'),
     ('🍷', 'Bares'),
-
     ('🚗', 'Transporte'),
     ('🚇', 'Metro'),
     ('⛽', 'Combustible'),
@@ -16,7 +16,6 @@
     ('🛵', 'Moto'),
     ('🚕', 'Taxi'),
     ('🚲', 'Bicicleta'),
-
     ('🏠', 'Hogar'),
     ('🧹', 'Limpieza'),
     ('🧻', 'Papel y hogar'),
@@ -26,30 +25,25 @@
     ('🔧', 'Reparaciones'),
     ('🧰', 'Mantenimiento'),
     ('🪛', 'Bricolaje'),
-
     ('🏢', 'Oficina / coworking'),
     ('🧑‍💻', 'Espacio de trabajo compartido'),
     ('🖥️', 'Puesto de trabajo / equipamiento'),
     ('📎', 'Papelería y consumibles'),
     ('🖨️', 'Copias e impresión'),
-
     ('📄', 'Facturas'),
     ('⚡', 'Electricidad'),
     ('💧', 'Agua'),
     ('🔥', 'Gas/Calefacción'),
     ('📱', 'Suscripciones'),
-
     ('💊', 'Salud'),
     ('🧪', 'Farmacia/Laboratorio'),
     ('🧴', 'Higiene'),
     ('🪥', 'Aseo dental'),
     ('💅', 'Belleza'),
-
     ('📚', 'Educación'),
     ('🎒', 'Material escolar'),
     ('👶', 'Bebé'),
     ('🐕', 'Mascotas'),
-
     ('🎮', 'Ocio'),
     ('🎬', 'Entretenimiento'),
     ('🎟️', 'Eventos'),
@@ -59,7 +53,6 @@
     ('🍿', 'Cine / Palomitas'),
     ('🎲', 'Juegos de mesa'),
     ('🎡', 'Feria / Parque'),
-
     ('🏋️', 'Gimnasio'),
     ('⚽', 'Fútbol'),
     ('🏃', 'Running'),
@@ -75,25 +68,22 @@
     ('🏄', 'Surf'),
     ('🎣', 'Pesca'),
     ('🏌️', 'Golf'),
-
     ('✈️', 'Viajes'),
     ('📦', 'Envíos'),
-
     ('👕', 'Ropa'),
     ('🎁', 'Regalos'),
     ('💳', 'Tarjetas'),
     ('🛡️', 'Seguros'),
     ('🧾', 'Impuestos'),
-    ('💰', 'Otros')
-] %}
+    ('💰', 'Otros'),
+]
 
-{% set income_emojis = [
+INCOME_EMOJIS: list[tuple[str, str]] = [
     ('💼', 'Salario'),
     ('🏢', 'Nómina empresa'),
     ('⏱️', 'Horas extra'),
     ('🎯', 'Comisión'),
     ('🎁', 'Bonos'),
-
     ('💻', 'Freelance'),
     ('🤝', 'Consultoría'),
     ('🧠', 'Asesoría'),
@@ -104,22 +94,18 @@
     ('🗂️', 'Gestión administrativa'),
     ('🧑‍🔧', 'Servicios profesionales'),
     ('🧑‍⚕️', 'Servicios salud'),
-
     ('📈', 'Inversiones'),
     ('💰', 'Dividendos'),
     ('🏦', 'Intereses bancarios'),
     ('💹', 'Trading'),
     ('🪙', 'Cripto ganancias'),
     ('💱', 'Cambio de divisas'),
-
     ('🏠', 'Alquiler'),
     ('🏘️', 'Renta inmobiliaria'),
-
     ('🛍️', 'Venta'),
     ('🏪', 'Comercio local'),
     ('🛒', 'Ecommerce'),
     ('📦', 'Dropshipping'),
-
     ('📚', 'Royalties'),
     ('📝', 'Escritura'),
     ('🎧', 'Podcast'),
@@ -134,7 +120,6 @@
     ('🧑‍🎨', 'Arte / Creatividad'),
     ('🎛️', 'Producción musical'),
     ('📗', 'Publicación'),
-
     ('📊', 'Analítica'),
     ('🤖', 'Automatizaciones'),
     ('🛰️', 'Servicios tecnológicos'),
@@ -150,13 +135,11 @@
     ('🌾', 'Agricultura'),
     ('🧑‍🍳', 'Catering'),
     ('🧑‍🔬', 'Investigación'),
-
     ('🌐', 'Publicidad online'),
     ('🔗', 'Afiliados/Referidos'),
     ('📬', 'Newsletter de pago'),
     ('🪪', 'Membresías'),
     ('📢', 'Patrocinios'),
-
     ('🏛️', 'Subvenciones públicas'),
     ('💡', 'Licencias/Patentes'),
     ('🎓', 'Beca'),
@@ -170,5 +153,5 @@
     ('📋', 'Gestión y trámites cobrados'),
     ('🎫', 'Entradas / eventos propios'),
     ('🔔', 'Suscripciones a tu servicio'),
-    ('💵', 'Otros')
-] %}
+    ('💵', 'Otros'),
+]

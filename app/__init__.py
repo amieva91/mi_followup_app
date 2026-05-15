@@ -137,6 +137,11 @@ def create_app(config_name='default'):
     def inject_csrf_token():
         from flask_wtf.csrf import generate_csrf
         return dict(csrf_token=generate_csrf)
+
+    @app.context_processor
+    def inject_category_emojis():
+        from app.category_emojis import EXPENSE_EMOJIS, INCOME_EMOJIS
+        return dict(expense_emojis=EXPENSE_EMOJIS, income_emojis=INCOME_EMOJIS)
     
     # Registrar blueprints
     from app.routes import main_bp, portfolio_bp, debts_bp
