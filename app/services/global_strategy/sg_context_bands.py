@@ -48,17 +48,17 @@ def _fmt_ro(ro: float) -> str:
 
 
 def _ro_co_clause(ro: float, co: float | None) -> str:
-    del co  # CO solo define UOM en el motor; en UI mostramos el multiplicador RO(SG)
-    return f"({_fmt_ro(ro)} CO)"
+    del co
+    return f"({_fmt_ro(ro)})"
 
 
 def _ro_co_range_clause(lo_ro: float, hi_ro: float) -> str:
     if abs(hi_ro - lo_ro) < 0.005:
-        return f"({_fmt_ro(lo_ro)} CO)"
+        return f"({_fmt_ro(lo_ro)})"
     lo_s, hi_s = _fmt_ro(lo_ro), _fmt_ro(hi_ro)
     if lo_s == hi_s:
-        return f"({lo_s} CO)"
-    return f"({lo_s}–{hi_s} CO)"
+        return f"({lo_s})"
+    return f"({lo_s}–{hi_s})"
 
 
 def _band_ro_endpoints(key: SgBandKey) -> tuple[float, float]:
