@@ -125,6 +125,18 @@ def get_global_strategy_dashboard_snapshot(user_id: int) -> Optional[dict[str, A
         regions["asia"] = rb_as
 
     sg_val = round(float(row.sg), 2)
+    co_val: float | None = None
+    try:
+        from datetime import datetime
+        from app.services.net_worth_service import _get_broker_value_at_date
+
+        bd = _get_broker_value_at_date(user_id, datetime.now(), use_current_prices=True)
+        co_raw = float(bd.get("total_value") or 0.0)
+        if co_raw > 0:
+            co_val = co_raw
+    except Exception:
+        co_val = None
+
     return {
         "sg": sg_val,
         "s_us": s_us,
@@ -135,5 +147,5 @@ def get_global_strategy_dashboard_snapshot(user_id: int) -> Optional[dict[str, A
         "usa_score_mode": mode,
         "usa_label": usa_label,
         "regions": regions,
-        "sg_context": sg_context_payload(sg_val),
+        "sg_context": sg_context_payload(sg_val, co=co_val),
     }

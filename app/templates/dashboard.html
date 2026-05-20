@@ -2230,8 +2230,13 @@ function renderGlobalStrategySgContext(snap) {
     const tbl = document.getElementById('global-strategy-context-table');
     if (!tbl || !snap || !snap.sg_context) return;
     const active = snap.sg_context.active;
-    tbl.querySelectorAll('[data-gs-band]').forEach(function (row) {
-        row.classList.toggle('gs-context-row--active', row.getAttribute('data-gs-band') === active);
+    const bands = snap.sg_context.bands || [];
+    bands.forEach(function (b) {
+        const row = tbl.querySelector('[data-gs-band="' + b.key + '"]');
+        if (!row) return;
+        row.classList.toggle('gs-context-row--active', b.key === active);
+        const opCell = row.cells && row.cells[2];
+        if (opCell && b.operational) opCell.textContent = b.operational;
     });
 }
 
