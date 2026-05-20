@@ -96,6 +96,22 @@ def operational_text_for_band(
     return f"Escenario de recesión/pánico. Exposición objetivo {clause}."
 
 
+def active_operational_parts(key: SgBandKey, ro: float) -> dict[str, str]:
+    """Partes del texto operativo de la fila activa (multiplicador RO en negrita en UI)."""
+    highlight = f"({_fmt_ro(ro)})"
+    if key == "euforia":
+        return {"prefix": "Máximo apalancamiento permitido ", "highlight": highlight, "suffix": "."}
+    if key == "crecimiento":
+        return {"prefix": "Inversión agresiva ", "highlight": highlight, "suffix": " pero vigilando deudas."}
+    if key == "fragilidad":
+        return {"prefix": "Desapalancamiento y creación de liquidez ", "highlight": highlight, "suffix": "."}
+    return {
+        "prefix": "Escenario de recesión/pánico. Exposición objetivo ",
+        "highlight": highlight,
+        "suffix": ".",
+    }
+
+
 def sg_context_payload(sg: float, co: float | None = None) -> dict[str, Any]:
     """Payload JSON para dashboard: bandas + RO/UOM actuales y texto operativo progresivo."""
     sg_clamped = max(0.0, min(3.0, float(sg)))
@@ -108,14 +124,16 @@ def sg_context_payload(sg: float, co: float | None = None) -> dict[str, Any]:
     for meta in _BAND_META:
         key = meta["key"]  # type: ignore[assignment]
         assert key in _BAND_SG_BOUNDS
-        bands.append(
-            {
-                **meta,
-                "operational": operational_text_for_band(
-                    key, sg=sg_clamped, co=co_val, is_active=(key == active)
-                ),
-            }
-        )
+        is_active = key == active
+        entry: dict[str, Any] = {
+            **meta,
+            "operational": operational_text_for_band(
+                key, sg=sg_clamped, co=co_val, is_active=is_active
+            ),
+        }
+        if is_active:
+            entry["operational_parts"] = active_operational_parts(key, ro)
+        bands.append(entry)
 
     payload: dict[str, Any] = {
         "active": active,

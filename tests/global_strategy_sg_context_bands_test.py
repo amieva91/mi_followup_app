@@ -21,6 +21,7 @@ exec(compile(_ctx_src, str(_SG_CTX), "exec"), _ctx_ns)
 
 sg_band_key = _ctx_ns["sg_band_key"]
 sg_context_payload = _ctx_ns["sg_context_payload"]
+active_operational_parts = _ctx_ns.get("active_operational_parts")
 
 
 def test_sg_band_proteccion_upper_bound():
@@ -66,5 +67,6 @@ def test_active_crecimiento_operational_uses_progressive_ro_not_fixed_13():
     assert "1,3×" not in active["operational"]
     assert "×)" in active["operational"]
     assert " CO" not in active["operational"]
+    assert active.get("operational_parts", {}).get("highlight", "").startswith("(")
     assert p["uom_eur"] > 130_000
     assert p["ro"] > 1.5

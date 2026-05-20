@@ -863,7 +863,14 @@
                             <tr data-gs-band="{{ b.key }}" class="{% if b.key == sgc.active %}gs-context-row--active{% endif %}">
                                 <td class="tabular-nums whitespace-nowrap">{{ b.score_range }}</td>
                                 <td>{{ b.label }}</td>
-                                <td class="text-slate-600 font-normal">{{ b.operational }}</td>
+                                <td class="text-slate-600 font-normal">
+                                    {% if b.key == sgc.active and b.get('operational_parts') %}
+                                    {% set op = b.operational_parts %}
+                                    {{ op.prefix }}<strong class="font-semibold text-slate-800">{{ op.highlight }}</strong>{{ op.suffix }}
+                                    {% else %}
+                                    {{ b.operational }}
+                                    {% endif %}
+                                </td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -2236,7 +2243,13 @@ function renderGlobalStrategySgContext(snap) {
         if (!row) return;
         row.classList.toggle('gs-context-row--active', b.key === active);
         const opCell = row.cells && row.cells[2];
-        if (opCell && b.operational) opCell.textContent = b.operational;
+        if (!opCell) return;
+        if (b.key === active && b.operational_parts) {
+            const p = b.operational_parts;
+            opCell.innerHTML = (p.prefix || '') + '<strong class="font-semibold text-slate-800">' + (p.highlight || '') + '</strong>' + (p.suffix || '');
+        } else if (b.operational) {
+            opCell.textContent = b.operational;
+        }
     });
 }
 
