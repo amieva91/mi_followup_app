@@ -64,6 +64,7 @@ def test_active_crecimiento_operational_uses_progressive_ro_not_fixed_13():
     active = next(b for b in p["bands"] if b["key"] == p["active"])
     assert p["active"] == "crecimiento"
     assert "1,3×" not in active["operational"]
-    assert "CO ≈" in active["operational"]
+    assert "× CO)" in active["operational"]
+    assert "≈" not in active["operational"]
     assert p["uom_eur"] > 130_000
     assert p["ro"] > 1.5

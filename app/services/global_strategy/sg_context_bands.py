@@ -47,15 +47,9 @@ def _fmt_ro(ro: float) -> str:
     return s.replace(".", ",") + "×"
 
 
-def _fmt_eur(x: float) -> str:
-    return f"{int(round(float(x))):,}".replace(",", ".") + " €"
-
-
 def _ro_co_clause(ro: float, co: float | None) -> str:
-    part = f"{_fmt_ro(ro)} CO"
-    if co is not None and co > 0:
-        part += f" ≈ {_fmt_eur(float(co) * float(ro))}"
-    return f"({part})"
+    del co  # CO solo define UOM en el motor; en UI mostramos el multiplicador RO(SG)
+    return f"({_fmt_ro(ro)} CO)"
 
 
 def _ro_co_range_clause(lo_ro: float, hi_ro: float) -> str:
