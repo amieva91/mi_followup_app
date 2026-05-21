@@ -60,31 +60,38 @@ def test_sg_context_payload_shape():
     assert p["ro"] > 1.3
 
 
-def test_active_crecimiento_operational_uses_progressive_ro_not_fixed_13():
-    p = sg_context_payload(2.41, co=104_505.0)
+def test_active_crecimiento_shows_real_ir_over_co_in_parens():
+    co = 104_505.0
+    ir = 163_000.0
+    p = sg_context_payload(2.41, co=co, ir=ir)
     active = next(b for b in p["bands"] if b["key"] == p["active"])
     assert p["active"] == "crecimiento"
-    assert "1,3×" not in active["operational"]
-    assert "1.5 – 2.5" not in active["operational"]
+    assert abs(p["ro_real"] - ir / co) < 0.001
     parts = active.get("operational_parts", {})
     assert parts.get("range") == "1,05×–1,65×"
-    assert parts.get("highlight", "").startswith("(")
-    assert " CO" not in active["operational"]
+    assert parts.get("highlight") == "(1,56×)"
     assert p["uom_eur"] > 130_000
-    assert p["ro"] > 1.5
 
 
-def test_active_euforia_shows_ro_band_range_outside_current_ro_in_parens():
-    p = sg_context_payload(3.0)
+def test_active_euforia_real_leverage_not_ro_target():
+    co = 100_000.0
+    ir = 156_100.0
+    p = sg_context_payload(3.0, co=co, ir=ir)
     active = next(b for b in p["bands"] if b["key"] == p["active"])
     assert p["active"] == "euforia"
+    assert p["ro"] == 2.0
+    assert abs(p["ro_real"] - 1.561) < 0.01
     parts = active.get("operational_parts")
-    assert parts is not None
     assert parts["range"] == "1,65×–2×"
-    assert parts["highlight"] == "(2×)"
-    assert "2.5" not in active["operational"]
-    cre = next(b for b in p["bands"] if b["key"] == "crecimiento")
-    assert cre["operational"].startswith("Inversión agresiva (")
+    assert parts["highlight"] == "(1,56×)"
+    assert "(2×)" not in parts["highlight"]
+
+
+def test_active_without_broker_data_omits_real_highlight():
+    p = sg_context_payload(3.0)
+    active = next(b for b in p["bands"] if b["key"] == p["active"])
+    assert active["operational_parts"]["highlight"] == ""
+    assert "ro_real" not in p
 
 
 def test_inactive_row_keeps_ro_range_in_parens():

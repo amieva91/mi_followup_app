@@ -126,6 +126,7 @@ def get_global_strategy_dashboard_snapshot(user_id: int) -> Optional[dict[str, A
 
     sg_val = round(float(row.sg), 2)
     co_val: float | None = None
+    ir_val: float | None = None
     try:
         from datetime import datetime
         from app.services.net_worth_service import _get_broker_value_at_date
@@ -134,8 +135,10 @@ def get_global_strategy_dashboard_snapshot(user_id: int) -> Optional[dict[str, A
         co_raw = float(bd.get("total_value") or 0.0)
         if co_raw > 0:
             co_val = co_raw
+            ir_val = float(bd.get("holdings_value") or 0.0)
     except Exception:
         co_val = None
+        ir_val = None
 
     return {
         "sg": sg_val,
@@ -147,5 +150,5 @@ def get_global_strategy_dashboard_snapshot(user_id: int) -> Optional[dict[str, A
         "usa_score_mode": mode,
         "usa_label": usa_label,
         "regions": regions,
-        "sg_context": sg_context_payload(sg_val, co=co_val),
+        "sg_context": sg_context_payload(sg_val, co=co_val, ir=ir_val),
     }

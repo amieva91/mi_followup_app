@@ -47,6 +47,13 @@ def _fmt_ro(ro: float) -> str:
     return s.replace(".", ",") + "×"
 
 
+def ratio_inversion_real(co: float | None, ir: float | None) -> float | None:
+    """Apalancamiento real del usuario: IR / CO (posiciones vs capital operativo bróker)."""
+    if co is None or ir is None or float(co) <= 0:
+        return None
+    return float(ir) / float(co)
+
+
 def _ro_range_plain(lo_ro: float, hi_ro: float) -> str:
     """Rango RO de banda sin paréntesis (fila activa, fuera del multiplicador actual)."""
     if abs(hi_ro - lo_ro) < 0.005:
@@ -87,13 +94,13 @@ def _inactive_operational_text(key: SgBandKey) -> str:
     return f"Escenario de recesión/pánico. Exposición objetivo {clause}."
 
 
-def active_operational_parts(key: SgBandKey, ro: float) -> dict[str, str]:
+def active_operational_parts(key: SgBandKey, ro_real: float | None) -> dict[str, str]:
     """
-    Fila activa: rango RO de la banda fuera del paréntesis; RO(SG) actual del usuario en negrita entre paréntesis.
+    Fila activa: rango RO de la banda fuera del paréntesis; IR/CO real del usuario en negrita entre paréntesis.
     """
     lo_ro, hi_ro = _band_ro_endpoints(key)
     ro_range = _ro_range_plain(lo_ro, hi_ro)
-    highlight = f"({_fmt_ro(ro)})"
+    highlight = f"({_fmt_ro(ro_real)})" if ro_real is not None else ""
     if key == "euforia":
         return {
             "prefix": "Máximo apalancamiento permitido · ",
@@ -124,15 +131,22 @@ def active_operational_parts(key: SgBandKey, ro: float) -> dict[str, str]:
 
 
 def _active_operational_plain(parts: dict[str, str]) -> str:
-    return f"{parts['prefix']}{parts['range']} {parts['highlight']}{parts['suffix']}"
+    mid = f" {parts['highlight']}" if parts.get("highlight") else ""
+    return f"{parts['prefix']}{parts['range']}{mid}{parts['suffix']}"
 
 
-def sg_context_payload(sg: float, co: float | None = None) -> dict[str, Any]:
-    """Payload JSON para dashboard: bandas + RO/UOM actuales y texto operativo progresivo."""
+def sg_context_payload(
+    sg: float,
+    co: float | None = None,
+    ir: float | None = None,
+) -> dict[str, Any]:
+    """Payload JSON para dashboard: bandas + RO objetivo/UOM y apalancamiento real IR/CO."""
     sg_clamped = max(0.0, min(3.0, float(sg)))
     active = sg_band_key(sg_clamped)
     ro = ratio_objetivo(sg_clamped)
     co_val = float(co) if co is not None and co > 0 else None
+    ir_val = float(ir) if ir is not None and co_val is not None else None
+    ro_real = ratio_inversion_real(co_val, ir_val)
     uom = (co_val * ro) if co_val is not None else None
 
     bands: list[dict[str, Any]] = []
@@ -141,7 +155,7 @@ def sg_context_payload(sg: float, co: float | None = None) -> dict[str, Any]:
         assert key in _BAND_SG_BOUNDS
         is_active = key == active
         if is_active:
-            parts = active_operational_parts(key, ro)
+            parts = active_operational_parts(key, ro_real)
             entry = {
                 **meta,
                 "operational": _active_operational_plain(parts),
@@ -161,6 +175,10 @@ def sg_context_payload(sg: float, co: float | None = None) -> dict[str, Any]:
     }
     if co_val is not None:
         payload["co_eur"] = round(co_val, 2)
+    if ir_val is not None:
+        payload["ir_eur"] = round(ir_val, 2)
+    if ro_real is not None:
+        payload["ro_real"] = round(ro_real, 4)
     if uom is not None:
         payload["uom_eur"] = round(uom, 2)
     return payload
