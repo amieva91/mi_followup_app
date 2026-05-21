@@ -47,13 +47,19 @@ def _fmt_ro(ro: float) -> str:
     return s.replace(".", ",") + "×"
 
 
-def _ro_co_range_clause(lo_ro: float, hi_ro: float) -> str:
+def _ro_range_plain(lo_ro: float, hi_ro: float) -> str:
+    """Rango RO de banda sin paréntesis (fila activa, fuera del multiplicador actual)."""
     if abs(hi_ro - lo_ro) < 0.005:
-        return f"({_fmt_ro(lo_ro)})"
+        return _fmt_ro(lo_ro)
     lo_s, hi_s = _fmt_ro(lo_ro), _fmt_ro(hi_ro)
     if lo_s == hi_s:
-        return f"({lo_s})"
-    return f"({lo_s}–{hi_s})"
+        return lo_s
+    return f"{lo_s}–{hi_s}"
+
+
+def _ro_co_range_clause(lo_ro: float, hi_ro: float) -> str:
+    plain = _ro_range_plain(lo_ro, hi_ro)
+    return f"({plain})"
 
 
 def _band_ro_endpoints(key: SgBandKey) -> tuple[float, float]:
@@ -81,35 +87,37 @@ def _inactive_operational_text(key: SgBandKey) -> str:
     return f"Escenario de recesión/pánico. Exposición objetivo {clause}."
 
 
-def active_operational_parts(key: SgBandKey, ro: float, score_range: str) -> dict[str, str]:
+def active_operational_parts(key: SgBandKey, ro: float) -> dict[str, str]:
     """
-    Fila activa: rango SG de la fila fuera del paréntesis; solo RO(SG) actual en negrita entre paréntesis.
+    Fila activa: rango RO de la banda fuera del paréntesis; RO(SG) actual del usuario en negrita entre paréntesis.
     """
+    lo_ro, hi_ro = _band_ro_endpoints(key)
+    ro_range = _ro_range_plain(lo_ro, hi_ro)
     highlight = f"({_fmt_ro(ro)})"
     if key == "euforia":
         return {
             "prefix": "Máximo apalancamiento permitido · ",
-            "range": score_range,
+            "range": ro_range,
             "highlight": highlight,
             "suffix": ".",
         }
     if key == "crecimiento":
         return {
             "prefix": "Inversión agresiva · ",
-            "range": score_range,
+            "range": ro_range,
             "highlight": highlight,
             "suffix": " pero vigilando deudas.",
         }
     if key == "fragilidad":
         return {
             "prefix": "Desapalancamiento y creación de liquidez · ",
-            "range": score_range,
+            "range": ro_range,
             "highlight": highlight,
             "suffix": ".",
         }
     return {
         "prefix": "Escenario de recesión/pánico · ",
-        "range": score_range,
+        "range": ro_range,
         "highlight": highlight,
         "suffix": ".",
     }
@@ -133,7 +141,7 @@ def sg_context_payload(sg: float, co: float | None = None) -> dict[str, Any]:
         assert key in _BAND_SG_BOUNDS
         is_active = key == active
         if is_active:
-            parts = active_operational_parts(key, ro, meta["score_range"])
+            parts = active_operational_parts(key, ro)
             entry = {
                 **meta,
                 "operational": _active_operational_plain(parts),
