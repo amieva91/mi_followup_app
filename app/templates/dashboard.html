@@ -866,7 +866,7 @@
                                 <td class="text-slate-600 font-normal">
                                     {% if b.key == sgc.active and b.get('operational_parts') %}
                                     {% set op = b.operational_parts %}
-                                    {{ op.prefix }}<strong class="font-semibold text-slate-800">{{ op.highlight }}</strong>{{ op.suffix }}
+                                    {{ op.prefix }}{{ op.range }} <strong class="font-semibold text-slate-800">{{ op.highlight }}</strong>{{ op.suffix }}
                                     {% else %}
                                     {{ b.operational }}
                                     {% endif %}
@@ -2246,7 +2246,7 @@ function renderGlobalStrategySgContext(snap) {
         if (!opCell) return;
         if (b.key === active && b.operational_parts) {
             const p = b.operational_parts;
-            opCell.innerHTML = (p.prefix || '') + '<strong class="font-semibold text-slate-800">' + (p.highlight || '') + '</strong>' + (p.suffix || '');
+            opCell.innerHTML = (p.prefix || '') + (p.range || '') + ' <strong class="font-semibold text-slate-800">' + (p.highlight || '') + '</strong>' + (p.suffix || '');
         } else if (b.operational) {
             opCell.textContent = b.operational;
         }

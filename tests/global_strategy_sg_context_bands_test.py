@@ -65,8 +65,30 @@ def test_active_crecimiento_operational_uses_progressive_ro_not_fixed_13():
     active = next(b for b in p["bands"] if b["key"] == p["active"])
     assert p["active"] == "crecimiento"
     assert "1,3×" not in active["operational"]
-    assert "×)" in active["operational"]
-    assert " CO" not in active["operational"]
+    assert "1,5 – 2,5" in active["operational"]
+    assert active.get("operational_parts", {}).get("range") == "1.5 – 2.5"
     assert active.get("operational_parts", {}).get("highlight", "").startswith("(")
+    assert " CO" not in active["operational"]
     assert p["uom_eur"] > 130_000
     assert p["ro"] > 1.5
+
+
+def test_active_euforia_has_operational_parts_with_sg_range():
+    p = sg_context_payload(2.78)
+    active = next(b for b in p["bands"] if b["key"] == p["active"])
+    assert p["active"] == "euforia"
+    parts = active.get("operational_parts")
+    assert parts is not None
+    assert parts["range"] == "2.5 – 3.0"
+    assert parts["highlight"].startswith("(") and parts["highlight"].endswith("×)")
+    assert "–" not in parts["highlight"]
+    assert "2.5 – 3.0" in active["operational"]
+    assert parts["highlight"] in active["operational"]
+
+
+def test_inactive_row_keeps_ro_range_in_parens():
+    p = sg_context_payload(2.78)
+    cre = next(b for b in p["bands"] if b["key"] == "crecimiento")
+    assert cre["key"] != p["active"]
+    assert "–" in cre["operational"]
+    assert cre["operational"].startswith("Inversión agresiva (")

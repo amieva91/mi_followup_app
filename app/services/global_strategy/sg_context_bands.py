@@ -47,11 +47,6 @@ def _fmt_ro(ro: float) -> str:
     return s.replace(".", ",") + "×"
 
 
-def _ro_co_clause(ro: float, co: float | None) -> str:
-    del co
-    return f"({_fmt_ro(ro)})"
-
-
 def _ro_co_range_clause(lo_ro: float, hi_ro: float) -> str:
     if abs(hi_ro - lo_ro) < 0.005:
         return f"({_fmt_ro(lo_ro)})"
@@ -73,20 +68,10 @@ def _band_ro_endpoints(key: SgBandKey) -> tuple[float, float]:
     return ratio_objetivo(lo_sg), ratio_objetivo(hi_sg)
 
 
-def operational_text_for_band(
-    key: SgBandKey,
-    *,
-    sg: float,
-    co: float | None,
-    is_active: bool,
-) -> str:
-    ro_now = ratio_objetivo(sg)
-    if is_active:
-        clause = _ro_co_clause(ro_now, co)
-    else:
-        lo_ro, hi_ro = _band_ro_endpoints(key)
-        clause = _ro_co_range_clause(lo_ro, hi_ro)
-
+def _inactive_operational_text(key: SgBandKey) -> str:
+    """Fila inactiva: rango RO progresivo de la banda entre paréntesis (comportamiento actual)."""
+    lo_ro, hi_ro = _band_ro_endpoints(key)
+    clause = _ro_co_range_clause(lo_ro, hi_ro)
     if key == "euforia":
         return f"Máximo apalancamiento permitido {clause}."
     if key == "crecimiento":
@@ -96,20 +81,42 @@ def operational_text_for_band(
     return f"Escenario de recesión/pánico. Exposición objetivo {clause}."
 
 
-def active_operational_parts(key: SgBandKey, ro: float) -> dict[str, str]:
-    """Partes del texto operativo de la fila activa (multiplicador RO en negrita en UI)."""
+def active_operational_parts(key: SgBandKey, ro: float, score_range: str) -> dict[str, str]:
+    """
+    Fila activa: rango SG de la fila fuera del paréntesis; solo RO(SG) actual en negrita entre paréntesis.
+    """
     highlight = f"({_fmt_ro(ro)})"
     if key == "euforia":
-        return {"prefix": "Máximo apalancamiento permitido ", "highlight": highlight, "suffix": "."}
+        return {
+            "prefix": "Máximo apalancamiento permitido · ",
+            "range": score_range,
+            "highlight": highlight,
+            "suffix": ".",
+        }
     if key == "crecimiento":
-        return {"prefix": "Inversión agresiva ", "highlight": highlight, "suffix": " pero vigilando deudas."}
+        return {
+            "prefix": "Inversión agresiva · ",
+            "range": score_range,
+            "highlight": highlight,
+            "suffix": " pero vigilando deudas.",
+        }
     if key == "fragilidad":
-        return {"prefix": "Desapalancamiento y creación de liquidez ", "highlight": highlight, "suffix": "."}
+        return {
+            "prefix": "Desapalancamiento y creación de liquidez · ",
+            "range": score_range,
+            "highlight": highlight,
+            "suffix": ".",
+        }
     return {
-        "prefix": "Escenario de recesión/pánico. Exposición objetivo ",
+        "prefix": "Escenario de recesión/pánico · ",
+        "range": score_range,
         "highlight": highlight,
         "suffix": ".",
     }
+
+
+def _active_operational_plain(parts: dict[str, str]) -> str:
+    return f"{parts['prefix']}{parts['range']} {parts['highlight']}{parts['suffix']}"
 
 
 def sg_context_payload(sg: float, co: float | None = None) -> dict[str, Any]:
@@ -125,14 +132,18 @@ def sg_context_payload(sg: float, co: float | None = None) -> dict[str, Any]:
         key = meta["key"]  # type: ignore[assignment]
         assert key in _BAND_SG_BOUNDS
         is_active = key == active
-        entry: dict[str, Any] = {
-            **meta,
-            "operational": operational_text_for_band(
-                key, sg=sg_clamped, co=co_val, is_active=is_active
-            ),
-        }
         if is_active:
-            entry["operational_parts"] = active_operational_parts(key, ro)
+            parts = active_operational_parts(key, ro, meta["score_range"])
+            entry = {
+                **meta,
+                "operational": _active_operational_plain(parts),
+                "operational_parts": parts,
+            }
+        else:
+            entry = {
+                **meta,
+                "operational": _inactive_operational_text(key),
+            }
         bands.append(entry)
 
     payload: dict[str, Any] = {
