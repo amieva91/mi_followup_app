@@ -1339,11 +1339,24 @@ def get_investments_summary(user_id: int) -> Dict[str, Any]:
 
 
 def get_recent_transactions(user_id: int, limit: int = 5) -> List[Dict[str, Any]]:
-    """Últimas transacciones (ingresos y gastos)."""
+    """Últimas transacciones (ingresos y gastos) con fecha <= hoy, más recientes primero."""
+    from datetime import date
+
     from app.models import Income, Expense
-    
-    incomes = Income.query.filter_by(user_id=user_id).order_by(Income.date.desc()).limit(limit).all()
-    expenses = Expense.query.filter_by(user_id=user_id).order_by(Expense.date.desc()).limit(limit).all()
+
+    today = date.today()
+    incomes = (
+        Income.query.filter(Income.user_id == user_id, Income.date <= today)
+        .order_by(Income.date.desc())
+        .limit(limit)
+        .all()
+    )
+    expenses = (
+        Expense.query.filter(Expense.user_id == user_id, Expense.date <= today)
+        .order_by(Expense.date.desc())
+        .limit(limit)
+        .all()
+    )
     
     transactions = []
     for inc in incomes:
