@@ -87,6 +87,8 @@ class Expense(db.Model):
     )  # 'daily', 'weekly', 'monthly', 'yearly'
     recurrence_end_date = db.Column(db.Date, nullable=True)
     recurrence_group_id = db.Column(db.String(36), nullable=True)  # UUID para agrupar series
+    recurrence_early_terminated = db.Column(db.Boolean, default=False, nullable=False)
+    recurrence_original_end_date = db.Column(db.Date, nullable=True)
     
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)

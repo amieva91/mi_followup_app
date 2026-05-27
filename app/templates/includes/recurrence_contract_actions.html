@@ -1,0 +1,84 @@
+{# Acciones terminar / reanudar contrato recurrente. Variables: kind ('expense'|'income'), item, group_meta #}
+{% set contract_meta = group_meta.get(item.recurrence_group_id, {}) if item.recurrence_group_id else {} %}
+{% set series_paused = contract_meta.get('paused', false) %}
+{% if kind == 'expense' %}
+    {% set terminate_url = url_for('expenses.terminate_recurrence', id=item.id) %}
+    {% set resume_url = url_for('expenses.resume_recurrence', id=item.id) %}
+{% else %}
+    {% set terminate_url = url_for('incomes.terminate_recurrence', id=item.id) %}
+    {% set resume_url = url_for('incomes.resume_recurrence', id=item.id) %}
+{% endif %}
+
+{% if series_paused %}
+<button type="button"
+        @click="showResumeModal = true"
+        class="table-action-icon text-teal-600 hover:text-teal-800 p-0 border-0 bg-transparent cursor-pointer"
+        title="Reanudar contrato (volver a generar cuotas futuras)">▶️</button>
+<template x-teleport="body">
+<div x-show="showResumeModal"
+     x-cloak
+     class="fixed inset-0 z-[56] flex items-center justify-center bg-black/55 p-4 sm:p-6 overflow-y-auto overflow-x-hidden"
+     style="display: none;">
+    <div @click.away="showResumeModal = false"
+         class="w-full max-w-lg min-w-0 mx-auto my-auto rounded-2xl border border-slate-200 bg-gradient-to-br from-[#f8fbfc] to-[#f1f7f8] p-6 sm:p-7 shadow-[0_20px_45px_rgba(15,23,42,0.28)] box-border">
+        <h3 class="text-lg font-semibold text-gray-900 mb-3">▶️ Reanudar contrato</h3>
+        <p class="text-sm text-gray-600 mb-6 leading-relaxed break-words [overflow-wrap:anywhere]">
+            ¿Reanudar este contrato? Se volverán a generar las cuotas futuras de la serie
+            {% if contract_meta.get('resume_until') %}
+                hasta el <strong class="font-semibold text-gray-800">{{ contract_meta.resume_until.strftime('%d/%m/%Y') }}</strong>.
+            {% else %}
+                hasta la fecha actual.
+            {% endif %}
+        </p>
+        <div class="flex flex-wrap justify-end gap-3">
+            <button type="button"
+                    @click="showResumeModal = false"
+                    class="modal-touch-btn px-4 py-2.5 rounded-full text-sm font-medium bg-slate-700 text-white hover:bg-slate-800 transition shrink-0">
+                Cancelar
+            </button>
+            <form method="POST" action="{{ resume_url }}" class="inline shrink-0">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit"
+                        class="modal-touch-btn px-5 py-2.5 rounded-full text-sm font-medium border border-teal-300 bg-teal-100 text-teal-900 hover:bg-teal-200 transition">
+                    Reanudar
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+</template>
+{% else %}
+<button type="button"
+        @click="showTerminateModal = true"
+        class="table-action-icon text-amber-600 hover:text-amber-800 p-0 border-0 bg-transparent cursor-pointer"
+        title="Terminar contrato (eliminar cuotas futuras)">🛑</button>
+<template x-teleport="body">
+<div x-show="showTerminateModal"
+     x-cloak
+     class="fixed inset-0 z-[56] flex items-center justify-center bg-black/55 p-4 sm:p-6 overflow-y-auto overflow-x-hidden"
+     style="display: none;">
+    <div @click.away="showTerminateModal = false"
+         class="w-full max-w-lg min-w-0 mx-auto my-auto rounded-2xl border border-slate-200 bg-gradient-to-br from-[#f8fbfc] to-[#f1f7f8] p-6 sm:p-7 shadow-[0_20px_45px_rgba(15,23,42,0.28)] box-border">
+        <h3 class="text-lg font-semibold text-gray-900 mb-3">🛑 Terminar contrato</h3>
+        <p class="text-sm text-gray-600 mb-6 leading-relaxed break-words [overflow-wrap:anywhere]">
+            ¿Terminar contrato? Se eliminarán las cuotas con fecha posterior a
+            <strong class="font-semibold text-gray-800">{{ item.date.strftime('%d/%m/%Y') }}</strong>.
+        </p>
+        <div class="flex flex-wrap justify-end gap-3">
+            <button type="button"
+                    @click="showTerminateModal = false"
+                    class="modal-touch-btn px-4 py-2.5 rounded-full text-sm font-medium bg-slate-700 text-white hover:bg-slate-800 transition shrink-0">
+                Cancelar
+            </button>
+            <form method="POST" action="{{ terminate_url }}" class="inline shrink-0">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit"
+                        class="modal-touch-btn px-5 py-2.5 rounded-full text-sm font-medium border border-amber-300 bg-amber-100 text-amber-900 hover:bg-amber-200 transition">
+                    Terminar
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+</template>
+{% endif %}

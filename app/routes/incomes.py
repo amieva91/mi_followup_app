@@ -7,6 +7,11 @@ from app import db
 from app.models import IncomeCategory, Income
 from app.forms import IncomeCategoryForm, IncomeForm
 from app.utils.recurrence import create_recurrence_instances
+from app.utils.recurrence_contract import (
+    build_recurrence_group_meta,
+    resume_recurrence_series,
+    terminate_recurrence_series,
+)
 from app.utils.recurrence_edit_scope import RECURRENCE_EDIT_SCOPES, parse_pivot_date
 from app.services.category_helpers import (
     AJUSTES_CATEGORY_NAME,
@@ -338,7 +343,8 @@ def list():
         monthly_totals=monthly_totals,
         summary_metrics=summary_metrics,
         synthetic_entries=synthetic_entries,
-        orphan_synthetic_entries=orphan_synthetic_entries
+        orphan_synthetic_entries=orphan_synthetic_entries,
+        recurrence_group_meta=build_recurrence_group_meta(Income, current_user.id),
     )
 
 
@@ -603,40 +609,34 @@ def edit(id):
 def terminate_recurrence(id):
     """Elimina ingresos futuros de la serie y fija fecha de fin en las restantes."""
     income = Income.query.get_or_404(id)
-
-    if income.user_id != current_user.id:
-        flash('No tienes permiso', 'error')
+    dates_touch, error = terminate_recurrence_series(Income, current_user.id, income)
+    if error:
+        flash(error, 'error')
         return redirect(url_for('incomes.list'))
-
-    if not income.recurrence_group_id:
-        flash('Esta acción solo aplica a series recurrentes.', 'error')
-        return redirect(url_for('incomes.list'))
-
-    gid = income.recurrence_group_id
-    pivot = income.date
-
-    future_rows = Income.query.filter(
-        Income.user_id == current_user.id,
-        Income.recurrence_group_id == gid,
-        Income.date > pivot,
-    ).all()
-
-    dates_touch = [i.date for i in future_rows if i.date]
-    for row in future_rows:
-        db.session.delete(row)
-
-    remaining = Income.query.filter_by(
-        user_id=current_user.id,
-        recurrence_group_id=gid,
-    ).all()
-    for r in remaining:
-        r.recurrence_end_date = pivot
 
     db.session.commit()
-    dates_touch.extend([r.date for r in remaining if r.date])
     _touch_dashboard_for_income_dates(current_user.id, dates_touch)
     flash(
         'Contrato terminado: se eliminaron las cuotas futuras de esta serie.',
+        'success',
+    )
+    return redirect(url_for('incomes.list'))
+
+
+@incomes_bp.route('/<int:id>/resume-recurrence', methods=['POST'])
+@login_required
+def resume_recurrence(id):
+    """Regenera cuotas futuras de una serie terminada anticipadamente."""
+    income = Income.query.get_or_404(id)
+    created, dates_touch, error = resume_recurrence_series(Income, current_user.id, income)
+    if error:
+        flash(error, 'error')
+        return redirect(url_for('incomes.list'))
+
+    db.session.commit()
+    _touch_dashboard_for_income_dates(current_user.id, dates_touch)
+    flash(
+        f'Contrato reanudado: se generaron {created} cuota(s) futura(s).',
         'success',
     )
     return redirect(url_for('incomes.list'))

@@ -332,7 +332,7 @@
                                 +€{{ '%.2f'|format(income.amount) }}
                             </td>
                             <td class="table-actions-col px-6 py-4 whitespace-nowrap text-center text-sm">
-                                <div class="flex justify-center space-x-2" x-data="{ showDeleteModal: false, showEditScopeModal: false, showTerminateModal: false, incomeId: {{ income.id }}, isRecurring: {{ 'true' if income.is_recurring and income.recurrence_group_id else 'false' }} }">
+                                <div class="flex justify-center space-x-2" x-data="{ showDeleteModal: false, showEditScopeModal: false, showTerminateModal: false, showResumeModal: false, incomeId: {{ income.id }}, isRecurring: {{ 'true' if income.is_recurring and income.recurrence_group_id else 'false' }} }">
                                     {% if income.is_recurring and income.recurrence_group_id %}
                                     <button type="button"
                                             @click="showEditScopeModal = true"
@@ -350,41 +350,10 @@
                                     </a>
                                     {% endif %}
                                     {% if income.is_recurring and income.recurrence_group_id %}
-                                    <button type="button"
-                                            @click="showTerminateModal = true"
-                                            class="table-action-icon text-amber-600 hover:text-amber-800 p-0 border-0 bg-transparent cursor-pointer"
-                                            title="Terminar contrato (eliminar cuotas futuras)">🛑</button>
-                                    <template x-teleport="body">
-                                    <div x-show="showTerminateModal"
-                                         x-cloak
-                                         class="fixed inset-0 z-[56] flex items-center justify-center bg-black/55 p-4 sm:p-6 overflow-y-auto overflow-x-hidden"
-                                         style="display: none;">
-                                        <div @click.away="showTerminateModal = false"
-                                             class="w-full max-w-lg min-w-0 mx-auto my-auto rounded-2xl border border-slate-200 bg-gradient-to-br from-[#f8fbfc] to-[#f1f7f8] p-6 sm:p-7 shadow-[0_20px_45px_rgba(15,23,42,0.28)] box-border">
-                                            <h3 class="text-lg font-semibold text-gray-900 mb-3">🛑 Terminar contrato</h3>
-                                            <p class="text-sm text-gray-600 mb-6 leading-relaxed break-words [overflow-wrap:anywhere]">
-                                                ¿Terminar contrato? Se eliminarán las cuotas con fecha posterior a
-                                                <strong class="font-semibold text-gray-800">{{ income.date.strftime('%d/%m/%Y') }}</strong>.
-                                            </p>
-                                            <div class="flex flex-wrap justify-end gap-3">
-                                                <button type="button"
-                                                        @click="showTerminateModal = false"
-                                                        class="modal-touch-btn px-4 py-2.5 rounded-full text-sm font-medium bg-slate-700 text-white hover:bg-slate-800 transition shrink-0">
-                                                    Cancelar
-                                                </button>
-                                                <form method="POST"
-                                                      action="{{ url_for('incomes.terminate_recurrence', id=income.id) }}"
-                                                      class="inline shrink-0">
-                                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                                    <button type="submit"
-                                                            class="modal-touch-btn px-5 py-2.5 rounded-full text-sm font-medium border border-amber-300 bg-amber-100 text-amber-900 hover:bg-amber-200 transition">
-                                                        Terminar
-                                                    </button>
-                                                </form>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    </template>
+                                    {% set kind = 'income' %}
+                                    {% set item = income %}
+                                    {% set group_meta = recurrence_group_meta %}
+                                    {% include 'includes/recurrence_contract_actions.html' %}
                                     {% endif %}
                                     <button @click="showDeleteModal = true" class="table-action-icon text-red-600 hover:text-red-800" title="Eliminar">
                                         🗑️
