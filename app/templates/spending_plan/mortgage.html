@@ -102,9 +102,10 @@ function mortgageSimPage() {
     </div>
     {% else %}
     <div class="mb-8 mg-plan-card p-4 border-dashed border-slate-300/80 text-sm text-slate-600">
-        Aún no hay una captura de contexto de tipos en base de datos. Ejecuta el job diario
-        (<code class="text-xs bg-white px-1 rounded border border-slate-200">scripts/refresh_interest_rate_context_snapshot.py</code>)
-        o espera al cron en servidor.
+        Aún no hay una captura de contexto de tipos en base de datos. Ejecuta
+        <code class="text-xs bg-white px-1 rounded border border-slate-200">scripts/install_interest_rate_context_cron.sh</code>
+        (o <code class="text-xs bg-white px-1 rounded border border-slate-200">install_all_crons.sh</code>) en el servidor, o el snapshot manual con
+        <code class="text-xs bg-white px-1 rounded border border-slate-200">refresh_interest_rate_context_snapshot.py</code>.
     </div>
     {% endif %}
 
