@@ -64,6 +64,10 @@ export FLASK_APP=run.py
 export FLASK_ENV=production
 flask db upgrade
 echo "   ✓ Migraciones aplicadas"
+
+echo "⏰ Crons (usuario followup)..."
+sudo -u followup bash -lc 'cd /var/www/followup && ./scripts/install_all_crons.sh'
+echo "   ✓ Crons instalados/actualizados"
 DEPLOY_STEPS
 
 # Reiniciar servicio (fuera del bloque www-data)
