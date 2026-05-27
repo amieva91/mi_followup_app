@@ -174,14 +174,15 @@ def resume_recurrence_series(model_class, user_id: int, anchor, *, allow_debt: b
         return 0, [], 'No se puede reanudar: falta la frecuencia de la serie.'
 
     restored_end = template.recurrence_original_end_date
-    resume_until = restored_end or datetime.now().date()
-    new_dates = generate_recurrence_dates_after(
-        template.date,
-        frequency,
-        resume_until,
-        include_future=bool(restored_end),
-    )
-    if not new_dates and not restored_end:
+
+    if restored_end:
+        new_dates = generate_recurrence_dates_after(
+            template.date,
+            frequency,
+            restored_end,
+            include_future=True,
+        )
+    else:
         new_dates = generate_recurrence_dates_after(
             template.date,
             frequency,
@@ -189,13 +190,7 @@ def resume_recurrence_series(model_class, user_id: int, anchor, *, allow_debt: b
             include_future=False,
         )
 
-    if not new_dates:
-        return 0, [], 'No hay cuotas pendientes por generar para reanudar este contrato.'
-
-    if restored_end is None:
-        restored_end = new_dates[-1]
-
-    dates_touch = [d for d in new_dates]
+    dates_touch: list[date] = []
     for row in rows:
         row.recurrence_end_date = restored_end
         row.recurrence_early_terminated = False
@@ -221,5 +216,6 @@ def resume_recurrence_series(model_class, user_id: int, anchor, *, allow_debt: b
         if hasattr(instance, 'debt_plan_id'):
             instance.debt_plan_id = None
         db.session.add(instance)
+        dates_touch.append(installment_date)
 
     return len(new_dates), dates_touch, None

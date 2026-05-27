@@ -635,10 +635,16 @@ def resume_recurrence(id):
 
     db.session.commit()
     _touch_dashboard_for_income_dates(current_user.id, dates_touch)
-    flash(
-        f'Contrato reanudado: se generaron {created} cuota(s) futura(s).',
-        'success',
-    )
+    if created:
+        flash(
+            f'Contrato reanudado: se generaron {created} cuota(s) futura(s).',
+            'success',
+        )
+    else:
+        flash(
+            'Contrato reanudado: la serie recurrente vuelve a estar activa.',
+            'success',
+        )
     return redirect(url_for('incomes.list'))
 
 

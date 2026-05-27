@@ -23,11 +23,11 @@
          class="w-full max-w-lg min-w-0 mx-auto my-auto rounded-2xl border border-slate-200 bg-gradient-to-br from-[#f8fbfc] to-[#f1f7f8] p-6 sm:p-7 shadow-[0_20px_45px_rgba(15,23,42,0.28)] box-border">
         <h3 class="text-lg font-semibold text-gray-900 mb-3">▶️ Reanudar contrato</h3>
         <p class="text-sm text-gray-600 mb-6 leading-relaxed break-words [overflow-wrap:anywhere]">
-            ¿Reanudar este contrato? Se volverán a generar las cuotas futuras de la serie
+            ¿Reanudar este contrato? La serie volverá a estar activa
             {% if contract_meta.get('resume_until') %}
-                hasta el <strong class="font-semibold text-gray-800">{{ contract_meta.resume_until.strftime('%d/%m/%Y') }}</strong>.
+                y se regenerarán las cuotas hasta el <strong class="font-semibold text-gray-800">{{ contract_meta.resume_until.strftime('%d/%m/%Y') }}</strong>.
             {% else %}
-                hasta la fecha actual.
+                y continuará generando cuotas según su periodicidad.
             {% endif %}
         </p>
         <div class="flex flex-wrap justify-end gap-3">
