@@ -75,6 +75,11 @@ EXPENSE_EMOJIS: list[tuple[str, str]] = [
     ('💳', 'Tarjetas'),
     ('🛡️', 'Seguros'),
     ('🧾', 'Impuestos'),
+    ('🩼', 'Fisioterapia'),
+    ('🏥', 'Clínica / hospital'),
+    ('💆', 'Masajes / bienestar'),
+    ('🦷', 'Dentista'),
+    ('👓', 'Óptica'),
     ('💰', 'Otros'),
 ]
 
@@ -153,5 +158,10 @@ INCOME_EMOJIS: list[tuple[str, str]] = [
     ('📋', 'Gestión y trámites cobrados'),
     ('🎫', 'Entradas / eventos propios'),
     ('🔔', 'Suscripciones a tu servicio'),
+    ('🎖️', 'Pensión / jubilación'),
+    ('🏥', 'Consultas clínicas'),
+    ('📱', 'Ingresos app / SaaS'),
+    ('🌍', 'Ingresos internacionales'),
+    ('🤲', 'Donaciones recibidas'),
     ('💵', 'Otros'),
 ]
