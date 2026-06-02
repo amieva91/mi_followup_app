@@ -2057,6 +2057,10 @@ def get_dashboard_summary(user_id: int) -> Dict[str, Any]:
     Resumen completo para el dashboard principal.
     Combina patrimonio, desglose, proyecciones y métricas de ahorro.
     """
+    from app.utils.recurrence_sync import sync_recurring_and_touch_dashboard_cache
+
+    sync_recurring_and_touch_dashboard_cache(user_id)
+
     breakdown = get_net_worth_breakdown(user_id)
     history_block = _build_dashboard_history(user_id)
     history = history_block["history"]

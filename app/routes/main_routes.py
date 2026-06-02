@@ -34,6 +34,9 @@ def dashboard():
     perf_mark("GET /dashboard", uid, tick, "enter")
 
     from app.services.dashboard_summary_cache import DashboardSummaryCacheService
+    from app.utils.recurrence_sync import sync_recurring_and_touch_dashboard_cache
+
+    sync_recurring_and_touch_dashboard_cache(current_user.id)
     summary = DashboardSummaryCacheService.get(current_user.id)
     perf_mark("GET /dashboard", uid, tick, "summary_cache_get", hit=summary is not None)
     if summary is None:

@@ -283,7 +283,11 @@ def delete_category(id):
 def list():
     """Listar gastos"""
     from datetime import date
-    
+
+    from app.utils.recurrence_sync import sync_recurring_and_touch_dashboard_cache
+
+    sync_recurring_and_touch_dashboard_cache(current_user.id)
+
     page = request.args.get('page', 1, type=int)
     category_id = request.args.get('category', type=int)
     
