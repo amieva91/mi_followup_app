@@ -364,35 +364,110 @@ function spendingPlanGoals(cfg) {
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
 
         <div class="grid grid-cols-1 gap-6 mb-6 md:grid-cols-3 md:items-start">
-            <div>
-                <label class="block text-sm font-medium text-slate-700 mb-1">Endeudamiento máximo (DSR) %</label>
-                <input id="max-dsr-percent-input" type="number" name="max_dsr_percent" step="0.5" min="5" max="60"
-                       value="{{ settings.max_dsr_percent }}"
-                       class="h-10 w-full rounded-xl border border-slate-300 px-3 text-slate-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-500"/>
-                <p class="text-xs text-slate-500 mt-1">Cupo máximo de cuotas / ingreso neto mensual (referencia).</p>
-                <p class="text-xs text-teal-800 mt-1 tabular-nums" id="dsr-euro-hint">
-                    Referencia: <strong><span id="dsr-euro-value">—</span> €/mes</strong>
-                    <span class="text-slate-500 font-normal">(ingreso medio {{ "%.2f"|format(income_avg) }} € × %)</span>
+            <div class="md:col-span-1">
+                <p class="text-sm font-medium text-slate-700 mb-2">Endeudamiento máximo (DSR)</p>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label for="max-dsr-percent-input" class="block text-xs font-medium text-slate-600 mb-1">Porcentaje</label>
+                        <div class="relative">
+                            <input id="max-dsr-percent-input" type="number" name="max_dsr_percent" step="0.5" min="5" max="60"
+                                   value="{{ settings.max_dsr_percent }}"
+                                   {% if income_avg <= 0 %}disabled{% endif %}
+                                   class="h-10 w-full rounded-xl border border-slate-300 pl-3 pr-8 text-slate-900 tabular-nums focus:border-teal-500 focus:ring-2 focus:ring-teal-500 disabled:bg-slate-100 disabled:text-slate-500"/>
+                            <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">%</span>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="max-dsr-euro-input" class="block text-xs font-medium text-slate-600 mb-1">Cupo mensual</label>
+                        <div class="relative">
+                            <input id="max-dsr-euro-input" type="number" step="1" min="0"
+                                   value="{% if income_avg > 0 %}{{ "%.2f"|format(dsr_cap_monthly) }}{% endif %}"
+                                   {% if income_avg <= 0 %}disabled{% endif %}
+                                   class="h-10 w-full rounded-xl border border-slate-300 pl-3 pr-9 text-slate-900 tabular-nums focus:border-teal-500 focus:ring-2 focus:ring-teal-500 disabled:bg-slate-100 disabled:text-slate-500"
+                                   aria-describedby="dsr-dual-hint"/>
+                            <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">€</span>
+                        </div>
+                    </div>
+                </div>
+                <p id="dsr-dual-hint" class="text-xs text-slate-500 mt-2 leading-relaxed">
+                    {% if income_avg > 0 %}
+                    Edita el <strong>%</strong> o el <strong>cupo en €</strong>; el otro campo muestra el equivalente al vuelo
+                    (ingreso medio <span class="tabular-nums">{{ "%.2f"|format(income_avg) }} €</span>/mes).
+                    {% else %}
+                    Sin ingreso medio calculado no se puede convertir entre % y €.
+                    {% endif %}
                 </p>
                 <script>
                 (function () {
-                    var inp = document.getElementById('max-dsr-percent-input');
-                    var out = document.getElementById('dsr-euro-value');
+                    var pctInp = document.getElementById('max-dsr-percent-input');
+                    var euroInp = document.getElementById('max-dsr-euro-input');
                     var income = {{ income_avg|tojson }};
-                    function sync() {
-                        if (!inp || !out) return;
-                        var pct = parseFloat(String(inp.value).replace(',', '.'), 10);
-                        if (!isFinite(pct) || income <= 0) {
-                            out.textContent = '—';
+                    var PCT_MIN = 5;
+                    var PCT_MAX = 60;
+                    var syncing = false;
+
+                    function parseNum(el) {
+                        if (!el || el.value === '' || el.value == null) return NaN;
+                        return parseFloat(String(el.value).replace(',', '.'));
+                    }
+
+                    function clampPct(p) {
+                        return Math.max(PCT_MIN, Math.min(PCT_MAX, p));
+                    }
+
+                    function roundHalf(x) {
+                        return Math.round(x * 2) / 2;
+                    }
+
+                    function euroFromPct(pct) {
+                        if (!isFinite(pct) || income <= 0) return null;
+                        return Math.round(income * (pct / 100) * 100) / 100;
+                    }
+
+                    function pctFromEuro(euro) {
+                        if (!isFinite(euro) || income <= 0) return null;
+                        return clampPct(roundHalf((euro / income) * 100));
+                    }
+
+                    function syncFromPercent() {
+                        if (syncing || !pctInp || !euroInp || income <= 0) return;
+                        syncing = true;
+                        var pct = parseNum(pctInp);
+                        if (!isFinite(pct)) {
+                            syncing = false;
                             return;
                         }
-                        var v = Math.round(income * (pct / 100) * 100) / 100;
-                        out.textContent = v.toFixed(2);
+                        pct = clampPct(roundHalf(pct));
+                        pctInp.value = String(pct);
+                        var euro = euroFromPct(pct);
+                        if (euro != null) euroInp.value = euro.toFixed(2);
+                        syncing = false;
                     }
-                    if (inp) {
-                        inp.addEventListener('input', sync);
-                        inp.addEventListener('change', sync);
-                        sync();
+
+                    function syncFromEuro() {
+                        if (syncing || !pctInp || !euroInp || income <= 0) return;
+                        syncing = true;
+                        var euro = parseNum(euroInp);
+                        if (!isFinite(euro)) {
+                            syncing = false;
+                            return;
+                        }
+                        if (euro < 0) euro = 0;
+                        var pct = pctFromEuro(euro);
+                        if (pct != null) {
+                            pctInp.value = String(pct);
+                            var back = euroFromPct(pct);
+                            if (back != null) euroInp.value = back.toFixed(2);
+                        }
+                        syncing = false;
+                    }
+
+                    if (pctInp && euroInp && income > 0) {
+                        pctInp.addEventListener('input', syncFromPercent);
+                        pctInp.addEventListener('change', syncFromPercent);
+                        euroInp.addEventListener('input', syncFromEuro);
+                        euroInp.addEventListener('change', syncFromEuro);
+                        syncFromPercent();
                     }
                 })();
                 </script>
@@ -405,7 +480,7 @@ function spendingPlanGoals(cfg) {
                 <p class="text-xs text-slate-500 mt-1">Máx. 60 (el algoritmo siempre usa 5 años).</p>
             </div>
             <div class="flex flex-col">
-                <span class="invisible mb-1 hidden text-sm font-medium text-slate-700 md:block" aria-hidden="true">Endeudamiento máximo (DSR) %</span>
+                <span class="invisible mb-1 hidden text-sm font-medium text-slate-700 md:block" aria-hidden="true">Endeudamiento máximo (DSR)</span>
                 <button type="submit" class="sp-btn flex h-10 w-full items-center justify-center rounded-xl border border-transparent bg-teal-600 px-5 text-sm font-semibold text-white shadow-[0_10px_20px_rgba(13,148,136,0.25)] hover:bg-teal-700">
                     Guardar configuración
                 </button>
