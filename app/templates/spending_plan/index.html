@@ -424,19 +424,35 @@ function spendingPlanGoals(cfg) {
                         return Math.round(income * (pct / 100) * 100) / 100;
                     }
 
-                    function pctFromEuro(euro) {
-                        if (!isFinite(euro) || income <= 0) return null;
-                        return clampPct(roundHalf((euro / income) * 100));
+                    /** Solo actualiza €; no reescribe el % (evita 5+0 → 50 al teclear). */
+                    function liveEuroFromPercent() {
+                        if (syncing || !pctInp || !euroInp || income <= 0) return;
+                        var pct = parseNum(pctInp);
+                        if (!isFinite(pct)) return;
+                        syncing = true;
+                        var euro = euroFromPct(pct);
+                        if (euro != null) euroInp.value = euro.toFixed(2);
+                        syncing = false;
                     }
 
-                    function syncFromPercent() {
+                    /** Solo actualiza % en vivo; sin clamp hasta blur. */
+                    function livePercentFromEuro() {
                         if (syncing || !pctInp || !euroInp || income <= 0) return;
+                        var euro = parseNum(euroInp);
+                        if (!isFinite(euro)) return;
                         syncing = true;
-                        var pct = parseNum(pctInp);
-                        if (!isFinite(pct)) {
-                            syncing = false;
-                            return;
+                        var pct = (euro / income) * 100;
+                        if (isFinite(pct)) {
+                            pctInp.value = String(Math.round(pct * 100) / 100);
                         }
+                        syncing = false;
+                    }
+
+                    function normalizePercentField() {
+                        if (!pctInp || !euroInp || income <= 0) return;
+                        var pct = parseNum(pctInp);
+                        if (!isFinite(pct)) return;
+                        syncing = true;
                         pct = clampPct(roundHalf(pct));
                         pctInp.value = String(pct);
                         var euro = euroFromPct(pct);
@@ -444,30 +460,26 @@ function spendingPlanGoals(cfg) {
                         syncing = false;
                     }
 
-                    function syncFromEuro() {
-                        if (syncing || !pctInp || !euroInp || income <= 0) return;
-                        syncing = true;
+                    function normalizeEuroField() {
+                        if (!pctInp || !euroInp || income <= 0) return;
                         var euro = parseNum(euroInp);
-                        if (!isFinite(euro)) {
-                            syncing = false;
-                            return;
-                        }
+                        if (!isFinite(euro)) return;
+                        syncing = true;
                         if (euro < 0) euro = 0;
-                        var pct = pctFromEuro(euro);
-                        if (pct != null) {
-                            pctInp.value = String(pct);
-                            var back = euroFromPct(pct);
-                            if (back != null) euroInp.value = back.toFixed(2);
-                        }
+                        var pct = clampPct(roundHalf((euro / income) * 100));
+                        pctInp.value = String(pct);
+                        var back = euroFromPct(pct);
+                        if (back != null) euroInp.value = back.toFixed(2);
                         syncing = false;
                     }
 
                     if (pctInp && euroInp && income > 0) {
-                        pctInp.addEventListener('input', syncFromPercent);
-                        pctInp.addEventListener('change', syncFromPercent);
-                        euroInp.addEventListener('input', syncFromEuro);
-                        euroInp.addEventListener('change', syncFromEuro);
-                        syncFromPercent();
+                        pctInp.addEventListener('input', liveEuroFromPercent);
+                        pctInp.addEventListener('blur', normalizePercentField);
+                        pctInp.addEventListener('change', normalizePercentField);
+                        euroInp.addEventListener('input', livePercentFromEuro);
+                        euroInp.addEventListener('blur', normalizeEuroField);
+                        euroInp.addEventListener('change', normalizeEuroField);
                     }
                 })();
                 </script>
