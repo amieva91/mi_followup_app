@@ -550,92 +550,6 @@ function spendingPlanGoals(cfg) {
         </div>
     </div>
 
-    <script>
-    (function () {
-        var panel = document.getElementById('sp-config-panel');
-        if (!panel) return;
-        var configUrl = panel.getAttribute('data-config-url');
-        var derivedRoot = document.getElementById('sp-plan-derived-root');
-        var statusEl = document.getElementById('sp-config-save-status');
-        var csrfMeta = document.querySelector('meta[name="csrf-token"]');
-        var csrf = csrfMeta ? csrfMeta.getAttribute('content') : '';
-        var saveTimer = null;
-        var inflight = false;
-
-        function setStatus(state, msg) {
-            if (!statusEl) return;
-            statusEl.textContent = msg || '';
-            statusEl.className = 'text-xs min-h-[1.25rem] ' + (
-                state === 'error' ? 'text-rose-600 font-medium'
-                : state === 'saving' ? 'text-teal-700'
-                : state === 'saved' ? 'text-emerald-700'
-                : 'text-slate-500'
-            );
-        }
-
-        function collectPayload() {
-            if (window.spPlanPrepareDsr) window.spPlanPrepareDsr();
-            var fd = new FormData();
-            fd.append('csrf_token', csrf);
-            var pct = document.getElementById('max-dsr-percent-input');
-            var horizon = document.getElementById('sp-horizon-months-input');
-            if (pct) fd.append('max_dsr_percent', pct.value);
-            if (horizon) fd.append('horizon_months', horizon.value);
-            panel.querySelectorAll('input[name="fixed_category_ids"]:checked').forEach(function (cb) {
-                fd.append('fixed_category_ids', cb.value);
-            });
-            return fd;
-        }
-
-        async function saveConfig() {
-            if (inflight) return;
-            inflight = true;
-            setStatus('saving', 'Guardando…');
-            try {
-                var r = await fetch(configUrl, {
-                    method: 'POST',
-                    body: collectPayload(),
-                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                });
-                var data = await r.json().catch(function () { return null; });
-                if (!r.ok || !data || !data.ok) {
-                    setStatus('error', (data && data.error_message) ? data.error_message : 'No se pudo guardar.');
-                    return;
-                }
-                if (derivedRoot && data.html) {
-                    derivedRoot.innerHTML = data.html;
-                    if (window.Alpine && typeof Alpine.initTree === 'function') {
-                        Alpine.initTree(derivedRoot);
-                    }
-                }
-                setStatus('saved', 'Guardado');
-                setTimeout(function () {
-                    if (statusEl && statusEl.textContent === 'Guardado') setStatus('idle', '');
-                }, 1800);
-            } catch (e) {
-                setStatus('error', 'Error de red al guardar.');
-            } finally {
-                inflight = false;
-            }
-        }
-
-        function scheduleConfigSave() {
-            clearTimeout(saveTimer);
-            saveTimer = setTimeout(saveConfig, 450);
-        }
-        window.spPlanScheduleConfigSave = scheduleConfigSave;
-
-        panel.querySelectorAll('input[name="fixed_category_ids"]').forEach(function (cb) {
-            cb.addEventListener('change', scheduleConfigSave);
-        });
-        var horizon = document.getElementById('sp-horizon-months-input');
-        if (horizon) {
-            horizon.addEventListener('change', scheduleConfigSave);
-            horizon.addEventListener('blur', scheduleConfigSave);
-        }
-    })();
-    </script>
-
     <!-- Objetivos -->
     <div class="sp-plan-card p-5 sm:p-6 mb-8">
         <div class="flex flex-wrap items-start justify-between gap-4 mb-4">
@@ -735,6 +649,103 @@ function spendingPlanGoals(cfg) {
     <div id="sp-plan-derived-root">
         {% include "spending_plan/_plan_derived.html" %}
     </div>
+
+    <script>
+    (function () {
+        var panel = document.getElementById('sp-config-panel');
+        if (!panel) return;
+        var configUrl = panel.getAttribute('data-config-url');
+        var statusEl = document.getElementById('sp-config-save-status');
+        var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+        var csrf = csrfMeta ? csrfMeta.getAttribute('content') : '';
+        var saveTimer = null;
+        var inflight = false;
+
+        function derivedRoot() {
+            return document.getElementById('sp-plan-derived-root');
+        }
+
+        function setStatus(state, msg) {
+            if (!statusEl) return;
+            statusEl.textContent = msg || '';
+            statusEl.className = 'text-xs min-h-[1.25rem] ' + (
+                state === 'error' ? 'text-rose-600 font-medium'
+                : state === 'saving' ? 'text-teal-700'
+                : state === 'saved' ? 'text-emerald-700'
+                : 'text-slate-500'
+            );
+        }
+
+        function collectPayload() {
+            if (window.spPlanPrepareDsr) window.spPlanPrepareDsr();
+            var fd = new FormData();
+            fd.append('csrf_token', csrf);
+            var pct = document.getElementById('max-dsr-percent-input');
+            var horizon = document.getElementById('sp-horizon-months-input');
+            if (pct) fd.append('max_dsr_percent', pct.value);
+            if (horizon) fd.append('horizon_months', horizon.value);
+            panel.querySelectorAll('input[name="fixed_category_ids"]:checked').forEach(function (cb) {
+                fd.append('fixed_category_ids', cb.value);
+            });
+            return fd;
+        }
+
+        function applyDerivedHtml(html) {
+            var root = derivedRoot();
+            if (!root || !html) return false;
+            root.innerHTML = html;
+            if (window.Alpine && typeof Alpine.initTree === 'function') {
+                Alpine.initTree(root);
+            }
+            return true;
+        }
+
+        async function saveConfig() {
+            if (inflight) return;
+            inflight = true;
+            setStatus('saving', 'Guardando…');
+            try {
+                var r = await fetch(configUrl, {
+                    method: 'POST',
+                    body: collectPayload(),
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                var data = await r.json().catch(function () { return null; });
+                if (!r.ok || !data || !data.ok) {
+                    setStatus('error', (data && data.error_message) ? data.error_message : 'No se pudo guardar.');
+                    return;
+                }
+                if (!applyDerivedHtml(data.html)) {
+                    setStatus('error', 'Guardado en servidor, pero no se pudo refrescar la vista.');
+                    return;
+                }
+                setStatus('saved', 'Guardado');
+                setTimeout(function () {
+                    if (statusEl && statusEl.textContent === 'Guardado') setStatus('idle', '');
+                }, 1800);
+            } catch (e) {
+                setStatus('error', 'Error de red al guardar.');
+            } finally {
+                inflight = false;
+            }
+        }
+
+        function scheduleConfigSave() {
+            clearTimeout(saveTimer);
+            saveTimer = setTimeout(saveConfig, 450);
+        }
+        window.spPlanScheduleConfigSave = scheduleConfigSave;
+
+        panel.querySelectorAll('input[name="fixed_category_ids"]').forEach(function (cb) {
+            cb.addEventListener('change', scheduleConfigSave);
+        });
+        var horizon = document.getElementById('sp-horizon-months-input');
+        if (horizon) {
+            horizon.addEventListener('change', scheduleConfigSave);
+            horizon.addEventListener('blur', scheduleConfigSave);
+        }
+    })();
+    </script>
 
     <template x-teleport="body">
         <div x-show="planningContextInfoOpen" x-cloak x-transition
