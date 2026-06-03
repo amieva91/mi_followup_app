@@ -486,7 +486,23 @@ function spendingPlanGoals(cfg) {
                         syncing = true;
                         pctInp.value = formatPctDisplay(pct);
                         syncing = false;
-                        suppressPercentInput = false;
+                        queueMicrotask(function () { suppressPercentInput = false; });
+                    }
+
+                    /** Cupo € alto con % en mínimo (p. ej. 1200 € y 5 %) → el € manda aunque se haya reseteado euroFieldTouched. */
+                    function euroShouldDrive() {
+                        var euro = parseNum(euroInp);
+                        var pct = parseNum(pctInp);
+                        if (!isFinite(euro) || income <= 0) return false;
+                        if (euroFieldTouched || dsrLastEdited === 'euro' || euroDisagreesWithPercent()) return true;
+                        var minCap = euroFromPct(PCT_MIN);
+                        return isFinite(pct) && minCap != null && euro > minCap + 0.5 && pct <= PCT_MIN + 0.01;
+                    }
+
+                    function commitEuroField() {
+                        dsrLastEdited = 'euro';
+                        euroFieldTouched = true;
+                        return normalizeEuroField();
                     }
 
                     function livePercentFromEuro() {
@@ -549,14 +565,16 @@ function spendingPlanGoals(cfg) {
                     /** Valor a persistir: si el usuario editó €, el % sale del cupo, no del campo % (puede quedar en 5). */
                     function percentForSave() {
                         if (!pctInp || income <= 0) return pctInp ? pctInp.value : '';
-                        var euro = parseNum(euroInp);
-                        if ((euroFieldTouched || euroDisagreesWithPercent()) && isFinite(euro)) {
-                            var pct = normalizeEuroField();
+                        if (euroShouldDrive()) {
+                            var pct = commitEuroField();
                             if (pct != null && isFinite(pct)) return String(pct);
-                            pct = pctFromEuro(euro);
-                            if (isFinite(pct)) {
-                                setPercentFromEuro(pct);
-                                return String(pct);
+                            var euro = parseNum(euroInp);
+                            if (isFinite(euro)) {
+                                pct = pctFromEuro(euro);
+                                if (isFinite(pct)) {
+                                    setPercentFromEuro(pct);
+                                    return String(pct);
+                                }
                             }
                         }
                         var prepared = prepareDsrValues();
@@ -567,11 +585,12 @@ function spendingPlanGoals(cfg) {
                     window.spPlanPrepareDsr = prepareDsrValues;
                     window.spPlanDsrPercentForSave = percentForSave;
 
-                    if (pctInp && euroInp && income > 0) {
+                    if (pctInp && euroInp && income > 0 && !euroInp.dataset.dsrDualBound) {
+                        euroInp.dataset.dsrDualBound = '1';
                         pctInp.addEventListener('focus', function () { dsrLastEdited = 'percent'; });
                         euroInp.addEventListener('focus', function () { dsrLastEdited = 'euro'; });
-                        pctInp.addEventListener('input', function () {
-                            if (syncing || suppressPercentInput) return;
+                        pctInp.addEventListener('input', function (ev) {
+                            if (!ev.isTrusted || syncing || suppressPercentInput) return;
                             euroFieldTouched = false;
                             percentFieldTouched = true;
                             liveEuroFromPercent();
@@ -579,8 +598,8 @@ function spendingPlanGoals(cfg) {
                         pctInp.addEventListener('blur', function () {
                             if (!percentFieldTouched) return;
                             dsrLastEdited = 'percent';
-                            if (euroFieldTouched || euroDisagreesWithPercent()) {
-                                normalizeEuroField();
+                            if (euroShouldDrive()) {
+                                commitEuroField();
                             } else {
                                 normalizePercentField();
                             }
@@ -591,10 +610,13 @@ function spendingPlanGoals(cfg) {
                             percentFieldTouched = false;
                             livePercentFromEuro();
                         });
+                        document.addEventListener('mousedown', function (ev) {
+                            if (document.activeElement !== euroInp) return;
+                            if (euroInp === ev.target || euroInp.contains(ev.target)) return;
+                            commitEuroField();
+                        }, true);
                         euroInp.addEventListener('blur', function () {
-                            dsrLastEdited = 'euro';
-                            euroFieldTouched = true;
-                            normalizeEuroField();
+                            commitEuroField();
                             if (window.spPlanScheduleConfigSave) window.spPlanScheduleConfigSave();
                         });
                     }
@@ -739,6 +761,9 @@ function spendingPlanGoals(cfg) {
         var csrf = csrfMeta ? csrfMeta.getAttribute('content') : '';
         var saveTimer = null;
         var inflight = false;
+        var savePending = false;
+        var saveGeneration = 0;
+        var lastPayloadKey = '';
 
         function derivedRoot() {
             return document.getElementById('sp-plan-derived-root');
@@ -764,9 +789,14 @@ function spendingPlanGoals(cfg) {
                 || (pct && pct.value);
             if (pctToSave !== '' && pctToSave != null) fd.append('max_dsr_percent', pctToSave);
             if (horizon) fd.append('horizon_months', horizon.value);
+            var catIds = [];
             panel.querySelectorAll('input[name="fixed_category_ids"]:checked').forEach(function (cb) {
                 fd.append('fixed_category_ids', cb.value);
+                catIds.push(cb.value);
             });
+            var key = (pctToSave || '') + '|' + (horizon ? horizon.value : '') + '|' + catIds.join(',');
+            if (key === lastPayloadKey) return null;
+            lastPayloadKey = key;
             return fd;
         }
 
@@ -781,17 +811,28 @@ function spendingPlanGoals(cfg) {
         }
 
         async function saveConfig() {
-            if (inflight) return;
+            if (inflight) {
+                savePending = true;
+                return;
+            }
+            var fd = collectPayload();
+            if (!fd) {
+                savePending = false;
+                return;
+            }
+            var gen = ++saveGeneration;
             inflight = true;
             setStatus('saving', 'Guardando…');
             try {
                 var r = await fetch(configUrl, {
                     method: 'POST',
-                    body: collectPayload(),
+                    body: fd,
                     headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 });
                 var data = await r.json().catch(function () { return null; });
+                if (gen !== saveGeneration) return;
                 if (!r.ok || !data || !data.ok) {
+                    lastPayloadKey = '';
                     setStatus('error', (data && data.error_message) ? data.error_message : 'No se pudo guardar.');
                     return;
                 }
@@ -804,25 +845,36 @@ function spendingPlanGoals(cfg) {
                     if (statusEl && statusEl.textContent === 'Guardado') setStatus('idle', '');
                 }, 1800);
             } catch (e) {
+                lastPayloadKey = '';
                 setStatus('error', 'Error de red al guardar.');
             } finally {
                 inflight = false;
+                if (savePending) {
+                    savePending = false;
+                    scheduleConfigSave();
+                }
             }
         }
 
         function scheduleConfigSave() {
+            savePending = true;
             clearTimeout(saveTimer);
-            saveTimer = setTimeout(saveConfig, 450);
+            saveTimer = setTimeout(function () {
+                savePending = false;
+                saveConfig();
+            }, 500);
         }
         window.spPlanScheduleConfigSave = scheduleConfigSave;
 
-        panel.querySelectorAll('input[name="fixed_category_ids"]').forEach(function (cb) {
-            cb.addEventListener('change', scheduleConfigSave);
-        });
-        var horizon = document.getElementById('sp-horizon-months-input');
-        if (horizon) {
-            horizon.addEventListener('change', scheduleConfigSave);
-            horizon.addEventListener('blur', scheduleConfigSave);
+        if (!panel.dataset.configSaveBound) {
+            panel.dataset.configSaveBound = '1';
+            panel.querySelectorAll('input[name="fixed_category_ids"]').forEach(function (cb) {
+                cb.addEventListener('change', scheduleConfigSave);
+            });
+            var horizon = document.getElementById('sp-horizon-months-input');
+            if (horizon) {
+                horizon.addEventListener('change', scheduleConfigSave);
+            }
         }
     })();
     </script>
