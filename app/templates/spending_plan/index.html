@@ -368,7 +368,7 @@ function spendingPlanGoals(cfg) {
                     <div>
                         <label for="max-dsr-percent-input" class="block text-xs font-medium text-slate-600 mb-1">Porcentaje</label>
                         <div class="relative">
-                            <input id="max-dsr-percent-input" type="number" name="max_dsr_percent" step="0.01" min="5" max="60"
+                            <input id="max-dsr-percent-input" type="text" inputmode="decimal" name="max_dsr_percent" autocomplete="off"
                                    value="{{ settings.max_dsr_percent }}"
                                    {% if income_avg <= 0 %}disabled{% endif %}
                                    class="h-10 w-full rounded-xl border border-slate-300 pl-3 pr-8 text-slate-900 tabular-nums focus:border-teal-500 focus:ring-2 focus:ring-teal-500 disabled:bg-slate-100 disabled:text-slate-500"/>
@@ -405,10 +405,40 @@ function spendingPlanGoals(cfg) {
                     var PCT_MAX = 60;
                     var syncing = false;
                     var dsrLastEdited = 'percent';
+                    var euroFieldTouched = false;
 
+                    /** Parsea importes/porcentajes con coma decimal y miles (1.200,50 / 1200,50 / 1200). */
                     function parseNum(el) {
                         if (!el || el.value === '' || el.value == null) return NaN;
-                        return parseFloat(String(el.value).replace(',', '.'));
+                        var s = String(el.value).trim().replace(/\s/g, '');
+                        if (!s) return NaN;
+                        var hasComma = s.indexOf(',') >= 0;
+                        var hasDot = s.indexOf('.') >= 0;
+                        if (hasComma && hasDot) {
+                            if (s.lastIndexOf(',') > s.lastIndexOf('.')) {
+                                s = s.replace(/\./g, '').replace(',', '.');
+                            } else {
+                                s = s.replace(/,/g, '');
+                            }
+                        } else if (hasComma) {
+                            s = s.replace(',', '.');
+                        } else if (hasDot) {
+                            var parts = s.split('.');
+                            if (parts.length === 2 && parts[1].length === 3 && /^\d+$/.test(parts[0]) && /^\d+$/.test(parts[1])) {
+                                s = parts[0] + parts[1];
+                            } else if (parts.length > 2) {
+                                s = parts.join('');
+                            }
+                        }
+                        return parseFloat(s);
+                    }
+
+                    function euroDisagreesWithPercent() {
+                        var euro = parseNum(euroInp);
+                        var pct = parseNum(pctInp);
+                        if (!isFinite(euro) || !isFinite(pct) || income <= 0) return false;
+                        var expected = euroFromPct(pct);
+                        return expected != null && Math.abs(euro - expected) > 0.05;
                     }
 
                     function clampPct(p) {
@@ -488,7 +518,7 @@ function spendingPlanGoals(cfg) {
                         if (!pctInp || income <= 0) return;
                         var euro = parseNum(euroInp);
                         var pct = parseNum(pctInp);
-                        if (dsrLastEdited === 'euro' && isFinite(euro)) {
+                        if ((dsrLastEdited === 'euro' || euroFieldTouched || euroDisagreesWithPercent()) && isFinite(euro)) {
                             normalizeEuroField();
                         } else if (isFinite(pct)) {
                             normalizePercentField();
@@ -500,24 +530,44 @@ function spendingPlanGoals(cfg) {
                     window.spPlanPrepareDsr = prepareDsrValues;
 
                     if (pctInp && euroInp && income > 0) {
-                        pctInp.addEventListener('focus', function () { dsrLastEdited = 'percent'; });
+                        pctInp.addEventListener('focus', function () { dsrLastEdited = 'percent'; euroFieldTouched = false; });
                         euroInp.addEventListener('focus', function () { dsrLastEdited = 'euro'; });
-                        pctInp.addEventListener('input', liveEuroFromPercent);
+                        pctInp.addEventListener('input', function () {
+                            euroFieldTouched = false;
+                            liveEuroFromPercent();
+                        });
                         pctInp.addEventListener('blur', function () {
-                            dsrLastEdited = 'percent';
-                            normalizePercentField();
-                            if (window.spPlanScheduleConfigSave) window.spPlanScheduleConfigSave();
+                            setTimeout(function () {
+                                if (euroFieldTouched || euroDisagreesWithPercent()) {
+                                    dsrLastEdited = 'euro';
+                                    normalizeEuroField();
+                                } else {
+                                    dsrLastEdited = 'percent';
+                                    normalizePercentField();
+                                }
+                                if (window.spPlanScheduleConfigSave) window.spPlanScheduleConfigSave();
+                            }, 0);
                         });
                         pctInp.addEventListener('change', function () {
-                            dsrLastEdited = 'percent';
-                            normalizePercentField();
+                            if (euroFieldTouched || euroDisagreesWithPercent()) {
+                                dsrLastEdited = 'euro';
+                                normalizeEuroField();
+                            } else {
+                                dsrLastEdited = 'percent';
+                                normalizePercentField();
+                            }
                             if (window.spPlanScheduleConfigSave) window.spPlanScheduleConfigSave();
                         });
-                        euroInp.addEventListener('input', livePercentFromEuro);
+                        euroInp.addEventListener('input', function () {
+                            euroFieldTouched = true;
+                            livePercentFromEuro();
+                        });
                         euroInp.addEventListener('blur', function () {
-                            dsrLastEdited = 'euro';
-                            normalizeEuroField();
-                            if (window.spPlanScheduleConfigSave) window.spPlanScheduleConfigSave();
+                            setTimeout(function () {
+                                dsrLastEdited = 'euro';
+                                normalizeEuroField();
+                                if (window.spPlanScheduleConfigSave) window.spPlanScheduleConfigSave();
+                            }, 0);
                         });
                         euroInp.addEventListener('change', function () {
                             dsrLastEdited = 'euro';
