@@ -368,7 +368,7 @@ function spendingPlanGoals(cfg) {
                     <div>
                         <label for="max-dsr-percent-input" class="block text-xs font-medium text-slate-600 mb-1">Porcentaje</label>
                         <div class="relative">
-                            <input id="max-dsr-percent-input" type="number" name="max_dsr_percent" step="0.5" min="5" max="60"
+                            <input id="max-dsr-percent-input" type="number" name="max_dsr_percent" step="0.01" min="5" max="60"
                                    value="{{ settings.max_dsr_percent }}"
                                    {% if income_avg <= 0 %}disabled{% endif %}
                                    class="h-10 w-full rounded-xl border border-slate-300 pl-3 pr-8 text-slate-900 tabular-nums focus:border-teal-500 focus:ring-2 focus:ring-teal-500 disabled:bg-slate-100 disabled:text-slate-500"/>
@@ -404,6 +404,7 @@ function spendingPlanGoals(cfg) {
                     var PCT_MIN = 5;
                     var PCT_MAX = 60;
                     var syncing = false;
+                    var dsrLastEdited = 'percent';
 
                     function parseNum(el) {
                         if (!el || el.value === '' || el.value == null) return NaN;
@@ -414,18 +415,19 @@ function spendingPlanGoals(cfg) {
                         return Math.max(PCT_MIN, Math.min(PCT_MAX, p));
                     }
 
-                    function roundHalf(x) {
-                        return Math.round(x * 2) / 2;
-                    }
-
                     function euroFromPct(pct) {
                         if (!isFinite(pct) || income <= 0) return null;
                         return Math.round(income * (pct / 100) * 100) / 100;
                     }
 
-                    /** % exacto desde € (sin saltos de 0,5); el cupo en € manda al editar euros. */
-                    function pctFromEuroExact(euro) {
-                        return clampPct(Math.round((euro / income) * 10000) / 10000);
+                    function pctFromEuro(euro) {
+                        if (!isFinite(euro) || income <= 0) return NaN;
+                        return clampPct(Math.round((euro / income) * 1000000) / 1000000);
+                    }
+
+                    function formatPctDisplay(pct) {
+                        if (!isFinite(pct)) return '';
+                        return String(parseFloat((Math.round(pct * 10000) / 10000).toFixed(4)));
                     }
 
                     function formatEuroDisplay(amount) {
@@ -444,16 +446,14 @@ function spendingPlanGoals(cfg) {
                         syncing = false;
                     }
 
-                    /** Solo actualiza % en vivo; sin clamp hasta blur. */
+                    /** Solo actualiza % en vivo; sin clamp ni redondeo a 0,5 hasta blur. */
                     function livePercentFromEuro() {
                         if (syncing || !pctInp || !euroInp || income <= 0) return;
                         var euro = parseNum(euroInp);
                         if (!isFinite(euro)) return;
                         syncing = true;
                         var pct = (euro / income) * 100;
-                        if (isFinite(pct)) {
-                            pctInp.value = String(Math.round(pct * 100) / 100);
-                        }
+                        if (isFinite(pct)) pctInp.value = formatPctDisplay(pct);
                         syncing = false;
                     }
 
@@ -462,8 +462,8 @@ function spendingPlanGoals(cfg) {
                         var pct = parseNum(pctInp);
                         if (!isFinite(pct)) return;
                         syncing = true;
-                        pct = clampPct(roundHalf(pct));
-                        pctInp.value = String(pct);
+                        pct = clampPct(pct);
+                        pctInp.value = formatPctDisplay(pct);
                         var euro = euroFromPct(pct);
                         if (euro != null) euroInp.value = formatEuroDisplay(euro);
                         syncing = false;
@@ -479,8 +479,7 @@ function spendingPlanGoals(cfg) {
                         var minEuro = euroFromPct(PCT_MIN);
                         if (maxEuro != null && euro > maxEuro) euro = maxEuro;
                         if (minEuro != null && euro < minEuro) euro = minEuro;
-                        var pct = pctFromEuroExact(euro);
-                        pctInp.value = String(Math.round(pct * 100) / 100);
+                        pctInp.value = formatPctDisplay(pctFromEuro(euro));
                         euroInp.value = formatEuroDisplay(euro);
                         syncing = false;
                     }
@@ -488,44 +487,43 @@ function spendingPlanGoals(cfg) {
                     function prepareDsrValues() {
                         if (!pctInp || income <= 0) return;
                         var euro = parseNum(euroInp);
-                        if (isFinite(euro)) {
+                        var pct = parseNum(pctInp);
+                        if (dsrLastEdited === 'euro' && isFinite(euro)) {
                             normalizeEuroField();
-                        } else {
+                        } else if (isFinite(pct)) {
                             normalizePercentField();
+                        } else if (isFinite(euro)) {
+                            normalizeEuroField();
                         }
                     }
 
                     window.spPlanPrepareDsr = prepareDsrValues;
 
                     if (pctInp && euroInp && income > 0) {
+                        pctInp.addEventListener('focus', function () { dsrLastEdited = 'percent'; });
+                        euroInp.addEventListener('focus', function () { dsrLastEdited = 'euro'; });
                         pctInp.addEventListener('input', liveEuroFromPercent);
                         pctInp.addEventListener('blur', function () {
+                            dsrLastEdited = 'percent';
                             normalizePercentField();
                             if (window.spPlanScheduleConfigSave) window.spPlanScheduleConfigSave();
                         });
                         pctInp.addEventListener('change', function () {
+                            dsrLastEdited = 'percent';
                             normalizePercentField();
                             if (window.spPlanScheduleConfigSave) window.spPlanScheduleConfigSave();
                         });
                         euroInp.addEventListener('input', livePercentFromEuro);
                         euroInp.addEventListener('blur', function () {
+                            dsrLastEdited = 'euro';
                             normalizeEuroField();
                             if (window.spPlanScheduleConfigSave) window.spPlanScheduleConfigSave();
                         });
                         euroInp.addEventListener('change', function () {
+                            dsrLastEdited = 'euro';
                             normalizeEuroField();
                             if (window.spPlanScheduleConfigSave) window.spPlanScheduleConfigSave();
                         });
-                        var dsrTimer = null;
-                        function scheduleDsrSave() {
-                            clearTimeout(dsrTimer);
-                            dsrTimer = setTimeout(function () {
-                                prepareDsrValues();
-                                if (window.spPlanScheduleConfigSave) window.spPlanScheduleConfigSave();
-                            }, 700);
-                        }
-                        pctInp.addEventListener('input', scheduleDsrSave);
-                        euroInp.addEventListener('input', scheduleDsrSave);
                     }
                 })();
                 </script>
