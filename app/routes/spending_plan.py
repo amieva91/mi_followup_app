@@ -25,6 +25,39 @@ from app.services import interest_rate_context_service as irctx
 spending_plan_bp = Blueprint("spending_plan", __name__, url_prefix="/planificacion")
 
 
+def _parse_locale_amount(raw: str | None) -> float | None:
+    """Importe con coma decimal y miles (1.200,50 / 1200,50 / 1200)."""
+    if raw is None:
+        return None
+    s = str(raw).strip().replace(" ", "")
+    if not s:
+        return None
+    has_comma = "," in s
+    has_dot = "." in s
+    if has_comma and has_dot:
+        if s.rfind(",") > s.rfind("."):
+            s = s.replace(".", "").replace(",", ".")
+        else:
+            s = s.replace(",", "")
+    elif has_comma:
+        s = s.replace(",", ".")
+    elif has_dot:
+        parts = s.split(".")
+        if (
+            len(parts) == 2
+            and len(parts[1]) == 3
+            and parts[0].isdigit()
+            and parts[1].isdigit()
+        ):
+            s = parts[0] + parts[1]
+        elif len(parts) > 2:
+            s = "".join(parts)
+    try:
+        return float(s)
+    except ValueError:
+        return None
+
+
 def _parse_target_date(raw: str):
     if not raw or not str(raw).strip():
         return None
@@ -79,16 +112,31 @@ def save_config():
         flash("Sesión expirada. Recarga la página.", "error")
         return redirect(url_for("spending_plan.index"))
     try:
-        max_dsr = float(request.form.get("max_dsr_percent") or 35)
         horizon = int(request.form.get("horizon_months") or 12)
         raw = request.form.getlist("fixed_category_ids")
         cat_ids = [int(x) for x in raw if str(x).strip().isdigit()]
+        source = (request.form.get("max_dsr_source") or "percent").strip().lower()
+        income = sps.get_avg_monthly_income(current_user.id, 12)
+        max_dsr = None
+        if source == "euro":
+            euro = _parse_locale_amount(request.form.get("max_dsr_euro_cap"))
+            if euro is not None and income > 0:
+                max_dsr = max(1.0, min(80.0, (euro / income) * 100.0))
+        if max_dsr is None:
+            max_dsr = float(request.form.get("max_dsr_percent") or 35)
         sps.update_settings(current_user.id, max_dsr, horizon)
         sps.set_fixed_categories(current_user.id, cat_ids)
         data = sps.get_spending_plan_page_data(current_user.id)
         html = render_template("spending_plan/_plan_derived.html", **data)
         if wants_json:
-            return jsonify({"ok": True, "html": html}), 200
+            return jsonify(
+                {
+                    "ok": True,
+                    "html": html,
+                    "max_dsr_percent": float(data["settings"].max_dsr_percent),
+                    "dsr_cap_monthly": float(data.get("dsr_cap_monthly") or 0),
+                }
+            ), 200
         flash("Configuración guardada.", "success")
         return redirect(url_for("spending_plan.index"))
     except ValueError as e:
