@@ -380,11 +380,12 @@ function spendingPlanGoals(cfg) {
                     <div>
                         <label for="max-dsr-euro-input" class="block text-xs font-medium text-slate-600 mb-1">Cupo mensual</label>
                         <div class="relative">
-                            <input id="max-dsr-euro-input" type="number" step="1" min="0"
-                                   value="{% if income_avg > 0 %}{{ "%.2f"|format(dsr_cap_monthly) }}{% endif %}"
+                            <input id="max-dsr-euro-input" type="text" inputmode="decimal" autocomplete="off"
+                                   value="{% if income_avg > 0 %}{{ "%.2f"|format(dsr_cap_monthly)|replace('.', ',') }}{% endif %}"
                                    {% if income_avg <= 0 %}disabled{% endif %}
                                    class="h-10 w-full rounded-xl border border-slate-300 pl-3 pr-9 text-slate-900 tabular-nums focus:border-teal-500 focus:ring-2 focus:ring-teal-500 disabled:bg-slate-100 disabled:text-slate-500"
-                                   aria-describedby="dsr-dual-hint"/>
+                                   aria-describedby="dsr-dual-hint"
+                                   placeholder="0,00"/>
                             <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">€</span>
                         </div>
                     </div>
@@ -424,6 +425,11 @@ function spendingPlanGoals(cfg) {
                         return Math.round(income * (pct / 100) * 100) / 100;
                     }
 
+                    function formatEuroDisplay(amount) {
+                        if (!isFinite(amount)) return '';
+                        return amount.toFixed(2).replace('.', ',');
+                    }
+
                     /** Solo actualiza €; no reescribe el % (evita 5+0 → 50 al teclear). */
                     function liveEuroFromPercent() {
                         if (syncing || !pctInp || !euroInp || income <= 0) return;
@@ -431,7 +437,7 @@ function spendingPlanGoals(cfg) {
                         if (!isFinite(pct)) return;
                         syncing = true;
                         var euro = euroFromPct(pct);
-                        if (euro != null) euroInp.value = euro.toFixed(2);
+                        if (euro != null) euroInp.value = formatEuroDisplay(euro);
                         syncing = false;
                     }
 
@@ -456,7 +462,7 @@ function spendingPlanGoals(cfg) {
                         pct = clampPct(roundHalf(pct));
                         pctInp.value = String(pct);
                         var euro = euroFromPct(pct);
-                        if (euro != null) euroInp.value = euro.toFixed(2);
+                        if (euro != null) euroInp.value = formatEuroDisplay(euro);
                         syncing = false;
                     }
 
@@ -469,8 +475,18 @@ function spendingPlanGoals(cfg) {
                         var pct = clampPct(roundHalf((euro / income) * 100));
                         pctInp.value = String(pct);
                         var back = euroFromPct(pct);
-                        if (back != null) euroInp.value = back.toFixed(2);
+                        if (back != null) euroInp.value = formatEuroDisplay(back);
                         syncing = false;
+                    }
+
+                    function prepareDsrForSubmit() {
+                        if (!pctInp || income <= 0) return;
+                        var euro = parseNum(euroInp);
+                        if (isFinite(euro)) {
+                            normalizeEuroField();
+                        } else {
+                            normalizePercentField();
+                        }
                     }
 
                     if (pctInp && euroInp && income > 0) {
@@ -480,6 +496,12 @@ function spendingPlanGoals(cfg) {
                         euroInp.addEventListener('input', livePercentFromEuro);
                         euroInp.addEventListener('blur', normalizeEuroField);
                         euroInp.addEventListener('change', normalizeEuroField);
+                        var form = pctInp.closest('form');
+                        if (form) {
+                            form.addEventListener('submit', function () {
+                                prepareDsrForSubmit();
+                            });
+                        }
                     }
                 })();
                 </script>
