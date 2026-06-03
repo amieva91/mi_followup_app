@@ -470,22 +470,46 @@ function spendingPlanGoals(cfg) {
                         return expected != null && Math.abs(euro - expected) > 0.05;
                     }
 
-                    /** Sincroniza % desde € y fija defaultValue (evita que el blur restaure el 5 % del HTML). */
-                    function syncFromEuro() {
-                        if (!pctInp || !euroInp || income <= 0) return null;
-                        var euro = parseNum(euroInp);
-                        if (!isFinite(euro)) return null;
-                        syncing = true;
+                    function clampEuroAmount(euro) {
                         if (euro < 0) euro = 0;
                         var maxEuro = euroFromPct(PCT_MAX);
                         var minEuro = euroFromPct(PCT_MIN);
                         if (maxEuro != null && euro > maxEuro) euro = maxEuro;
                         if (minEuro != null && euro < minEuro) euro = minEuro;
+                        return euro;
+                    }
+
+                    /** Calcula % y € sin tocar el DOM (evita parpadeo al montar FormData). */
+                    function computeFromEuro() {
+                        if (!euroInp || income <= 0) return null;
+                        var euro = parseNum(euroInp);
+                        if (!isFinite(euro)) return null;
+                        euro = clampEuroAmount(euro);
                         var pct = pctFromEuro(euro);
-                        setInputValue(pctInp, formatPctDisplay(pct));
-                        setInputValue(euroInp, formatEuroDisplay(euro));
+                        return {
+                            euro: euro,
+                            pct: pct,
+                            euroDisplay: formatEuroDisplay(euro),
+                            pctDisplay: formatPctDisplay(pct),
+                        };
+                    }
+
+                    function shouldSaveFromEuro() {
+                        if (!euroInp || income <= 0) return false;
+                        var euro = parseNum(euroInp);
+                        if (!isFinite(euro)) return false;
+                        return !percentEditedByUser || euroDisagreesWithPercent();
+                    }
+
+                    /** Sincroniza % desde € y fija defaultValue (evita que el blur restaure el 5 % del HTML). */
+                    function syncFromEuro() {
+                        var r = computeFromEuro();
+                        if (!r || !pctInp || !euroInp) return null;
+                        syncing = true;
+                        setInputValue(pctInp, r.pctDisplay);
+                        setInputValue(euroInp, r.euroDisplay);
                         syncing = false;
-                        return pct;
+                        return r.pct;
                     }
 
                     function syncFromPercent() {
@@ -501,29 +525,33 @@ function spendingPlanGoals(cfg) {
                         return pct;
                     }
 
-                    function dsrSourceForSave() {
-                        if (!euroInp || income <= 0) return 'percent';
-                        var euro = parseNum(euroInp);
-                        if (!isFinite(euro)) return 'percent';
-                        if (!percentEditedByUser || euroDisagreesWithPercent()) return 'euro';
-                        return 'percent';
+                    /** Alinea la UI antes de guardar (el % puede volver a 5 durante el debounce). */
+                    function ensureDsrUiSynced() {
+                        if (!pctInp || !euroInp || income <= 0) return;
+                        if (shouldSaveFromEuro()) {
+                            syncFromEuro();
+                        } else if (percentEditedByUser) {
+                            syncFromPercent();
+                        }
                     }
 
                     function appendDsrToFormData(fd) {
                         if (!pctInp || !euroInp) return;
-                        var source = dsrSourceForSave();
-                        var pctVal;
-                        if (source === 'euro') {
-                            pctVal = syncFromEuro();
+                        if (shouldSaveFromEuro()) {
+                            var r = computeFromEuro();
+                            if (!r) return;
                             fd.append('max_dsr_source', 'euro');
-                            fd.append('max_dsr_euro_cap', euroInp.value);
-                        } else {
-                            pctVal = syncFromPercent();
-                            fd.append('max_dsr_source', 'percent');
+                            fd.append('max_dsr_euro_cap', r.euroDisplay);
+                            fd.append('max_dsr_percent', String(r.pct));
+                            return;
                         }
-                        if (pctVal != null && isFinite(pctVal)) {
+                        var pctVal = parseNum(pctInp);
+                        if (isFinite(pctVal)) {
+                            pctVal = clampPct(pctVal);
+                            fd.append('max_dsr_source', 'percent');
                             fd.append('max_dsr_percent', String(pctVal));
                         } else if (pctInp.value !== '') {
+                            fd.append('max_dsr_source', 'percent');
                             fd.append('max_dsr_percent', pctInp.value);
                         }
                     }
@@ -538,6 +566,7 @@ function spendingPlanGoals(cfg) {
                     window.spPlanAppendDsrToFormData = appendDsrToFormData;
                     window.spPlanApplyDsrFromServer = applyDsrFromServer;
                     window.spPlanSyncDsrFromEuro = syncFromEuro;
+                    window.spPlanEnsureDsrUiSynced = ensureDsrUiSynced;
 
                     if (pctInp && euroInp && income > 0) {
                         setInputValue(pctInp, pctInp.value);
@@ -777,6 +806,7 @@ function spendingPlanGoals(cfg) {
                 savePending = true;
                 return;
             }
+            if (window.spPlanEnsureDsrUiSynced) window.spPlanEnsureDsrUiSynced();
             var fd = collectPayload();
             if (!fd) {
                 savePending = false;
@@ -785,6 +815,11 @@ function spendingPlanGoals(cfg) {
             var gen = ++saveGeneration;
             inflight = true;
             setStatus('saving', 'Guardando…');
+            if (window.spPlanEnsureDsrUiSynced) {
+                requestAnimationFrame(function () {
+                    window.spPlanEnsureDsrUiSynced();
+                });
+            }
             try {
                 var r = await fetch(configUrl, {
                     method: 'POST',
