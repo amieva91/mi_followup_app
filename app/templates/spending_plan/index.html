@@ -368,11 +368,12 @@ function spendingPlanGoals(cfg) {
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label for="max-dsr-percent-input" class="block text-xs font-medium text-slate-600 mb-1">Porcentaje</label>
-                        <div class="relative">
-                            <input id="max-dsr-percent-input" type="text" inputmode="decimal" name="max_dsr_percent" autocomplete="off"
+                        <div id="max-dsr-percent-wrap" class="relative">
+                            <input id="max-dsr-percent-input" type="text" inputmode="decimal" autocomplete="off"
                                    value="{{ settings.max_dsr_percent }}"
                                    {% if income_avg <= 0 %}disabled{% endif %}
                                    class="h-10 w-full rounded-xl border border-slate-300 pl-3 pr-8 text-slate-900 tabular-nums focus:border-teal-500 focus:ring-2 focus:ring-teal-500 disabled:bg-slate-100 disabled:text-slate-500"/>
+                            <span id="max-dsr-percent-readout" class="pointer-events-none absolute inset-0 hidden items-center rounded-xl border border-slate-300 bg-white pl-3 pr-8 text-slate-900 tabular-nums" aria-hidden="true"></span>
                             <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">%</span>
                         </div>
                     </div>
@@ -406,6 +407,8 @@ function spendingPlanGoals(cfg) {
                     var PCT_MAX = 60;
                     var syncing = false;
                     var percentEditedByUser = false;
+                    var lastEuroSnapshot = null;
+                    var pctReadout = document.getElementById('max-dsr-percent-readout');
 
                     function parseNum(el) {
                         if (!el || el.value === '' || el.value == null) return NaN;
@@ -449,12 +452,12 @@ function spendingPlanGoals(cfg) {
 
                     function pctFromEuro(euro) {
                         if (!isFinite(euro) || income <= 0) return NaN;
-                        return clampPct(Math.round((euro / income) * 1000000) / 1000000);
+                        return clampPct(Math.round((euro / income) * 10000) / 100);
                     }
 
                     function formatPctDisplay(pct) {
                         if (!isFinite(pct)) return '';
-                        return String(parseFloat((Math.round(pct * 10000) / 10000).toFixed(4)));
+                        return (Math.round(pct * 100) / 100).toFixed(2).replace('.', ',');
                     }
 
                     function formatEuroDisplay(amount) {
@@ -502,9 +505,36 @@ function spendingPlanGoals(cfg) {
                     }
 
                     /** Sincroniza % desde € y fija defaultValue (evita que el blur restaure el 5 % del HTML). */
+                    function rememberEuroState(r) {
+                        if (r) lastEuroSnapshot = r;
+                    }
+
+                    function getLockedPctForSave() {
+                        if (lastEuroSnapshot && isFinite(lastEuroSnapshot.pct)) return lastEuroSnapshot.pct;
+                        var r = computeFromEuro();
+                        return r ? r.pct : parseNum(pctInp);
+                    }
+
+                    function lockPctDisplay(pct) {
+                        if (!pctInp || !pctReadout) return;
+                        var text = formatPctDisplay(pct);
+                        pctReadout.textContent = text;
+                        pctReadout.classList.remove('hidden');
+                        pctReadout.classList.add('flex');
+                        pctInp.classList.add('opacity-0');
+                    }
+
+                    function unlockPctDisplay() {
+                        if (!pctInp || !pctReadout) return;
+                        pctReadout.classList.add('hidden');
+                        pctReadout.classList.remove('flex');
+                        pctInp.classList.remove('opacity-0');
+                    }
+
                     function syncFromEuro() {
                         var r = computeFromEuro();
                         if (!r || !pctInp || !euroInp) return null;
+                        rememberEuroState(r);
                         syncing = true;
                         setInputValue(pctInp, r.pctDisplay);
                         setInputValue(euroInp, r.euroDisplay);
@@ -517,10 +547,11 @@ function spendingPlanGoals(cfg) {
                         var pct = parseNum(pctInp);
                         if (!isFinite(pct)) return null;
                         syncing = true;
-                        pct = clampPct(pct);
+                        pct = clampPct(Math.round(pct * 100) / 100);
                         var euro = euroFromPct(pct);
                         setInputValue(pctInp, formatPctDisplay(pct));
                         if (euro != null) setInputValue(euroInp, formatEuroDisplay(euro));
+                        lastEuroSnapshot = null;
                         syncing = false;
                         return pct;
                     }
@@ -538,7 +569,7 @@ function spendingPlanGoals(cfg) {
                     function appendDsrToFormData(fd) {
                         if (!pctInp || !euroInp) return;
                         if (shouldSaveFromEuro()) {
-                            var r = computeFromEuro();
+                            var r = lastEuroSnapshot || computeFromEuro();
                             if (!r) return;
                             fd.append('max_dsr_source', 'euro');
                             fd.append('max_dsr_euro_cap', r.euroDisplay);
@@ -567,10 +598,16 @@ function spendingPlanGoals(cfg) {
                     window.spPlanApplyDsrFromServer = applyDsrFromServer;
                     window.spPlanSyncDsrFromEuro = syncFromEuro;
                     window.spPlanEnsureDsrUiSynced = ensureDsrUiSynced;
+                    window.spPlanLockPctDisplay = lockPctDisplay;
+                    window.spPlanUnlockPctDisplay = unlockPctDisplay;
+                    window.spPlanGetLockedPctForSave = getLockedPctForSave;
 
                     if (pctInp && euroInp && income > 0) {
-                        setInputValue(pctInp, pctInp.value);
+                        var initPct = parseNum(pctInp);
+                        if (isFinite(initPct)) setInputValue(pctInp, formatPctDisplay(clampPct(initPct)));
                         setInputValue(euroInp, euroInp.value);
+                        var initR = computeFromEuro();
+                        if (initR) rememberEuroState(initR);
                     }
 
                     if (pctInp && euroInp && income > 0 && !euroInp.dataset.dsrDualBound) {
@@ -594,12 +631,11 @@ function spendingPlanGoals(cfg) {
                         euroInp.addEventListener('input', function () {
                             percentEditedByUser = false;
                             if (syncing || !pctInp || !euroInp || income <= 0) return;
-                            var euro = parseNum(euroInp);
-                            if (!isFinite(euro)) return;
-                            var pct = (euro / income) * 100;
-                            if (!isFinite(pct)) return;
+                            var r = computeFromEuro();
+                            if (!r) return;
+                            rememberEuroState(r);
                             syncing = true;
-                            setInputValue(pctInp, formatPctDisplay(pct));
+                            setInputValue(pctInp, r.pctDisplay);
                             syncing = false;
                         });
                         euroInp.addEventListener('blur', function () {
@@ -807,19 +843,19 @@ function spendingPlanGoals(cfg) {
                 return;
             }
             if (window.spPlanEnsureDsrUiSynced) window.spPlanEnsureDsrUiSynced();
+            var lockedPct = window.spPlanGetLockedPctForSave ? window.spPlanGetLockedPctForSave() : null;
+            if (window.spPlanLockPctDisplay && isFinite(lockedPct)) {
+                window.spPlanLockPctDisplay(lockedPct);
+            }
             var fd = collectPayload();
             if (!fd) {
                 savePending = false;
+                if (window.spPlanUnlockPctDisplay) window.spPlanUnlockPctDisplay();
                 return;
             }
             var gen = ++saveGeneration;
             inflight = true;
             setStatus('saving', 'Guardando…');
-            if (window.spPlanEnsureDsrUiSynced) {
-                requestAnimationFrame(function () {
-                    window.spPlanEnsureDsrUiSynced();
-                });
-            }
             try {
                 var r = await fetch(configUrl, {
                     method: 'POST',
@@ -849,6 +885,7 @@ function spendingPlanGoals(cfg) {
                 setStatus('error', 'Error de red al guardar.');
             } finally {
                 inflight = false;
+                if (window.spPlanUnlockPctDisplay) window.spPlanUnlockPctDisplay();
                 if (savePending) {
                     savePending = false;
                     scheduleConfigSave();
