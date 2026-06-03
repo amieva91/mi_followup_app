@@ -423,6 +423,11 @@ function spendingPlanGoals(cfg) {
                         return Math.round(income * (pct / 100) * 100) / 100;
                     }
 
+                    /** % exacto desde € (sin saltos de 0,5); el cupo en € manda al editar euros. */
+                    function pctFromEuroExact(euro) {
+                        return clampPct(Math.round((euro / income) * 10000) / 10000);
+                    }
+
                     function formatEuroDisplay(amount) {
                         if (!isFinite(amount)) return '';
                         return amount.toFixed(2).replace('.', ',');
@@ -470,10 +475,13 @@ function spendingPlanGoals(cfg) {
                         if (!isFinite(euro)) return;
                         syncing = true;
                         if (euro < 0) euro = 0;
-                        var pct = clampPct(roundHalf((euro / income) * 100));
-                        pctInp.value = String(pct);
-                        var back = euroFromPct(pct);
-                        if (back != null) euroInp.value = formatEuroDisplay(back);
+                        var maxEuro = euroFromPct(PCT_MAX);
+                        var minEuro = euroFromPct(PCT_MIN);
+                        if (maxEuro != null && euro > maxEuro) euro = maxEuro;
+                        if (minEuro != null && euro < minEuro) euro = minEuro;
+                        var pct = pctFromEuroExact(euro);
+                        pctInp.value = String(Math.round(pct * 100) / 100);
+                        euroInp.value = formatEuroDisplay(euro);
                         syncing = false;
                     }
 
