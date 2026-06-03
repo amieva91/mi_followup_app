@@ -55,35 +55,54 @@ def _merge_mortgage_target_into_extra(extra, td):
         return extra
 
 
-@spending_plan_bp.route("/", methods=["GET", "POST"])
+@spending_plan_bp.route("/", methods=["GET"])
 @login_required
 def index():
-    if request.method == "POST":
-        token = request.form.get("csrf_token")
-        if not token:
-            flash("Sesión expirada. Recarga la página.", "error")
-            return redirect(url_for("spending_plan.index"))
-        try:
-            max_dsr = float(request.form.get("max_dsr_percent") or 35)
-            horizon = int(request.form.get("horizon_months") or 12)
-            raw = request.form.getlist("fixed_category_ids")
-            cat_ids = [int(x) for x in raw if str(x).strip().isdigit()]
-            sps.update_settings(current_user.id, max_dsr, horizon)
-            sps.set_fixed_categories(current_user.id, cat_ids)
-            flash("Configuración guardada.", "success")
-        except ValueError as e:
-            flash(str(e), "error")
-        except Exception as e:
-            db.session.rollback()
-            flash(f"No se pudo guardar: {e}", "error")
-        return redirect(url_for("spending_plan.index"))
-
     data = sps.get_spending_plan_page_data(current_user.id)
     data["open_edit_goal_id"] = request.args.get("edit_goal", type=int)
     resp = make_response(render_template("spending_plan/index.html", **data))
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, private"
     resp.headers["Pragma"] = "no-cache"
     return resp
+
+
+@spending_plan_bp.route("/config", methods=["POST"])
+@login_required
+def save_config():
+    wants_json = "application/json" in (request.headers.get("Accept") or "") or (
+        request.headers.get("X-Requested-With") == "XMLHttpRequest"
+    )
+    token = request.form.get("csrf_token")
+    if not token:
+        if wants_json:
+            return jsonify({"ok": False, "error_message": "Sesión expirada."}), 400
+        flash("Sesión expirada. Recarga la página.", "error")
+        return redirect(url_for("spending_plan.index"))
+    try:
+        max_dsr = float(request.form.get("max_dsr_percent") or 35)
+        horizon = int(request.form.get("horizon_months") or 12)
+        raw = request.form.getlist("fixed_category_ids")
+        cat_ids = [int(x) for x in raw if str(x).strip().isdigit()]
+        sps.update_settings(current_user.id, max_dsr, horizon)
+        sps.set_fixed_categories(current_user.id, cat_ids)
+        data = sps.get_spending_plan_page_data(current_user.id)
+        html = render_template("spending_plan/_plan_derived.html", **data)
+        if wants_json:
+            return jsonify({"ok": True, "html": html}), 200
+        flash("Configuración guardada.", "success")
+        return redirect(url_for("spending_plan.index"))
+    except ValueError as e:
+        db.session.rollback()
+        if wants_json:
+            return jsonify({"ok": False, "error_message": str(e)}), 400
+        flash(str(e), "error")
+        return redirect(url_for("spending_plan.index"))
+    except Exception as e:
+        db.session.rollback()
+        if wants_json:
+            return jsonify({"ok": False, "error_message": f"No se pudo guardar: {e}"}), 500
+        flash(f"No se pudo guardar: {e}", "error")
+        return redirect(url_for("spending_plan.index"))
 
 
 @spending_plan_bp.route("/replanificar_full", methods=["POST"])

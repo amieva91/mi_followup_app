@@ -268,13 +268,6 @@ function spendingPlanGoals(cfg) {
         {% endif %}
     </div>
     {% endif %}
-    {% if plan_schedule and not plan_schedule.ok %}
-    <div class="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
-        <p class="font-semibold">Plan no viable con la configuración actual</p>
-        <p class="mt-1">{{ plan_schedule.error_message }}</p>
-    </div>
-    {% endif %}
-
     <template x-teleport="body">
         <div x-show="fullReplanModalOpen" x-cloak x-transition
              class="fixed inset-0 z-[85] flex items-center justify-center p-4"
@@ -360,10 +353,15 @@ function spendingPlanGoals(cfg) {
         </div>
     </div>
 
-    <form method="post" action="{{ url_for('spending_plan.index') }}" class="sp-plan-card p-5 sm:p-6 mb-6">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+    <div id="sp-config-panel" class="sp-plan-card p-5 sm:p-6 mb-6"
+         data-config-url="{{ url_for('spending_plan.save_config') }}">
 
-        <div class="grid grid-cols-1 gap-6 mb-6 md:grid-cols-3 md:items-start">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+            <p class="text-xs text-slate-500">Los cambios se guardan solos al editar.</p>
+            <p id="sp-config-save-status" class="text-xs text-slate-500 min-h-[1.25rem]" aria-live="polite"></p>
+        </div>
+
+        <div class="grid grid-cols-1 gap-6 mb-6 md:grid-cols-2 md:items-start">
             <div class="md:col-span-1">
                 <p class="text-sm font-medium text-slate-700 mb-2">Endeudamiento máximo (DSR)</p>
                 <div class="grid grid-cols-2 gap-3">
@@ -479,7 +477,7 @@ function spendingPlanGoals(cfg) {
                         syncing = false;
                     }
 
-                    function prepareDsrForSubmit() {
+                    function prepareDsrValues() {
                         if (!pctInp || income <= 0) return;
                         var euro = parseNum(euroInp);
                         if (isFinite(euro)) {
@@ -489,35 +487,47 @@ function spendingPlanGoals(cfg) {
                         }
                     }
 
+                    window.spPlanPrepareDsr = prepareDsrValues;
+
                     if (pctInp && euroInp && income > 0) {
                         pctInp.addEventListener('input', liveEuroFromPercent);
-                        pctInp.addEventListener('blur', normalizePercentField);
-                        pctInp.addEventListener('change', normalizePercentField);
+                        pctInp.addEventListener('blur', function () {
+                            normalizePercentField();
+                            if (window.spPlanScheduleConfigSave) window.spPlanScheduleConfigSave();
+                        });
+                        pctInp.addEventListener('change', function () {
+                            normalizePercentField();
+                            if (window.spPlanScheduleConfigSave) window.spPlanScheduleConfigSave();
+                        });
                         euroInp.addEventListener('input', livePercentFromEuro);
-                        euroInp.addEventListener('blur', normalizeEuroField);
-                        euroInp.addEventListener('change', normalizeEuroField);
-                        var form = pctInp.closest('form');
-                        if (form) {
-                            form.addEventListener('submit', function () {
-                                prepareDsrForSubmit();
-                            });
+                        euroInp.addEventListener('blur', function () {
+                            normalizeEuroField();
+                            if (window.spPlanScheduleConfigSave) window.spPlanScheduleConfigSave();
+                        });
+                        euroInp.addEventListener('change', function () {
+                            normalizeEuroField();
+                            if (window.spPlanScheduleConfigSave) window.spPlanScheduleConfigSave();
+                        });
+                        var dsrTimer = null;
+                        function scheduleDsrSave() {
+                            clearTimeout(dsrTimer);
+                            dsrTimer = setTimeout(function () {
+                                prepareDsrValues();
+                                if (window.spPlanScheduleConfigSave) window.spPlanScheduleConfigSave();
+                            }, 700);
                         }
+                        pctInp.addEventListener('input', scheduleDsrSave);
+                        euroInp.addEventListener('input', scheduleDsrSave);
                     }
                 })();
                 </script>
             </div>
             <div>
-                <label class="block text-sm font-medium text-slate-700 mb-1">Horizonte (meses)</label>
-                <input type="number" name="horizon_months" min="1" max="60"
+                <label for="sp-horizon-months-input" class="block text-sm font-medium text-slate-700 mb-1">Horizonte (meses)</label>
+                <input id="sp-horizon-months-input" type="number" name="horizon_months" min="1" max="60"
                        value="{{ settings.horizon_months }}"
                        class="h-10 w-full rounded-xl border border-slate-300 px-3 text-slate-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-500"/>
                 <p class="text-xs text-slate-500 mt-1">Máx. 60 (el algoritmo siempre usa 5 años).</p>
-            </div>
-            <div class="flex flex-col">
-                <span class="invisible mb-1 hidden text-sm font-medium text-slate-700 md:block" aria-hidden="true">Endeudamiento máximo (DSR)</span>
-                <button type="submit" class="sp-btn flex h-10 w-full items-center justify-center rounded-xl border border-transparent bg-teal-600 px-5 text-sm font-semibold text-white shadow-[0_10px_20px_rgba(13,148,136,0.25)] hover:bg-teal-700">
-                    Guardar configuración
-                </button>
             </div>
         </div>
 
@@ -536,9 +546,95 @@ function spendingPlanGoals(cfg) {
                 </label>
                 {% endfor %}
             </div>
-            <p class="text-xs text-slate-500 mt-1">Un clic marca o desmarca cada categoría.</p>
+            <p class="text-xs text-slate-500 mt-1">Un clic marca o desmarca cada categoría; se guarda al instante.</p>
         </div>
-    </form>
+    </div>
+
+    <script>
+    (function () {
+        var panel = document.getElementById('sp-config-panel');
+        if (!panel) return;
+        var configUrl = panel.getAttribute('data-config-url');
+        var derivedRoot = document.getElementById('sp-plan-derived-root');
+        var statusEl = document.getElementById('sp-config-save-status');
+        var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+        var csrf = csrfMeta ? csrfMeta.getAttribute('content') : '';
+        var saveTimer = null;
+        var inflight = false;
+
+        function setStatus(state, msg) {
+            if (!statusEl) return;
+            statusEl.textContent = msg || '';
+            statusEl.className = 'text-xs min-h-[1.25rem] ' + (
+                state === 'error' ? 'text-rose-600 font-medium'
+                : state === 'saving' ? 'text-teal-700'
+                : state === 'saved' ? 'text-emerald-700'
+                : 'text-slate-500'
+            );
+        }
+
+        function collectPayload() {
+            if (window.spPlanPrepareDsr) window.spPlanPrepareDsr();
+            var fd = new FormData();
+            fd.append('csrf_token', csrf);
+            var pct = document.getElementById('max-dsr-percent-input');
+            var horizon = document.getElementById('sp-horizon-months-input');
+            if (pct) fd.append('max_dsr_percent', pct.value);
+            if (horizon) fd.append('horizon_months', horizon.value);
+            panel.querySelectorAll('input[name="fixed_category_ids"]:checked').forEach(function (cb) {
+                fd.append('fixed_category_ids', cb.value);
+            });
+            return fd;
+        }
+
+        async function saveConfig() {
+            if (inflight) return;
+            inflight = true;
+            setStatus('saving', 'Guardando…');
+            try {
+                var r = await fetch(configUrl, {
+                    method: 'POST',
+                    body: collectPayload(),
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                var data = await r.json().catch(function () { return null; });
+                if (!r.ok || !data || !data.ok) {
+                    setStatus('error', (data && data.error_message) ? data.error_message : 'No se pudo guardar.');
+                    return;
+                }
+                if (derivedRoot && data.html) {
+                    derivedRoot.innerHTML = data.html;
+                    if (window.Alpine && typeof Alpine.initTree === 'function') {
+                        Alpine.initTree(derivedRoot);
+                    }
+                }
+                setStatus('saved', 'Guardado');
+                setTimeout(function () {
+                    if (statusEl && statusEl.textContent === 'Guardado') setStatus('idle', '');
+                }, 1800);
+            } catch (e) {
+                setStatus('error', 'Error de red al guardar.');
+            } finally {
+                inflight = false;
+            }
+        }
+
+        function scheduleConfigSave() {
+            clearTimeout(saveTimer);
+            saveTimer = setTimeout(saveConfig, 450);
+        }
+        window.spPlanScheduleConfigSave = scheduleConfigSave;
+
+        panel.querySelectorAll('input[name="fixed_category_ids"]').forEach(function (cb) {
+            cb.addEventListener('change', scheduleConfigSave);
+        });
+        var horizon = document.getElementById('sp-horizon-months-input');
+        if (horizon) {
+            horizon.addEventListener('change', scheduleConfigSave);
+            horizon.addEventListener('blur', scheduleConfigSave);
+        }
+    })();
+    </script>
 
     <!-- Objetivos -->
     <div class="sp-plan-card p-5 sm:p-6 mb-8">
@@ -634,186 +730,11 @@ function spendingPlanGoals(cfg) {
             }
         })();
         </script>
-
-        {% if plan_schedule and plan_schedule.warnings %}
-        <details class="mb-4 rounded-lg border border-amber-200 bg-amber-50 text-sm text-amber-950">
-            <summary class="cursor-pointer font-medium text-amber-900 px-3 py-2">
-                Avisos del planificador
-            </summary>
-            <ul class="list-disc list-inside space-y-0.5 text-amber-900/90 px-3 pb-3 pt-0">
-                {% for w in plan_schedule.warnings %}
-                <li>{{ w }}</li>
-                {% endfor %}
-            </ul>
-        </details>
-        {% endif %}
-
-        {% if goal_lines %}
-        <div class="overflow-x-auto rounded-xl border border-slate-200/80">
-            <table class="min-w-full text-sm">
-                <thead class="sp-thead">
-                    <tr>
-                        <th class="px-3 py-2.5 pr-4 font-semibold">Prior.</th>
-                        <th class="px-0 py-2.5 pr-4 font-semibold">Nombre</th>
-                        <th class="px-0 py-2.5 pr-4 font-semibold">Tipo</th>
-                        <th class="px-0 py-2.5 pr-4 font-semibold">Inicio</th>
-                        <th class="px-0 py-2.5 pr-4 text-right font-semibold">N.º cuotas</th>
-                        <th class="px-0 py-2.5 pr-4 text-right font-semibold">Total</th>
-                        <th class="px-0 py-2.5 pr-4 text-right font-semibold">€/mes (efectivo)</th>
-                        <th class="px-0 py-2.5 pr-4 text-right font-semibold">€/mes (DSR)</th>
-                        <th class="px-3 py-2.5 text-right font-semibold">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                    {% for g in goal_lines %}
-                    <tr class="hover:bg-teal-50/40 transition-colors">
-                        <td class="px-3 py-2.5 pr-4 font-medium text-slate-900">{{ g.priority }}</td>
-                        <td class="py-2.5 pr-4">
-                            <span class="inline-flex items-center">
-                                <span class="inline-block w-2.5 h-2.5 rounded-full mr-2 shrink-0"
-                                      style="background: {{ g.color or '#616161' }};"
-                                      title="Color objetivo"></span>
-                                <span>{{ g.title }}</span>
-                            </span>
-                        </td>
-                        <td class="py-2.5 pr-4 text-slate-600">{% if g.goal_type == 'mortgage' %}Hipoteca{% else %}Genérico{% endif %}</td>
-                        <td class="py-2.5 pr-4 text-slate-800">
-                            {% if g.start_month_label %}{{ g.start_month_label }}{% else %}—{% endif %}
-                            {% if g.date_fixed %}<span class="ml-2 inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-700">fija</span>{% endif %}
-                        </td>
-                        <td class="py-2.5 pr-4 text-right tabular-nums text-slate-700">{% if g.installments_planned %}{{ g.installments_planned }}{% else %}—{% endif %}</td>
-                        <td class="py-2.5 pr-4 text-right tabular-nums text-slate-900">{{ "%.2f"|format(g.amount_total) }}</td>
-                        <td class="py-2.5 pr-4 text-right tabular-nums text-slate-900">{{ "%.2f"|format(g.monthly_cash) }}</td>
-                        <td class="py-2.5 pr-4 text-right tabular-nums text-teal-800">{{ "%.2f"|format(g.monthly_dsr) }}</td>
-                        <td class="px-3 py-2.5 text-right whitespace-nowrap">
-                            {% if g.goal_type == 'mortgage' %}
-                            <a href="{{ url_for('spending_plan.mortgage_simulator', edit=g.id) }}" class="text-teal-700 hover:text-teal-800 font-semibold text-xs mr-3 hover:underline">Editar</a>
-                            {% else %}
-                            <button type="button"
-                                    @click='openEditModal(goals.find(function (x) { return x.id === {{ g.id }}; }))'
-                                    class="text-teal-700 hover:text-teal-800 font-semibold text-xs mr-3 bg-transparent border-0 p-0 cursor-pointer hover:underline">
-                                Editar
-                            </button>
-                            {% endif %}
-                            <button type="button"
-                                    @click='openDeleteModal({ id: {{ g.id }}, title: {{ g.title|tojson }} })'
-                                    class="text-rose-600 hover:text-rose-700 font-semibold text-xs bg-transparent border-0 p-0 cursor-pointer hover:underline">
-                                Eliminar
-                            </button>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% else %}
-        <p class="text-sm text-slate-500">No hay objetivos. Añade uno para ver su impacto en la proyección.</p>
-        {% endif %}
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-8">
-        <div class="rounded-xl border border-slate-200/80 bg-gradient-to-br from-sky-50/95 to-slate-50/90 p-4 shadow-[0_8px_22px_rgba(15,23,42,0.07)] border-l-4 border-sky-500">
-            <p class="text-sm font-medium text-slate-600">Ingreso mensual medio</p>
-            <p class="text-2xl font-bold text-slate-900 tabular-nums">{{ "%.2f"|format(income_avg) }} €</p>
-        </div>
-        <div class="rounded-xl border border-rose-200/60 bg-gradient-to-br from-rose-50/95 to-slate-50/90 p-4 shadow-[0_8px_22px_rgba(15,23,42,0.07)] border-l-4 border-rose-500">
-            <p class="text-sm font-medium text-rose-800">Gastos fijos (suma medias)</p>
-            <p class="text-2xl font-bold text-rose-950 tabular-nums">{{ "%.2f"|format(fixed_total) }} €</p>
-        </div>
-        <div class="rounded-xl border border-amber-200/60 bg-gradient-to-br from-amber-50/95 to-slate-50/90 p-4 shadow-[0_8px_22px_rgba(15,23,42,0.07)] border-l-4 border-amber-500">
-            <p class="text-sm font-medium text-amber-900">Cuota mensual media (5 años)</p>
-            <p class="text-2xl font-bold text-amber-950 tabular-nums">{{ "%.2f"|format(avg_quota_monthly_5y or 0) }} €</p>
-            <ul class="text-xs text-amber-800/95 mt-2 list-disc list-inside space-y-0.5">
-                {% if avg_dsr_used_pct_5y is not none %}
-                <li>DSR ocupado: <span class="tabular-nums font-medium">{{ "%.1f"|format(avg_dsr_used_pct_5y) }}%</span></li>
-                {% endif %}
-                {% if dsr_free_total_5y is not none %}
-                <li>DSR libre total: <span class="tabular-nums font-medium">{{ "%.2f"|format(dsr_free_total_5y) }} €</span></li>
-                {% endif %}
-            </ul>
-        </div>
-        <div class="rounded-xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50/95 to-slate-50/90 p-4 shadow-[0_8px_22px_rgba(15,23,42,0.07)] border-l-4 border-emerald-500">
-            <p class="text-sm font-medium text-emerald-800">Saldo total ahorrado (5 años)</p>
-            <p class="text-2xl font-bold text-emerald-950 tabular-nums">
-                {% if balance_end_5y is not none %}
-                {{ "%.2f"|format(balance_end_5y) }} €
-                {% else %}
-                —
-                {% endif %}
-            </p>
-            <ul class="text-xs text-emerald-900/95 mt-2 list-disc list-inside space-y-0.5">
-                <li>Saldo bancos: Actual: <span class="tabular-nums font-medium">{{ "%.2f"|format(bank_cash_gross) }} €</span></li>
-                {% if mortgage_entry_outlays_total and mortgage_entry_outlays_total > 0 %}
-                <li>Entradas hipoteca: <span class="tabular-nums font-medium">{{ "%.2f"|format(mortgage_entry_outlays_total) }} €</span></li>
-                {% endif %}
-                {% if bank_vs_end_pct is not none %}
-                <li>{% if bank_vs_end_pct >= 0 %}Revalorización saldo{% else %}Depreciación saldo{% endif %} (5 años): <span class="tabular-nums font-medium">{{ "%+.1f"|format(bank_vs_end_pct) }} %</span></li>
-                {% endif %}
-            </ul>
-        </div>
+    <div id="sp-plan-derived-root">
+        {% include "spending_plan/_plan_derived.html" %}
     </div>
-
-    {% if fixed_lines %}
-    <details class="mb-6 sp-plan-card p-4">
-        <summary class="cursor-pointer text-sm font-semibold text-slate-800">
-            Desglose gastos fijos
-        </summary>
-        <ul class="text-sm text-slate-600 space-y-1 mt-2">
-            {% for line in fixed_lines %}
-            <li class="flex justify-between max-w-md"><span>{{ line.name }}</span><span class="tabular-nums">{{ "%.2f"|format(line.average_monthly) }} €/mes</span></li>
-            {% endfor %}
-        </ul>
-    </details>
-    {% endif %}
-
-    <h2 class="sp-plan-title text-lg sm:text-xl mb-3">📈 Proyección mensual</h2>
-    <div class="overflow-x-auto rounded-xl border border-slate-200/80">
-        <table class="min-w-full text-sm">
-            <thead class="sp-thead text-left">
-                <tr>
-                    <th class="px-4 py-3 font-semibold">Mes</th>
-                    <th class="px-4 py-3 text-right font-semibold">Ingreso</th>
-                    <th class="px-4 py-3 text-right font-semibold">Fijos</th>
-                    <th class="px-4 py-3 text-right font-semibold">Cuota</th>
-                    <th class="px-4 py-3 font-semibold">Pagos</th>
-                    <th class="px-4 py-3 text-right font-semibold">Superávit</th>
-                    <th class="px-4 py-3 text-right font-semibold">Saldo ahorr.</th>
-                    <th class="px-4 py-3 text-right font-semibold">Margen DSR</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100">
-                {% for m in months %}
-                <tr class="hover:bg-teal-50/35 transition-colors">
-                    <td class="px-4 py-2 font-medium text-slate-900">{{ m.month_label }}</td>
-                    <td class="px-4 py-2 text-right tabular-nums text-slate-800">{{ "%.2f"|format(m.income) }}</td>
-                    <td class="px-4 py-2 text-right tabular-nums text-slate-800">{{ "%.2f"|format(m.fixed_expenses) }}</td>
-                    <td class="px-4 py-2 text-right tabular-nums text-amber-800">{{ "%.2f"|format(m.quota_monthly) }}</td>
-                    <td class="px-4 py-2">
-                        {% set mm = month_goal_marks[loop.index0] if month_goal_marks and loop.index0 < month_goal_marks|length else [] %}
-                        {% if mm %}
-                        <div class="flex flex-wrap gap-1.5 items-center">
-                            {% for it in mm %}
-                            <span class="inline-block w-2.5 h-2.5 rounded-full"
-                                  style="background: {{ it.color }};"
-                                  title="{{ it.title }}: {{ '%.2f'|format(it.amount) }} €{% if it.installment_idx and it.installments_total %} ({{ it.installment_idx }}/{{ it.installments_total }}){% endif %}"></span>
-                            {% endfor %}
-                        </div>
-                        {% else %}
-                        <span class="text-xs text-slate-400">—</span>
-                        {% endif %}
-                    </td>
-                    <td class="px-4 py-2 text-right tabular-nums {% if m.surplus >= 0 %}text-emerald-700{% else %}text-rose-600{% endif %}">{{ "%.2f"|format(m.surplus) }}</td>
-                    <td class="px-4 py-2 text-right tabular-nums font-medium text-slate-900">{{ "%.2f"|format(m.ending_cash) }}</td>
-                    <td class="px-4 py-2 text-right tabular-nums text-sky-800">{{ "%.2f"|format(m.dsr_margin) }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    <p class="text-xs text-slate-500 mt-2">
-        Columna Cuota: cuotas hipoteca + cuotas genéricas del mes (lo que compite por el DSR). Superávit = ingreso − fijos − cuota. La entrada de hipoteca (desembolso puntual) no suma a la cuota ni al superávit, pero sí reduce el saldo ahorrado.
-        Margen DSR = cuota máxima permitida − cuota hipoteca − objetivos genéricos del mes (todo lo que compite por el cupo). La columna “Pagos” marca con puntos los objetivos con cargo en ese mes.
-    </p>
 
     <template x-teleport="body">
         <div x-show="planningContextInfoOpen" x-cloak x-transition
