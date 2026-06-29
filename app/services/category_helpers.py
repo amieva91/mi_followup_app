@@ -195,6 +195,53 @@ def filter_synthetic_entries_for_category_ids(
     return filtered
 
 
+def build_orphan_synthetic_entries(
+    user_id: int,
+    synthetic_entries: dict,
+    movement_model,
+    category_filter_ids: list | None = None,
+) -> list:
+    """
+    Meses con filas sintéticas visibles pero sin movimientos reales en el ámbito del filtro.
+    Con filtro de categoría, solo cuenta ingresos/gastos de esas categorías (padre + hijas).
+    """
+    if not synthetic_entries:
+        return []
+
+    months_query = movement_model.query.filter_by(user_id=user_id)
+    if category_filter_ids:
+        months_query = months_query.filter(
+            movement_model.category_id.in_(category_filter_ids)
+        )
+
+    months_with_real = set()
+    for row in months_query.with_entities(
+        db.func.extract('year', movement_model.date).label('year'),
+        db.func.extract('month', movement_model.date).label('month'),
+    ).distinct().all():
+        months_with_real.add((int(row.year), int(row.month)))
+
+    orphans = []
+    for (year, month), data in sorted(synthetic_entries.items(), reverse=True):
+        if (year, month) in months_with_real:
+            continue
+        stock_market_amount = float(data.get('stock_market', 0) or 0)
+        ajuste_amount = float(data.get('ajuste', 0) or 0)
+        if stock_market_amount <= 0 and ajuste_amount <= 0:
+            continue
+        orphans.append({
+            'year': year,
+            'month': month,
+            'month_label': data['month_label'],
+            'ajuste': data.get('ajuste', 0),
+            'stock_market': data.get('stock_market', 0),
+            'include_adjustment_in_metrics': data.get(
+                'include_adjustment_in_metrics', True
+            ),
+        })
+    return orphans
+
+
 def get_or_create_dividendos_category(user_id):
     """Obtiene o crea la categoría Dividendos para ingresos (retiradas broker)."""
     cat = IncomeCategory.query.filter_by(

@@ -238,7 +238,7 @@
         </div>
     {% endif %}
 
-    {% if expenses.items %}
+    {% if expenses.items or orphan_synthetic_entries %}
         <!-- Tabla de Gastos -->
         <div class="expense-card overflow-x-auto overflow-y-hidden">
             <table class="responsive-data-table min-w-full divide-y divide-gray-200">

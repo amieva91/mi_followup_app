@@ -233,7 +233,7 @@
         </div>
     {% endif %}
 
-    {% if incomes.items %}
+    {% if incomes.items or orphan_synthetic_entries %}
         <!-- Tabla de Ingresos -->
         <div class="income-card overflow-x-auto overflow-y-hidden">
             <table class="responsive-data-table min-w-full divide-y divide-gray-200">

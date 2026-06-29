@@ -26,6 +26,7 @@ from app.services.category_helpers import (
     get_stock_market_display,
     get_expense_category_filter_ids,
     filter_synthetic_entries_for_category_ids,
+    build_orphan_synthetic_entries,
 )
 from app.services.income_expense_aggregator import (
     get_expense_category_summary_with_adjustment,
@@ -377,32 +378,12 @@ def list():
             side='expense',
         )
     
-    # Calcular meses con entradas sintéticas pero SIN gastos reales
-    # para mostrarlos como filas independientes en la tabla
-    orphan_synthetic_entries = []
-    if synthetic_entries:
-        # Obtener todos los meses únicos que tienen gastos reales
-        months_with_real_expenses = set()
-        all_expenses_query = Expense.query.filter_by(user_id=current_user.id).with_entities(
-            db.func.extract('year', Expense.date).label('year'),
-            db.func.extract('month', Expense.date).label('month')
-        ).distinct().all()
-        for row in all_expenses_query:
-            months_with_real_expenses.add((int(row.year), int(row.month)))
-        
-        # Identificar meses sintéticos huérfanos (sin gastos reales)
-        for (year, month), data in sorted(synthetic_entries.items(), reverse=True):
-            if (year, month) not in months_with_real_expenses:
-                orphan_synthetic_entries.append({
-                    'year': year,
-                    'month': month,
-                    'month_label': data['month_label'],
-                    'ajuste': data['ajuste'],
-                    'stock_market': data['stock_market'],
-                    'include_adjustment_in_metrics': data.get(
-                        'include_adjustment_in_metrics', True
-                    ),
-                })
+    orphan_synthetic_entries = build_orphan_synthetic_entries(
+        current_user.id,
+        synthetic_entries,
+        Expense,
+        category_filter_ids=category_filter_ids,
+    )
 
     return render_template(
         'expenses/list.html',

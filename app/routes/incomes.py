@@ -24,6 +24,7 @@ from app.services.category_helpers import (
     get_stock_market_display,
     get_income_category_filter_ids,
     filter_synthetic_entries_for_category_ids,
+    build_orphan_synthetic_entries,
 )
 from app.services.income_expense_aggregator import (
     flatten_parent_accumulated_category_chips_sorted,
@@ -352,32 +353,12 @@ def list():
             side='income',
         )
     
-    # Calcular meses con entradas sintéticas pero SIN ingresos reales
-    # para mostrarlos como filas independientes en la tabla
-    orphan_synthetic_entries = []
-    if synthetic_entries:
-        # Obtener todos los meses únicos que tienen ingresos reales
-        months_with_real_incomes = set()
-        all_incomes_query = Income.query.filter_by(user_id=current_user.id).with_entities(
-            db.func.extract('year', Income.date).label('year'),
-            db.func.extract('month', Income.date).label('month')
-        ).distinct().all()
-        for row in all_incomes_query:
-            months_with_real_incomes.add((int(row.year), int(row.month)))
-        
-        # Identificar meses sintéticos huérfanos (sin ingresos reales)
-        for (year, month), data in sorted(synthetic_entries.items(), reverse=True):
-            if (year, month) not in months_with_real_incomes:
-                orphan_synthetic_entries.append({
-                    'year': year,
-                    'month': month,
-                    'month_label': data['month_label'],
-                    'ajuste': data['ajuste'],
-                    'stock_market': data['stock_market'],
-                    'include_adjustment_in_metrics': data.get(
-                        'include_adjustment_in_metrics', True
-                    ),
-                })
+    orphan_synthetic_entries = build_orphan_synthetic_entries(
+        current_user.id,
+        synthetic_entries,
+        Income,
+        category_filter_ids=category_filter_ids,
+    )
 
     return render_template(
         'incomes/list.html',
