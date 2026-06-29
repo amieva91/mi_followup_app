@@ -23,7 +23,7 @@ from app.services.category_helpers import (
     get_stock_market_display,
 )
 from app.services.income_expense_aggregator import (
-    flatten_income_category_chips_sorted,
+    flatten_parent_accumulated_category_chips_sorted,
     get_income_category_summary_with_adjustment,
     get_income_monthly_totals_with_adjustment,
     get_synthetic_income_entries_by_month,
@@ -328,7 +328,7 @@ def list():
 
     # Resumen por categoría (12 meses) incluyendo ajuste de reconciliación
     category_summary = get_income_category_summary_with_adjustment(current_user.id, months=12)
-    category_summary_chips = flatten_income_category_chips_sorted(category_summary)
+    category_summary_chips = flatten_parent_accumulated_category_chips_sorted(category_summary)
     stock_market_display = get_stock_market_display(current_user.id, side='income')
     # Totales mensuales (12 meses) para gráfico de barras incluyendo ajuste
     monthly_totals = get_income_monthly_totals_with_adjustment(current_user.id, months=12)

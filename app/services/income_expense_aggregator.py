@@ -212,6 +212,31 @@ def _apply_income_summary_averages(summary: List[Dict[str, Any]], period_months:
             )
 
 
+def flatten_parent_accumulated_category_chips_sorted(
+    summary: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """
+    Chips de resumen (Ingresos/Gastos): solo categorías padre con total acumulado
+    (importe directo del padre + suma de hijas). Omite filas de hijas sueltas.
+    """
+    rows: List[Dict[str, Any]] = []
+    for parent in summary:
+        label = parent.get('category') or parent.get('name')
+        total = float(parent.get('total', 0) or 0)
+        if total <= 0.009:
+            continue
+        rows.append({
+            'id': parent['id'],
+            'name': label,
+            'icon': parent.get('icon'),
+            'total': round(total, 2),
+            'average': float(parent.get('average', 0) or 0),
+            'is_ajustes': label == 'Ajustes',
+        })
+    rows.sort(key=lambda r: float(r.get('total') or 0), reverse=True)
+    return rows
+
+
 def flatten_income_category_chips_sorted(summary: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Chips de resumen de ingresos (padre e hijas con importe directo, sin agregar)."""
     rows: List[Dict[str, Any]] = []
@@ -347,7 +372,8 @@ def get_income_category_summary_with_adjustment(user_id, months=12):
                 'category': cat.name,
                 'icon': cat.icon,
                 'color': cat.color,
-                'total': round(ajustes_total, 2)
+                'total': round(ajustes_total, 2),
+                'children': [],
             })
 
     if broker_withdrawals_total > 0:

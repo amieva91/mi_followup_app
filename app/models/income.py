@@ -146,11 +146,57 @@ class Income(db.Model):
 
     @staticmethod
     def get_category_summary(user_id, months=12):
-        """Resumen por categoría para últimos N meses. Returns lista de {id, category, icon, total}."""
+        """
+        Resumen por categoría padre (con hijos) para últimos N meses.
+        Returns: lista de {id, category, icon, color, total, children: [...]}
+        """
         today = date.today()
         start_date = today - relativedelta(months=months)
         end_date = today
-        return Income.get_by_category(user_id, start_date, end_date)
+
+        totals = db.session.query(
+            Income.category_id,
+            db.func.sum(Income.amount).label('total')
+        ).filter(
+            Income.user_id == user_id,
+            Income.date >= start_date,
+            Income.date <= end_date
+        ).group_by(Income.category_id).all()
+        totals_map = {r.category_id: float(r.total) for r in totals}
+
+        parents = IncomeCategory.query.filter_by(
+            user_id=user_id,
+            parent_id=None
+        ).order_by(IncomeCategory.name).all()
+
+        result = []
+        for parent in parents:
+            child_ids = [c.id for c in parent.children.all()]
+            parent_total = totals_map.get(parent.id, 0)
+            for cid in child_ids:
+                parent_total += totals_map.get(cid, 0)
+
+            children = []
+            for child in parent.children.order_by(IncomeCategory.name):
+                t = totals_map.get(child.id, 0)
+                if t > 0:
+                    children.append({
+                        'id': child.id,
+                        'category': child.name,
+                        'icon': child.icon,
+                        'color': child.color,
+                        'total': round(t, 2),
+                    })
+            if parent_total > 0:
+                result.append({
+                    'id': parent.id,
+                    'category': parent.name,
+                    'icon': parent.icon,
+                    'color': parent.color,
+                    'total': round(parent_total, 2),
+                    'children': children,
+                })
+        return result
 
     @staticmethod
     def get_monthly_totals(user_id, months=12):
