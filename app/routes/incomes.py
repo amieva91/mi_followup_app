@@ -3,6 +3,7 @@ Blueprint para gestión de ingresos
 """
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_required, current_user
+from sqlalchemy import false as sql_false
 from app import db
 from app.models import IncomeCategory, Income
 from app.forms import IncomeCategoryForm, IncomeForm
@@ -21,6 +22,8 @@ from app.services.category_helpers import (
     is_stock_market_category,
     ensure_stock_market_income_category_exists,
     get_stock_market_display,
+    get_income_category_filter_ids,
+    filter_synthetic_entries_for_category_ids,
 )
 from app.services.income_expense_aggregator import (
     flatten_parent_accumulated_category_chips_sorted,
@@ -301,9 +304,14 @@ def list():
     # Query base
     query = Income.query.filter_by(user_id=current_user.id)
     
-    # Filtrar por categoría si se especifica
+    # Filtrar por categoría (padre incluye hijas)
+    category_filter_ids = None
     if category_id:
-        query = query.filter_by(category_id=category_id)
+        category_filter_ids = get_income_category_filter_ids(current_user.id, category_id)
+        if category_filter_ids:
+            query = query.filter(Income.category_id.in_(category_filter_ids))
+        else:
+            query = query.filter(sql_false())
     
     # Ordenar por fecha descendente
     query = query.order_by(Income.date.desc())
@@ -336,6 +344,13 @@ def list():
     summary_metrics = get_income_summary_metrics(current_user.id, months=12)
     # Entradas sintéticas por mes (Ajustes y Stock Market) - todo el histórico
     synthetic_entries = get_synthetic_income_entries_by_month(current_user.id, months=None)
+    if category_filter_ids:
+        synthetic_entries = filter_synthetic_entries_for_category_ids(
+            synthetic_entries,
+            category_filter_ids,
+            current_user.id,
+            side='income',
+        )
     
     # Calcular meses con entradas sintéticas pero SIN ingresos reales
     # para mostrarlos como filas independientes en la tabla

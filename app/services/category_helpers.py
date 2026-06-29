@@ -137,6 +137,64 @@ def get_stock_market_display(user_id, side='income'):
     }
 
 
+def category_filter_ids_for_list(category) -> list:
+    """
+    IDs para filtrar listados: la categoría seleccionada y, si es padre, sus hijas.
+    """
+    if category is None:
+        return []
+    ids = [int(category.id)]
+    if category.parent_id is None:
+        ids.extend(int(c.id) for c in category.children.all())
+    return ids
+
+
+def get_income_category_filter_ids(user_id: int, category_id: int) -> list:
+    cat = IncomeCategory.query.filter_by(id=int(category_id), user_id=user_id).first()
+    return category_filter_ids_for_list(cat) if cat else []
+
+
+def get_expense_category_filter_ids(user_id: int, category_id: int) -> list:
+    cat = ExpenseCategory.query.filter_by(id=int(category_id), user_id=user_id).first()
+    return category_filter_ids_for_list(cat) if cat else []
+
+
+def filter_synthetic_entries_for_category_ids(
+    synthetic_entries: dict,
+    category_ids: list,
+    user_id: int,
+    *,
+    side: str,
+) -> dict:
+    """Limita filas sintéticas (Ajustes / Stock Market) al filtro de categoría activo."""
+    if not synthetic_entries or not category_ids:
+        return synthetic_entries or {}
+
+    model = IncomeCategory if side == 'income' else ExpenseCategory
+    stock_market = model.query.filter_by(
+        user_id=user_id,
+        name=STOCK_MARKET_CATEGORY_NAME,
+    ).first()
+    ajustes = model.query.filter_by(
+        user_id=user_id,
+        name=AJUSTES_CATEGORY_NAME,
+    ).first()
+    include_stock_market = stock_market is not None and int(stock_market.id) in category_ids
+    include_ajustes = ajustes is not None and int(ajustes.id) in category_ids
+
+    filtered = {}
+    for key, data in synthetic_entries.items():
+        stock_market_amount = float(data.get('stock_market', 0) or 0) if include_stock_market else 0.0
+        ajuste_amount = float(data.get('ajuste', 0) or 0) if include_ajustes else 0.0
+        if stock_market_amount <= 0 and ajuste_amount <= 0:
+            continue
+        row = dict(data)
+        row['stock_market'] = round(stock_market_amount, 2)
+        row['ajuste'] = round(ajuste_amount, 2)
+        filtered[key] = row
+    return filtered
+
+
 def get_or_create_dividendos_category(user_id):
     """Obtiene o crea la categoría Dividendos para ingresos (retiradas broker)."""
     cat = IncomeCategory.query.filter_by(

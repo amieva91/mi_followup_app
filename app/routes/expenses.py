@@ -3,6 +3,7 @@ Blueprint para gestión de gastos
 """
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_required, current_user
+from sqlalchemy import false as sql_false
 from sqlalchemy.orm import joinedload
 from datetime import datetime, date
 from app import db
@@ -23,6 +24,8 @@ from app.services.category_helpers import (
     is_stock_market_category,
     ensure_stock_market_expense_category_exists,
     get_stock_market_display,
+    get_expense_category_filter_ids,
+    filter_synthetic_entries_for_category_ids,
 )
 from app.services.income_expense_aggregator import (
     get_expense_category_summary_with_adjustment,
@@ -326,9 +329,14 @@ def list():
         )
     )
     
-    # Filtrar por categoría si se especifica
+    # Filtrar por categoría (padre incluye hijas)
+    category_filter_ids = None
     if category_id:
-        query = query.filter_by(category_id=category_id)
+        category_filter_ids = get_expense_category_filter_ids(current_user.id, category_id)
+        if category_filter_ids:
+            query = query.filter(Expense.category_id.in_(category_filter_ids))
+        else:
+            query = query.filter(sql_false())
     
     # Ordenar por fecha descendente (más recientes primero)
     query = query.order_by(Expense.date.desc())
@@ -361,6 +369,13 @@ def list():
     summary_metrics = get_expense_summary_metrics(current_user.id, months=12)
     # Entradas sintéticas por mes (Ajustes y Stock Market) - todo el histórico
     synthetic_entries = get_synthetic_expense_entries_by_month(current_user.id, months=None)
+    if category_filter_ids:
+        synthetic_entries = filter_synthetic_entries_for_category_ids(
+            synthetic_entries,
+            category_filter_ids,
+            current_user.id,
+            side='expense',
+        )
     
     # Calcular meses con entradas sintéticas pero SIN gastos reales
     # para mostrarlos como filas independientes en la tabla
