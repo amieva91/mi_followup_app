@@ -207,7 +207,8 @@ def edit_category(id):
             parent_id=None
         ).filter(IncomeCategory.id != id).order_by(IncomeCategory.name).all()
     ]
-    form.parent_id.data = category.parent_id or 0
+    if request.method == 'GET':
+        form.parent_id.data = category.parent_id or 0
     
     if form.validate_on_submit():
         if is_stock_market_category(category):
