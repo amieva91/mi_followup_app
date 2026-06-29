@@ -68,6 +68,68 @@ def _sort_income_category_summary_by_total(summary: List[Dict[str, Any]]) -> Non
     summary.sort(key=lambda x: float(x.get("total") or 0), reverse=True)
 
 
+def _direct_average(total: float, period_months: int, fallback: float = 0.0) -> float:
+    if period_months > 0 and total > 0:
+        return round(total / period_months, 2)
+    return float(fallback or 0.0)
+
+
+def flatten_dashboard_category_medias(summary: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Filas para la tarjeta «Medias por categoría» del dashboard.
+    Misma lógica en ingresos y gastos: padre e hijas por separado, solo importe directo
+    (sin agregar hijas en el padre). Omite categorías sin movimiento directo.
+    """
+    rows: List[Dict[str, Any]] = []
+    for parent in summary:
+        label = parent.get('category') or parent.get('name')
+        children = parent.get('children') or []
+        period_months = int(parent.get('period_months') or 0)
+
+        if children:
+            children_total = sum(float(c.get('total', 0) or 0) for c in children)
+            parent_direct = float(parent.get('total', 0) or 0) - children_total
+            if parent_direct > 0.009:
+                rows.append({
+                    'id': parent['id'],
+                    'name': label,
+                    'icon': parent.get('icon'),
+                    'total': round(parent_direct, 2),
+                    'average': _direct_average(parent_direct, period_months),
+                })
+            for child in children:
+                child_total = float(child.get('total', 0) or 0)
+                if child_total <= 0.009:
+                    continue
+                child_label = child.get('category') or child.get('name')
+                child_pm = int(child.get('period_months') or period_months)
+                rows.append({
+                    'id': child['id'],
+                    'name': child_label,
+                    'icon': child.get('icon'),
+                    'total': round(child_total, 2),
+                    'average': _direct_average(
+                        child_total,
+                        child_pm,
+                        fallback=child.get('average', 0),
+                    ),
+                })
+        else:
+            total = float(parent.get('total', 0) or 0)
+            if total <= 0.009:
+                continue
+            rows.append({
+                'id': parent['id'],
+                'name': label,
+                'icon': parent.get('icon'),
+                'total': round(total, 2),
+                'average': float(parent.get('average') or _direct_average(total, period_months)),
+            })
+
+    rows.sort(key=lambda r: float(r.get('average') or 0), reverse=True)
+    return rows
+
+
 def _inject_broker_stock_market_summary(
     summary: List[Dict[str, Any]],
     cat,

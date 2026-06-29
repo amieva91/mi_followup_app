@@ -315,8 +315,7 @@ class DashboardSummaryCacheService:
         except Exception:
             data["recommendations"] = data.get("recommendations") or []
         from app.services.income_expense_aggregator import (
-            flatten_expense_category_chips_sorted,
-            flatten_income_category_chips_sorted,
+            flatten_dashboard_category_medias,
             get_expense_category_summary_with_adjustment,
             get_income_category_summary_with_adjustment,
         )
@@ -326,10 +325,10 @@ class DashboardSummaryCacheService:
         data["income_category_summary"] = get_income_category_summary_with_adjustment(
             user_id, months=12
         )
-        data["expense_category_chips"] = flatten_expense_category_chips_sorted(
+        data["expense_category_chips"] = flatten_dashboard_category_medias(
             data["expense_category_summary"]
         )
-        data["income_category_chips"] = flatten_income_category_chips_sorted(
+        data["income_category_chips"] = flatten_dashboard_category_medias(
             data["income_category_summary"]
         )
         data["top_movers"] = nws.get_top_movers_for_user(user_id, limit=5)

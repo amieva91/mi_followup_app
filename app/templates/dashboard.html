@@ -989,7 +989,7 @@
                         <div class="card-row-3d px-3 py-2 flex items-center justify-between">
                             <div class="flex items-center gap-2 min-w-0">
                                 <span class="shrink-0">{{ cat.icon|default('💰') }}</span>
-                                <span class="text-sm text-gray-700 truncate">{% if cat.parent_name %}{{ cat.parent_name }} › {% endif %}{{ cat.name | default(cat.category) }}</span>
+                                <span class="text-sm text-gray-700 truncate">{{ cat.name | default(cat.category) }}</span>
                             </div>
                             <span class="font-medium text-gray-800 shrink-0 ml-3">{{ "%.0f"|format(cat.average) }} €/mes</span>
                         </div>
@@ -1008,7 +1008,7 @@
                         <div class="card-row-3d px-3 py-2 flex items-center justify-between">
                             <div class="flex items-center gap-2 min-w-0">
                                 <span class="shrink-0">{{ cat.icon|default('💵') }}</span>
-                                <span class="text-sm text-gray-700 truncate">{% if cat.parent_name %}{{ cat.parent_name }} › {% endif %}{{ cat.name | default(cat.category) }}</span>
+                                <span class="text-sm text-gray-700 truncate">{{ cat.name | default(cat.category) }}</span>
                             </div>
                             <span class="font-medium text-gray-800 shrink-0 ml-3">{{ "%.0f"|format(cat.average) }} €/mes</span>
                         </div>
