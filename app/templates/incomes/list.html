@@ -174,23 +174,29 @@
     {% endif %}
 
     <!-- Resumen por categoría (12 meses) -->
-    {% if category_summary %}
+    {% if category_summary_chips %}
     <div class="income-card p-4 mb-6">
         <h2 class="text-lg font-bold text-gray-800 mb-3">📊 Resumen por categoría (últimos 12 meses)</h2>
         <div class="flex flex-wrap gap-3">
-            {% for item in category_summary %}
-            {% if item.category == 'Ajustes' %}
+            {% for chip in category_summary_chips %}
+            {% if chip.is_ajustes %}
             <span class="income-chip inline-flex items-center gap-2 px-4 py-2 border-gray-200 bg-gray-50" title="Ajuste de cierre calculado a partir de saldos bancarios (solo lectura)">
-                <span class="text-xl">{{ item.icon }}</span>
-                <span class="font-medium text-gray-800">{{ item.category }}</span>
-                <span class="text-green-600 font-semibold">+{{ '%.2f'|format(item.average) }} €/mes ({{ '%.2f'|format(item.total) }} €)</span>
+                <span class="text-xl">{{ chip.icon }}</span>
+                <span class="font-medium text-gray-800">{{ chip.name }}</span>
+                <span class="text-green-600 font-semibold">+{{ '%.2f'|format(chip.average) }} €/mes ({{ '%.2f'|format(chip.total) }} €)</span>
+            </span>
+            {% elif chip.is_stock_market %}
+            <span class="income-chip inline-flex items-center gap-2 px-4 py-2 border-gray-200 bg-gray-50" title="Retiradas de broker calculadas automáticamente (solo lectura)">
+                <span class="text-xl">{{ chip.icon }}</span>
+                <span class="font-medium text-gray-800">{% if chip.parent_name %}{{ chip.parent_name }} › {% endif %}{{ chip.name }}</span>
+                <span class="text-green-600 font-semibold">+{{ '%.2f'|format(chip.average) }} €/mes ({{ '%.2f'|format(chip.total) }} €)</span>
             </span>
             {% else %}
-            <a href="{{ url_for('incomes.list', category=item.id) }}"
+            <a href="{{ url_for('incomes.list', category=chip.id) }}"
                class="income-chip inline-flex items-center gap-2 px-4 py-2 hover:bg-green-50 hover:border-green-300 transition">
-                <span class="text-xl">{{ item.icon }}</span>
-                <span class="font-medium text-gray-800">{{ item.category }}</span>
-                <span class="text-green-600 font-semibold">+{{ '%.2f'|format(item.average) }} €/mes ({{ '%.2f'|format(item.total) }} €)</span>
+                <span class="text-xl">{{ chip.icon }}</span>
+                <span class="font-medium text-gray-800">{{ chip.name }}</span>
+                <span class="text-green-600 font-semibold">+{{ '%.2f'|format(chip.average) }} €/mes ({{ '%.2f'|format(chip.total) }} €)</span>
             </a>
             {% endif %}
             {% endfor %}
@@ -276,8 +282,8 @@
                             <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-500 italic">—</td>
                             <td class="px-6 py-3 whitespace-nowrap">
                                 <span class="inline-flex items-center space-x-2">
-                                    <span>📈</span>
-                                    <span class="text-sm text-gray-700">Stock Market</span>
+                                    <span>{{ stock_market_display.icon }}</span>
+                                    <span class="text-sm text-gray-700">{% if stock_market_display.parent_name %}{{ stock_market_display.parent_name }} › {% endif %}{{ stock_market_display.name }}</span>
                                 </span>
                                 <span class="ml-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded">auto</span>
                             </td>
@@ -423,8 +429,8 @@
                             <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-500 italic">—</td>
                             <td class="px-6 py-3 whitespace-nowrap">
                                 <span class="inline-flex items-center space-x-2">
-                                    <span>📈</span>
-                                    <span class="text-sm text-gray-700">Stock Market</span>
+                                    <span>{{ stock_market_display.icon }}</span>
+                                    <span class="text-sm text-gray-700">{% if stock_market_display.parent_name %}{{ stock_market_display.parent_name }} › {% endif %}{{ stock_market_display.name }}</span>
                                 </span>
                                 <span class="ml-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded">auto</span>
                             </td>

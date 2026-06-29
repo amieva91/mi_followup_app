@@ -20,6 +20,9 @@ from app.services.category_helpers import (
     STOCK_MARKET_CATEGORY_NAME,
     filter_editable_categories,
     is_ajustes_category,
+    is_stock_market_category,
+    ensure_stock_market_expense_category_exists,
+    get_stock_market_display,
 )
 from app.services.income_expense_aggregator import (
     get_expense_category_summary_with_adjustment,
@@ -85,6 +88,7 @@ def _touch_dashboard_for_expense_dates(user_id, dates):
 @login_required
 def categories():
     """Listar categorías de gastos (agrupadas jerárquicamente)"""
+    ensure_stock_market_expense_category_exists(current_user.id)
     # Obtener categorías principales ordenadas alfabéticamente
     parent_categories = ExpenseCategory.query.filter_by(
         user_id=current_user.id,
@@ -135,6 +139,8 @@ def quick_create_category():
     parent_id = request.form.get('parent_id', type=int) or 0
     if not name or not name.strip():
         return jsonify({'error': 'El nombre es requerido'}), 400
+    if name.strip() in (AJUSTES_CATEGORY_NAME, STOCK_MARKET_CATEGORY_NAME):
+        return jsonify({'error': f'El nombre "{name.strip()}" está reservado para el sistema'}), 400
     if parent_id:
         ok, parent_or_msg = _validate_parent_top_level_expense(int(parent_id))
         if ok is False:
@@ -169,6 +175,9 @@ def new_category():
     if form.validate_on_submit():
         if form.name.data.strip() == 'Ajustes':
             flash('El nombre "Ajustes" está reservado para el sistema', 'warning')
+            return redirect(url_for('expenses.new_category'))
+        if form.name.data.strip() == STOCK_MARKET_CATEGORY_NAME:
+            flash(f'El nombre "{STOCK_MARKET_CATEGORY_NAME}" está reservado para el sistema', 'warning')
             return redirect(url_for('expenses.new_category'))
         if form.parent_id.data and int(form.parent_id.data) != 0:
             ok, parent_or_msg = _validate_parent_top_level_expense(int(form.parent_id.data))
@@ -216,9 +225,16 @@ def edit_category(id):
     ]
     
     if form.validate_on_submit():
-        if form.name.data.strip() == 'Ajustes':
+        if is_stock_market_category(category):
+            category.name = STOCK_MARKET_CATEGORY_NAME
+        elif form.name.data.strip() == 'Ajustes':
             flash('El nombre "Ajustes" está reservado para el sistema', 'warning')
             return redirect(url_for('expenses.categories'))
+        elif form.name.data.strip() == STOCK_MARKET_CATEGORY_NAME:
+            flash(f'El nombre "{STOCK_MARKET_CATEGORY_NAME}" está reservado para el sistema', 'warning')
+            return redirect(url_for('expenses.categories'))
+        else:
+            category.name = form.name.data
         new_parent_id = int(form.parent_id.data or 0)
         if new_parent_id:
             ok, parent_or_msg = _validate_parent_top_level_expense(new_parent_id)
@@ -232,7 +248,6 @@ def edit_category(id):
                     'error',
                 )
                 return redirect(url_for('expenses.edit_category', id=id))
-        category.name = form.name.data
         category.icon = form.icon.data or '💰'
         category.color = form.color.data
         category.parent_id = form.parent_id.data if form.parent_id.data != 0 else None
@@ -246,7 +261,8 @@ def edit_category(id):
         'expenses/category_form.html',
         form=form,
         title='Editar Categoría',
-        category=category
+        category=category,
+        lock_name=is_stock_market_category(category),
     )
 
 
@@ -258,6 +274,13 @@ def delete_category(id):
     
     if is_ajustes_category(category):
         flash('La categoría Ajustes está reservada para el sistema y no puede eliminarse', 'warning')
+        return redirect(url_for('expenses.categories'))
+    if is_stock_market_category(category):
+        flash(
+            f'La categoría {STOCK_MARKET_CATEGORY_NAME} está reservada para movimientos de broker '
+            'y no puede eliminarse',
+            'warning',
+        )
         return redirect(url_for('expenses.categories'))
     if category.user_id != current_user.id:
         flash('No tienes permiso para eliminar esta categoría', 'error')
@@ -331,6 +354,7 @@ def list():
     # Resumen por categoría (12 meses, jerárquico) incluyendo ajuste de reconciliación
     category_summary = get_expense_category_summary_with_adjustment(current_user.id, months=12)
     category_summary_chips = flatten_expense_category_chips_sorted(category_summary)
+    stock_market_display = get_stock_market_display(current_user.id, side='expense')
     # Totales mensuales (12 meses) para gráfico de barras incluyendo ajuste
     monthly_totals = get_expense_monthly_totals_with_adjustment(current_user.id, months=12)
     # Métricas de resumen (Fase 6)
@@ -378,6 +402,7 @@ def list():
         synthetic_entries=synthetic_entries,
         orphan_synthetic_entries=orphan_synthetic_entries,
         recurrence_group_meta=build_recurrence_group_meta(Expense, current_user.id),
+        stock_market_display=stock_market_display,
     )
 
 

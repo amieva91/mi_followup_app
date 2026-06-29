@@ -18,8 +18,12 @@ from app.services.category_helpers import (
     STOCK_MARKET_CATEGORY_NAME,
     filter_editable_categories,
     is_ajustes_category,
+    is_stock_market_category,
+    ensure_stock_market_income_category_exists,
+    get_stock_market_display,
 )
 from app.services.income_expense_aggregator import (
+    flatten_income_category_chips_sorted,
     get_income_category_summary_with_adjustment,
     get_income_monthly_totals_with_adjustment,
     get_synthetic_income_entries_by_month,
@@ -75,6 +79,7 @@ def _touch_dashboard_for_income_dates(user_id, dates):
 @login_required
 def categories():
     """Listar categorías de ingresos (agrupadas jerárquicamente)"""
+    ensure_stock_market_income_category_exists(current_user.id)
     parent_categories = IncomeCategory.query.filter_by(
         user_id=current_user.id,
         parent_id=None
@@ -121,6 +126,8 @@ def quick_create_category():
     icon = request.form.get('icon', '💵') or '💵'
     if not name or not name.strip():
         return jsonify({'error': 'El nombre es requerido'}), 400
+    if name.strip() in (AJUSTES_CATEGORY_NAME, STOCK_MARKET_CATEGORY_NAME):
+        return jsonify({'error': f'El nombre "{name.strip()}" está reservado para el sistema'}), 400
     parent_id = request.form.get('parent_id', type=int) or (request.json.get('parent_id') if request.is_json else 0) or 0
     if parent_id:
         ok, parent_or_msg = _validate_parent_top_level_income(int(parent_id))
@@ -154,6 +161,9 @@ def new_category():
     if form.validate_on_submit():
         if form.name.data.strip() == 'Ajustes':
             flash('El nombre "Ajustes" está reservado para el sistema', 'warning')
+            return redirect(url_for('incomes.new_category'))
+        if form.name.data.strip() == STOCK_MARKET_CATEGORY_NAME:
+            flash(f'El nombre "{STOCK_MARKET_CATEGORY_NAME}" está reservado para el sistema', 'warning')
             return redirect(url_for('incomes.new_category'))
         if form.parent_id.data and int(form.parent_id.data) != 0:
             ok, parent_or_msg = _validate_parent_top_level_income(int(form.parent_id.data))
@@ -200,9 +210,16 @@ def edit_category(id):
     form.parent_id.data = category.parent_id or 0
     
     if form.validate_on_submit():
-        if form.name.data.strip() == 'Ajustes':
+        if is_stock_market_category(category):
+            category.name = STOCK_MARKET_CATEGORY_NAME
+        elif form.name.data.strip() == 'Ajustes':
             flash('El nombre "Ajustes" está reservado para el sistema', 'warning')
             return redirect(url_for('incomes.categories'))
+        elif form.name.data.strip() == STOCK_MARKET_CATEGORY_NAME:
+            flash(f'El nombre "{STOCK_MARKET_CATEGORY_NAME}" está reservado para el sistema', 'warning')
+            return redirect(url_for('incomes.categories'))
+        else:
+            category.name = form.name.data
         new_parent_id = int(form.parent_id.data or 0)
         if new_parent_id:
             ok, parent_or_msg = _validate_parent_top_level_income(new_parent_id)
@@ -216,7 +233,6 @@ def edit_category(id):
                     'error',
                 )
                 return redirect(url_for('incomes.edit_category', id=id))
-        category.name = form.name.data
         category.icon = form.icon.data or '💵'
         category.color = form.color.data
         category.parent_id = form.parent_id.data if form.parent_id.data != 0 else None
@@ -230,7 +246,8 @@ def edit_category(id):
         'incomes/category_form.html',
         form=form,
         title='Editar Categoría',
-        category=category
+        category=category,
+        lock_name=is_stock_market_category(category),
     )
 
 
@@ -242,6 +259,13 @@ def delete_category(id):
     
     if is_ajustes_category(category):
         flash('La categoría Ajustes está reservada para el sistema y no puede eliminarse', 'warning')
+        return redirect(url_for('incomes.categories'))
+    if is_stock_market_category(category):
+        flash(
+            f'La categoría {STOCK_MARKET_CATEGORY_NAME} está reservada para movimientos de broker '
+            'y no puede eliminarse',
+            'warning',
+        )
         return redirect(url_for('incomes.categories'))
     if category.user_id != current_user.id:
         flash('No tienes permiso para eliminar esta categoría', 'error')
@@ -303,6 +327,8 @@ def list():
 
     # Resumen por categoría (12 meses) incluyendo ajuste de reconciliación
     category_summary = get_income_category_summary_with_adjustment(current_user.id, months=12)
+    category_summary_chips = flatten_income_category_chips_sorted(category_summary)
+    stock_market_display = get_stock_market_display(current_user.id, side='income')
     # Totales mensuales (12 meses) para gráfico de barras incluyendo ajuste
     monthly_totals = get_income_monthly_totals_with_adjustment(current_user.id, months=12)
     # Métricas de resumen (Fase 6)
@@ -344,6 +370,8 @@ def list():
         integration_income_categories=integration_income_categories,
         selected_category=category_id,
         category_summary=category_summary,
+        category_summary_chips=category_summary_chips,
+        stock_market_display=stock_market_display,
         monthly_totals=monthly_totals,
         summary_metrics=summary_metrics,
         synthetic_entries=synthetic_entries,

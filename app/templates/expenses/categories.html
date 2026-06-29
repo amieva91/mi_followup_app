@@ -98,6 +98,14 @@
                             <td class="px-6 py-4 whitespace-nowrap text-center">
                                 {% if category.name == 'Ajustes' %}
                                 <span class="text-xs text-gray-500">Sistema (solo lectura)</span>
+                                {% elif category.name == 'Stock Market' %}
+                                <div class="flex flex-col items-center gap-1">
+                                    <span class="text-xs text-gray-500">Broker (automática)</span>
+                                    <a href="{{ url_for('expenses.edit_category', id=category.id) }}"
+                                       class="text-blue-600 hover:text-blue-800" title="Configurar padre e icono">
+                                        ✏️
+                                    </a>
+                                </div>
                                 {% else %}
                                 <div class="flex justify-center space-x-2">
                                     <a href="{{ url_for('expenses.edit_category', id=category.id) }}" 

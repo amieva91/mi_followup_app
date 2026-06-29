@@ -94,6 +94,56 @@ def is_ajustes_category(category):
     return category and category.name == AJUSTES_CATEGORY_NAME
 
 
+def is_stock_market_category(category):
+    """Indica si la categoría es la reservada para movimientos broker (Stock Market)."""
+    return category and category.name == STOCK_MARKET_CATEGORY_NAME
+
+
+def ensure_stock_market_income_category_exists(user_id):
+    """Crea la categoría Stock Market de ingresos si no existe (para configurar jerarquía)."""
+    return get_or_create_stock_market_income_category(user_id)
+
+
+def ensure_stock_market_expense_category_exists(user_id):
+    """Crea la categoría Stock Market de gastos si no existe (para configurar jerarquía)."""
+    return get_or_create_stock_market_expense_category(user_id)
+
+
+def get_stock_market_display(user_id, side='income'):
+    """
+    Metadatos de presentación de Stock Market (icono, padre configurado).
+    side: 'income' | 'expense'
+    """
+    if side == 'expense':
+        cat = ExpenseCategory.query.filter_by(
+            user_id=user_id,
+            name=STOCK_MARKET_CATEGORY_NAME,
+        ).first()
+    else:
+        cat = IncomeCategory.query.filter_by(
+            user_id=user_id,
+            name=STOCK_MARKET_CATEGORY_NAME,
+        ).first()
+    if not cat:
+        return {
+            'icon': '📈',
+            'name': STOCK_MARKET_CATEGORY_NAME,
+            'parent_name': None,
+            'category_id': None,
+        }
+    parent_name = None
+    if cat.parent_id:
+        parent = cat.parent
+        if parent:
+            parent_name = parent.name
+    return {
+        'icon': cat.icon or '📈',
+        'name': STOCK_MARKET_CATEGORY_NAME,
+        'parent_name': parent_name,
+        'category_id': cat.id,
+    }
+
+
 def get_or_create_dividendos_category(user_id):
     """Obtiene o crea la categoría Dividendos para ingresos (retiradas broker)."""
     cat = IncomeCategory.query.filter_by(

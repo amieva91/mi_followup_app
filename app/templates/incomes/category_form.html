@@ -41,7 +41,12 @@
             <div class="income-form-section p-5 space-y-4">
                 <div>
                     {{ form.name.label(class="block text-gray-700 font-semibold mb-2") }}
+                    {% if lock_name %}
+                    {{ form.name(class="w-full px-4 py-2.5 border border-slate-300 rounded-xl bg-gray-100 text-gray-600", readonly=true) }}
+                    <p class="text-sm text-gray-500 mt-1">Nombre reservado para movimientos de broker (IBKR/DeGiro). Puedes cambiar icono, color y categoría padre.</p>
+                    {% else %}
                     {{ form.name(class="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500") }}
+                    {% endif %}
                     {% if form.name.errors %}
                         <div class="text-red-600 text-sm mt-1">
                             {% for error in form.name.errors %}

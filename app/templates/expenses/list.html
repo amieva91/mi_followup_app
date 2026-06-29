@@ -190,6 +190,12 @@
                 <span class="font-medium text-gray-800">{{ chip.name }}</span>
                 <span class="text-red-600 font-semibold">-{{ '%.2f'|format(chip.average) }} €/mes ({{ '%.2f'|format(chip.total) }} €)</span>
             </span>
+            {% elif chip.is_stock_market %}
+            <span class="expense-chip inline-flex items-center gap-2 px-4 py-2 border-gray-200 bg-gray-50" title="Depósitos a broker calculados automáticamente (solo lectura)">
+                <span class="text-xl">{{ chip.icon }}</span>
+                <span class="font-medium text-gray-800">{% if chip.parent_name %}{{ chip.parent_name }} › {% endif %}{{ chip.name }}</span>
+                <span class="text-red-600 font-semibold">-{{ '%.2f'|format(chip.average) }} €/mes ({{ '%.2f'|format(chip.total) }} €)</span>
+            </span>
             {% else %}
             <a href="{{ url_for('expenses.list', category=chip.id) }}"
                class="expense-chip inline-flex items-center gap-2 px-4 py-2 hover:border-red-300 transition">
@@ -281,8 +287,8 @@
                             <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-500 italic">—</td>
                             <td class="px-6 py-3 whitespace-nowrap">
                                 <span class="inline-flex items-center space-x-2">
-                                    <span>📈</span>
-                                    <span class="text-sm text-gray-700">Stock Market</span>
+                                    <span>{{ stock_market_display.icon }}</span>
+                                    <span class="text-sm text-gray-700">{% if stock_market_display.parent_name %}{{ stock_market_display.parent_name }} › {% endif %}{{ stock_market_display.name }}</span>
                                 </span>
                                 <span class="ml-2 text-xs bg-red-100 text-red-800 px-2 py-1 rounded">auto</span>
                             </td>
@@ -464,8 +470,8 @@
                             <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-500 italic">—</td>
                             <td class="px-6 py-3 whitespace-nowrap">
                                 <span class="inline-flex items-center space-x-2">
-                                    <span>📈</span>
-                                    <span class="text-sm text-gray-700">Stock Market</span>
+                                    <span>{{ stock_market_display.icon }}</span>
+                                    <span class="text-sm text-gray-700">{% if stock_market_display.parent_name %}{{ stock_market_display.parent_name }} › {% endif %}{{ stock_market_display.name }}</span>
                                 </span>
                                 <span class="ml-2 text-xs bg-red-100 text-red-800 px-2 py-1 rounded">auto</span>
                             </td>

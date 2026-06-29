@@ -68,6 +68,135 @@ def _sort_income_category_summary_by_total(summary: List[Dict[str, Any]]) -> Non
     summary.sort(key=lambda x: float(x.get("total") or 0), reverse=True)
 
 
+def _inject_broker_stock_market_summary(
+    summary: List[Dict[str, Any]],
+    cat,
+    amount: float,
+    *,
+    label_key: str,
+) -> None:
+    """
+    Inyecta totales broker en el resumen respetando parent_id de Stock Market.
+    Si tiene padre, aparece como hijo; si no, como categoría raíz.
+    """
+    if amount <= 0:
+        return
+    amount = round(float(amount), 2)
+    child_row = {
+        'id': cat.id,
+        label_key: cat.name,
+        'icon': cat.icon,
+        'total': amount,
+        'is_stock_market': True,
+        'is_synthetic': True,
+    }
+    if label_key == 'category':
+        child_row['color'] = cat.color
+
+    if not cat.parent_id:
+        existing = next((s for s in summary if s.get('id') == cat.id), None)
+        if existing:
+            existing['total'] = round(float(existing.get('total', 0)) + amount, 2)
+            existing['is_stock_market'] = True
+        else:
+            row = dict(child_row)
+            row['children'] = []
+            summary.append(row)
+        return
+
+    parent = cat.parent
+    if not parent:
+        existing = next((s for s in summary if s.get('id') == cat.id), None)
+        if existing:
+            existing['total'] = round(float(existing.get('total', 0)) + amount, 2)
+        else:
+            summary.append({**child_row, 'children': []})
+        return
+
+    parent_row = next((s for s in summary if s.get('id') == parent.id), None)
+    if parent_row:
+        children = parent_row.setdefault('children', [])
+        existing_child = next((c for c in children if c.get('id') == cat.id), None)
+        if existing_child:
+            existing_child['total'] = round(float(existing_child.get('total', 0)) + amount, 2)
+        else:
+            children.append(dict(child_row))
+        parent_row['total'] = round(float(parent_row.get('total', 0)) + amount, 2)
+    else:
+        parent_entry = {
+            'id': parent.id,
+            label_key: parent.name,
+            'icon': parent.icon,
+            'total': amount,
+            'children': [dict(child_row)],
+        }
+        if label_key == 'category':
+            parent_entry['color'] = parent.color
+        summary.append(parent_entry)
+
+
+def _apply_income_summary_averages(summary: List[Dict[str, Any]], period_months: int) -> None:
+    for item in summary:
+        total = float(item.get('total', 0) or 0)
+        item['period_months'] = period_months
+        item['average'] = (
+            round(total / period_months, 2) if period_months > 0 and total else 0.0
+        )
+        for child in item.get('children', []):
+            ct = float(child.get('total', 0) or 0)
+            child['period_months'] = period_months
+            child['average'] = (
+                round(ct / period_months, 2) if period_months > 0 and ct else 0.0
+            )
+
+
+def flatten_income_category_chips_sorted(summary: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Chips de resumen de ingresos (incluye hijos y Stock Market bajo su padre)."""
+    rows: List[Dict[str, Any]] = []
+    for parent in summary:
+        label = parent.get('category') or parent.get('name')
+        children = parent.get('children') or []
+        if children:
+            children_total = sum(float(c.get('total', 0) or 0) for c in children)
+            parent_direct = float(parent.get('total', 0) or 0) - children_total
+            if parent_direct > 0.009:
+                rows.append({
+                    'id': parent['id'],
+                    'name': label,
+                    'icon': parent.get('icon'),
+                    'total': round(parent_direct, 2),
+                    'average': parent.get('average', 0),
+                    'is_ajustes': label == 'Ajustes',
+                    'is_stock_market': False,
+                    'parent_name': None,
+                })
+            for child in children:
+                child_label = child.get('category') or child.get('name')
+                rows.append({
+                    'id': child['id'],
+                    'name': child_label,
+                    'icon': child.get('icon'),
+                    'total': child['total'],
+                    'average': child.get('average', 0),
+                    'is_ajustes': False,
+                    'is_stock_market': child.get('is_stock_market', False),
+                    'parent_name': label if child.get('is_stock_market') else None,
+                })
+        else:
+            rows.append({
+                'id': parent['id'],
+                'name': label,
+                'icon': parent.get('icon'),
+                'total': parent['total'],
+                'average': parent.get('average', 0),
+                'is_ajustes': label == 'Ajustes',
+                'is_stock_market': parent.get('is_stock_market', False),
+                'parent_name': None,
+            })
+    rows.sort(key=lambda r: float(r.get('total') or 0), reverse=True)
+    return rows
+
+
 def flatten_expense_category_chips_sorted(summary: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Filas listas para la UI de resumen (un chip por categoría mostrada),
@@ -86,6 +215,8 @@ def flatten_expense_category_chips_sorted(summary: List[Dict[str, Any]]) -> List
                         "total": c["total"],
                         "average": c["average"],
                         "is_ajustes": False,
+                        "is_stock_market": c.get("is_stock_market", False),
+                        "parent_name": parent.get("name") if c.get("is_stock_market") else None,
                     }
                 )
         else:
@@ -97,6 +228,8 @@ def flatten_expense_category_chips_sorted(summary: List[Dict[str, Any]]) -> List
                     "total": parent["total"],
                     "average": parent["average"],
                     "is_ajustes": parent.get("name") == "Ajustes",
+                    "is_stock_market": parent.get("is_stock_market", False),
+                    "parent_name": None,
                 }
             )
     rows.sort(key=lambda r: float(r.get("total") or 0), reverse=True)
@@ -135,25 +268,14 @@ def get_income_category_summary_with_adjustment(user_id, months=12):
 
     if broker_withdrawals_total > 0:
         cat = get_or_create_stock_market_income_category(user_id)
-        existing = next((s for s in summary if s.get('id') == cat.id or s.get('category') == 'Stock Market'), None)
-        if existing:
-            existing['total'] = round(existing['total'] + broker_withdrawals_total, 2)
-        else:
-            summary.append({
-                'id': cat.id,
-                'category': cat.name,
-                'icon': cat.icon,
-                'color': cat.color,
-                'total': round(broker_withdrawals_total, 2)
-            })
-
-    for item in summary:
-        total = float(item.get("total", 0) or 0)
-        item["period_months"] = period_months
-        item["average"] = (
-            round(total / period_months, 2) if period_months > 0 and total else 0.0
+        _inject_broker_stock_market_summary(
+            summary,
+            cat,
+            broker_withdrawals_total,
+            label_key='category',
         )
 
+    _apply_income_summary_averages(summary, period_months)
     _sort_income_category_summary_by_total(summary)
     return summary
 
@@ -190,17 +312,12 @@ def get_expense_category_summary_with_adjustment(user_id, months=12):
 
     if broker_deposits_total > 0:
         cat = get_or_create_stock_market_expense_category(user_id)
-        existing = next((s for s in summary if s.get('id') == cat.id or s.get('name') == 'Stock Market'), None)
-        if existing:
-            existing['total'] = round(existing['total'] + broker_deposits_total, 2)
-        else:
-            summary.append({
-                'id': cat.id,
-                'name': cat.name,
-                'icon': cat.icon,
-                'total': round(broker_deposits_total, 2),
-                'children': []
-            })
+        _inject_broker_stock_market_summary(
+            summary,
+            cat,
+            broker_deposits_total,
+            label_key='name',
+        )
 
     _add_expense_average_fields(summary, period_months)
 
