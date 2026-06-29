@@ -2085,6 +2085,8 @@ def get_dashboard_summary(user_id: int) -> Dict[str, Any]:
     recent_transactions = get_recent_transactions(user_id)
     currency_exposure = get_currency_exposure(user_id)
     from app.services.income_expense_aggregator import (
+        flatten_expense_category_chips_sorted,
+        flatten_income_category_chips_sorted,
         get_expense_category_summary_with_adjustment,
         get_income_category_summary_with_adjustment,
     )
@@ -2161,6 +2163,8 @@ def get_dashboard_summary(user_id: int) -> Dict[str, Any]:
         "recommendations": recommendations,
         "expense_category_summary": expense_category_summary,
         "income_category_summary": income_category_summary,
+        "expense_category_chips": flatten_expense_category_chips_sorted(expense_category_summary),
+        "income_category_chips": flatten_income_category_chips_sorted(income_category_summary),
         # Campos nuevos para futuras optimizaciones de cache
         "history_block": history_block,
         "current_block": current_block,

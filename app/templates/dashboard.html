@@ -967,8 +967,8 @@
         {% endif %}
 
         <!-- Ingresos/Gastos medios por categoría (últimos 12 meses) -->
-        {% set expense_cats = (summary.expense_category_summary | default([]) | selectattr('average', 'defined') | selectattr('average', 'gt', 0) | list | sort(attribute='average', reverse=True))[:8] %}
-        {% set income_cats = (summary.income_category_summary | default([]) | selectattr('average', 'defined') | selectattr('average', 'gt', 0) | list | sort(attribute='average', reverse=True))[:8] %}
+        {% set expense_cats = (summary.expense_category_chips | default(summary.expense_category_summary) | default([]) | selectattr('average', 'defined') | selectattr('average', 'gt', 0) | list | sort(attribute='average', reverse=True))[:8] %}
+        {% set income_cats = (summary.income_category_chips | default(summary.income_category_summary) | default([]) | selectattr('average', 'defined') | selectattr('average', 'gt', 0) | list | sort(attribute='average', reverse=True))[:8] %}
         {% if expense_cats or income_cats %}
         <div class="dashboard-card p-5" data-card-id="expense_by_category">
             <div class="flex items-center justify-between mb-2">
@@ -989,7 +989,7 @@
                         <div class="card-row-3d px-3 py-2 flex items-center justify-between">
                             <div class="flex items-center gap-2 min-w-0">
                                 <span class="shrink-0">{{ cat.icon|default('💰') }}</span>
-                                <span class="text-sm text-gray-700 truncate">{{ cat.name }}</span>
+                                <span class="text-sm text-gray-700 truncate">{% if cat.parent_name %}{{ cat.parent_name }} › {% endif %}{{ cat.name | default(cat.category) }}</span>
                             </div>
                             <span class="font-medium text-gray-800 shrink-0 ml-3">{{ "%.0f"|format(cat.average) }} €/mes</span>
                         </div>
@@ -1008,7 +1008,7 @@
                         <div class="card-row-3d px-3 py-2 flex items-center justify-between">
                             <div class="flex items-center gap-2 min-w-0">
                                 <span class="shrink-0">{{ cat.icon|default('💵') }}</span>
-                                <span class="text-sm text-gray-700 truncate">{{ cat.category|default(cat.name) }}</span>
+                                <span class="text-sm text-gray-700 truncate">{% if cat.parent_name %}{{ cat.parent_name }} › {% endif %}{{ cat.name | default(cat.category) }}</span>
                             </div>
                             <span class="font-medium text-gray-800 shrink-0 ml-3">{{ "%.0f"|format(cat.average) }} €/mes</span>
                         </div>
