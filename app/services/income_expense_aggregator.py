@@ -213,7 +213,7 @@ def _apply_income_summary_averages(summary: List[Dict[str, Any]], period_months:
 
 
 def flatten_income_category_chips_sorted(summary: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Chips de resumen de ingresos (incluye hijos y Stock Market bajo su padre)."""
+    """Chips de resumen de ingresos (padre e hijas con importe directo, sin agregar)."""
     rows: List[Dict[str, Any]] = []
     for parent in summary:
         label = parent.get('category') or parent.get('name')
@@ -222,29 +222,37 @@ def flatten_income_category_chips_sorted(summary: List[Dict[str, Any]]) -> List[
             children_total = sum(float(c.get('total', 0) or 0) for c in children)
             parent_direct = float(parent.get('total', 0) or 0) - children_total
             if parent_direct > 0.009:
+                period_months = int(parent.get('period_months') or 0)
                 rows.append({
                     'id': parent['id'],
                     'name': label,
                     'icon': parent.get('icon'),
                     'total': round(parent_direct, 2),
-                    'average': parent.get('average', 0),
+                    'average': _direct_average(parent_direct, period_months),
                     'is_ajustes': label == 'Ajustes',
-                    'is_stock_market': False,
-                    'parent_name': None,
                 })
             for child in children:
+                child_total = float(child.get('total', 0) or 0)
+                if child_total <= 0.009:
+                    continue
                 child_label = child.get('category') or child.get('name')
+                child_pm = int(child.get('period_months') or parent.get('period_months') or 0)
                 rows.append({
                     'id': child['id'],
                     'name': child_label,
                     'icon': child.get('icon'),
                     'total': child['total'],
-                    'average': child.get('average', 0),
+                    'average': _direct_average(
+                        child_total,
+                        child_pm,
+                        fallback=child.get('average', 0),
+                    ),
                     'is_ajustes': False,
-                    'is_stock_market': child.get('is_stock_market', False),
-                    'parent_name': label if child.get('is_stock_market') else None,
                 })
         else:
+            total = float(parent.get('total', 0) or 0)
+            if total <= 0.009:
+                continue
             rows.append({
                 'id': parent['id'],
                 'name': label,
@@ -252,8 +260,6 @@ def flatten_income_category_chips_sorted(summary: List[Dict[str, Any]]) -> List[
                 'total': parent['total'],
                 'average': parent.get('average', 0),
                 'is_ajustes': label == 'Ajustes',
-                'is_stock_market': parent.get('is_stock_market', False),
-                'parent_name': None,
             })
     rows.sort(key=lambda r: float(r.get('total') or 0), reverse=True)
     return rows
@@ -266,35 +272,51 @@ def flatten_expense_category_chips_sorted(summary: List[Dict[str, Any]]) -> List
     """
     rows: List[Dict[str, Any]] = []
     for parent in summary:
-        children = parent.get("children") or []
+        label = parent.get('name')
+        children = parent.get('children') or []
         if children:
-            for c in children:
-                rows.append(
-                    {
-                        "id": c["id"],
-                        "name": c["name"],
-                        "icon": c.get("icon"),
-                        "total": c["total"],
-                        "average": c["average"],
-                        "is_ajustes": False,
-                        "is_stock_market": c.get("is_stock_market", False),
-                        "parent_name": parent.get("name") if c.get("is_stock_market") else None,
-                    }
-                )
+            children_total = sum(float(c.get('total', 0) or 0) for c in children)
+            parent_direct = float(parent.get('total', 0) or 0) - children_total
+            if parent_direct > 0.009:
+                period_months = int(parent.get('period_months') or 0)
+                rows.append({
+                    'id': parent['id'],
+                    'name': label,
+                    'icon': parent.get('icon'),
+                    'total': round(parent_direct, 2),
+                    'average': _direct_average(parent_direct, period_months),
+                    'is_ajustes': label == 'Ajustes',
+                })
+            for child in children:
+                child_total = float(child.get('total', 0) or 0)
+                if child_total <= 0.009:
+                    continue
+                child_pm = int(child.get('period_months') or parent.get('period_months') or 0)
+                rows.append({
+                    'id': child['id'],
+                    'name': child.get('name'),
+                    'icon': child.get('icon'),
+                    'total': child['total'],
+                    'average': _direct_average(
+                        child_total,
+                        child_pm,
+                        fallback=child.get('average', 0),
+                    ),
+                    'is_ajustes': False,
+                })
         else:
-            rows.append(
-                {
-                    "id": parent["id"],
-                    "name": parent["name"],
-                    "icon": parent.get("icon"),
-                    "total": parent["total"],
-                    "average": parent["average"],
-                    "is_ajustes": parent.get("name") == "Ajustes",
-                    "is_stock_market": parent.get("is_stock_market", False),
-                    "parent_name": None,
-                }
-            )
-    rows.sort(key=lambda r: float(r.get("total") or 0), reverse=True)
+            total = float(parent.get('total', 0) or 0)
+            if total <= 0.009:
+                continue
+            rows.append({
+                'id': parent['id'],
+                'name': label,
+                'icon': parent.get('icon'),
+                'total': parent['total'],
+                'average': parent['average'],
+                'is_ajustes': label == 'Ajustes',
+            })
+    rows.sort(key=lambda r: float(r.get('total') or 0), reverse=True)
     return rows
 
 

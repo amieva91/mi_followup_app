@@ -128,18 +128,11 @@ def get_stock_market_display(user_id, side='income'):
         return {
             'icon': '📈',
             'name': STOCK_MARKET_CATEGORY_NAME,
-            'parent_name': None,
             'category_id': None,
         }
-    parent_name = None
-    if cat.parent_id:
-        parent = cat.parent
-        if parent:
-            parent_name = parent.name
     return {
         'icon': cat.icon or '📈',
         'name': STOCK_MARKET_CATEGORY_NAME,
-        'parent_name': parent_name,
         'category_id': cat.id,
     }
 
