@@ -86,6 +86,7 @@ EXPENSE_EMOJIS: list[tuple[str, str]] = [
     ('💳', 'Tarjetas'),
     ('🛡️', 'Seguros'),
     ('🧾', 'Impuestos'),
+    ('🪨', 'Minerales'),
     ('💰', 'Otros'),
 ]
 
