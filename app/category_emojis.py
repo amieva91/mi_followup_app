@@ -45,6 +45,7 @@ EXPENSE_EMOJIS: list[tuple[str, str]] = [
     ('👓', 'Óptica'),
     ('🧴', 'Higiene'),
     ('💅', 'Belleza'),
+    ('💇', 'Peluquería'),
     ('🛌', 'Camilla'),
     ('🚑', 'Ambulancia / urgencias'),
     ('🩺', 'Consulta médica'),
