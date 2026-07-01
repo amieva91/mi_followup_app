@@ -28,6 +28,7 @@ EXPENSE_EMOJIS: list[tuple[str, str]] = [
     ('🏢', 'Oficina / coworking'),
     ('🧑‍💻', 'Espacio de trabajo compartido'),
     ('🖥️', 'Puesto de trabajo / equipamiento'),
+    ('🗄️', 'Servidor'),
     ('📎', 'Papelería y consumibles'),
     ('🖨️', 'Copias e impresión'),
     ('📄', 'Facturas'),
