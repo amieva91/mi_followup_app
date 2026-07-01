@@ -13,7 +13,7 @@ set -euo pipefail
 
 PROJECT="gen-lang-client-0658912226"
 INSTANCE="followup"
-ZONE="us-central1-c"
+ZONE="us-central1-b"
 APP_DIR="/var/www/followup"
 
 RESTART=1

@@ -10,7 +10,7 @@ set -e  # Exit on error
 # Configuración GCP (misma que scripts/connect-gcp.sh)
 PROJECT="gen-lang-client-0658912226"
 INSTANCE="followup"
-ZONE="us-central1-c"
+ZONE="us-central1-b"
 
 gcloud config set project "$PROJECT" 2>/dev/null
 

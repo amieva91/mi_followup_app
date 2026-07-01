@@ -19,7 +19,7 @@ set -euo pipefail
 
 PROJECT="gen-lang-client-0658912226"
 INSTANCE="followup"
-ZONE="us-central1-c"
+ZONE="us-central1-b"
 DEFAULT_BRANCH="ui/dashboard-layout-experiments"
 
 BRANCH="${EXPERIMENTAL_BRANCH:-${1:-$DEFAULT_BRANCH}}"
