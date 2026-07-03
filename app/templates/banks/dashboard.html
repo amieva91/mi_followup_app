@@ -47,6 +47,42 @@
         transform: scale(0.98);
         filter: brightness(0.96);
     }
+    .bank-balance-period {
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid rgba(63, 95, 115, 0.12);
+        border-radius: 14px;
+        padding: 0.85rem 1rem;
+    }
+    .bank-balance-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(min(100%, 11.5rem), 1fr));
+        gap: 0.85rem 1rem;
+        width: 100%;
+    }
+    .bank-balance-field label {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        min-height: 1.25rem;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: #374151;
+        line-height: 1.2;
+    }
+    .bank-balance-field input {
+        width: 100%;
+        min-width: 0;
+        padding: 0.55rem 0.75rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 0.75rem;
+        font-variant-numeric: tabular-nums;
+        background: #fff;
+    }
+    .bank-balance-field input:focus {
+        outline: none;
+        border-color: #14b8a6;
+        box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.25);
+    }
 </style>
 <div class="max-w-[92%] mx-auto px-4 py-8">
     <!-- Header -->
@@ -80,56 +116,69 @@
         {% set next_month = selected_month + 1 %}
         {% set next_year = selected_year %}
     {% endif %}
-    <!-- Selector de mes -->
-    <div class="bank-card p-4 mb-6">
-        <h2 class="bank-title text-lg mb-3">📅 Registrar saldos</h2>
-        <form method="POST" action="{{ url_for('banks.save_balances') }}" class="flex flex-wrap items-end gap-4">
+    {% set mes_nombres = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'] %}
+    <!-- Registrar saldos -->
+    <div class="bank-card p-5 sm:p-6 mb-6">
+        <h2 class="bank-title text-lg mb-4">📅 Registrar saldos</h2>
+        <form method="POST" action="{{ url_for('banks.save_balances') }}" class="space-y-5">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="year" value="{{ selected_year }}">
             <input type="hidden" name="month" value="{{ selected_month }}">
 
-            <div class="flex gap-2 sm:gap-3 items-end flex-wrap">
-                <a href="{{ url_for('banks.dashboard', year=prev_year, month=prev_month) }}"
-                   class="bank-touch-btn inline-flex items-center justify-center w-10 h-10 shrink-0 rounded-xl border border-slate-300 bg-white text-gray-700 hover:bg-slate-50 hover:border-slate-400 shadow-sm transition"
-                   title="Mes anterior">←</a>
-                <div class="flex gap-3 items-center">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Mes</label>
-                    <select name="nav_month" onchange="navigateMonth(this)" class="px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
-                        {% set mes_nombres = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'] %}
-                        {% for m in range(1, 13) %}
-                        <option value="{{ m }}" {% if m == selected_month %}selected{% endif %}>{{ mes_nombres[m-1] }} {{ selected_year }}</option>
-                        {% endfor %}
-                    </select>
+            <div class="bank-balance-period">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                    <p class="text-sm font-medium text-gray-600 shrink-0">
+                        Periodo: <span class="text-gray-900 font-semibold">{{ mes_nombres[selected_month - 1] }} {{ selected_year }}</span>
+                    </p>
+                    <div class="flex flex-wrap items-end gap-2 sm:gap-3 sm:justify-end">
+                        <a href="{{ url_for('banks.dashboard', year=prev_year, month=prev_month) }}"
+                           class="bank-touch-btn inline-flex items-center justify-center w-10 h-10 shrink-0 rounded-xl border border-slate-300 bg-white text-gray-700 hover:bg-slate-50 hover:border-slate-400 shadow-sm transition"
+                           title="Mes anterior" aria-label="Mes anterior">←</a>
+                        <div class="flex flex-wrap items-end gap-2 sm:gap-3">
+                            <div class="min-w-[8.5rem] flex-1 sm:flex-none">
+                                <label for="nav_month" class="block text-xs font-medium text-gray-600 mb-1">Mes</label>
+                                <select id="nav_month" name="nav_month" onchange="navigateMonth(this)"
+                                        class="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
+                                    {% for m in range(1, 13) %}
+                                    <option value="{{ m }}" {% if m == selected_month %}selected{% endif %}>{{ mes_nombres[m-1] }} {{ selected_year }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="w-24 shrink-0">
+                                <label for="nav_year" class="block text-xs font-medium text-gray-600 mb-1">Año</label>
+                                <input id="nav_year" type="number" name="nav_year" value="{{ selected_year }}" min="2020" max="2030" onchange="navigateYear(this)"
+                                       class="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
+                            </div>
+                        </div>
+                        <a href="{{ url_for('banks.dashboard', year=next_year, month=next_month) }}"
+                           class="bank-touch-btn inline-flex items-center justify-center w-10 h-10 shrink-0 rounded-xl border border-slate-300 bg-white text-gray-700 hover:bg-slate-50 hover:border-slate-400 shadow-sm transition"
+                           title="Mes siguiente" aria-label="Mes siguiente">→</a>
+                    </div>
                 </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Año</label>
-                    <input type="number" name="nav_year" value="{{ selected_year }}" min="2020" max="2030" onchange="navigateYear(this)" class="px-3 py-2 border border-slate-300 rounded-xl w-24 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
-                </div>
-                <a href="{{ url_for('banks.dashboard', year=selected_year, month=selected_month) }}" id="nav-link" class="text-teal-700 hover:underline text-sm self-end pb-2">Ir</a>
-                </div>
-                <a href="{{ url_for('banks.dashboard', year=next_year, month=next_month) }}"
-                   class="bank-touch-btn inline-flex items-center justify-center w-10 h-10 shrink-0 rounded-xl border border-slate-300 bg-white text-gray-700 hover:bg-slate-50 hover:border-slate-400 shadow-sm transition"
-                   title="Mes siguiente">→</a>
             </div>
 
-            <div class="flex-1"></div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 flex-1 min-w-0">
+            <div class="bank-balance-grid">
                 {% for bank in banks %}
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">{{ bank.icon }} {{ bank.name }}</label>
-                    <input type="number" name="balance_{{ bank.id }}" value="{{ balances.get(bank.id, '') }}" step="0.01" placeholder="0.00"
-                           class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
+                <div class="bank-balance-field">
+                    <label for="balance_{{ bank.id }}">
+                        <span aria-hidden="true">{{ bank.icon }}</span>
+                        <span class="truncate">{{ bank.name }}</span>
+                    </label>
+                    <input id="balance_{{ bank.id }}" type="number" name="balance_{{ bank.id }}"
+                           value="{{ balances.get(bank.id, '') }}" step="0.01" placeholder="0,00"
+                           inputmode="decimal" autocomplete="off">
                 </div>
                 {% endfor %}
             </div>
 
-            <button type="submit" class="bank-touch-btn bg-teal-600 hover:bg-teal-700 text-white px-6 py-2 rounded-xl transition h-10 shadow-[0_10px_20px_rgba(13,148,136,0.28)]">
-                Guardar saldos
-            </button>
+            <div class="flex flex-col-reverse gap-3 border-t border-slate-200/80 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                <p class="text-xs text-gray-500">Introduce el saldo total de cada cuenta al cierre del mes seleccionado.</p>
+                <button type="submit"
+                        class="bank-touch-btn w-full sm:w-auto shrink-0 bg-teal-600 hover:bg-teal-700 text-white px-6 py-2.5 rounded-xl transition shadow-[0_10px_20px_rgba(13,148,136,0.28)] font-medium">
+                    Guardar saldos
+                </button>
+            </div>
         </form>
-        <p class="text-xs text-gray-500 mt-2">Introduce el saldo total de cada cuenta al cierre del mes seleccionado.</p>
     </div>
 
     <!-- Total del mes -->
