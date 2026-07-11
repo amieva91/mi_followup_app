@@ -27,6 +27,7 @@
 2. **Cada tarea tiene PR/commit desplegable** — compatible con `ui/dashboard-layout-experiments` + `deploy-experimental-branch.sh`.
 3. **Tests antes de god-file splits** — no partir `gemini_service` / `net_worth_service` sin smoke tests.
 4. **No reescritura** — extraer y consolidar, no cambiar stack (Flask + Jinja + Alpine).
+5. **Smoke tests en el servidor** — tras cada deploy en la VM (`run_smoke_tests.sh`); BD en memoria, no `followup.db`. Ver `docs/ESTRATEGIA_TESTS_PRODUCCION.md`.
 
 ---
 

@@ -2,7 +2,7 @@
 
 Scripts de investigación, depuración y pruebas manuales que vivían en el paquete de producción `app/services/`.
 
-**Movidos en Fase 0** (Jul 2026). Ninguno era importado por rutas, workers, crons ni tests de pytest.
+**Movidos en Fase 0** (Jul 2026). Ninguno era importado por rutas, workers ni tests de pytest. **Crons/systemd en producción verificados:** no los invocan (solo comandos `flask …`, worker `app.jobs_worker_main` y `scripts/refresh_interest_rate_context_snapshot.py`). Ver `docs/ESTRATEGIA_TESTS_PRODUCCION.md`.
 
 ## Uso
 

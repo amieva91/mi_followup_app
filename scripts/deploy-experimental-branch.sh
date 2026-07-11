@@ -84,6 +84,13 @@ sudo systemctl is-active followup.service
 sudo systemctl restart followup-jobs.service
 sleep 1
 sudo systemctl is-active followup-jobs.service
+
+echo ""
+echo "🔍 Verificación jobs + smoke tests (servidor, BD en memoria)..."
+sudo -u followup bash -lc 'cd /var/www/followup && ./scripts/verify_production_jobs.sh'
+sudo -u followup bash -lc 'cd /var/www/followup && ./scripts/run_smoke_tests.sh'
+echo "   ✓ Verificación y smoke tests OK"
+
 echo ""
 echo "=========================================="
 echo "✅ Rama experimental desplegada: ${BRANCH}"
