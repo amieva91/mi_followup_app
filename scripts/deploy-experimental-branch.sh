@@ -87,6 +87,8 @@ sudo systemctl is-active followup-jobs.service
 
 echo ""
 echo "🔍 Verificación jobs + smoke tests (servidor, BD en memoria)..."
+VERIFY_RC=0
+SMOKE_RC=0
 set +e
 sudo -u followup bash -lc 'cd /var/www/followup && ./scripts/verify_production_jobs.sh'
 VERIFY_RC=$?
