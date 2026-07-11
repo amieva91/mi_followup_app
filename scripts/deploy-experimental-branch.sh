@@ -91,12 +91,12 @@ VERIFY_RC=0
 SMOKE_RC=0
 set +e
 sudo -u followup bash -lc 'cd /var/www/followup && ./scripts/verify_production_jobs.sh'
-VERIFY_RC=$?
+VERIFY_RC=\$?
 sudo -u followup bash -lc 'cd /var/www/followup && ./scripts/run_smoke_tests.sh'
-SMOKE_RC=$?
+SMOKE_RC=\$?
 set -e
-if [[ "$VERIFY_RC" -ne 0 || "$SMOKE_RC" -ne 0 ]]; then
-  echo "   ⚠️  verify=$VERIFY_RC smoke=$SMOKE_RC (revisar arriba; deploy de código completado)"
+if [[ "\$VERIFY_RC" -ne 0 || "\$SMOKE_RC" -ne 0 ]]; then
+  echo "   ⚠️  verify=\$VERIFY_RC smoke=\$SMOKE_RC (revisar arriba; deploy de código completado)"
 else
   echo "   ✓ Verificación y smoke tests OK"
 fi
