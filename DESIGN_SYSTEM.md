@@ -1,5 +1,9 @@
 # 🎨 DESIGN SYSTEM - Followup Financial App
 
+> **⚠️ Paleta y componentes UI (2026):** la referencia operativa actual es
+> [`docs/GUIA_REDISENO_PESTANAS.md`](docs/GUIA_REDISENO_PESTANAS.md) (Palette B, teal–slate, tarjetas 3D).
+> Este documento conserva el inventario histórico de sprints; no uses `primary-600` / cards blancas planas para trabajo nuevo.
+
 **Filosofía**: Elegante, Profesional, Financiero, Minimalista
 
 **Última actualización**: 10 Noviembre 2025  

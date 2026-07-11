@@ -79,75 +79,40 @@ gantt
 
 **Aceptación:** `create_app` OK; `pytest tests/` verde.
 
-### 0.3 Documentar concurrencia
+### 0.3 Documentar concurrencia ✅ (Jul 2026)
 
-| Tarea | Archivo nuevo |
-|-------|----------------|
+| Tarea | Archivo |
+|-------|---------|
 | Diagrama Gunicorn + cron + worker + flock | `docs/ARQUITECTURA_JOBS_Y_CONCURRENCIA.md` |
-| Reglas: no lock global durante I/O HTTP | Incluir en el mismo doc |
 
-### 0.4 Deprecar diseño obsoleto
+### 0.4 Deprecar diseño obsoleto ✅ (Jul 2026)
 
 | Tarea | Detalle |
 |-------|---------|
-| Banner en `DESIGN_SYSTEM.md` | “Paleta y componentes → ver `GUIA_REDISENO_PESTANAS.md`” |
-| Enlace desde README | Una línea apuntando a la guía canónica |
+| Banner en `DESIGN_SYSTEM.md` | Apunta a `GUIA_REDISENO_PESTANAS.md` |
 
-**Entregable Fase 0:** repo más limpio, documentación de jobs, sin cambio de comportamiento visible.
+**Entregable Fase 0:** completo.
 
 ---
 
-## Fase 1 — Tests y cachés (2 semanas)
+## Fase 1 — Tests y cachés (en curso)
 
-**Riesgo:** bajo–medio | **Impacto:** confianza en deploys
+### 1.1 Infraestructura de tests ✅
 
-### 1.1 Infraestructura de tests
+- `pytest.ini` con marcador `smoke`
+- `tests/conftest.py`: BD en memoria, fixtures `user`, `auth_client`, `admin_client`
 
-| Tarea | Detalle |
-|-------|---------|
-| `tests/conftest.py` | Fixture app + BD SQLite en memoria o tmp |
-| Helper auth | `login_as(client, user)` para rutas protegidas |
-| `pytest.ini` | Marcadores `smoke`, `integration` |
+### 1.2 Smoke tests ✅ (15)
 
-### 1.2 Smoke tests mínimos (objetivo: 15)
+- `tests/smoke_routes_test.py` — HTTP, CLI, invalidación caché, CSRF
 
-| # | Test | Ruta / flujo |
-|---|------|----------------|
-| 1 | Login OK | `/auth/login` |
-| 2 | Dashboard 200 autenticado | `/dashboard` |
-| 3 | Portfolio dashboard | `/portfolio/dashboard` |
-| 4 | Import CSV fixture pequeño IBKR | `/portfolio/import/process` |
-| 5 | Crear transacción manual | API o form |
-| 6 | Gastos list 200 | `/expenses` |
-| 7 | Ingresos list 200 | `/incomes` |
-| 8 | Invalidación caché tras import | Assert flag o versión |
-| 9 | Watchlist API | GET watchlist items |
-| 10 | `price-poll-one` CLI no crash | subprocess / cli runner |
-| 11 | `cache-rebuild-worker-once` idle | cli runner |
-| 12 | Global strategy math (ya existe) | mantener |
-| 13 | Valuation modes (ya existe) | mantener |
-| 14 | CSRF en POST mutación | 400 sin token |
-| 15 | Admin requiere admin | 403 usuario normal |
+Ejecutar: `pytest -m smoke` o `pytest tests/smoke_routes_test.py`
 
-**Aceptación:** `pytest tests/` verde en local; opcional hook pre-deploy.
+### 1.3 API unificada de invalidación ✅ (inicio)
 
-### 1.3 API unificada de invalidación de caché
-
-```python
-# app/services/cache_invalidation.py (nuevo)
-def invalidate_user_data_caches(user_id, *, dates=None, full_history=False):
-    """Única entrada tras mutaciones de cartera, import, transacciones."""
-```
-
-| Migrar rutas | Prioridad |
-|--------------|-----------|
-| `import_routes.py`, `transactions.py` | Alta |
-| `crypto.py`, `metales.py`, `accounts.py` | Alta |
-| `real_estate.py`, `debts.py` | Media |
-
-**Aceptación:** grep confirma que rutas de escritura llaman al helper; test 1.2 #8 pasa.
-
-**Entregable Fase 1:** red de seguridad básica + menos bugs de datos stale.
+- `app/services/cache_invalidation.py`
+- Migrado: `import_routes.py` (import CSV)
+- Pendiente: resto de rutas de escritura
 
 ---
 
