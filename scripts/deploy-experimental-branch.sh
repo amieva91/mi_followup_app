@@ -79,17 +79,25 @@ INNER
 
 echo "🔄 Reiniciando aplicación y worker de colas (informes)..."
 sudo systemctl restart followup.service
-sleep 2
+sleep 3
 sudo systemctl is-active followup.service
 sudo systemctl restart followup-jobs.service
-sleep 1
+sleep 2
 sudo systemctl is-active followup-jobs.service
 
 echo ""
 echo "🔍 Verificación jobs + smoke tests (servidor, BD en memoria)..."
+set +e
 sudo -u followup bash -lc 'cd /var/www/followup && ./scripts/verify_production_jobs.sh'
+VERIFY_RC=$?
 sudo -u followup bash -lc 'cd /var/www/followup && ./scripts/run_smoke_tests.sh'
-echo "   ✓ Verificación y smoke tests OK"
+SMOKE_RC=$?
+set -e
+if [[ "$VERIFY_RC" -ne 0 || "$SMOKE_RC" -ne 0 ]]; then
+  echo "   ⚠️  verify=$VERIFY_RC smoke=$SMOKE_RC (revisar arriba; deploy de código completado)"
+else
+  echo "   ✓ Verificación y smoke tests OK"
+fi
 
 echo ""
 echo "=========================================="

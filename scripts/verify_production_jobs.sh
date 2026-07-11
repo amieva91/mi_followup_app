@@ -79,11 +79,18 @@ fi
 
 echo ""
 echo "--- HTTP local (Gunicorn) ---"
-code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 http://127.0.0.1:5000/ 2>/dev/null || echo "000")
+code="000"
+for attempt in 1 2 3 4 5; do
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 http://127.0.0.1:5000/ 2>/dev/null || echo "000")
+  if [[ "$code" == "200" || "$code" == "302" ]]; then
+    break
+  fi
+  sleep 2
+done
 if [[ "$code" == "200" || "$code" == "302" ]]; then
   echo "  OK: :5000 → HTTP $code"
 else
-  echo "  FAIL: :5000 → HTTP $code"
+  echo "  FAIL: :5000 → HTTP $code (Gunicorn no responde tras reintentos)"
   FAIL=1
 fi
 
