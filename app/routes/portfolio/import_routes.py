@@ -290,9 +290,9 @@ def import_csv_process():
     if total_stats['files_processed'] > 0:
         # Nuevo flujo: encolar rebuild FULL (worker en cron).
         # FULL domina NOW y reemplaza los invalidates/recompute en la request.
-        from app.services.cache_invalidation import invalidate_user_data_caches
+        from app.services.cache_rebuild_state_service import CacheRebuildStateService
 
-        invalidate_user_data_caches(current_user.id, full_history=True)
+        CacheRebuildStateService.mark_full_history(current_user.id)
 
         # Mismo criterio que el cron de consenso, solo sobre activos tocados por los CSV;
         # hilo en segundo plano para no alargar el POST.

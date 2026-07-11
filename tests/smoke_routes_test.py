@@ -79,11 +79,11 @@ def test_admin_accessible_for_admin(admin_client):
 
 
 @pytest.mark.smoke
-def test_invalidate_user_data_caches_marks_full_history(app, user):
-    from app.services.cache_invalidation import invalidate_user_data_caches
+def test_cache_rebuild_mark_full_history(app, user):
+    from app.services.cache_rebuild_state_service import CacheRebuildStateService
 
     with app.app_context():
-        invalidate_user_data_caches(user.id, full_history=True)
+        CacheRebuildStateService.mark_full_history(user.id)
         row = CacheRebuildState.query.filter_by(user_id=user.id).first()
         assert row is not None
         assert row.pending_full_history is True

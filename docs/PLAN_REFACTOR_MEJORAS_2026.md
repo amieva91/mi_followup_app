@@ -109,11 +109,9 @@ gantt
 
 Ejecutar: `pytest -m smoke` o `pytest tests/smoke_routes_test.py`
 
-### 1.3 API unificada de invalidación ✅ (inicio)
+### 1.3 API unificada de invalidación — **cancelado**
 
-- `app/services/cache_invalidation.py`
-- Migrado: `import_routes.py` (import CSV)
-- Pendiente: resto de rutas de escritura
+Se mantiene la lógica existente por ruta (`CacheRebuildStateService`, `MetricsCacheService`, etc.). No hay `cache_invalidation.py`.
 
 ---
 
