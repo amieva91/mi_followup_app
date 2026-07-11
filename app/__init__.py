@@ -243,24 +243,25 @@ def create_app(config_name='default'):
     os.makedirs(app.root_path + '/../instance', exist_ok=True)
 
     # Informes Deep Research: tras reinicio, reanudar polling si hay interaction_id (si no, fallar sin id)
-    with app.app_context():
-        try:
-            from app.services.company_report_recovery import (
-                recover_processing_reports_after_restart,
-                recover_stuck_pending_reports,
-            )
+    if not app.config.get('TESTING'):
+        with app.app_context():
+            try:
+                from app.services.company_report_recovery import (
+                    recover_processing_reports_after_restart,
+                    recover_stuck_pending_reports,
+                )
 
-            recover_processing_reports_after_restart(app, app.logger)
-            recover_stuck_pending_reports(app, app.logger)
-            from app.services.full_deliver_continuation import (
-                expire_stale_full_delivery_tails,
-                recover_stuck_full_delivery_tails,
-            )
+                recover_processing_reports_after_restart(app, app.logger)
+                recover_stuck_pending_reports(app, app.logger)
+                from app.services.full_deliver_continuation import (
+                    expire_stale_full_delivery_tails,
+                    recover_stuck_full_delivery_tails,
+                )
 
-            expire_stale_full_delivery_tails(app.logger)
-            recover_stuck_full_delivery_tails(app)
-        except Exception as ex:
-            app.logger.warning('company_reports: recuperación al arranque omitida: %s', ex)
+                expire_stale_full_delivery_tails(app.logger)
+                recover_stuck_full_delivery_tails(app)
+            except Exception as ex:
+                app.logger.warning('company_reports: recuperación al arranque omitida: %s', ex)
 
     # CLI: Job de polling de precios (ejecutar vía cron cada minuto)
     @app.cli.command('price-poll-one')
