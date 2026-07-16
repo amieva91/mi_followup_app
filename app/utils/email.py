@@ -140,7 +140,7 @@ def send_reset_email(user):
     token = user.get_reset_token()
 
     msg = Message(
-        'Recuperación de Contraseña - FollowUp',
+        'Recuperación de Contraseña - Auðr',
         sender=current_app.config['MAIL_DEFAULT_SENDER'],
         recipients=[user.email]
     )
@@ -149,7 +149,7 @@ def send_reset_email(user):
 
     msg.body = f"""Hola {user.username},
 
-Has solicitado recuperar tu contraseña en FollowUp.
+Has solicitado recuperar tu contraseña en Auðr.
 
 Para crear una nueva contraseña, haz click en el siguiente enlace:
 
@@ -160,7 +160,7 @@ Este enlace es válido por 30 minutos.
 Si no solicitaste este cambio, simplemente ignora este email y tu contraseña permanecerá sin cambios.
 
 Saludos,
-El equipo de FollowUp
+El equipo de Auðr
 """
 
     msg.html = f"""
@@ -190,7 +190,7 @@ El equipo de FollowUp
             </div>
             <div class="content">
                 <p>Hola <strong>{user.username}</strong>,</p>
-                <p>Has solicitado recuperar tu contraseña en FollowUp.</p>
+                <p>Has solicitado recuperar tu contraseña en Auðr.</p>
                 <p>Para crear una nueva contraseña, haz click en el siguiente botón:</p>
                 <p style="text-align: center;">
                     <a href="{reset_url}" class="button">Cambiar mi contraseña</a>
@@ -205,7 +205,7 @@ El equipo de FollowUp
                 <p>Si no solicitaste este cambio, simplemente ignora este email y tu contraseña permanecerá sin cambios.</p>
             </div>
             <div class="footer">
-                <p>&copy; 2025 FollowUp - Gestión Financiera Personal</p>
+                <p>&copy; 2025 Auðr - Gestión patrimonial personal</p>
             </div>
         </div>
     </body>
@@ -282,7 +282,7 @@ Te enviamos el informe "{report_title}" para {asset_name}.
 El mensaje HTML incluye el resumen con tablas e ilustraciones cuando el cliente lo permite.
 
 Saludos,
-El equipo de FollowUp
+El equipo de Auðr
 """
 
     inner_report_html = f'<div class="report-email-body">{fragment_cid}</div>'
@@ -314,7 +314,7 @@ El equipo de FollowUp
 {inner_report_html}
 </div>
 <div class="footer">
-<p>&copy; 2025 FollowUp - Gestión Financiera Personal</p>
+<p>&copy; 2025 Auðr - Gestión patrimonial personal</p>
 </div>
 </div>
 </body>

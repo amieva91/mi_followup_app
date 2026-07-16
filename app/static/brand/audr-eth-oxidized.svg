@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Audr">
+  <defs>
+    <linearGradient id="audr-oxidized" gradientUnits="objectBoundingBox" x1="0.15" y1="0" x2="0.85" y2="1">
+      <stop offset="0%" stop-color="#f4f8fc"/>
+      <stop offset="14%" stop-color="#dce8f0"/>
+      <stop offset="26%" stop-color="#a8bac8"/>
+      <stop offset="38%" stop-color="#eef4f8"/>
+      <stop offset="52%" stop-color="#6e8494"/>
+      <stop offset="58%" stop-color="#4a6874"/>
+      <stop offset="70%" stop-color="#b8c8d4"/>
+      <stop offset="82%" stop-color="#5a7888"/>
+      <stop offset="92%" stop-color="#d0dce6"/>
+      <stop offset="100%" stop-color="#9aaeb8"/>
+    </linearGradient>
+    <filter id="audr-oxidized-shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.4" flood-color="#ffffff" flood-opacity="0.12"/>
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000000" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+  <text
+    x="32"
+    y="50"
+    text-anchor="middle"
+    font-family="'Cormorant Garamond', Georgia, 'Times New Roman', serif"
+    font-size="54"
+    font-weight="500"
+    fill="url(#audr-oxidized)"
+    filter="url(#audr-oxidized-shadow)"
+  >&#x00F0;</text>
+</svg>

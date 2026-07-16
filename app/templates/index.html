@@ -6,74 +6,33 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Source+Sans+3:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
-<style>
-  .index-page {
-    font-family: 'Source Sans 3', sans-serif;
-    background: linear-gradient(165deg, #243843 0%, #2f4858 42%, #3f5f73 100%);
-    min-height: 100vh;
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    padding: 6vh 1rem 10vh;
-  }
-  .index-page::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(113, 157, 168, 0.35), transparent),
-                radial-gradient(ellipse 60% 40% at 80% 60%, rgba(47, 72, 88, 0.52), transparent);
-    pointer-events: none;
-  }
-  .index-page::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-      225deg,
-      transparent 0%,
-      transparent 25%,
-      rgba(148, 163, 184, 0.03) 35%,
-      rgba(226, 232, 240, 0.06) 50%,
-      rgba(148, 163, 184, 0.03) 65%,
-      transparent 75%,
-      transparent 100%
-    );
-    pointer-events: none;
-  }
-  .index-title {
-    font-family: 'Cormorant Garamond', serif;
-    font-weight: 500;
-    letter-spacing: 0.02em;
-  }
-  .index-sub {
-    font-family: 'Source Sans 3', sans-serif;
-    font-weight: 300;
-  }
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/audr-storm.css') }}">
 {% endblock %}
 
 {% block content %}
-<div class="index-page -mx-4 px-4 relative">
-  <!-- Título (arriba) -->
-  <div class="max-w-4xl mx-auto w-full relative z-10 text-center">
-    <p class="index-sub text-slate-400 text-sm uppercase tracking-[0.2em] mb-6">Gestión Financiera Personal</p>
-    <h1 class="index-title text-5xl sm:text-6xl lg:text-7xl text-slate-50 mb-6 leading-tight">FollowUp</h1>
-    <p class="index-sub text-slate-300 text-lg sm:text-xl max-w-xl mx-auto leading-relaxed">Tu patrimonio, en un solo lugar</p>
+<div class="audr-page -mx-4 px-4 relative">
+  {% include 'partials/storm_scene.html' %}
+
+  <header class="audr-page-top">
+    <p class="audr-tagline">Gestión patrimonial personal</p>
+  </header>
+
+  <div class="audr-page-center">
+    <div class="audr-brand" aria-label="Auðr">
+      <span class="audr-iso audr-oxidized" aria-hidden="true">ð</span>
+      <h1 class="audr-wordmark audr-oxidized">AUÐR</h1>
+    </div>
   </div>
-  <!-- Botones (abajo) -->
-  <div class="max-w-4xl mx-auto w-full relative z-10 flex flex-col items-center text-center">
-      <div class="flex flex-col sm:flex-row justify-center gap-4 mb-4">
-        <a href="{{ url_for('auth.register') }}" class="px-10 py-4 bg-teal-50 text-slate-900 font-medium rounded-sm hover:bg-white transition duration-200">
-          Crear cuenta
-        </a>
-        <a href="{{ url_for('auth.login') }}" class="px-10 py-4 border border-teal-300/40 text-slate-100 font-medium rounded-sm hover:border-teal-200 hover:text-white transition duration-200">
-          Iniciar sesión
-        </a>
-      </div>
-    <p class="text-slate-500 text-sm">
-      <a href="{{ url_for('auth.register') }}" class="text-slate-400 hover:text-slate-300 transition">Empezar ahora</a>
-    </p>
-  </div>
+
+  <footer class="audr-page-bottom">
+    <div class="audr-actions">
+      <a href="{{ url_for('auth.login') }}" class="audr-btn-primary">Iniciar sesión</a>
+      <a href="{{ url_for('auth.register') }}" class="audr-btn-secondary">Crear cuenta</a>
+    </div>
+  </footer>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/storm-scene.js') }}"></script>
 {% endblock %}

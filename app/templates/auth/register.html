@@ -6,47 +6,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Source+Sans+3:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/audr-storm.css') }}">
 <style>
-  .auth-page {
-    font-family: 'Source Sans 3', sans-serif;
-    background: linear-gradient(165deg, #243843 0%, #2f4858 42%, #3f5f73 100%);
-    min-height: 100vh;
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 2rem 1rem;
-  }
-  .auth-page::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(113, 157, 168, 0.35), transparent),
-                radial-gradient(ellipse 60% 40% at 80% 60%, rgba(47, 72, 88, 0.52), transparent);
-    pointer-events: none;
-  }
-  .auth-page::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-      225deg,
-      transparent 0%,
-      transparent 25%,
-      rgba(148, 163, 184, 0.03) 35%,
-      rgba(226, 232, 240, 0.06) 50%,
-      rgba(148, 163, 184, 0.03) 65%,
-      transparent 75%,
-      transparent 100%
-    );
-    pointer-events: none;
-  }
-  .auth-card {
-    background: rgba(31, 46, 57, 0.52);
-    border: 1px solid rgba(118, 157, 163, 0.34);
-    backdrop-filter: blur(12px);
-  }
   .auth-title {
     font-family: 'Cormorant Garamond', serif;
     font-weight: 500;
@@ -55,88 +16,95 @@
 {% endblock %}
 
 {% block content %}
-<div class="auth-page -mx-4 relative">
-  <div class="flex flex-col items-center w-full max-w-md">
-  <div class="auth-card rounded-sm w-full p-8 sm:p-10 relative z-10">
-    
-    <div class="text-center mb-8">
-      <p class="text-slate-400 text-xs uppercase tracking-[0.2em] mb-4">FollowUp</p>
-      <h2 class="auth-title text-3xl text-slate-50 mb-2">Crear cuenta</h2>
-      <p class="text-slate-400 text-sm">Únete y gestiona tus finanzas</p>
+<div class="audr-auth-page -mx-4 relative">
+  {% include 'partials/storm_scene.html' %}
+
+  <div class="audr-auth-content">
+    <div class="audr-auth-brand" aria-label="Auðr">
+      <span class="audr-auth-iso audr-oxidized" aria-hidden="true">ð</span>
+      <h1 class="audr-auth-wordmark audr-oxidized">AUÐR</h1>
     </div>
 
-    <form method="POST" action="{{ url_for('auth.register') }}" class="space-y-5">
-      {{ form.hidden_tag() }}
-      
-      <div>
-        {{ form.username.label(class="block text-sm font-medium text-slate-300 mb-2") }}
-        {{ form.username(class="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 text-slate-100 rounded-sm placeholder-slate-500 focus:ring-1 focus:ring-slate-500 focus:border-slate-500 focus:outline-none transition") }}
-        {% if form.username.errors %}
-          <p class="mt-1 text-sm text-amber-400">{{ form.username.errors[0] }}</p>
-        {% endif %}
+    <div class="audr-auth-card p-8 sm:p-10">
+      <div class="text-center mb-8">
+        <h2 class="auth-title text-3xl text-slate-50 mb-2">Crear cuenta</h2>
+        <p class="text-slate-400 text-sm">Únete y gestiona tu patrimonio</p>
       </div>
 
-      <div>
-        {{ form.email.label(class="block text-sm font-medium text-slate-300 mb-2") }}
-        {{ form.email(class="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 text-slate-100 rounded-sm placeholder-slate-500 focus:ring-1 focus:ring-slate-500 focus:border-slate-500 focus:outline-none transition") }}
-        {% if form.email.errors %}
-          <p class="mt-1 text-sm text-amber-400">{{ form.email.errors[0] }}</p>
-        {% endif %}
-      </div>
+      <form method="POST" action="{{ url_for('auth.register') }}" class="space-y-5">
+        {{ form.hidden_tag() }}
 
-      <div>
-        {{ form.password.label(class="block text-sm font-medium text-slate-300 mb-2") }}
-        {{ form.password(class="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 text-slate-100 rounded-sm placeholder-slate-500 focus:ring-1 focus:ring-slate-500 focus:border-slate-500 focus:outline-none transition") }}
-        {% if form.password.errors %}
-          <p class="mt-1 text-sm text-amber-400">{{ form.password.errors[0] }}</p>
-        {% endif %}
-      </div>
-
-      <div>
-        {{ form.confirm_password.label(class="block text-sm font-medium text-slate-300 mb-2") }}
-        {{ form.confirm_password(class="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 text-slate-100 rounded-sm placeholder-slate-500 focus:ring-1 focus:ring-slate-500 focus:border-slate-500 focus:outline-none transition") }}
-        {% if form.confirm_password.errors %}
-          <p class="mt-1 text-sm text-amber-400">{{ form.confirm_password.errors[0] }}</p>
-        {% endif %}
-      </div>
-
-      <div>
-        <label class="block text-sm font-medium text-slate-300 mb-2">Áreas de interés</label>
-        <p class="text-xs text-slate-500 mb-3">Selecciona los módulos que quieres usar (puedes cambiarlos después en tu perfil).</p>
-        <div class="space-y-4">
-          {% for key, label in modules.items() %}
-          <label class="flex items-center justify-between cursor-pointer group">
-            <span class="text-sm text-slate-400 group-hover:text-slate-300 transition">{{ label }}</span>
-            <div class="relative inline-flex shrink-0">
-              <input type="checkbox" name="module_{{ key }}" value="on" checked class="sr-only peer">
-              <div class="w-11 h-6 rounded-full bg-slate-600 peer-checked:bg-teal-500 transition-colors"></div>
-              <div class="absolute left-1 top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 peer-checked:translate-x-5 pointer-events-none"></div>
-            </div>
-          </label>
-          {% endfor %}
+        <div>
+          {{ form.username.label(class="block text-sm font-medium text-slate-300 mb-2") }}
+          {{ form.username(class="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 text-slate-100 rounded-sm placeholder-slate-500 focus:ring-1 focus:ring-slate-500 focus:border-slate-500 focus:outline-none transition") }}
+          {% if form.username.errors %}
+            <p class="mt-1 text-sm text-amber-400">{{ form.username.errors[0] }}</p>
+          {% endif %}
         </div>
-      </div>
 
-      <div>
-        {{ form.submit(class="w-full py-3 px-4 bg-teal-50 text-slate-900 font-medium rounded-sm hover:bg-white transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-teal-300 focus:ring-offset-2 focus:ring-offset-slate-900") }}
-      </div>
-    </form>
+        <div>
+          {{ form.email.label(class="block text-sm font-medium text-slate-300 mb-2") }}
+          {{ form.email(class="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 text-slate-100 rounded-sm placeholder-slate-500 focus:ring-1 focus:ring-slate-500 focus:border-slate-500 focus:outline-none transition") }}
+          {% if form.email.errors %}
+            <p class="mt-1 text-sm text-amber-400">{{ form.email.errors[0] }}</p>
+          {% endif %}
+        </div>
 
-    <div class="mt-6 text-center">
-      <p class="text-sm text-slate-500">
-        ¿Ya tienes cuenta?
-        <a href="{{ url_for('auth.login') }}" class="text-slate-400 hover:text-slate-300 font-medium transition">
-          Inicia sesión
-        </a>
-      </p>
+        <div>
+          {{ form.password.label(class="block text-sm font-medium text-slate-300 mb-2") }}
+          {{ form.password(class="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 text-slate-100 rounded-sm placeholder-slate-500 focus:ring-1 focus:ring-slate-500 focus:border-slate-500 focus:outline-none transition") }}
+          {% if form.password.errors %}
+            <p class="mt-1 text-sm text-amber-400">{{ form.password.errors[0] }}</p>
+          {% endif %}
+        </div>
+
+        <div>
+          {{ form.confirm_password.label(class="block text-sm font-medium text-slate-300 mb-2") }}
+          {{ form.confirm_password(class="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 text-slate-100 rounded-sm placeholder-slate-500 focus:ring-1 focus:ring-slate-500 focus:border-slate-500 focus:outline-none transition") }}
+          {% if form.confirm_password.errors %}
+            <p class="mt-1 text-sm text-amber-400">{{ form.confirm_password.errors[0] }}</p>
+          {% endif %}
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-slate-300 mb-2">Áreas de interés</label>
+          <p class="text-xs text-slate-500 mb-3">Selecciona los módulos que quieres usar (puedes cambiarlos después en tu perfil).</p>
+          <div class="space-y-4">
+            {% for key, label in modules.items() %}
+            <label class="flex items-center justify-between cursor-pointer group">
+              <span class="text-sm text-slate-400 group-hover:text-slate-300 transition">{{ label }}</span>
+              <div class="relative inline-flex shrink-0">
+                <input type="checkbox" name="module_{{ key }}" value="on" checked class="sr-only peer">
+                <div class="w-11 h-6 rounded-full bg-slate-600 peer-checked:bg-teal-500 transition-colors"></div>
+                <div class="absolute left-1 top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 peer-checked:translate-x-5 pointer-events-none"></div>
+              </div>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div>
+          {{ form.submit(class="w-full py-3 px-4 bg-teal-50 text-slate-900 font-medium rounded-sm hover:bg-white transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-teal-300 focus:ring-offset-2 focus:ring-offset-slate-900") }}
+        </div>
+      </form>
+
+      <div class="mt-6 text-center">
+        <p class="text-sm text-slate-500">
+          ¿Ya tienes cuenta?
+          <a href="{{ url_for('auth.login') }}" class="text-slate-400 hover:text-slate-300 font-medium transition">
+            Inicia sesión
+          </a>
+        </p>
+      </div>
     </div>
-  </div>
 
-  <div class="text-center mt-6 w-full relative z-10">
     <a href="{{ url_for('main.index') }}" class="text-sm text-slate-500 hover:text-slate-400 transition">
-      ← Volver al inicio
+      ← Volver a la portada
     </a>
   </div>
-  </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/storm-scene.js') }}"></script>
 {% endblock %}

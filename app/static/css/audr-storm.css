@@ -1,0 +1,480 @@
+/* Auðr storm scene + brand lockup (ported from Auðr StormScene) */
+
+.storm-scene {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.storm-sky {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 90% 60% at 50% 10%, rgba(30, 45, 58, 0.55), transparent 70%),
+    linear-gradient(180deg, #060a0f 0%, #0c1520 35%, #101c28 65%, #0a1218 100%);
+  animation: storm-sky-drift 24s ease-in-out infinite alternate;
+}
+
+@keyframes storm-sky-drift {
+  0% { filter: brightness(0.92); }
+  100% { filter: brightness(1.05); }
+}
+
+.storm-ship-wrap {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.storm-ship {
+  width: min(110vw, 920px);
+  max-height: 78vh;
+  object-fit: contain;
+  filter: blur(0.3px) drop-shadow(0 20px 40px rgba(0, 0, 0, 0.6));
+  animation: storm-ship-rock 7s ease-in-out infinite;
+  opacity: 0.42;
+}
+
+.storm-ship-wrap[data-lightning="true"] .storm-ship {
+  opacity: 0.48;
+}
+
+@keyframes storm-ship-rock {
+  0%, 100% { transform: translateY(0) rotate(-0.8deg) scale(1); }
+  35% { transform: translateY(-14px) rotate(0.6deg) scale(1.01); }
+  70% { transform: translateY(6px) rotate(-0.3deg) scale(0.995); }
+}
+
+.storm-sea {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 42%;
+  z-index: 0;
+}
+
+.storm-sea-glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 75% 55% at var(--lx, 50%) 88%,
+    rgba(130, 150, 170, 0),
+    transparent 68%
+  );
+  opacity: 0;
+  transition: opacity 0.07s ease-out;
+  pointer-events: none;
+}
+
+.storm-sea[data-lit="true"] .storm-sea-glow {
+  opacity: 1;
+  background: radial-gradient(
+    ellipse 80% 60% at var(--lx, 50%) 92%,
+    rgba(160, 180, 200, 0.28),
+    rgba(80, 100, 120, 0.08) 45%,
+    transparent 72%
+  );
+}
+
+.storm-waves {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 100%;
+  opacity: 0.07;
+  transition: opacity 0.08s ease-out;
+}
+
+.storm-sea[data-lit="true"] .storm-waves {
+  opacity: 0.48;
+}
+
+.storm-waves svg {
+  position: absolute;
+  left: 0;
+  width: 200%;
+  height: 100%;
+}
+
+.storm-wave-body {
+  fill: #060c12;
+}
+
+.storm-wave-crest {
+  fill: none;
+  stroke: #0f1a24;
+  stroke-width: 1.2;
+  opacity: 0.35;
+}
+
+.storm-sea[data-lit="true"] .storm-wave-body {
+  fill: #0c1824;
+}
+
+.storm-sea[data-lit="true"] .storm-wave-crest {
+  stroke: #3d5568;
+  stroke-width: 1.4;
+  opacity: 0.65;
+}
+
+.storm-wave-a {
+  bottom: 0;
+  animation: storm-wave-slide 11s linear infinite;
+}
+
+.storm-wave-b {
+  bottom: 10%;
+  opacity: 0.85;
+  animation: storm-wave-slide 16s linear infinite reverse;
+}
+
+.storm-wave-c {
+  bottom: 22%;
+  opacity: 0.55;
+  animation: storm-wave-slide 9s linear infinite;
+}
+
+.storm-foam {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 18%;
+  opacity: 0;
+  background: repeating-linear-gradient(
+    95deg,
+    transparent 0 14px,
+    rgba(100, 120, 140, 0.04) 14px 15px
+  );
+  transition: opacity 0.08s ease-out;
+  animation: storm-foam-shift 6s linear infinite;
+}
+
+.storm-sea[data-lit="true"] .storm-foam {
+  opacity: 0.35;
+}
+
+@keyframes storm-foam-shift {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-28px); }
+}
+
+@keyframes storm-wave-slide {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.storm-rain-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.55;
+}
+
+.storm-lightning-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.storm-lightning-flash {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(
+      ellipse 50% 40% at var(--lx, 50%) 5%,
+      rgba(220, 230, 240, 0.18),
+      transparent 72%
+    ),
+    radial-gradient(
+      ellipse 90% 45% at var(--lx, 50%) 100%,
+      rgba(140, 165, 185, 0),
+      transparent 55%
+    );
+  opacity: 0;
+  transition: opacity 0.06s ease-out;
+}
+
+.storm-lightning-flash.is-active {
+  opacity: 1;
+  background:
+    radial-gradient(
+      ellipse 50% 40% at var(--lx, 50%) 5%,
+      rgba(220, 230, 240, 0.18),
+      transparent 72%
+    ),
+    radial-gradient(
+      ellipse 90% 50% at var(--lx, 50%) 100%,
+      rgba(150, 175, 195, 0.2),
+      rgba(60, 80, 100, 0.06) 40%,
+      transparent 70%
+    );
+}
+
+.storm-lightning-bolt {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  transition: opacity 0.05s ease-out;
+}
+
+.storm-lightning-bolt.is-active {
+  opacity: 1;
+}
+
+.storm-lightning-bolt path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.9))
+    drop-shadow(0 0 18px rgba(200, 220, 255, 0.65));
+}
+
+.storm-bolt-main {
+  stroke: rgba(255, 255, 255, 0.95);
+  stroke-width: 2.2;
+}
+
+.storm-bolt-core {
+  stroke: rgba(255, 255, 255, 1);
+  stroke-width: 0.9;
+}
+
+.storm-bolt-branch {
+  stroke: rgba(230, 240, 255, 0.82);
+  stroke-width: 1.3;
+}
+
+.storm-vignette {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(
+      ellipse 70% 55% at 50% 45%,
+      transparent 30%,
+      rgba(0, 0, 0, 0.55) 100%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(0, 0, 0, 0.35) 0%,
+      transparent 25%,
+      transparent 70%,
+      rgba(0, 0, 0, 0.5) 100%
+    );
+}
+
+/* Landing page composition */
+.audr-page {
+  background: #080f14;
+  min-height: 100vh;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 8vh 1.5rem 10vh;
+  overflow: hidden;
+  font-family: 'Source Sans 3', sans-serif;
+}
+
+.audr-page-top,
+.audr-page-center,
+.audr-page-bottom {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.audr-page-top,
+.audr-page-bottom {
+  flex-shrink: 0;
+}
+
+.audr-page-center {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.audr-tagline {
+  margin: 0;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 0.8rem;
+  font-weight: 300;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.audr-brand {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.45rem;
+  width: 100%;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1.05;
+}
+
+.audr-oxidized {
+  background-image: linear-gradient(
+    155deg,
+    #f4f8fc 0%,
+    #dce8f0 14%,
+    #a8bac8 26%,
+    #eef4f8 38%,
+    #6e8494 52%,
+    #4a6874 58%,
+    #b8c8d4 70%,
+    #5a7888 82%,
+    #d0dce6 92%,
+    #9aaeb8 100%
+  );
+  background-size: 200% 200%;
+  background-position: 30% 40%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  filter:
+    drop-shadow(0 0 1px rgba(210, 228, 240, 0.55))
+    drop-shadow(0 1px 0 rgba(255, 255, 255, 0.18))
+    drop-shadow(0 0 10px rgba(160, 190, 210, 0.22))
+    drop-shadow(0 4px 14px rgba(0, 0, 0, 0.38));
+}
+
+.audr-iso,
+.audr-wordmark {
+  font-family: inherit;
+  font-size: clamp(4.5rem, 16vmin, 7.5rem);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1.05;
+  margin: 0;
+}
+
+.audr-actions {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 0.75rem;
+}
+
+.audr-btn-primary,
+.audr-btn-secondary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0.75rem 1.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-decoration: none;
+  border-radius: 4px;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.audr-btn-primary {
+  background: #f0fdfa;
+  color: #0f172a;
+}
+
+.audr-btn-primary:hover {
+  background: #fff;
+}
+
+.audr-btn-secondary {
+  background: transparent;
+  color: #e2e8f0;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+}
+
+.audr-btn-secondary:hover {
+  border-color: rgba(204, 251, 241, 0.55);
+  color: #fff;
+}
+
+@media (min-width: 640px) {
+  .audr-actions {
+    flex-direction: row;
+  }
+
+  .audr-btn-primary,
+  .audr-btn-secondary {
+    flex: 1;
+  }
+}
+
+/* Auth pages with storm backdrop */
+.audr-auth-page {
+  background: #080f14;
+  min-height: 100vh;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+  overflow: hidden;
+  font-family: 'Source Sans 3', sans-serif;
+}
+
+.audr-auth-content {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 28rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.audr-auth-brand {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.3rem;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-weight: 500;
+}
+
+.audr-auth-iso,
+.audr-auth-wordmark {
+  font-family: inherit;
+  font-size: clamp(2.5rem, 8vmin, 3.25rem);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1.05;
+  margin: 0;
+}
+
+.audr-auth-card {
+  width: 100%;
+  background: rgba(31, 46, 57, 0.52);
+  border: 1px solid rgba(118, 157, 163, 0.34);
+  backdrop-filter: blur(12px);
+  border-radius: 2px;
+}
+
+.audr-nav-logo {
+  width: 2rem;
+  height: 2rem;
+  object-fit: contain;
+  flex-shrink: 0;
+}

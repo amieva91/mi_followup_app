@@ -1,0 +1,35 @@
+{# Auðr storm backdrop — include inside a relative full-bleed container #}
+<div class="storm-scene" data-storm-scene aria-hidden="true">
+  <div class="storm-sky"></div>
+  <div class="storm-ship-wrap" data-storm-ship-wrap>
+    <img
+      class="storm-ship"
+      src="{{ url_for('static', filename='brand/viking-ship-silhouette.png') }}"
+      alt=""
+      width="920"
+      height="520"
+      decoding="async"
+    >
+  </div>
+  <div class="storm-sea" data-storm-sea>
+    <div class="storm-sea-glow" data-storm-sea-glow></div>
+    <div class="storm-waves">
+      <svg class="storm-wave-a" viewBox="0 0 1200 140" preserveAspectRatio="none">
+        <path class="storm-wave-body" d="M0,90 C80,120 160,50 260,85 C360,120 440,40 560,80 C680,120 760,45 880,88 C1000,125 1080,55 1200,82 L1200,140 L0,140 Z" />
+        <path class="storm-wave-crest" d="M0,90 C80,120 160,50 260,85 C360,120 440,40 560,80 C680,120 760,45 880,88 C1000,125 1080,55 1200,82" />
+      </svg>
+      <svg class="storm-wave-b" viewBox="0 0 1200 140" preserveAspectRatio="none">
+        <path class="storm-wave-body" d="M0,95 C120,60 220,110 340,70 C460,35 540,105 660,75 C780,40 900,100 1020,68 C1100,45 1150,90 1200,72 L1200,140 L0,140 Z" />
+        <path class="storm-wave-crest" d="M0,95 C120,60 220,110 340,70 C460,35 540,105 660,75 C780,40 900,100 1020,68 C1100,45 1150,90 1200,72" />
+      </svg>
+      <svg class="storm-wave-c" viewBox="0 0 1200 120" preserveAspectRatio="none">
+        <path class="storm-wave-body" d="M0,70 C100,95 200,45 320,78 C440,108 520,38 640,72 C760,102 860,48 980,80 C1080,108 1140,58 1200,75 L1200,120 L0,120 Z" />
+        <path class="storm-wave-crest" d="M0,70 C100,95 200,45 320,78 C440,108 520,38 640,72 C760,102 860,48 980,80 C1080,108 1140,58 1200,75" />
+      </svg>
+    </div>
+    <div class="storm-foam"></div>
+  </div>
+  <canvas class="storm-rain-canvas" data-storm-rain></canvas>
+  <div class="storm-lightning-layer" data-storm-lightning></div>
+  <div class="storm-vignette"></div>
+</div>

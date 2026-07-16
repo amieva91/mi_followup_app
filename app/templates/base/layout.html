@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() if csrf_token is callable else csrf_token }}">
-    <title>{% block title %}FollowUp{% endblock %} - Gestión Financiera Personal</title>
+    <title>{% block title %}Auðr{% endblock %} - Gestión patrimonial personal</title>
+    <link rel="icon" href="{{ url_for('static', filename='brand/favicon.svg') }}" type="image/svg+xml">
     
     <!-- Tailwind CSS CDN (temporal - luego usaremos compilado) -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -76,7 +77,7 @@
     
     {% block extra_css %}{% endblock %}
 </head>
-<body class="min-h-screen {% if request.endpoint == 'main.index' %}bg-[#243843]{% else %}bg-gray-50{% endif %}">
+<body class="min-h-screen {% if request.endpoint in ('main.index', 'auth.login', 'auth.register') %}bg-[#080f14]{% else %}bg-gray-50{% endif %}">
     
     <!-- Navbar (oculta en portada) -->
     {% if request.endpoint not in ('main.index', 'auth.login', 'auth.register') %}
@@ -87,11 +88,9 @@
             <div class="flex items-center justify-between gap-4">
                 <!-- Logo + Menú (izquierda) -->
                 <div class="flex items-center space-x-4 sm:space-x-6 flex-1 min-w-0 overflow-visible">
-                    <a href="{{ url_for('main.index') }}" class="flex items-center space-x-2 hover:opacity-80 transition flex-shrink-0">
-                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                        <span class="text-xl font-bold">FollowUp</span>
+                    <a href="{{ url_for('main.index') }}" class="flex items-center space-x-2 hover:opacity-80 transition flex-shrink-0" aria-label="Auðr">
+                        <img src="{{ url_for('static', filename='brand/audr-eth-oxidized.svg') }}" alt="" class="audr-nav-logo w-8 h-8" width="32" height="32">
+                        <span class="text-xl font-bold tracking-wide">AUÐR</span>
                     </a>
                     <span class="{{ nav_badge_class }} text-white px-3 py-1 rounded-full text-sm hidden sm:inline">v9.0.0</span>
                     
@@ -378,7 +377,7 @@
     <footer class="bg-gray-800 text-white mt-12 py-6">
         <div class="container mx-auto px-4 text-center">
             <p class="text-sm text-gray-400">
-                &copy; 2025 FollowUp - Gestión Financiera Personal
+                &copy; 2026 Auðr - Gestión patrimonial personal
             </p>
         </div>
     </footer>
