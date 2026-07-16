@@ -14,7 +14,8 @@ from app.models import CacheRebuildState
 def test_index_redirects_anonymous_to_landing(client):
     response = client.get("/")
     assert response.status_code == 200
-    assert b"FollowUp" in response.data or b"followup" in response.data.lower()
+    body = response.data.decode("utf-8", errors="ignore").lower()
+    assert "auðr" in body or "audr" in body or "storm-scene" in body
 
 
 @pytest.mark.smoke

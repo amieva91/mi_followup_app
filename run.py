@@ -1,5 +1,5 @@
 """
-Entry point para la aplicación FollowUp
+Entry point para la aplicación Auðr
 """
 import os
 from app import create_app

@@ -488,6 +488,6 @@ def health():
     """Health check endpoint"""
     return {
         'status': 'ok',
-        'app': 'FollowUp',
+        'app': 'Auðr',
         'version': '9.1.0'
     }, 200

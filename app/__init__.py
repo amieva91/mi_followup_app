@@ -1,5 +1,5 @@
 """
-Factory pattern para la aplicación FollowUp
+Factory pattern para la aplicación Auðr
 """
 import click
 from flask import Flask

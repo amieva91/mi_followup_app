@@ -14,7 +14,7 @@ import requests
 logger = logging.getLogger(__name__)
 
 CHART_API_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (compatible; FollowUp/1.0; mortgage-sim)"
+    "User-Agent": "Mozilla/5.0 (compatible; Audr/1.0; mortgage-sim)"
 }
 CHART_API_BASE = "https://query1.finance.yahoo.com/v8/finance/chart"
 

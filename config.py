@@ -1,5 +1,5 @@
 """
-Configuración de la aplicación FollowUp
+Configuración de la aplicación Auðr
 """
 import os
 from pathlib import Path
@@ -52,7 +52,7 @@ class Config:
     MAIL_DEFAULT_SENDER = os.environ.get('MAIL_USERNAME')
     
     # Application
-    APP_NAME = os.environ.get('APP_NAME', 'FollowUp')
+    APP_NAME = os.environ.get('APP_NAME', 'Auðr')
     # Usuario administrador fijo: contraseña inicial (cambiar en primer login)
     ADMIN_INITIAL_PASSWORD = os.environ.get('ADMIN_INITIAL_PASSWORD', 'CambiarPassword1!')
     ITEMS_PER_PAGE = int(os.environ.get('ITEMS_PER_PAGE', 20))

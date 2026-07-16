@@ -1,6 +1,6 @@
 {% extends "base/layout.html" %}
 
-{% block title %}Watchlist - FollowUp{% endblock %}
+{% block title %}Watchlist{% endblock %}
 
 {% block content %}
 {# Tooltip TIKR (ⓘ); title escapado para HTML #}
@@ -10,7 +10,7 @@
 {% set tikr_cagr_fechas %}Convención (preferente, referencia en tres años t+1, t y t−1: estimado / último cerrado / previo): t = último año fiscal cerrado o publicado; t−1 = anterior; t+1 = primera columna estimada en TIKR. CAGR 2 años entre el valor en t−1 y el valor en t+1: ((V(t+1)/V(t−1))^(1/2)−1)×100. Si no hay columna t+1: entre t y t−2. Si no aplica: entre t y t−3 (CAGR 3 años, solo actuales).{% endset %}
 {% set tikr_per_ntm %}TIKR → Multiples → Forward Multiples → fila «NTM Price / Normalized Earnings (P/E)». Columna con la fecha más reciente al copiar.{% endset %}
 {% set tikr_eps_ntm %}TIKR → Multiples → Forward Factors → «NTM Normalized Earnings Per Share». Alinear fecha y base (GAAP/normalized) con el PER NTM.{% endset %}
-{% set tikr_div_ntm %}TIKR → Multiples → Forward Multiples → «NTM Dividend Yield». Misma fecha que otros NTM. En FollowUp el % es número (2,5 = 2,5%).{% endset %}
+{% set tikr_div_ntm %}TIKR → Multiples → Forward Multiples → «NTM Dividend Yield». Misma fecha que otros NTM. En Auðr el % es número (2,5 = 2,5%).{% endset %}
 {% set tikr_cagr_revenue_full %}TIKR → Income Statement → «Total Revenues». {{ tikr_cagr_fechas }}{% endset %}
 {% set tikr_cagr_eps_full %}TIKR → Income Statement → Supplementary → «Diluted EPS Excl Extra Items» (o «EPS Normalized» en Actuals & Forward Estimates). {{ tikr_cagr_fechas }}{% endset %}
 {% set tikr_net_debt %}TIKR → Ratios → Long-Term Solvency → «Net Debt / EBITDA». LTM o último año según convengas.{% endset %}
@@ -20,12 +20,12 @@
 {% set tikr_ebitda_m %}TIKR → Ratios → Margin analysis → «EBITDA Margin %» (alternativa: Income Statement → «% EBITDA Margins»).{% endset %}
 {% set tikr_op_m %}TIKR → Ratios → Margin analysis → «EBIT Margin %» (alternativa: Income Statement → «% EBIT Margins»).{% endset %}
 {% set tikr_roic %}TIKR → Ratios → Return ratios → «Return on Capital % (ROC)» (proxy cercano a ROIC; revisa definición en TIKR). Columna LTM.{% endset %}
-{% set tikr_fcf_bn_modal %}{{ tikr_fcf_bn }} Uso en FollowUp: solo si faltan los dos márgenes LTM anteriores o el margen BN es ~0; si ambos márgenes son válidos, la app usa su cociente y este ratio se ignora.{% endset %}
+{% set tikr_fcf_bn_modal %}{{ tikr_fcf_bn }} Uso en Auðr: solo si faltan los dos márgenes LTM anteriores o el margen BN es ~0; si ambos márgenes son válidos, la app usa su cociente y este ratio se ignora.{% endset %}
 {% set tikr_bank_pb %}TIKR → Multiples → Trailing Multiples → «LTM Price / Book Value per Share». Columna con la fecha más reciente al copiar.{% endset %}
 {% set tikr_bank_roe %}TIKR → Ratios → Return ratios → «Return on Equity %» (alternativa: Actuals & Forward → BS supplementary → «Return on Equity (%)» si tu vista lo trae allí).{% endset %}
 {% set tikr_bank_cet1 %}TIKR → Ratios → Industry Metrics (banking) → «Core Tier 1 Capital Ratio %» o «Tier 1 Capital Ratio %»; usa la fila que alinee con tu definición de CET1.{% endset %}
 {% set tikr_bank_npl %}TIKR → Ratios → Industry Metrics → p. ej. «Nonperforming Loans / Total Loans %» (hay varias filas NPL/NPA; elige una y sé consistente).{% endset %}
-{% set tikr_bank_cost_to_income %}Cost-to-income (eficiencia bancaria): recomendado calcularlo en TIKR desde Income Statement → «Non Interest Expense» ÷ «Revenues Before Provision For Loan Losses» (mismo año fiscal o LTM), y guardar el resultado como % en FollowUp. No uses como equivalente Ratios → Margin analysis → «SG&A Margin %»: TIKR lo define como Selling General & Admin Expenses ÷ Total Revenues; es otro cociente (numerador más estrecho y denominador distinto), no reproduce el cost-to-income habitual.{% endset %}
+{% set tikr_bank_cost_to_income %}Cost-to-income (eficiencia bancaria): recomendado calcularlo en TIKR desde Income Statement → «Non Interest Expense» ÷ «Revenues Before Provision For Loan Losses» (mismo año fiscal o LTM), y guardar el resultado como % en Auðr. No uses como equivalente Ratios → Margin analysis → «SG&A Margin %»: TIKR lo define como Selling General & Admin Expenses ÷ Total Revenues; es otro cociente (numerador más estrecho y denominador distinto), no reproduce el cost-to-income habitual.{% endset %}
 {% set tikr_bank_nim %}NIM: TIKR a veces no muestra un «NIM %» clásico; sustituto habitual → Ratios → Industry Metrics → «Net Interest Income / Average Assets %». Si la fila existe pero los años que necesitas van vacíos, asume que TIKR no aporta dato para ese corte.{% endset %}
 {% set tikr_bank_bvps %}TIKR → Balance Sheet → Supplementary → «Book Value / Share» (alternativa: Multiples → Trailing Factors → «LTM Book Value per Share»).{% endset %}
 {% set tikr_bank_ldr %}TIKR → Ratios → Industry Metrics → «Gross Loans / Total Deposits %» (proxy habitual de préstamos/depósitos; revisa el ⓘ de la fila en TIKR).{% endset %}
