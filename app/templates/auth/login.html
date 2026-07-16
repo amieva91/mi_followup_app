@@ -7,12 +7,6 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Source+Sans+3:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/audr-storm.css') }}">
-<style>
-  .auth-title {
-    font-family: 'Cormorant Garamond', serif;
-    font-weight: 500;
-  }
-</style>
 {% endblock %}
 
 {% block content %}
@@ -25,59 +19,59 @@
       <h1 class="audr-auth-wordmark audr-oxidized">AUÐR</h1>
     </div>
 
-    <div class="audr-auth-card p-8 sm:p-10">
-      <div class="text-center mb-8">
-        <h2 class="auth-title text-3xl text-slate-50 mb-2">Iniciar sesión</h2>
-        <p class="text-slate-400 text-sm">Accede a tu cuenta</p>
-      </div>
+    <div class="audr-auth-card">
+      <h2 class="audr-auth-title">Iniciar sesión</h2>
+      <p class="audr-auth-sub">Accede a tu cuenta</p>
 
-      <form method="POST" action="{{ url_for('auth.login') }}" class="space-y-5">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+      <div class="mb-4 space-y-2">
+        {% for category, message in messages %}
+        <p class="{% if category == 'error' %}audr-auth-error{% else %}text-sm text-teal-200{% endif %}">{{ message }}</p>
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% endwith %}
+
+      <form method="POST" action="{{ url_for('auth.login') }}" class="audr-auth-form">
         {{ form.hidden_tag() }}
 
-        <div>
-          {{ form.email.label(class="block text-sm font-medium text-slate-300 mb-2") }}
-          {{ form.email(class="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 text-slate-100 rounded-sm placeholder-slate-500 focus:ring-1 focus:ring-slate-500 focus:border-slate-500 focus:outline-none transition") }}
+        <label class="audr-auth-label">
+          {{ form.email.label.text }}
+          {{ form.email(class="audr-auth-input", placeholder="tu@email.com", autocomplete="email") }}
           {% if form.email.errors %}
-            <p class="mt-1 text-sm text-amber-400">{{ form.email.errors[0] }}</p>
+            <p class="audr-auth-error">{{ form.email.errors[0] }}</p>
           {% endif %}
-        </div>
+        </label>
 
-        <div>
-          {{ form.password.label(class="block text-sm font-medium text-slate-300 mb-2") }}
-          {{ form.password(class="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 text-slate-100 rounded-sm placeholder-slate-500 focus:ring-1 focus:ring-slate-500 focus:border-slate-500 focus:outline-none transition") }}
+        <label class="audr-auth-label">
+          {{ form.password.label.text }}
+          {{ form.password(class="audr-auth-input", autocomplete="current-password") }}
           {% if form.password.errors %}
-            <p class="mt-1 text-sm text-amber-400">{{ form.password.errors[0] }}</p>
+            <p class="audr-auth-error">{{ form.password.errors[0] }}</p>
           {% endif %}
+        </label>
+
+        <div class="audr-auth-row">
+          <label class="audr-auth-check">
+            {{ form.remember_me() }}
+            <span>{{ form.remember_me.label.text }}</span>
+          </label>
+          <a href="{{ url_for('auth.request_reset') }}" class="audr-auth-link">¿Olvidaste tu contraseña?</a>
         </div>
 
-        <div class="flex items-center justify-between">
-          <div class="flex items-center">
-            {{ form.remember_me(class="h-4 w-4 rounded border-slate-600 bg-slate-800/50 text-slate-400 focus:ring-slate-500 focus:ring-offset-0") }}
-            {{ form.remember_me.label(class="ml-2 text-sm text-slate-400") }}
-          </div>
-          <a href="{{ url_for('auth.request_reset') }}" class="text-sm text-slate-400 hover:text-slate-300 transition">
-            ¿Olvidaste tu contraseña?
-          </a>
-        </div>
-
-        <div>
-          {{ form.submit(class="w-full py-3 px-4 bg-teal-50 text-slate-900 font-medium rounded-sm hover:bg-white transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-teal-300 focus:ring-offset-2 focus:ring-offset-slate-900") }}
-        </div>
+        {{ form.submit(class="audr-auth-submit") }}
       </form>
 
-      <div class="mt-6 text-center">
-        <p class="text-sm text-slate-500">
-          ¿No tienes cuenta?
-          <a href="{{ url_for('auth.register') }}" class="text-slate-400 hover:text-slate-300 font-medium transition">
-            Regístrate aquí
-          </a>
-        </p>
-      </div>
+      <p class="audr-auth-foot">
+        ¿No tienes cuenta?
+        <a href="{{ url_for('auth.register') }}">Regístrate aquí</a>
+      </p>
     </div>
 
-    <a href="{{ url_for('main.index') }}" class="text-sm text-slate-500 hover:text-slate-400 transition">
-      ← Volver a la portada
-    </a>
+    <p class="audr-auth-back">
+      <a href="{{ url_for('main.index') }}">Volver a la portada</a>
+    </p>
   </div>
 </div>
 {% endblock %}

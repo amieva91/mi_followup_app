@@ -419,16 +419,15 @@
   }
 }
 
-/* Auth pages with storm backdrop */
+/* Auth pages with storm backdrop (aligned with Auðr /login) */
 .audr-auth-page {
   background: #080f14;
   min-height: 100vh;
   position: relative;
   display: flex;
   flex-direction: column;
-  align-items: center;
   justify-content: center;
-  padding: 2rem 1rem;
+  padding: 6vh 1.5rem;
   overflow: hidden;
   font-family: 'Source Sans 3', sans-serif;
 }
@@ -437,11 +436,12 @@
   position: relative;
   z-index: 2;
   width: 100%;
-  max-width: 28rem;
+  max-width: 400px;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1.5rem;
+  gap: clamp(1.5rem, 4vh, 2.5rem);
 }
 
 .audr-auth-brand {
@@ -449,27 +449,188 @@
   flex-direction: row;
   align-items: baseline;
   justify-content: center;
-  gap: 0.3rem;
+  gap: 0.35rem;
+  width: 100%;
   font-family: 'Cormorant Garamond', Georgia, serif;
   font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
 }
 
 .audr-auth-iso,
 .audr-auth-wordmark {
   font-family: inherit;
-  font-size: clamp(2.5rem, 8vmin, 3.25rem);
+  font-size: clamp(3rem, 10vmin, 4.5rem);
   font-weight: 500;
   letter-spacing: 0.02em;
-  line-height: 1.05;
+  line-height: 1.1;
   margin: 0;
 }
 
 .audr-auth-card {
   width: 100%;
+  padding: 1.35rem 1.35rem 1.25rem;
   background: rgba(31, 46, 57, 0.52);
   border: 1px solid rgba(118, 157, 163, 0.34);
   backdrop-filter: blur(12px);
-  border-radius: 2px;
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 4px;
+  box-shadow: none;
+  color: #e2e8f0;
+}
+
+.audr-auth-title {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 1.75rem;
+  font-weight: 500;
+  text-align: center;
+  color: #f8fafc;
+  margin: 0 0 0.35rem;
+  line-height: 1.2;
+}
+
+.audr-auth-sub {
+  text-align: center;
+  font-size: 0.875rem;
+  color: #94a3b8;
+  margin: 0 0 1.25rem;
+}
+
+.audr-auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.audr-auth-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #cbd5e1;
+}
+
+.audr-auth-input {
+  min-height: 44px;
+  width: 100%;
+  border-radius: 4px;
+  border: 1px solid #475569;
+  background: rgba(30, 41, 59, 0.5);
+  color: #f1f5f9;
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.audr-auth-input:focus {
+  border-color: #0f766e;
+  box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.35);
+}
+
+.audr-auth-error {
+  color: #fda4af;
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+.audr-auth-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.audr-auth-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: #94a3b8;
+  cursor: pointer;
+  user-select: none;
+}
+
+.audr-auth-check input {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 3px;
+  border: 1px solid #64748b;
+  background: rgba(30, 41, 59, 0.6);
+  accent-color: #0f766e;
+  cursor: pointer;
+}
+
+.audr-auth-link {
+  font-size: 0.875rem;
+  color: #cbd5e1;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.audr-auth-link:hover {
+  color: #f8fafc;
+}
+
+.audr-auth-submit {
+  width: 100%;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.6rem 1.25rem;
+  border: none;
+  border-radius: 4px;
+  background: #0f766e;
+  color: #fff;
+  font-family: 'Source Sans 3', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.audr-auth-submit:hover {
+  background: #0d9488;
+}
+
+.audr-auth-submit:focus-visible {
+  outline: 2px solid rgba(15, 118, 110, 0.55);
+  outline-offset: 2px;
+}
+
+.audr-auth-foot {
+  margin-top: 1rem;
+  text-align: center;
+  font-size: 0.875rem;
+  color: #94a3b8;
+}
+
+.audr-auth-foot a {
+  color: #cbd5e1;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.audr-auth-foot a:hover {
+  color: #f8fafc;
+}
+
+.audr-auth-back {
+  text-align: center;
+  font-size: 0.875rem;
+  color: #94a3b8;
+}
+
+.audr-auth-back a {
+  color: #cbd5e1;
+  text-decoration: none;
+}
+
+.audr-auth-back a:hover {
+  color: #f8fafc;
 }
 
 .audr-nav-logo {

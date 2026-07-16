@@ -29,7 +29,7 @@ class LoginForm(FlaskForm):
     
     remember_me = BooleanField('Recordarme')
     
-    submit = SubmitField('Iniciar Sesión')
+    submit = SubmitField('Entrar')
 
 
 class RegisterForm(FlaskForm):
