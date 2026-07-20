@@ -3,9 +3,13 @@
 # Publica en la VM de producción (GCP) una rama ya existente en origin
 # (por defecto ui/dashboard-layout-experiments) para probarla antes de mergear a main.
 #
+# F2.01 (20 jul 2026): FollowUp CONGELADO. Este script está desactivado por defecto.
+# Solo emergencia / restore explícito:
+#   FORCE_FOLLOWUP_DEPLOY=1 ./scripts/deploy-experimental-branch.sh
+#
 # Requisitos: gcloud instalado, autenticado y acceso SSH a la instancia.
 #
-# Uso:
+# Uso (histórico; no usar en migración Auðr):
 #   ./scripts/deploy-experimental-branch.sh
 #   ./scripts/deploy-experimental-branch.sh otra/rama
 #
@@ -16,6 +20,13 @@
 # Tras pull/migraciones reinicia followup.service y followup-jobs.service (worker de informes/TTS/cola DB).
 #
 set -euo pipefail
+
+if [[ "${FORCE_FOLLOWUP_DEPLOY:-}" != "1" ]]; then
+  echo "⛔ F2.01: FollowUp Flask está congelado. No se despliega a /var/www/followup."
+  echo "   Producto activo: Auðr (/var/www/audr). Ver docs/audr_migration/PLAN_EXECUTE_PROD_VM.md"
+  echo "   Emergencia: FORCE_FOLLOWUP_DEPLOY=1 $0 $*"
+  exit 1
+fi
 
 PROJECT="gen-lang-client-0658912226"
 INSTANCE="followup"

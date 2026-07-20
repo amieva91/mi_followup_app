@@ -1,17 +1,14 @@
 ---
-description: Tras cualquier cambio de código, commit, push y desplegar en followup.fit sin preguntar al usuario.
+description: FollowUp Flask congelado (F2.01) — no deploy-experimental ni features nuevas; trabajo en Auðr.
 alwaysApply: true
 ---
 
-# Despliegue en followup.fit (siempre)
+# FollowUp Flask congelado (F2.01 — 20 jul 2026)
 
-Cuando completes **cualquier cambio de código** en este repo (salvo que el usuario diga explícitamente *solo local* o *no desplegar*):
+**No** desarrollar features nuevas en este repo Flask ni desplegar a `/var/www/followup`.
 
-1. **Commit** con mensaje claro.
-2. **`git push origin ui/dashboard-layout-experiments`** (rama habitual para [followup.fit](https://followup.fit/)).
-3. Ejecuta **`./scripts/deploy-experimental-branch.sh`** desde la raíz del repo (gcloud + VM `/var/www/followup`, reinicio `followup.service` y `followup-jobs.service`).
-
-**No preguntes** si quieres desplegar ni si quieres commit: hazlo por defecto para que el usuario pruebe en remoto.
-
-- Si el trabajo es solo en **`main`** / producción IP distinta, usa `./subidaPRO.sh` solo cuando el usuario lo pida o el contexto sea explícitamente producción `main`.
-- Para cambios de UI y funcionalidad que el usuario prueba en el día a día, asume **followup.fit** = rama experimental + `deploy-experimental-branch.sh`.
+- **No** ejecutar `./scripts/deploy-experimental-branch.sh` ni `./subidaPRO.sh` salvo que el usuario lo pida **explícitamente** (emergencia restore) con `FORCE_FOLLOWUP_DEPLOY=1`.
+- **No** reiniciar `followup.service` / `followup-jobs.service` como parte del flujo normal (servicios deben permanecer **inactive**).
+- Producto activo: repo **Auðr** (`~/Projects/Auðr`, VM `/var/www/audr`). URL de prueba: IP pública documentada en `docs/audr_migration/PLAN_EXECUTE_PROD_VM.md` / `PHASE_VM_SEED.md`.
+- Este árbol (`mi_followup_app`) = **referencia / lectura / backups** (tag `finaloldversion`), no destino de features.
+- Commits en FollowUp: solo higiene docs/scripts de migración o restore de emergencia, si el usuario lo pide.
